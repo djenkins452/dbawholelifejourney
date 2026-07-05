@@ -47,18 +47,18 @@ logger = logging.getLogger(__name__)
 #   - "habits"    → apps.habits model (updated_at)              [trigger: mission reads habit streaks]
 #   - "checkins"  → check-in model (updated_at)                 [trigger: mission reads check-in cadence]
 # Adding one is a single registry line — no control-flow changes.
+# REQUEST-PATH SAFETY: only LIGHT, bounded single-module builders belong here —
+# they run synchronously on the read path, so a heavy builder would violate the
+# "no heavy recomputation on the request thread" guarantee. journal (~5 queries)
+# and nutrition (~10 queries) qualify. `health` does NOT: its builder
+# (`build_health_state`) is the ~69-query heavy path, so it was removed
+# (2026-07-05) — health snapshot freshness comes from the write-time async warm
+# (`enqueue_module_warm(user, "health")` fired by the health.* event subscribers)
+# plus the periodic SAME cycle, never a synchronous read-path rebuild. Device- and
+# aggregate-driven modules must stay background-only.
 _MANUAL_MODULE_SOURCES = {
     "journal": ("apps.journal.models.JournalEntry", "updated_at"),
     "nutrition": ("apps.health.models.FoodEntry", "updated_at"),
-    # Health is synced from several device/manual tables (HealthKit weight,
-    # glucose, sleep). A write to ANY of them means the cached health snapshot
-    # is stale — the snapshot is not invalidated on these writes, which is the
-    # root cause of the stale-weight regression. A list of sources is supported.
-    "health": [
-        ("apps.health.models.WeightEntry", "recorded_at"),
-        ("apps.health.models.GlucoseEntry", "recorded_at"),
-        ("apps.health.models.SleepEntry", "recorded_at"),
-    ],
 }
 
 

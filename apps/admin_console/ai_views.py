@@ -105,22 +105,24 @@ class StartBethAcceptanceView(AdminRequiredMixin, View):
             suite_name=suite, depth=depth, created_by=request.user,
             target_user=request.user, environment=environment_label(),
             git_commit=git_commit(), status="running")
-        try:
-            from apps.ai.chatgpt_cos.tasks import run_beth_acceptance
-            run_beth_acceptance.delay(run.id, evening)
+        # Enqueue only — NEVER run the suite inline on the request thread (it
+        # would pin a gunicorn worker for the entire suite). safe_enqueue runs
+        # inline under EAGER (tests) and async in prod.
+        from apps.core.celery_utils import safe_enqueue
+        from apps.ai.chatgpt_cos.tasks import run_beth_acceptance
+        if safe_enqueue(run_beth_acceptance, run.id, evening):
             messages.success(request,
                              f"Started the {suite}/{depth} acceptance suite (run #{run.id}).")
-        except Exception:
-            logger.error("Failed to dispatch acceptance run", exc_info=True)
-            # Fallback: run inline (small suites) so the user is never stuck.
-            try:
-                from apps.ai.chatgpt_cos.acceptance_service import execute_run
-                execute_run(run, evening=evening)
-            except Exception:
-                run.status = "failed"
-                run.error_message = "Could not dispatch or run the suite."
-                run.save(update_fields=["status", "error_message"])
-                messages.error(request, "Could not start the acceptance run.")
+        else:
+            run.status = "failed"
+            run.error_message = (
+                "Could not dispatch the acceptance run (background workers "
+                "unavailable). Retry when Celery is healthy."
+            )
+            run.save(update_fields=["status", "error_message"])
+            messages.error(request,
+                           "Could not start the acceptance run — background "
+                           "workers are unavailable. Please retry shortly.")
         return redirect(reverse("admin_console:beth_acceptance_run",
                                 kwargs={"pk": run.id}))
 

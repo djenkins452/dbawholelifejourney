@@ -6314,7 +6314,9 @@ class ProviderAILookupView(LoginRequiredMixin, View):
                 })
 
             import openai
-            client = openai.OpenAI(api_key=openai_api_key)
+            # Bounded timeout — an untimed client can pin a gunicorn worker
+            # indefinitely if OpenAI hangs. This is a synchronous POST endpoint.
+            client = openai.OpenAI(api_key=openai_api_key, timeout=20, max_retries=1)
 
             prompt = f"""Look up the contact information for this healthcare provider:
 Provider Name: {provider_name}

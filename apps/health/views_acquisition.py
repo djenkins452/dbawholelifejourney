@@ -237,20 +237,19 @@ class CaptureSessionView(LoginRequiredMixin, View):
 
 
 def _enqueue_capture(session):
-    """Hand the session to the Celery worker (off the request path). Falls back to
-    inline processing only if dispatch fails outright, so a session never silently
-    stalls — never live-computes Vision in the web process by default."""
+    """Hand the session to the Celery worker (off the request path).
+
+    NEVER live-computes Vision in the web process: `process_capture_session`
+    calls the OpenAI Vision API (multi-second), so running it inline would pin a
+    gunicorn worker. If the broker is unavailable, mark the session so the user
+    can retry (CaptureRetryView) once background processing is healthy.
+    safe_enqueue runs inline under EAGER (tests), async in prod."""
+    from apps.core.celery_utils import safe_enqueue
     from apps.health.tasks import process_medication_capture
-    try:
-        process_medication_capture.delay(session.id)
-    except Exception:
-        logger.error("capture %s: could not enqueue worker task", session.id,
-                     exc_info=True)
-        from apps.health.capture_session import process_capture_session
-        try:
-            process_capture_session(session)
-        except Exception:
-            session.mark_failed("We couldn't start analysis. Please retry.")
+    if not safe_enqueue(process_medication_capture, session.id):
+        logger.warning("capture %s: broker unavailable — marking for retry",
+                       session.id)
+        session.mark_failed("We couldn't start analysis right now. Please retry.")
 
 
 def _session_review_url(session):

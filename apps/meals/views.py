@@ -1236,20 +1236,16 @@ class ReceiptProcessingStatusView(LoginRequiredMixin, MealsHouseholdMixin, View)
         status = receipt.confirmation_status
 
         if status == Receipt.CONFIRM_PROCESSING:
-            # Safety net: if receipt is still processing after 8s, process
-            # synchronously. This handles edge cases where the upload view's
-            # sync processing somehow didn't complete.
+            # Recovery: if the receipt is stuck (>8s, <25% progress), the worker
+            # likely didn't pick up the task. RE-ENQUEUE it (fire-and-forget) —
+            # NEVER run OpenAI Vision on this poll thread. Keep reporting
+            # "processing" until the worker lands; the task is idempotent.
             age_seconds = (timezone.now() - receipt.created_at).total_seconds()
 
             if age_seconds > 8 and receipt.image and receipt.processing_progress < 25:
-                logger.warning(
-                    "Receipt %d stuck in processing for %.0fs, running sync fallback",
-                    pk,
-                    age_seconds,
-                )
-                self._sync_process_receipt(receipt)
-                receipt.refresh_from_db()
-                status = receipt.confirmation_status
+                from apps.core.celery_utils import safe_enqueue
+                from apps.meals.tasks import process_receipt_image_task
+                safe_enqueue(process_receipt_image_task, receipt.pk)
 
         response = {
             "status": status,
@@ -1814,29 +1810,15 @@ class PantryScanConfirmView(
         still_processing = total_uploads > 0 and processed_uploads < total_uploads
 
         if still_processing:
-            # Safety fallback: if session is older than 30s and still unprocessed,
-            # the Celery worker likely didn't pick up the task. Process sync.
+            # Recovery: if the session is stuck (>30s), the worker likely didn't
+            # pick up the task. RE-ENQUEUE it (fire-and-forget) — NEVER run
+            # OpenAI Vision on this page-render thread. The page shows the
+            # "processing" state and its poll drives completion.
             age_seconds = (timezone.now() - session.created_at).total_seconds()
             if age_seconds > 30:
-                logger.warning(
-                    "Pantry scan session %d stuck after %.0fs — processing sync fallback",
-                    session.pk, age_seconds,
-                )
-                from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
-                for upload in session.uploads.filter(processed=False):
-                    try:
-                        pantry_photo_detection_service.process_upload(upload)
-                    except Exception as e:
-                        logger.error(
-                            "Sync fallback failed for upload %d: %s",
-                            upload.pk, e, exc_info=True,
-                        )
-                        upload.processed = True
-                        upload.raw_detection_json = {"error": str(e)}
-                        upload.save(update_fields=["processed", "raw_detection_json"])
-                # Re-check after sync processing
-                processed_uploads = session.uploads.filter(processed=True).count()
-                still_processing = processed_uploads < total_uploads
+                from apps.core.celery_utils import safe_enqueue
+                from apps.meals.tasks import process_pantry_scan_task
+                safe_enqueue(process_pantry_scan_task, session.pk)
 
             if still_processing:
                 context["session"] = session
@@ -1959,25 +1941,16 @@ class PantryScanStatusView(LoginRequiredMixin, MealsHouseholdMixin, View):
 
         # Sync fallback: if session older than 30s and still unprocessed,
         # Celery worker likely didn't pick up the task. Process one upload
-        # per poll request to make incremental progress without blocking too long.
+        # Recovery: if the session is stuck (>30s, still unprocessed), the
+        # worker likely didn't pick up the task. RE-ENQUEUE it (fire-and-forget)
+        # — NEVER run OpenAI Vision on this poll thread. The task is idempotent
+        # (already-processed uploads are skipped), so a duplicate enqueue is safe.
         if still_unprocessed:
             age_seconds = (timezone.now() - session.created_at).total_seconds()
             if age_seconds > 30:
-                next_upload = session.uploads.filter(processed=False).first()
-                if next_upload:
-                    from apps.meals.services.pantry_photo_detection import pantry_photo_detection_service
-                    try:
-                        pantry_photo_detection_service.process_upload(next_upload)
-                    except Exception as e:
-                        logger.error(
-                            "Status poll sync fallback failed for upload %d: %s",
-                            next_upload.pk, e, exc_info=True,
-                        )
-                        next_upload.processed = True
-                        next_upload.raw_detection_json = {"error": str(e)}
-                        next_upload.save(update_fields=["processed", "raw_detection_json"])
-                    # Re-count
-                    processed = session.uploads.filter(processed=True).count()
+                from apps.core.celery_utils import safe_enqueue
+                from apps.meals.tasks import process_pantry_scan_task
+                safe_enqueue(process_pantry_scan_task, session.pk)
 
         return JsonResponse({
             "processing": total > 0 and processed < total,

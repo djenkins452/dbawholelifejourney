@@ -145,6 +145,52 @@ def extract_document_facts_task(document_id):
     return _run_fact_extraction_sync(document)
 
 
+@shared_task(
+    name="life.extract_document_metadata_signals",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+)
+def deferred_document_metadata_signals(document_id):
+    """Phase 5.5 metadata signal extraction — OFF the request path.
+
+    `DocumentSignalExtractor.extract_signals` includes a conditional LLM
+    (Tier-2) branch for long description/notes text, so it must not run on the
+    Document-save request thread. Enqueued via safe_enqueue from the post_save
+    signal. Fail-safe.
+    """
+    from apps.life.models import Document
+
+    document = Document.objects.filter(pk=document_id).first()
+    if document is None:
+        return {'success': False, 'error': 'Document not found'}
+    try:
+        from apps.life.services.document_signal_extractor import DocumentSignalExtractor
+        signals = DocumentSignalExtractor.extract_signals(document)
+        if signals:
+            from apps.core.ai_eae.targeted_recompute import (
+                TargetedSignalRecomputeService,
+                update_extraction_telemetry,
+            )
+            date = document.created_at.date()
+            TargetedSignalRecomputeService.recompute_for_document(
+                document.user, date, signals,
+            )
+            avg_conf = sum(s.confidence for s in signals) / len(signals)
+            update_extraction_telemetry(
+                'document', processed=1, success=1,
+                signals_extracted=len(signals),
+                avg_confidence=round(avg_conf, 2),
+            )
+        return {'success': True, 'signals': len(signals) if signals else 0}
+    except Exception as e:
+        logger.warning(
+            "Document metadata signal extraction failed for %s: %s",
+            document_id, e, exc_info=True,
+        )
+        return {'success': False, 'error': str(e)[:200]}
+
+
 def _run_fact_extraction_sync(document):
     """Run the full fact extraction + signal mapping pipeline synchronously."""
     from apps.life.services.document_fact_extractor import DocumentFactExtractor

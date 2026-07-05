@@ -69,7 +69,9 @@ def generate_speech(
     try:
         from openai import OpenAI
 
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Bounded timeout — an untimed client can pin a gunicorn worker
+        # indefinitely if OpenAI hangs. TTS is a synchronous request-path call.
+        client = OpenAI(api_key=settings.OPENAI_API_KEY, timeout=30, max_retries=1)
 
         response = client.audio.speech.create(
             model=model,

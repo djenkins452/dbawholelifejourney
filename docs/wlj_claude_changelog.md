@@ -6,6 +6,31 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(perf): application-wide request-path safety sweep — no interactive request waits on async infra, LLM, or heavy recompute
+
+Follow-up to the dashboard/task-completion regression: audited **every** interactive HTTP request path (three parallel deep audits + manual sweep) against the guarantee *"a request thread must never synchronously wait on Celery, Redis, the result backend, background intelligence, LLM inference, or heavy recomputation."* Confirmed clean: **zero** Celery result-backend waits (`AsyncResult.get`/`.ready`/`.wait`) and **zero** blocking Redis ops (`blpop`/`brpop`) on any request path; the Ops Wall polls a snapshot; chat streaming is a bounded SSE relay. Fixed every confirmed violation:
+
+**Background intelligence / heavy recompute moved off the request thread:**
+- **`fire_intelligence()` now enqueues** (`apps/core/ai_orchestrator/intelligence_hook.py` + new `core.deferred_fire_intelligence` task). It was called inline in ~20 `form_valid()` sites (health/journal/purpose/faith/meals + the mobile HealthKit ingest), each running `update_user_state` (the ~69-query health SAE builder) + a full `run_insights` pass on the request thread. Now fire-and-forget via `safe_enqueue`; the synchronous body lives in `run_intelligence_chain` for the worker. Measured: `fire_intelligence` **~70q+insights inline → 37 ms** (broker down).
+- **`ensure_fresh` no longer rebuilds `health` on the read/chat path** (`apps/core/ai_state/state_freshness.py`): the `health` key mapped to the ~69q builder and ran synchronously whenever a weight/glucose/sleep row post-dated the snapshot (its own docstring wrongly claimed health was excluded — registry now matches). Health freshness comes from the write-time async warm + SAME cycle. Light bounded modules (journal ~5q, nutrition ~10q) stay.
+
+**LLM inference moved off the request thread (incidental paths):**
+- **Notes embedding** (new `apps/notes/tasks.py` + `apps/notes/signals.py`): `embeddings.create` ran inline on every Note/tag/attachment write — now deferred via `safe_enqueue(deferred_update_note_embedding)`.
+- **Document metadata signals** (`apps/life/signals.py` + `life.extract_document_metadata_signals` task): the conditional-LLM `DocumentSignalExtractor` ran inline on Document save — now deferred (sibling content-extraction was already async).
+
+**Untimed OpenAI clients (a hang pins a worker forever) — bounded:**
+- `apps/ai/tts_service.py` (TTS) and `apps/health/views.py` (provider AI lookup): added `timeout=`/`max_retries=1` to the OpenAI clients.
+
+**Synchronous fallbacks / poll-thread compute removed:**
+- `apps/admin_console/ai_views.py`: Beth acceptance suite no longer runs inline on broker failure — enqueue-only, mark for retry.
+- `apps/health/views_acquisition.py`: medication-capture Vision no longer runs inline on broker failure — enqueue-only, mark for retry.
+- `apps/meals/views.py` (×3): pantry/receipt status polls + the confirm page-load no longer run OpenAI Vision when a task looks stuck — they **re-enqueue** the idempotent background task instead.
+
+**Scope note — intentional AI endpoints:** user-invoked, timeout-bounded synchronous AI calls where the user is explicitly waiting (non-streaming chat fallback, scan/barcode lookups, receipt/pantry/recipe upload POSTs, Gmail scan, help chat, legacy import) were NOT rewritten — that is a UX refactor (async + poll UI), not a hidden-block fix. They are bounded by request timeouts; the production mitigation is worker-queue isolation (chat streaming already uses a dedicated queue).
+
+**Files:** apps/core/ai_orchestrator/intelligence_hook.py, apps/core/tasks.py, apps/core/ai_state/state_freshness.py, apps/notes/tasks.py (new), apps/notes/signals.py, apps/life/signals.py, apps/life/tasks/document_extraction.py, apps/ai/tts_service.py, apps/health/views.py, apps/health/views_acquisition.py, apps/admin_console/ai_views.py, apps/meals/views.py; tests updated: apps/ai/tests/test_health_freshness.py (now asserts NO sync health rebuild). 369 tests green across ai_insights, notes, journal, health capture, meals scan, life signals, acceptance, weight, goals.
+
+
 ## 2026-07-05 — feat(cos): Whole-Life Executive Understanding, Stage 1 — reach + synthesize the stranded intelligence
 
 North-star doc `docs/WLJ_WHOLE_LIFE_EXECUTIVE_UNDERSTANDING.md`. The investigation found WLJ already COMPUTES the intelligence a Chief of Staff lives on — `Insight` (ai_insights), `Prediction` (ai_predictions, per-domain rules), `DomainCorrelation` (ai_cross_domain), `GuidanceItem` (ai_guidance) — but it was STRANDED: a grep of the cos_services tools and `interpret()` for Insight/Prediction/correlation returned nothing. Beth could neither reach nor synthesize it. Stage 1 makes it reachable AND synthesized with the smallest safe diff on the existing path — no new brain, engine, or pipeline.

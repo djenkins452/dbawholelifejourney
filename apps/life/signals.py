@@ -259,9 +259,8 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
     """
     Extract signals from Document metadata on creation.
 
-    Document extraction is synchronous (rule-based, fast) with conditional
-    LLM for documents with long description/notes text.
-    Only runs on creation — not on updates (to avoid re-processing).
+    Metadata extraction includes a conditional LLM branch, so it runs OFF the
+    request thread (deferred to Celery via safe_enqueue). Only on creation.
     """
     if not created:
         return
@@ -278,34 +277,11 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
         logger.warning("Document signal gate check failed: %s", e)
         return
 
-    try:
-        from apps.life.services.document_signal_extractor import DocumentSignalExtractor
-        signals = DocumentSignalExtractor.extract_signals(instance)
-
-        if signals:
-            from apps.core.ai_eae.targeted_recompute import (
-                TargetedSignalRecomputeService,
-                update_extraction_telemetry,
-            )
-            date = instance.created_at.date()
-            TargetedSignalRecomputeService.recompute_for_document(
-                user, date, signals,
-            )
-            avg_conf = sum(s.confidence for s in signals) / len(signals)
-            update_extraction_telemetry(
-                'document', processed=1, success=1,
-                signals_extracted=len(signals),
-                avg_confidence=round(avg_conf, 2),
-            )
-            logger.info(
-                "Document %s: extracted %d signals, recomputed",
-                instance.pk, len(signals),
-            )
-    except Exception as e:
-        logger.warning(
-            "Document signal extraction failed for %s: %s",
-            instance.pk, e, exc_info=True,
-        )
+    # Fire-and-forget: DocumentSignalExtractor can call an LLM (Tier-2), which
+    # must never block the Document-save request. Runs inline under EAGER/tests.
+    from apps.core.celery_utils import safe_enqueue
+    from apps.life.tasks.document_extraction import deferred_document_metadata_signals
+    safe_enqueue(deferred_document_metadata_signals, instance.pk)
 
     # Phase 6A: Dispatch async content extraction (PDF/OCR → raw_text → facts)
     # This runs AFTER the Phase 5.5 metadata extraction (which is synchronous).

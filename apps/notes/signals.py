@@ -19,6 +19,21 @@ from .models import Note, NoteAttachment
 logger = logging.getLogger(__name__)
 
 
+def _enqueue_note_embedding(note_id):
+    """Enqueue the OpenAI-backed embedding refresh off the request thread.
+
+    Embedding generation calls the OpenAI API; a note save is NOT a path the
+    user should wait on an LLM for. Fire-and-forget via safe_enqueue (runs
+    inline under EAGER/tests, async in prod, skipped if the broker is down —
+    the next content edit re-enqueues).
+    """
+    if not note_id:
+        return
+    from apps.core.celery_utils import safe_enqueue
+    from .tasks import deferred_update_note_embedding
+    safe_enqueue(deferred_update_note_embedding, note_id)
+
+
 # ---------------------------------------------------------------------------
 # Note tag/attachment signals (Phase 3)
 # ---------------------------------------------------------------------------
@@ -74,12 +89,7 @@ def note_post_save_embedding(sender, instance, created, **kwargs):
                     break
 
     if needs_embedding:
-        try:
-            from .embeddings import update_note_embedding
-
-            update_note_embedding(instance)
-        except Exception as e:
-            logger.error("Embedding update failed for Note %s: %s", instance.pk, e)
+        _enqueue_note_embedding(instance.pk)
 
 
 @receiver(m2m_changed, sender=Note.tags.through)
@@ -87,14 +97,9 @@ def note_tags_changed(sender, instance, action, **kwargs):
     """Rebuild tags_text, refresh search_vector, and update embedding when tags change."""
     if action in ("post_add", "post_remove", "post_clear"):
         instance.refresh_search_index(rebuild_tags=True)
-        # Tags changed → refresh embedding too
-        try:
-            from .embeddings import update_note_embedding
-
-            instance.refresh_from_db(fields=["tags_text"])
-            update_note_embedding(instance)
-        except Exception as e:
-            logger.error("Embedding update after tag change failed for Note %s: %s", instance.pk, e)
+        # Tags changed → refresh embedding too (deferred; the worker reads the
+        # freshly-persisted tags_text when it rebuilds the embedding text).
+        _enqueue_note_embedding(instance.pk)
 
 
 @receiver(post_save, sender=NoteAttachment)
@@ -102,13 +107,7 @@ def attachment_created(sender, instance, created, **kwargs):
     """Rebuild attachments_text and update embedding when a NoteAttachment is created."""
     if created:
         instance.note.refresh_search_index(rebuild_attachments=True)
-        try:
-            from .embeddings import update_note_embedding
-
-            instance.note.refresh_from_db(fields=["attachments_text"])
-            update_note_embedding(instance.note)
-        except Exception as e:
-            logger.error("Embedding update after attachment created failed: %s", e)
+        _enqueue_note_embedding(instance.note_id)
 
 
 @receiver(post_delete, sender=NoteAttachment)
@@ -118,13 +117,7 @@ def attachment_deleted(sender, instance, **kwargs):
         # note may have been cascade-deleted; check it still exists
         note = Note.objects.get(pk=instance.note_id)
         note.refresh_search_index(rebuild_attachments=True)
-        try:
-            from .embeddings import update_note_embedding
-
-            note.refresh_from_db(fields=["attachments_text"])
-            update_note_embedding(note)
-        except Exception as e:
-            logger.error("Embedding update after attachment deleted failed: %s", e)
+        _enqueue_note_embedding(note.pk)
     except Note.DoesNotExist:
         pass
 

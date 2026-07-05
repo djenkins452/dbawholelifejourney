@@ -738,6 +738,42 @@ def check_system_health_task():
 
 
 @shared_task(
+    name="core.deferred_fire_intelligence",
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def deferred_fire_intelligence(user_id, module, record_id=None, action="record_created"):
+    """Run the post-save intelligence chain (SAE → PIE → PRIE) off the request
+    path. Enqueued by ``fire_intelligence`` via safe_enqueue; the heavy body
+    (`update_user_state` ~69q for health + full `run_insights`) runs here in the
+    worker, never on the gunicorn thread. Fail-safe — never raises.
+    """
+    from django.contrib.auth import get_user_model
+
+    user = get_user_model().objects.filter(pk=user_id, is_active=True).first()
+    if user is None:
+        return {"status": "user_not_found", "user_id": user_id, "module": module}
+    try:
+        from apps.core.ai_orchestrator.intelligence_hook import run_intelligence_chain
+        run_intelligence_chain(user, module, record_id, action)
+        return {"status": "ok", "user_id": user_id, "module": module}
+    except SoftTimeLimitExceeded:
+        logger.warning(
+            "deferred_fire_intelligence soft-time-limit: user=%s module=%s",
+            user_id, module,
+        )
+        return {"status": "soft_timeout", "user_id": user_id, "module": module}
+    except Exception:
+        logger.warning(
+            "deferred_fire_intelligence failed: user=%s module=%s",
+            user_id, module, exc_info=True,
+        )
+        return {"status": "failed", "user_id": user_id, "module": module}
+
+
+@shared_task(
     name="core.deferred_sae_refresh",
     soft_time_limit=30,
     time_limit=45,

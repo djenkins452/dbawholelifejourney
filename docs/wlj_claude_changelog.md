@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — test(arch): ENFORCE request-path safety — CI blocks reintroducing heavy-intelligence / inline-LLM on request threads
+
+The request-path guarantees were FOLLOWED (developer discipline) but not ENFORCED — a future change could silently reintroduce the 15–20s regression class. Added the missing architectural enforcement (no new infrastructure — the WLJ AST-purity-test idiom, cf. `test_visual_truth_contract.py` / `tests_metric_access.py`):
+
+- **`apps/core/tests/test_request_path_safety_contract.py`** — fails CI if any request-path module (`views*.py` / `signals.py` / `api*.py`) (1) calls a canonical-state rebuild / heavy-intelligence function (`update_user_state`, `rebuild_user_state`, `run_intelligence_chain`, `run_insights`, `build_health_state`, `compute_system_life_impact`, `compute_signal_health`), or (2) constructs an OpenAI client / issues an LLM completion inline — unless the module is in the reviewed `INLINE_LLM_ALLOWLIST` (currently only `apps/health/views.py`, the user-invoked provider lookup). Proven to bite: a probe injecting `update_user_state()` + `OpenAI()` into a `views_*.py` fails with exact file:line; removal goes green. A `test_scanner_actually_scans_request_modules` guard prevents a vacuous pass.
+- **`docs/WLJ_REQUEST_PATH_SAFETY.md`** (new) — the guarantee, per-rule ENFORCED-vs-FOLLOWED status, the safeguard, and the documented residual risk (service-layer LLM reachability is review-governed, not statically enforceable).
+- **CLAUDE.md** — added the "ENFORCED (not just followed)" note under the "Never Compute on Request Path" rule, pointing at the contract test + doc.
+
+Enforcement status after this change: async-infra block (the 20s mechanism) = ENFORCED by config; heavy-intelligence / canonical rebuild / inline-LLM on request threads = ENFORCED by CI test; service-layer LLM reachability = review-governed via the allowlist. WLJ can now honestly claim: *interactive user requests never depend on asynchronous infrastructure or heavy intelligence* (for the incident's failure class).
+
+**Files:** apps/core/tests/test_request_path_safety_contract.py (new), docs/WLJ_REQUEST_PATH_SAFETY.md (new), CLAUDE.md. 3 contract tests green; regression-probe verified failing then passing.
+
+
 ## 2026-07-05 — fix(perf): application-wide request-path safety sweep — no interactive request waits on async infra, LLM, or heavy recompute
 
 Follow-up to the dashboard/task-completion regression: audited **every** interactive HTTP request path (three parallel deep audits + manual sweep) against the guarantee *"a request thread must never synchronously wait on Celery, Redis, the result backend, background intelligence, LLM inference, or heavy recomputation."* Confirmed clean: **zero** Celery result-backend waits (`AsyncResult.get`/`.ready`/`.wait`) and **zero** blocking Redis ops (`blpop`/`brpop`) on any request path; the Ops Wall polls a snapshot; chat streaming is a bounded SSE relay. Fixed every confirmed violation:

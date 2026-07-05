@@ -190,6 +190,11 @@ Background population (SAME cycle, every 60s):
 compute → write DB snapshot (for history) → update cache (for real-time display)
 ```
 
+**ENFORCED (not just followed):**
+- Request-path enqueues are **fire-and-forget by config**: `CELERY_TASK_IGNORE_RESULT=True` + 0.5s broker/result socket timeouts (`config/settings.py`) mean `.delay()` can never block on a degraded Redis. Always enqueue via `apps/core/celery_utils.py :: safe_enqueue` (non-blocking, no sync fallback). Post-write intelligence goes through `fire_intelligence()` (which enqueues `core.deferred_fire_intelligence`) — **never** call `update_user_state` / `run_intelligence_chain` / `run_insights` / `build_health_state` / `rebuild_user_state` inline in a view or signal.
+- Request-path SAE reads use `get_module_state(..., allow_rebuild=False)`.
+- **`apps/core/tests/test_request_path_safety_contract.py` fails CI** if any `views*.py` / `signals.py` / `api*.py` calls a heavy-intelligence/rebuild function or issues an inline LLM call. A new user-invoked AI endpoint must be added to that test's `INLINE_LLM_ALLOWLIST` in the same change (the reviewed audit trail). Full guarantee + rationale: `docs/WLJ_REQUEST_PATH_SAFETY.md`.
+
 **Exception Handling — Never Swallow Errors:**
 - **NEVER** use `except Exception: pass` on critical paths (intent recognition, execution, safety gates). This hides real errors and causes silent functional loss.
 - **Separate `ImportError` from `Exception`:** Use `except ImportError: pass` for optional modules (expected), then `except Exception: logger.error(...)` for real errors (must be visible).

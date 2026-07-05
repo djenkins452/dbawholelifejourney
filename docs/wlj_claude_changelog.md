@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): "How am I doing overall?" is an executive briefing; "most important thing right now" always answers deterministically
+
+Two production failures.
+
+#1 — "How am I doing overall?" produced a HEALTH REPORT (weight/glucose/sleep/steps/protein), ignoring the whole life. Root cause: it routed to `personal_reasoning` (LLM health intents) — the `cos_briefing` executive-briefing lane never claimed it (`_BRIEFING_SIGNALS`/`_FULL_BRIEF_SIGNALS` had no "how am I doing overall"). Fix: `cos_briefing` now claims whole-life overview phrasing (`_OVERVIEW_SIGNALS`: "how am I doing overall", "how are things going", "how's my life", "give me an overview", "executive summary"…) and routes it to `compose_executive_brief` (orientation → priorities → risks/opportunities → agenda across the whole person). A DOMAIN-qualifier guard (`_OVERVIEW_DOMAIN_QUALIFIERS`: health/weight/glucose/goal/faith/finance/…) keeps scoped questions ("how am I doing on my weight", "…with my health goals") on reasoning/foundational — existing health routing preserved.
+
+#2 — "What is the single most important thing I should do right now?" replied "I couldn't pull that together…" (the tool-loop/LLM fallback, `service.py:238`). Root cause: NO lane claimed it → it fell to the LLM, which failed, with no deterministic fallback. Fix: new deterministic `priority_now` lane (before `cos_briefing`) that NEVER touches the LLM and NEVER errors — `_deterministic_priority_answer` degrades through the exact chain the CoS should: (1) health-critical time-sensitive actions (reuses `_health_critical_actions`), (2) the canonical execution decision (`_h_decision` → `build_execution_state` → selectors — the SAME pipeline behind CosDecisionView), (3) the current rhythm item, (4) a canonical honest last resort. Every source is deterministic; the "nothing pending" placeholder is skipped so the answer reads naturally.
+
+Certified with both production conversations: "How am I doing overall?" → `cos_briefing` executive briefing ("Looking at everything together, today is more manageable…"), not a health report; "single most important thing right now?" → `priority_now` deterministic answer (execution decision when there's real work; a useful canonical answer otherwise), and it STILL answers when the execution service and rhythm both throw — never "I couldn't pull that together". Registry-order guards updated (new `priority_now` lane). Regression `apps/ai/tests/test_overview_and_priority.py` (6): overview → executive briefing; domain-scoped overview not stolen; priority always answers / never the generic failure; health-critical leads; graceful degrade when every preferred source fails; execution decision used when available. 81 across overview+priority + conversation-lanes + health-critical + whole-life + P31/P32 + check-in + decision-support GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_conversation_lanes.py, apps/ai/tests/test_overview_and_priority.py (new).
+
+
 ## 2026-07-05 — fix(perf): THE real production dashboard blocker — medication-adherence N+1 (1,613 queries → collapsed)
 
 The async/Celery work did not fix the live symptom (dashboard 5–7s, task completion 15–20s) because the real blocker was never Redis — that was a LOCAL artifact (no local broker). The production blocker is a **query-count N+1 that is invisible on SQLite (in-process, µs/query) but devastating on Postgres-over-the-network (~2–3ms/query)**.

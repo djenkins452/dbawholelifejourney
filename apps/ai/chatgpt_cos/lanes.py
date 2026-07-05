@@ -213,12 +213,19 @@ def _cos_briefing_lane(user, message, conversation=None):
     Beth already has the truth for must never depend on the LLM or fall to the
     tool loop."""
     norm = _normalize(message)
-    if not (any(s in norm for s in _BRIEFING_SIGNALS) or _is_greeting(norm)):
+    # "How am I doing overall?" is a WHOLE-LIFE executive question → the executive
+    # briefing, NOT a health report. But a domain-scoped overview ("how am I doing on
+    # my weight / health goals") stays a domain question — yield it to reasoning.
+    overview = any(s in norm for s in _OVERVIEW_SIGNALS)
+    if overview and any(d in norm for d in _OVERVIEW_DOMAIN_QUALIFIERS):
+        overview = False
+    if not (overview or any(s in norm for s in _BRIEFING_SIGNALS) or _is_greeting(norm)):
         return None
     # A FULL-briefing request ("what should I know", "brief me", "how's my day",
-    # "what do I need to know") gets the EXECUTIVE BRIEF COMPOSER (P32) — orientation
-    # first, agenda last. Narrow asks ("wrap up", "30 minutes") stay on the agenda.
-    full_brief = any(s in norm for s in _FULL_BRIEF_SIGNALS)
+    # "what do I need to know", "how am I doing overall") gets the EXECUTIVE BRIEF
+    # COMPOSER (P32) — orientation first, agenda last. Narrow asks ("wrap up", "30
+    # minutes") stay on the agenda.
+    full_brief = overview or any(s in norm for s in _FULL_BRIEF_SIGNALS)
     try:
         if full_brief:
             from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
@@ -242,6 +249,23 @@ _FULL_BRIEF_SIGNALS = (
     "how is my day looking", "how's my day looking", "hows my day looking",
     "how is my day", "my day looking", "where do things stand", "what needs my attention",
     "needs my attention", "good morning", "good afternoon", "good evening",
+)
+
+# Whole-life "how am I doing overall?" → the executive briefing (spans the whole
+# person), never a health report. Domain-scoped variants are excluded below.
+_OVERVIEW_SIGNALS = (
+    "how am i doing overall", "how am i doing", "how am i doing today", "how am i overall",
+    "overall how am i", "how are things going", "how's everything going",
+    "how is everything going", "how's everything", "how is everything", "how's my life",
+    "how is my life", "give me an overview", "overall picture", "the big picture",
+    "executive summary", "executive briefing", "how am i tracking overall",
+)
+# A domain qualifier makes "how am I doing" a DOMAIN question (health/weight/goals/…),
+# which stays with reasoning/foundational — the whole-life briefing does not claim it.
+_OVERVIEW_DOMAIN_QUALIFIERS = (
+    "health", "weight", "glucose", "blood", "sleep", "workout", "exercise", "protein",
+    "calorie", "nutrition", "goal", "faith", "prayer", "bible", "finance", "money",
+    "budget", "relationship", "task", "habit", "streak", "on my",
 )
 
 
@@ -284,6 +308,69 @@ def _next_rhythm_lane(user, message, conversation=None):
             answer += f" After that: {upcoming['title'].strip()}."
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "next_rhythm"}
+
+
+# "What is the single most important thing I should do right now?" — arguably the CoS's
+# most important question. It must ALWAYS have a deterministic answer and NEVER fall to
+# the LLM (whose failure produced "I couldn't pull that together").
+_MOST_IMPORTANT_SIGNALS = (
+    "most important thing", "single most important", "the one thing i should",
+    "one thing i should do", "top priority", "my top priority", "highest priority",
+    "what matters most right now", "whats the most important", "what's the most important",
+    "what should i focus on right now", "what should i do right now",
+    "most important thing right now", "the single biggest thing",
+)
+
+
+def _deterministic_priority_answer(user):
+    """The single most important action, gracefully degrading through deterministic
+    sources — NEVER an error. Order: health-critical → execution decision (selectors) →
+    rhythm → canonical last resort. Never returns None."""
+    # 1) HEALTH-CRITICAL time-sensitive actions outrank everything.
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import _health_critical_actions
+        hc = _health_critical_actions(user)
+        if hc:
+            return (f"Right now, the single most important thing is to handle {hc[0]['text']} "
+                    f"— {hc[0]['why']}. Do that first.")
+    except Exception:
+        logger.warning("priority_now: health-critical failed", exc_info=True)
+    # 2) The canonical deterministic execution decision (build_execution_state → selector).
+    try:
+        from apps.ai.cos_services.tool_registry import _h_decision
+        d = _h_decision(user, mode="execution") or {}
+        msg = (d.get("message") or d.get("primary_action") or "").strip()
+        _nothing = ("nothing pending", "nothing scheduled", "all caught up",
+                    "nothing to do", "nothing right now")
+        if msg and not any(k in msg.lower() for k in _nothing):
+            reason = (d.get("reason") or "").strip()
+            tail = f" — {reason.rstrip('.')}" if reason and reason.lower() not in msg.lower() else ""
+            action = msg[0].lower() + msg[1:] if msg[:1].isupper() and " " in msg else msg
+            return f"The single most important thing right now is to {action}{tail}."
+    except Exception:
+        logger.warning("priority_now: execution decision failed", exc_info=True)
+    # 3) Rhythm — the current scheduled item.
+    try:
+        from apps.core.cos_briefing.rhythm_api import get_current_rhythm_item
+        item = get_current_rhythm_item(user)
+        if item and (item.get("title") or "").strip():
+            return f"Right now, focus on {item['title'].strip()} — it's what's in front of you."
+    except Exception:
+        logger.warning("priority_now: rhythm failed", exc_info=True)
+    # 4) Canonical last resort — a deterministic, honest answer, never an error.
+    return ("Right now, take the next concrete step on today's top commitment. If nothing "
+            "is scheduled, the highest-value move is a quick reset — water, a short walk, "
+            "or your most important task — so you start the next block with momentum.")
+
+
+def _most_important_lane(user, message, conversation=None):
+    """Deterministic answer to 'the single most important thing right now'. Reuses the
+    execution-decision selectors + the health-critical rule; degrades gracefully so it
+    NEVER errors or reaches the tool loop."""
+    if not any(s in _normalize(message) for s in _MOST_IMPORTANT_SIGNALS):
+        return None
+    return {"answer": _deterministic_priority_answer(user), "tools_called": [],
+            "tools_advertised": [], "lane": "priority_now"}
 
 
 # Honest capability-gap for goals — until a canonical goal engine exists, Beth
@@ -1265,6 +1352,8 @@ LANE_REGISTRY = (
     # can claim the follow-up (Conversation Continuity).
     ("general_continuity", _general_continuity_lane),
     ("next_rhythm", _next_rhythm_lane),
+    # "The single most important thing right now" — always deterministic, never the LLM.
+    ("priority_now", _most_important_lane),
     ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),

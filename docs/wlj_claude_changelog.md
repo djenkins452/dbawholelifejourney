@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Executive Pattern candidate quality — no analytics artifacts, no jargon, no self-domain "correlations"
+
+**Root cause:** The Executive Pattern CDCE block accepted ANY active `DomainCorrelation` and rendered its action from raw domain slugs. A `health→health` correlation (`detect_nutrition_energy` stores nutrition↔transformation as health⟺health) produced: *"Nutrition compliance (89%) is supporting your transformation score (70/100). A strong correlation between health and health over 52 observations. Watch the leading side — health — to move health."* — a same-domain analytics artifact, a metric-to-score readout, and nonsense slug phrasing. All three are things a Chief of Staff would never say.
+
+**Fix (smallest safe — tighten candidate filtering + phrasing in `whole_life_patterns()`):** a CDCE correlation now qualifies as an executive pattern ONLY if it clears a real minimum standard:
+- **Genuinely cross-domain** — `domain_a != domain_b` AND both map to distinct, human-nameable life areas via `_DOMAIN_LABEL` (sleep, mood, faith practice, workouts, goals, habits, relationships, finances, …). A `health→health` "correlation" is filtered out.
+- **Human-readable** — new `_is_metric_jargon()` rejects metric-to-score analytics artifacts (`score (`, `/100`, `compliance … %`, `correlation`, `metric`). Applied to CDCE narratives AND cross-domain insight/prediction text.
+- **No slug phrasing** — the "leading side — {slug} — to move {slug}" action is gone; a qualifying correlation gets a clean human action/basis ("a repeated link between your sleep and your mood"). The human narrative carries the insight.
+
+When nothing clears the bar, the honest-empty response runs ("no whole-life pattern clears the bar yet…") — a real CoS would rather say that than pass off a weak analytics artifact as insight.
+
+**Files:** `apps/ai/cos_intelligence.py` (`_DOMAIN_LABEL`, `_is_metric_jargon`, CDCE + cross-domain filters), `apps/ai/chatgpt_cos/lanes.py` (honest-empty copy), `apps/ai/tests/test_executive_pattern.py` (quality tests).
+
+**Verification:** 21 pattern/whole-life tests green including new quality tests — same-domain excluded, metric-to-score excluded (even if cross-domain by slug), genuine sleep↔mood correlation renders human + slug-free, and the EXACT production correlation now declines honestly with none of {leading side, health and health, score (, /100, transformation score, compliance, correlation}. (Test DB rebuilt around a concurrent session's in-progress `legacy/0032` migration; one unrelated evening-time-of-day check-in test fails identically on baseline.)
+
 ## 2026-07-05 — fix(dashboard): Mission Truth — "How Things Are Going" reconciles milestone HISTORY with CURRENT state
 
 **Problem:** the mission "How things are going" panel said "Milestone reached — you cleared 'Goal Weight 284.9'" while current weight was 285.3. Historically true, but not the mission's CURRENT state.

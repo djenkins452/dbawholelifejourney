@@ -348,6 +348,31 @@ _PATTERN_SRC_RANK = {"eae_pattern": 0, "cdce_correlation": 1, "cross_domain": 2}
 # A whole-life pattern must clear this confidence before it's presentable as executive.
 _PATTERN_CONF_FLOOR = 0.40
 
+# Domain slug → human, plain-English life area. A CDCE correlation may become an
+# executive pattern ONLY if BOTH sides map here AND they are DIFFERENT areas. A
+# health→health "correlation" is a within-domain analytics artifact, not a life pattern
+# a Chief of Staff would surface. Labels are bare nouns (phrased as "your {label}").
+_DOMAIN_LABEL = {
+    "sleep": "sleep", "journal": "mood", "mood": "mood",
+    "faith": "faith practice", "scripture": "faith practice",
+    "fitness": "workouts", "exercise": "workouts", "health": "health",
+    "nutrition": "nutrition", "goals": "goals", "purpose": "goals",
+    "habits": "habits", "relationships": "relationships",
+    "finance": "finances", "transformation": "transformation",
+}
+
+
+def _is_metric_jargon(text):
+    """A metric-to-score analytics artifact ("Nutrition compliance (89%) supporting your
+    transformation score (70/100)") reads as a dashboard readout, not a hidden life
+    pattern. Reject it — a Chief of Staff surfaces human patterns, never raw analytics."""
+    t = (text or "").lower()
+    if "/100" in t or "score (" in t or " score " in t or t.endswith(" score"):
+        return True
+    if "compliance" in t and "%" in t:
+        return True
+    return "correlation" in t or "metric" in t
+
 
 def whole_life_patterns(user):
     """Deterministic WHOLE-LIFE pattern candidates for Executive Pattern Discovery, in
@@ -383,18 +408,30 @@ def whole_life_patterns(user):
     except Exception:
         logger.debug("patterns: EAE derived read failed", exc_info=True)
 
-    # 2) CDCE cross-domain correlations — statistical links across two life areas.
+    # 2) CDCE cross-domain correlations — MINIMUM STANDARD: genuinely cross-domain (two
+    #    DIFFERENT, human-nameable life areas — NEVER health→health), and human-readable
+    #    (NEVER a metric-to-score analytics artifact). Anything weaker is filtered out so
+    #    the honest-empty answer runs instead of surfacing an analytics artifact. No
+    #    "leading side" slug language — the human narrative carries the insight.
     try:
         from apps.core.ai_cross_domain.models import DomainCorrelation
         for c in list(DomainCorrelation.objects.filter(user=user, status="active")
-                      .order_by("-strength_score")[:3]):
-            if not (c.narrative or "").strip():
-                continue
+                      .order_by("-strength_score")[:6]):
+            narrative = (c.narrative or "").strip()
+            da = (c.domain_a or "").strip().lower()
+            db = (c.domain_b or "").strip().lower()
+            if not narrative or not da or da == db:
+                continue                                   # self/same-domain → not a pattern
+            la, lb = _DOMAIN_LABEL.get(da), _DOMAIN_LABEL.get(db)
+            if not la or not lb or la == lb:
+                continue                                   # not two distinct, nameable areas
+            if _is_metric_jargon(narrative):
+                continue                                   # analytics artifact, not a life pattern
             candidates.append({
-                "text": (c.narrative or "").strip()[:220],
-                "action": f"watch the leading side — {c.domain_a} — to move {c.domain_b}",
-                "basis": f"a {c.strength} correlation between {c.domain_a} and {c.domain_b} "
-                         f"over {getattr(c, 'data_points', 0)} observations",
+                "text": narrative[:220],
+                "action": f"these move together, so the habit that steadies your {la} "
+                          f"tends to lift your {lb} too",
+                "basis": f"a repeated link between your {la} and your {lb}",
                 "confidence": float(getattr(c, "strength_score", 0.0) or 0.0),
                 "source": "cdce_correlation"})
     except Exception:
@@ -405,8 +442,11 @@ def whole_life_patterns(user):
         from apps.core.ai_insights.models import Insight
         for i in list(Insight.objects.filter(user=user, module="cross_domain")
                       .exclude(status="dismissed").order_by("-created_at")[:3]):
+            text = (i.title or (i.message or "")[:160]).strip()
+            if not text or _is_metric_jargon(text):
+                continue                                   # human patterns only, no analytics
             candidates.append({
-                "text": (i.title or (i.message or "")[:160]).strip(),
+                "text": text,
                 "action": (i.message or "").strip()[:200] or "watch how these two areas move together",
                 "basis": "a cross-domain insight WLJ synthesized",
                 "confidence": float(i.confidence_score or 0.0), "source": "cross_domain"})
@@ -416,8 +456,11 @@ def whole_life_patterns(user):
         from apps.core.ai_predictions.models import Prediction
         for p in list(Prediction.objects.filter(user=user, module="cross_domain", status="active")
                       .order_by("-confidence_score")[:2]):
+            text = (p.explanation or p.prediction_type).strip()[:200]
+            if not text or _is_metric_jargon(text):
+                continue                                   # human patterns only, no analytics
             candidates.append({
-                "text": (p.explanation or p.prediction_type).strip()[:200],
+                "text": text,
                 "action": "act before the forecast lands, not after",
                 "basis": "a cross-domain prediction WLJ computed",
                 "confidence": float(p.confidence_score or 0.0), "source": "cross_domain"})

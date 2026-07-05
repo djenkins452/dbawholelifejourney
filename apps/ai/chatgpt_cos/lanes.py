@@ -581,8 +581,9 @@ def _deterministic_pattern_answer(user):
             "dress a single trend up as a whole-life pattern.")
     else:
         parts.append(
-            "As a few more weeks of cross-domain data accumulate, real correlations can "
-            "surface; today there simply isn't enough evidence to claim one honestly.")
+            "As a few more weeks of cross-domain data accumulate, real whole-life "
+            "patterns can surface; today there simply isn't enough evidence to claim one "
+            "honestly.")
     return " ".join(parts)
 
 

@@ -154,3 +154,48 @@ class ExecutivePatternLaneTests(TestCase):
 
     def test_unrelated_message_not_claimed(self):
         self.assertIsNone(_executive_pattern_lane(self.user, "what's my glucose right now?"))
+
+
+class ExecutivePatternQualityTests(TestCase):
+    """Candidate quality is the acceptance bar: an executive pattern must be genuinely
+    cross-domain, human-readable, and never an analytics artifact. The production
+    failure — "health→health … watch the leading side — health — to move health" —
+    must be impossible."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="epq@test.com", password="x")
+
+    _JARGON = "Nutrition compliance (89%) is supporting your transformation score (70/100)."
+
+    def test_same_domain_correlation_is_never_a_candidate(self):
+        _correlation(self.user, a="health", b="health", score=0.92, narrative=self._JARGON)
+        self.assertEqual(whole_life_patterns(self.user)["candidates"], [])
+
+    def test_metric_to_score_narrative_excluded_even_if_cross_domain(self):
+        _correlation(self.user, a="nutrition", b="transformation", score=0.9, narrative=self._JARGON)
+        self.assertEqual(whole_life_patterns(self.user)["candidates"], [])
+
+    def test_genuine_cross_domain_correlation_is_human_and_slug_free(self):
+        _correlation(self.user, a="sleep", b="journal", score=0.85,
+                     narrative="On 7h+ nights your mood entries are more positive.")
+        cands = whole_life_patterns(self.user)["candidates"]
+        self.assertTrue(cands)
+        c = cands[0]
+        blob = (c["text"] + " " + c["action"] + " " + c["basis"]).lower()
+        self.assertNotIn("leading side", blob)
+        self.assertNotIn("health and health", blob)
+        self.assertNotIn("correlation", blob)
+        self.assertIn("sleep", blob)
+        self.assertIn("mood", blob)
+
+    def test_production_failure_now_declines_honestly_never_jargon(self):
+        # The EXACT production correlation → no candidate clears → honest empty, and the
+        # banned phrasings can never appear.
+        _correlation(self.user, a="health", b="health", score=0.92, narrative=self._JARGON)
+        out = _executive_pattern_lane(
+            self.user, "What pattern do you see in my life that I probably don't recognize yet?")
+        low = out["answer"].lower()
+        self.assertIn("no whole-life pattern clears the bar", low)
+        for banned in ("leading side", "health and health", "score (", "/100",
+                       "transformation score", "compliance", "correlation"):
+            self.assertNotIn(banned, low, f"banned phrasing leaked: {banned}")

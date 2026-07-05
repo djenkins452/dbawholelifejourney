@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — refine(legacy): step-parent inference is a confidence evaluation, not an age gate
+
+Follow-up to the confident step-parent inference: age must be ONE factor in an "overwhelming evidence" judgment, not the deciding rule. Replaced the hard `child was a minor` gate with `_step_verdict(single_candidate, marriage_year, child_birth, couple_has_children)` → infer / clarify / skip, driven by combined confidence (infer ≥ 0.85, skip ≤ 0.35):
+
+- competing spouses → **clarify** (genuine ambiguity, can never be "obvious")
+- a lone spouse of the parent → base 0.5 (a plausible step-parent)
+- chronology **contributes**: minor at the marriage +0.4, young adult (≤25) +0.2, clearly grown −0.2; married before the child's birth → **clarify** (conflict)
+- the marriage produced/raised children together (a real, integrated family) +0.2
+
+So the same cases still resolve correctly — Danny/Gloria (single, minor, shared child) infers; competing/unclear → clarify; adult-at-marriage → skip — but now a **young adult (22) with a shared child and no competing spouse still infers**, which a minor-only gate would have wrongly refused. Age helps decide; it no longer decides alone. The Clarification Engine consumes the same evaluation, so ask/infer stay consistent.
+
+**Verified.** New test `test_age_is_a_factor_not_a_gate` (child 22 at marriage + shared child → inferred). 122 legacy tests green. No new migration — 0031 restores confident steps using the new evaluation.
+
+**Files:** apps/legacy/services/import_engine.py (`_step_verdict`, `couple_has_children` in `analyze_step_candidates`), apps/legacy/tests/test_gedcom.py.
+
+
 ## 2026-07-05 — feat(legacy): step-parents — confident inference on overwhelming evidence, clarify the rest
 
 Refinement of the step-parent removal: bring back intelligent inference, but ONLY when the evidence is overwhelming and unambiguous. New shared classifier `analyze_step_candidates(user)` returns (infer, clarify):

@@ -337,6 +337,20 @@ class ImporterTypesRelationshipsTests(TestCase):
         self.assertEqual([c for c in clarification.pending(batch)
                           if c["kind"] == "step_parent"], [])
 
+    def test_age_is_a_factor_not_a_gate(self):
+        # The child was a young ADULT (22) at the marriage — a minor-only gate would
+        # refuse — but the marriage produced a child together (a real, integrated family)
+        # and there is no competing spouse, so the evidence is overwhelming → infer.
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME Marv /J/\n1 SEX M\n"
+               "0 @I2@ INDI\n1 NAME Barb /D/\n1 SEX F\n"
+               "0 @I3@ INDI\n1 NAME Kid /J/\n1 SEX M\n1 BIRT\n2 DATE 1958\n"
+               "0 @I4@ INDI\n1 NAME Glo /K/\n1 SEX F\n"
+               "0 @I5@ INDI\n1 NAME Half /J/\n1 SEX F\n"
+               "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n"
+               "0 @F2@ FAM\n1 HUSB @I1@\n1 WIFE @I4@\n1 CHIL @I5@\n1 MARR\n2 DATE 1980\n0 TRLR\n")
+        u = self._commit("factor@example.com", ged=ged)
+        self.assertEqual(self._rel(u, "Glo K", "Kid J"), "stepmother of")   # age 22, but obvious
+
     def test_adult_child_at_marriage_is_neither_inferred_nor_asked(self):
         # The child was 40 when the parent remarried — not a meaningful step-parent.
         ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME Marv /J/\n1 SEX M\n"

@@ -314,9 +314,6 @@ def _step_type(sex):
             else "stepmother of" if s.startswith("F") else "step-parent of")
 
 
-_STEP_MINOR_AGE = 18   # child was a minor at the parent's marriage → in-household step-parent
-
-
 def _add_clarify(clarify, spouse_id, parent_id, child_id):
     for c in clarify:
         if c["spouse_id"] == spouse_id and c["parent_id"] == parent_id:
@@ -325,17 +322,42 @@ def _add_clarify(clarify, spouse_id, parent_id, child_id):
     clarify.append({"spouse_id": spouse_id, "parent_id": parent_id, "child_ids": {child_id}})
 
 
-def analyze_step_candidates(user):
-    """Classify every possible step-parent in the CURRENT graph as INFER or CLARIFY.
+# Confidence thresholds for the "would a reasonable person say Legacy already knows?"
+# evaluation. Age is ONE input, never the sole gate.
+_STEP_INFER_AT = 0.85    # overwhelming → conclude, no question
+_STEP_SKIP_AT = 0.35     # too weak to be a meaningful step-parent → neither infer nor ask
 
-    INFER (auto-create, no question) requires ALL of:
-      • the candidate MARRIED the child's parent (a known marriage: married / former), and
-      • that parent has exactly ONE such candidate spouse (no competing spouses), and
-      • the marriage year is known and the child was a MINOR at the marriage.
-    Otherwise, when a real candidate exists → CLARIFY (multiple candidates, or unknown /
-    conflicting chronology). A child already an ADULT at the marriage is skipped — neither
-    inferred nor asked (not a meaningful step-parent). A (spouse, parent) the user already
-    answered is never re-inferred or re-asked (teach-once).
+
+def _step_verdict(single_candidate, marriage_year, child_birth, couple_has_children):
+    """Weigh the evidence that a parent's spouse is a step-parent to that parent's child,
+    and return 'infer' | 'clarify' | 'skip'. No single factor decides it:
+      • competing spouses → genuine ambiguity (can't be obvious) → clarify
+      • a lone spouse of the parent is a plausible step-parent (base confidence)
+      • chronology CONTRIBUTES: minor at the marriage (strong), young adult (mild),
+        clearly grown (against); married before the child's birth is a conflict → clarify
+      • a marriage that produced/raised children is a real, integrated family (adds)
+    Only when the combined confidence is overwhelming does Legacy conclude on its own."""
+    if not single_candidate:
+        return "clarify"                       # multiple possible step-parents
+    conf = 0.5                                  # a lone spouse of the parent — plausible
+    if marriage_year is not None and child_birth is not None:
+        age = marriage_year - child_birth
+        if age < 0:
+            return "clarify"                    # married before the child was born → conflict
+        conf += 0.4 if age <= 18 else 0.2 if age <= 25 else -0.2
+    if couple_has_children:
+        conf += 0.2                             # the marriage raised a family together
+    if conf >= _STEP_INFER_AT:
+        return "infer"
+    if conf <= _STEP_SKIP_AT:
+        return "skip"
+    return "clarify"
+
+
+def analyze_step_candidates(user):
+    """Classify every possible step-parent in the CURRENT graph as INFER, CLARIFY, or
+    skip — via `_step_verdict` (an overwhelming-evidence evaluation, not an age gate).
+    A (spouse, parent) the user already answered is never re-inferred or re-asked.
 
     Returns (infer, clarify):
       infer   = [(spouse_id, child_id, rtype)]
@@ -346,6 +368,7 @@ def analyze_step_candidates(user):
     from apps.legacy.models import ClarificationDecision, Relationship
 
     parents_of = defaultdict(set)
+    children_of = defaultdict(set)
     spouses = defaultdict(set)
     myear = {}          # frozenset({a, b}) -> marriage year (or None)
     sex, birth = {}, {}
@@ -359,6 +382,7 @@ def analyze_step_candidates(user):
         pairs.add((r.from_person_id, r.to_person_id))
         if _is_parentish(t):
             parents_of[r.to_person_id].add(r.from_person_id)
+            children_of[r.from_person_id].add(r.to_person_id)
         elif "married" in t or "spouse" in t:     # a KNOWN marriage (married to / former spouse of)
             spouses[r.from_person_id].add(r.to_person_id)
             spouses[r.to_person_id].add(r.from_person_id)
@@ -374,16 +398,21 @@ def analyze_step_candidates(user):
             # candidate step-spouses of THIS parent: married to p, not the child's parent
             cands = [s for s in spouses.get(p, ())
                      if s not in prnts and s != child_id and (s, child_id) not in pairs]
-            competing = len(cands) > 1
+            single = len(cands) == 1
             for s in cands:
                 if "%d:%d" % (s, p) in decided:
-                    continue                              # user already taught Legacy
-                Y = myear.get(frozenset((p, s)))
-                if competing or Y is None or B is None or Y < B:
-                    _add_clarify(clarify, s, p, child_id)                 # ambiguous → ask
-                elif Y <= B + _STEP_MINOR_AGE:
-                    infer.append((s, child_id, _step_type(sex.get(s))))   # overwhelming → infer
-                # else Y > B + 18: the child was an adult at the marriage → skip
+                    continue                          # user already taught Legacy
+                verdict = _step_verdict(
+                    single_candidate=single,
+                    marriage_year=myear.get(frozenset((p, s))),
+                    child_birth=B,
+                    couple_has_children=bool(children_of.get(p, set())
+                                             & children_of.get(s, set())))
+                if verdict == "infer":
+                    infer.append((s, child_id, _step_type(sex.get(s))))
+                elif verdict == "clarify":
+                    _add_clarify(clarify, s, p, child_id)
+                # "skip" → neither inferred nor asked
     return infer, clarify
 
 

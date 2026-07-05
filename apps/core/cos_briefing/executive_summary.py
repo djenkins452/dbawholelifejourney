@@ -704,6 +704,10 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
 
     ordered_view = deduped[:MAX_NEEDS_ATTENTION]
 
+    # Universal Action Routing: every finding declares how to act on it, so any
+    # surface (briefing, accountability card, Beth) offers the SAME "go do it"
+    # affordance instead of only describing the problem.
+    from apps.core.action_router import route_for_finding
     return [
         {
             "title": i.title,
@@ -711,6 +715,7 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
             "module": i.module,
             "severity": i.severity,
             "insight_type": i.insight_type,
+            "route": route_for_finding(i).as_dict(),
         }
         for i in ordered_view
     ]
@@ -1207,6 +1212,7 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
     same recommendation twice.
     """
     from apps.core.ai_guidance.models import GuidanceItem
+    from apps.core.action_router import route_for_finding
 
     # Pull a wider pool than we'll show so dedup can collapse repeats without
     # starving the row of distinct items. order_by priority (value) first.
@@ -1227,6 +1233,9 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
             "priority": g.priority,
             "module": g.module,
             "guidance_type": g.guidance_type,
+            # Universal Action Routing — a recommendation should take you to
+            # where you act on it, not just name it.
+            "route": route_for_finding(g).as_dict(),
         })
         if len(out) >= MAX_RECOMMENDATIONS:
             break

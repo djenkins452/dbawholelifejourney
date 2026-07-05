@@ -1,0 +1,25 @@
+{% comment %}
+Universal Action Affordance — render ONE actionable item's interaction from its
+`route` (apps/core/action_router.ActionRoute.as_dict()). Include this anywhere an
+actionable item appears so the interaction is IDENTICAL across the dashboard,
+Executive Briefing, accountability cards, etc.
+
+    {% include "dashboard_v3/partials/_action_affordance.html" with route=item.route %}
+
+  • complete_here → a "Mark Complete" button (data-v3-toggle → the same
+                    optimistic-complete + async refresh the rhythm items use).
+  • open_workflow → a "→" link straight to the workflow that performs it.
+  • informational → renders nothing.
+{% endcomment %}
+{% if route.is_actionable %}
+    {% if route.action_type == 'complete_here' and route.complete_url %}
+        <button type="button" class="v3-action-do v3-action-complete"
+                data-v3-toggle hx-post="{{ route.complete_url }}" hx-swap="none"
+                {% if route.tooltip %}title="{{ route.tooltip }}"{% endif %}>
+            ✓ {{ route.complete_label|default:"Mark Complete" }}
+        </button>
+    {% elif route.destination_url %}
+        <a class="v3-action-do v3-action-go" href="{{ route.destination_url }}"
+           {% if route.tooltip %}title="{{ route.tooltip }}"{% endif %}>{{ route.destination_label|default:"Open" }} →</a>
+    {% endif %}
+{% endif %}

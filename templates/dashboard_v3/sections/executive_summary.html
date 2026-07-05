@@ -33,7 +33,7 @@
             {% if summary.needs_attention %}
                 <ul class="v3-tight v3-tight-warn">
                     {% for item in summary.needs_attention %}
-                        <li><span class="v3-mark" aria-hidden="true">{% if item.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ item.title }}</li>
+                        <li><span class="v3-mark" aria-hidden="true">{% if item.severity == 'critical' %}!{% else %}⚠{% endif %}</span><span class="v3-attn-text">{{ item.title }}</span>{% include "dashboard_v3/partials/_action_affordance.html" with route=item.route %}</li>
                     {% endfor %}
                 </ul>
             {% else %}<p class="v3-muted">All clear.</p>{% endif %}
@@ -68,7 +68,11 @@
         <div class="v3-exec-recs">
             <span class="v3-h4 v3-h4-inline">Recommended Focus —</span>
             {% for r in summary.recommendations %}
-                <span class="v3-rec-chip v3-rec-chip-p{{ r.priority }}">{{ r.title }}</span>
+                {% if r.route.destination_url %}
+                    <a class="v3-rec-chip v3-rec-chip-p{{ r.priority }} v3-rec-chip-link" href="{{ r.route.destination_url }}"{% if r.route.tooltip %} title="{{ r.route.tooltip }}"{% endif %}>{{ r.title }} →</a>
+                {% else %}
+                    <span class="v3-rec-chip v3-rec-chip-p{{ r.priority }}">{{ r.title }}</span>
+                {% endif %}
             {% endfor %}
         </div>
     {% endif %}

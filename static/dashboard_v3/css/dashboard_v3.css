@@ -764,6 +764,41 @@
     pointer-events: none;
     transition: opacity 0.15s ease;
 }
+
+/* ── Universal Action Routing affordances ──────────────────────────────
+   One look for "go do it" / "complete it" wherever an actionable item shows.
+   Rendered by templates/dashboard_v3/partials/_action_affordance.html. */
+.v3-attn-text { }  /* text stays inline; affordance follows it */
+.v3-action-do {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: 6px;
+    font-size: 0.78em;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+    border-radius: var(--v3-radius-sm, 6px);
+    vertical-align: baseline;
+}
+.v3-action-go {
+    color: var(--v3-accent, #4338ca);
+    padding: 1px 4px;
+}
+.v3-action-go:hover { text-decoration: underline; }
+.v3-action-complete {
+    color: #fff;
+    background: var(--v3-accent, #4338ca);
+    border: none;
+    padding: 2px 8px;
+    min-height: 24px;
+    cursor: pointer;
+}
+.v3-action-complete:hover { filter: brightness(1.08); }
+/* Recommendation chips that carry a destination become subtle links. */
+.v3-rec-chip-link { text-decoration: none; cursor: pointer; }
+.v3-rec-chip-link:hover { text-decoration: underline; }
 .v3-ritem-glyph {
     display: inline-flex;
     align-items: center;

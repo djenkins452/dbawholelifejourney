@@ -2094,8 +2094,12 @@ def _build_accountability_cards(user) -> list[dict]:
             i for i in domain_insights
             if i.severity in ("warning", "critical")
         ])
+        from apps.core.action_router import route_for_finding
         needs_attention = [
-            {"title": i.title, "message": i.message, "severity": i.severity}
+            {
+                "title": i.title, "message": i.message, "severity": i.severity,
+                "route": route_for_finding(i).as_dict(),
+            }
             for i in _dom_attention
         ][:3]
 

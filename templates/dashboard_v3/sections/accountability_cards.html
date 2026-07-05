@@ -17,7 +17,7 @@
                             <span class="v3-card-slot-label v3-card-slot-warn">Attention</span>
                             <ul class="v3-tight v3-tight-warn v3-tight-sm">
                                 {% for n in card.needs_attention %}
-                                    <li><span class="v3-mark" aria-hidden="true">{% if n.severity == 'critical' %}!{% else %}⚠{% endif %}</span>{{ n.title }}</li>
+                                    <li><span class="v3-mark" aria-hidden="true">{% if n.severity == 'critical' %}!{% else %}⚠{% endif %}</span><span class="v3-attn-text">{{ n.title }}</span>{% include "dashboard_v3/partials/_action_affordance.html" with route=n.route %}</li>
                                 {% endfor %}
                             </ul>
                         </div>

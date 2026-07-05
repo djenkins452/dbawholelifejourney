@@ -33,21 +33,21 @@ class LLMReportedEvidenceTests(TestCase):
         # The real LLM prompt builder; it reads the evidence LIVE from the user.
         return format_cos_system_injection({"_user": self.user, "user_id": self.user.id})
 
-    def test_prompt_includes_accomplishments_and_subjective(self):
+    def test_prompt_carries_the_executive_read_of_reported_evidence(self):
         with mock.patch(_TODAY, return_value=TODAY):
             ev.record_subjective(self.user, "positive")
             ev.record_accomplishment(self.user, "made up 2 missed workouts (Wednesday, Friday)")
             inj = self._injection()
-        self.assertIn("TODAY'S REPORTED EVIDENCE", inj)
-        self.assertIn("made up 2 missed workouts", inj)
-        self.assertIn("refreshed", inj.lower())          # feeling GOOD / refreshed
+        self.assertIn("TODAY'S EXECUTIVE HEADLINE", inj)
+        self.assertIn("made up 2 missed workouts", inj)     # in the headline
         self.assertIn("ahead of plan", inj.lower())
-        self.assertIn("own it", inj.lower())             # own the miss if challenged
+        self.assertIn("TODAY'S EXECUTIVE PICTURE", inj)
+        self.assertIn("highest-leverage", inj.lower())      # the reasoned conclusion
 
     def test_no_evidence_no_block(self):
         with mock.patch(_TODAY, return_value=TODAY):
             inj = self._injection()
-        self.assertNotIn("TODAY'S REPORTED EVIDENCE", inj)
+        self.assertNotIn("TODAY'S EXECUTIVE HEADLINE", inj)
 
     def test_full_routed_sequence_reaches_the_llm_prompt(self):
         # The ACTUAL routed path records the evidence; a subsequent LLM prompt sees it.
@@ -62,5 +62,5 @@ class LLMReportedEvidenceTests(TestCase):
                 "I was full of energy and made up Wednesday and Friday workouts", conv)
             self.assertEqual(r["lane"], "accomplishment")
             inj = self._injection()
-        self.assertIn("made up 2 missed workouts", inj)
-        self.assertIn("refreshed", inj.lower())          # "full of energy" → positive
+        self.assertIn("made up 2 missed workouts", inj)   # in the executive headline
+        self.assertIn("highest-leverage", inj.lower())    # the reasoned conclusion

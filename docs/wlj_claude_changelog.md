@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — refactor(cos): Executive prioritization lives in interpret(); the prompt only presents it
+
+Executive judgment (significance ranking / prioritization) was starting to leak into PROMPT WORDING: the LLM injection contained procedural rules ("build your response around this", "France 2027 / backlog / evening plans are SECONDARY", "skipping tonight's ride is the logical recovery decision", "if challenged identify the mistake"). That makes the prompt the reasoning engine. Refined the boundary so reasoning happens once, in interpret(), and the prompt is declarative — no redesign, no new layer.
+
+- `interpret()` now decides prioritization and exposes the RESULT on ExecutiveSignals: `headline` = the single most significant FACT about today (a reported accomplishment overrides the routine workload headline → "You've already made up 2 missed workouts (Wednesday, Friday) today — ahead of plan."), and a new `executive_picture` = the reasoned CONCLUSION that follows ("Because today's planned effort has already been exceeded, recovery is now the highest-leverage decision, and the rest of the day is supporting detail rather than the story."). The picture is composed from the same judgments interpret() already owns (accomplishments, reconciliation, primary_challenge) — for the subjective and energy/workload cases too.
+- `format_cos_system_injection` now PRESENTS those declaratively — "TODAY'S EXECUTIVE HEADLINE: … / TODAY'S EXECUTIVE PICTURE: … / reason and answer from it." — by calling interpret() live only when Danny has reported something material today (a cheap store check first, so no cost on routine turns). All the procedural "X is secondary / build around this" rules were removed from the prompt; those conclusions now live in `executive_picture`.
+- Conversation repair is unchanged and kept (it deterministically names the executive mistake — "I treated it as a passing fact instead of today's headline"), and the challenge cues ("did you not read my response?") still route to it. Repair behavior no longer needs to be an instruction in the prompt.
+
+Boundary now: Layer 1 → deterministic truth → interpret() (decides headline + picture + priorities) → ExecutiveSignals → prompt (presents) → LLM (expresses naturally). Certified `apps/ai/tests/test_executive_prioritization.py` (5): the accomplishment becomes the headline+picture in interpret(); the prompt presents them and contains NO procedural rules ("build your response around", "is secondary", repair instructions absent); the repair still names the executive mistake; the routed report→challenge sequence repairs correctly. 73 across prioritization + LLM-evidence + one-picture + reconciliation + decision-support + check-in + P31/P32/P33/P35 GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/executive_interpretation.py, apps/core/ai_orchestrator/cos_context.py, apps/ai/chatgpt_cos/lanes.py, apps/ai/chatgpt_cos/conversation_planner.py, apps/ai/tests/test_executive_prioritization.py (new), apps/ai/tests/test_llm_reported_evidence.py.
+
+
 ## 2026-07-04 — fix(legacy): Family Tree UI — no clipped names + Details opens a right-side inspector (D1)
 
 Two usability fixes (no redesign):

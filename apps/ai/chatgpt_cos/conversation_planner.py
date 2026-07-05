@@ -30,6 +30,11 @@ _CRITIQUE_CUES = (
     "that doesn't look right", "that doesnt look right", "rethink that",
     "look again", "that's off", "thats off", "seems wrong", "not quite right",
     "really?", "seriously?", "for real?", "you certain", "that right?",
+    # "You missed what I told you" — a challenge that Beth failed to reflect reported
+    # evidence. Routes to the self-aware repair so she names the executive mistake.
+    "did you not read", "did you even read", "you didnt read", "you did not read",
+    "did you read my", "read my response", "read what i", "you missed", "you ignored",
+    "you forgot what i", "i just told you", "did you miss",
 )
 
 _GREETING_CUES = (

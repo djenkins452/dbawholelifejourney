@@ -877,15 +877,35 @@ def _repair_response(user, message, prior_answer):
     """Self-aware repair (P32): OWN the miss, name what went wrong (do NOT ask Danny
     to diagnose it), then deliver a proper EXECUTIVE briefing — not an unrelated fact."""
     prior = (prior_answer or "").lower()
-    parts = ["You're right — let me own that."]
-    # Self-diagnose. If the prior answer led with the agenda/tasks, name THAT (the
-    # specific failure mode); otherwise acknowledge the missing executive read.
-    if any(c in prior for c in _BRIEFING_CUES) or _looks_agenda_led(prior):
-        parts.append("I led with the agenda instead of orienting you to the day. "
-                     "That's on me — the calendar is supporting detail, not the headline.")
+    # If Danny reported a mission-significant accomplishment today, the miss was almost
+    # certainly EXECUTIVE — I treated the headline as a passing fact. Name THAT precisely
+    # (a Chief of Staff demonstrates understanding, not generic remorse).
+    try:
+        from apps.ai.chatgpt_cos.executive_evidence import today as _rep_ev
+        _accs = _rep_ev(user).get("accomplishments") or []
+    except Exception:
+        _accs = []
+    if _accs:
+        _joined = (_accs[0] if len(_accs) == 1
+                   else ", ".join(_accs[:-1]) + " and " + _accs[-1])
+        parts = [
+            "You're right, and I can name exactly what I missed.",
+            f"You told me you'd {_joined} today — that erased today's workout debt and was "
+            "the single biggest change to your executive picture. I treated it as a passing "
+            "fact and led with sleep and your evening plan instead of making it the headline "
+            "and building my recommendation around it.",
+            "Here's the read the way it should have come:",
+        ]
     else:
-        parts.append("I gave you the facts without the executive read you needed.")
-    parts.append("Here's the briefing the way it should have come:")
+        parts = ["You're right — let me own that."]
+        # Self-diagnose. If the prior answer led with the agenda/tasks, name THAT (the
+        # specific failure mode); otherwise acknowledge the missing executive read.
+        if any(c in prior for c in _BRIEFING_CUES) or _looks_agenda_led(prior):
+            parts.append("I led with the agenda instead of orienting you to the day. "
+                         "That's on me — the calendar is supporting detail, not the headline.")
+        else:
+            parts.append("I gave you the facts without the executive read you needed.")
+        parts.append("Here's the briefing the way it should have come:")
     lead = " ".join(parts)
     try:
         from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief

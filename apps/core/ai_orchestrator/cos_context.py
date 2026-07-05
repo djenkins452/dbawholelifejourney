@@ -6277,32 +6277,29 @@ def format_cos_system_injection(context, user_message=None):
         except Exception:
             _reported = {}
         context['today_reported_evidence'] = _reported   # labeled block on the context
-        _subj = _reported.get('subjective')
-        _accs = _reported.get('accomplishments') or []
-        if _subj or _accs:
-            _ev = ["TODAY'S REPORTED EVIDENCE (what Danny told you TODAY — treat as "
-                   "current truth; it has ALREADY updated today's executive picture):"]
-            if _subj == 'positive':
-                _ev.append(
-                    "• Danny reported feeling GOOD / refreshed today — trust this lived "
-                    "experience over the raw sleep number; do NOT frame today as an "
-                    "energy-management day unless NEW evidence says otherwise.")
-            elif _subj == 'negative':
-                _ev.append(
-                    "• Danny reported feeling LOW / drained today — energy is a real "
-                    "constraint today; factor it in.")
-            if _accs:
-                _ev.append(
-                    "• Already accomplished today: " + "; ".join(_accs) + ". Danny is "
-                    "AHEAD of plan — this earns recovery latitude. Reason from it; do "
-                    "not make him re-tell you, and do not treat it as merely a workout "
-                    "fact to look up.")
-            _ev.append(
-                "If your answer contradicts or forgets this evidence, you have missed "
-                "something Danny already told you today — acknowledge and OWN it if he "
-                "challenges you.")
-            lines.append("\n".join(_ev))
-            lines.append("")
+        # When Danny has reported something material today, PRESENT interpret()'s executive
+        # read of it — DECLARATIVELY. The reasoning (what is the headline, what follows for
+        # priorities) happens INSIDE interpret(); the prompt only communicates the result.
+        # No domain-specific "X is secondary / build around this" rules live here — those
+        # are conclusions, and conclusions belong in ExecutiveSignals, not prompt wording.
+        if _reported.get('accomplishments') or _reported.get('subjective'):
+            try:
+                from apps.ai.chatgpt_cos.executive_interpretation import interpret as _interp
+                _sig = _interp(_ev_user)
+            except Exception:
+                _sig = None
+            _hl = (getattr(_sig, 'headline', '') or '') if _sig else ''
+            _pic = (getattr(_sig, 'executive_picture', '') or '') if _sig else ''
+            _blk = []
+            if _hl:
+                _blk.append("TODAY'S EXECUTIVE HEADLINE: " + _hl)
+            if _pic:
+                _blk.append("TODAY'S EXECUTIVE PICTURE: " + _pic)
+            if _blk:
+                _blk.append("This is your grounded executive read of today — reason and "
+                            "answer from it.")
+                lines.append("\n".join(_blk))
+                lines.append("")
 
     # ══════════════════════════════════════════════════════════════
     # SECTION 0: PHASE 4 DECISION RULES (HARD CONTRACT)

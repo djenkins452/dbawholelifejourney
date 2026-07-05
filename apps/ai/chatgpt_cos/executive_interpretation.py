@@ -52,6 +52,9 @@ class ExecutiveSignals:
     # ── Conversation-reported accomplishments TODAY (merged from the evidence store).
     # The single place downstream consumers learn what the user has already done. ──
     accomplishments: list = field(default_factory=list)
+    # ── The reasoned CONCLUSION that follows from today's read (what it means for
+    # priorities). The prompt PRESENTS this; it must not re-derive prioritization. ──
+    executive_picture: str = ""
 
     def to_dict(self):
         return asdict(self)
@@ -343,6 +346,39 @@ def interpret(user, low_energy=False, subjective=None):
                     or bool(es.get("biggest_risk")))
     confidence = "high" if (tw["total"] or es) else "low"
 
+    # HEADLINE = the single most significant FACT about today. EXECUTIVE_PICTURE = the
+    # reasoned CONCLUSION that follows from it (what it means for priorities). Both are
+    # produced HERE — this is where executive prioritization is decided. The prompt only
+    # PRESENTS them; it must not re-derive prioritization in wording.
+    headline = _headline(workload, recovery, has_backlog)
+    executive_picture = ""
+    if reported_accomplishments:
+        joined = (reported_accomplishments[0] if len(reported_accomplishments) == 1
+                  else ", ".join(reported_accomplishments[:-1]) + " and "
+                  + reported_accomplishments[-1])
+        headline = f"You've already {joined} today — ahead of plan."
+        executive_picture = (
+            "Because today's planned effort has already been exceeded, recovery is now the "
+            "highest-leverage decision, and the rest of the day is supporting detail rather "
+            "than the story.")
+    elif reconciliation == "positive_over_debt":
+        executive_picture = (
+            "Despite a short night on paper, Danny's own report is good, so today is a "
+            "normal day to use — not an energy-management day; watch how energy holds "
+            "rather than managing it.")
+    elif reconciliation in ("confirmed_low", "negative_no_debt"):
+        executive_picture = (
+            "Energy is the real limiter today by Danny's own report, so protecting it and "
+            "keeping the load light is the highest-leverage move.")
+    elif primary_challenge == "energy":
+        executive_picture = (
+            "Recovery is today's limiting factor, so protecting energy is the highest-"
+            "leverage move before pushing performance.")
+    elif primary_challenge == "workload":
+        executive_picture = (
+            "Volume is today's constraint, so sequencing the few things that truly matter "
+            "is the highest-leverage move.")
+
     return ExecutiveSignals(
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
@@ -351,7 +387,7 @@ def interpret(user, low_energy=False, subjective=None):
         health_read=health["read"], biggest_risk=biggest_risk,
         highest_leverage=highest_leverage, strategic_focus=strategic,
         intervention_required=intervention, confidence=confidence,
-        headline=_headline(workload, recovery, has_backlog),
+        headline=headline, executive_picture=executive_picture,
         sleep_hours=health.get("sleep_hours"),
         primary_challenge=primary_challenge, challenge_reason=challenge_reason,
         disposition=disposition, recommendation_levers=levers,

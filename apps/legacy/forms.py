@@ -15,6 +15,26 @@ class RelationshipForm(forms.ModelForm):
         required=False, label="Relationship",
         widget=forms.Select(attrs={"class": "lg-input"}))
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Every relationship must be editable — no exceptions. If the stored type is
+        # outside the standard vocabulary (an imported or legacy value), keep it as a
+        # selectable option so the record edits cleanly instead of silently resetting.
+        current = (getattr(self.instance, "relationship_type", "") or "").strip()
+        if current and not self._is_valid_choice(current):
+            field = self.fields["relationship_type"]
+            field.choices = list(field.choices) + [("As imported", [(current, current)])]
+
+    @staticmethod
+    def _is_valid_choice(value):
+        for _v, label in [("", "Unknown")] + list(RELATIONSHIP_TYPE_CHOICES):
+            if isinstance(label, (list, tuple)):
+                if any(opt_v == value for opt_v, _ in label):
+                    return True
+            elif _v == value:
+                return True
+        return False
+
     class Meta:
         model = Relationship
         fields = ["relationship_type", "rel_status", "started_year", "ended_year", "notes"]

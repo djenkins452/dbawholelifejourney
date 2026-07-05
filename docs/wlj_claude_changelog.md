@@ -6,7 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
-## 2026-07-05 — fix(legacy): three production bugs — Relationships browser, connector lines, inspector close
+## 2026-07-05 — feat(legacy): Canonical relationship truth — real types (Biological father / Stepmother / Guardian), all editable
+
+The Family Tree now visualizes Canonical Truth correctly, which exposed that Canonical Truth itself was flattening every parent into "Parent." Fixed at the source (not the visualization):
+
+- **Richer vocabulary** (`RELATIONSHIP_TYPE_CHOICES`): added Biological mother/father, Mother, Father, Stepmother, Stepfather, Adoptive mother/father, Foster parent (alongside the existing Parent, Step-parent, Adoptive parent, Guardian, Child). No model/migration change — `relationship_type` is a free CharField; these are the controlled UI vocabulary + `type_label`.
+- **Browser shows the real type, oriented** (`browse_person_relationships`): the displayed role is now the relationship's OWN `type_label` (Biological father, Stepmother, …) seen from the focal person, never flattened to "Parent." Children stay generic "Child" (child sex unknown). Verified: Danny → Biological father (Marvin), Biological mother (Barbara), Stepmother (Gloria), Spouse (Heather), Siblings, Children.
+- **Every relationship editable — no exceptions** (`RelationshipForm.__init__`): a stored type outside the standard vocabulary is injected as a selectable "As imported" option, so the record edits cleanly instead of silently resetting or failing `ChoiceField` validation. All three of Danny's parents carry Edit links.
+- **Tree visualizes without reinterpreting**: `_link_style`/`classify_category` already key off keywords, so the new types flow through — biological = SOLID connector, stepmother/adoptive/foster/guardian = DASHED. Verified live: 1 dashed edge (Gloria→Danny stepmother) among 16 solid + 2 married couple lines.
+
+**Files:** apps/legacy/models.py (vocabulary), apps/legacy/services/family_tree.py (oriented `type_label` in browser, `_SIBLING_KW`, robust sibling derivation), apps/legacy/forms.py (any-type editable), apps/legacy/tests/test_relationship_categories.py (+3 tests). Verified live against seed data; 66 tests green.
 
 **BUG 1 — Relationships page showed counts but no relationships.** Root cause: `RelationshipsView` only rendered NON-family category sections (`_SECTIONS` = social/professional/faith/…), so a user whose relationships are all family saw "3002 connections" and an empty page. Rebuilt it as a canonical, person-centric BROWSER: `family_tree.browse_person_relationships(user, focal)` returns the actual relationship records touching one focal person (default: the keeper), oriented from their perspective and grouped by role — **Parents · Spouse/Partner/Former · Siblings (derived from shared parents) · Children**, then Friends/Professional/Care/… Each row links to that person (re-centers the browser) and to Edit. A name search re-centers on anyone. Verified live: Danny shows Parents (Marvin, Barbara), Spouse (Heather), Siblings (Julie, Lynne, Mark), Children (Haley, Cole); clicking Marvin re-centers on him.
 

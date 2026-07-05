@@ -675,35 +675,17 @@ CATEGORY_LABELS = {
 }
 
 
-def _parent_label(t):
-    if "step" in t:
-        return "Step-parent"
-    if "adopt" in t:
-        return "Adoptive parent"
-    if "foster" in t:
-        return "Foster parent"
-    if "guardian" in t:
-        return "Guardian"
-    return "Parent"
-
-
-def _child_label(t):
-    if "step" in t:
-        return "Step-child"
-    if "adopt" in t:
-        return "Adopted child"
-    if "foster" in t:
-        return "Foster child"
-    return "Child"
+_SIBLING_KW = ("sibling", "brother", "sister")
 
 
 def browse_person_relationships(user, focal_id=None):
     """The canonical, person-centric relationship browser behind the Relationships
     page: the ACTUAL relationship records that touch one focal person, oriented from
     their point of view and grouped by role (Parents, Spouse, Siblings, Children,
-    then Friends/Professional/…). Defaults the focus to the keeper. Siblings are
-    derived from shared parents. This is why the page stopped showing anything —
-    family relationships were counted but never listed."""
+    then Friends/Professional/…). The displayed role is the relationship's OWN type
+    (Biological father, Stepmother, Guardian…) via `type_label` — never flattened to
+    'Parent'. The visualization reflects Canonical Truth; it never reinterprets it.
+    Defaults the focus to the keeper. Siblings are also derived from shared parents."""
     from django.db.models import Q
 
     from apps.legacy.models import Person, Relationship
@@ -735,47 +717,52 @@ def browse_person_relationships(user, focal_id=None):
                            "years": _life_years(other), "role": role, "pk": pk})
 
     parent_ids = set()
+    stored_sibs = set()
     for r in rels:
         outgoing = r.from_person_id == focal_id
         other = r.to_person if outgoing else r.from_person
         if other.pk == focal_id:
             continue
         t = (r.relationship_type or "").lower()
-        if any(k in t for k in _PARENT_OF):
-            if outgoing:
-                add("children", 40, "Children", other, _child_label(t), r.pk)
-            else:
-                add("parents", 10, "Parents", other, _parent_label(t), r.pk)
-                parent_ids.add(other.pk)
-        elif any(k in t for k in _CHILD_OF):
-            if outgoing:
-                add("parents", 10, "Parents", other, _parent_label(t), r.pk)
-                parent_ids.add(other.pk)
-            else:
-                add("children", 40, "Children", other, _child_label(t), r.pk)
-        elif any(k in t for k in _COUPLE):
+        label = r.type_label     # Canonical Truth — the relationship's OWN label
+        if any(k in t for k in _COUPLE):
             style = _couple_style(t)
             if style == "former":
-                add("former", 25, "Former spouse", other, "Former spouse", r.pk)
+                add("former", 25, "Former spouse", other, label, r.pk)
             elif style in ("partner", "affair"):
-                add("partner", 22, "Partner", other,
-                    "Partner" if style == "partner" else "Relationship", r.pk)
+                add("partner", 22, "Partner", other, label, r.pk)
             else:
-                add("spouse", 20, "Spouse", other, "Spouse", r.pk)
+                add("spouse", 20, "Spouse", other, label, r.pk)
+        elif any(k in t for k in _SIBLING_KW):
+            add("siblings", 30, "Siblings", other, label, r.pk)
+            stored_sibs.add(other.pk)
+        elif any(k in t for k in _PARENT_OF):
+            if outgoing:                       # focal is the parent → other is the child
+                add("children", 40, "Children", other, "Child", r.pk)
+            else:                              # other is focal's parent → its exact type
+                add("parents", 10, "Parents", other, label, r.pk)
+                parent_ids.add(other.pk)
+        elif any(k in t for k in _CHILD_OF):
+            if outgoing:                       # focal is other's child → other is a parent
+                add("parents", 10, "Parents", other, "Parent", r.pk)
+                parent_ids.add(other.pk)
+            else:                              # other is focal's child
+                add("children", 40, "Children", other, "Child", r.pk)
         else:
             cat = r.relationship_category or "other"
-            add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"),
-                other, r.relationship_type or "Connection", r.pk)
+            add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"), other, label, r.pk)
 
-    # Siblings — derived from shared parents (siblinghood is inferred, not stored).
+    # Siblings — also derived from shared parents (inferred, not stored). Matches any
+    # parent-type ('father of', 'stepmother of', …), and skips anyone already recorded
+    # as an explicit sibling relationship.
     if parent_ids:
         sib = set()
         for r in (Relationship.objects.filter(user=user, from_person_id__in=parent_ids)
-                  .filter(relationship_type__icontains="parent")
                   .select_related("to_person")):
-            if r.to_person_id != focal_id:
+            tt = (r.relationship_type or "").lower()
+            if r.to_person_id != focal_id and any(k in tt for k in _PARENT_OF):
                 sib.add(r.to_person_id)
-        for sid in sorted(sib):
+        for sid in sorted(sib - stored_sibs):
             p = by_id.get(sid)
             if p:
                 add("siblings", 30, "Siblings", p, "Sibling", None)

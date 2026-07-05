@@ -104,6 +104,46 @@ class ConsumerTests(TestCase):
         self.assertIn("Coworker", groups.get("Professional", []))
         self.assertContains(r, "Dad Jones")            # rendered, not just counted
 
+    def test_browser_shows_exact_relationship_types_not_flattened(self):
+        me = self._p("Danny"); me.is_self = True; me.save(update_fields=["is_self"])
+        dad = self._p("Marvin"); mom = self._p("Barbara"); step = self._p("Gloria")
+        Relationship.objects.create(user=self.user, from_person=dad, to_person=me, relationship_type="biological father of")
+        Relationship.objects.create(user=self.user, from_person=mom, to_person=me, relationship_type="biological mother of")
+        Relationship.objects.create(user=self.user, from_person=step, to_person=me, relationship_type="stepmother of")
+        browse = family_tree.browse_person_relationships(self.user, me.pk)
+        parents = next(g for g in browse["groups"] if g["label"] == "Parents")
+        roles = {it["name"]: it["role"] for it in parents["items"]}
+        self.assertEqual(roles["Marvin"], "Biological father")   # NOT "Parent"
+        self.assertEqual(roles["Barbara"], "Biological mother")
+        self.assertEqual(roles["Gloria"], "Stepmother")
+        # Every displayed relationship is editable (carries its record pk).
+        for it in parents["items"]:
+            self.assertIsNotNone(it["pk"])
+
+    def test_any_stored_type_stays_editable(self):
+        from apps.legacy.forms import RelationshipForm
+        a = self._p("A"); b = self._p("B")
+        # A type outside the standard vocabulary must not silently reset on edit.
+        rel = Relationship.objects.create(
+            user=self.user, from_person=a, to_person=b, relationship_type="odd custom bond")
+        form = RelationshipForm(instance=rel)
+        self.assertTrue(form._is_valid_choice("married to"))
+        posted = RelationshipForm({"relationship_type": "odd custom bond"}, instance=rel)
+        self.assertTrue(posted.is_valid())        # accepted, not rejected as invalid choice
+        posted.save()
+        rel.refresh_from_db()
+        self.assertEqual(rel.relationship_type, "odd custom bond")
+
+    def test_new_parent_types_style_and_categorize_correctly(self):
+        # Canonical truth flows to the tree: bio = solid, step = dashed; all family.
+        from apps.legacy.services.family_tree import _link_style
+        from apps.legacy.models import classify_category
+        self.assertEqual(_link_style("biological father of"), "solid")
+        self.assertEqual(_link_style("stepmother of"), "dashed")
+        self.assertEqual(_link_style("adoptive mother of"), "dashed")
+        self.assertEqual(classify_category("stepmother of"), "family")
+        self.assertEqual(classify_category("biological father of"), "family")
+
     def test_hub_can_focus_another_person(self):
         me = self._p("Me"); me.is_self = True; me.save(update_fields=["is_self"])
         dad = self._p("Dad"); Relationship.objects.create(

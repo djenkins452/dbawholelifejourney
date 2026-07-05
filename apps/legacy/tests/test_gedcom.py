@@ -279,10 +279,44 @@ class ImporterTypesRelationshipsTests(TestCase):
         self.assertEqual(self._rel(u, "Marvin Jenkins", "Danny Jenkins"), "biological father of")
         self.assertEqual(self._rel(u, "Barbara Dorff", "Danny Jenkins"), "biological mother of")
 
-    def test_stepmother_inferred_from_marriage(self):
-        # Gloria married Marvin (Danny's biological father) but is not Danny's parent.
+    def test_marriage_alone_never_creates_a_stepparent(self):
+        # Gloria married Marvin but is NOT recorded as Danny's parent — Legacy must not
+        # INVENT a step bond (this is what gave Danny seven parents).
+        from apps.legacy.models import Person, Relationship
+        from apps.legacy.services.import_engine import _is_parentish
         u = self._commit("typed2@example.com")
+        self.assertIsNone(self._rel(u, "Gloria Katzell", "Danny Jenkins"))
+        danny = Person.objects.get(user=u, display_name="Danny Jenkins")
+        parents = [r for r in Relationship.objects.filter(user=u, to_person=danny)
+                   if _is_parentish((r.relationship_type or "").lower())]
+        self.assertEqual(len(parents), 2)     # exactly Marvin + Barbara, not seven
+
+    def test_unproven_stepparent_becomes_a_clarification(self):
+        # The source can't prove it → the Clarification Engine ASKS, and only the user's
+        # answer creates the relationship (teach-once).
+        from apps.legacy.models import ImportBatch
+        from apps.legacy.services import clarification
+        u = self._commit("typed3@example.com")
+        batch = ImportBatch.objects.filter(user=u, source_type="gedcom").first()
+        items = [c for c in clarification.pending(batch)
+                 if c["kind"] == "step_parent" and "Gloria" in c["prompt"]]
+        self.assertTrue(items)                                  # Legacy asks, never invents
+        ref = items[0]["ref"]
+        self.assertTrue(clarification.resolve(batch, "step_parent", ref, "step", ""))
         self.assertEqual(self._rel(u, "Gloria Katzell", "Danny Jenkins"), "stepmother of")
+        # Answered once → never asked again.
+        again = [c for c in clarification.pending(batch)
+                 if c["kind"] == "step_parent" and "Gloria" in c["prompt"]]
+        self.assertEqual(again, [])
+
+    def test_explicit_step_pedigree_creates_stepparent(self):
+        # When the file DOES prove it (_MREL Step), the importer records it directly.
+        ged = ("0 HEAD\n0 @I1@ INDI\n1 NAME Marv /J/\n1 SEX M\n"
+               "0 @I2@ INDI\n1 NAME Glo /K/\n1 SEX F\n"
+               "0 @I3@ INDI\n1 NAME Kid /J/\n1 SEX M\n"
+               "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@\n2 _MREL Step\n1 MARR\n2 DATE 1990\n0 TRLR\n")
+        u = self._commit("typed_ped@example.com", ged=ged)
+        self.assertEqual(self._rel(u, "Glo K", "Kid J"), "stepmother of")   # evidence-based
 
     def test_adoptive_parents_from_pedigree(self):
         u = self._commit("typed3@example.com")

@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): remove step-parent INFERENCE — evidence-only, ask the rest (Danny had 7 parents)
+
+Canonical Truth bug: the marriage-based step-parent inference made **every** spouse of a parent a step-parent of that parent's children. Since Danny's biological father (Marvin) and mother (Barbara) each had other partners, Danny inherited all of them → **seven parents**. The Family Tree was correctly exposing bad data.
+
+- **Removed the inference algorithm entirely** (`infer_step_parents` deleted; its calls in `commit_genealogy` and `refine_existing_family_types` removed). Marriage never implies a step-parent.
+- **Evidence-only step-parents remain**: a step bond is created only when the source proves it — the child's pedigree to that parent is marked step (`_FREL`/`_MREL`/`PEDI`), handled by the existing `_parent_type(sex, "step")` path. Biological (SEX), adoptive/foster/guardian (pedigree) unchanged.
+- **Unproven step candidates go to the Clarification Engine** (new `StepParentClarification`): a partner of a parent who is NOT recorded as a parent of the child becomes a neutral question — "How is X related to Y's children?" (Step-parent / Not a step-parent / Other) — never an asserted fact. Teach-once via a new generic `ClarificationDecision` model; resolving to "step" creates the bond (`user_edited=True`).
+- **Cleanup migration 0030** removes the already-invented steps: deletes step relationships that are not user-edited AND not backed by family-membership evidence (child actually a CHIL in that step-parent's family). User corrections are always kept.
+- Manually-created relationships are now marked `user_edited` too, so Smart Refresh never touches them.
+
+**Acceptance verified.** On seed data Danny now has exactly two parents — Marvin (biological father), Barbara (biological mother); zero invented steps. A fresh import proves: marriage alone creates NO step (Danny stays at 2 parents); an unproven step (Gloria) surfaces as a clarification and only the user's answer makes her a stepmother (teach-once); an explicit `_MREL Step` pedigree creates the stepmother directly. 106 legacy tests green (importer-typing test rewritten: marriage-alone / clarification / explicit-pedigree). Schema: migration 0029 (`ClarificationDecision`), data migration 0030.
+
+**Files:** apps/legacy/services/import_engine.py (removed `infer_step_parents`; refine returns 2-tuple), apps/legacy/services/clarification.py (`StepParentClarification`), apps/legacy/models.py (`ClarificationDecision`), migrations 0029/0030, apps/legacy/migrations/0027 (unpack 2-tuple), apps/legacy/views.py (`user_edited` on create), apps/legacy/tests/test_gedcom.py.
+
+
 ## 2026-07-05 — test(arch): ENFORCE request-path safety — CI blocks reintroducing heavy-intelligence / inline-LLM on request threads
 
 The request-path guarantees were FOLLOWED (developer discipline) but not ENFORCED — a future change could silently reintroduce the 15–20s regression class. Added the missing architectural enforcement (no new infrastructure — the WLJ AST-purity-test idiom, cf. `test_visual_truth_contract.py` / `tests_metric_access.py`):

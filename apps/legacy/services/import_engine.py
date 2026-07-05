@@ -302,59 +302,20 @@ def _parent_type(sex, base):
     return "biological father of" if m else "biological mother of" if f else "parent of"
 
 
-def infer_step_parents(user):
-    """Derive step-parents from evidence already present: a spouse of a biological/
-    adoptive parent who is NOT themselves a parent of that child is a step-parent
-    (stepmother/stepfather by their sex). Idempotent — a step bond already recorded is
-    re-detected as a parent and skipped, so re-running never duplicates. Returns the
-    number of NEW step relationships created."""
-    from collections import defaultdict
-
-    from apps.legacy.models import Relationship
-
-    parents_of = defaultdict(set)    # child_id -> {parent_id}
-    children_of = defaultdict(set)   # parent_id -> {child_id}
-    spouses = defaultdict(set)
-    sex = {}
-    rels = list(Relationship.objects.filter(user=user)
-                .select_related("from_person", "to_person"))
-    for r in rels:
-        t = (r.relationship_type or "").lower()
-        sex[r.from_person_id] = r.from_person.sex
-        sex[r.to_person_id] = r.to_person.sex
-        if _is_parentish(t):
-            children_of[r.from_person_id].add(r.to_person_id)
-            parents_of[r.to_person_id].add(r.from_person_id)
-        elif any(k in t for k in ("married", "spouse", "partner", "husband", "wife")):
-            spouses[r.from_person_id].add(r.to_person_id)
-            spouses[r.to_person_id].add(r.from_person_id)
-
-    existing_pairs = {(r.from_person_id, r.to_person_id) for r in rels}
-    created = 0
-    for parent_id, kids in list(children_of.items()):
-        for spouse_id in spouses.get(parent_id, ()):
-            for child_id in kids:
-                if spouse_id == child_id or spouse_id in parents_of.get(child_id, ()):
-                    continue                      # already a parent → not a step-parent
-                if (spouse_id, child_id) in existing_pairs:
-                    continue
-                s = (sex.get(spouse_id) or "").upper()
-                rtype = ("stepfather of" if s.startswith("M")
-                         else "stepmother of" if s.startswith("F") else "step-parent of")
-                Relationship.objects.create(
-                    user=user, from_person_id=spouse_id, to_person_id=child_id,
-                    relationship_type=rtype)
-                existing_pairs.add((spouse_id, child_id))
-                parents_of[child_id].add(spouse_id)
-                created += 1
-    return created
+# NOTE: There is deliberately NO step-parent INFERENCE. A step-parent is created ONLY
+# from explicit evidence — a child whose pedigree to that parent is marked step
+# (_FREL/_MREL/PEDI), handled by the pedigree path in `_parent_type`. Marriage does NOT
+# imply a step-parent: a spouse of a parent is not automatically a step-parent (that
+# made Danny have seven parents). Where the source can't prove it, the Clarification
+# Engine ASKS the user (services/clarification.py :: StepParentClarification). Legacy
+# preserves evidence and asks; it never invents relationships.
 
 
 def refine_existing_family_types(user):
     """Bring ALREADY-imported genealogy up to the evidence-based standard WITHOUT a
-    re-import: backfill Person.sex from the stored import chunks, upgrade generic
-    'parent of' bonds to biological father/mother by that sex, and infer step-parents
-    from marriages. Idempotent. Returns (sex_set, parents_upgraded, steps_created)."""
+    re-import: backfill Person.sex from the stored import chunks and upgrade generic
+    'parent of' bonds to biological father/mother by that sex. Evidence only — no
+    step-parent inference. Idempotent. Returns (sex_set, parents_upgraded)."""
     from apps.legacy.models import ImportChunk, Person, Relationship
 
     sex_by_person = {}
@@ -387,8 +348,7 @@ def refine_existing_family_types(user):
             r.save(update_fields=["relationship_type", "relationship_category", "updated_at"])
             upgraded += 1
 
-    steps = infer_step_parents(user)
-    return sex_set, upgraded, steps
+    return sex_set, upgraded
 
 
 def commit_genealogy(batch, chunks_from=None):
@@ -551,9 +511,9 @@ def commit_genealogy(batch, chunks_from=None):
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])
 
-    # A spouse of a biological/adoptive parent who is NOT themselves a parent of the
-    # child is a step-parent — evidence the GEDCOM already implies (marriage + kids).
-    links_created += infer_step_parents(user)
+    # NO step-parent inference. Step-parents come ONLY from explicit pedigree evidence
+    # (handled above) or from the user resolving a StepParent clarification. A spouse of
+    # a parent is NOT assumed to be a step-parent.
 
     batch.refresh_counts()
     return people_created, links_created

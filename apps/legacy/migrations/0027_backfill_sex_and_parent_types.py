@@ -38,8 +38,8 @@ def _refine(apps, schema_editor):
         if not user:
             continue
         try:
-            sex_set, upgraded, steps = refine_existing_family_types(user)
-            _log("user %s: sex+%d parents+%d steps+%d" % (uid, sex_set, upgraded, steps))
+            sex_set, upgraded = refine_existing_family_types(user)
+            _log("user %s: sex+%d parents+%d" % (uid, sex_set, upgraded))
         except Exception as exc:   # never let one user's data block the deploy
             _log("user %s: SKIPPED (%s)" % (uid, exc))
 

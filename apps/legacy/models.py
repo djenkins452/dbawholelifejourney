@@ -946,6 +946,23 @@ class PreservedFact(LegacyOwnedModel):
         return " · ".join(b for b in bits if b) or self.label
 
 
+class ClarificationDecision(LegacyOwnedModel):
+    """A resolved clarification — the user's answer, remembered so the SAME question is
+    never asked again (teach-once). Generic across clarification types; `ref` is the
+    opaque id the handler uses (e.g. 'spousePk:parentPk' for a step-parent question)."""
+
+    kind = models.CharField(max_length=40, db_index=True)
+    ref = models.CharField(max_length=120, db_index=True)
+    answer = models.CharField(max_length=60, blank=True)
+    detail = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        unique_together = ['user', 'kind', 'ref']
+
+    def __str__(self):
+        return f"{self.kind}:{self.ref} → {self.answer}"
+
+
 class RelationshipAlias(LegacyOwnedModel):
     """A relational term the keeper uses — "Dad", "Mom", "Coach", "Pastor" — mapped
     to the actual Person it refers to. Learned once (on review) and reused on every

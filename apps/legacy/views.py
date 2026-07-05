@@ -1584,6 +1584,7 @@ class RelationshipCreateView(LegacyContextMixin, View):
             rel.user = request.user
             rel.from_person = person
             rel.to_person = to_person
+            rel.user_edited = True    # user-entered — a Smart Refresh must never touch it
             rel.save()
             messages.success(request, f"Relationship with {to_person.display_name} saved.")
             return redirect("legacy:person_detail", pk=person.pk)

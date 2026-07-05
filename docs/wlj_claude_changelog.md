@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — polish(legacy): Family Tree interaction polish — feedback, focus, keyboard (D2, interaction-only)
+
+**What:** A usability pass over the Family Tree to make existing functionality feel finished — no new features, no layout/Canonical Truth change. Eliminated the friction a first-time user notices:
+
+- **Immediate click feedback on recenter (the big one).** Clicking a card is a full navigation, so the click used to do nothing visible until the page repainted — "did that click work?". Now the clicked card gets a pressed + ringed `is-loading` state and the stage shows a spinner veil (`is-navigating`) the instant it's clicked. Applies to every recenter path — cards, keyboard, search hits, relatives in the inspector, "This is me". A `pageshow` handler clears it so a bfcache back-navigation never leaves the veil stuck.
+- **Inspector is a real dialog.** `role="dialog" aria-modal aria-labelledby`; opening moves focus to the close button; **Esc** closes (already) and returns focus to the card's Details button that opened it. Clicking the empty tree now also dismisses it (natural click-outside) — a pan-drag never counts as a click.
+- **Search keyboard support.** **Enter** jumps to the first match; **Escape** dismisses the results.
+- **Keyboard focus everywhere.** Visible `:focus-visible` rings on the zoom/fit controls, Details buttons, close, tabs, search results, relatives, "This is me", and profile CTA; `:focus-within` ring on the search box. The centered focus card is no longer a dead tab-stop (it has no recenter action).
+- **Smooth programmatic zoom.** The +/− and Fit buttons now glide (a transition class); wheel, pinch and drag stay instant 1:1 so direct manipulation never feels laggy.
+- **Reduced motion respected** (`prefers-reduced-motion`).
+
+**Files:** `templates/legacy/family.html` (feedback + focus mgmt + click-outside + search keys + smooth-zoom + focus-card tabindex + dialog attrs + loading veil), `static/css/legacy.css` (veil/spinner, `is-loading`, focus-visible rings, `is-animating` transition, reduced-motion; cache-bust `v=54`).
+
+**Verification:** Live-certified in the dev browser (scripted): focus card `tabindex=null`; panel `role=dialog`, focus→close on open, Esc closes + focus restored to opener; click-outside closes; search renders + Escape hides; +button toggles `is-animating`; loading veil `display:flex` + spinner animating + card `is-loading`; no console errors (only unrelated notification-fetch). Interaction-only change — no Python touched; the family-layout suite passed at 35 immediately before these edits, and could not be re-run afterward only because a concurrent session was mid-rebuild of the shared test DB (djstripe/health migration conflicts), unrelated to this change.
+
 ## 2026-07-05 — instrument(cos): Goals check-in runtime diagnostic — explicit response_source + producing_function
 
 Refined `GoalsCheckinDebugView` (`GET /assistant/api/goals-checkin-debug/`, staff-only) to explicitly label the two remaining diagnostic facts: `response_source` (deterministically `_GOALS_GAP` | `_strategic_summary` | `other`) and `producing_function` (the function that ultimately generates the check-in "4" response). Now answers all six runtime questions — git SHA, whether the deployed resolver calls `_strategic_summary`, the response source, `select_active_mission_goal`, `get_domain_state('purpose')` mission/count/titles, and the producing function — with no interpretation. Temporary; remove after diagnosis. Files: `apps/ai/views.py`.

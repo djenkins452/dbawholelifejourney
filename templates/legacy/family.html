@@ -25,6 +25,7 @@
     </div>
 
     <div class="fam-stage" id="famStage">
+        <div class="fam-loading-veil" aria-hidden="true"><span class="fam-spinner"></span></div>
         <div class="fam-controls">
             <button type="button" class="fam-ctrl" data-fam="zoomout" aria-label="Zoom out">−</button>
             <button type="button" class="fam-ctrl" data-fam="zoomin" aria-label="Zoom in">+</button>
@@ -44,7 +45,7 @@
             <div class="fam-node fam-sex-{% if n.sex == 'M' %}m{% elif n.sex == 'F' %}f{% else %}u{% endif %}{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}{% if n.is_ghost %} is-ghost{% endif %}"
                  {% if not n.is_focus %}data-recenter="{% url 'legacy:family' %}?focus={{ n.id }}"{% endif %}
                  data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
-                 {% if n.is_ghost %}title="{{ n.name }} — also shown with their other family"{% elif not n.is_focus %}title="Center on {{ n.name }}"{% endif %} role="button" tabindex="0">
+                 {% if n.is_ghost %}title="{{ n.name }} — also shown with their other family"{% elif not n.is_focus %}title="Center on {{ n.name }}"{% endif %}{% if not n.is_focus %} role="button" tabindex="0" aria-label="Center the family on {{ n.name }}"{% endif %}>
                 {% if n.is_self %}<span class="fam-node-badge">This is me</span>{% endif %}
                 {% if n.is_ghost %}<span class="fam-node-ghost" title="Also shown with their other family" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8a8 8 0 0 1 14-5M20 8V3M20 8h-5M20 16a8 8 0 0 1-14 5M4 16v5M4 16h5"/></svg></span>{% endif %}
                 <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}</span>
@@ -56,8 +57,8 @@
         </div>
         <p class="fam-hint">Click a person to center the family on them · click <strong>Details</strong> to inspect them · drag to pan · scroll to zoom</p>
 
-        <aside class="fam-panel" id="famPanel" aria-hidden="true">
-            <button type="button" class="fam-panel-close" id="famPanelClose" aria-label="Close">×</button>
+        <aside class="fam-panel" id="famPanel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="fpName" tabindex="-1">
+            <button type="button" class="fam-panel-close" id="famPanelClose" aria-label="Close details">×</button>
             <div class="fam-panel-head">
                 <span class="fam-panel-av" id="fpAv"></span>
                 <div class="fam-panel-id">
@@ -128,26 +129,59 @@
     function endPan() { dragging = false; stage.classList.remove('is-panning'); }
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
+    // Clicking the empty tree (not a card, not the panel) dismisses an open inspector —
+    // the natural "click outside to close". A pan-drag is not a click, so it won't close.
+    stage.addEventListener('click', function (e) {
+        if (moved || !panel.classList.contains('is-open')) { return; }
+        if (e.target.closest('.fam-panel') || e.target.closest('.fam-node')
+                || e.target.closest('.fam-controls')) { return; }
+        closePanel();
+    });
+    // Recentering is a full navigation, so give the click IMMEDIATE feedback — mark the
+    // card and veil the stage — otherwise nothing happens visibly until the page repaints
+    // and the user wonders whether the click registered.
+    var navigating = false;
+    function startNavigating(card) {
+        if (navigating) { return; }
+        navigating = true;
+        view.classList.add('is-navigating');
+        if (card && card.classList) { card.classList.add('is-loading'); }
+    }
+    function recenter(card) {
+        var url = card && card.getAttribute('data-recenter');
+        if (!url) { return; }
+        startNavigating(card);
+        window.location.href = url;
+    }
+    // Returning via the back/forward cache must not leave the veil stuck on.
+    window.addEventListener('pageshow', function () {
+        navigating = false;
+        view.classList.remove('is-navigating');
+        canvas.querySelectorAll('.fam-node.is-loading').forEach(function (n) { n.classList.remove('is-loading'); });
+    });
+    // Any in-view link that recenters the family (search hits, relatives, "This is me")
+    // also shows the veil, so every path feels equally responsive.
+    view.addEventListener('click', function (e) {
+        var a = e.target.closest && e.target.closest('a[href]');
+        if (!a) { return; }
+        var href = a.getAttribute('href') || '';
+        if (href.indexOf('focus=') > -1 || a.classList.contains('fam-home')) { startNavigating(null); }
+    });
+
     // Click a card anywhere → recenter the family on that person. The small "Details"
     // button opens the inspector panel (no navigation). A drag never counts as a click.
     canvas.addEventListener('click', function (e) {
         if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; return; }
         var det = e.target.closest('.fam-node-details');
-        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id')); return; }
-        var card = e.target.closest('.fam-node');
-        if (card && card.getAttribute('data-recenter')) {
-            window.location.href = card.getAttribute('data-recenter');
-        }
+        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id'), det); return; }
+        recenter(e.target.closest('.fam-node'));
     }, true);
     canvas.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') { return; }
         var det = e.target.closest ? e.target.closest('.fam-node-details') : null;
-        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id')); return; }
+        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id'), det); return; }
         var card = e.target.closest ? e.target.closest('.fam-node') : null;
-        if (card && card.getAttribute('data-recenter')) {
-            e.preventDefault();
-            window.location.href = card.getAttribute('data-recenter');
-        }
+        if (card && card.getAttribute('data-recenter')) { e.preventDefault(); recenter(card); }
     });
 
     // ── Inspector panel (Details) — populated in-page, never navigates ──────────
@@ -176,9 +210,11 @@
         return sec;
     }
 
-    function openPanel(id) {
+    var panelOpener = null;
+    function openPanel(id, opener) {
         var d = panels[id];
         if (!d) { return; }
+        panelOpener = opener || null;
         var av = document.getElementById('fpAv');
         av.textContent = '';
         av.className = 'fam-panel-av' + (d.living ? '' : ' is-deceased');
@@ -211,11 +247,17 @@
         document.getElementById('fpProfile').href = personUrl(id);
         panel.classList.add('is-open');
         panel.setAttribute('aria-hidden', 'false');
+        // Move focus into the panel so Esc/Tab work on it and screen readers announce it.
+        if (closeBtn) { closeBtn.focus(); }
     }
     function closePanel(e) {
         if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (!panel.classList.contains('is-open')) { return; }
         panel.classList.remove('is-open');
         panel.setAttribute('aria-hidden', 'true');
+        // Return focus to whatever opened the panel (the card's Details button).
+        if (panelOpener && panelOpener.focus) { panelOpener.focus(); }
+        panelOpener = null;
     }
     // Delegated + direct — the X closes no matter how the click is delivered.
     var closeBtn = document.getElementById('famPanelClose');
@@ -242,12 +284,23 @@
     if (panel) {
         panel.addEventListener('wheel', function (e) { e.stopPropagation(); }, { passive: true });
     }
+    // Button zoom / fit glide smoothly (a transition class); direct manipulation
+    // (wheel, pinch, drag) stays instant 1:1 so it never feels laggy.
+    var animTimer = null;
+    function animate(fn) {
+        canvas.classList.add('is-animating');
+        fn();
+        if (animTimer) { window.clearTimeout(animTimer); }
+        animTimer = window.setTimeout(function () { canvas.classList.remove('is-animating'); }, 200);
+    }
     document.querySelectorAll('.fam-ctrl').forEach(function (b) {
         b.addEventListener('click', function () {
             var a = b.getAttribute('data-fam');
-            if (a === 'fit') { fit(); return; }
-            var r = stage.getBoundingClientRect();
-            zoomAt(r.width / 2, r.height / 2, a === 'zoomin' ? 1.2 : 0.8);
+            animate(function () {
+                if (a === 'fit') { fit(); return; }
+                var r = stage.getBoundingClientRect();
+                zoomAt(r.width / 2, r.height / 2, a === 'zoomin' ? 1.2 : 0.8);
+            });
         });
     });
 
@@ -291,6 +344,15 @@
     }
     if (input) {
         input.addEventListener('input', function () { renderResults(input.value.trim().toLowerCase()); });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                // Enter jumps straight to the first match — the obvious expectation.
+                var first = results.querySelector('a.fam-result');
+                if (first) { e.preventDefault(); startNavigating(null); window.location.href = first.href; }
+            } else if (e.key === 'Escape') {
+                if (!results.hidden) { e.preventDefault(); e.stopPropagation(); results.hidden = true; }
+            }
+        });
         document.addEventListener('click', function (e) { if (!e.target.closest('.fam-search')) { results.hidden = true; } });
     }
     window.addEventListener('resize', function () {

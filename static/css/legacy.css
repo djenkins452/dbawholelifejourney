@@ -1112,6 +1112,36 @@ a.fam-result { text-decoration: none; }
 .fam-rel-meta { font-size: 11px; color: var(--lg-muted); }
 .fam-panel-cta { margin-top: 14px; text-align: center; }
 
+/* ── Family View interaction polish — feedback, focus, smooth motion ─────────── */
+/* Recentering is a navigation: veil the stage and spin so the click is never in
+   doubt during the load. */
+.fam-loading-veil { position: absolute; inset: 0; z-index: 9; display: none; align-items: center; justify-content: center;
+    background: rgba(247, 243, 233, .5); }
+.famview.is-navigating .fam-loading-veil { display: flex; }
+.famview.is-navigating .fam-stage { cursor: progress; }
+.fam-spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(122, 98, 56, .25);
+    border-top-color: var(--lg-accent, #b07a2b); animation: fam-spin .7s linear infinite; }
+@keyframes fam-spin { to { transform: rotate(360deg); } }
+/* The clicked card holds a pressed + ringed state while the new view loads. */
+.fam-node.is-loading { transform: scale(.97); border-color: var(--lg-accent, #b07a2b);
+    box-shadow: 0 0 0 3px rgba(176, 122, 43, .35), 0 12px 26px -16px rgba(30, 25, 15, .55); z-index: 6; }
+
+/* Button zoom / fit glides smoothly; wheel, pinch and drag stay instant 1:1. */
+.fam-canvas.is-animating { transition: transform .2s cubic-bezier(.22, .61, .36, 1); }
+
+/* Visible keyboard focus on every interactive control (matches the card ring). */
+.fam-ctrl:focus-visible, .fam-node-details:focus-visible, .fam-panel-close:focus-visible,
+.fam-tab:focus-visible, .fam-result:focus-visible, .fam-relative:focus-visible,
+.fam-home:focus-visible, .fam-rebuild-link:focus-visible, .fam-panel-cta:focus-visible {
+    outline: 2px solid var(--lg-accent, #b07a2b); outline-offset: 2px; border-radius: 8px; }
+.fam-search:focus-within { border-color: var(--lg-accent, #b07a2b); box-shadow: 0 0 0 3px rgba(176, 122, 43, .14); }
+.fam-panel:focus { outline: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .fam-node, .fam-canvas.is-animating, .fam-panel { transition: none !important; }
+    .fam-spinner { animation-duration: 1.4s; }
+}
+
 @media (max-width: 640px) {
     .fam-panel { width: 100%; max-width: 100%; }
 }

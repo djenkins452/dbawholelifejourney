@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): Family View — Ancestry-style sex-coloured avatars + focus-named section labels
+
+Brought the Family View closer to the Ancestry.com look Danny likes:
+- **Sex-coloured silhouette avatars** — male = blue, female = rose, unknown = neutral, focus = gold ("This is me"). A real photo shows through when the person has a `primary_photo`; otherwise a clean person silhouette (uses the `Person.sex` we now capture from GEDCOM). Nodes carry `sex`; avatar enlarged to 60px.
+- **Section labels read like Ancestry** — "Your parents / You & siblings / Your children" when viewing yourself, or "Marvin's parents / Marvin & siblings / Marvin's children" when centered on someone else (was the generic "Parents / You & Siblings / Children").
+
+Couples already sit together and connectors already render (prior work); this is the visual polish that makes who's-who read at a glance. Verified live: labels, blue/rose/gold avatars, silhouettes, no console errors. 32 family tests green. No model/migration change.
+
+**Files:** apps/legacy/services/family_tree.py (`sex` on nodes, focus-named labels, `sex` in the query), templates/legacy/family.html (avatar silhouette + `fam-sex-*` class), static/css/legacy.css (v48 — `.fam-sex-m/f/u` avatar colours, silhouette).
+
+
 ## 2026-07-05 — fix(perf): sub-second PERCEIVED task completion (no full reload) + production self-measurement
 
 Two things the query-count win couldn't deliver on its own:

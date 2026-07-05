@@ -964,9 +964,17 @@ body.theme-ember .legacy-root {
 .fam-node:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -18px rgba(30,25,15,.55); border-color: var(--lg-border-strong, #d8cbb0); z-index: 2; }
 .fam-node:focus-visible { outline: 2px solid var(--lg-accent, #b07a2b); outline-offset: 2px; }
 .fam-node.is-deceased { background: var(--lg-surface-2); }
-.fam-node-av { flex: 0 0 auto; width: 54px; height: 54px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
+.fam-node-av { flex: 0 0 auto; width: 60px; height: 60px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
     background: var(--lg-sidebar, #3a3226); color: #f3ead6; font-size: 17px; font-weight: 600; font-family: var(--lg-serif); }
 .fam-node-av img { width: 100%; height: 100%; object-fit: cover; }
+/* Ancestry-style sex-coloured silhouette avatars (photo shows through when present). */
+.fam-av-ic { width: 60px; height: 60px; display: block; }
+.fam-av-ic circle, .fam-av-ic path { fill: currentColor; }
+.fam-sex-m .fam-node-av { background: #d6e4f0; color: #6c8fb3; }   /* blue */
+.fam-sex-f .fam-node-av { background: #f0dbe0; color: #c08096; }   /* rose */
+.fam-sex-u .fam-node-av { background: var(--lg-surface-2, #efe9dd); color: #a99f88; }
+.fam-sex-m.is-me .fam-node-av, .fam-sex-f.is-me .fam-node-av, .fam-sex-u.is-me .fam-node-av {
+    background: var(--lg-sidebar-gold, #c9a34e); color: #7a5c1a; }
 /* Names wrap fully — a person's identity is never truncated. */
 .fam-node-name { font-size: 15px; font-weight: 600; color: var(--lg-ink); line-height: 1.24; margin-top: 9px; overflow-wrap: anywhere; hyphens: auto; }
 .fam-node-meta { font-size: 12px; color: var(--lg-muted); margin-top: 4px; }

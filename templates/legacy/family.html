@@ -41,12 +41,12 @@
             </div>
             {% endfor %}
             {% for n in graph.nodes %}
-            <div class="fam-node{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
+            <div class="fam-node fam-sex-{% if n.sex == 'M' %}m{% elif n.sex == 'F' %}f{% else %}u{% endif %}{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
                  {% if not n.is_focus %}data-recenter="{% url 'legacy:family' %}?focus={{ n.id }}"{% endif %}
                  data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
                  {% if not n.is_focus %}title="Center on {{ n.name }}"{% endif %} role="button" tabindex="0">
                 {% if n.is_self %}<span class="fam-node-badge">This is me</span>{% endif %}
-                <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
+                <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}</span>
                 <span class="fam-node-name">{{ n.name }}</span>
                 <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}</span>
                 <button type="button" class="fam-node-details" data-id="{{ n.id }}">Details</button>

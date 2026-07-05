@@ -425,6 +425,7 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
         nodes.append({
             "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
             "photo": (p.primary_photo.file.url if (p.primary_photo and p.primary_photo.file) else ""),
+            "sex": (p.sex or "").upper()[:1],
             "birth": p.birth_year, "death": p.death_year,
             "birth_display": p.display_birth, "death_display": p.display_death,
             "living": p.death_year is None, "rel": p.relationship_label,
@@ -495,17 +496,20 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
                           "x1": round(coords[a][0]), "y1": round(coords[a][1]),
                           "x2": round(coords[b][0]), "y2": round(coords[b][1])})
 
-    # ── Generation labels (left gutter), numbered top → bottom ─────────────────
+    # ── Generation labels (left gutter) — Ancestry-style, by the focus's name ─────
     gens_present = sorted(set(gen[p.pk] for p in people))
     self_focus = (focus_pk == me_pk)
+    focus_person = next((p for p in people if p.pk == focus_pk), None)
+    first = (focus_person.display_name.split()[0] if focus_person else "This person")
+    whose = "Your" if self_focus else "%s's" % first
     labels = []
     for i, gg in enumerate(gens_present):
         if gg < 0:
-            title = "Parents"
+            title = "%s parents" % whose
         elif gg == 0:
-            title = "You & Siblings" if self_focus else "Siblings"
+            title = "You & siblings" if self_focus else "%s & siblings" % first
         else:
-            title = "Children"
+            title = "%s children" % whose
         y = (gg - min_gen) * ROW_STRIDE
         labels.append({"num": i + 1, "title": title, "y": round(y),
                        "cy": round(y + CARD_H / 2.0)})
@@ -568,7 +572,7 @@ def build_family_view(user, focus_pk=None):
 
     all_people = list(Person.objects.filter(user=user).only(
         "pk", "display_name", "is_self", "also_known_as", "birth_year", "death_year",
-        "birth_date", "death_date", "relationship_label", "primary_photo",
+        "birth_date", "death_date", "relationship_label", "primary_photo", "sex",
     ).select_related("primary_photo"))
     total = len(all_people)
     if not all_people:

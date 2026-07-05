@@ -14,6 +14,30 @@
         </div>
     </div>
 
+    {% if batch.is_refresh and batch.refresh_summary %}
+    {% with a=batch.refresh_summary %}
+    <section class="lg-card refresh-audit">
+        <div class="refresh-audit-head">
+            <span class="discovery-spark" aria-hidden="true">🔄</span>
+            <div>
+                <h3 class="lg-card-h">Refresh complete — nothing was lost</h3>
+                <p class="editor-aside-note">Your existing tree was synchronized. This is the permanent audit of what changed.</p>
+            </div>
+        </div>
+        <div class="stat-grid">
+            <div class="stat-card stat-plain"><span class="stat-value">{{ a.people_added }}</span><span class="stat-label">People added</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ a.people_updated }}</span><span class="stat-label">People updated</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ a.relationships_added }}</span><span class="stat-label">Relationships added</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ a.facts_preserved }}</span><span class="stat-label">Facts preserved</span></div>
+            <div class="stat-card stat-plain"><span class="stat-value">{{ a.unchanged }}</span><span class="stat-label">Unchanged</span></div>
+            <div class="stat-card stat-plain refresh-safe"><span class="stat-value">{{ a.duplicates_prevented }}</span><span class="stat-label">Duplicates prevented</span></div>
+        </div>
+        {% if a.unsupported %}<p class="refresh-note">Preserved concepts awaiting a canonical home: {% for u in a.unsupported %}{{ u.concept }} ({{ u.count }}){% if not forloop.last %}, {% endif %}{% endfor %} — see the <a href="{% url 'legacy:roadmap' %}" class="lg-link">Canonical Truth Roadmap</a>.</p>{% endif %}
+        <a href="{% url 'legacy:family' %}" class="lg-btn-primary refresh-audit-cta">Open Family view →</a>
+    </section>
+    {% endwith %}
+    {% endif %}
+
     {% if stats.stories_imported %}
     <div class="lg-card import-stats">
         <div class="import-stats-head">

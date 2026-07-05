@@ -261,6 +261,13 @@ def _is_parentish(t):
     return any(k in t for k in _PARENTISH) and "grand" not in t
 
 
+def _is_generic_parent(t):
+    """A non-specific parent bond that a refresh MAY refine: blank, 'parent of', or
+    'child of'. A specific type (biological/step/adoptive/foster/guardian, or gendered
+    father/mother) is never downgraded."""
+    return (t or "").strip().lower() in ("", "parent", "parent of", "child of")
+
+
 def _pedi_base(value):
     """Normalize a pedigree/relationship qualifier to a base kind. '' when unknown
     (the caller defaults to biological — a plain HUSB/WIFE→CHIL link)."""
@@ -384,17 +391,25 @@ def refine_existing_family_types(user):
     return sex_set, upgraded, steps
 
 
-def commit_genealogy(batch):
+def commit_genealogy(batch, chunks_from=None):
     """Commit a GEDCOM batch's structured people + families into Canonical Truth:
     Person records (with birth/death years) and spouse / parent-child Relationships.
-    Deterministic, idempotent (dedupes people by name, links by triple). Returns
-    (people_created, links_created). Genealogy — no Discovery."""
+    Deterministic, idempotent (people keyed on (lineage batch, gedcom_xref); links
+    upsert). Returns (people_created, links_created). Genealogy — no Discovery.
+
+    `chunks_from` powers Smart Refresh: read the chunks from a NEWER upload while
+    keying people to the ORIGINAL lineage `batch`, so a refresh SYNCHRONIZES the
+    existing tree (matched xrefs update, new xrefs join the lineage) instead of
+    duplicating it."""
+    from django.db.models import Q
+
     from apps.legacy.models import ImportChunk, Person, Relationship
     from apps.legacy.services.gedcom_parser import dates_from_body
     from apps.legacy.services.preservation import preserve_facts
 
     _d = _iso_to_date
     user = batch.user
+    src = chunks_from or batch    # where the chunks are read FROM (newer file on refresh)
     xref_to_person = {}
     pedi_by_xref = {}     # child xref -> {family xref: pedigree} (standard PEDI)
     people_created = 0
@@ -403,7 +418,7 @@ def commit_genealogy(batch):
     # name. Two different people named "James Robertson" stay two people; the user
     # merges true duplicates by hand. Merging by name is what created impossible
     # parent counts. Re-commit is idempotent via (source_batch, gedcom_xref).
-    for ch in batch.chunks.filter(chunk_kind="gedcom_person"):
+    for ch in src.chunks.filter(chunk_kind="gedcom_person"):
         d = ch.data or {}
         name = (d.get("name") or ch.title or "Unknown person").strip()
         xref = (d.get("xref") or "").strip()
@@ -460,10 +475,27 @@ def commit_genealogy(batch):
         if made:
             links_created += 1
 
+    def _couple_link(a, b, rtype, **extra):
+        """Link a couple, but only if NO couple bond already exists between them
+        (either direction, any couple type). Prevents a refresh from stacking a second
+        'married to' on top of a user's 'former spouse of', and respects user edits."""
+        nonlocal links_created
+        if not a or not b or a.pk == b.pk:
+            return
+        for r in Relationship.objects.filter(user=user).filter(
+                Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)):
+            if any(k in (r.relationship_type or "").lower()
+                   for k in ("married", "spouse", "partner", "husband", "wife")):
+                return                        # a couple bond already exists — leave it
+        Relationship.objects.create(user=user, from_person=a, to_person=b,
+                                    relationship_type=rtype, **extra)
+        links_created += 1
+
     def _parent_link(parent, child, rtype):
-        """Create or REFINE a parent→child bond. Upgrades a generic/less-specific
-        existing parent type (e.g. 'parent of') to the evidence-based one ('biological
-        father of') without duplicating — so re-import improves Canonical Truth."""
+        """Create or REFINE a parent→child bond. Only ever REFINES a generic/blank
+        type ('parent of' → 'biological father of'); NEVER downgrades a specific type
+        and NEVER touches a user-edited relationship. This is what lets a refresh from
+        a poorer source improve Canonical Truth without ever eroding it."""
         nonlocal links_created
         if not parent or not child or parent.pk == child.pk:
             return
@@ -473,7 +505,8 @@ def commit_genealogy(batch):
                 existing = r
                 break
         if existing:
-            if existing.relationship_type != rtype:
+            if (not existing.user_edited and _is_generic_parent(existing.relationship_type)
+                    and not _is_generic_parent(rtype)):
                 existing.relationship_type = rtype
                 existing.save(update_fields=["relationship_type", "relationship_category",
                                              "updated_at"])
@@ -482,7 +515,7 @@ def commit_genealogy(batch):
                                         relationship_type=rtype)
             links_created += 1
 
-    for ch in batch.chunks.filter(chunk_kind="gedcom_family"):
+    for ch in src.chunks.filter(chunk_kind="gedcom_family"):
         d = ch.data or {}
         fam_xref = d.get("xref") or ""
         husb = xref_to_person.get(d.get("husb"))
@@ -494,8 +527,8 @@ def commit_genealogy(batch):
         # Either way the couple stay linked through their children.
         ctype, status = _couple_bond(d)
         if ctype and status == "known":
-            _link(husb, wife, "former spouse of" if ctype == "former" else "married to",
-                  started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
+            _couple_link(husb, wife, "former spouse of" if ctype == "former" else "married to",
+                         started_year=d.get("marriage_year"), started_date=_d(d.get("marriage_date")))
         # Parents are typed from the evidence the GEDCOM already carries — the parent's
         # SEX (father/mother) and the pedigree qualifier (_FREL/_MREL per parent, or the
         # child's PEDI for this family). Default is biological. Never a generic "Parent"

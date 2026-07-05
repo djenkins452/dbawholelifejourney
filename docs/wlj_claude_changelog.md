@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): Smart Refresh — synchronize an existing import instead of re-importing (Deployment 2)
+
+Legacy now recognizes when an upload is a newer export of a family it already has, and offers to **synchronize** it rather than duplicate it. Import = initial load; Refresh = synchronize Canonical Truth.
+
+- **Source identity / detection** (`refresh.detect_existing_source`): matches the upload's individuals to a prior GEDCOM lineage by **name + birth year** (never gedcom xref — xrefs are file-local, so every export reuses @I1@). Strong overlap ⇒ recognized as the same source; the upload is flagged `is_refresh` and routed to the refresh screen.
+- **Diff preview** (`refresh.diff_refresh`): a commit-nothing preview — people new / improved / unchanged / no-longer-in-file (exact), estimated new relationships, and the concepts that will be preserved for the roadmap.
+- **Conflict-safe apply** (`refresh.apply_refresh` → `commit_genealogy(original, chunks_from=incoming)`): existing people are matched by xref **within the lineage** (stable across same-tool exports) and only their BLANK facts are filled; genuinely new people join the lineage. Relationships UPSERT with new guards — `_parent_link` never downgrades a specific type to generic and never touches a `user_edited` relationship; `_couple_link` won't stack a second couple bond. So a poorer source can only ADD or REFINE, never erode. New unsupported facts flow to the permanent preservation layer (idempotent, no dup facts).
+- **User-edit protection**: `Relationship.user_edited` is set whenever the user saves a relationship by hand; refresh leaves those exactly as the user set them (the "I corrected Biological Father, don't revert it to Parent" case).
+- **Permanent audit** (`ImportBatch.refresh_summary`): people added / updated, relationships added, facts preserved, unchanged, and **duplicates prevented** — rendered on the import detail page after a refresh.
+
+**Zero duplicates** — people, relationships, stories, media, places, facts, milestones (genealogy commit only manages people/relationships/facts and keys them idempotently; it never creates or deletes stories/media/places). Idempotent: refreshing the same file twice changes nothing.
+
+**Verified live** (import v1 of Marvin+Barbara→Danny, then a richer v2 adding Julie + Danny's birth date + an occupation): detection recognizes the source; refresh adds 1 person (not re-creating the other 3), improves Danny's birth date, preserves the occupation fact, records the audit (1 added, 2 relationships, 8 duplicates prevented). A user-corrected "adoptive father of" survives a refresh from a file that says only "father". A different family is NOT mistaken for the same source. **118 legacy tests green** (+8 new refresh tests). Schema: migration 0028 (`ImportBatch.refresh_of/is_refresh/refresh_summary`, `Relationship.user_edited`).
+
+**Files:** apps/legacy/services/refresh.py (NEW), apps/legacy/services/import_engine.py (`commit_genealogy(chunks_from=)`, conflict-safe `_parent_link`/`_couple_link`, `_is_generic_parent`), apps/legacy/models.py, migration 0028, apps/legacy/views.py (`ImportRefreshView`, `ImportRefreshApplyView`, detection in `ImportCreateView`, `user_edited` on edit), apps/legacy/urls.py, templates/legacy/import_refresh.html (NEW) + import_detail.html (audit panel), static/css/legacy.css (v47), apps/legacy/tests/test_refresh.py (NEW).
+
+
 ## 2026-07-05 — feat(legacy): importer auto-classifies parent types from GEDCOM evidence (no manual correction)
 
 Users keep full CRUD, but nobody should hand-correct thousands of imported parents. The importer now produces the most accurate canonical relationship the source allows, from evidence it already had and was discarding:

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 241,
+    "fields": {
+      "title": "Refresh your family tree safely — no more re-importing",
+      "description": "Exported a newer copy of your family tree? Legacy now recognizes it as the same tree and offers to synchronize it instead of importing a duplicate. A refresh adds new people and fills in details your file has learned, while protecting everything you've added or corrected — your relationship fixes, biographies, stories, media, and places are never overwritten or removed. Before anything changes you see a preview, and afterward a full audit shows exactly what was added, updated, and how many duplicates were prevented. You can refresh your genealogy as often as you like without ever worrying about losing your work.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-05",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-07-05T16:00:00Z",
+      "updated_at": "2026-07-05T16:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 240,
     "fields": {
       "title": "“Help Legacy understand” — you teach Legacy, it never guesses",

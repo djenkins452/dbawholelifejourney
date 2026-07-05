@@ -1290,6 +1290,17 @@ class ImportCreateView(LegacyContextMixin, View):
             messages.error(request, str(e))
             return render(request, self.template_name, {"form": form, "nav_active": "studio"})
 
+        # Smart Refresh: recognize a family already imported and offer to synchronize
+        # it instead of duplicating. The user chooses on the refresh screen.
+        if batch.source_type == "gedcom":
+            from apps.legacy.services import refresh as refresh_svc
+            original = refresh_svc.detect_existing_source(request.user, batch)
+            if original is not None:
+                batch.is_refresh = True
+                batch.refresh_of = original
+                batch.save(update_fields=["is_refresh", "refresh_of", "updated_at"])
+                return redirect("legacy:import_refresh", pk=batch.pk)
+
         messages.success(
             request,
             f"Legacy read this and understood {batch.total_chunks} "
@@ -1403,6 +1414,51 @@ class ClarificationResolveView(LegacyContextMixin, View):
             messages.success(request, "Thanks — Legacy learned that and won't ask again.")
         else:
             messages.error(request, "Please choose how Legacy should represent this.")
+        return redirect("legacy:import_detail", pk=batch.pk)
+
+
+class ImportRefreshView(LegacyContextMixin, TemplateView):
+    """Recognized an already-imported family — offer to SYNCHRONIZE it (refresh) or
+    import it as a brand-new tree. Shows a diff preview so the user chooses knowingly."""
+    template_name = "legacy/import_refresh.html"
+    nav_active = "studio"
+
+    def get_context_data(self, **kwargs):
+        from apps.legacy.services import refresh as refresh_svc
+        ctx = super().get_context_data(**kwargs)
+        batch = get_object_or_404(
+            ImportBatch.all_objects, pk=kwargs["pk"], user=self.request.user)
+        ctx["batch"] = batch
+        ctx["original"] = batch.refresh_of
+        if batch.refresh_of is not None:
+            ctx["diff"] = refresh_svc.diff_refresh(batch.refresh_of, batch)
+        return ctx
+
+
+class ImportRefreshApplyView(LegacyContextMixin, View):
+    """Apply a Smart Refresh: synchronize the existing lineage from the newer upload,
+    then show the permanent audit summary. Or decline → import as a new tree."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services import refresh as refresh_svc
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        action = request.POST.get("action")
+        if action == "import_new":
+            batch.is_refresh = False
+            batch.refresh_of = None
+            batch.save(update_fields=["is_refresh", "refresh_of", "updated_at"])
+            messages.info(request, "Importing as a new family tree. Nothing was merged.")
+            return redirect("legacy:import_detail", pk=batch.pk)
+        if batch.refresh_of is None:
+            messages.error(request, "There's no existing tree to refresh.")
+            return redirect("legacy:import_detail", pk=batch.pk)
+        audit = refresh_svc.apply_refresh(batch.refresh_of, batch)
+        messages.success(
+            request,
+            "Refresh complete — %d added, %d updated, %d relationships added, "
+            "%d duplicates prevented. Nothing was lost."
+            % (audit["people_added"], audit["people_updated"],
+               audit["relationships_added"], audit["duplicates_prevented"]))
         return redirect("legacy:import_detail", pk=batch.pk)
 
 
@@ -1556,7 +1612,9 @@ class RelationshipEditView(LegacyContextMixin, View):
         rel = get_object_or_404(Relationship, pk=pk, user=request.user)
         form = RelationshipForm(request.POST, instance=rel)
         if form.is_valid():
-            form.save()
+            rel = form.save(commit=False)
+            rel.user_edited = True    # a Smart Refresh will never overwrite this
+            rel.save()
             messages.success(request, "Relationship updated.")
             return redirect("legacy:person_detail", pk=rel.from_person_id)
         return render(request, self.template_name, {

@@ -1,0 +1,46 @@
+{% extends "legacy/base_legacy.html" %}
+
+{% block legacy_content %}
+<div class="lib">
+    <a href="{% url 'legacy:imports' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Your imports
+    </a>
+
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">You've imported this family before</h1>
+            <p class="lib-sub">This looks like a newer export of <strong>{{ original.source_name }}</strong>. Legacy can <strong>synchronize</strong> your existing tree — adding what's new and improving what it can — <strong>without creating duplicates</strong> and without touching anything you've edited. Or import it as a separate new tree.</p>
+        </div>
+    </div>
+
+    {% if diff %}
+    <section class="lg-card refresh-preview">
+        <h2 class="lg-card-h">What a refresh would do</h2>
+        <div class="refresh-grid">
+            <div class="refresh-stat"><span class="refresh-num">{{ diff.people_new }}</span><span class="refresh-lbl">People added</span></div>
+            <div class="refresh-stat"><span class="refresh-num">{{ diff.people_updated }}</span><span class="refresh-lbl">People improved</span></div>
+            <div class="refresh-stat"><span class="refresh-num">{{ diff.relationships_new }}</span><span class="refresh-lbl">New relationships</span></div>
+            <div class="refresh-stat refresh-safe"><span class="refresh-num">{{ diff.matched_people }}</span><span class="refresh-lbl">Matched — not duplicated</span></div>
+            <div class="refresh-stat"><span class="refresh-num">{{ diff.people_unchanged }}</span><span class="refresh-lbl">Unchanged</span></div>
+            {% if diff.no_longer_present %}<div class="refresh-stat"><span class="refresh-num">{{ diff.no_longer_present|length }}</span><span class="refresh-lbl">Not in this file (kept)</span></div>{% endif %}
+        </div>
+        {% if diff.unsupported %}
+        <p class="refresh-note">Also preserved for the Canonical Truth Roadmap: {% for u in diff.unsupported %}{{ u.concept }} ({{ u.count }}){% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+        {% endif %}
+        <p class="refresh-reassure">Your edits are safe — corrected relationships, biographies, stories, media, and places are never overwritten or removed. Canonical Truth always wins over a poorer source.</p>
+    </section>
+    {% endif %}
+
+    <div class="refresh-actions">
+        <form method="post" action="{% url 'legacy:import_refresh_apply' batch.pk %}">
+            {% csrf_token %}
+            <button type="submit" name="action" value="refresh" class="lg-btn-primary">Refresh my existing tree</button>
+        </form>
+        <form method="post" action="{% url 'legacy:import_refresh_apply' batch.pk %}">
+            {% csrf_token %}
+            <button type="submit" name="action" value="import_new" class="lg-btn-ghost">Import as a separate new tree</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

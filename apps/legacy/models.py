@@ -649,6 +649,9 @@ class Relationship(LegacyOwnedModel):
     # Whether the relationship is ongoing, ended, estranged, or unknown — separate
     # from what KIND of relationship it is.
     rel_status = models.CharField(max_length=10, choices=RelStatus.choices, blank=True)
+    # Set when the user edits this relationship by hand. A Smart Refresh NEVER
+    # overwrites a user-edited relationship — Canonical Truth wins over a poorer source.
+    user_edited = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
     started_year = models.PositiveIntegerField(null=True, blank=True)
     ended_year = models.PositiveIntegerField(null=True, blank=True)
@@ -791,6 +794,15 @@ class ImportBatch(LegacyOwnedModel):
     # what was preserved but has no canonical home yet (with a recommendation),
     # and what wasn't recognized. Proof that nothing was silently discarded.
     coverage = models.JSONField(default=dict, blank=True)
+    # Smart Refresh: when this upload is recognized as a newer export of a source
+    # already imported, it SYNCHRONIZES that lineage instead of duplicating it.
+    # `refresh_of` points at the original batch (the lineage); `is_refresh` flags a
+    # pending refresh awaiting the user's choice; `refresh_summary` is the permanent
+    # audit of what a refresh changed (added/updated/preserved/prevented duplicates).
+    refresh_of = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='refreshes')
+    is_refresh = models.BooleanField(default=False)
+    refresh_summary = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-created_at']

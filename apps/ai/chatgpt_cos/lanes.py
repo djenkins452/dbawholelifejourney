@@ -441,13 +441,13 @@ def _deterministic_risk_answer(user):
                 action="I'd shore that up today")
     except Exception:
         logger.warning("executive_risk: decision failed", exc_info=True)
-    # 4) No meaningful risk → ASSESSMENT (no real risk) + REASONING (why) + the biggest
-    #    opportunity as the lever. Never a goal update.
+    # 4) No meaningful risk → ASSESSMENT (no real risk) + REASONING (why) + the EXECUTIVE
+    #    opportunity as the lever (not a positive insight). Never a goal update.
     reasoning = ("nothing's overdue, there are no health-critical flags, and no warning "
                  "signals in your data")
-    opps = (intel.get("opportunities") or [])
-    action = (f"if you want a lever instead, the biggest opportunity is {opps[0]['text']}"
-              if opps else "steady progress on what matters most is the best use of the day")
+    opp = _executive_opportunity(user)
+    action = (f"if you want a lever instead, the opportunity is {opp['text']} — {opp['action']}"
+              if opp else "steady progress on what matters most is the best use of the day")
     return frame(assessment="Honestly, nothing rises to a real risk today",
                  reasoning=reasoning, action=action)
 
@@ -464,6 +464,56 @@ def _executive_risk_lane(user, message, conversation=None):
         return None
     return {"answer": _deterministic_risk_answer(user), "tools_called": [],
             "tools_advertised": [], "lane": "executive_risk"}
+
+
+# "What opportunity am I missing today?" — an EXECUTIVE OPPORTUNITY (a high-leverage
+# move to seize), computed by interpret() from executive state. NOT a positive insight
+# (protein/weight/streak are WINS, not opportunities). Domain-scoped is yielded.
+_EXEC_OPP_SIGNALS = (
+    "opportunity", "opportunities", "what am i missing", "what i am missing",
+    "what should i capitalize", "what should i capitalise", "where's the leverage",
+    "wheres the leverage", "where is the leverage", "biggest opportunity",
+    "any opportunit", "opportunity today", "what could i seize", "what should i seize",
+)
+
+
+def _executive_opportunity(user):
+    """interpret()'s executive OPPORTUNITY assessment (dict or None). The one brain
+    computes it from executive state; consumers only present it."""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        return interpret(user).opportunity
+    except Exception:
+        logger.warning("executive_opportunity: interpret failed", exc_info=True)
+        return None
+
+
+def _deterministic_opportunity_answer(user):
+    """Answer 'what opportunity am I missing?' from the executive opportunity assessment
+    (ASSESSMENT → REASONING → ACTION), or say honestly there is no standout opening —
+    never a positive-insight recommendation, never invented."""
+    from apps.ai.chatgpt_cos.executive_reasoning import frame
+    opp = _executive_opportunity(user)
+    if opp:
+        return frame(assessment=f"The opportunity to seize today is {opp['text']}",
+                     reasoning=opp.get("basis"), action=opp.get("action"))
+    return frame(
+        assessment="There's no standout opportunity to exploit today",
+        reasoning="nothing in your executive state points to disproportionate upside from a single move right now",
+        action="today is better suited to disciplined execution than opportunism — steady progress on what matters most is the win")
+
+
+def _executive_opportunity_lane(user, message, conversation=None):
+    """First-class EXECUTIVE OPPORTUNITY for 'what opportunity am I missing?'. Consumes
+    interpret().opportunity (leverage × capacity × timing × probability); NEVER a
+    positive-insight recommendation. Yields domain-scoped opportunity questions."""
+    norm = _normalize(message)
+    if not any(s in norm for s in _EXEC_OPP_SIGNALS):
+        return None
+    if any(d in norm for d in _OVERVIEW_DOMAIN_QUALIFIERS):
+        return None
+    return {"answer": _deterministic_opportunity_answer(user), "tools_called": [],
+            "tools_advertised": [], "lane": "executive_opportunity"}
 
 
 # Honest capability-gap for goals — until a canonical goal engine exists, Beth
@@ -1450,6 +1500,9 @@ LANE_REGISTRY = (
     # "What's my biggest risk today?" — whole-life executive risk synthesis, never a
     # health intent or a goal update.
     ("executive_risk", _executive_risk_lane),
+    # "What opportunity am I missing?" — executive opportunity (leverage×capacity×timing),
+    # never a positive insight.
+    ("executive_opportunity", _executive_opportunity_lane),
     ("cos_briefing", _cos_briefing_lane),
     ("personal_reasoning", _reasoning_lane),
     ("general_conversation", _general_lane),

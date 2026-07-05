@@ -62,7 +62,13 @@ class ExecutiveSignals:
     # ── Whole-Life intelligence WLJ already computed, folded into the ONE executive
     # understanding (persisted Insight/Prediction/DomainCorrelation/GuidanceItem). ──
     risks: list = field(default_factory=list)
-    opportunities: list = field(default_factory=list)
+    # Positive domain insights ("weight trending down", "protein on track") — these are
+    # WINS / evidence of what's going well, NOT opportunities.
+    wins: list = field(default_factory=list)
+    # The executive OPPORTUNITY — a high-expected-value move available now (leverage ×
+    # capacity × timing × probability), derived from executive STATE, not positive
+    # insights. {text, basis, action} or None when there's no standout opening.
+    opportunity: dict = None
     predictions: list = field(default_factory=list)
     patterns: list = field(default_factory=list)
     guidance: list = field(default_factory=list)
@@ -265,6 +271,52 @@ def _headline(workload, recovery, has_backlog):
     return base + "."
 
 
+def _opportunity_assessment(*, workload, ease_load, strategic, tw, reconciliation,
+                            subjective, accomplishments):
+    """The single highest-EXPECTED-VALUE executive opportunity today — leverage ×
+    capacity × timing × PROBABILITY of success — derived from executive STATE, never
+    from positive domain insights. "What action, taken now, creates disproportionate
+    value?" Each candidate requires deterministic evidence and carries its own basis +
+    recommended action; the winner is the highest expected value (a medium-leverage,
+    near-certain move can beat a high-leverage, low-probability one). Returns
+    ``{text, basis, action}`` or ``None`` — and None is honest: no standout opening, so
+    today is for disciplined execution, not opportunism."""
+    light = (workload in ("light", "manageable")) and not ease_load
+    cands = []   # (expected_value, text, basis, action)
+    # 1) Open capacity + real strategic leverage → make disproportionate progress.
+    if light and strategic:
+        cands.append((0.90 * 0.85,
+                      f"a genuinely open day and real leverage in {strategic}",
+                      "your required load is light today and your strategic focus is clear",
+                      f"protect a real block and move {strategic} forward while the calendar "
+                      "cooperates — that compounds far beyond routine work"))
+    # 2) Ahead of plan → pull the next milestone forward / bank the buffer.
+    if accomplishments:
+        cands.append((0.80 * 0.75,
+                      "you're already ahead of plan today",
+                      "you've logged accomplishments beyond what today required",
+                      "pull your next milestone forward or bank the buffer rather than coast"))
+    # 3) Real energy → take on the hard, deferred problem (energy is the enabler).
+    if subjective == "positive" or reconciliation in ("positive_over_debt", "confirmed_good"):
+        cands.append((0.80 * 0.80,
+                      "unusually good energy today",
+                      "your own report that you're feeling strong",
+                      "spend it on the hardest problem you've been deferring — a good day is "
+                      "wasted on routine work"))
+    # 4) A cluster of small items → clear the drag (medium leverage, near-certain).
+    small = tw["soon"] if tw["soon"] >= 3 else (tw["backlog"] if tw["backlog"] >= 5 else 0)
+    if small:
+        cands.append((0.40 * 0.95,
+                      f"a cluster of {small} small items you could clear in one pass",
+                      "several low-effort tasks are stacking up",
+                      "batch them now to eliminate the drag — near-certain success for a light lift"))
+    if not cands:
+        return None
+    cands.sort(key=lambda c: -c[0])
+    _, text, basis, action = cands[0]
+    return {"text": text, "basis": basis, "action": action}
+
+
 def interpret(user, low_energy=False, subjective=None):
     """Produce ExecutiveSignals — ALL executive judgment — from deterministic facts
     plus the user's OWN reported state. The Composer narrates these conclusions; it
@@ -419,16 +471,23 @@ def interpret(user, low_energy=False, subjective=None):
     # request-path recompute). The top risk enriches biggest_risk / executive_picture
     # when today has no bigger headline (an accomplishment or a voiced report outranks a
     # background risk); it never overrides them. interpret() remains the sole authority. ──
-    _risks = _opportunities = _predictions = _patterns = _guidance = None
+    _risks = _wins = _predictions = _patterns = _guidance = None
     try:
         from apps.ai.cos_intelligence import active_intelligence
         _intel = active_intelligence(user)
-        _risks, _opportunities = _intel.get("risks") or [], _intel.get("opportunities") or []
+        # Positive insights are WINS (what's going well), not opportunities.
+        _risks, _wins = _intel.get("risks") or [], _intel.get("wins") or []
         _predictions = _intel.get("predictions") or []
         _patterns, _guidance = _intel.get("patterns") or [], _intel.get("guidance") or []
     except Exception:
         logger.warning("interpret: intelligence read failed", exc_info=True)
-        _risks = _opportunities = _predictions = _patterns = _guidance = []
+        _risks = _wins = _predictions = _patterns = _guidance = []
+    # EXECUTIVE OPPORTUNITY — computed from executive STATE (leverage × capacity × timing
+    # × probability), NEVER from positive insights.
+    _opportunity = _opportunity_assessment(
+        workload=workload, ease_load=ease_load, strategic=strategic, tw=tw,
+        reconciliation=reconciliation, subjective=subjective,
+        accomplishments=reported_accomplishments)
     if not biggest_risk and _risks:
         biggest_risk = _risks[0].get("text", "") or biggest_risk
     if not executive_picture:
@@ -436,8 +495,9 @@ def interpret(user, low_energy=False, subjective=None):
             _b = _risks[0].get("basis")
             executive_picture = ("The thing to watch is " + _risks[0].get("text", "")
                                  + (f" (basis: {_b})." if _b else "."))
-        elif _opportunities:
-            executive_picture = "Worth seizing: " + _opportunities[0].get("text", "") + "."
+        elif _opportunity:
+            executive_picture = ("Worth seizing: " + _opportunity["text"] + " — "
+                                 + _opportunity["action"] + ".")
 
     # HEALTH-CRITICAL FIRST: a time-sensitive clinical action outranks everything else
     # today — even a celebration or a good-energy report. Lead the picture with it so
@@ -451,7 +511,7 @@ def interpret(user, low_energy=False, subjective=None):
             + (executive_picture or "")).strip()
 
     return ExecutiveSignals(
-        risks=_risks, opportunities=_opportunities, predictions=_predictions,
+        risks=_risks, wins=_wins, opportunity=_opportunity, predictions=_predictions,
         patterns=_patterns, guidance=_guidance, health_critical=_health_critical,
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],

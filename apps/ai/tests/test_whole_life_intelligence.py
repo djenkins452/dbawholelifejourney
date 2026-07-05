@@ -61,7 +61,7 @@ class WholeLifeIntelligenceTests(TestCase):
         intel = active_intelligence(self.user)
         self.assertTrue(intel["risks"] and "protein" in intel["risks"][0]["text"].lower())
         self.assertEqual(intel["risks"][0]["confidence"], "high")     # 0.82
-        self.assertTrue(intel["opportunities"])
+        self.assertTrue(intel["wins"])
         self.assertTrue(intel["predictions"] and intel["predictions"][0]["when"])
         self.assertTrue(intel["patterns"] and "mood" in intel["patterns"][0]["text"].lower())
         self.assertTrue(intel["guidance"])
@@ -80,7 +80,7 @@ class WholeLifeIntelligenceTests(TestCase):
         text = cos_intelligence_narrative({"intelligence": active_intelligence(self.user)})
         self.assertIn("Risk to watch", text)
         self.assertIn("basis:", text)
-        self.assertIn("Opportunity", text)
+        self.assertIn("What's going well", text)   # positive insights are WINS, not opportunities
         self.assertIn("Pattern", text)
 
     def test_narrative_never_invents_when_empty(self):
@@ -94,7 +94,7 @@ class WholeLifeIntelligenceTests(TestCase):
             sig = interpret(self.user)
         # Structured intelligence is now on the ONE executive understanding.
         self.assertTrue(sig.risks and "protein" in sig.risks[0]["text"].lower())
-        self.assertTrue(sig.patterns and sig.opportunities and sig.predictions)
+        self.assertTrue(sig.patterns and sig.wins and sig.predictions)
         self.assertTrue(sig.biggest_risk)                      # a risk is surfaced
         # With no bigger headline today, the top risk drives the executive picture.
         self.assertIn("thing to watch", sig.executive_picture.lower())

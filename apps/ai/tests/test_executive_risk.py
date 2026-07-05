@@ -68,15 +68,29 @@ class ExecutiveRiskTests(TestCase):
         self.assertIn("q3 review", ans)
         self.assertIn("at risk", ans)
 
-    def test_no_meaningful_risk_explains_why_and_offers_opportunity(self):
-        opps = [{"text": "workout consistency up 40%"}]
+    def test_no_meaningful_risk_offers_executive_opportunity_not_positive_insight(self):
+        # No risk → explain WHY, then offer the EXECUTIVE opportunity (a leverage move),
+        # NEVER a positive insight ("workout consistency" is a WIN, not an opportunity).
+        opp = {"text": "a genuinely open day and real leverage in the launch",
+               "action": "protect a real block and move it forward"}
         with mock.patch(_DOSES, return_value=[]), \
-                mock.patch(_INTEL, return_value=_intel(opportunities=opps)), \
+                mock.patch(_INTEL,
+                           return_value=_intel(opportunities=[{"text": "workout consistency up 40%"}])), \
+                mock.patch("apps.ai.chatgpt_cos.lanes._executive_opportunity", return_value=opp), \
                 mock.patch(_DECISION, return_value={"message": "No significant risk right now"}):
             ans = _deterministic_risk_answer(self.user).lower()
-        self.assertIn("nothing rises to a real risk", ans)   # explains WHY
-        self.assertIn("opportunity", ans)                     # offers the biggest opportunity
-        self.assertIn("workout consistency", ans)
+        self.assertIn("nothing rises to a real risk", ans)      # explains WHY
+        self.assertIn("real leverage in the launch", ans)       # the EXECUTIVE opportunity
+        self.assertNotIn("workout consistency", ans)            # never a positive insight
+
+    def test_no_risk_and_no_opportunity_falls_to_steady_execution(self):
+        with mock.patch(_DOSES, return_value=[]), \
+                mock.patch(_INTEL, return_value=_intel()), \
+                mock.patch("apps.ai.chatgpt_cos.lanes._executive_opportunity", return_value=None), \
+                mock.patch(_DECISION, return_value={"message": "No significant risk right now"}):
+            ans = _deterministic_risk_answer(self.user).lower()
+        self.assertIn("nothing rises to a real risk", ans)
+        self.assertIn("steady progress", ans)
 
     def test_domain_scoped_risk_yields_to_reasoning(self):
         # "biggest HEALTH risk" / "risk to my GOAL" stays a domain question.

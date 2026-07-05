@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Executive Opportunity is executive JUDGMENT, not positive-insight aliasing
+
+**Root cause:** "Executive Opportunity" was implemented as *Positive Insight → Opportunity*. `active_intelligence()` surfaced any `Insight.severity=="positive"` (protein on track, weight down, a habit streak) under an `"opportunities"` key, and the no-risk fallback offered those as "the biggest opportunity." That is fundamentally wrong: a positive insight is something already going well (EVIDENCE / a WIN), not a high-leverage move to seize. "What opportunity am I missing today?" → "Protein." — nutrition advice, not executive judgment.
+
+**Fix (no new engine, one brain):** Executive Opportunity is now derived from executive STATE by `interpret()`, answering *"What action, taken now, creates disproportionate value?"* New `_opportunity_assessment()` ranks candidates by **expected value = leverage × probability of success** (the Chief-of-Staff refinement: a medium-leverage, near-certain move can beat a high-leverage, low-probability one). Candidates, each requiring deterministic evidence: open capacity + strategic leverage (0.90×0.85); ahead of plan → pull the next milestone forward (0.80×0.75); real energy → take on the hardest deferred problem (0.80×0.80); a cluster of small items → clear the drag, near-certain (0.40×0.95). If no candidate qualifies, the assessment is honestly **None** → Beth says there's no standout opportunity and today is better for disciplined execution than opportunism. Nothing hardcoded, nothing invented, every answer explainable through evidence.
+
+**Reclassification:** positive insights are no longer opportunities — `active_intelligence()` now returns them under `"wins"` and the standing narrative labels them "What's going well:" (was "Opportunity:"). `ExecutiveSignals.opportunities` → `wins`; new `ExecutiveSignals.opportunity` (the assessed executive opportunity). New first-class `executive_opportunity` lane (after `executive_risk`) answers the opportunity question via `frame()` (Assessment → Reasoning → Action); domain-scoped ("opportunity to improve my protein") yields to domain reasoning. The risk lane's no-risk lever now offers the *executive* opportunity, never a positive insight.
+
+**Files:** `apps/ai/chatgpt_cos/executive_interpretation.py` (rename field, add `opportunity`, `_opportunity_assessment()`, fold into `interpret()`), `apps/ai/cos_intelligence.py` (`opportunities`→`wins`, narrative relabel), `apps/ai/chatgpt_cos/lanes.py` (`executive_opportunity` lane + `_executive_opportunity()`; risk no-risk lever), tests: new `test_executive_opportunity.py`, updated `test_whole_life_intelligence.py` / `test_executive_risk.py` / `test_conversation_lanes.py`.
+
+**Verification:** 56 targeted tests green (opportunity/risk/whole-life/lanes) + 59 request-path-safety/overview/health-critical green. Before/after certified: "What opportunity am I missing today?" no longer returns "Protein" — it names the true leverage move, or honestly says there's no standout opening. (Pre-existing unrelated failure: `test_executive_briefing.test_second_call_is_noop`, fails identically on baseline — keepdb state leak.)
+
 ## 2026-07-05 — feat(legacy): Family Tree renderer rebuilt around FAMILY UNITS (rendering only)
 
 Rendering-only rewrite (no Canonical Truth / Relationships / importer changes) so the tree reads as a family, not a row of records. The renderer now builds FAMILY UNITS (a couple and its children) instead of sweeping individuals into rows:

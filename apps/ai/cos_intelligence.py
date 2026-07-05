@@ -267,7 +267,10 @@ def active_intelligence(user):
     Every item carries its basis + confidence so Beth can cite it and admit when there
     is none. This is the single reader both the standing narrative and interpret()
     consume — one source, no duplicated truth."""
-    out = {"risks": [], "opportunities": [], "predictions": [], "patterns": [],
+    # Positive insights are WINS (what's going well) — NOT executive opportunities. The
+    # executive opportunity (a high-leverage move to seize) is computed in interpret()
+    # from executive state, never from these.
+    out = {"risks": [], "wins": [], "predictions": [], "patterns": [],
            "guidance": []}
     try:                                                     # Insights → risk / opportunity
         from apps.core.ai_insights.models import Insight
@@ -280,9 +283,9 @@ def active_intelligence(user):
                                  "basis": f"{i.module} insight",
                                  "confidence": _conf_label(i.confidence_score)})
         for i in [r for r in rows if r.severity == "positive"][:2]:
-            out["opportunities"].append({"text": i.title or (i.message or "")[:120],
-                                         "basis": f"{i.module} insight",
-                                         "confidence": _conf_label(i.confidence_score)})
+            out["wins"].append({"text": i.title or (i.message or "")[:120],
+                                "basis": f"{i.module} insight",
+                                "confidence": _conf_label(i.confidence_score)})
     except Exception:
         logger.debug("intelligence: insights read failed", exc_info=True)
     try:                                                     # Predictions → forward-looking
@@ -405,8 +408,8 @@ def cos_intelligence_narrative(intel):
 
     for r in (_intl.get("risks") or [])[:3]:
         lines.append(f"- Risk to watch: {_fmt(r)}")
-    for o in (_intl.get("opportunities") or [])[:2]:
-        lines.append(f"- Opportunity: {_fmt(o)}")
+    for w in (_intl.get("wins") or [])[:2]:
+        lines.append(f"- What's going well: {_fmt(w)}")
     for p in (_intl.get("predictions") or [])[:2]:
         when = f" (by {p['when']})" if p.get("when") else ""
         lines.append(f"- Prediction{when}: {_fmt(p)}")

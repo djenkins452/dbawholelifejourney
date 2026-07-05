@@ -164,81 +164,54 @@ class StepParentClarification:
 
     kind = "step_parent"
 
-    def _graph(self, user):
-        from collections import defaultdict
-        from apps.legacy.models import Relationship
-        from apps.legacy.services.import_engine import _is_parentish
-
-        parents_of, children_of, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
-        names, sex = {}, {}
-        pairs = set()
-        for r in Relationship.objects.filter(user=user).select_related(
-                "from_person", "to_person"):
-            t = (r.relationship_type or "").lower()
-            names[r.from_person_id] = r.from_person.display_name
-            names[r.to_person_id] = r.to_person.display_name
-            sex[r.from_person_id] = r.from_person.sex
-            sex[r.to_person_id] = r.to_person.sex
-            pairs.add((r.from_person_id, r.to_person_id))
-            if _is_parentish(t):
-                children_of[r.from_person_id].add(r.to_person_id)
-                parents_of[r.to_person_id].add(r.from_person_id)
-            elif any(k in t for k in ("married", "spouse", "partner", "husband", "wife")):
-                spouses[r.from_person_id].add(r.to_person_id)
-                spouses[r.to_person_id].add(r.from_person_id)
-        return parents_of, children_of, spouses, names, sex, pairs
-
     def detect(self, batch):
-        from apps.legacy.models import ClarificationDecision
+        from apps.legacy.models import Person
+        from apps.legacy.services.import_engine import analyze_step_candidates
 
         user = batch.user
-        parents_of, children_of, spouses, names, sex, pairs = self._graph(user)
-        decided = set(ClarificationDecision.objects.filter(user=user, kind=self.kind)
-                      .values_list("ref", flat=True))
-        seen = set()
-        for parent_id, kids in children_of.items():
-            for spouse_id in spouses.get(parent_id, ()):
-                if spouse_id == parent_id:
-                    continue
-                # children this partner is NOT already a parent of (no invented steps)
-                targets = [c for c in kids
-                           if spouse_id not in parents_of.get(c, ())
-                           and (spouse_id, c) not in pairs]
-                if not targets:
-                    continue
-                ref = "%d:%d" % (spouse_id, parent_id)
-                if ref in decided or ref in seen:
-                    continue
-                seen.add(ref)
-                kid_names = ", ".join(names.get(c, "?") for c in sorted(targets))
-                yield {
-                    "kind": self.kind,
-                    "ref": ref,
-                    "title": "Help Legacy understand this relationship",
-                    "prompt": "How is %s related to %s's %s?" % (
-                        names.get(spouse_id, "this person"), names.get(parent_id, "the parent"),
-                        "child" if len(targets) == 1 else "children"),
-                    "reason": "%s was a partner of %s, but the file does not record %s as a "
-                              "parent of %s" % (
-                                  names.get(spouse_id, "This person"), names.get(parent_id, "the parent"),
-                                  names.get(spouse_id, "them"), kid_names),
-                    "evidence": [
-                        {"label": "Partner", "value": names.get(spouse_id, "?"),
-                         "href": "/legacy/people/%d/" % spouse_id},
-                        {"label": "Parent", "value": names.get(parent_id, "?"),
-                         "href": "/legacy/people/%d/" % parent_id},
-                        {"label": "Their child" if len(targets) == 1 else "Their children",
-                         "value": kid_names},
-                        {"label": "Recorded as a parent?", "value": "No — no parent link in the file"},
-                        {"label": "Source", "value": batch.source_name},
-                    ],
-                    "options": [
-                        {"value": "step", "label": "Step-parent"},
-                        {"value": "not_step", "label": "Not a step-parent"},
-                    ],
-                    "allow_other": True,
-                    "other_label": "Other relationship",
-                }
+        # Only the AMBIGUOUS candidates come here — the overwhelming-evidence ones were
+        # already concluded automatically (single spouse, child a minor at the marriage).
+        _infer, clarify = analyze_step_candidates(user)
+        if not clarify:
+            return
+        ids = set()
+        for c in clarify:
+            ids.add(c["spouse_id"]); ids.add(c["parent_id"]); ids |= c["child_ids"]
+        names = dict(Person.all_objects.filter(user=user, pk__in=ids)
+                     .values_list("pk", "display_name"))
+        for c in clarify:
+            spouse_id, parent_id = c["spouse_id"], c["parent_id"]
+            kid_names = ", ".join(names.get(k, "?") for k in sorted(c["child_ids"]))
+            yield {
+                "kind": self.kind,
+                "ref": "%d:%d" % (spouse_id, parent_id),
+                "title": "Help Legacy understand this relationship",
+                "prompt": "How is %s related to %s's %s?" % (
+                    names.get(spouse_id, "this person"), names.get(parent_id, "the parent"),
+                    "child" if len(c["child_ids"]) == 1 else "children"),
+                "reason": "%s married %s, but Legacy can't tell from the file whether %s "
+                          "was a step-parent to %s" % (
+                              names.get(spouse_id, "This person"), names.get(parent_id, "the parent"),
+                              names.get(spouse_id, "they"), kid_names),
+                "evidence": [
+                    {"label": "Married", "value": "%s & %s" % (
+                        names.get(spouse_id, "?"), names.get(parent_id, "?"))},
+                    {"label": "Parent", "value": names.get(parent_id, "?"),
+                     "href": "/legacy/people/%d/" % parent_id},
+                    {"label": "Their child" if len(c["child_ids"]) == 1 else "Their children",
+                     "value": kid_names},
+                    {"label": "Recorded as a parent?", "value": "No — no parent link in the file"},
+                    {"label": "Why Legacy is asking",
+                     "value": "another possible step-parent, or the timing is unclear"},
+                    {"label": "Source", "value": batch.source_name},
+                ],
+                "options": [
+                    {"value": "step", "label": "Step-parent"},
+                    {"value": "not_step", "label": "Not a step-parent"},
+                ],
+                "allow_other": True,
+                "other_label": "Other relationship",
+            }
 
     def resolve(self, batch, ref, answer, detail):
         from apps.legacy.models import ClarificationDecision, Person, Relationship

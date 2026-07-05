@@ -302,13 +302,97 @@ def _parent_type(sex, base):
     return "biological father of" if m else "biological mother of" if f else "parent of"
 
 
-# NOTE: There is deliberately NO step-parent INFERENCE. A step-parent is created ONLY
-# from explicit evidence — a child whose pedigree to that parent is marked step
-# (_FREL/_MREL/PEDI), handled by the pedigree path in `_parent_type`. Marriage does NOT
-# imply a step-parent: a spouse of a parent is not automatically a step-parent (that
-# made Danny have seven parents). Where the source can't prove it, the Clarification
-# Engine ASKS the user (services/clarification.py :: StepParentClarification). Legacy
-# preserves evidence and asks; it never invents relationships.
+# Step-parents: INFER only on overwhelming, unambiguous evidence; otherwise ASK. A
+# spouse of a parent is NOT automatically a step-parent (that made Danny have seven
+# parents) — but a single spouse who married the parent while the child was a minor IS
+# strong enough to conclude without a question. Explicit pedigree step markers
+# (_FREL/_MREL/PEDI) are handled directly by `_parent_type`; this covers the common
+# case where the file only records the marriage + the children's births.
+def _step_type(sex):
+    s = (sex or "").upper()
+    return ("stepfather of" if s.startswith("M")
+            else "stepmother of" if s.startswith("F") else "step-parent of")
+
+
+_STEP_MINOR_AGE = 18   # child was a minor at the parent's marriage → in-household step-parent
+
+
+def _add_clarify(clarify, spouse_id, parent_id, child_id):
+    for c in clarify:
+        if c["spouse_id"] == spouse_id and c["parent_id"] == parent_id:
+            c["child_ids"].add(child_id)
+            return
+    clarify.append({"spouse_id": spouse_id, "parent_id": parent_id, "child_ids": {child_id}})
+
+
+def analyze_step_candidates(user):
+    """Classify every possible step-parent in the CURRENT graph as INFER or CLARIFY.
+
+    INFER (auto-create, no question) requires ALL of:
+      • the candidate MARRIED the child's parent (a known marriage: married / former), and
+      • that parent has exactly ONE such candidate spouse (no competing spouses), and
+      • the marriage year is known and the child was a MINOR at the marriage.
+    Otherwise, when a real candidate exists → CLARIFY (multiple candidates, or unknown /
+    conflicting chronology). A child already an ADULT at the marriage is skipped — neither
+    inferred nor asked (not a meaningful step-parent). A (spouse, parent) the user already
+    answered is never re-inferred or re-asked (teach-once).
+
+    Returns (infer, clarify):
+      infer   = [(spouse_id, child_id, rtype)]
+      clarify = [{"spouse_id", "parent_id", "child_ids": set()}]
+    """
+    from collections import defaultdict
+
+    from apps.legacy.models import ClarificationDecision, Relationship
+
+    parents_of = defaultdict(set)
+    spouses = defaultdict(set)
+    myear = {}          # frozenset({a, b}) -> marriage year (or None)
+    sex, birth = {}, {}
+    pairs = set()
+    for r in Relationship.objects.filter(user=user).select_related("from_person", "to_person"):
+        t = (r.relationship_type or "").lower()
+        sex[r.from_person_id] = r.from_person.sex
+        sex[r.to_person_id] = r.to_person.sex
+        birth[r.from_person_id] = r.from_person.birth_year
+        birth[r.to_person_id] = r.to_person.birth_year
+        pairs.add((r.from_person_id, r.to_person_id))
+        if _is_parentish(t):
+            parents_of[r.to_person_id].add(r.from_person_id)
+        elif "married" in t or "spouse" in t:     # a KNOWN marriage (married to / former spouse of)
+            spouses[r.from_person_id].add(r.to_person_id)
+            spouses[r.to_person_id].add(r.from_person_id)
+            myear[frozenset((r.from_person_id, r.to_person_id))] = r.started_year
+
+    decided = set(ClarificationDecision.objects.filter(user=user, kind="step_parent")
+                  .values_list("ref", flat=True))
+
+    infer, clarify = [], []
+    for child_id, prnts in parents_of.items():
+        B = birth.get(child_id)
+        for p in prnts:
+            # candidate step-spouses of THIS parent: married to p, not the child's parent
+            cands = [s for s in spouses.get(p, ())
+                     if s not in prnts and s != child_id and (s, child_id) not in pairs]
+            competing = len(cands) > 1
+            for s in cands:
+                if "%d:%d" % (s, p) in decided:
+                    continue                              # user already taught Legacy
+                Y = myear.get(frozenset((p, s)))
+                if competing or Y is None or B is None or Y < B:
+                    _add_clarify(clarify, s, p, child_id)                 # ambiguous → ask
+                elif Y <= B + _STEP_MINOR_AGE:
+                    infer.append((s, child_id, _step_type(sex.get(s))))   # overwhelming → infer
+                # else Y > B + 18: the child was an adult at the marriage → skip
+    return infer, clarify
+
+
+def refine_existing_family_types(user):
+    """Bring ALREADY-imported genealogy up to the evidence-based standard WITHOUT a
+    re-import: backfill Person.sex from the stored import chunks and upgrade generic
+    'parent of' bonds to biological father/mother by that sex. Evidence only — no
+    step-parent inference. Idempotent. Returns (sex_set, parents_upgraded)."""
+    from apps.legacy.models import ImportChunk, Person, Relationship
 
 
 def refine_existing_family_types(user):
@@ -511,9 +595,18 @@ def commit_genealogy(batch, chunks_from=None):
             ch.status = ImportChunk.Status.IMPORTED
             ch.save(update_fields=["status"])
 
-    # NO step-parent inference. Step-parents come ONLY from explicit pedigree evidence
-    # (handled above) or from the user resolving a StepParent clarification. A spouse of
-    # a parent is NOT assumed to be a step-parent.
+    # Confident step-parents: a single spouse who married a parent while the child was a
+    # minor is created automatically (overwhelming evidence). Ambiguous cases are left to
+    # the Clarification Engine — never invented. Only create when the pair is unrelated so
+    # a user edit or existing bond is never touched.
+    infer, _clarify = analyze_step_candidates(user)
+    for spouse_id, child_id, rtype in infer:
+        if Relationship.objects.filter(
+                user=user, from_person_id=spouse_id, to_person_id=child_id).exists():
+            continue
+        Relationship.objects.create(user=user, from_person_id=spouse_id,
+                                    to_person_id=child_id, relationship_type=rtype)
+        links_created += 1
 
     batch.refresh_counts()
     return people_created, links_created

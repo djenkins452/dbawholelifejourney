@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): step-parents — confident inference on overwhelming evidence, clarify the rest
+
+Refinement of the step-parent removal: bring back intelligent inference, but ONLY when the evidence is overwhelming and unambiguous. New shared classifier `analyze_step_candidates(user)` returns (infer, clarify):
+
+- **INFER** (auto-create, no question) requires ALL of: the candidate MARRIED the child's parent (a known marriage — married/former), the parent has exactly ONE such candidate spouse (no competing spouses), and the marriage year is known with the child a MINOR at the marriage (`birth ≤ marriage_year ≤ birth+18`). This is the "Marvin married Gloria while Danny was a minor, no competing spouses → Gloria is Danny's stepmother" case.
+- **CLARIFY** (ask, never invent) when a real candidate exists but the evidence isn't clean: multiple candidate spouses, or unknown/conflicting chronology (no marriage year, or married before the child was born). Surfaced by `StepParentClarification`, which now consumes the same classifier so infer/ask stay perfectly consistent; teach-once.
+- **SKIP** (neither infer nor ask): the child was already an ADULT at the marriage (`marriage_year > birth+18`) — not a meaningful step-parent, and not worth a question.
+
+Explicit pedigree step markers (`_FREL/_MREL/PEDI`) still create steps directly. The confident inference only ever creates a step when the pair is otherwise unrelated, so it never touches a user edit or existing bond. Data migration 0031 restores the overwhelming-evidence steps for already-imported users (after 0030 removed the promiscuous ones).
+
+**Verified.** Seed: Danny = Biological father (Marvin) + Biological mother (Barbara) + Stepmother (Gloria, inferred: single wife, married 1980, Danny b.1971 a minor) — exactly three parents, zero clarifications. Tests: confident-infer-no-question, competing-spouses→clarify, unclear-chronology→clarify (+resolve), adult-child→skip. 122 legacy tests green. Migration 0031.
+
+**Files:** apps/legacy/services/import_engine.py (`analyze_step_candidates`, `_step_type`, `_add_clarify`, confident inference in `commit_genealogy`), apps/legacy/services/clarification.py (`StepParentClarification.detect` consumes the classifier), apps/legacy/migrations/0031_restore_confident_step_parents.py, apps/legacy/tests/test_gedcom.py.
+
+
 ## 2026-07-05 — fix(cos): "How am I doing overall?" is an executive briefing; "most important thing right now" always answers deterministically
 
 Two production failures.

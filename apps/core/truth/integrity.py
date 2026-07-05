@@ -140,6 +140,11 @@ def validate_evidence(claim, now=None):
           "presented_as":     "current" | "previous" | None,
           "temporal_warning": <str|None>,            # already flagged upstream (SAE)
           "predecessor":      {"value":.., "recorded_at":..} | None,  # the "previous"
+          "predecessor_role": "provenance" | "comparison",  # default "provenance":
+                                                     # strict ordering/distinctness.
+                                                     # "comparison" = a different-period
+                                                     # reference; ordering is definitional,
+                                                     # not validated.
           "predecessor_expected": <bool>,            # a prior reading was requested
           "start": <dt|iso>, "end": <dt|iso>,        # optional interval (durations)
           "sources": [ {"source":.., "value":..}, .. ] | None,
@@ -181,15 +186,25 @@ def validate_evidence(claim, now=None):
         add(NEGATIVE_DURATION)
 
     # ── SEQUENCE ────────────────────────────────────────────────────────────
+    # Two invariants with DIFFERENT scope. STRICT ORDERING ("previous" must
+    # precede "current") is a PROVENANCE-only invariant: a COMPARISON reference
+    # (yesterday, recent average) is intentionally a different period whose
+    # ordering is definitional, and coarse day-level anchors would false-flag it
+    # ("steps today vs yesterday", "glucose vs average" refused to answer). A
+    # DUPLICATE predecessor (same value with NO distinct earlier timestamp — the
+    # value wearing two hats) is a data-integrity defect in BOTH framings (the
+    # production "previous 113 == current 113, no time" bug arrives via a
+    # comparison), so it is validated regardless of role.
+    role = claim.get("predecessor_role", "provenance")
     if predecessor is not None:
         p_val = predecessor.get("value")
         cur_ts = _parse(recorded_at)
-        # "previous" must strictly precede "current".
-        if pred_ts is not None and cur_ts is not None and \
+        # "previous" must strictly precede "current" — PROVENANCE chains only.
+        if role == "provenance" and pred_ts is not None and cur_ts is not None and \
                 _aware(pred_ts) >= _aware(cur_ts):
             add(SEQUENCE_OUT_OF_ORDER)
         # A "previous" identical to current with no distinct earlier timestamp is
-        # not a real prior reading — it's the current value wearing two hats.
+        # not a real prior reading — the current value wearing two hats (any role).
         elif _values_equal(p_val, value) and (
                 pred_ts is None or (cur_ts is not None and
                                     _aware(pred_ts) == _aware(cur_ts))):
@@ -283,6 +298,7 @@ def attach(fact, now=None, *, predecessor=None, predecessor_expected=False,
         "presented_as": presented_as or fact.get("presented_as"),
         "predecessor": predecessor if predecessor is not None
         else fact.get("predecessor"),
+        "predecessor_role": fact.get("predecessor_role", "provenance"),
         "predecessor_expected": predecessor_expected or
         fact.get("predecessor_expected", False),
         "start": fact.get("start"), "end": fact.get("end"),

@@ -149,6 +149,11 @@ def compose_comparison(last, user=None, kind="prior"):
         "value": cur, "recorded_at": fact.get("recorded_at") or fact.get("as_of"),
         "predecessor": {"value": comp,
                         "recorded_at": (sup or {}).get("fact", {}).get("recorded_at")},
+        # A comparison reference (yesterday, recent average) is NOT a provenance
+        # predecessor: a different period may legitimately equal today or share a
+        # day boundary. Only genuine integrity faults (e.g. a future-timestamped
+        # comparison point) block; ordering/distinctness are not validated here.
+        "predecessor_role": "comparison",
     })
     if not verdict["ok"]:
         return verdict["investigation"]

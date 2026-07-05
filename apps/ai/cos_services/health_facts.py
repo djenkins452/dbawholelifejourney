@@ -254,7 +254,10 @@ def get_foundational_health_facts(user, keys=None):
             # PROVENANCE: the human-facing source (device/manual), so "where did that
             # come from?" answers the SOURCE — not the SAE pipeline debug string.
             if key == "last_glucose_reading":
-                fact["presented_as"] = "current"
+                # NOT presented_as="current": a "last reading" is a HISTORICAL point
+                # lookup, so its age is a freshness caveat, never a STALE_AS_CURRENT
+                # integrity fault that withholds the value. (STALE_AS_CURRENT is
+                # reserved for a claim genuinely presented as the live current value.)
                 try:
                     from apps.health.services import glucose_queries as _gq
                     _lt = _gq.latest(user)
@@ -292,9 +295,15 @@ def get_foundational_health_facts(user, keys=None):
         # (the answer, every follow-up, the phrasing prompt) reads it instead of
         # re-checking. Subsumes the old ad-hoc future-timestamp guard (which it
         # keeps: a future time is still flagged and the impossible value dropped).
+        #
+        # STALE_AS_CURRENT applies ONLY to a claim presented as the user's LIVE
+        # current value (current_*). A "last reading" (last_glucose_reading) is a
+        # HISTORICAL point lookup — its age is an honest caveat carried by the
+        # freshness layer, NOT an integrity fault that withholds the value. Marking
+        # it "current" made an old-but-real reading refuse to answer ("what was my
+        # last glucose reading?" → an investigation instead of the number).
         from apps.core.truth import integrity as _integrity
-        _presented = "current" if (key.startswith("current_") or
-                                   key == "last_glucose_reading") else None
+        _presented = "current" if key.startswith("current_") else None
         _integrity.attach(fact, presented_as=_presented)
         out[key] = fact
 

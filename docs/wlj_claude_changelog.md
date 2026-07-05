@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Evidence Integrity scope — Layer 1+2 certification restored (release blocker)
+
+**Root cause (governing capability that regressed):** the Evidence Integrity Validation gate (`apps/core/truth/integrity.py`, introduced in `9464c161`) lost its *claim scope*. It began applying provenance/currency invariants to claims that are not provenance/current claims, so it hijacked deterministic answers with the "…something doesn't add up… previous isn't older than current" investigation message. Two conflations:
+- **Comparison references treated as provenance predecessors.** A "compared to yesterday / my average" reference is intentionally a *different period* (it may equal the current value or share a day boundary), yet it was fed into `validate_evidence` as a strict-ordering predecessor → `SEQUENCE_OUT_OF_ORDER` misfired on "steps today vs yesterday" and "glucose vs average".
+- **A historical "last reading" treated as the live current value.** `last_glucose_reading` was marked `presented_as="current"`, so `STALE_AS_CURRENT` refused to state an honest (old-but-real) reading. Staleness is a *freshness caveat*, not a self-contradiction.
+
+**Fix (scope, not suppression):**
+- `integrity.py`: strict-ordering (`SEQUENCE_OUT_OF_ORDER`) is now a **provenance-only** invariant via a new `predecessor_role` ("provenance" default | "comparison"). `DUPLICATE_PREDECESSOR` (same value, no distinct timestamp — the original 113/113 production bug) still fires for **all** roles, so the guarantee integrity was built for is preserved.
+- `conversation_memory.py :: compose_comparison`: passes `predecessor_role="comparison"`.
+- `health_facts.py`: `last_glucose_reading` is no longer `presented_as="current"` (a last reading is a historical point lookup).
+- All integrity unit tests (`test_evidence_integrity`) stay green — the original self-contradiction guarantees are intact.
+
+**Gate determinism (second, latent defect):** two certified conversation tests (`test_glucose_anchor_does_not_drift`, `test_full_production_conversation`) depended on an *incidental* eager SAE rebuild to warm the `UserState` snapshot the request path reads (`get_module_state(..., allow_rebuild=False)`). That made the gate **order-dependent** (green under `manage.py test` ordering, red under `certify_layers` ordering). Each now establishes the SAE-warm precondition explicitly (`rebuild_user_state`) — the state production's background worker guarantees — so the gate is deterministic. No assertion or snapshot was patched.
+
+**Files:** `apps/core/truth/integrity.py`, `apps/ai/chatgpt_cos/conversation_memory.py`, `apps/ai/cos_services/health_facts.py`, `apps/ai/tests/test_comparison_semantics.py`, `apps/ai/tests/test_layer2_certification.py`.
+
+**Verification:** `certify_layers` → CERTIFICATION GREEN — layers 1..2 intact (200 tests), confirmed twice; the 7 originally-failing certification tests + full `test_evidence_integrity` suite green; `makemigrations --check --dry-run` → No changes detected.
+
 ## 2026-07-05 — polish(legacy): Family Tree interaction polish — feedback, focus, keyboard (D2, interaction-only)
 
 **What:** A usability pass over the Family Tree to make existing functionality feel finished — no new features, no layout/Canonical Truth change. Eliminated the friction a first-time user notices:

@@ -118,6 +118,14 @@ class GlucoseAverageSurvivesRepointTests(TestCase):
         for d in range(2, 7):
             GlucoseEntry.objects.create(user=self.user, value=140, unit="mg/dL",
                                         recorded_at=at_noon(today - timedelta(days=d)))
+        # Establish the SAE snapshot precondition the request path READS but never
+        # rebuilds (Phase-3 request-path safety). Production guarantees a warm
+        # snapshot via the background worker; the test must establish it explicitly
+        # so the certified reasoning (comparison anchor + average resolution) is
+        # exercised deterministically, not left to an incidental eager rebuild whose
+        # timing makes the gate order-dependent.
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(self.user)
         from apps.ai.models import AssistantConversation
         self.conv = AssistantConversation.objects.create(user=self.user)
 

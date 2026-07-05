@@ -125,6 +125,11 @@ class Layer2ConversationTests(TestCase):
         for d in range(2, 7):
             GlucoseEntry.objects.create(user=self.user, value=140, unit="mg/dL",
                                         recorded_at=at_noon(self.today - timedelta(days=d)))
+        # Warm the SAE snapshot the request path reads (never rebuilds): production's
+        # background worker guarantees it; establishing it here keeps the certified
+        # anchor/average reasoning deterministic instead of order-dependent.
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(self.user)
         self._turn("What is my BG?")
         self._turn("What about yesterday?")
         self._turn("Compared to today.")

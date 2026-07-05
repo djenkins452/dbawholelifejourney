@@ -76,6 +76,13 @@ def resolve_referential(user, message, last):
     norm = (message or "").strip().lower().rstrip("?.! ")
     ref = _classify_reference(norm)
     if not ref:
+        # HISTORICAL TRUTH NAVIGATION: a bare reference the fixed timeframes don't cover
+        # ("day before yesterday?", "July 1st?", "when did I first drop below 290?",
+        # "average last month?") — navigate the topic's canonical deterministic history
+        # rather than declining. The active topic is known; the navigator needs no keyword.
+        nav = _historical_nav(user, topic, message)
+        if nav:
+            return _result(nav, last)
         return None
     kind, tf = ref
     if kind == "timeframe":
@@ -84,8 +91,33 @@ def resolve_referential(user, message, last):
             # A move to another day of the same topic IS a comparison intent emerging.
             r["goal"] = "compare"
             return r
+        # The fixed timeframe has no fact_key (e.g. day_before_yesterday) — navigate the
+        # canonical history instead of the old "I don't have a separate … figure" decline.
+        nav = _historical_nav(user, topic, message)
+        if nav:
+            return _result(nav, last)
         return _on_topic_decline(topic, last, tf)
     return _compare(user, topic, tf, last)
+
+
+# Topics whose deterministic history supports natural navigation (point-in-time,
+# threshold, extremum, aggregate). Each module exposes `navigate(user, message) -> str|None`.
+_TOPIC_HISTORY_NAV = {"weight": "apps.ai.chatgpt_cos.weight_history"}
+
+
+def _historical_nav(user, topic, message):
+    """Delegate an elliptical historical follow-up to the active topic's canonical
+    navigator (the SAME engine the explicit lane uses), so 'day before yesterday?' and
+    'July 1st?' resolve deterministically instead of drifting or declining."""
+    mod_path = _TOPIC_HISTORY_NAV.get(topic)
+    if not mod_path:
+        return None
+    try:
+        import importlib
+        return importlib.import_module(mod_path).navigate(user, message)
+    except Exception:
+        logger.warning("referential: historical nav failed for topic=%s", topic, exc_info=True)
+        return None
 
 
 def _result(answer, last, *, fact_key=None, fact=None):

@@ -31,7 +31,8 @@ _MONTH_RE = re.compile(
     r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?"
     r"(?:,?\s+(\d{4}))?\b")
 _NAGO_RE = re.compile(
-    r"\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:nights?|days?)\s+ago\b")
+    r"\b(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten)\s+"
+    r"(nights?|days?|weeks?)\s+ago\b")
 
 
 def user_today(user):
@@ -87,7 +88,8 @@ def resolve_reference_date(user, message, *, include_today=False):
     if m:
         tok = m.group(1)
         num = int(tok) if tok.isdigit() else _NUMWORDS.get(tok, 0)
-        return today - timedelta(days=num) if num else None
+        unit_days = 7 if m.group(2).startswith("week") else 1
+        return today - timedelta(days=num * unit_days) if num else None
     if "day before yesterday" in n:
         return today - timedelta(days=2)
     if "yesterday" in n:

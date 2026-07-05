@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Historical Truth Navigation — Beth navigates deterministic history naturally
+
+**Root cause (proven by trace):** Beth answered "today" and "yesterday" for weight but failed "Day before yesterday?" ("I don't have a separate … figure") and "July 1st?" ("I'm unable to retrieve your weight"). The canonical layer (`date_reference.resolve_reference_date` + `weight_queries.on_date`) ALREADY handles both — but it's only reachable via the `weight_history` lane, which is gated on the word "weight". The elliptical follow-ups ("Yesterday?", "July 1st?") carry no "weight" word, so they route through the **referential lane**, whose timeframe vocabulary is a tiny fixed set (`_TF_CUES` + `fact_for_topic`, only today/yesterday for weight). "Day before yesterday?" hit `_on_topic_decline`; "July 1st?" wasn't recognized at all. The powerful resolver was **stranded** from the elliptical path.
+
+**Fix (smallest safe — bridge + enrich, no new engine):**
+- **Bridge** the referential lane to the topic's canonical navigator: when the fixed timeframes can't resolve a bare reference, `referential._historical_nav()` delegates to the active topic's navigator (registry `_TOPIC_HISTORY_NAV`, weight registered). Elliptical follow-ups now reach the SAME deterministic navigation the explicit lane uses — no restated subject.
+- **Enrich** the canonical weight layer for full navigation: `weight_queries` gains `series()`, `first_crossing()`, `extremum()`, `average_over()` (one value per local day, matching `on_date`). `weight_history.navigate()` resolves every natural historical form over that series — point-in-time (yesterday, day-before-yesterday, July 1, June 15, last Monday, two weeks ago), THRESHOLD ("when did I first drop below 290"), EXTREMUM ("lowest weight this year"), AGGREGATE ("average weight last month"). `date_reference` also learned "N weeks ago".
+- `weight_history.answer()` = weight-cue gate + `navigate()`; `navigate()` is the reusable, un-gated engine both lanes call. No special-cased dates — every branch reads the canonical `weight_queries`.
+
+**Files:** `apps/health/services/weight_queries.py` (series/first_crossing/extremum/average_over), `apps/ai/chatgpt_cos/weight_history.py` (navigate + threshold/extremum/aggregate), `apps/ai/chatgpt_cos/referential.py` (topic-navigator bridge), `apps/ai/chatgpt_cos/date_reference.py` (N weeks ago), tests: new `test_historical_navigation.py`.
+
+**Verification:** 48 targeted tests green (historical-navigation, weight-history, referential, active-subject, comparison-semantics, trust). Certified end-to-end (real routing) on the production conversation + the full extension — today, yesterday, day-before-yesterday, July 1, June 15, first-drop-below-290, lowest-this-year, average-last-month — all answered from deterministic truth, no "check your records", no search error. (Pre-existing unrelated failures: an evening-time check-in test and two steps-comparison tests, all fail identically on baseline. Test DB rebuilt around a concurrent session's in-progress `legacy/0032` migration.)
+
 ## 2026-07-05 — fix(dashboard): Executive Briefing consolidates repeated findings — summarize, don't repeat
 
 **Problem:** the Executive Briefing "Needs Attention" showed four near-identical bullets — "Protein intake 53% of target / 55% / 72% / 80%" — and the Domain Accountability card repeated them too. Technically correct, but an event log, not executive communication.

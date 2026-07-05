@@ -1,11 +1,21 @@
 # ==============================================================================
 # File: apps/health/services/weight_queries.py
-# Layer 1 — Canonical WEIGHT retrieval BY POINT IN TIME (mirrors sleep_queries).
-# `on_date(user, target_date)` returns the authoritative weight for a specific day —
-# the LATEST reading recorded that day, in the user's local timezone — or None when
-# there is no reading. Never inferred, never a nearest-day substitute.
+# Layer 1 — Canonical WEIGHT retrieval for HISTORICAL TRUTH NAVIGATION (mirrors
+# sleep_queries). Deterministic accessors over the weigh-in series — point-in-time,
+# threshold crossing, extremum, and aggregate — so Beth can navigate history the way a
+# Chief of Staff naturally would. One value per LOCAL day (the latest reading that day),
+# matching `on_date` semantics. Never inferred, never a nearest-day substitute.
 # ==============================================================================
 from datetime import datetime, time, timedelta
+
+
+def _user_tz(user):
+    from django.utils import timezone as djtz
+    try:
+        from apps.core.utils import _get_user_tz
+        return _get_user_tz(user)
+    except Exception:
+        return djtz.get_current_timezone()
 
 
 def on_date(user, target_date):
@@ -13,11 +23,7 @@ def on_date(user, target_date):
     None. Uses a local-day datetime range so a late-evening reading is dated correctly."""
     from django.utils import timezone as djtz
     from apps.health.models import WeightEntry
-    try:
-        from apps.core.utils import _get_user_tz
-        tz = _get_user_tz(user)
-    except Exception:
-        tz = djtz.get_current_timezone()
+    tz = _user_tz(user)
     start = djtz.make_aware(datetime.combine(target_date, time.min), tz)
     end = start + timedelta(days=1)
     e = (WeightEntry.objects.filter(user=user, recorded_at__gte=start, recorded_at__lt=end)
@@ -30,3 +36,65 @@ def on_date(user, target_date):
         "recorded_at": e.recorded_at,
         "unit": "lb",
     }
+
+
+def series(user, start_date=None, end_date=None):
+    """The weigh-in series (oldest → newest) as [{date, value_lb, recorded_at, unit}],
+    ONE value per local day (the latest that day — same rule as on_date). `start_date` /
+    `end_date` are inclusive local-day bounds (None = unbounded). Deterministic; the
+    single source every navigation accessor reads."""
+    from django.utils import timezone as djtz
+    from apps.health.models import WeightEntry
+    tz = _user_tz(user)
+    qs = WeightEntry.objects.filter(user=user)
+    if start_date is not None:
+        qs = qs.filter(recorded_at__gte=djtz.make_aware(
+            datetime.combine(start_date, time.min), tz))
+    if end_date is not None:
+        qs = qs.filter(recorded_at__lt=djtz.make_aware(
+            datetime.combine(end_date, time.min), tz) + timedelta(days=1))
+    by_day = {}
+    for e in qs.order_by("recorded_at"):
+        d = djtz.localtime(e.recorded_at, tz).date()
+        by_day[d] = e                                     # ascending → latest that day wins
+    out = []
+    for d in sorted(by_day):
+        e = by_day[d]
+        out.append({"date": d, "value_lb": round(float(e.value_in_lb), 1),
+                    "recorded_at": e.recorded_at, "unit": "lb"})
+    return out
+
+
+def first_crossing(user, threshold, direction):
+    """The FIRST day the weigh-in went strictly `direction` ('below'/'above') the
+    `threshold` (lb), oldest-first. Record ({date, value_lb, ...}) or None."""
+    for rec in series(user):
+        v = rec["value_lb"]
+        if (direction == "below" and v < threshold) or (direction == "above" and v > threshold):
+            return rec
+    return None
+
+
+def extremum(user, kind, start_date=None, end_date=None):
+    """The 'lowest' or 'highest' weigh-in in the window (inclusive), or None. Ties resolve
+    to the EARLIEST such day (first time you reached it)."""
+    s = series(user, start_date, end_date)
+    if not s:
+        return None
+    best = s[0]
+    for rec in s[1:]:
+        if (kind == "lowest" and rec["value_lb"] < best["value_lb"]) or \
+           (kind == "highest" and rec["value_lb"] > best["value_lb"]):
+            best = rec
+    return best
+
+
+def average_over(user, start_date, end_date):
+    """Mean weigh-in value across the window (inclusive), or None. One reading per day, so
+    a day with three weigh-ins doesn't skew the mean. {avg_lb, n, start, end}."""
+    s = series(user, start_date, end_date)
+    if not s:
+        return None
+    vals = [r["value_lb"] for r in s]
+    return {"avg_lb": round(sum(vals) / len(vals), 1), "n": len(vals),
+            "start": start_date, "end": end_date, "unit": "lb"}

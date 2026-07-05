@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(deploy): add missing legacy migration 0033_alter_person_portrait — UNBLOCK the red pipeline
+
+**Root cause (production-routing investigation):** Three recent CoS fixes (Historical Truth Navigation `ce54f694`, Goals/One-Brain check-in `85fdea20`) were reported as "production FAIL — exactly as before." Traced the exact production path for the check-in "4" reply: it is single-path and correct (`_clarification_reply_lane` → `resolve_clarification_option` → `_strategic_summary(user) or _GOALS_GAP`, lanes.py:957) — no bypass, no second implementation. Proof by contradiction that the new code never ran: `_strategic_summary` returns None only when NO primary-mission goal exists, but the Executive Briefing's "France 2027" is built by the SAME `select_active_mission_goal()` — so if the Briefing shows the mission, the resolver could not have returned `_GOALS_GAP`. Therefore production executed the PRE-commit build.
+
+**Why not deployed:** `main` HEAD failed `makemigrations --check` — the committed `legacy.Person.portrait` field (from a concurrent Legacy session's `0032` rename) had no follow-up migration, so Django wanted `0033_alter_person_portrait`. A missing migration is this repo's known CI/deploy-failing condition, so every commit after the breakage was stranded on a red pipeline.
+
+**Fix:** generated `apps/legacy/migrations/0033_alter_person_portrait.py` — a single `AlterField` on `person.portrait` (ForeignKey → legacy.media, SET_NULL, related_name='portrait_for_people'), exactly matching the already-committed model, nothing more. `makemigrations --check` now reports "No changes detected". This unblocks deployment of the queued Executive Pattern / Reconciliation / Historical Navigation / One-Brain Goals fixes.
+
+**Files:** `apps/legacy/migrations/0033_alter_person_portrait.py` (new).
+
 ## 2026-07-05 — feat(legacy): relationship grouping by FAMILY ROLE, derived from Canonical Truth (D2)
 
 **What:** Refined the reusable relationship presentation so groups reflect true family roles instead of generic types — dramatically more readable for blended families. The single "Siblings", "Spouse & partners", and "Children" groups are now split:

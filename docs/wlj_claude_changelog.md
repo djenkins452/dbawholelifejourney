@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(dashboard): Executive Briefing consolidates repeated findings — summarize, don't repeat
+
+**Problem:** the Executive Briefing "Needs Attention" showed four near-identical bullets — "Protein intake 53% of target / 55% / 72% / 80%" — and the Domain Accountability card repeated them too. Technically correct, but an event log, not executive communication.
+
+**Why:** these are separate `Insight` rows (one per day) with the value baked into the title. `_collect_needs_attention` already deduped by EXACT title and had a **calorie-only** synthesizer, but protein (and every other "% of target" metric) had no equivalent, so the percentage-varying titles never collapsed.
+
+**Fix — one general, reusable consolidation pass** (`apps/core/cos_briefing/consolidation.py :: consolidate_findings`): groups findings by SUBJECT (the title with the varying number masked) and collapses any group of 2+ into ONE synthesized executive item with range · average · span — *"Protein intake below target — 53–80% (avg 65%) over 4 days"* — deriving direction and distinct-day count deterministically. Generic by title shape (protein, calories, glucose, BP, anything), so it replaces the calorie special case entirely. Presentational only — never mutates DB rows; single findings pass through untouched; fail-soft (returns raw findings on any error).
+
+**Applied holistically at both surfaces:**
+- Executive Briefing `_collect_needs_attention` (replaced the calorie-only `_synthesize_calorie_alerts`, now removed).
+- Domain Accountability card `_build_accountability_cards` (per-domain warning/critical Insights) — same helper, so the "Health · Attention" column consolidates too.
+
+**Files:** apps/core/cos_briefing/consolidation.py (new), apps/core/cos_briefing/executive_summary.py, apps/dashboard_v3/services/composer.py; apps/core/cos_briefing/tests/test_executive_summary_phase_a.py (calorie tests updated to the general behavior + protein consolidation + distinct-subjects-not-merged). 345 cos_briefing + dashboard_v3 tests green.
+
+
 ## 2026-07-05 — refactor(legacy): Person owns a canonical "Portrait" + Choose→Preview→Save workflow
 
 Terminology + workflow refinement for the canonical Person portrait (no Family Tree redesign):

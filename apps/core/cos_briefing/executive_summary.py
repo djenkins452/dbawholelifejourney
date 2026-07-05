@@ -692,12 +692,15 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
         seen_titles.add(title_key)
         deduped.append(i)
 
-    # ── Change A3: synthesise repeated calorie alerts. ──
-    # After dedupe-by-title there can still be multiple rows like
-    # "Calories under target by 27%" / "by 30%" / "by 35%" because
-    # the percentage is baked into the title. Collapse them to ONE
-    # executive-level sentence rooted in the most recent reading.
-    deduped = _synthesize_calorie_alerts(deduped)
+    # ── Executive consolidation (GENERAL, final pass). ──
+    # After dedupe-by-exact-title there can still be several near-identical rows
+    # about the SAME subject with the value baked into the title — "Protein
+    # intake 53% / 55% / 72% / 80% of target", "Calories under target by 27% /
+    # 30% / 35%". The briefing must SUMMARIZE, not repeat: collapse each such
+    # group into ONE synthesized executive item (range · average · span).
+    # Generic by title shape — replaces the former calorie-only synthesizer.
+    from apps.core.cos_briefing.consolidation import consolidate_findings
+    deduped = consolidate_findings(deduped)
 
     ordered_view = deduped[:MAX_NEEDS_ATTENTION]
 
@@ -711,90 +714,6 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
         }
         for i in ordered_view
     ]
-
-
-def _synthesize_calorie_alerts(insights: list) -> list:
-    """Collapse repeated "Calories under/over target by N%" rows into
-    one executive-level signal.
-
-    Strategy: find all calorie-trend rows (matched by ``insight_type``
-    or a title prefix); pick the most recent as the representative;
-    overwrite its message with a one-line synthesis. The other calorie
-    rows are dropped from the returned list. All non-calorie insights
-    pass through untouched.
-
-    This is purely presentational — the underlying Insight rows are
-    not modified.
-    """
-    if not insights:
-        return insights
-
-    def _is_calorie_alert(insight) -> bool:
-        itype = (getattr(insight, "insight_type", "") or "").lower()
-        title = (getattr(insight, "title", "") or "").lower()
-        # Match both the canonical insight_type produced by
-        # NutritionCalorieTrendRule and any title-shaped variant.
-        return (
-            "calorie" in itype
-            or "nutrition_calorie" in itype
-            or title.startswith("calories ")
-        )
-
-    calorie_rows = [i for i in insights if _is_calorie_alert(i)]
-    other_rows = [i for i in insights if not _is_calorie_alert(i)]
-
-    if len(calorie_rows) <= 1:
-        # Nothing to synthesise — original ordering preserved.
-        return insights
-
-    # `insights` came in -created_at order within each severity bucket,
-    # so the first calorie row is the most recent.
-    representative = calorie_rows[0]
-
-    # Best-effort: lift the percentage from the most recent title,
-    # which is the user's freshest measured value.
-    import re
-    m = re.search(r"(\d{1,3})\s*%", representative.title or "")
-    pct_text = f"~{m.group(1)}%" if m else "consistently below target"
-    # Direction by content, not prefix — the rule title now reads "Calories
-    # trending over/under target by N% (7-day avg)", so a startswith check on
-    # "calories over" would misclassify every row as below.
-    _title_lc = (representative.title or "").lower()
-    direction = "above" if (" over " in _title_lc or "over target" in _title_lc) else "below"
-
-    # Replace the title + message in a lightweight clone so we don't
-    # mutate the cached/queried Insight row.
-    class _Synthesised:
-        pass
-    syn = _Synthesised()
-    syn.title = "Calorie trend"
-    syn.message = (
-        f"Calories have averaged {pct_text} {direction} target recently. "
-        f"This may be contributing to elevated recovery strain."
-    )
-    syn.module = getattr(representative, "module", "health")
-    syn.severity = getattr(representative, "severity", "warning")
-    syn.insight_type = getattr(representative, "insight_type", "")
-
-    # Slot the synthesised row where the representative used to be so
-    # severity ordering is preserved.
-    rep_index = insights.index(representative)
-    rebuilt = []
-    inserted = False
-    for i in insights:
-        if i in calorie_rows:
-            if not inserted and i is representative:
-                rebuilt.append(syn)
-                inserted = True
-            # All other calorie rows are dropped.
-            continue
-        rebuilt.append(i)
-    # In the unlikely edge case representative wasn't matched in the
-    # loop above (e.g., if `insights` is reordered later), append the
-    # synthesised row at the beginning.
-    if not inserted:
-        rebuilt.insert(0, syn)
-    return rebuilt
 
 
 def _augment_attention_with_execution(needs_attention, exec_state):

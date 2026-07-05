@@ -2086,10 +2086,17 @@ def _build_accountability_cards(user) -> list[dict]:
             {"title": i.title, "message": i.message}
             for i in domain_insights if i.severity == "positive"
         ][:3]
+        # Executive consolidation (same helper the briefing uses): collapse
+        # repeated same-subject warnings ("Protein intake 53% / 55% / 72% of
+        # target") into ONE synthesized item so the card summarizes, not repeats.
+        from apps.core.cos_briefing.consolidation import consolidate_findings
+        _dom_attention = consolidate_findings([
+            i for i in domain_insights
+            if i.severity in ("warning", "critical")
+        ])
         needs_attention = [
             {"title": i.title, "message": i.message, "severity": i.severity}
-            for i in domain_insights
-            if i.severity in ("warning", "critical")
+            for i in _dom_attention
         ][:3]
 
         domain_guidance = [g for g in fresh_guidance if g.module == domain]

@@ -352,13 +352,15 @@ class CalorieSynthesisTests(TestCase):
             f"got: {out}",
         )
         syn = calorie_rows[0]
-        self.assertEqual(syn["title"], "Calorie trend")
+        # General consolidation: subject + range + average + span — not the
+        # per-day snapshots, and not a metric-specific special case.
+        self.assertTrue(syn["title"].lower().startswith("calories under target"))
+        self.assertIn("27", syn["title"])   # low of range
+        self.assertIn("35", syn["title"])   # high of range
         msg = (syn["message"] or "").lower()
-        # The synthesis must reference the MOST RECENT percentage (30%).
-        self.assertIn("30%", msg)
-        # And read as one executive-level statement, not three snapshots.
-        self.assertIn("averaged", msg)
-        self.assertIn("recovery strain", msg)
+        self.assertIn("average", msg)
+        # No single raw daily title leaks into the executive row.
+        self.assertNotIn("by 30%", syn["title"])
 
     def test_single_calorie_row_passes_through(self):
         _make_insight(
@@ -396,11 +398,55 @@ class CalorieSynthesisTests(TestCase):
         out = _collect_needs_attention(self.user)
         titles = [r["title"] for r in out]
         self.assertIn("Overtraining Risk", titles)
-        # Calorie rows synthesised to "Calorie trend".
-        self.assertIn("Calorie trend", titles)
-        # No raw calorie title leaked through.
+        # Two calorie rows consolidated into ONE "Calories under target — …" row.
+        cal = [t for t in titles if t.lower().startswith("calories under target")]
+        self.assertEqual(len(cal), 1)
+        # No raw daily calorie title leaked through.
         self.assertNotIn("Calories under target by 30%", titles)
         self.assertNotIn("Calories under target by 27%", titles)
+
+
+# ── A3 (general): the reported protein case ───────────────────────
+
+class ProteinConsolidationTests(TestCase):
+    """Four "Protein intake N% of target" rows across four days collapse to ONE
+    executive item (range + average + span) — the reported dashboard bug."""
+
+    def setUp(self):
+        self.user = _make_user("protein@test.com")
+
+    def test_four_protein_rows_collapse_to_one_executive_item(self):
+        for pct, off in [(80, 10), (72, 60 * 24), (55, 60 * 24 * 2), (53, 60 * 24 * 3)]:
+            _make_insight(
+                self.user, title=f"Protein intake {pct}% of target",
+                insight_type="protein_intake", module="health",
+                created_offset_minutes=off, dedupe_key=f"protein-{pct}",
+            )
+        out = _collect_needs_attention(self.user)
+        protein = [r for r in out if "protein" in (r.get("title", "") or "").lower()]
+        self.assertEqual(len(protein), 1, f"four protein rows must collapse. got: {out}")
+        title = protein[0]["title"]
+        self.assertIn("Protein intake", title)
+        self.assertIn("below target", title.lower())  # derived direction
+        self.assertIn("53", title)                     # range low
+        self.assertIn("80", title)                     # range high
+        self.assertIn("65", title)                     # average
+        # No raw per-day protein bullet survives.
+        for pct in (53, 55, 72, 80):
+            self.assertNotIn(f"Protein intake {pct}% of target", [r["title"] for r in out])
+
+    def test_distinct_subjects_are_not_merged(self):
+        _make_insight(self.user, title="Protein intake 55% of target",
+                      insight_type="protein_intake", dedupe_key="p1")
+        _make_insight(self.user, title="Protein intake 72% of target",
+                      insight_type="protein_intake", dedupe_key="p2")
+        _make_insight(self.user, title="Sleep 62% of target",
+                      insight_type="sleep_low", dedupe_key="s1")
+        out = _collect_needs_attention(self.user)
+        titles = " | ".join(r["title"] for r in out)
+        # Protein consolidated; the lone Sleep row is untouched (different subject).
+        self.assertIn("Protein intake", titles)
+        self.assertIn("Sleep 62% of target", titles)
 
 
 # ── Combined sanity ───────────────────────────────────────────────

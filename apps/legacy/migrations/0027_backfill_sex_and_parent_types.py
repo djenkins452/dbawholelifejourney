@@ -19,8 +19,17 @@ def _refine(apps, schema_editor):
     from apps.legacy.services.import_engine import refine_existing_family_types
 
     User = get_user_model()
-    user_ids = list(ImportChunk.objects.filter(chunk_kind="gedcom_person")
-                    .values_list("batch__user_id", flat=True).distinct())
+    # `.order_by()` CLEARS ImportChunk.Meta.ordering (= ['index']) before DISTINCT.
+    # Without it, Django injects the ORDER BY column into the SELECT, so the query
+    # becomes `SELECT DISTINCT (user_id, index)` — distinct on (user, chunk-index)
+    # PAIRS, i.e. ~one row per GEDCOM individual (1834 for a 1800-person tree), not
+    # distinct users. That turned this into ~1800 redundant refine passes (15–20 min).
+    # Clearing the ordering makes DISTINCT mean distinct USERS (~10). The set() is a
+    # belt-and-suspenders guard so Meta.ordering can never silently break this again.
+    user_ids = set(ImportChunk.objects.filter(chunk_kind="gedcom_person")
+                   .order_by()
+                   .values_list("batch__user_id", flat=True)
+                   .distinct())
     _log("refining %d user(s) with imported genealogy" % len(user_ids))
     for uid in user_ids:
         if uid is None:

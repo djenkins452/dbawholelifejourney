@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): migration 0027 ran ~1800 redundant passes — clear Meta.ordering before DISTINCT
+
+Migration 0027 logged "refining 1834 user(s)" for a ~10-user instance and ran 15–20 minutes. Root cause: `ImportChunk.Meta.ordering = ['index']`. Combining that model's default ordering with `.values_list("batch__user_id", flat=True).distinct()` makes Django inject the ORDER BY column into the SELECT, so the query became `SELECT DISTINCT (user_id, index)` — distinct on (user, chunk-index) PAIRS (~one row per GEDCOM individual, 1834 for a 1800-person tree), NOT distinct users. The refine loop therefore called `refine_existing_family_types` ~1800× instead of ~10×; each call reloads all of that user's import chunks + relationships (O(P+R)), so total ≈ O(P²) → the 15–20 min. `refine` is idempotent so the RESULT was always correct — the extra passes were pure wasted work.
+
+Fix: `.order_by()` before `.values_list(...).distinct()` so the SQL selects only `DISTINCT user_id` (verified: dev 44→9; prod ~1834→~10), plus `set(...)` as a belt-and-suspenders guard and a comment explaining WHY the ordering is cleared so it isn't reintroduced. Reduces the migration to seconds. (0027 already applied on prod with correct data; this makes any re-run/fresh-setup fast and removes the deploy-timeout risk, since 0027 is `atomic=False` and would otherwise re-run the whole slow loop if ever killed mid-way.)
+
+**Files:** apps/legacy/migrations/0027_backfill_sex_and_parent_types.py. No schema change.
+
+
 ## 2026-07-05 — feat(legacy): Smart Refresh — synchronize an existing import instead of re-importing (Deployment 2)
 
 Legacy now recognizes when an upload is a newer export of a family it already has, and offers to **synchronize** it rather than duplicate it. Import = initial load; Refresh = synchronize Canonical Truth.

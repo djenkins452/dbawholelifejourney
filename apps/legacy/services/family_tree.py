@@ -663,3 +663,128 @@ def build_family_graph(user):
     g["count"] = len(people)
     g["me_x"], g["me_y"] = g["focus_x"], g["focus_y"]
     return g
+
+
+# ── Relationships browser (canonical, person-centric) ────────────────────────
+# Category → display label for the Relationships hub sections (non-family).
+CATEGORY_LABELS = {
+    "social": "Friends", "professional": "Professional", "faith": "Faith",
+    "education": "Education", "military": "Military & service",
+    "community": "Neighbors & community", "medical": "Care", "other": "Other",
+    "unknown": "Other",
+}
+
+
+def _parent_label(t):
+    if "step" in t:
+        return "Step-parent"
+    if "adopt" in t:
+        return "Adoptive parent"
+    if "foster" in t:
+        return "Foster parent"
+    if "guardian" in t:
+        return "Guardian"
+    return "Parent"
+
+
+def _child_label(t):
+    if "step" in t:
+        return "Step-child"
+    if "adopt" in t:
+        return "Adopted child"
+    if "foster" in t:
+        return "Foster child"
+    return "Child"
+
+
+def browse_person_relationships(user, focal_id=None):
+    """The canonical, person-centric relationship browser behind the Relationships
+    page: the ACTUAL relationship records that touch one focal person, oriented from
+    their point of view and grouped by role (Parents, Spouse, Siblings, Children,
+    then Friends/Professional/…). Defaults the focus to the keeper. Siblings are
+    derived from shared parents. This is why the page stopped showing anything —
+    family relationships were counted but never listed."""
+    from django.db.models import Q
+
+    from apps.legacy.models import Person, Relationship
+
+    people = list(Person.objects.filter(user=user).only(
+        "pk", "display_name", "birth_year", "death_year", "relationship_label", "is_self"))
+    if not people:
+        return None
+    by_id = {p.pk: p for p in people}
+    me_pk = _resolve_self(user, people)
+
+    try:
+        focal_id = int(focal_id) if focal_id else None
+    except (TypeError, ValueError):
+        focal_id = None
+    if focal_id not in by_id:
+        focal_id = me_pk or people[0].pk
+    focal = by_id[focal_id]
+
+    rels = list(Relationship.objects.filter(user=user)
+                .filter(Q(from_person_id=focal_id) | Q(to_person_id=focal_id))
+                .select_related("from_person", "to_person"))
+
+    groups = {}   # key -> {label, order, items}
+
+    def add(key, order, label, other, role, pk):
+        g = groups.setdefault(key, {"label": label, "order": order, "items": []})
+        g["items"].append({"id": other.pk, "name": other.display_name,
+                           "years": _life_years(other), "role": role, "pk": pk})
+
+    parent_ids = set()
+    for r in rels:
+        outgoing = r.from_person_id == focal_id
+        other = r.to_person if outgoing else r.from_person
+        if other.pk == focal_id:
+            continue
+        t = (r.relationship_type or "").lower()
+        if any(k in t for k in _PARENT_OF):
+            if outgoing:
+                add("children", 40, "Children", other, _child_label(t), r.pk)
+            else:
+                add("parents", 10, "Parents", other, _parent_label(t), r.pk)
+                parent_ids.add(other.pk)
+        elif any(k in t for k in _CHILD_OF):
+            if outgoing:
+                add("parents", 10, "Parents", other, _parent_label(t), r.pk)
+                parent_ids.add(other.pk)
+            else:
+                add("children", 40, "Children", other, _child_label(t), r.pk)
+        elif any(k in t for k in _COUPLE):
+            style = _couple_style(t)
+            if style == "former":
+                add("former", 25, "Former spouse", other, "Former spouse", r.pk)
+            elif style in ("partner", "affair"):
+                add("partner", 22, "Partner", other,
+                    "Partner" if style == "partner" else "Relationship", r.pk)
+            else:
+                add("spouse", 20, "Spouse", other, "Spouse", r.pk)
+        else:
+            cat = r.relationship_category or "other"
+            add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"),
+                other, r.relationship_type or "Connection", r.pk)
+
+    # Siblings — derived from shared parents (siblinghood is inferred, not stored).
+    if parent_ids:
+        sib = set()
+        for r in (Relationship.objects.filter(user=user, from_person_id__in=parent_ids)
+                  .filter(relationship_type__icontains="parent")
+                  .select_related("to_person")):
+            if r.to_person_id != focal_id:
+                sib.add(r.to_person_id)
+        for sid in sorted(sib):
+            p = by_id.get(sid)
+            if p:
+                add("siblings", 30, "Siblings", p, "Sibling", None)
+
+    ordered = sorted(groups.values(), key=lambda g: (g["order"], g["label"]))
+    return {
+        "focal": {"id": focal_id, "name": focal.display_name,
+                  "years": _life_years(focal), "is_self": focal_id == me_pk,
+                  "initials": _initials(focal.display_name)},
+        "groups": ordered,
+        "count": len(rels),
+    }

@@ -5,41 +5,88 @@
     <div class="lib-head">
         <div>
             <h1 class="lib-title">Relationships</h1>
-            <p class="lib-sub">Everyone in your life, and how you're connected — the single source of truth for every relationship. Family is one way to explore it.</p>
+            <p class="lib-sub">Everyone in your life, and how you're connected — the single source of truth for every relationship.{% if total_relationships %} {{ total_relationships }} {{ total_relationships|pluralize:"connection,connections" }} across {{ people_count }} {{ people_count|pluralize:"person,people" }}.{% endif %}</p>
         </div>
+        <a href="{% url 'legacy:family' %}" class="lg-btn-quiet">Open Family view →</a>
     </div>
 
-    <section class="lg-card rel-family-card">
-        <div>
-            <h2 class="lg-card-h">Family</h2>
-            <p class="editor-aside-note">Your family and how everyone connects, shown as a tree.{% if people_count %} {{ family_count }} family {{ family_count|pluralize:"connection,connections" }} across {{ people_count }} {{ people_count|pluralize:"person,people" }}.{% endif %}</p>
+    {% if browse %}
+    <div class="rel-browser">
+        <div class="rel-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="relSearch" class="rel-search-in" placeholder="See anyone's relationships — search by name…" autocomplete="off" aria-label="Search people">
+            <div class="rel-results" id="relResults" hidden></div>
         </div>
-        <a href="{% url 'legacy:family' %}" class="lg-btn-primary">Open Family view →</a>
-    </section>
 
-    {% for sec in sections %}
-    <section class="profile-sec rel-section">
-        <div class="profile-sec-head">
-            <h2 class="profile-sec-title">{{ sec.label }}{% if sec.items %} <span class="rel-count">{{ sec.items|length }}</span>{% endif %}</h2>
-        </div>
-        {% if sec.items %}
-        <ul class="rel-list">
-            {% for r in sec.items %}
-            <li class="rel-row">
-                <span class="rel-desc">
-                    <a href="{% url 'legacy:person_detail' r.from_person.pk %}" class="lg-link">{{ r.from_person.display_name }}</a>
-                    <span class="rel-type">{{ r.type_label }}</span>
-                    <a href="{% url 'legacy:person_detail' r.to_person.pk %}" class="lg-link">{{ r.to_person.display_name }}</a>
-                    {% if r.rel_status and r.rel_status != 'current' %}<span class="rel-status-tag">{{ r.get_rel_status_display }}</span>{% endif %}
-                </span>
-                <a href="{% url 'legacy:relationship_edit' r.pk %}" class="rel-edit">Edit</a>
-            </li>
+        <section class="rel-focal">
+            <div class="rel-focal-head">
+                <span class="rel-focal-av">{{ browse.focal.initials }}</span>
+                <div class="rel-focal-id">
+                    <h2 class="rel-focal-name">{{ browse.focal.name }}{% if browse.focal.is_self %} <span class="rel-focal-you">You</span>{% endif %}</h2>
+                    <p class="rel-focal-meta">{% if browse.focal.years %}{{ browse.focal.years }} · {% endif %}{{ browse.count }} {{ browse.count|pluralize:"relationship,relationships" }}</p>
+                </div>
+                <a href="{% url 'legacy:person_detail' browse.focal.id %}" class="lg-link rel-focal-profile">Profile →</a>
+            </div>
+
+            {% if browse.groups %}
+            {% for g in browse.groups %}
+            <div class="rel-group">
+                <h3 class="rel-group-title">{{ g.label }} <span class="rel-count">{{ g.items|length }}</span></h3>
+                <ul class="rel-list">
+                    {% for it in g.items %}
+                    <li class="rel-row">
+                        <span class="rel-role">{{ it.role }}</span>
+                        <a href="{% url 'legacy:relationships' %}?person={{ it.id }}" class="rel-person">{{ it.name }}{% if it.years %} <span class="rel-years">{{ it.years }}</span>{% endif %}</a>
+                        {% if it.pk %}<a href="{% url 'legacy:relationship_edit' it.pk %}" class="rel-edit">Edit</a>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
             {% endfor %}
-        </ul>
-        {% else %}
-        <p class="rel-section-empty">{{ sec.blurb }} — none recorded yet.</p>
-        {% endif %}
-    </section>
-    {% endfor %}
+            {% else %}
+            <p class="rel-section-empty">No relationships recorded for {{ browse.focal.name }} yet.</p>
+            {% endif %}
+        </section>
+    </div>
+    {{ search_index|json_script:"relSearchData" }}
+    <script nonce="{{ csp_nonce }}">
+    (function () {
+        var input = document.getElementById('relSearch');
+        var box = document.getElementById('relResults');
+        if (!input || !box) { return; }
+        var data = [];
+        try { data = JSON.parse(document.getElementById('relSearchData').textContent) || []; } catch (e) {}
+        var base = '{% url "legacy:relationships" %}';
+        function render(list) {
+            box.textContent = '';
+            if (!list.length) { box.hidden = true; return; }
+            list.slice(0, 8).forEach(function (p) {
+                var a = document.createElement('a');
+                a.className = 'rel-result'; a.href = base + '?person=' + p.id;
+                var nm = document.createElement('span'); nm.className = 'rel-result-name';
+                nm.textContent = p.name; a.appendChild(nm);
+                if (p.meta) { var m = document.createElement('span'); m.className = 'rel-result-meta'; m.textContent = p.meta; a.appendChild(m); }
+                box.appendChild(a);
+            });
+            box.hidden = false;
+        }
+        input.addEventListener('input', function () {
+            var q = input.value.trim().toLowerCase();
+            if (q.length < 2) { box.hidden = true; return; }
+            render(data.filter(function (p) { return (p.text || p.name || '').toLowerCase().indexOf(q) > -1; }));
+        });
+        document.addEventListener('click', function (e) {
+            if (!box.contains(e.target) && e.target !== input) { box.hidden = true; }
+        });
+    })();
+    </script>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M4 20c0-3 2.5-5 5-5s5 2 5 5M14.5 20c0-2 1.3-3.6 3-3.6"/></svg></span>
+        <h2 class="lib-empty-title">No people yet</h2>
+        <p class="lib-empty-blurb">Add people and record how you're connected — or import a family tree — and every relationship will appear here.</p>
+        <a href="{% url 'legacy:people' %}" class="lg-btn-primary">Go to People</a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): three production bugs — Relationships browser, connector lines, inspector close
+
+**BUG 1 — Relationships page showed counts but no relationships.** Root cause: `RelationshipsView` only rendered NON-family category sections (`_SECTIONS` = social/professional/faith/…), so a user whose relationships are all family saw "3002 connections" and an empty page. Rebuilt it as a canonical, person-centric BROWSER: `family_tree.browse_person_relationships(user, focal)` returns the actual relationship records touching one focal person (default: the keeper), oriented from their perspective and grouped by role — **Parents · Spouse/Partner/Former · Siblings (derived from shared parents) · Children**, then Friends/Professional/Care/… Each row links to that person (re-centers the browser) and to Edit. A name search re-centers on anyone. Verified live: Danny shows Parents (Marvin, Barbara), Spouse (Heather), Siblings (Julie, Lynne, Mark), Children (Haley, Cole); clicking Marvin re-centers on him.
+
+**BUG 2 — Family Tree rendered with NO connector lines.** Traced the pipeline: edges WERE generated (18 `<line>` elements, correct coords, stroke set) but the SVG's *computed width was 0px* while height was correct. Root cause: a global `svg { max-width: 100% }` reset collapsed the edges SVG, because its containing block `.fam-canvas` is a zero-width absolutely-positioned element (100% of 0 = 0), clipping every line. Even bright-red 10px test lines didn't paint. Fix: `.fam-edges { max-width: none }`. Verified live: SVG width 1348px, all parent-bus/sibling-riser/child-T connectors now render.
+
+**BUG 3 — Inspector X didn't close.** Hardened the close: `closePanel` now also fires via a delegated `document` click on `#famPanelClose` (in addition to the direct listener) and stops propagation, plus Esc. Verified the panel opens on Details and closes on X with focus unchanged and no navigation. (An earlier "close returns null" reading was a mid-slide-transition artifact, not a real failure.)
+
+**Files:** apps/legacy/services/family_tree.py (`browse_person_relationships`, `CATEGORY_LABELS`, `_parent_label`/`_child_label`), apps/legacy/views.py (`RelationshipsView`), templates/legacy/relationships.html (person-centric browser + search), templates/legacy/family.html (delegated close), static/css/legacy.css (v46 — `.fam-edges{max-width:none}`, `.rel-*` browser styles), apps/legacy/tests/test_relationship_categories.py. No model/migration change. 50 tests green.
+
+
 ## 2026-07-05 — refactor(cos): Executive prioritization lives in interpret(); the prompt only presents it
 
 Executive judgment (significance ranking / prioritization) was starting to leak into PROMPT WORDING: the LLM injection contained procedural rules ("build your response around this", "France 2027 / backlog / evening plans are SECONDARY", "skipping tonight's ride is the logical recovery decision", "if challenged identify the mistake"). That makes the prompt the reasoning engine. Refined the boundary so reasoning happens once, in interpret(), and the prompt is declarative — no redesign, no new layer.

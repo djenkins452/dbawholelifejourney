@@ -949,7 +949,10 @@ body.theme-ember .legacy-root {
     background: var(--lg-surface-2) radial-gradient(circle, rgba(140,120,80,.10) 1px, transparent 1px) 0 0 / 22px 22px; cursor: grab; touch-action: none; }
 .fam-stage.is-panning { cursor: grabbing; }
 .fam-canvas { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
-.fam-edges { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; }
+/* max-width:none defeats the global `svg { max-width:100% }` reset — the canvas is a
+   zero-width abs-positioned container, so 100% collapsed the SVG to 0 and clipped
+   every connector line. Without this, the family tree renders with NO lines. */
+.fam-edges { position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none; max-width: none; }
 .fam-edge { stroke-linecap: round; }
 .fam-edge-parent { stroke: var(--lg-border-strong, #d8cbb0); stroke-width: 2; }
 .fam-edge-spouse { stroke: var(--lg-sidebar-gold, #c9a34e); stroke-width: 2.5; stroke-dasharray: 2 5; }
@@ -1216,3 +1219,33 @@ a.fam-result { text-decoration: none; }
 .clarify-opt input { width: 17px; height: 17px; accent-color: var(--lg-accent, #b07a2b); }
 .clarify-detail { margin-top: 2px; margin-left: 26px; max-width: 340px; padding: 8px 11px; border: 1px solid var(--lg-border); border-radius: 9px; font-size: 14px; background: var(--lg-surface); color: var(--lg-ink); }
 .clarify-submit { align-self: flex-start; }
+
+/* Relationships — canonical person-centric browser */
+.rel-browser { margin-top: 12px; }
+.rel-search { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; color: var(--lg-muted); margin-bottom: 16px; }
+.rel-search-in { flex: 1; border: 0; background: none; font-size: 16px; color: var(--lg-ink); outline: none; font-family: inherit; }
+.rel-results { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; box-shadow: 0 16px 40px -20px rgba(30,25,15,.5); overflow: hidden; }
+.rel-result { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; text-decoration: none; color: var(--lg-ink); }
+.rel-result:hover { background: var(--lg-surface-2); }
+.rel-result-name { font-weight: 600; font-size: 14px; }
+.rel-result-meta { font-size: 12px; color: var(--lg-muted); }
+.rel-focal { background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 16px; padding: 20px 22px; }
+.rel-focal-head { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--lg-border); margin-bottom: 4px; }
+.rel-focal-av { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--lg-sidebar, #3a3226); color: #f3ead6; font-family: var(--lg-serif); font-size: 18px; font-weight: 600; }
+.rel-focal-id { flex: 1; min-width: 0; }
+.rel-focal-name { font-family: var(--lg-serif); font-size: 22px; color: var(--lg-ink); margin: 0; }
+.rel-focal-you { font-size: 11px; font-weight: 700; color: #3a2f14; background: var(--lg-sidebar-gold, #c9a34e); border-radius: 20px; padding: 2px 9px; vertical-align: middle; }
+.rel-focal-meta { font-size: 13px; color: var(--lg-muted); margin: 3px 0 0; }
+.rel-focal-profile { white-space: nowrap; font-size: 13.5px; }
+.rel-group { margin-top: 16px; }
+.rel-group-title { display: flex; align-items: center; gap: 9px; font-family: var(--lg-sans); font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--lg-muted); margin: 0 0 6px; }
+.rel-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.rel-row { display: flex; align-items: baseline; gap: 12px; padding: 8px 8px; border-radius: 9px; }
+.rel-row:hover { background: var(--lg-surface-2); }
+.rel-role { flex: 0 0 116px; font-size: 12.5px; color: var(--lg-muted); }
+.rel-person { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--lg-ink); text-decoration: none; }
+.rel-person:hover { color: var(--lg-accent-ink, #7a5b1e); text-decoration: underline; }
+.rel-years { font-weight: 400; font-size: 12.5px; color: var(--lg-muted); }
+.rel-edit { font-size: 12.5px; color: var(--lg-accent-ink, #7a5b1e); text-decoration: none; }
+.rel-edit:hover { text-decoration: underline; }
+@media (max-width: 560px) { .rel-role { flex-basis: 90px; } }

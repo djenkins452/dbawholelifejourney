@@ -1435,42 +1435,23 @@ class FamilyView(LegacyContextMixin, TemplateView):
 
 
 class RelationshipsView(LegacyContextMixin, TemplateView):
-    """The canonical relationship HUB. Every relationship in a life lives here,
-    grouped by its stored category (the single classifier — no keyword logic in
-    this view). Family/romantic launch the Family View (a specialized
-    visualization); the other categories list their people and grow over time."""
+    """The canonical relationship BROWSER — the actual relationship records for one
+    focal person (default: the keeper), oriented from their perspective and grouped
+    by role: Parents, Spouse, Siblings, Children, then Friends/Professional/… Not
+    counts — the real canonical relationships. Search re-centers on anyone; the
+    Family View is the visual companion for the family."""
 
     template_name = "legacy/relationships.html"
     nav_active = "relationships"
 
-    # Non-family categories to surface as hub sections, in order, with a blurb for
-    # the ones not yet populated (a live roadmap, not a hardcoded one).
-    _SECTIONS = [
-        ("social", "Friends", "The people you chose"),
-        ("professional", "Professional", "Coworkers, managers, mentors, clients"),
-        ("faith", "Faith", "Pastors, small groups, church family"),
-        ("education", "Education", "Teachers, coaches, classmates"),
-        ("military", "Military & service", "Those you served with"),
-        ("community", "Neighbors & community", "The people around you"),
-        ("medical", "Care", "Doctors, nurses, caregivers"),
-        ("other", "Other", "Everyone else"),
-    ]
-
     def get_context_data(self, **kwargs):
-        from collections import defaultdict
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        groups = defaultdict(list)
-        for r in (Relationship.objects.filter(user=user)
-                  .select_related("from_person", "to_person")):
-            groups[r.relationship_category].append(r)
-        fam_cats = list(Relationship.FAMILY_TREE_CATEGORIES)
-        ctx["family_count"] = sum(len(groups.get(c, [])) for c in fam_cats)
+        ctx["browse"] = family_tree.browse_person_relationships(
+            user, self.request.GET.get("person"))
+        ctx["search_index"] = family_tree.family_search_index(user)
+        ctx["total_relationships"] = Relationship.objects.filter(user=user).count()
         ctx["people_count"] = Person.objects.filter(user=user).count()
-        ctx["sections"] = [
-            {"key": key, "label": label, "blurb": blurb, "items": groups.get(key, [])}
-            for key, label, blurb in self._SECTIONS
-        ]
         return ctx
 
 

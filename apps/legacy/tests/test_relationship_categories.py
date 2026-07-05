@@ -86,13 +86,30 @@ class ConsumerTests(TestCase):
         self.assertNotIn(boss.pk, spouses[me.pk])     # manager (professional) is NOT
         self.assertEqual(children[me.pk], set())      # boss not treated as a child either
 
-    def test_hub_groups_by_category(self):
-        me = self._p("Me"); c = self._p("Coworker")
+    def test_hub_browses_actual_relationships_by_role(self):
+        me = self._p("Me"); me.is_self = True; me.save(update_fields=["is_self"])
+        dad = self._p("Dad Jones"); sp = self._p("Spouse Jones"); c = self._p("Coworker")
+        Relationship.objects.create(user=self.user, from_person=dad, to_person=me, relationship_type="parent of")
+        Relationship.objects.create(user=self.user, from_person=me, to_person=sp, relationship_type="married to")
         Relationship.objects.create(user=self.user, from_person=me, to_person=c, relationship_type="coworker of")
         r = self.client.get(reverse("legacy:relationships"))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Open Family view")           # family launches the visualization
-        self.assertContains(r, "Professional")               # category section
-        self.assertContains(r, "Coworker")                   # the professional relationship shows
-        sections = {s["key"]: s for s in r.context["sections"]}
-        self.assertEqual(len(sections["professional"]["items"]), 1)
+        self.assertContains(r, "Open Family view")     # family launches the visualization
+        # The ACTUAL relationships appear, grouped by role from the focal person.
+        browse = r.context["browse"]
+        self.assertEqual(browse["focal"]["name"], "Me")
+        groups = {g["label"]: [it["name"] for it in g["items"]] for g in browse["groups"]}
+        self.assertIn("Dad Jones", groups.get("Parents", []))
+        self.assertIn("Spouse Jones", groups.get("Spouse", []))
+        self.assertIn("Coworker", groups.get("Professional", []))
+        self.assertContains(r, "Dad Jones")            # rendered, not just counted
+
+    def test_hub_can_focus_another_person(self):
+        me = self._p("Me"); me.is_self = True; me.save(update_fields=["is_self"])
+        dad = self._p("Dad"); Relationship.objects.create(
+            user=self.user, from_person=dad, to_person=me, relationship_type="parent of")
+        r = self.client.get(reverse("legacy:relationships") + "?person=%d" % dad.pk)
+        browse = r.context["browse"]
+        self.assertEqual(browse["focal"]["name"], "Dad")
+        groups = {g["label"]: [it["name"] for it in g["items"]] for g in browse["groups"]}
+        self.assertIn("Me", groups.get("Children", []))   # oriented from Dad's view

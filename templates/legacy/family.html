@@ -207,12 +207,17 @@
         panel.classList.add('is-open');
         panel.setAttribute('aria-hidden', 'false');
     }
-    function closePanel() {
+    function closePanel(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         panel.classList.remove('is-open');
         panel.setAttribute('aria-hidden', 'true');
     }
+    // Delegated + direct — the X closes no matter how the click is delivered.
     var closeBtn = document.getElementById('famPanelClose');
     if (closeBtn) { closeBtn.addEventListener('click', closePanel); }
+    document.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('#famPanelClose')) { closePanel(e); }
+    });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closePanel(); } });
 
     function zoomAt(mx, my, factor) {

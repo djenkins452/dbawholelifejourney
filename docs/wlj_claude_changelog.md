@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Executive judgment — health-critical actions outrank routine/convenience (overdue meds lead)
+
+Production failure: user "I'm feeling great, lots of energy, sore from yesterday's workout" → Beth led with sleep / tasks / France mission / overdue tasks / shower / measurements and NEVER surfaced that his morning prescription medication was overdue; challenged, she listed the meds instead of directing him to take them. An exceptional Chief of Staff leads with the overdue meds ("take those first — it affects your health") before anything else.
+
+Root cause (proven, not patched): NO executive layer elevated it. `interpret()` read only tasks + sleep + weight — no medication signal, so `ExecutiveSignals` had nothing health-critical. The deterministic attention ranker `build_executive_briefing` puts clinical safety first (ACUTE tier) BUT never reads a medicine metric (`_PREFERRED_METRICS` contains none) and `_classify`'s only clinical path is glucose — and the morning brief consumes neither it nor the medicine truth. The canonical truth existed the whole time (`MedicineQueries.today_doses` → status `overdue`); it was simply never given executive weight. So overdue meds appeared, at best, as a flat rhythm item buried among shower/measurements.
+
+Fix (general executive judgment, NOT a medication special-case): `interpret()` now computes `health_critical` — deterministic health-critical, time-sensitive actions that outrank routine/convenience/strategic items — via `_health_critical_actions(user)` (today: overdue prescription doses from the domain's own `today_doses` status; extensible to danger vitals / missed clinical appointments the same way). It leads the `executive_picture` ("Highest priority right now: … it comes first."), so every consumer opens on it — even over a good-energy report or a celebration. `compose_executive_brief` LEADS with it ("Before anything else — … Take care of that first.") before momentum, reconciliation, thesis, priorities, and the agenda. `interpret()` remains the one authority; the brief is generic (whatever `interpret()` flagged health_critical), no medication hardcoding.
+
+Certified with the exact production conversation: with overdue morning doses present, the brief now opens "Before anything else — your prescription medication is overdue (Lisinopril, Metformin). That's the highest-priority action because it directly affects your health and it's time-sensitive. Take care of that first." then continues with the rest of the day; with no overdue doses it does not fire. Regression `apps/ai/tests/test_health_critical_priority.py` (4): reader surfaces overdue doses; interpret elevates it above a good-energy report; the brief leads with the action (front of the response, not the agenda); silent when nothing is health-critical. 61 across health-critical + whole-life + prioritization + reconciliation + P32/P33 + decision-support + check-in + one-picture + LLM-evidence GREEN. No model change, no migration.
+
+**Files:** apps/ai/chatgpt_cos/executive_interpretation.py, apps/ai/chatgpt_cos/executive_brief.py, apps/ai/tests/test_health_critical_priority.py (new).
+
+
 ## 2026-07-05 — fix(legacy): remove step-parent INFERENCE — evidence-only, ask the rest (Danny had 7 parents)
 
 Canonical Truth bug: the marriage-based step-parent inference made **every** spouse of a parent a step-parent of that parent's children. Since Danny's biological father (Marvin) and mother (Barbara) each had other partners, Danny inherited all of them → **seven parents**. The Family Tree was correctly exposing bad data.

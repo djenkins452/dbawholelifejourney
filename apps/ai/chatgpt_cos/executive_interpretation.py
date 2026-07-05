@@ -52,6 +52,10 @@ class ExecutiveSignals:
     # ── Conversation-reported accomplishments TODAY (merged from the evidence store).
     # The single place downstream consumers learn what the user has already done. ──
     accomplishments: list = field(default_factory=list)
+    # ── HEALTH-CRITICAL, time-sensitive actions that outrank routine/convenience today
+    # (overdue prescription doses, danger vitals). Deterministic. Consumers LEAD with
+    # these before anything else. ──
+    health_critical: list = field(default_factory=list)
     # ── The reasoned CONCLUSION that follows from today's read (what it means for
     # priorities). The prompt PRESENTS this; it must not re-derive prioritization. ──
     executive_picture: str = ""
@@ -140,6 +144,30 @@ def _exec_summary(user):
     except Exception:
         logger.warning("interpretation: exec summary failed", exc_info=True)
         return {}
+
+
+def _health_critical_actions(user):
+    """Deterministic HEALTH-CRITICAL, time-sensitive actions that must outrank routine
+    and convenience items today. NOT a medication special-case — it is the general
+    "clinical safety first" rule, sourced from canonical domain truth. Today it reads
+    overdue prescription doses (the domain's own `today_doses` status == 'overdue');
+    it extends to danger vitals / missed clinical appointments the same way. Returns
+    ``[{text, why, kind}]`` most-urgent-first, or ``[]``. Bounded, degrade-safe."""
+    out = []
+    try:
+        from apps.health.services.medicine_queries import MedicineQueries
+        overdue = [d for d in MedicineQueries.today_doses(user)
+                   if d.get("status") == "overdue"]
+        if overdue:
+            names = ", ".join(sorted({d["medication"] for d in overdue}))
+            n = len(overdue)
+            phrase = (f"your prescription medication is overdue ({names})" if n <= 3
+                      else f"{n} prescription doses are overdue")
+            out.append({"kind": "medication_overdue", "text": phrase,
+                        "why": "it directly affects your health and it's time-sensitive"})
+    except Exception:
+        logger.warning("interpret: health-critical read failed", exc_info=True)
+    return out
 
 
 def _health_read(user):
@@ -411,9 +439,20 @@ def interpret(user, low_energy=False, subjective=None):
         elif _opportunities:
             executive_picture = "Worth seizing: " + _opportunities[0].get("text", "") + "."
 
+    # HEALTH-CRITICAL FIRST: a time-sensitive clinical action outranks everything else
+    # today — even a celebration or a good-energy report. Lead the picture with it so
+    # every consumer opens on it; the rest of the read follows.
+    _health_critical = _health_critical_actions(user)
+    if _health_critical:
+        _hc = _health_critical[0]
+        executive_picture = (
+            f"Highest priority right now: {_hc['text']} — {_hc['why']}. That outranks "
+            "everything else today; it comes first. "
+            + (executive_picture or "")).strip()
+
     return ExecutiveSignals(
         risks=_risks, opportunities=_opportunities, predictions=_predictions,
-        patterns=_patterns, guidance=_guidance,
+        patterns=_patterns, guidance=_guidance, health_critical=_health_critical,
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
         backlog_count=tw["backlog"], total_pending=tw["total"],

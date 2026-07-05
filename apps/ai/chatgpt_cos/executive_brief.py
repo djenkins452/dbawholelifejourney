@@ -313,6 +313,13 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
     story = []
     if lead:
         story.append(lead.strip())
+    # HEALTH-CRITICAL FIRST: a time-sensitive clinical action (e.g. overdue prescription
+    # doses) outranks routine, convenience, momentum, and strategic items — Beth leads
+    # with it and directs the action, never buries it in the agenda. Generic: whatever
+    # interpret() flagged health_critical, not a medication special-case.
+    for hc in (getattr(sig, "health_critical", None) or [])[:1]:
+        story.append(f"Before anything else — {hc['text']}. That's the highest-priority "
+                     f"action because {hc['why']}. Take care of that first.")
     # The brief reflects what the user has already done today — straight from the one
     # executive picture (interpret merged it), no consumer-specific cache read.
     momentum = _momentum_story(sig)

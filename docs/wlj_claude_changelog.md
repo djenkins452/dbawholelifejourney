@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — fix(legacy): Family Tree UI — no clipped names + Details opens a right-side inspector (D1)
+
+Two usability fixes (no redesign):
+
+1. **Names never clip.** Cards were truncating longer names ("Marvin Lynn Jenkins"). Card nominal height raised (150→176) and the name now wraps fully (`overflow-wrap: anywhere`, no line-clamp); the card min-heights and grows within the generous row gap so nothing overlaps. Verified: 0 clipped names across the tree.
+
+2. **Details is a real inspector.** Removing the permanent right panel was correct; now clicking **Details** on a card slides open a right-side inspector for THAT person — in-page, no navigation — with summary, life years, "This is you"/relationship badge, Parents, Spouse(s), Children, Siblings, Stories/Media tabs, and View Full Profile. A ✕ (or Esc) closes it; the tree stays full-width and the focus never changes. Clicking a card still recenters; only Details inspects. `build_family_view` now returns a `panels` map (inspector data for every node, relatives drawn from the FULL graph); the panel is populated client-side via `createElement`/`textContent` (CSP-safe — no inline handlers). Details changed from an `<a>` to a `<button>`.
+
+**Verified live:** long names render in full; Details on Marvin opens his inspector (parents Walter & Ada, spouse Gloria, children Danny/Julie/Lynne/Mark) without leaving the Family View; Details on Danny shows his siblings and the "This is you" badge; close returns to the full-width tree with focus unchanged; no console errors. 38 family tests green.
+
+**Files:** apps/legacy/services/family_tree.py (`CARD_H`, `_life_years`, per-node `panels`), templates/legacy/family.html (Details button, inspector shell, `famPanels` json_script, panel JS), static/css/legacy.css (v44 — name wrap, inspector overlay + `.fam-relative`), apps/legacy/tests/test_family.py.
+
+
 ## 2026-07-04 — feat(legacy): Universal Clarification Engine — evidence-first, non-leading, teach-once (D1)
 
 Turned the marriage-specific clarification into a general **ambiguity-resolution engine** — a permanent platform capability. Responsibilities stay separate: Importer preserves evidence, Discovery extracts meaning, the Clarification Engine resolves ambiguity, Canonical Truth stores only confirmed facts.

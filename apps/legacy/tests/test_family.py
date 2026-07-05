@@ -220,11 +220,25 @@ class FocalViewTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, "is-focus")
         self.assertContains(r, "famSearchData")     # full-family search index present
-        self.assertContains(r, "fam-node-details")  # per-card Details link (opens profile)
+        self.assertContains(r, "fam-node-details")  # per-card Details button (opens inspector)
         self.assertContains(r, "fam-genlabel")      # generation labels
         self.assertContains(r, "data-recenter")     # click-card-to-recenter
         self.assertContains(r, "fam-legend")        # relationship-line legend
-        self.assertNotContains(r, "fam-panel")      # permanent side panel removed
+        self.assertContains(r, "famPanels")         # inspector data for every node
+        self.assertContains(r, 'id="famPanel"')     # the inspector (hidden until Details)
+        self.assertContains(r, "famPanelClose")     # inspector has a close button
+
+    def test_view_provides_inspector_data_per_node(self):
+        me = self._p("Me", is_self=True); dad = self._p("Dad")
+        sp = self._p("Sp"); kid = self._p("Kid")
+        self._parent(dad, me); self._spouse(me, sp); self._parent(me, kid)
+        panels = build_family_view(self.user, focus_pk=me.pk)["panels"]
+        # Every rendered node has inspector data; a non-focus person too (dad).
+        self.assertIn(me.pk, panels)
+        self.assertIn(dad.pk, panels)
+        self.assertEqual([r["name"] for r in panels[me.pk]["spouses"]], ["Sp"])
+        self.assertEqual([r["name"] for r in panels[me.pk]["children"]], ["Kid"])
+        self.assertEqual([r["name"] for r in panels[dad.pk]["children"]], ["Me"])
 
     def test_panel_lists_focus_relatives(self):
         me = self._p("Me", is_self=True); dad = self._p("Dad"); sp = self._p("Sp")

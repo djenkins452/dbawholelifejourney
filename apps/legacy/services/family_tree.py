@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 
 # Card geometry (kept in sync with .fam-node in legacy.css). Larger cards — only
 # three generations are ever shown, so there is room to breathe.
-CARD_W, CARD_H = 208, 150
+CARD_W, CARD_H = 208, 176
 UNIT_GAP = 40                          # horizontal gap between adjacent family units
 COUPLE_GAP = 36                        # visible gap between two partners in a couple
 COUPLE_HALF = (CARD_W + COUPLE_GAP) / 2   # each partner sits this far off the couple centre
@@ -98,6 +98,18 @@ def _initials(name):
     if len(parts) == 1:
         return parts[0][:1].upper()
     return (parts[0][:1] + parts[-1][:1]).upper()
+
+
+def _life_years(p):
+    """A compact life-span string for the inspector: '1937 – 2010', '1971 – living',
+    'd. 1990', or '' when unknown."""
+    if p.birth_year and p.death_year:
+        return "%s – %s" % (p.birth_year, p.death_year)
+    if p.birth_year:
+        return "%s – living" % p.birth_year
+    if p.death_year:
+        return "d. %s" % p.death_year
+    return ""
 
 
 def _person_row(p):
@@ -604,6 +616,36 @@ def build_family_view(user, focus_pk=None):
         "children": _rows(sorted(children.get(focus, ()))),
         "siblings": _rows(sorted(set(sib_ids))),
     }
+
+    # Per-node inspector data — the "Details" panel for ANY card in the view, without
+    # navigating (the tree stays put). Each person's relatives come from the FULL
+    # graph, so the panel is complete even for people at the edge of the 3-gen window.
+    def _rel_rows(ids):
+        out = []
+        for pk in sorted(ids):
+            p = by_id.get(pk)
+            if p:
+                out.append({"id": pk, "name": p.display_name, "years": _life_years(p)})
+        return out
+
+    panels = {}
+    for n in graph["nodes"]:
+        pk = n["id"]
+        p = by_id[pk]
+        sibs = {k for par in parents.get(pk, ()) for k in children.get(par, ())
+                if k != pk}
+        panels[pk] = {
+            "id": pk, "name": p.display_name, "initials": _initials(p.display_name),
+            "photo": (p.primary_photo.file.url
+                      if (p.primary_photo and p.primary_photo.file) else ""),
+            "years": _life_years(p), "living": p.death_year is None,
+            "rel": p.relationship_label or "", "is_self": pk == me_pk,
+            "parents": _rel_rows(parents.get(pk, ())),
+            "spouses": _rel_rows(spouses.get(pk, ())),
+            "children": _rel_rows(children.get(pk, ())),
+            "siblings": _rel_rows(sibs),
+        }
+    graph["panels"] = panels
     return graph
 
 

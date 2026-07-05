@@ -49,14 +49,34 @@
                 <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}{{ n.initials }}{% endif %}</span>
                 <span class="fam-node-name">{{ n.name }}</span>
                 <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}</span>
-                <a class="fam-node-details" href="{% url 'legacy:person_detail' n.id %}">Details</a>
+                <button type="button" class="fam-node-details" data-id="{{ n.id }}">Details</button>
             </div>
             {% endfor %}
         </div>
-        <p class="fam-hint">Click a person to center the family on them · click <strong>Details</strong> to open their profile · drag to pan · scroll to zoom</p>
+        <p class="fam-hint">Click a person to center the family on them · click <strong>Details</strong> to inspect them · drag to pan · scroll to zoom</p>
+
+        <aside class="fam-panel" id="famPanel" aria-hidden="true">
+            <button type="button" class="fam-panel-close" id="famPanelClose" aria-label="Close">×</button>
+            <div class="fam-panel-head">
+                <span class="fam-panel-av" id="fpAv"></span>
+                <div class="fam-panel-id">
+                    <h2 class="fam-panel-name" id="fpName"></h2>
+                    <p class="fam-panel-years" id="fpYears"></p>
+                    <span class="fam-you-badge" id="fpBadge" hidden></span>
+                </div>
+            </div>
+            <div class="fam-panel-tabs">
+                <span class="fam-tab is-active">Overview</span>
+                <a class="fam-tab" id="fpStories" href="#">Stories</a>
+                <a class="fam-tab" id="fpMedia" href="#">Media</a>
+            </div>
+            <div class="fam-panel-body" id="fpBody"></div>
+            <a class="lg-btn-primary fam-panel-cta" id="fpProfile" href="#">View full profile</a>
+        </aside>
     </div>
 </div>
 {{ search_index|json_script:"famSearchData" }}
+{{ graph.panels|json_script:"famPanels" }}
 
 <script nonce="{{ csp_nonce }}">
 (function () {
@@ -103,11 +123,12 @@
     function endPan() { dragging = false; stage.classList.remove('is-panning'); }
     stage.addEventListener('pointerup', endPan);
     stage.addEventListener('pointercancel', endPan);
-    // Click a card anywhere → recenter the family on that person. Only the small
-    // "Details" link opens their profile. A drag (pan) never counts as a click.
+    // Click a card anywhere → recenter the family on that person. The small "Details"
+    // button opens the inspector panel (no navigation). A drag never counts as a click.
     canvas.addEventListener('click', function (e) {
         if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; return; }
-        if (e.target.closest('.fam-node-details')) { return; }
+        var det = e.target.closest('.fam-node-details');
+        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id')); return; }
         var card = e.target.closest('.fam-node');
         if (card && card.getAttribute('data-recenter')) {
             window.location.href = card.getAttribute('data-recenter');
@@ -115,12 +136,84 @@
     }, true);
     canvas.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') { return; }
+        var det = e.target.closest ? e.target.closest('.fam-node-details') : null;
+        if (det) { e.preventDefault(); openPanel(det.getAttribute('data-id')); return; }
         var card = e.target.closest ? e.target.closest('.fam-node') : null;
         if (card && card.getAttribute('data-recenter')) {
             e.preventDefault();
             window.location.href = card.getAttribute('data-recenter');
         }
     });
+
+    // ── Inspector panel (Details) — populated in-page, never navigates ──────────
+    var panel = document.getElementById('famPanel');
+    var panels = {};
+    try { panels = JSON.parse(document.getElementById('famPanels').textContent) || {}; } catch (e) {}
+    var famBase = '{% url "legacy:family" %}';
+    function personUrl(id) { return '/legacy/people/' + id + '/'; }
+
+    function relSection(title, rows) {
+        if (!rows || !rows.length) { return null; }
+        var sec = document.createElement('div'); sec.className = 'fam-panel-sec';
+        var h = document.createElement('h3'); h.className = 'fam-panel-h'; h.textContent = title;
+        sec.appendChild(h);
+        rows.forEach(function (r) {
+            var a = document.createElement('a'); a.className = 'fam-relative';
+            a.href = famBase + '?focus=' + r.id;
+            var nm = document.createElement('span'); nm.className = 'fam-relative-name';
+            nm.textContent = r.name; a.appendChild(nm);
+            if (r.years) {
+                var y = document.createElement('span'); y.className = 'fam-relative-years';
+                y.textContent = r.years; a.appendChild(y);
+            }
+            sec.appendChild(a);
+        });
+        return sec;
+    }
+
+    function openPanel(id) {
+        var d = panels[id];
+        if (!d) { return; }
+        var av = document.getElementById('fpAv');
+        av.textContent = '';
+        av.className = 'fam-panel-av' + (d.living ? '' : ' is-deceased');
+        if (d.photo) {
+            var img = document.createElement('img'); img.src = d.photo; img.alt = '';
+            av.appendChild(img);
+        } else { av.textContent = d.initials; }
+        document.getElementById('fpName').textContent = d.name;
+        document.getElementById('fpYears').textContent = d.years || '';
+        var badge = document.getElementById('fpBadge');
+        if (d.is_self) { badge.textContent = 'This is you'; badge.hidden = false; }
+        else if (d.rel) { badge.textContent = d.rel; badge.hidden = false; }
+        else { badge.hidden = true; }
+        var body = document.getElementById('fpBody');
+        body.textContent = '';
+        var secs = [
+            relSection('Parents', d.parents),
+            relSection(d.spouses && d.spouses.length > 1 ? 'Spouses' : 'Spouse', d.spouses),
+            relSection('Children', d.children),
+            relSection('Siblings', d.siblings)
+        ].filter(Boolean);
+        if (secs.length) { secs.forEach(function (s) { body.appendChild(s); }); }
+        else {
+            var empty = document.createElement('p'); empty.className = 'fam-panel-empty';
+            empty.textContent = 'No family connections recorded for ' + d.name + ' yet.';
+            body.appendChild(empty);
+        }
+        document.getElementById('fpStories').href = personUrl(id) + '#stories';
+        document.getElementById('fpMedia').href = personUrl(id) + '#media';
+        document.getElementById('fpProfile').href = personUrl(id);
+        panel.classList.add('is-open');
+        panel.setAttribute('aria-hidden', 'false');
+    }
+    function closePanel() {
+        panel.classList.remove('is-open');
+        panel.setAttribute('aria-hidden', 'true');
+    }
+    var closeBtn = document.getElementById('famPanelClose');
+    if (closeBtn) { closeBtn.addEventListener('click', closePanel); }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closePanel(); } });
 
     function zoomAt(mx, my, factor) {
         var ns = clampScale(scale * factor);

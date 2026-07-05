@@ -967,8 +967,9 @@ body.theme-ember .legacy-root {
 .fam-node-av { flex: 0 0 auto; width: 60px; height: 60px; border-radius: 50%; overflow: hidden; display: grid; place-items: center;
     background: var(--lg-sidebar, #3a3226); color: #f3ead6; font-size: 17px; font-weight: 600; font-family: var(--lg-serif); }
 .fam-node-av img { width: 100%; height: 100%; object-fit: cover; }
-/* Ancestry-style sex-coloured silhouette avatars (photo shows through when present). */
-.fam-av-ic { width: 60px; height: 60px; display: block; }
+/* Ancestry-style sex-coloured silhouette avatars (photo shows through when present).
+   The silhouette fills whatever avatar contains it — family cards, People, profile. */
+.fam-av-ic { width: 100%; height: 100%; display: block; }
 .fam-av-ic circle, .fam-av-ic path { fill: currentColor; }
 .fam-sex-m .fam-node-av { background: #d6e4f0; color: #6c8fb3; }   /* blue */
 .fam-sex-f .fam-node-av { background: #f0dbe0; color: #c08096; }   /* rose */
@@ -1272,3 +1273,19 @@ a.fam-result { text-decoration: none; }
 .refresh-actions form { margin: 0; }
 .stat-card.refresh-safe { background: #eef3ec; border-radius: 10px; }
 .refresh-audit-cta { margin-top: 16px; }
+
+/* Primary Portrait — shared silhouette/sex-colour avatars on all person surfaces */
+.profile-avatar, .pcard-avatar, .rel-focal-av { overflow: hidden; }
+.profile-avatar img, .pcard-avatar img, .rel-focal-av img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar.fam-sex-m, .pcard-avatar.fam-sex-m, .rel-focal-av.fam-sex-m { background: #d6e4f0; color: #6c8fb3; }
+.profile-avatar.fam-sex-f, .pcard-avatar.fam-sex-f, .rel-focal-av.fam-sex-f { background: #f0dbe0; color: #c08096; }
+.profile-avatar.fam-sex-u, .pcard-avatar.fam-sex-u, .rel-focal-av.fam-sex-u { background: var(--lg-surface-2, #efe9dd); color: #a99f88; }
+/* Portrait upload control on the person profile */
+.portrait-form { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; flex-wrap: wrap; }
+.portrait-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.portrait-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.media-thumb-wrap { display: flex; flex-direction: column; gap: 4px; }
+.media-portrait-form { margin: 0; }
+.media-portrait-btn { width: 100%; font-size: 11px; font-weight: 600; color: var(--lg-accent-ink, #7a5b1e); background: none; border: 0; cursor: pointer; padding: 2px; font-family: inherit; }
+.media-portrait-btn:hover:not(:disabled) { text-decoration: underline; }
+.media-portrait-btn:disabled { color: var(--lg-muted); cursor: default; }

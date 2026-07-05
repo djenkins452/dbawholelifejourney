@@ -301,3 +301,49 @@ class TimelineTests(TestCase):
     def test_login_required(self):
         self.client.logout()
         self.assertEqual(self.client.get(reverse("legacy:timeline")).status_code, 302)
+
+
+class PrimaryPortraitTests(TestCase):
+    """One canonical Primary Portrait per person, backed by the existing Media model,
+    reused across every surface."""
+
+    def setUp(self):
+        self.user = _make_user("portrait@example.com")
+        self.client.force_login(self.user)
+        self.person = Person.objects.create(user=self.user, display_name="Marvin", sex="M")
+
+    def _img(self):
+        return SimpleUploadedFile("face.jpg", b"\xff\xd8\xff\xe0jpeg", content_type="image/jpeg")
+
+    def test_upload_sets_primary_portrait(self):
+        r = self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]),
+                             {"file": self._img()})
+        self.assertRedirects(r, reverse("legacy:person_detail", args=[self.person.pk]))
+        self.person.refresh_from_db()
+        self.assertIsNotNone(self.person.primary_photo)
+        self.assertTrue(self.person.portrait_url)                 # reusable accessor works
+
+    def test_use_existing_media_as_portrait(self):
+        media = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO,
+                                     file=self._img(), original_filename="x.jpg")
+        self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]),
+                         {"media_id": media.pk})
+        self.person.refresh_from_db()
+        self.assertEqual(self.person.primary_photo_id, media.pk)
+
+    def test_clear_portrait_falls_back_to_silhouette(self):
+        media = Media.objects.create(user=self.user, media_type=Media.MediaType.PHOTO,
+                                     file=self._img(), original_filename="x.jpg")
+        self.person.primary_photo = media; self.person.save()
+        self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]), {"clear": "1"})
+        self.person.refresh_from_db()
+        self.assertIsNone(self.person.primary_photo)
+        self.assertEqual(self.person.portrait_url, "")            # → default silhouette
+
+    def test_portrait_only_touches_owner(self):
+        other = _make_user("intruder@example.com")
+        theirs = Person.objects.create(user=other, display_name="Nope")
+        self.client.force_login(other)
+        r = self.client.post(reverse("legacy:person_portrait", args=[self.person.pk]),
+                             {"file": self._img()})
+        self.assertEqual(r.status_code, 404)                      # can't set another user's portrait

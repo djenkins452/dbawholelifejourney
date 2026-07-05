@@ -1,7 +1,7 @@
 {% comment %}Person card. Expects `p` (a Person; may carry an annotated `mcount`).{% endcomment %}
 <a href="{% url 'legacy:person_detail' p.pk %}" class="pcard">
-    <span class="pcard-avatar">
-        {% if p.primary_photo and p.primary_photo.file %}<img src="{{ p.primary_photo.file.url }}" alt="{{ p.display_name }}">{% else %}{{ p.display_name|slice:":1"|upper }}{% endif %}
+    <span class="pcard-avatar fam-sex-{% if p.sex == 'M' %}m{% elif p.sex == 'F' %}f{% else %}u{% endif %}">
+        {% if p.portrait_url %}<img src="{{ p.portrait_url }}" alt="{{ p.display_name }}">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}
     </span>
     <span class="pcard-name">{{ p.display_name }}</span>
     {% if p.relationship_label %}<span class="pcard-rel">{{ p.relationship_label }}</span>{% elif p.display_birth or p.display_death %}<span class="pcard-rel">{{ p.display_birth }}{% if p.display_birth or p.display_death %}–{% endif %}{{ p.display_death }}</span>{% endif %}

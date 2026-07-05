@@ -796,10 +796,16 @@ def browse_person_relationships(user, focal_id=None):
                 add("siblings", 30, "Siblings", p, "Sibling", None)
 
     ordered = sorted(groups.values(), key=lambda g: (g["order"], g["label"]))
+    # The focal's canonical Primary Portrait (loaded with its Media for the avatar).
+    full_focal = (Person.objects.filter(user=user, pk=focal_id)
+                  .select_related("primary_photo").only(
+                      "pk", "display_name", "sex", "primary_photo").first())
     return {
         "focal": {"id": focal_id, "name": focal.display_name,
                   "years": _life_years(focal), "is_self": focal_id == me_pk,
-                  "initials": _initials(focal.display_name)},
+                  "initials": _initials(focal.display_name),
+                  "sex": (full_focal.sex or "").upper()[:1] if full_focal else "",
+                  "portrait": full_focal.portrait_url if full_focal else ""},
         "groups": ordered,
         "count": len(rels),
     }

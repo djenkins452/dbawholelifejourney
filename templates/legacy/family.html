@@ -109,7 +109,11 @@
 
     var dragging = false, sx = 0, sy = 0, sTx = 0, sTy = 0, moved = false;
     stage.addEventListener('pointerdown', function (e) {
-        if (e.target.closest('.fam-node') || e.target.closest('.fam-controls') || e.target.closest('.fam-legend')) { return; }
+        // Never start a pan (or CAPTURE the pointer) on interactive chrome inside the
+        // stage — the inspector panel especially. Capturing the pointer here is what
+        // stopped the panel's × (and its links) from ever firing their click event.
+        if (e.target.closest('.fam-node') || e.target.closest('.fam-controls')
+                || e.target.closest('.fam-legend') || e.target.closest('.fam-panel')) { return; }
         dragging = true; moved = false; sx = e.clientX; sy = e.clientY; sTx = tx; sTy = ty;
         try { stage.setPointerCapture(e.pointerId); } catch (err) {}
         stage.classList.add('is-panning');

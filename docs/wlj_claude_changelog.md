@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): canonical Primary Portrait + fix Family Tree inspector close (real root cause)
+
+**Primary Portrait (a Person capability, using existing Media).** `Person.portrait_url` is the ONE canonical portrait — backed by `primary_photo` (existing Media model), empty → default silhouette. Set it from the person profile: upload a photo (auto-submits, creates a Media, becomes the portrait), pick one of the person's existing photos ("Use as portrait"), or clear it. `PersonPortraitView` + `people/<pk>/portrait/`. Because every surface reads `portrait_url`/`primary_photo`, changing it updates all of them at once — now displayed on the Family Tree (already), People cards, the Relationships focal card, and the profile, each with a sex-coloured silhouette fallback. 4 tests (upload / use-existing / clear→silhouette / owner-only). No migration (property + existing FK).
+
+**Family Tree inspector × now closes — real root cause found.** The stage's `pointerdown` handler starts a pan and calls `stage.setPointerCapture()` for any pointerdown NOT on `.fam-node`/`.fam-controls`/`.fam-legend`. The inspector panel wasn't excepted, so a REAL click on the × (or any panel control) captured the pointer to the stage and the button's `click` event never fired — which is why synthetic `.dispatchEvent` "worked" in tests but real clicks always failed. Fix: add `.fam-panel` to the pointerdown exception. Verified live with a faithful pointer sequence (pointerdown→up→click): the panel now closes, focus unchanged, no navigation. This also repairs the panel's tabs and links (same cause).
+
+**Files:** apps/legacy/models.py (`Person.portrait_url`), apps/legacy/views.py (`PersonPortraitView`), apps/legacy/urls.py, apps/legacy/services/family_tree.py (focal portrait in browser), templates/legacy/{person_detail,_pcard,relationships,family}.html, static/css/legacy.css (v49), apps/legacy/tests/test_people_places_media.py.
+
+
 ## 2026-07-05 — fix(cos): Executive Pattern Discovery — whole-life synthesis, not a restated domain trend
 
 **Root cause:** "What pattern do you see in my life that I probably don't recognize yet?" answered "Protein has consistently been below target." That's a single-domain nutrition trend — not hidden, not executive, not a life pattern. **No deterministic lane owned pattern questions.** `personal_reasoning` claimed it, the planner returned `intent="other"`, the lane declined, and the question fell to the **generic tool-loop LLM fallback** ([service.py:167](apps/ai/chatgpt_cos/service.py)), which free-associated over the standing-context blob and latched onto the nearest single-domain trend. Nothing computed an executive pattern, nothing preferred cross-domain synthesis, nothing excluded the obvious. Meanwhile WLJ *already computes* whole-life pattern intelligence — it was stranded.

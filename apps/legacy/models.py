@@ -140,6 +140,15 @@ class Person(LegacyOwnedModel):
     def display_death(self):
         return fmt_life_date(self.death_date, self.death_year)
 
+    @property
+    def portrait_url(self):
+        """The ONE canonical Primary Portrait for this person — reused everywhere in
+        Legacy (Family tree, People, Relationships, stories, …). Empty when unset, so
+        every surface falls back to the default silhouette. Backed by the existing Media
+        model via `primary_photo`; changing it updates every view at once."""
+        m = self.primary_photo
+        return m.file.url if (m and m.file) else ""
+
 
 def fmt_life_date(full, year):
     """'29 Mar 1971' when the exact day is known, else '1971', else ''."""

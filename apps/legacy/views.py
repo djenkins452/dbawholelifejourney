@@ -718,6 +718,40 @@ class PersonRestoreView(LegacyContextMixin, View):
         return redirect("legacy:person_detail", pk=p.pk)
 
 
+class PersonPortraitView(LegacyContextMixin, View):
+    """Set (or clear) a person's ONE canonical Primary Portrait, using the existing Media
+    model. Upload a new photo, choose one of the person's existing media, or clear it —
+    every surface in Legacy that shows this person updates automatically."""
+
+    def post(self, request, pk, *args, **kwargs):
+        person = get_object_or_404(Person.all_objects, pk=pk, user=request.user)
+        f = request.FILES.get("file")
+        media_id = request.POST.get("media_id")
+        if request.POST.get("clear"):
+            person.primary_photo = None
+            person.save(update_fields=["primary_photo", "updated_at"])
+            messages.success(request, "Portrait removed.")
+        elif f:
+            if not is_visual_media(f.name):
+                messages.error(request, "Please choose an image file for the portrait.")
+                return redirect("legacy:person_detail", pk=person.pk)
+            media = Media.objects.create(
+                user=request.user, media_type=Media.MediaType.PHOTO, file=f,
+                original_filename=f.name[:255], created_via=Media.CREATED_VIA_MANUAL,
+                caption=("Portrait of %s" % person.display_name)[:500])
+            person.primary_photo = media
+            person.save(update_fields=["primary_photo", "updated_at"])
+            messages.success(request, "Portrait updated.")
+        elif media_id:
+            media = get_object_or_404(Media.all_objects, pk=media_id, user=request.user)
+            person.primary_photo = media
+            person.save(update_fields=["primary_photo", "updated_at"])
+            messages.success(request, "Portrait updated.")
+        else:
+            messages.error(request, "Choose a photo to use as the portrait.")
+        return redirect("legacy:person_detail", pk=person.pk)
+
+
 # ── Places ─────────────────────────────────────────────────────────────────
 class PlacesView(LegacyContextMixin, TemplateView):
     template_name = "legacy/places.html"

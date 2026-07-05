@@ -20,7 +20,7 @@
 
         <section class="rel-focal">
             <div class="rel-focal-head">
-                <span class="rel-focal-av">{{ browse.focal.initials }}</span>
+                <span class="rel-focal-av fam-sex-{% if browse.focal.sex == 'M' %}m{% elif browse.focal.sex == 'F' %}f{% else %}u{% endif %}">{% if browse.focal.portrait %}<img src="{{ browse.focal.portrait }}" alt="{{ browse.focal.name }}">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}</span>
                 <div class="rel-focal-id">
                     <h2 class="rel-focal-name">{{ browse.focal.name }}{% if browse.focal.is_self %} <span class="rel-focal-you">You</span>{% endif %}</h2>
                     <p class="rel-focal-meta">{% if browse.focal.years %}{{ browse.focal.years }} · {% endif %}{{ browse.count }} {{ browse.count|pluralize:"relationship,relationships" }}</p>

@@ -57,6 +57,7 @@ urlpatterns = [
     path("people/new/", views.PersonCreateView.as_view(), name="person_new"),
     path("people/<int:pk>/", views.PersonProfileView.as_view(), name="person_detail"),
     path("people/<int:pk>/edit/", views.PersonEditView.as_view(), name="person_edit"),
+    path("people/<int:pk>/portrait/", views.PersonPortraitView.as_view(), name="person_portrait"),
     path("people/<int:pk>/archive/", views.PersonArchiveView.as_view(), name="person_archive"),
     path("people/<int:pk>/restore/", views.PersonRestoreView.as_view(), name="person_restore"),
 

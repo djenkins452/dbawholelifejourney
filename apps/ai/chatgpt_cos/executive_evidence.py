@@ -59,11 +59,44 @@ def record_subjective(user, polarity):
         logger.warning("executive_evidence: record_subjective failed", exc_info=True)
 
 
+def record_deferral(user, item, reason="", resume=""):
+    """EXECUTIVE STATE RECONCILIATION — record that the user supplied trustworthy
+    evidence today that a surfaced/routine item is NOT appropriate right now (already
+    done / done recently / wrong time of day / canceled / traveling / sick). `item` is a
+    short label (e.g. "Shower"), `reason` the WHY, `resume` when to pick it back up. The
+    latest report for an item wins. interpret() reads these and folds them into the ONE
+    picture so every consumer stops treating the item as today's priority."""
+    if not item:
+        return
+    try:
+        d = _get(user)
+        defs = [x for x in (d.get("deferrals") or [])
+                if (x.get("item") or "").strip().lower() != item.strip().lower()]
+        defs.append({"item": item.strip(), "reason": (reason or "").strip(),
+                     "resume": (resume or "").strip()})
+        d["deferrals"] = defs
+        _set(user, d)
+    except Exception:
+        logger.warning("executive_evidence: record_deferral failed", exc_info=True)
+
+
+def deferred_labels(user):
+    """Lowercased set of item labels the user has deferred out of today — the read
+    every consumer uses to stop surfacing a reconciled item."""
+    try:
+        return {(x.get("item") or "").strip().lower()
+                for x in (_get(user).get("deferrals") or []) if x.get("item")}
+    except Exception:
+        return set()
+
+
 def today(user):
-    """Today's reported evidence: {'accomplishments': [...], 'subjective': str|None}."""
+    """Today's reported evidence: {'accomplishments': [...], 'subjective': str|None,
+    'deferrals': [{item, reason, resume}, ...]}."""
     try:
         d = _get(user)
         return {"accomplishments": list(d.get("accomplishments") or []),
-                "subjective": d.get("subjective")}
+                "subjective": d.get("subjective"),
+                "deferrals": list(d.get("deferrals") or [])}
     except Exception:
-        return {"accomplishments": [], "subjective": None}
+        return {"accomplishments": [], "subjective": None, "deferrals": []}

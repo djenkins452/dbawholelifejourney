@@ -85,6 +85,19 @@ def _decision_support_lane(user, message, conversation=None):
     return decision_support.respond(user, message, conversation)
 
 
+def _reconciliation_lane(user, message, conversation=None):
+    """EXECUTIVE STATE RECONCILIATION: when the user supplies trustworthy evidence that
+    an item Beth is treating as today's priority is NOT appropriate ("I already did
+    that", "I did it yesterday", "I don't need one", "that's a morning-only activity",
+    "that meeting was canceled", "I'm traveling / sick"), accept it, update the executive
+    picture (defer the item out of today), and continue — instead of retrieving a fact
+    (the production failure: 'I showered late yesterday … weighing in' → yesterday's
+    weight → collapse). Runs BEFORE the retrieval lanes so the REASON isn't mistaken for
+    a query. Declines everything else, so fact/reasoning routing is unaffected."""
+    from apps.ai.chatgpt_cos import reconciliation
+    return reconciliation.answer(user, message, conversation)
+
+
 # Law 0 / Law 4 — DETERMINISTIC STATUS/COUNT questions belong to deterministic
 # providers (workout/journal/appointments), NOT the reasoning planner. Conservative
 # substrings: presence/status phrasings only, never the reasoning cues ("how is my
@@ -1547,6 +1560,10 @@ LANE_REGISTRY = (
     # merely names a fact ("just need to take my nightly meds and I'm done") is a
     # tradeoff to evaluate, not a fact to look up. Declines for real questions.
     ("decision_support", _decision_support_lane),
+    # EXECUTIVE STATE RECONCILIATION: trustworthy evidence that an item isn't today's
+    # priority ("I did it yesterday", "that's a morning activity", "meeting canceled")
+    # updates the picture — BEFORE retrieval lanes so the REASON isn't read as a query.
+    ("reconciliation", _reconciliation_lane),
     # RECOGNIZE ACCOMPLISHMENTS: a report of what was done today ("I made up my
     # workouts") is celebrated + recorded as today's evidence — before the retrieval
     # lanes so it isn't mistaken for a query.

@@ -146,7 +146,7 @@ class RoutingPreservationTests(TestCase):
         self.assertEqual([n for n, _ in LANE_REGISTRY],
                          ["temporal", "why_explainer", "referential",
                           "clarification_reply", "conversation_planner",
-                          "decision_support", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts", "clarification",
+                          "decision_support", "reconciliation", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts", "clarification",
                           "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
                           "personal_reasoning", "general_conversation"])
 
@@ -311,7 +311,7 @@ class ApprovedRegistryOrderTests(TestCase):
         self.assertEqual(
             [n for n, _ in LANE_REGISTRY],
             ["temporal", "why_explainer", "referential", "clarification_reply",
-             "conversation_planner", "decision_support", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts",
+             "conversation_planner", "decision_support", "reconciliation", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts",
              "clarification", "general_continuity", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
              "personal_reasoning", "general_conversation"])
 

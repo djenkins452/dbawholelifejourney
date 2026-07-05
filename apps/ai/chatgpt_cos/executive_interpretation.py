@@ -52,6 +52,10 @@ class ExecutiveSignals:
     # ── Conversation-reported accomplishments TODAY (merged from the evidence store).
     # The single place downstream consumers learn what the user has already done. ──
     accomplishments: list = field(default_factory=list)
+    # ── Items the user has RECONCILED out of today (trustworthy evidence: already done /
+    # wrong time of day / canceled / traveling / sick). Merged from the evidence store;
+    # every consumer stops treating these as today's priority. [{item, reason, resume}] ──
+    deferred: list = field(default_factory=list)
     # ── HEALTH-CRITICAL, time-sensitive actions that outrank routine/convenience today
     # (overdue prescription doses, danger vitals). Deterministic. Consumers LEAD with
     # these before anything else. ──
@@ -382,8 +386,11 @@ def interpret(user, low_energy=False, subjective=None):
         from apps.ai.chatgpt_cos.executive_evidence import today as _reported_today
         _reported = _reported_today(user)
     except Exception:
-        _reported = {"accomplishments": [], "subjective": None}
+        _reported = {"accomplishments": [], "subjective": None, "deferrals": []}
     reported_accomplishments = _reported.get("accomplishments") or []
+    reported_deferrals = _reported.get("deferrals") or []
+    _deferred_labels = {(x.get("item") or "").strip().lower()
+                        for x in reported_deferrals if x.get("item")}
     if subjective is None:
         subjective = _reported.get("subjective")   # an explicit param still overrides
 
@@ -543,6 +550,12 @@ def interpret(user, low_energy=False, subjective=None):
     # today — even a celebration or a good-energy report. Lead the picture with it so
     # every consumer opens on it; the rest of the read follows.
     _health_critical = _health_critical_actions(user)
+    # RECONCILIATION: an item the user credibly deferred today (already took it / not
+    # appropriate now) is no longer today's priority — drop it from the lead picture.
+    if _health_critical and _deferred_labels:
+        _health_critical = [h for h in _health_critical
+                            if not any(lbl and lbl in (h.get("text", "").lower())
+                                       for lbl in _deferred_labels)]
     if _health_critical:
         _hc = _health_critical[0]
         executive_picture = (
@@ -558,6 +571,7 @@ def interpret(user, low_energy=False, subjective=None):
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
         backlog_count=tw["backlog"], total_pending=tw["total"],
         cognitive_load=_cognitive_load(tw, health), recovery_needed=recovery,
+        deferred=reported_deferrals,
         health_read=health["read"], biggest_risk=biggest_risk,
         highest_leverage=highest_leverage, strategic_focus=strategic,
         intervention_required=intervention, confidence=confidence,

@@ -102,7 +102,7 @@ class ConsumerTests(TestCase):
         self.assertEqual(browse["focal"]["name"], "Me")
         groups = {g["label"]: [it["name"] for it in g["items"]] for g in browse["groups"]}
         self.assertIn("Dad Jones", groups.get("Biological parents", []))
-        self.assertIn("Spouse Jones", groups.get("Spouse & partners", []))
+        self.assertIn("Spouse Jones", groups.get("Spouse", []))
         self.assertIn("Coworker", groups.get("Professional", []))
         self.assertContains(r, "Dad Jones")            # rendered, not just counted
 
@@ -127,6 +127,52 @@ class ConsumerTests(TestCase):
         # Every displayed relationship is editable (carries its record pk).
         for it in bio["items"] + add["items"]:
             self.assertIsNotNone(it["pk"])
+
+    def test_family_roles_split_by_derived_degree(self):
+        """Blended-family readability: siblings split full/half/step and children split
+        biological/step/adopted, all derived from Canonical Truth — not one flat group."""
+        me = self._p("Danny"); me.is_self = True; me.save(update_fields=["is_self"])
+        marvin = self._p("Marvin"); barbara = self._p("Barbara"); gloria = self._p("Gloria")
+        donald = self._p("Donald")
+        mark = self._p("Mark"); ana = self._p("Ana"); steve = self._p("Steve")
+        cole = self._p("Cole"); lily = self._p("Lily"); sam = self._p("Sam")
+        beth = self._p("Beth"); heather = self._p("Heather"); jane = self._p("Jane")
+
+        def R(a, b, t):
+            Relationship.objects.create(user=self.user, from_person=a, to_person=b, relationship_type=t)
+
+        # Focal's parents: two biological + one step (additional).
+        R(marvin, me, "biological father of"); R(barbara, me, "biological mother of")
+        R(gloria, me, "stepmother of")
+        # Full sibling shares BOTH bio parents; half shares one; step is the step-parent's
+        # own child (shares no biological parent with focal).
+        R(marvin, mark, "biological father of"); R(barbara, mark, "biological mother of")
+        R(barbara, ana, "biological mother of"); R(donald, ana, "biological father of")
+        R(gloria, steve, "biological mother of")
+        # Focal's children by kind.
+        R(me, cole, "biological father of"); R(me, lily, "stepfather of"); R(me, sam, "adoptive father of")
+        # Couples: current spouse / former spouse / partner each get their own section.
+        R(me, beth, "married to"); R(me, heather, "former spouse of"); R(me, jane, "partner of")
+
+        browse = family_tree.browse_person_relationships(self.user, me.pk)
+        g = {x["label"]: {it["name"] for it in x["items"]} for x in browse["groups"]}
+        self.assertEqual(g.get("Biological parents"), {"Marvin", "Barbara"})
+        self.assertEqual(g.get("Additional parent relationships"), {"Gloria"})
+        self.assertEqual(g.get("Full siblings"), {"Mark"})
+        self.assertEqual(g.get("Half siblings"), {"Ana"})
+        self.assertEqual(g.get("Step siblings"), {"Steve"})
+        self.assertEqual(g.get("Children"), {"Cole"})
+        self.assertEqual(g.get("Stepchildren"), {"Lily"})
+        self.assertEqual(g.get("Adopted children"), {"Sam"})
+        self.assertEqual(g.get("Spouse"), {"Beth"})
+        self.assertEqual(g.get("Former spouses"), {"Heather"})
+        self.assertEqual(g.get("Partners"), {"Jane"})
+        # Empty family-role sections never render.
+        self.assertNotIn("Friends", g)
+        # Ordering keeps the family reading top-to-bottom: parents, siblings, spouse, children.
+        order = [x["label"] for x in browse["groups"]]
+        self.assertLess(order.index("Biological parents"), order.index("Full siblings"))
+        self.assertLess(order.index("Full siblings"), order.index("Children"))
 
     def test_any_stored_type_stays_editable(self):
         from apps.legacy.forms import RelationshipForm

@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): relationship grouping by FAMILY ROLE, derived from Canonical Truth (D2)
+
+**What:** Refined the reusable relationship presentation so groups reflect true family roles instead of generic types — dramatically more readable for blended families. The single "Siblings", "Spouse & partners", and "Children" groups are now split:
+- **Full siblings** (share both biological parents) / **Half siblings** (share one) / **Step siblings** (linked only through a step/adoptive parent — no shared biological parent)
+- **Spouse** / **Former spouses** / **Partners**
+- **Children** / **Stepchildren** / **Adopted children**
+- (unchanged) **Biological parents** / **Additional parent relationships**
+
+**Derived, never invented:** sibling degree is computed from the shared-parent graph in `browse_person_relationships()` — a candidate is any child of the focal's parents; full = shares both of the focal's biological parents, half = shares exactly one, step = child of a step/adoptive parent with no shared biological parent. Child kind and spouse status come from each edge's own type (adoptive/step/former). Explicit stored sibling edges keep any half/step qualifier and are merged with the derived set. Two extra bounded queries (children-of-parents, then parents-of-candidates); no per-person fan-out. Rendering-only — Canonical Truth is untouched, and each relationship still shows its OWN `type_label`.
+
+**Reusability preserved:** no template/CSS change — the same `_person_card.html` + `_relationship_sections.html` partials render the finer groups; empty sections stay hidden; the Relationships page keeps inline Edit. This is now the standard relationship presentation across Legacy (Profile + Relationships page).
+
+**Files:** `apps/legacy/services/family_tree.py` (family-role split + shared-parent sibling derivation + docstring), `apps/legacy/tests/test_relationship_categories.py` (label update + new blended-family test asserting full/half/step + step/adopted children + spouse/former/partner split and ordering).
+
+**Verification:** `apps.legacy.tests.test_relationship_categories` green (12 tests, incl. the new blended-family case). Live-certified in the dev browser: a focal with a full/half/step sibling mix renders Full siblings / Half siblings / Step siblings as separate labeled sections in family reading order (parents → siblings → spouse → children); demo data removed after capture.
+
 ## 2026-07-05 — fix(cos): One Brain — Goals/Whole-Life check-in consumes the executive understanding (no hardcoded goal-gap)
 
 **Root cause (proven, One Brain investigation):** Beth cited the mission ("France 2027 is the highest-leverage work") on the Executive Briefing/Opportunity while a check-in said "I don't have enough active goal information." The Briefing/Opportunity/Pattern read `interpret()` → `_strategic_focus` → `get_domain_state("purpose").mission`. But the check-in resolvers (`resolve_clarification_option`) for "Goals and commitments" (`goals_gap`) and "Whole Life" (`full_checkin`) returned a **hardcoded `_GOALS_GAP` constant with ZERO goal read** ([lanes.py:855-863]) — a stub predating the goal engine ("until a canonical goal engine exists"). So the check-in denied goals unconditionally even when the mission existed in the shared state. One Brain was violated **by omission**: one surface bypassed the brain entirely.

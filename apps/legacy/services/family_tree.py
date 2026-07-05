@@ -708,12 +708,16 @@ def _child_role(sex):
 
 def browse_person_relationships(user, focal_id=None):
     """The canonical, person-centric relationship browser behind the Relationships
-    page: the ACTUAL relationship records that touch one focal person, oriented from
-    their point of view and grouped by role (Parents, Spouse, Siblings, Children,
-    then Friends/Professional/…). The displayed role is the relationship's OWN type
-    (Biological father, Stepmother, Guardian…) via `type_label` — never flattened to
-    'Parent'. The visualization reflects Canonical Truth; it never reinterprets it.
-    Defaults the focus to the keeper. Siblings are also derived from shared parents."""
+    page and the Person Profile: the ACTUAL relationship records that touch one focal
+    person, oriented from their point of view and grouped by FAMILY ROLE — Biological
+    parents / Additional parent relationships / Full siblings / Half siblings / Step
+    siblings / Spouse / Former spouses / Partners / Children / Stepchildren / Adopted
+    children, then Friends/Professional/…. These distinctions are DERIVED from Canonical
+    Truth (the relationship graph), never invented: sibling degree comes from shared
+    biological parents, child/parent kind from the edge's own type. The displayed role
+    is the relationship's OWN `type_label` — never flattened to 'Parent'. The browser
+    reflects Canonical Truth; it never reinterprets it. Defaults the focus to the
+    keeper. Empty groups are omitted; consumers hide any section with no items."""
     from django.db.models import Q
 
     from apps.legacy.models import Person, Relationship
@@ -747,8 +751,12 @@ def browse_person_relationships(user, focal_id=None):
             "role": role, "pk": pk, "sub": sub,
             "portrait": other.portrait_url, "sex": (other.sex or "").upper()[:1]})
 
-    parent_ids = set()
-    stored_sibs = set()
+    # Family roles are derived from Canonical Truth, not flattened to generic types.
+    # Direct edges are classified here; siblings (full / half / step) are resolved
+    # below from the shared-parent graph, which is where those distinctions live.
+    bio_parent_ids = set()      # focal's biological parents
+    step_parent_ids = set()     # focal's step / adoptive / foster / guardian parents
+    sib_edge = {}               # other.pk -> {"hint": full|half|step, "pk": edit pk}
     for r in rels:
         outgoing = r.from_person_id == focal_id
         other = r.to_person if outgoing else r.from_person
@@ -759,52 +767,100 @@ def browse_person_relationships(user, focal_id=None):
         if any(k in t for k in _COUPLE):
             style = _couple_style(t)
             if style == "former":
-                add("spouse", 25, "Spouse & partners", other, label, r.pk, "Former spouse")
+                add("former_spouses", 32, "Former spouses", other, label, r.pk, "Former spouse")
             elif style in ("partner", "affair"):
-                add("spouse", 25, "Spouse & partners", other, label, r.pk, label)
+                add("partners", 34, "Partners", other, label, r.pk, label)
             else:
-                add("spouse", 25, "Spouse & partners", other, label, r.pk, _life_years(other))
+                add("spouse", 30, "Spouse", other, label, r.pk, _life_years(other))
         elif any(k in t for k in _SIBLING_KW):
-            add("siblings", 20, "Siblings", other, label, r.pk, _life_years(other))
-            stored_sibs.add(other.pk)
+            # Stored sibling edge — honour an explicit half/step qualifier; a plain
+            # 'sibling of' is resolved to full/half from the shared-parent graph below.
+            hint = "step" if "step" in t else "half" if "half" in t else "full"
+            prev = sib_edge.get(other.pk)
+            if not prev or (prev["hint"] == "full" and hint != "full"):
+                sib_edge[other.pk] = {"hint": hint, "pk": r.pk}
         elif any(k in t for k in _PARENT_OF):
             if outgoing:                       # focal is the parent → other is the child
-                add("children", 30, "Children", other, _child_role(other.sex), r.pk,
-                    _life_years(other))
+                if "adopt" in t:
+                    add("adopted_children", 44, "Adopted children", other,
+                        _child_role(other.sex), r.pk, _life_years(other))
+                elif any(k in t for k in ("step", "foster", "guardian")):
+                    add("stepchildren", 42, "Stepchildren", other,
+                        _child_role(other.sex), r.pk, _life_years(other))
+                else:
+                    add("children", 40, "Children", other, _child_role(other.sex), r.pk,
+                        _life_years(other))
             elif any(k in t for k in _NON_BIO):   # step / adoptive / foster / guardian
                 add("add_parents", 15, "Additional parent relationships", other, label,
                     r.pk, label)
-                parent_ids.add(other.pk)
+                step_parent_ids.add(other.pk)
             else:                              # biological / plain parent
                 add("bio_parents", 10, "Biological parents", other, label, r.pk,
                     _life_years(other))
-                parent_ids.add(other.pk)
+                bio_parent_ids.add(other.pk)
         elif any(k in t for k in _CHILD_OF):
             if outgoing:                       # focal is other's child → other is a parent
                 add("bio_parents", 10, "Biological parents", other, "Parent", r.pk,
                     _life_years(other))
-                parent_ids.add(other.pk)
+                bio_parent_ids.add(other.pk)
             else:                              # other is focal's child
-                add("children", 30, "Children", other, _child_role(other.sex), r.pk,
+                add("children", 40, "Children", other, _child_role(other.sex), r.pk,
                     _life_years(other))
         else:
             cat = r.relationship_category or "other"
             add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"), other, label, r.pk, label)
 
-    # Siblings — also derived from shared parents (inferred, not stored). Matches any
-    # parent-type ('father of', 'stepmother of', …), and skips anyone already recorded
-    # as an explicit sibling relationship.
-    if parent_ids:
-        sib = set()
-        for r in (Relationship.objects.filter(user=user, from_person_id__in=parent_ids)
-                  .select_related("to_person")):
+    # Siblings — full / half / step, derived from the shared-parent graph. A person who
+    # is a child of any of focal's parents is a candidate; full siblings share BOTH of
+    # focal's biological parents, half siblings share exactly one, and a child connected
+    # only through a step/adoptive parent (no shared biological parent) is a step sibling.
+    # Explicit stored sibling edges are merged in and keep any half/step qualifier.
+    parent_ids_all = bio_parent_ids | step_parent_ids
+    cand_ids = set()
+    if parent_ids_all:
+        for r in (Relationship.objects.filter(user=user, from_person_id__in=parent_ids_all)
+                  .only("to_person_id", "relationship_type")):
             tt = (r.relationship_type or "").lower()
             if r.to_person_id != focal_id and any(k in tt for k in _PARENT_OF):
-                sib.add(r.to_person_id)
-        for sid in sorted(sib - stored_sibs):
-            p = by_id.get(sid)
-            if p:
-                add("siblings", 20, "Siblings", p, "Sibling", None, _life_years(p))
+                cand_ids.add(r.to_person_id)
+    # Biological parents of each candidate, to compare against focal's own.
+    cand_bio = {c: set() for c in cand_ids}
+    if cand_ids:
+        for r in (Relationship.objects.filter(user=user, to_person_id__in=cand_ids)
+                  .only("from_person_id", "to_person_id", "relationship_type")):
+            tt = (r.relationship_type or "").lower()
+            if any(k in tt for k in _PARENT_OF) and not any(k in tt for k in _NON_BIO):
+                cand_bio[r.to_person_id].add(r.from_person_id)
+
+    for pk in sorted(set(sib_edge) | cand_ids):
+        if pk == focal_id:
+            continue
+        p = by_id.get(pk)
+        if not p:
+            continue
+        edge = sib_edge.get(pk, {})
+        hint = edge.get("hint")
+        if hint in ("step", "half"):           # explicit qualifier is authoritative
+            kind = hint
+        else:
+            shared = bio_parent_ids & cand_bio.get(pk, set())
+            if len(bio_parent_ids) >= 2 and len(shared) >= 2:
+                kind = "full"                  # shares both known biological parents
+            elif shared:
+                kind = "half"                  # shares exactly one biological parent
+            elif pk in cand_ids:
+                kind = "step"                  # linked only through a step/adoptive parent
+            else:
+                kind = "full"                  # explicit sibling, no contradicting evidence
+        if kind == "full":
+            add("full_siblings", 20, "Full siblings", p, "Sibling", edge.get("pk"),
+                _life_years(p))
+        elif kind == "half":
+            add("half_siblings", 22, "Half siblings", p, "Half sibling", edge.get("pk"),
+                _life_years(p))
+        else:
+            add("step_siblings", 24, "Step siblings", p, "Step sibling", edge.get("pk"),
+                _life_years(p))
 
     ordered = sorted(groups.values(), key=lambda g: (g["order"], g["label"]))
     # The focal's canonical Primary Portrait (loaded with its Media for the avatar).

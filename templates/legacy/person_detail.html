@@ -88,23 +88,8 @@
             <h2 class="profile-sec-title">Relationships</h2>
             <a href="{% url 'legacy:relationship_new' person.pk %}" class="lg-link-sm">+ Add a relationship</a>
         </div>
-        {% if relationships %}
-        <ul class="rel-list">
-            {% for r in relationships %}
-            <li class="rel-row">
-                <span class="rel-desc">
-                    {% if r.from_person_id == person.pk %}
-                    <span class="rel-type">{{ r.type_label }}</span> <a href="{% url 'legacy:person_detail' r.to_person.pk %}" class="lg-link">{{ r.to_person.display_name }}</a>
-                    {% else %}
-                    <a href="{% url 'legacy:person_detail' r.from_person.pk %}" class="lg-link">{{ r.from_person.display_name }}</a> — <span class="rel-type">{{ r.type_label }}</span>
-                    {% endif %}
-                    {% if r.rel_status and r.rel_status != 'current' %}<span class="rel-status-tag">{{ r.get_rel_status_display }}</span>{% endif %}
-                    {% if r.display_started or r.display_ended %}<span class="rel-years-tag">{{ r.display_started }}{% if r.display_started or r.display_ended %}–{% endif %}{{ r.display_ended }}</span>{% endif %}
-                </span>
-                {% if r.from_person_id == person.pk %}<a href="{% url 'legacy:relationship_edit' r.pk %}" class="rel-edit">Edit</a>{% endif %}
-            </li>
-            {% endfor %}
-        </ul>
+        {% if rel_groups %}
+        {% include "legacy/_relationship_sections.html" with groups=rel_groups %}
         {% else %}
         <p class="profile-empty">No relationships recorded yet. <a href="{% url 'legacy:relationship_new' person.pk %}" class="lg-link">Add one →</a></p>
         {% endif %}

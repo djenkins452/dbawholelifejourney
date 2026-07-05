@@ -30,18 +30,19 @@
 
             {% if browse.groups %}
             {% for g in browse.groups %}
-            <div class="rel-group">
-                <h3 class="rel-group-title">{{ g.label }} <span class="rel-count">{{ g.items|length }}</span></h3>
-                <ul class="rel-list">
+            {% if g.items %}
+            <div class="rsec">
+                <h3 class="rsec-title">{{ g.label }} <span class="rel-count">{{ g.items|length }}</span></h3>
+                <div class="rsec-cards">
                     {% for it in g.items %}
-                    <li class="rel-row">
-                        <span class="rel-role">{{ it.role }}</span>
-                        <a href="{% url 'legacy:relationships' %}?person={{ it.id }}" class="rel-person">{{ it.name }}{% if it.years %} <span class="rel-years">{{ it.years }}</span>{% endif %}</a>
-                        {% if it.pk %}<a href="{% url 'legacy:relationship_edit' it.pk %}" class="rel-edit">Edit</a>{% endif %}
-                    </li>
+                    <div class="rel-card-wrap">
+                        {% include "legacy/_person_card.html" with c=it %}
+                        {% if it.pk %}<a href="{% url 'legacy:relationship_edit' it.pk %}" class="rel-card-edit">Edit</a>{% endif %}
+                    </div>
                     {% endfor %}
-                </ul>
+                </div>
             </div>
+            {% endif %}
             {% endfor %}
             {% else %}
             <p class="rel-section-empty">No relationships recorded for {{ browse.focal.name }} yet.</p>

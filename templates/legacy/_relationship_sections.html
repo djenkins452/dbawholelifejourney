@@ -1,0 +1,15 @@
+{% comment %}Reusable relationship sections — groups people by their relationship to
+a focal person (Biological parents / Additional parent relationships / Siblings /
+Spouse & partners / Children / …), each a header + compact portrait cards. Empty
+sections are hidden. Expects `groups` = ordered list of {label, items:[card,…]}.
+The section header describes the relationship so rows don't repeat it.{% endcomment %}
+{% for g in groups %}
+{% if g.items %}
+<div class="rsec">
+    <h3 class="rsec-title">{{ g.label }}</h3>
+    <div class="rsec-cards">
+        {% for c in g.items %}{% include "legacy/_person_card.html" with c=c %}{% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endfor %}

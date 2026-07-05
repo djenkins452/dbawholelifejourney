@@ -718,8 +718,9 @@ def browse_person_relationships(user, focal_id=None):
 
     from apps.legacy.models import Person, Relationship
 
-    people = list(Person.objects.filter(user=user).only(
-        "pk", "display_name", "birth_year", "death_year", "relationship_label", "is_self"))
+    people = list(Person.objects.filter(user=user).select_related("portrait").only(
+        "pk", "display_name", "birth_year", "death_year", "relationship_label",
+        "is_self", "sex", "portrait"))
     if not people:
         return None
     by_id = {p.pk: p for p in people}
@@ -735,14 +736,16 @@ def browse_person_relationships(user, focal_id=None):
 
     rels = list(Relationship.objects.filter(user=user)
                 .filter(Q(from_person_id=focal_id) | Q(to_person_id=focal_id))
-                .select_related("from_person", "to_person"))
+                .select_related("from_person__portrait", "to_person__portrait"))
 
     groups = {}   # key -> {label, order, items}
 
-    def add(key, order, label, other, role, pk):
+    def add(key, order, label, other, role, pk, sub):
         g = groups.setdefault(key, {"label": label, "order": order, "items": []})
-        g["items"].append({"id": other.pk, "name": other.display_name,
-                           "years": _life_years(other), "role": role, "pk": pk})
+        g["items"].append({
+            "id": other.pk, "name": other.display_name, "years": _life_years(other),
+            "role": role, "pk": pk, "sub": sub,
+            "portrait": other.portrait_url, "sex": (other.sex or "").upper()[:1]})
 
     parent_ids = set()
     stored_sibs = set()
@@ -756,29 +759,37 @@ def browse_person_relationships(user, focal_id=None):
         if any(k in t for k in _COUPLE):
             style = _couple_style(t)
             if style == "former":
-                add("former", 25, "Former spouse", other, label, r.pk)
+                add("spouse", 25, "Spouse & partners", other, label, r.pk, "Former spouse")
             elif style in ("partner", "affair"):
-                add("partner", 22, "Partner", other, label, r.pk)
+                add("spouse", 25, "Spouse & partners", other, label, r.pk, label)
             else:
-                add("spouse", 20, "Spouse", other, label, r.pk)
+                add("spouse", 25, "Spouse & partners", other, label, r.pk, _life_years(other))
         elif any(k in t for k in _SIBLING_KW):
-            add("siblings", 30, "Siblings", other, label, r.pk)
+            add("siblings", 20, "Siblings", other, label, r.pk, _life_years(other))
             stored_sibs.add(other.pk)
         elif any(k in t for k in _PARENT_OF):
             if outgoing:                       # focal is the parent → other is the child
-                add("children", 40, "Children", other, _child_role(other.sex), r.pk)
-            else:                              # other is focal's parent → its exact type
-                add("parents", 10, "Parents", other, label, r.pk)
+                add("children", 30, "Children", other, _child_role(other.sex), r.pk,
+                    _life_years(other))
+            elif any(k in t for k in _NON_BIO):   # step / adoptive / foster / guardian
+                add("add_parents", 15, "Additional parent relationships", other, label,
+                    r.pk, label)
+                parent_ids.add(other.pk)
+            else:                              # biological / plain parent
+                add("bio_parents", 10, "Biological parents", other, label, r.pk,
+                    _life_years(other))
                 parent_ids.add(other.pk)
         elif any(k in t for k in _CHILD_OF):
             if outgoing:                       # focal is other's child → other is a parent
-                add("parents", 10, "Parents", other, "Parent", r.pk)
+                add("bio_parents", 10, "Biological parents", other, "Parent", r.pk,
+                    _life_years(other))
                 parent_ids.add(other.pk)
             else:                              # other is focal's child
-                add("children", 40, "Children", other, _child_role(other.sex), r.pk)
+                add("children", 30, "Children", other, _child_role(other.sex), r.pk,
+                    _life_years(other))
         else:
             cat = r.relationship_category or "other"
-            add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"), other, label, r.pk)
+            add("cat_" + cat, 60, CATEGORY_LABELS.get(cat, "Other"), other, label, r.pk, label)
 
     # Siblings — also derived from shared parents (inferred, not stored). Matches any
     # parent-type ('father of', 'stepmother of', …), and skips anyone already recorded
@@ -793,7 +804,7 @@ def browse_person_relationships(user, focal_id=None):
         for sid in sorted(sib - stored_sibs):
             p = by_id.get(sid)
             if p:
-                add("siblings", 30, "Siblings", p, "Sibling", None)
+                add("siblings", 20, "Siblings", p, "Sibling", None, _life_years(p))
 
     ordered = sorted(groups.values(), key=lambda g: (g["order"], g["label"]))
     # The focal's canonical Primary Portrait (loaded with its Media for the avatar).

@@ -1,0 +1,12 @@
+{% comment %}Reusable compact person card — clickable, shows the person's canonical
+Portrait (or default silhouette). Expects `c` = {id, name, sub, portrait, sex}.
+Used anywhere Legacy lists people, so everyone is presented consistently.{% endcomment %}
+<a href="{% url 'legacy:person_detail' c.id %}" class="pchip">
+    <span class="pchip-av fam-sex-{% if c.sex == 'M' %}m{% elif c.sex == 'F' %}f{% else %}u{% endif %}">
+        {% if c.portrait %}<img src="{{ c.portrait }}" alt="{{ c.name }}">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}
+    </span>
+    <span class="pchip-body">
+        <span class="pchip-name">{{ c.name }}</span>
+        {% if c.sub %}<span class="pchip-sub">{{ c.sub }}</span>{% endif %}
+    </span>
+</a>

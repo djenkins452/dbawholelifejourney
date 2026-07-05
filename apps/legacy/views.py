@@ -689,6 +689,11 @@ class PersonProfileView(LegacyContextMixin, DetailView):
             Relationship.objects.filter(Q(from_person=person) | Q(to_person=person))
             .select_related("from_person", "to_person")
         )
+        # Relationships organized into meaningful sections (Biological parents /
+        # Additional parent relationships / Siblings / Spouse & partners / Children /
+        # …) as reusable portrait cards — the SAME component the Relationships page uses.
+        browse = family_tree.browse_person_relationships(self.request.user, person.pk)
+        ctx["rel_groups"] = browse["groups"] if browse else []
         # Aliases the keeper has taught Legacy for this person ("Dad" → Marvin).
         ctx["aliases"] = list(person.aliases.all())
         # Life milestones this person is part of (through their stories).

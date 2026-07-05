@@ -101,8 +101,8 @@ class ConsumerTests(TestCase):
         browse = r.context["browse"]
         self.assertEqual(browse["focal"]["name"], "Me")
         groups = {g["label"]: [it["name"] for it in g["items"]] for g in browse["groups"]}
-        self.assertIn("Dad Jones", groups.get("Parents", []))
-        self.assertIn("Spouse Jones", groups.get("Spouse", []))
+        self.assertIn("Dad Jones", groups.get("Biological parents", []))
+        self.assertIn("Spouse Jones", groups.get("Spouse & partners", []))
         self.assertIn("Coworker", groups.get("Professional", []))
         self.assertContains(r, "Dad Jones")            # rendered, not just counted
 
@@ -113,13 +113,19 @@ class ConsumerTests(TestCase):
         Relationship.objects.create(user=self.user, from_person=mom, to_person=me, relationship_type="biological mother of")
         Relationship.objects.create(user=self.user, from_person=step, to_person=me, relationship_type="stepmother of")
         browse = family_tree.browse_person_relationships(self.user, me.pk)
-        parents = next(g for g in browse["groups"] if g["label"] == "Parents")
-        roles = {it["name"]: it["role"] for it in parents["items"]}
+        # New information architecture: biological parents and additional parent
+        # relationships live in their own descriptive sections, not one flat "Parents".
+        bio = next(g for g in browse["groups"] if g["label"] == "Biological parents")
+        add = next(g for g in browse["groups"] if g["label"] == "Additional parent relationships")
+        roles = {it["name"]: it["role"] for it in bio["items"] + add["items"]}
         self.assertEqual(roles["Marvin"], "Biological father")   # NOT "Parent"
         self.assertEqual(roles["Barbara"], "Biological mother")
         self.assertEqual(roles["Gloria"], "Stepmother")
+        # Gloria (stepmother) is an ADDITIONAL parent relationship, not biological.
+        self.assertIn("Gloria", [it["name"] for it in add["items"]])
+        self.assertIn("Marvin", [it["name"] for it in bio["items"]])
         # Every displayed relationship is editable (carries its record pk).
-        for it in parents["items"]:
+        for it in bio["items"] + add["items"]:
             self.assertIsNotNone(it["pk"])
 
     def test_any_stored_type_stays_editable(self):

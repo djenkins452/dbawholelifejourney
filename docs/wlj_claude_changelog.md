@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): Person Profile relationships adopt Ancestry-style information architecture (D2)
+
+**What:** The relationship presentation on the Person Profile (and the Relationships page) was a flat list that repeated the role on every row ("Biological father Marvin", "Stepmother Gloria"). Redesigned to follow Ancestry's *information architecture* (not its visual design): relationships are organized into meaningful, descriptive sections so a stranger understands the person's immediate family in seconds:
+- **Biological parents** · **Additional parent relationships** (e.g. "Gloria — Stepmother") · **Siblings** · **Spouse & partners** · **Children** · then Friends/Professional/…
+- The section header describes the relationship, so rows no longer repeat it.
+- Each person renders as a **compact, clickable portrait card** using their canonical **Portrait** (sex-colored silhouette fallback when none is set).
+- **Empty sections are hidden** — a person with no children shows no Children header.
+
+**Reusable component (the point):** built two partials so *every* Legacy surface presents people identically — `templates/legacy/_person_card.html` (the portrait card) and `templates/legacy/_relationship_sections.html` (the grouped, empty-hiding sections). The Person Profile is a clean read view (cards navigate to the person); the Relationships page reuses the SAME cards but keeps an inline **Edit** affordance beside each stored relationship (CRUD preserved — derived siblings carry no record pk, so no Edit).
+
+**Service:** `browse_person_relationships()` now (1) loads people + relationships with the Portrait prefetched, (2) attaches `portrait`/`sex`/`sub` to each item, and (3) splits the old single "Parents" group into **bio_parents** (order 10, sub = life years) and **add_parents** (order 15, sub = the actual role) via the `_NON_BIO` (step/adopt/foster/guardian) test; siblings 20, spouse 25, children 30, other categories 60. Rendering-only — Canonical Truth is unchanged; the browser still reflects each relationship's OWN `type_label`, never flattened.
+
+**Files:** `apps/legacy/services/family_tree.py` (browse split + portrait/sex/sub), `apps/legacy/views.py` (`PersonProfileView` passes `rel_groups`), `templates/legacy/_person_card.html` (new), `templates/legacy/_relationship_sections.html` (new), `templates/legacy/person_detail.html` + `templates/legacy/relationships.html` (use the partials), `static/css/legacy.css` (`.pchip`/`.rsec` card + section styles; cache-bust `v=51`), `apps/legacy/tests/test_relationship_categories.py` (assert the new bio/additional split).
+
+**Verification:** `apps.legacy.tests.test_relationship_categories` + `test_people_places_media` green (43 tests; the two label-coupled tests updated to the new IA). Live-certified via the dev browser: the Person Profile and Relationships page both render Biological parents / Additional parent relationships (Gloria — Stepmother) / Siblings / Spouse & partners / Children as portrait cards, empty sections hidden, Edit preserved on the Relationships surface.
+
 ## 2026-07-05 — fix(cos): Historical Truth Navigation — Beth navigates deterministic history naturally
 
 **Root cause (proven by trace):** Beth answered "today" and "yesterday" for weight but failed "Day before yesterday?" ("I don't have a separate … figure") and "July 1st?" ("I'm unable to retrieve your weight"). The canonical layer (`date_reference.resolve_reference_date` + `weight_queries.on_date`) ALREADY handles both — but it's only reachable via the `weight_history` lane, which is gated on the word "weight". The elliptical follow-ups ("Yesterday?", "July 1st?") carry no "weight" word, so they route through the **referential lane**, whose timeframe vocabulary is a tiny fixed set (`_TF_CUES` + `fact_for_topic`, only today/yesterday for weight). "Day before yesterday?" hit `_on_topic_decline`; "July 1st?" wasn't recognized at all. The powerful resolver was **stranded** from the elliptical path.

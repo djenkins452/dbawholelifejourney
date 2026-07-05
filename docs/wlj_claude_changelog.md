@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): Family Tree inspector captures the mouse wheel (no pan/zoom behind it)
+
+**What:** With the Family Tree details/inspector panel open, the mouse wheel zoomed the tree behind the panel because the stage's `wheel` handler fired for events anywhere in the stage (the panel is a child of the stage). Now, hovering the panel scrolls ONLY the panel; the tree stays completely stationary.
+
+**Fix (interaction-only — no layout/Canonical Truth change):**
+- The stage `wheel` handler early-returns when the event target is inside `.fam-panel`, so it never zooms while the pointer is over the inspector.
+- A passive `wheel` listener on `.fam-panel` calls `stopPropagation()` — the event never reaches the tree's zoom handler (no bubbling), while native (smooth) scrolling of the panel still happens.
+- CSS `overscroll-behavior: contain` on `.fam-panel` — at the very top/bottom the wheel is consumed and does NOT chain to the page or the tree.
+- Moving the cursor back over the tree restores normal pan/zoom (unchanged).
+
+**Files:** `templates/legacy/family.html` (wheel guards), `static/css/legacy.css` (`overscroll-behavior`; cache-bust `v=53`).
+
+**Verification:** Live-certified in the dev browser with the inspector open — wheeling over the panel: tree transform unchanged, wheel did not bubble to the stage; wheeling over the tree: still zooms. (`treeMovedOverPanel:false, wheelBubbledToStageFromPanel:false, treeZoomedOverTree:true`.)
+
 ## 2026-07-05 — feat(routing): make nutrition/weigh-in/measurement/prayer routines rename-safe (metadata-driven)
 
 Follow-up to the capability-routing fix: the four `RoutineSchedule.activity_type` values (workout/journal/bible/faith) were rename-safe, but nutrition/weight/measurements/prayer routines still routed via title keyword (worked, but a rename would break them). Closed the gap by making them metadata-driven.

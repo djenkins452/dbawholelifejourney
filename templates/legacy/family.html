@@ -230,10 +230,18 @@
         tx = mx - (mx - tx) * (ns / scale); ty = my - (my - ty) * (ns / scale); scale = ns; apply();
     }
     stage.addEventListener('wheel', function (e) {
+        // Wheel over the inspector scrolls the panel only — never pan/zoom the tree.
+        if (e.target.closest && e.target.closest('.fam-panel')) { return; }
         e.preventDefault();
         var r = stage.getBoundingClientRect();
         zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9);
     }, { passive: false });
+    // Keep the wheel INSIDE the open inspector: the panel scrolls natively (smoothly),
+    // the event never reaches the tree's zoom handler, and at the very top/bottom the
+    // scroll is contained (CSS overscroll-behavior) so the tree behind stays put.
+    if (panel) {
+        panel.addEventListener('wheel', function (e) { e.stopPropagation(); }, { passive: true });
+    }
     document.querySelectorAll('.fam-ctrl').forEach(function (b) {
         b.addEventListener('click', function () {
             var a = b.getAttribute('data-fam');

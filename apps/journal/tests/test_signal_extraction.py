@@ -1,11 +1,12 @@
 """
-Tests for journal signal extraction dispatch and sync fallback.
+Tests for journal signal extraction dispatch (request-path safe).
 
 Covers:
-  - _dispatch_signal_extraction: async primary, sync fallback
-  - Idempotency: duplicate protection when both paths run
+  - _dispatch_signal_extraction: fire-and-forget via safe_enqueue, NO sync fallback
+  - Broker-outage safety: no synchronous extraction on the save path
+  - Idempotency: duplicate protection for the worker path
   - AI gate: extraction skipped when AI is disabled
-  - Production logging: warnings visible, not debug-only
+  - Production logging: enqueue-failure warnings visible, not debug-only
 
 Project: Whole Life Journey
 Path: apps/journal/tests/test_signal_extraction.py
@@ -81,50 +82,65 @@ class SignalExtractionDispatchTests(TestCase):
         self._create_entry()
         mock_dispatch.assert_not_called()
 
-    @patch("apps.journal.tasks.extract_journal_signals.delay")
-    def test_async_dispatch_succeeds(self, mock_delay):
-        """When Celery is available, async dispatch is used."""
+    @patch("apps.core.celery_utils.safe_enqueue")
+    def test_async_dispatch_uses_safe_enqueue(self, mock_enqueue):
+        """Dispatch hands the task to the non-blocking safe_enqueue primitive.
+
+        Request-path safety: extraction (which can call OpenAI) is enqueued
+        fire-and-forget via safe_enqueue — never `.delay()` directly, never
+        synchronously on the save path.
+        """
         from apps.journal.signals import _dispatch_signal_extraction
+        from apps.journal.tasks import extract_journal_signals
 
         entry = self._create_entry()
-        mock_delay.reset_mock()
+        mock_enqueue.reset_mock()
 
         _dispatch_signal_extraction(entry)
-        mock_delay.assert_called_once_with(entry.pk)
+        mock_enqueue.assert_called_once_with(extract_journal_signals, entry.pk)
 
     @patch("apps.journal.services.signal_extractor.JournalSignalExtractor.extract_signals")
-    @patch("apps.journal.tasks.extract_journal_signals.delay", side_effect=ConnectionError("Redis unavailable"))
-    def test_sync_fallback_on_celery_failure(self, mock_delay, mock_extract):
-        """When Celery dispatch fails, sync extraction should run."""
+    @patch(
+        "apps.journal.tasks.extract_journal_signals.apply_async",
+        side_effect=ConnectionError("Redis unavailable"),
+    )
+    def test_no_sync_fallback_on_broker_failure(self, mock_async, mock_extract):
+        """A broker outage must NOT trigger synchronous extraction.
+
+        This is the core request-path guarantee: when async infrastructure is
+        unavailable, safe_enqueue swallows the error and returns immediately.
+        Eventual consistency is the worker's job (idempotency gate prevents
+        duplicates), never a synchronous rebuild on the request thread.
+        """
         from apps.journal.signals import _dispatch_signal_extraction
 
-        # Create entry (triggers post_save which also hits the mock)
         entry = self._create_entry()
-        mock_delay.reset_mock()
+        mock_async.reset_mock()
         mock_extract.reset_mock()
-        mock_extract.return_value = []
 
-        # Explicit call to test the function directly
         _dispatch_signal_extraction(entry)
 
-        mock_delay.assert_called_once_with(entry.pk)
-        mock_extract.assert_called_once_with(entry)
+        # Enqueue was attempted (and failed) — but NO synchronous extraction ran.
+        self.assertTrue(mock_async.called)
+        mock_extract.assert_not_called()
 
-    @patch("apps.journal.services.signal_extractor.JournalSignalExtractor.extract_signals")
-    @patch("apps.journal.tasks.extract_journal_signals.delay", side_effect=ConnectionError("Redis unavailable"))
-    def test_sync_fallback_logs_warning(self, mock_delay, mock_extract):
-        """Sync fallback should log at WARNING level (visible in production)."""
+    @patch(
+        "apps.journal.tasks.extract_journal_signals.apply_async",
+        side_effect=ConnectionError("Redis unavailable"),
+    )
+    def test_enqueue_failure_logs_warning_and_never_raises(self, mock_async):
+        """A failed enqueue logs a visible warning (from safe_enqueue) and
+        never raises into the save path."""
         from apps.journal.signals import _dispatch_signal_extraction
 
         entry = self._create_entry()
-        mock_extract.return_value = []
 
-        with self.assertLogs("apps.journal.signals", level="WARNING") as cm:
-            _dispatch_signal_extraction(entry)
+        with self.assertLogs("apps.core.celery_utils", level="WARNING") as cm:
+            _dispatch_signal_extraction(entry)  # must not raise
 
         self.assertTrue(
-            any("falling back to synchronous" in msg for msg in cm.output),
-            f"Expected fallback warning in logs, got: {cm.output}",
+            any("async dispatch failed" in msg for msg in cm.output),
+            f"Expected safe_enqueue warning in logs, got: {cm.output}",
         )
 
 

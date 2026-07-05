@@ -133,27 +133,19 @@ def enqueue_module_warm(user, module):
     """
     if not getattr(user, "is_authenticated", False):
         return
-    try:
-        deferred_warm_sae_module.delay(user.id, module)
-    except Exception:
-        logger.warning(
-            "enqueue_module_warm failed: user=%s module=%s",
-            getattr(user, "id", "?"), module, exc_info=True,
-        )
+    from apps.core.celery_utils import safe_enqueue
+    safe_enqueue(deferred_warm_sae_module, user.id, module)
 
 
 def enqueue_full_sae_warm(user):
     """Safe wrapper for full SAE rebuild — see deferred_rebuild_full_sae.
 
     Use from the dashboard read-only path when state_data is entirely
-    empty (brand-new user; first ever render). Fail-safe.
+    empty (brand-new user; first ever render). Fail-safe and non-blocking:
+    routed through safe_enqueue so a degraded broker can never block the
+    request thread.
     """
     if not getattr(user, "is_authenticated", False):
         return
-    try:
-        deferred_rebuild_full_sae.delay(user.id)
-    except Exception:
-        logger.warning(
-            "enqueue_full_sae_warm failed: user=%s",
-            getattr(user, "id", "?"), exc_info=True,
-        )
+    from apps.core.celery_utils import safe_enqueue
+    safe_enqueue(deferred_rebuild_full_sae, user.id)

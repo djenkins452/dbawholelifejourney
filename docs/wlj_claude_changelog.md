@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(perf): interactive requests must never block on async infrastructure — restore ~2s dashboard + task completion
+
+**Regression:** dashboard load and task-completion (radio buttons) both regressed from ~2s to 15–20s, together.
+
+**Root cause (single architectural failure, reproduced locally):** both operations WRITE on the request path (task `mark_complete()`; the dashboard's first-of-day "Wake up" auto-completion writes a RoutineLog). Those writes fire `post_save` signals that synchronously enqueue a Celery task via `.delay()`. When the Redis broker/result backend is degraded, `.delay()` blocks ~20s — the redis **result backend** retries its reconnect 20×1.0s before raising — and a synchronous SAE rebuild then ran on the request thread as a "fallback." Measured: a real task toggle against a down broker = **19,208 ms**; neutralizing the enqueue = **~860 ms**. The Redis **cache** client already had a 0.5s fail-fast guard; the Celery **broker/result backend** did not.
+
+**Fix — platform-level, covers all ~46 request-path dispatch sites at once:**
+- **`config/settings.py`:** `CELERY_TASK_IGNORE_RESULT=True` (fire-and-forget — enqueues never touch the Redis result backend, eliminating the exact 20×1.0s reconnect loop; nothing in WLJ consumes a Celery AsyncResult — chat uses `chat_stream_bus`, ops reads only the client-side task `.id`), plus fail-fast `broker/result_backend_transport_options` (0.5s socket timeouts) and a bounded publish-retry policy.
+- **`apps/core/celery_utils.py` (new) — `safe_enqueue(task, *args)`:** the canonical non-blocking enqueue primitive. Attempts `.delay`, swallows all infra errors, logs once, returns bool. Never blocks, never raises, never falls back to synchronous execution.
+- **Removed the synchronous rebuild/extraction fallbacks from the request path** and routed enqueues through `safe_enqueue`: `apps/ai/signals.py` (`_defer_sae_refresh` — the hot SAE path), `apps/core/events/subscribers.py` (Class A health summary), `apps/core/ai_state/tasks.py` (`enqueue_module_warm`/`enqueue_full_sae_warm`), `apps/health/views.py` + `apps/faith/views.py` (routine auto-complete ×3), `apps/journal/signals.py` (signal extraction — was running OpenAI synchronously on broker failure). Eventual consistency is preserved by the periodic SAME cycle + next successful write, never a request-thread rebuild.
+- **Snapshot-first hardening** (`apps/core/cos_briefing/executive_state.py`): the dashboard executive-state adapter now reads SAE with `allow_rebuild=False`, so it can never trigger a synchronous rebuild on the request path.
+
+**Result (reproduced, broker down):** task toggle **19,208 ms → 63 ms**; dashboard warm GET ~0.9s; no interactive request depends on Celery/Redis being reachable.
+
+**Files:** config/settings.py, apps/core/celery_utils.py (new), apps/ai/signals.py, apps/core/events/subscribers.py, apps/core/ai_state/tasks.py, apps/core/cos_briefing/executive_state.py, apps/health/views.py, apps/faith/views.py, apps/journal/signals.py; tests updated to the new contract: apps/journal/tests/test_signal_extraction.py, apps/health/tests/test_daily_summary_async.py. Scoped suites green (34 dispatch/warm tests); 9 unrelated ai_state failures confirmed pre-existing on baseline.
+
+
 ## 2026-07-05 — feat(legacy): Canonical relationship truth — real types (Biological father / Stepmother / Guardian), all editable
 
 The Family Tree now visualizes Canonical Truth correctly, which exposed that Canonical Truth itself was flattening every parent into "Parent." Fixed at the source (not the visualization):

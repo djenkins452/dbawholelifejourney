@@ -88,32 +88,22 @@ def on_health_event_invalidate_state(event):
                 event.event_type, event.user.id, exc_info=True,
             )
     else:
-        # Class A — defer to Celery. Eliminates ~1.5–3s of
+        # Class A — defer to Celery, fire-and-forget. Eliminates ~1.5–3s of
         # request-thread cost per water/coffee/medication/etc.
-        try:
-            from datetime import date
-            from apps.health.tasks import deferred_rebuild_health_summary
-            deferred_rebuild_health_summary.delay(
-                event.user.id, date.today().isoformat(),
-            )
-        except Exception:
-            logger.warning(
-                "Class A health summary defer failed (event=%s user=%s) — "
-                "falling back to sync rebuild for correctness",
-                event.event_type, event.user.id, exc_info=True,
-            )
-            # Fail-safe: if Celery enqueue fails (broker down, etc.),
-            # fall back to sync so we don't lose the summary update
-            # entirely. Worst case: same latency as before this change.
-            try:
-                from datetime import date as _d
-                from apps.health.services.daily_summary_builder import DailyHealthSummaryBuilder
-                DailyHealthSummaryBuilder().build_for_date(event.user, _d.today())
-            except Exception:
-                logger.error(
-                    "Class A sync fallback ALSO failed (event=%s user=%s)",
-                    event.event_type, event.user.id, exc_info=True,
-                )
+        #
+        # No synchronous fallback: this runs on the request path, so a broker
+        # outage must NOT drop into a synchronous DailyHealthSummary rebuild
+        # (that reintroduces the exact 15–20s request-thread block this whole
+        # change removes). safe_enqueue is bounded and swallows infra errors;
+        # if the enqueue fails, the periodic SAME cycle reconciles the Class A
+        # summary. A briefly-stale habit-tracking summary is acceptable.
+        from datetime import date
+        from apps.core.celery_utils import safe_enqueue
+        from apps.health.tasks import deferred_rebuild_health_summary
+        safe_enqueue(
+            deferred_rebuild_health_summary,
+            event.user.id, date.today().isoformat(),
+        )
 
     # Phase 3: also warm the SAE 'health' module in the background
     # (separate from DailyHealthSummary above — different snapshot).

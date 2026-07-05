@@ -116,35 +116,12 @@ def _dispatch_signal_extraction(entry):
     is skipped. This prevents duplicates if Celery eventually processes a
     queued task after the sync fallback already ran.
     """
-    # Try async dispatch first
-    try:
-        from apps.journal.tasks import extract_journal_signals
-        extract_journal_signals.delay(entry.pk)
-        return  # Async dispatch succeeded — done
-    except ImportError:
-        # Celery not installed (test environment) — fall through to sync
-        logger.info(
-            "Celery not available — using synchronous signal extraction "
-            "for journal entry %s", entry.pk,
-        )
-    except Exception as e:
-        # Broker connection failed, worker unavailable, etc.
-        logger.warning(
-            "Celery dispatch failed for journal entry %s: %s — "
-            "falling back to synchronous extraction", entry.pk, e,
-        )
-
-    # Synchronous fallback — extract signals directly
-    try:
-        from apps.journal.services.signal_extractor import JournalSignalExtractor
-        signals = JournalSignalExtractor.extract_signals(entry)
-        if signals:
-            logger.info(
-                "Sync fallback extracted %d signals from journal entry %s",
-                len(signals), entry.pk,
-            )
-    except Exception as e:
-        logger.error(
-            "Journal signal extraction failed (sync fallback) for entry %s: %s",
-            entry.pk, e, exc_info=True,
-        )
+    # Fire-and-forget, non-blocking. Signal extraction can call OpenAI, so it
+    # must NEVER run synchronously on the journal-save request path — not even
+    # when the broker is down. safe_enqueue runs it inline under EAGER (tests)
+    # and async in prod; the extractor's idempotency gate means a later worker
+    # (or the next successful enqueue) extracts without duplication. A brief
+    # delay in behavioral signals is acceptable; a blocked save is not.
+    from apps.core.celery_utils import safe_enqueue
+    from apps.journal.tasks import extract_journal_signals
+    safe_enqueue(extract_journal_signals, entry.pk)

@@ -1134,6 +1134,57 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 
+# ═════════════════════════════════════════════════════════════════════
+# REQUEST-PATH SAFETY — interactive requests must NEVER block on Celery/Redis
+# ═════════════════════════════════════════════════════════════════════
+# Production guarantee: an HTTP request may attempt an async enqueue, but it
+# must return in well under a second even when the broker/result backend is
+# unreachable. Origin incident (2026-07-05): a degraded Redis made every
+# request-path `.delay()` block ~20s — the redis RESULT backend retried the
+# reconnect 20×1.0s before raising, then a synchronous SAE rebuild ran on the
+# request thread. Both the dashboard load and task completion regressed from
+# ~2s to 15–20s because they share the write → post_save → `.delay()` pipeline.
+#
+# Two independent defenses so no single misconfiguration re-opens the hole:
+#
+# (1) Fire-and-forget by default — tasks do NOT write to the Redis result
+#     backend, so `.delay()`/`.apply_async()` never touch (and never retry
+#     against) the result store. This alone eliminates the exact 20×1.0s
+#     result-backend reconnect loop we reproduced. Nothing in WLJ consumes a
+#     Celery AsyncResult (chat uses its own chat_stream_bus relay; ops only
+#     reads the client-generated task .id), so this is safe platform-wide. A
+#     task that genuinely needs a stored result opts in with
+#     @shared_task(ignore_result=False).
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_RESULT_EXPIRES = 3600  # seconds — bound any result that IS stored
+
+# (2) Fail-fast connections + bounded publish retry — parity with the
+#     SafeRedisCache 0.5s guard. A degraded broker/result backend fails an
+#     enqueue in <1s instead of hanging the Gunicorn worker (only 2–4 exist;
+#     one blocked worker degrades the whole site).
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "socket_connect_timeout": 0.5,
+    "socket_timeout": 0.5,
+    "socket_keepalive": True,
+}
+CELERY_RESULT_BACKEND_TRANSPORT_OPTIONS = {
+    "socket_connect_timeout": 0.5,
+    "socket_timeout": 0.5,
+    "retry_policy": {
+        "max_retries": 1, "interval_start": 0,
+        "interval_step": 0.2, "interval_max": 0.2,
+    },
+}
+# Publisher retry policy is bounded so a broker hiccup can't spin on the
+# request thread. (Worker-side reconnection is governed separately by
+# broker_connection_retry_on_startup and is unaffected.)
+CELERY_TASK_PUBLISH_RETRY = True
+CELERY_TASK_PUBLISH_RETRY_POLICY = {
+    "max_retries": 1, "interval_start": 0,
+    "interval_step": 0.2, "interval_max": 0.2,
+}
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
 # ── Chat generation queue (P0 navigation fix) ────────────────────────
 # run_chat_generation owns interactive LLM generation, which can run for
 # tens of seconds. Routing it to a DEDICATED queue lets a dedicated worker

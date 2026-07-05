@@ -26,23 +26,23 @@ def _make_user(email="async@test.com"):
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=False)
 class ClassAvsClassBRoutingTests(TestCase):
-    """With EAGER disabled we can prove the deferred task was
-    .delay()'d (queued) rather than executed inline. The EAGER=True
-    test below proves correctness end-to-end."""
+    """With EAGER disabled we can prove the deferred task was enqueued
+    (queued via the non-blocking safe_enqueue → apply_async) rather than
+    executed inline. Class A never touches the sync builder; a broker
+    outage would be swallowed by safe_enqueue, never a request-path
+    rebuild. The EAGER=True test below proves correctness end-to-end."""
 
     def setUp(self):
         self.user = _make_user()
 
     def test_class_a_water_log_defers_summary_builder(self):
-        """Water log → defer_rebuild_health_summary.delay() is called,
-        builder is NOT invoked synchronously."""
+        """Water log → deferred_rebuild_health_summary enqueued via
+        apply_async (fire-and-forget), builder NOT invoked synchronously."""
         with patch(
             "apps.health.tasks.deferred_rebuild_health_summary"
         ) as mock_task, patch(
             "apps.health.services.daily_summary_builder.DailyHealthSummaryBuilder.build_for_date"
         ) as mock_sync_builder:
-            mock_delay = mock_task.delay
-            mock_sync = mock_sync_builder
             # Use a non-colliding entry_id — the event bus has a
             # 5-second process-level dedupe cache keyed by entry_id, and
             # other test suites in this run create WaterEntry rows with
@@ -51,9 +51,9 @@ class ClassAvsClassBRoutingTests(TestCase):
                 EventTypes.HEALTH_WATER_LOGGED, self.user,
                 {"entry_id": 9_000_000 + self.user.id},
             )
-            mock_delay.assert_called_once()
-            # First positional arg should be user.id.
-            args, _ = mock_delay.call_args
+            # Enqueued fire-and-forget via safe_enqueue → .delay.
+            mock_task.delay.assert_called_once()
+            args, _ = mock_task.delay.call_args
             self.assertEqual(args[0], self.user.id)
             # Sync builder must NOT have run for Class A.
             mock_sync_builder.assert_not_called()
@@ -64,12 +64,10 @@ class ClassAvsClassBRoutingTests(TestCase):
         ) as mock_task, patch(
             "apps.health.services.daily_summary_builder.DailyHealthSummaryBuilder.build_for_date"
         ) as mock_sync_builder:
-            mock_delay = mock_task.delay
-            mock_sync = mock_sync_builder
             safe_emit_event(
                 EventTypes.HEALTH_MEDICATION_TAKEN, self.user, {},
             )
-            mock_delay.assert_called_once()
+            mock_task.delay.assert_called_once()
             mock_sync_builder.assert_not_called()
 
     def test_class_a_weight_logged_defers_summary_builder(self):
@@ -78,12 +76,10 @@ class ClassAvsClassBRoutingTests(TestCase):
         ) as mock_task, patch(
             "apps.health.services.daily_summary_builder.DailyHealthSummaryBuilder.build_for_date"
         ) as mock_sync_builder:
-            mock_delay = mock_task.delay
-            mock_sync = mock_sync_builder
             safe_emit_event(
                 EventTypes.HEALTH_WEIGHT_LOGGED, self.user, {},
             )
-            mock_delay.assert_called_once()
+            mock_task.delay.assert_called_once()
             mock_sync_builder.assert_not_called()
 
     def test_class_b_glucose_logged_runs_summary_builder_sync(self):

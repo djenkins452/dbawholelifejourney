@@ -77,47 +77,25 @@ def _refresh_sae_module(user, module):
 
 def _defer_sae_refresh(user, modules, source="signal"):
     """
-    Dispatch SAE module refresh to Celery (async primary, sync fallback).
+    Dispatch SAE module refresh to Celery — fire-and-forget, never blocking.
 
-    Follows the same pattern as journal signal extraction dispatch.
-    On Celery failure, falls back to synchronous execution to guarantee
-    state freshness — but this should be rare in production.
+    Runs on the request path (fired from post_save/post_delete signals), so it
+    MUST NOT block and MUST NOT fall back to a synchronous rebuild. It hands
+    the work to the broker via ``safe_enqueue`` (bounded, swallows all infra
+    errors) and returns immediately.
+
+    Eventual consistency when the broker is unavailable is guaranteed by the
+    background reconciliation mechanisms — the periodic SAME cycle rebuilds
+    module state, and the next successful write re-enqueues — NOT by rebuilding
+    heavy intelligence on the request thread. A briefly-stale snapshot is
+    acceptable; a 20-second request is not. (Origin incident: 2026-07-05.)
+
+    In the test environment CELERY_TASK_ALWAYS_EAGER makes the enqueue execute
+    the task inline, so tests still observe fresh state after a write.
     """
-    # Try async dispatch first
-    try:
-        from apps.core.tasks import deferred_sae_refresh
-        deferred_sae_refresh.delay(user.id, modules, source)
-        return  # Async dispatch succeeded
-    except ImportError:
-        # Celery not installed (test environment)
-        logger.debug("Celery not available — sync SAE refresh for user %s", user.id)
-    except Exception as e:
-        # Broker connection failed, worker unavailable, etc.
-        logger.warning(
-            "DEFERRED_SAE_DISPATCH user=%s modules=%s — Celery failed (%s), "
-            "falling back to sync",
-            user.id, modules, e,
-        )
-
-    # Sync fallback — preserves current behavior when Celery is unavailable
-    try:
-        import time as _time
-        _t0 = _time.perf_counter()
-        from apps.core.ai_state.state_updater import update_user_state
-        for module in modules:
-            update_user_state(user, module)
-        _elapsed = round((_time.perf_counter() - _t0) * 1000)
-        if _elapsed > 100:
-            logger.warning(
-                "PERF_TRACE SAE_REFRESH_SYNC user=%s modules=%s — %dms",
-                user.id, modules, _elapsed,
-            )
-    except Exception:
-        # SAE refresh must never break data saves
-        logger.warning(
-            "SAE_REFRESH user=%s modules=%s — failed",
-            user.id, modules, exc_info=True,
-        )
+    from apps.core.celery_utils import safe_enqueue
+    from apps.core.tasks import deferred_sae_refresh
+    safe_enqueue(deferred_sae_refresh, user.id, modules, source)
 
 
 def invalidate_user_insights(user, insight_types=None):

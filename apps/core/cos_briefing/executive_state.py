@@ -93,7 +93,12 @@ def to_dict(signal):
 def _module(user, name):
     from apps.core.ai_state.state_engine import get_module_state
     try:
-        return get_module_state(user, name) or {}
+        # Snapshot-first (Phase 3 read-only contract): this adapter feeds the
+        # dashboard executive summary on the request path, so it must NEVER
+        # trigger a synchronous SAE rebuild. Read whatever the pre-computed
+        # snapshot holds; background warms keep it fresh. allow_rebuild default
+        # is True for legacy callers, so we pass it explicitly here.
+        return get_module_state(user, name, allow_rebuild=False) or {}
     except Exception:
         logger.debug("state adapter: module %s read failed", name, exc_info=True)
         return {}

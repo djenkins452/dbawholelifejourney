@@ -1934,19 +1934,14 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
 
         # Auto-complete matching routine task (legacy Task system) — deferred
         # to Celery worker to avoid cascading Task save blocking the response.
-        try:
-            from apps.core.tasks import deferred_routine_auto_complete
-            deferred_routine_auto_complete.delay(
-                request.user.id, ["Workout"],
-                source="workout_log_view",
-            )
-        except Exception:
-            # Sync fallback when Celery unavailable
-            try:
-                from apps.life.services.routine_service import RoutineTaskService
-                RoutineTaskService.auto_complete_routine_task(request.user, "Workout")
-            except Exception:
-                pass
+        # Non-blocking, no synchronous fallback (request-path safety).
+        from apps.core.celery_utils import safe_enqueue
+        from apps.core.tasks import deferred_routine_auto_complete
+        safe_enqueue(
+            deferred_routine_auto_complete,
+            request.user.id, ["Workout"],
+            source="workout_log_view",
+        )
 
         # Auto-complete matching RoutineSchedule items (new Routine system).
         # Belt-and-suspenders: the post_save signal also calls this, but
@@ -3835,28 +3830,17 @@ class IntakeTakeView(LoginRequiredMixin, View):
         # This triggers a cascading Task save with full post_save signal chain
         # (SAE rebuild, CoS invalidation, dashboard invalidation, etc.),
         # so it must NOT run on the request path.
-        try:
-            from apps.core.tasks import deferred_routine_auto_complete
-            deferred_routine_auto_complete.delay(
-                request.user.id, ["Medicine", "Medication"],
-                source="intake_take_view",
-            )
-        except ImportError:
-            # Celery not available — sync fallback
-            try:
-                from apps.life.services.routine_service import RoutineTaskService
-                RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
-                RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
-            except Exception:
-                pass
-        except Exception:
-            # Broker unavailable — sync fallback
-            try:
-                from apps.life.services.routine_service import RoutineTaskService
-                RoutineTaskService.auto_complete_routine_task(request.user, "Medicine")
-                RoutineTaskService.auto_complete_routine_task(request.user, "Medication")
-            except Exception:
-                pass
+        # Non-blocking, no synchronous fallback: a broker outage must not drop
+        # into a request-path Task-save cascade. safe_enqueue runs the task
+        # inline under EAGER (tests) and async in prod; if the broker is down
+        # the auto-complete is simply skipped for this write.
+        from apps.core.celery_utils import safe_enqueue
+        from apps.core.tasks import deferred_routine_auto_complete
+        safe_enqueue(
+            deferred_routine_auto_complete,
+            request.user.id, ["Medicine", "Medication"],
+            source="intake_take_view",
+        )
         _t3 = _time.perf_counter()
 
         # Decrease supply if tracked

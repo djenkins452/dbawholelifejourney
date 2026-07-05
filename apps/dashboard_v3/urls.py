@@ -15,4 +15,12 @@ urlpatterns = [
         views.UtilitiesSectionView.as_view(),
         name="section_utilities",
     ),
+    # Dynamic region refresh — after a completion the home.html JS dispatches
+    # `dashboard:completed` and #v3-live self-refreshes via hx-get here. No
+    # full window.location.reload(); perceived completion is instant.
+    path(
+        "section/live/",
+        views.SectionLiveView.as_view(),
+        name="section_live",
+    ),
 ]

@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(perf): sub-second PERCEIVED task completion (no full reload) + production self-measurement
+
+Two things the query-count win couldn't deliver on its own:
+
+**1. Task completion no longer does `window.location.reload()`.** The v3 radio button POSTed fast (204 in ~21ms) but then triggered a full-page dashboard reload — so PERCEIVED completion could never be sub-second, however fast the server got. Replaced it with the pattern the hydration buttons already use:
+- On the toggle's 204 success the JS now **optimistically flips the clicked item instantly** (checkbox checked + a `.v3-item-completing` PROCESSING dim — not a completion visual, so the Visual Truth Contract still gates real "done" styling on the data layer), then dispatches `dashboard:completed`.
+- A new `#v3-live` wrapper (`templates/dashboard_v3/sections/_live.html`, `SectionLiveView`, `dashboard_v3:section_live`) re-renders every section a completion changes (gauges/mission/executive/focus/accountability/rhythm) via an async HTMX swap — **no page reload, no white flash**. Verified in a real browser: the completion event swaps `#v3-live` (`htmx:afterSwap` fires) while a `window` sentinel survives (proving no reload); the clicked item flips instantly; zero console errors. `section_live` renders in 96 queries.
+
+**2. Production is now self-measuring — real numbers, not estimates.** New `ServerTimingMiddleware` emits a real `Server-Timing: total;dur=…, db;dur=…;desc="N queries"` header on every HTML response, counting queries + DB wall-time via `connection.execute_wrapper` (works with `DEBUG=False`, unlike `connection.queries`). Danny (and we) can read the true production dashboard timing + query count in browser DevTools → Network with no log/SSH access. Slow (>1.5s) HTML requests also log `[SERVER_TIMING] SLOW …`. Verified in-browser: dashboard GET `total;dur=232, db;dur=96;desc="156 queries"`.
+
+**Bug caught during in-browser verification:** a multi-line `{# … #}` comment (Django `{# #}` is single-line only) was rendering as visible text at the top of the dashboard — fixed to `{% comment %}`.
+
+**Files:** apps/core/middleware.py (+ config/settings.py registration), apps/dashboard_v3/views.py, apps/dashboard_v3/urls.py, templates/dashboard_v3/home.html, templates/dashboard_v3/sections/_live.html (new), static/dashboard_v3/css/dashboard_v3.css. 252 tests green (dashboard_v3, visual-truth contract, request-path contract). Verified in a real browser via the preview server, not just unit tests.
+
+
 ## 2026-07-05 — fix(cos): "What's my biggest risk today?" is executive-risk synthesis, not a goal update
 
 Production failure #3: "What is the biggest risk I should pay attention to today?" → Beth answered "No significant risks right now. Your mission 'France 2027 Family 18K Mission' is on pace…" — a GOAL UPDATE, not a risk assessment (a category error). Root cause: the question routed to `personal_reasoning`, and the reasoning planner classifies "biggest risk" as the `biggest_health_risk` intent (`reasoning/plan.py`), then — with no acute health context — falls to `_goal_risk_fallback` (`reasoning/stages.py`) which narrates mission pace. So "risk" was classified BY DOMAIN (health → goal), never synthesized as a whole-life EXECUTIVE risk. The deterministic risk sources all existed (health-critical, computed risk intelligence, the at-risk execution decision, overdue commitments) but nothing routed to them.

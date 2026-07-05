@@ -32,25 +32,21 @@
         </div>
     </header>
 
-    {# 1. Gauges — top scoreboard #}
-    {% include "dashboard_v3/sections/gauges.html" with cockpit_domains=v3.cockpit_domains gauges=v3.gauges %}
+    {% comment %}
+      Dynamic region — refreshed IN PLACE (no full reload) after a completion.
+      On a data-v3-toggle success the JS optimistically flips the clicked item,
+      then dispatches `dashboard:completed`, which triggers this hx-get to
+      re-render every section that a completion changes. Perceived completion is
+      instant (optimistic); the true server state swaps in async.
+    {% endcomment %}
+    <div id="v3-live"
+         hx-get="{% url 'dashboard_v3:section_live' %}"
+         hx-trigger="dashboard:completed from:body"
+         hx-swap="innerHTML">
+        {% include "dashboard_v3/sections/_live.html" with v3=v3 %}
+    </div>
 
-    {# 1b. Mission spotlight — headline foundational goal (renders nothing if none) #}
-    {% include "dashboard_v3/sections/mission.html" with mission=v3.mission %}
-
-    {# 2. Executive summary — dense 3-column briefing #}
-    {% include "dashboard_v3/sections/executive_summary.html" with summary=v3.executive_summary %}
-
-    {# 3. Focus right now — prominent, paired with follow-on #}
-    {% include "dashboard_v3/sections/focus_now.html" with focus=v3.focus_now follow_on=v3.follow_on %}
-
-    {# 4. Domain accountability — 3-column dense cards #}
-    {% include "dashboard_v3/sections/accountability_cards.html" with cards=v3.accountability_cards %}
-
-    {# 5. Today's rhythm — 2×2 compact tiles #}
-    {% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
-
-    {# 6. Utilities — small inline row #}
+    {# 6. Utilities — small inline row (own Phase-4 partial refresh path) #}
     {% include "dashboard_v3/sections/utilities.html" with utilities=v3.utilities %}
 </div>
 
@@ -188,14 +184,23 @@
             return;
         }
 
-        // Legacy path — full reload for everything else.
+        // Completion path — NO full window.location.reload(). The click is
+        // perceived as INSTANT: we optimistically reflect the completion on the
+        // clicked item the moment the 204 confirms (truthful — the server
+        // accepted it), then refresh the dynamic dashboard region (#v3-live)
+        // asynchronously so counts / next-action / mission progress catch up
+        // without blocking the user on a full-page composition.
         if (!trig.hasAttribute('data-v3-toggle')) return;
         if (evt.detail && evt.detail.successful) {
-            // Optimistic visual: dim the row immediately so the click feels
-            // instant; the full reload follows in a tick.
             var row = trig.closest('.v3-ritem, .v3-focus');
-            if (row) row.style.opacity = '0.5';
-            window.location.reload();
+            if (row) {
+                row.classList.add('v3-item-completing');
+                var ctrl = row.querySelector('input[type=checkbox], input[type=radio]');
+                if (ctrl) ctrl.checked = true;
+            }
+            // Trigger the async in-place refresh of every section a completion
+            // changes (gauges/mission/executive/focus/accountability/rhythm).
+            document.body.dispatchEvent(new CustomEvent('dashboard:completed'));
         } else {
             // Surface the failure non-destructively — log + restore.
             console.warn('v3 toggle failed', evt.detail);

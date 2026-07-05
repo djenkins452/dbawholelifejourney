@@ -754,6 +754,16 @@
     font-size: 0.82rem;
     color: var(--v3-text);
 }
+/* Optimistic "processing" state — applied by JS the instant a completion POST
+   succeeds (204), until the async #v3-live refresh swaps in the true server
+   rendering ~a moment later. This is a PROCESSING visual (dim + non-interactive),
+   NOT a completion visual — the real "done" styling (.v3-ritem-completed) still
+   comes only from the data layer, honoring the Visual Truth Contract. */
+.v3-item-completing {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
 .v3-ritem-glyph {
     display: inline-flex;
     align-items: center;

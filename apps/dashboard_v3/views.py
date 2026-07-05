@@ -193,3 +193,35 @@ class UtilitiesSectionView(LoginRequiredMixin, View):
                 "dashboard_v3/sections/utilities.html",
                 {"utilities": utilities},
             )
+
+
+class SectionLiveView(LoginRequiredMixin, View):
+    """HTMX partial — re-renders the dynamic dashboard region (#v3-live) after
+    a completion, so the checkbox click never triggers a full
+    window.location.reload().
+
+    Flow: toggle POST → 204 (fast) → JS optimistically flips the clicked item →
+    JS dispatches ``dashboard:completed`` → this endpoint re-renders every
+    section a completion changes (gauges/mission/executive/focus/accountability/
+    rhythm) and HTMX swaps it in. Reads canonical state via the SAME composer as
+    the full page — no optimistic data server-side, no divergence.
+    """
+
+    def get(self, request):
+        from apps.core.timing import action_timing
+        from apps.dashboard_v3.services import build_dashboard_v3_context
+
+        with action_timing("dashboard_v3_section_live", request):
+            try:
+                v3 = build_dashboard_v3_context(request.user)
+            except Exception:
+                logger.warning(
+                    "section_live render failed for user=%s",
+                    request.user.pk, exc_info=True,
+                )
+                v3 = {}
+            return render(
+                request,
+                "dashboard_v3/sections/_live.html",
+                {"v3": v3},
+            )

@@ -1,0 +1,25 @@
+{% comment %}
+Dynamic dashboard region — everything that changes when the user completes an
+item (mission progress, executive headline, focus/next-action, accountability,
+rhythm counts, goal gauges). Included by home.html inside #v3-live and rendered
+standalone by SectionLiveView so a completion can refresh THIS region async
+(HTMX swap) instead of a full window.location.reload(). No optimistic data —
+same composer, same canonical state as the full page.
+{% endcomment %}
+{# 1. Gauges — top scoreboard #}
+{% include "dashboard_v3/sections/gauges.html" with cockpit_domains=v3.cockpit_domains gauges=v3.gauges %}
+
+{# 1b. Mission spotlight — headline foundational goal (renders nothing if none) #}
+{% include "dashboard_v3/sections/mission.html" with mission=v3.mission %}
+
+{# 2. Executive summary — dense 3-column briefing #}
+{% include "dashboard_v3/sections/executive_summary.html" with summary=v3.executive_summary %}
+
+{# 3. Focus right now — prominent, paired with follow-on #}
+{% include "dashboard_v3/sections/focus_now.html" with focus=v3.focus_now follow_on=v3.follow_on %}
+
+{# 4. Domain accountability — 3-column dense cards #}
+{% include "dashboard_v3/sections/accountability_cards.html" with cards=v3.accountability_cards %}
+
+{# 5. Today's rhythm — 2×2 compact tiles #}
+{% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}

@@ -33,8 +33,73 @@ import base64
 import logging
 import os
 import re
+import time
 
 logger = logging.getLogger(__name__)
+
+
+class ServerTimingMiddleware:
+    """Emit a real ``Server-Timing`` header on every HTML response.
+
+    Makes production self-measuring WITHOUT log access: Danny opens browser
+    DevTools → Network → clicks the dashboard request → sees, e.g.,
+    ``Server-Timing: total;dur=940, db;dur=610;desc="316 queries"``.
+
+    Counts queries and DB wall-time via ``connection.execute_wrapper`` — which,
+    unlike ``connection.queries``, works with ``DEBUG=False`` (production). So
+    the acceptance-criteria numbers (production query count, production SQL
+    timing, total server time) are visible on the live site, not estimated.
+
+    Also logs a one-line ``[SERVER_TIMING]`` for slow (>1.5s) HTML requests so a
+    regression is greppable in prod logs even without DevTools.
+    """
+
+    SLOW_MS = 1500
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        from django.db import connection
+
+        stats = {"n": 0, "db": 0.0}
+
+        def _wrapper(execute, sql, params, many, context):
+            t0 = time.perf_counter()
+            try:
+                return execute(sql, params, many, context)
+            finally:
+                stats["n"] += 1
+                stats["db"] += time.perf_counter() - t0
+
+        start = time.perf_counter()
+        try:
+            with connection.execute_wrapper(_wrapper):
+                response = self.get_response(request)
+        except Exception:
+            # Never let instrumentation change request behavior.
+            return self.get_response(request)
+
+        total_ms = (time.perf_counter() - start) * 1000.0
+        db_ms = stats["db"] * 1000.0
+        try:
+            if not getattr(response, "streaming", False):
+                response["Server-Timing"] = (
+                    f'total;dur={total_ms:.0f}, '
+                    f'db;dur={db_ms:.0f};desc="{stats["n"]} queries"'
+                )
+        except Exception:
+            pass
+
+        if total_ms >= self.SLOW_MS and "text/html" in str(
+            getattr(response, "headers", {}).get("Content-Type", "")
+        ):
+            logger.warning(
+                "[SERVER_TIMING] SLOW path=%s total_ms=%.0f db_ms=%.0f queries=%d user=%s",
+                request.path, total_ms, db_ms, stats["n"],
+                getattr(getattr(request, "user", None), "id", "?"),
+            )
+        return response
 
 
 class NoCacheHTMLMiddleware:

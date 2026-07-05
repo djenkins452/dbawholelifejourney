@@ -209,6 +209,7 @@ if DEBUG:
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "apps.core.middleware.ServerTimingMiddleware",  # Real Server-Timing header (prod query count + DB ms)
     "apps.core.middleware.NoCacheHTMLMiddleware",  # Prevent FOUC by disabling HTML caching
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",

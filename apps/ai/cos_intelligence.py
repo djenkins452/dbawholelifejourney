@@ -250,6 +250,73 @@ def goal_pace_narrative(p):
     return s.strip()
 
 
+def _conf_label(score):
+    """0.0–1.0 confidence → low/medium/high (Law 2 vocabulary). '' when unknown."""
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        return ""
+    return "high" if s >= 0.75 else "medium" if s >= 0.45 else "low"
+
+
+def active_intelligence(user):
+    """Top ACTIVE persisted deterministic intelligence for `user` — the risks,
+    opportunities, forward predictions, cross-domain patterns, and guidance WLJ has
+    already computed. Reads the PRE-COMPUTED records only (bounded, indexed, top-N,
+    degrade-safe); it NEVER recomputes insight/prediction engines on the request path.
+    Every item carries its basis + confidence so Beth can cite it and admit when there
+    is none. This is the single reader both the standing narrative and interpret()
+    consume — one source, no duplicated truth."""
+    out = {"risks": [], "opportunities": [], "predictions": [], "patterns": [],
+           "guidance": []}
+    try:                                                     # Insights → risk / opportunity
+        from apps.core.ai_insights.models import Insight
+        rows = list(Insight.objects.filter(user=user)
+                    .exclude(status="dismissed").order_by("-created_at")[:12])
+        _sev = {"critical": 0, "warning": 1}
+        for i in sorted((r for r in rows if r.severity in ("warning", "critical")),
+                        key=lambda r: _sev.get(r.severity, 9))[:3]:
+            out["risks"].append({"text": i.title or (i.message or "")[:120],
+                                 "basis": f"{i.module} insight",
+                                 "confidence": _conf_label(i.confidence_score)})
+        for i in [r for r in rows if r.severity == "positive"][:2]:
+            out["opportunities"].append({"text": i.title or (i.message or "")[:120],
+                                         "basis": f"{i.module} insight",
+                                         "confidence": _conf_label(i.confidence_score)})
+    except Exception:
+        logger.debug("intelligence: insights read failed", exc_info=True)
+    try:                                                     # Predictions → forward-looking
+        from apps.core.ai_predictions.models import Prediction
+        for p in list(Prediction.objects.filter(user=user, status="active")
+                      .order_by("-confidence_score")[:3]):
+            out["predictions"].append({
+                "text": (p.explanation or p.prediction_type)[:160],
+                "basis": f"{p.module} prediction",
+                "when": p.predicted_date.date().isoformat() if p.predicted_date else "",
+                "confidence": _conf_label(p.confidence_score)})
+    except Exception:
+        logger.debug("intelligence: predictions read failed", exc_info=True)
+    try:                                                     # Correlations → cross-domain pattern
+        from apps.core.ai_cross_domain.models import DomainCorrelation
+        for c in list(DomainCorrelation.objects.filter(user=user, status="active")
+                      .order_by("-strength_score")[:2]):
+            out["patterns"].append({"text": (c.narrative or "")[:200],
+                                    "basis": f"{c.domain_a}×{c.domain_b} correlation",
+                                    "confidence": c.strength})
+    except Exception:
+        logger.debug("intelligence: correlations read failed", exc_info=True)
+    try:                                                     # Guidance items
+        from apps.core.ai_guidance.models import GuidanceItem
+        for g in list(GuidanceItem.objects.filter(user=user, is_active=True)
+                      .order_by("priority", "-created_at")[:2]):
+            out["guidance"].append({"text": g.title or (g.message or "")[:120],
+                                    "basis": f"{getattr(g, 'module', '') or 'guidance'} guidance",
+                                    "confidence": _conf_label(getattr(g, "confidence_score", None))})
+    except Exception:
+        logger.debug("intelligence: guidance read failed", exc_info=True)
+    return out
+
+
 def build_cos_intelligence(user):
     """The standing Chief-of-Staff read: overall, goal pace, recommendation
     effectiveness. Compact + grounded; safe to embed in the LLM context."""
@@ -295,6 +362,13 @@ def build_cos_intelligence(user):
             intel["executive_briefing_narrative"] = narrate_briefing(eb)
     except Exception:
         logger.debug("cos_intel: executive briefing block failed", exc_info=True)
+    # Whole-Life Executive Understanding: surface the deterministic intelligence WLJ
+    # already computed (risks / opportunities / predictions / patterns / guidance) so
+    # Beth can reach it every turn — persisted records only, no request-path recompute.
+    try:
+        intel["intelligence"] = active_intelligence(user)
+    except Exception:
+        logger.debug("cos_intel: intelligence block failed", exc_info=True)
     return intel
 
 
@@ -319,6 +393,27 @@ def cos_intelligence_narrative(intel):
         if int(e.get("occurrence_count", 1)) >= 3:
             recur = f" (flagged {e['occurrence_count']}x)"
         lines.append(f"- Event [{tag}]{recur}: {e.get('message') or e.get('title')}")
+    # Deterministic intelligence WLJ already computed. Cite the basis; if a section is
+    # empty, that truth simply doesn't exist yet — never invent it.
+    _intl = intel.get("intelligence") or {}
+
+    def _fmt(item):
+        c = item.get("confidence")
+        basis = f" (basis: {item['basis']})" if item.get("basis") else ""
+        conf = f" [{c} confidence]" if c else ""
+        return f"{item.get('text', '')}{basis}{conf}"
+
+    for r in (_intl.get("risks") or [])[:3]:
+        lines.append(f"- Risk to watch: {_fmt(r)}")
+    for o in (_intl.get("opportunities") or [])[:2]:
+        lines.append(f"- Opportunity: {_fmt(o)}")
+    for p in (_intl.get("predictions") or [])[:2]:
+        when = f" (by {p['when']})" if p.get("when") else ""
+        lines.append(f"- Prediction{when}: {_fmt(p)}")
+    for pat in (_intl.get("patterns") or [])[:2]:
+        lines.append(f"- Pattern: {_fmt(pat)}")
+    for g in (_intl.get("guidance") or [])[:2]:
+        lines.append(f"- Guidance: {_fmt(g)}")
     if not lines:
         return None
     return ("CHIEF OF STAFF STANDING READ (your own current assessment — use it "

@@ -55,6 +55,13 @@ class ExecutiveSignals:
     # ── The reasoned CONCLUSION that follows from today's read (what it means for
     # priorities). The prompt PRESENTS this; it must not re-derive prioritization. ──
     executive_picture: str = ""
+    # ── Whole-Life intelligence WLJ already computed, folded into the ONE executive
+    # understanding (persisted Insight/Prediction/DomainCorrelation/GuidanceItem). ──
+    risks: list = field(default_factory=list)
+    opportunities: list = field(default_factory=list)
+    predictions: list = field(default_factory=list)
+    patterns: list = field(default_factory=list)
+    guidance: list = field(default_factory=list)
 
     def to_dict(self):
         return asdict(self)
@@ -379,7 +386,34 @@ def interpret(user, low_energy=False, subjective=None):
             "Volume is today's constraint, so sequencing the few things that truly matter "
             "is the highest-leverage move.")
 
+    # ── WHOLE-LIFE INTELLIGENCE — fold the deterministic intelligence WLJ already
+    # computed into the ONE executive understanding (persisted records, bounded, no
+    # request-path recompute). The top risk enriches biggest_risk / executive_picture
+    # when today has no bigger headline (an accomplishment or a voiced report outranks a
+    # background risk); it never overrides them. interpret() remains the sole authority. ──
+    _risks = _opportunities = _predictions = _patterns = _guidance = None
+    try:
+        from apps.ai.cos_intelligence import active_intelligence
+        _intel = active_intelligence(user)
+        _risks, _opportunities = _intel.get("risks") or [], _intel.get("opportunities") or []
+        _predictions = _intel.get("predictions") or []
+        _patterns, _guidance = _intel.get("patterns") or [], _intel.get("guidance") or []
+    except Exception:
+        logger.warning("interpret: intelligence read failed", exc_info=True)
+        _risks = _opportunities = _predictions = _patterns = _guidance = []
+    if not biggest_risk and _risks:
+        biggest_risk = _risks[0].get("text", "") or biggest_risk
+    if not executive_picture:
+        if _risks:
+            _b = _risks[0].get("basis")
+            executive_picture = ("The thing to watch is " + _risks[0].get("text", "")
+                                 + (f" (basis: {_b})." if _b else "."))
+        elif _opportunities:
+            executive_picture = "Worth seizing: " + _opportunities[0].get("text", "") + "."
+
     return ExecutiveSignals(
+        risks=_risks, opportunities=_opportunities, predictions=_predictions,
+        patterns=_patterns, guidance=_guidance,
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
         backlog_count=tw["backlog"], total_pending=tw["total"],

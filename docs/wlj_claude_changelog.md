@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — instrument(cos): Goals check-in runtime diagnostic — explicit response_source + producing_function
+
+Refined `GoalsCheckinDebugView` (`GET /assistant/api/goals-checkin-debug/`, staff-only) to explicitly label the two remaining diagnostic facts: `response_source` (deterministically `_GOALS_GAP` | `_strategic_summary` | `other`) and `producing_function` (the function that ultimately generates the check-in "4" response). Now answers all six runtime questions — git SHA, whether the deployed resolver calls `_strategic_summary`, the response source, `select_active_mission_goal`, `get_domain_state('purpose')` mission/count/titles, and the producing function — with no interpretation. Temporary; remove after diagnosis. Files: `apps/ai/views.py`.
+
 ## 2026-07-05 — fix(legacy): Family Tree inspector captures the mouse wheel (no pan/zoom behind it)
 
 **What:** With the Family Tree details/inspector panel open, the mouse wheel zoomed the tree behind the panel because the stage's `wheel` handler fired for events anywhere in the stage (the panel is a child of the stage). Now, hovering the panel scrolls ONLY the panel; the tree stays completely stationary.

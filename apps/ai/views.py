@@ -137,12 +137,27 @@ class GoalsCheckinDebugView(LoginRequiredMixin, View):
             out['purpose_active_titles'] = st.get('active_titles')
         except Exception as e:
             out['purpose_state_error'] = repr(e)
-        # 4) The ACTUAL output the check-in "4" reply produces, end to end.
+        # 4) The ACTUAL output the check-in "4" reply produces, end to end + its SOURCE.
         try:
             opt = {'n': 4, 'resolver': 'goals_gap', 'resolution': lanes._GOALS_GAP}
             ans = lanes.resolve_clarification_option(user, opt)
             out['resolve_clarification_option_output'] = ans
             out['output_is_goals_gap'] = (ans == lanes._GOALS_GAP)
+            # #3 — deterministic SOURCE of the returned value.
+            try:
+                ss = lanes._strategic_summary(user)
+            except Exception:
+                ss = None
+            if ans == lanes._GOALS_GAP:
+                out['response_source'] = '_GOALS_GAP'
+            elif ss is not None and ans == ss:
+                out['response_source'] = '_strategic_summary'
+            else:
+                out['response_source'] = 'other'
+            # #6 — the function that ultimately generates the check-in "4" response.
+            out['producing_function'] = (
+                'apps.ai.chatgpt_cos.lanes.resolve_clarification_option'
+                ' (resolver="goals_gap" branch)')
         except Exception as e:
             out['resolve_error'] = repr(e)
         return JsonResponse(out, json_dumps_params={'default': str, 'indent': 2})

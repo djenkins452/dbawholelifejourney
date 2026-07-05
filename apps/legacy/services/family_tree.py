@@ -145,6 +145,7 @@ def _edges(user):
     parents, children, spouses = defaultdict(set), defaultdict(set), defaultdict(set)
     couples = {}      # frozenset({a, b}) -> couple style
     link_style = {}   # (parent_id, child_id) -> 'solid' | 'dashed'
+    step_pairs = set()   # (parent_id, child_id) where the parent is a STEP-parent
     for f, t, typ, cat in Relationship.objects.filter(user=user).values_list(
             "from_person_id", "to_person_id", "relationship_type",
             "relationship_category"):
@@ -164,38 +165,51 @@ def _edges(user):
         if role == "parent":
             children[f].add(t); parents[t].add(f)
             link_style[(f, t)] = _link_style(typ)
+            if "step" in typ:
+                step_pairs.add((f, t))
         elif role == "child":
             children[t].add(f); parents[f].add(t)
             link_style[(t, f)] = _link_style(typ)
+            if "step" in typ:
+                step_pairs.add((t, f))
         else:
             spouses[f].add(t); spouses[t].add(f)
             couples[frozenset((f, t))] = _couple_style(typ)
-    return parents, children, spouses, couples, link_style
+    return parents, children, spouses, couples, link_style, step_pairs
 
 
 def _neighborhood(focus, parents, children, spouses):
-    """The STRICT immediate family around the focus — exactly three generations:
+    """The immediate family around the focus — exactly three generations, rendered as
+    FAMILY UNITS (each blood relative paired with their spouse):
 
       • the focus's parents (and each parent's spouse → step-parents),
-      • the focus, the focus's spouse(s), and the focus's siblings,
-      • the focus's children.
+      • the focus + spouse(s), and the focus's siblings + their spouses,
+      • the focus's children + their spouses.
 
-    Deliberately NOT included: grandparents, grandchildren, aunts/uncles, cousins,
-    nieces/nephews, in-laws, or siblings' spouses/children. Those appear only when
-    that person becomes the focus. This is what keeps the tree readable at a glance."""
+    In-law spouses are included ONLY so siblings/children render as couples (the way a
+    person reads a family). Deliberately NOT included: grandparents, grandchildren,
+    aunts/uncles, cousins, nieces/nephews. Those appear only when that person becomes
+    the focus. This is what keeps the tree readable at a glance."""
     keep = {focus}
     par = set(parents.get(focus, set()))
     keep |= par
+    siblings = set()
     for p in par:
         keep |= spouses.get(p, set())            # step-parents (a parent's spouse)
-        keep |= children.get(p, set())           # siblings (share a parent)
+        siblings |= children.get(p, set())       # siblings (share a parent)
+    siblings.discard(focus)
+    keep |= siblings
     keep |= spouses.get(focus, set())            # the focus's own spouse(s)
     keep |= children.get(focus, set())           # the focus's children
+    for sib in siblings:                         # siblings' spouses (couple pairing)
+        keep |= spouses.get(sib, set())
+    for kid in children.get(focus, set()):       # children's spouses (couple pairing)
+        keep |= spouses.get(kid, set())
     return keep
 
 
 def _restrict(edges, keep):
-    parents, children, spouses, couples, link_style = edges
+    parents, children, spouses, couples, link_style, step_pairs = edges
     keep = set(keep)
 
     def r(d):
@@ -206,225 +220,187 @@ def _restrict(edges, keep):
 
     cp = {k: v for k, v in couples.items() if k <= keep}
     ls = {(a, b): v for (a, b), v in link_style.items() if a in keep and b in keep}
-    return r(parents), r(children), r(spouses), cp, ls
+    sp = {(a, b) for (a, b) in step_pairs if a in keep and b in keep}
+    return r(parents), r(children), r(spouses), cp, ls, sp
 
 
 def _layout(user, people, parents, children, spouses, couples, link_style,
-            focus_pk, me_pk):
-    """Lay out the family AROUND the focus as clean generation rows of family UNITS.
+            step_pairs, focus_pk, me_pk):
+    """Family-UNIT pedigree renderer for the 3-generation view around the focus.
 
-    Descendants are a tidy tree (each leaf gets its own column, every parent sits
-    over the middle of its children — so nothing overlaps). Siblings flank the focus
-    on its own row. Ancestors fan upward: each parent couple is centred over its
-    children, then the whole row is collision-packed so it can never overlap. Every
-    parent→children link is an orthogonal T (a stem down from the couple, a bus
-    across the children, a riser up to each child) — the visual language of a family
-    tree, not a web of diagonals. Couples are joined by a short typed connector."""
+    Legacy builds FAMILY UNITS (a couple and its children), not rows of individuals:
+      • parents' unit → the focus + siblings   (the parents sit over the MIDDLE of that
+                                                sibling group)
+      • focus unit    → the focus's children   (children descend from the couple's centre)
+      • every blood relative is paired with their spouse, so the eye reads a family
+    The focus is centred; siblings flank it in birth order; children hang under the focus
+    couple; the parents sit over the middle of all their children. Relationship types are
+    rendered exactly as Canonical Truth records them (solid = biological / married,
+    dashed = step / adoptive / former)."""
     from apps.legacy.models import RelationshipAlias
 
-    pids = {p.pk for p in people}
     P = {p.pk: p for p in people}
+    pids = set(P)
     if focus_pk not in pids:
-        focus_pk = next(iter(pids))
-
-    # Generation RELATIVE to focus (parents −1, children +1, spouse same level).
-    gen = {focus_pk: 0}
-    dq = deque([focus_pk])
-    while dq:
-        x = dq.popleft()
-        g = gen[x]
-        for pp in parents.get(x, ()):
-            if pp in pids and pp not in gen:
-                gen[pp] = g - 1; dq.append(pp)
-        for c in children.get(x, ()):
-            if c in pids and c not in gen:
-                gen[c] = g + 1; dq.append(c)
-        for s in spouses.get(x, ()):
-            if s in pids and s not in gen:
-                gen[s] = g; dq.append(s)
-    for p in people:
-        gen.setdefault(p.pk, 0)
+        focus_pk = next(iter(pids)) if pids else None
+    if not pids:
+        return {"nodes": [], "edges": [], "labels": [], "gutter": GUTTER,
+                "width": 0, "height": 0, "shown": 0, "focus": None,
+                "focus_x": 0, "focus_y": 0, "me": me_pk}
+    F = focus_pk
 
     def bkey(pk):
-        return (P[pk].birth_year or 0, P[pk].display_name or "")
+        return (P[pk].birth_year or 9999, P[pk].display_name or "")
 
-    def couple_partner(pk):
-        """A spouse of pk on the same row that forms an actual couple (earliest-born
-        preferred, for a stable pairing)."""
-        best = None
-        for s in spouses.get(pk, ()):
-            if (s in pids and gen.get(s) == gen.get(pk)
-                    and frozenset((pk, s)) in couples):
-                if best is None or bkey(s) < bkey(best):
-                    best = s
-        return best
+    def in_pids(ids):
+        return [i for i in ids if i in pids]
 
-    def unit_width(members):
-        return CARD_W if len(members) == 1 else 2 * CARD_W + COUPLE_GAP
+    # ── Roles relative to the focus ────────────────────────────────────────────
+    f_spouses = sorted(in_pids(spouses.get(F, ())), key=bkey)
+    f_parents = in_pids(parents.get(F, ()))
+    sib_set = {c for p in f_parents for c in children.get(p, ())
+               if c in pids and c != F}
+    siblings = sorted(sib_set, key=bkey)
+    f_children = sorted(in_pids(children.get(F, ())), key=bkey)
 
-    def order_couple(a, b):
-        return [a, b] if bkey(a) <= bkey(b) else [b, a]
+    COUPLE_STEP = CARD_W + COUPLE_GAP    # centre-to-centre of two partners
+    UNIT_STEP = CARD_W + UNIT_GAP        # gap between adjacent family units
 
-    center = {}     # pk -> centre x (float)
-    used = set()
+    def place_row(units):
+        """Assign x-centres along a row; `units` is a list of couples (kept together)."""
+        pos, x = {}, None
+        for members in units:
+            for mi, m in enumerate(members):
+                x = 0.0 if x is None else x + CARD_W + (COUPLE_GAP if mi else UNIT_GAP)
+                pos[m] = x
+        return pos
 
-    def set_unit_center(members, cx):
-        if len(members) == 1:
-            center[members[0]] = cx
+    taken = set()
+
+    def couple_of(blood, pool):
+        """`blood` + their earliest-born spouse drawn from `pool` (each spouse once)."""
+        members = [blood]
+        for s in sorted([s for s in spouses.get(blood, ())
+                         if s in pool and s not in taken and s != blood], key=bkey):
+            members.append(s)
+            taken.add(s)
+            break
+        return members
+
+    # ── Focus row (gen 0): focus + siblings, each a couple, focus centred ──────
+    focus_pool = set(f_spouses) | {s for sib in siblings
+                                   for s in spouses.get(sib, ()) if s in pids}
+    row_blood = sorted(siblings + [F], key=bkey)
+    focus_units = []
+    for b in row_blood:
+        if b == F:
+            for s in f_spouses:
+                taken.add(s)
+            focus_units.append([F] + f_spouses)
         else:
-            m0, m1 = members
-            center[m0] = cx - COUPLE_HALF
-            center[m1] = cx + COUPLE_HALF
+            focus_units.append(couple_of(b, focus_pool))
+    row1 = place_row(focus_units)
+    fshift = -row1[F]
+    for m in row1:
+        row1[m] += fshift
+    focus_members = [F] + f_spouses
+    focus_cx = sum(row1[m] for m in focus_members) / len(focus_members)
+    sib_group = [F] + siblings
+    sib_cx = sum(row1[m] for m in sib_group) / len(sib_group)
 
-    def make_unit(pk):
-        used.add(pk)
-        mate = couple_partner(pk)
-        if mate and mate not in used:
-            used.add(mate)
-            return order_couple(pk, mate)
-        return [pk]
+    # ── Children row (gen +1): each child a couple, centred under the focus couple ─
+    ctaken = set()
+    child_units = []
+    for c in f_children:
+        members = [c]
+        for s in sorted([s for s in spouses.get(c, ())
+                         if s in pids and s not in ctaken and s != c], key=bkey):
+            members.append(s)
+            ctaken.add(s)
+            break
+        child_units.append(members)
+    row2 = place_row(child_units)
+    if row2:
+        cshift = focus_cx - (min(row2.values()) + max(row2.values())) / 2.0
+        for m in row2:
+            row2[m] += cshift
 
-    # ── Descendants: a tidy tree rooted at the focus's couple ──────────────────
-    cursor = [0.0]
+    # ── Parents row (gen −1): the focus's REAL parents sit adjacent, centred over the
+    #    siblings ("Danny's parents"); step-parents & remarriages flank the one they
+    #    married. A step-parent is NOT one of the lineage parents even though canonically
+    #    a "stepmother of" — that's why Gloria pairs with Marvin, not a third parent.
+    def sex_order(pk):
+        return (0 if (P[pk].sex or "").upper().startswith("M") else 1, bkey(pk))
 
-    def child_units_of(members, cg):
-        kids = set()
-        for m in members:
-            for c in children.get(m, ()):
-                if c in pids and gen.get(c) == cg and c not in used:
-                    kids.add(c)
-        out = []
-        for k in sorted(kids, key=bkey):
-            if k not in used:
-                out.append(make_unit(k))
-        return out
-
-    def tidy(members):
-        g = gen[members[0]]
-        kids = child_units_of(members, g + 1)
-        w = unit_width(members)
-        if not kids:
-            cx = cursor[0] + w / 2.0
-            cursor[0] += w + UNIT_GAP
+    real_parents = [p for p in f_parents if (p, F) not in step_pairs]
+    bio = sorted(real_parents, key=sex_order)
+    row0 = {}
+    if len(bio) >= 2:
+        row0[bio[0]] = sib_cx - COUPLE_HALF
+        row0[bio[1]] = sib_cx + COUPLE_HALF
+        rx = sib_cx + COUPLE_HALF
+        for extra in bio[2:]:
+            rx += UNIT_STEP
+            row0[extra] = rx
+    elif len(bio) == 1:
+        row0[bio[0]] = sib_cx
+    # Everyone else on the parent row: step-parents, plus a real parent's other spouse.
+    extras = []
+    for p in real_parents:
+        for s in spouses.get(p, ()):
+            if s in pids and s not in real_parents and s not in extras:
+                extras.append(s)
+    for p in f_parents:                          # a step-parent (parent-edge but step)
+        if (p, F) in step_pairs and p not in extras:
+            extras.append(p)
+    left_x = min(row0.values()) if row0 else sib_cx
+    right_x = max(row0.values()) if row0 else sib_cx
+    for sp in sorted(extras, key=bkey):
+        partner = next((p for p in bio if sp in spouses.get(p, ())), None)
+        on_left = partner is not None and row0.get(partner, right_x + 1) <= sib_cx
+        if on_left:
+            left_x -= COUPLE_STEP
+            row0[sp] = left_x
         else:
-            kcenters = [tidy(k) for k in kids]
-            cx = (min(kcenters) + max(kcenters)) / 2.0
-        set_unit_center(members, cx)
-        return cx
+            right_x += COUPLE_STEP
+            row0[sp] = right_x
 
-    focus_unit = make_unit(focus_pk)
-    focus_center = tidy(focus_unit)
-
-    # ── Siblings: flank the focus on its own row, in birth order ───────────────
-    row0_centers = [center[pk] for pk in center if gen.get(pk) == 0]
-    bmin = min(row0_centers) - CARD_W / 2.0
-    bmax = max(row0_centers) + CARD_W / 2.0
-    sibs = []
-    for par in parents.get(focus_pk, ()):
-        if par in pids:
-            for k in children.get(par, ()):
-                if (k in pids and k != focus_pk and gen.get(k) == 0
-                        and k not in used and k not in sibs):
-                    sibs.append(k)
-    sibs.sort(key=bkey)
-    fb = bkey(focus_pk)
-    left_sibs = [k for k in sibs if bkey(k) <= fb][::-1]   # nearest-older first, going left
-    right_sibs = [k for k in sibs if bkey(k) > fb]
-    step = CARD_W + UNIT_GAP
-    lx = bmin - UNIT_GAP - CARD_W / 2.0
-    for k in left_sibs:
-        used.add(k); center[k] = lx; lx -= step
-    rx = bmax + UNIT_GAP + CARD_W / 2.0
-    for k in right_sibs:
-        used.add(k); center[k] = rx; rx += step
-
-    # ── Ancestors: parent couples centred over their children, then packed ─────
-    g = -1
-    while g >= -ANCESTOR_LEVELS:
-        row_pks = [pk for pk in pids if gen.get(pk) == g and pk not in center]
-        if row_pks:
-            units, seen = [], set()
-            for pk in sorted(row_pks, key=bkey):
-                if pk in seen:
-                    continue
-                mate = couple_partner(pk)
-                if mate and mate in row_pks and mate not in seen:
-                    units.append(order_couple(pk, mate)); seen |= {pk, mate}
-                else:
-                    units.append([pk]); seen.add(pk)
-            row_units = []
-            for members in units:
-                kids = [center[c] for m in members for c in children.get(m, ())
-                        if c in center and gen.get(c) == g + 1]
-                desired = sum(kids) / len(kids) if kids else focus_center
-                row_units.append({"members": members, "width": unit_width(members),
-                                  "desired": desired})
-            _pack_row(row_units)
-            for u in row_units:
-                set_unit_center(u["members"], u["left"] + u["width"] / 2.0)
-        g -= 1
-
-    for p in people:                                   # any straggler → near focus
-        center.setdefault(p.pk, focus_center)
-
-    # ── Final guarantee: no two cards overlap, ever ────────────────────────────
-    # Whatever the placement produced (real imported data has messier shapes than
-    # any synthetic test), sweep each generation row left→right at UNIT granularity
-    # and push overlapping units apart. Rows are on distinct y's, so a per-row 1-D
-    # sweep makes overlap mathematically impossible.
-    rows = defaultdict(list)
-    for pk in center:
-        if pk in pids:
-            rows[gen.get(pk, 0)].append(pk)
-    for g, pks in rows.items():
-        pset = set(pks)
-        used, units = set(), []
-        for pk in sorted(pks, key=lambda k: center[k]):
-            if pk in used:
-                continue
-            mate = next((s for s in spouses.get(pk, ())
-                         if s in pset and s not in used
-                         and frozenset((pk, s)) in couples), None)
-            members = sorted([pk, mate], key=lambda k: center[k]) if mate else [pk]
-            for m in members:
-                used.add(m)
-            c = sum(center[m] for m in members) / len(members)
-            units.append({"members": members, "c": c, "w": unit_width(members)})
-        units.sort(key=lambda u: u["c"])
-        prev_right = None
-        for u in units:
-            left = u["c"] - u["w"] / 2.0
-            if prev_right is not None and left < prev_right + UNIT_GAP:
-                left = prev_right + UNIT_GAP
-            shift = (left + u["w"] / 2.0) - u["c"]
-            if shift:
-                for m in u["members"]:
-                    center[m] += shift
-            prev_right = left + u["w"]
+    # ── Merge rows → centre + row index ────────────────────────────────────────
+    center, row = {}, {}
+    for m, x in row0.items():
+        center[m], row[m] = x, 0
+    for m, x in row1.items():
+        center[m], row[m] = x, 1
+    for m, x in row2.items():
+        center[m], row[m] = x, 2
+    for p in people:                       # any straggler → beside the focus
+        center.setdefault(p.pk, row1.get(F, 0.0))
+        row.setdefault(p.pk, 1)
 
     # ── Screen coordinates ─────────────────────────────────────────────────────
-    min_gen = min(gen.values())
-    min_center = min(center.values()) if center else 0
-    off_x = GUTTER + CARD_W / 2.0 - min_center   # leave a left gutter for gen labels
+    min_center = min(center.values())
+    off_x = GUTTER + CARD_W / 2.0 - min_center
+    rows_present = sorted(set(row.values()))
+    min_row = rows_present[0]
 
     aliases = defaultdict(list)
     for a in RelationshipAlias.objects.filter(
             user=user, person_id__in=pids).exclude(person__isnull=True):
         aliases[a.person_id].append(a.label)
 
-    coords, nodes = {}, []
-    fx = fy = 0
-    max_cx = 0
+    coords, nodes, fx, fy, max_cx = {}, [], 0, 0, 0
     for p in people:
         cx = center[p.pk] + off_x
-        y = (gen[p.pk] - min_gen) * ROW_STRIDE
+        y = (row[p.pk] - min_row) * ROW_STRIDE
         cy = y + CARD_H / 2.0
         coords[p.pk] = (cx, cy, y)
         max_cx = max(max_cx, cx)
-        search = " ".join([p.display_name, p.also_known_as or ""] + aliases.get(p.pk, [])).lower()
+        search = " ".join([p.display_name, p.also_known_as or ""]
+                          + aliases.get(p.pk, [])).lower()
         nodes.append({
             "id": p.pk, "name": p.display_name, "initials": _initials(p.display_name),
-            "photo": (p.primary_photo.file.url if (p.primary_photo and p.primary_photo.file) else ""),
+            "photo": (p.primary_photo.file.url
+                      if (p.primary_photo and p.primary_photo.file) else ""),
             "sex": (p.sex or "").upper()[:1],
             "birth": p.birth_year, "death": p.death_year,
             "birth_display": p.display_birth, "death_display": p.display_death,
@@ -436,90 +412,82 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
             fx, fy = cx, cy
 
     # ── Connectors ─────────────────────────────────────────────────────────────
-    # Orthogonal parent→children T's, grouped by the actual parent unit (a couple
-    # draws ONE T to all its children; two non-coupled parents draw separate stems).
-    # Each child's riser carries the bond's TRUTH: solid = biological, dashed =
-    # step / adoptive / foster / guardian.
     edges = []
-    groups = {}   # frozenset(parent members) -> {members, stem_x, p_bottom, kids:[(cid,cx)]}
 
-    def group_for(members):
-        key = frozenset(members)
-        if key not in groups:
-            xs = [coords[m][0] for m in members]
-            groups[key] = {"members": list(members), "stem_x": sum(xs) / len(xs),
-                           "p_bottom": coords[members[0]][2] + CARD_H, "kids": []}
-        return groups[key]
+    def child_style(child, parent_ids):
+        styles = [link_style.get((pp, child)) for pp in parent_ids
+                  if (pp, child) in link_style]
+        if styles and all(s == "dashed" for s in styles):
+            return "dashed"
+        return "solid"
 
-    for cpk in pids:
-        if cpk not in coords:
-            continue
-        pv = [pp for pp in parents.get(cpk, ())
-              if pp in coords and gen.get(pp) == gen.get(cpk) - 1]
-        if not pv:
-            continue
-        pair = None
-        for i in range(len(pv)):
-            for j in range(i + 1, len(pv)):
-                if frozenset((pv[i], pv[j])) in couples:
-                    pair = [pv[i], pv[j]]; break
-            if pair:
-                break
-        if pair:
-            group_for(pair)["kids"].append((cpk, coords[cpk][0]))
-        else:
-            for pp in pv:
-                group_for([pp])["kids"].append((cpk, coords[cpk][0]))
-
-    for grp in groups.values():
-        members, stem_x = grp["members"], grp["stem_x"]
-        p_bottom = grp["p_bottom"]
-        kids = grp["kids"]
+    def draw_T(stem_x, parent_row, child_list, child_row, base="link"):
+        """One orthogonal parent→children T: a stem down from the couple's centre, a
+        bus across the children, a riser to each child (typed by Canonical Truth)."""
+        if not child_list:
+            return
+        p_bottom = (parent_row - min_row) * ROW_STRIDE + CARD_H
+        child_top = (child_row - min_row) * ROW_STRIDE
         bus_y = p_bottom + ROW_GAP / 2.0
-        child_top = p_bottom + ROW_GAP
-        kxs = [kx for _cid, kx in kids]
-        xs = kxs + [stem_x]
-        edges.append({"type": "link", "x1": round(stem_x), "y1": round(p_bottom),
+        xs = [cx for cx, _ in child_list] + [stem_x]
+        edges.append({"type": base, "x1": round(stem_x), "y1": round(p_bottom),
                       "x2": round(stem_x), "y2": round(bus_y)})
-        edges.append({"type": "link", "x1": round(min(xs)), "y1": round(bus_y),
+        edges.append({"type": base, "x1": round(min(xs)), "y1": round(bus_y),
                       "x2": round(max(xs)), "y2": round(bus_y)})
-        for cid, kx in kids:
-            dashed = any(link_style.get((m, cid)) == "dashed" for m in members)
-            edges.append({"type": "link-dashed" if dashed else "link",
-                          "x1": round(kx), "y1": round(bus_y),
-                          "x2": round(kx), "y2": round(child_top)})
+        for cx, style in child_list:
+            edges.append({"type": "link-dashed" if style == "dashed" else "link",
+                          "x1": round(cx), "y1": round(bus_y),
+                          "x2": round(cx), "y2": round(child_top)})
 
+    # Parents → the sibling group (focus + siblings)
+    if bio:
+        stem = sum(coords[b][0] for b in bio) / len(bio)
+        kids = [(coords[c][0], child_style(c, bio))
+                for c in sib_group if c in coords]
+        draw_T(stem, 0, kids, 1)
+
+    # A step-parent's bond, drawn dashed — but ONLY when they aren't already shown as
+    # the spouse of a lineage parent (that couple line already conveys the step context,
+    # so we don't clutter the tree with a long line across the row).
+    for sp, c in step_pairs:
+        if (sp in coords and c in coords and row.get(sp) == 0 and row.get(c) == 1):
+            paired = any(frozenset((sp, rp)) in couples for rp in parents.get(c, ())
+                         if (rp, c) not in step_pairs and rp in coords)
+            if not paired:
+                draw_T(coords[sp][0], 0, [(coords[c][0], "dashed")], 1, base="link-dashed")
+    # Focus couple → children
+    if f_children:
+        fcx = sum(coords[m][0] for m in focus_members if m in coords) / len(focus_members)
+        kids = [(coords[c][0], child_style(c, focus_members)) for c in f_children if c in coords]
+        draw_T(fcx, 1, kids, 2)
+
+    # Couple connectors (typed) — spouses joined by a short horizontal line
     for key, style in couples.items():
         a, b = tuple(key)
-        if a in coords and b in coords and gen.get(a) == gen.get(b):
+        if a in coords and b in coords and row.get(a) == row.get(b):
             edges.append({"type": "couple-" + style,
                           "x1": round(coords[a][0]), "y1": round(coords[a][1]),
                           "x2": round(coords[b][0]), "y2": round(coords[b][1])})
 
-    # ── Generation labels (left gutter) — Ancestry-style, by the focus's name ─────
-    gens_present = sorted(set(gen[p.pk] for p in people))
+    # ── Generation labels (left gutter), Ancestry-style by the focus's name ─────
     self_focus = (focus_pk == me_pk)
-    focus_person = next((p for p in people if p.pk == focus_pk), None)
-    first = (focus_person.display_name.split()[0] if focus_person else "This person")
+    fp = P.get(focus_pk)
+    first = (fp.display_name.split()[0] if fp else "This person")
     whose = "Your" if self_focus else "%s's" % first
+    title_for = {0: "%s parents" % whose,
+                 1: "You & siblings" if self_focus else "%s & siblings" % first,
+                 2: "%s children" % whose}
     labels = []
-    for i, gg in enumerate(gens_present):
-        if gg < 0:
-            title = "%s parents" % whose
-        elif gg == 0:
-            title = "You & siblings" if self_focus else "%s & siblings" % first
-        else:
-            title = "%s children" % whose
-        y = (gg - min_gen) * ROW_STRIDE
-        labels.append({"num": i + 1, "title": title, "y": round(y),
-                       "cy": round(y + CARD_H / 2.0)})
+    for i, rr in enumerate(rows_present):
+        y = (rr - min_row) * ROW_STRIDE
+        labels.append({"num": i + 1, "title": title_for.get(rr, ""),
+                       "y": round(y), "cy": round(y + CARD_H / 2.0)})
 
-    height = (max(gen.values()) - min_gen + 1) * ROW_STRIDE - ROW_GAP if gen else 0
+    height = (rows_present[-1] - min_row + 1) * ROW_STRIDE - ROW_GAP if rows_present else 0
     return {"nodes": nodes, "edges": edges, "labels": labels, "gutter": GUTTER,
             "width": round(max_cx + CARD_W / 2.0),
             "height": round(height), "shown": len(people),
             "focus": focus_pk, "focus_x": round(fx), "focus_y": round(fy), "me": me_pk}
-
 
 def family_search_index(user):
     from apps.legacy.models import Person, RelationshipAlias
@@ -549,7 +517,7 @@ def home_relatives(user):
     me_pk = _resolve_self(user, people)
     if me_pk is None:
         return None
-    parents, children, spouses, _couples, _ls = _edges(user)
+    parents, children, spouses, _couples, _ls, _sp = _edges(user)
 
     def rows(ids):
         return [by_id[i] for i in ids if i in by_id]
@@ -580,7 +548,7 @@ def build_family_view(user, focus_pk=None):
                 "count": 0, "focus": None, "focus_x": 0, "focus_y": 0, "me": None}
 
     by_id = {p.pk: p for p in all_people}
-    parents, children, spouses, couples, link_style = _edges(user)
+    parents, children, spouses, couples, link_style, step_pairs = _edges(user)
     me_pk = _resolve_self(user, all_people)
 
     focus = None
@@ -598,8 +566,8 @@ def build_family_view(user, focus_pk=None):
 
     keep = _neighborhood(focus, parents, children, spouses)
     people = [by_id[pk] for pk in keep if pk in by_id]
-    rp, rc, rs, rcp, rls = _restrict((parents, children, spouses, couples, link_style), keep)
-    graph = _layout(user, people, rp, rc, rs, rcp, rls, focus, me_pk)
+    rp, rc, rs, rcp, rls, rsp = _restrict((parents, children, spouses, couples, link_style, step_pairs), keep)
+    graph = _layout(user, people, rp, rc, rs, rcp, rls, rsp, focus, me_pk)
     graph["count"] = total
 
     def _rows(idset):
@@ -660,10 +628,10 @@ def build_family_graph(user):
     if not people:
         return {"nodes": [], "edges": [], "width": 0, "height": 0, "count": 0,
                 "shown": 0, "me": None, "focus": None, "focus_x": 0, "focus_y": 0}
-    parents, children, spouses, couples, link_style = _edges(user)
+    parents, children, spouses, couples, link_style, step_pairs = _edges(user)
     me_pk = _resolve_self(user, people)
     focus = me_pk or people[0].pk
-    g = _layout(user, people, parents, children, spouses, couples, link_style, focus, me_pk)
+    g = _layout(user, people, parents, children, spouses, couples, link_style, step_pairs, focus, me_pk)
     g["count"] = len(people)
     g["me_x"], g["me_y"] = g["focus_x"], g["focus_y"]
     return g

@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(legacy): Family Tree renderer rebuilt around FAMILY UNITS (rendering only)
+
+Rendering-only rewrite (no Canonical Truth / Relationships / importer changes) so the tree reads as a family, not a row of records. The renderer now builds FAMILY UNITS (a couple and its children) instead of sweeping individuals into rows:
+
+- **Focus centered**; siblings flank it in birth order, each paired with their spouse.
+- **The focus's real parents sit adjacent** ("Danny's parents") and are **centered over the middle of all their children** — so you see at a glance who the parents are.
+- **Children descend from the centre of the focus couple** (Danny + Heather), not spread evenly.
+- **Step-parents & remarriages pair with the person they married** and flank the lineage — a step-parent is no longer mistaken for a third lineage parent (fixed via a new `step_pairs` set from `_edges`: a "stepmother of" is a parent edge, but not a *lineage* parent). A standalone step-parent (not married to a lineage parent) still shows a dashed bond so Canonical Truth is never hidden.
+- **In-law spouses included** (siblings' and children's spouses) so every blood relative reads as a couple, the way a person scans a family.
+- Connectors: one clean orthogonal T per parent-couple → children; typed couple lines; solid = biological/married, dashed = step/adoptive/former. Section labels read "Your parents / You & siblings / Your children" (or "<Name>'s …" off-self).
+
+`_layout` was replaced with a deterministic 3-generation family-unit algorithm (no BFS, no per-row overlap sweep). Verified on the real seed family: parents Marvin+Barbara adjacent and centred over the 4 siblings; Gloria (stepmother) paired with Marvin; Danny centred with Heather beside; Haley+Cole under the couple; **zero overlaps**. Page renders with sex-coloured silhouette avatars and 3 gen-labels. 64 family/graph tests green. No model/migration change.
+
+**Files:** apps/legacy/services/family_tree.py (`_layout` family-unit rewrite, `_neighborhood` adds in-law spouses, `_edges`/`_restrict` add `step_pairs`), apps/legacy/tests/test_relationship_categories.py (`_edges` unpack).
+
+
 ## 2026-07-05 — refine(cos): Executive reasoning structure — assessment → reasoning → action, not question → recommendation
 
 Across production conversations Beth jumped straight from an executive question to a bare fact or a recommendation ("How am I doing?" → health summary; "biggest risk?" → goal update; "opportunity?" → protein rec). An exceptional Chief of Staff first states an ASSESSMENT (the verdict), then the REASONING (why), then the recommended ACTION. This refines HOW the deterministic executive lanes answer — no new engine, smallest safe change.

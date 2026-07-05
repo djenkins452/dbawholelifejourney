@@ -1189,14 +1189,19 @@ a.fam-result { text-decoration: none; }
 .roadmap-status.status-modeled { color: #4a7a3a; }
 .roadmap-recommend { font-size: 12.5px; color: var(--lg-ink-soft); }
 
-/* Likely-marriage review — importer suggests, the user decides */
-.marriage-review { margin-bottom: 22px; }
-.marriage-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.marriage-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--lg-border); }
-.marriage-row:first-child { border-top: 0; }
-.marriage-pair { font-size: 14px; color: var(--lg-ink); display: inline-flex; flex-direction: column; gap: 3px; }
-.marriage-q { font-weight: 600; }
-.marriage-amp { color: var(--lg-muted); }
-.marriage-hint { font-size: 12px; color: var(--lg-muted); font-style: italic; }
-.marriage-actions { display: inline-flex; gap: 8px; }
-.marriage-actions form { margin: 0; }
+/* Clarification engine — "Help Legacy understand": evidence, then a neutral question */
+.clarify-intro { margin: 24px 0 12px; }
+.clarify-card { margin-bottom: 16px; }
+.clarify-reason { font-size: 13.5px; color: var(--lg-ink-soft); margin: 2px 0 14px; }
+.clarify-evidence-wrap { background: var(--lg-surface-2); border: 1px solid var(--lg-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.clarify-evidence-label { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--lg-muted); }
+.clarify-evidence { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.clarify-ev { display: flex; gap: 12px; font-size: 13.5px; }
+.clarify-ev-k { flex: 0 0 128px; color: var(--lg-muted); }
+.clarify-ev-v { color: var(--lg-ink); font-weight: 500; }
+.clarify-prompt { font-family: var(--lg-serif); font-size: 16px; color: var(--lg-ink); margin: 0 0 10px; }
+.clarify-opts { display: flex; flex-direction: column; gap: 9px; margin-bottom: 16px; }
+.clarify-opt { display: inline-flex; align-items: center; gap: 9px; font-size: 14px; color: var(--lg-ink); cursor: pointer; }
+.clarify-opt input { width: 17px; height: 17px; accent-color: var(--lg-accent, #b07a2b); }
+.clarify-detail { margin-top: 2px; margin-left: 26px; max-width: 340px; padding: 8px 11px; border: 1px solid var(--lg-border); border-radius: 9px; font-size: 14px; background: var(--lg-surface); color: var(--lg-ink); }
+.clarify-submit { align-self: flex-start; }

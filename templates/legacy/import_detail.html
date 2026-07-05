@@ -70,26 +70,38 @@
     {% endif %}
 
     {% if clarifications %}
-    <section class="lg-card marriage-review">
-        <div class="import-coverage-head">
-            <h3 class="lg-card-h">A few things to clarify</h3>
-            <p class="editor-aside-note">Legacy preserves what the file actually records and never guesses. These couples raised a family together but the file has no marriage record, so Legacy can't tell either way. You decide — the rest stay as they are.</p>
+    <div class="clarify-intro">
+        <h2 class="lg-section-title">Help Legacy understand</h2>
+        <p class="editor-aside-note">Legacy preserves exactly what the file records and never guesses. Here are the things it couldn't determine on its own — the evidence it found, and a question. You teach Legacy the answer, and it won't ask again.</p>
+    </div>
+    {% for c in clarifications %}
+    <section class="lg-card clarify-card">
+        <h3 class="lg-card-h">{{ c.title }}</h3>
+        <p class="clarify-reason">{{ c.reason }}.</p>
+        <div class="clarify-evidence-wrap">
+            <span class="clarify-evidence-label">Legacy found</span>
+            <ul class="clarify-evidence">
+                {% for e in c.evidence %}
+                <li class="clarify-ev"><span class="clarify-ev-k">{{ e.label }}</span><span class="clarify-ev-v">{% if e.href %}<a href="{{ e.href }}" class="lg-link">{{ e.value }}</a>{% else %}{{ e.value }}{% endif %}</span></li>
+                {% endfor %}
+            </ul>
         </div>
-        <ul class="marriage-list">
-            {% for c in clarifications %}
-            <li class="marriage-row">
-                <span class="marriage-pair">
-                    <span class="marriage-q">{{ c.question }}</span>
-                    <span class="marriage-hint">{{ c.reason }}</span>
-                </span>
-                <span class="marriage-actions">
-                    <form method="post" action="{% url 'legacy:import_clarify' batch.pk c.ref %}">{% csrf_token %}<input type="hidden" name="answer" value="yes"><button type="submit" class="lg-btn-quiet">Yes, married</button></form>
-                    <form method="post" action="{% url 'legacy:import_clarify' batch.pk c.ref %}">{% csrf_token %}<input type="hidden" name="answer" value="no"><button type="submit" class="lg-btn-ghost">No, co-parents</button></form>
-                </span>
-            </li>
-            {% endfor %}
-        </ul>
+        <form method="post" action="{% url 'legacy:import_clarify' batch.pk c.kind c.ref %}" class="clarify-form">
+            {% csrf_token %}
+            <p class="clarify-prompt">{{ c.prompt }}</p>
+            <div class="clarify-opts">
+                {% for o in c.options %}
+                <label class="clarify-opt"><input type="radio" name="answer" value="{{ o.value }}"> <span>{{ o.label }}</span></label>
+                {% endfor %}
+                {% if c.allow_other %}
+                <label class="clarify-opt"><input type="radio" name="answer" value="other"> <span>{{ c.other_label }}</span></label>
+                <input type="text" name="detail" class="clarify-detail" placeholder="If other, describe the relationship" maxlength="60" autocomplete="off">
+                {% endif %}
+            </div>
+            <button type="submit" class="lg-btn-primary clarify-submit">Teach Legacy</button>
+        </form>
     </section>
+    {% endfor %}
     {% endif %}
 
     {% if batch.coverage.needs_support or batch.coverage.unknown or batch.coverage.supported %}

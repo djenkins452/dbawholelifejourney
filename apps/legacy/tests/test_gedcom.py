@@ -471,26 +471,71 @@ class ClarificationEngineTests(TestCase):
         return Relationship.objects.filter(user=self.user, relationship_type__icontains="married").filter(
             Q(from_person=a, to_person=b) | Q(from_person=b, to_person=a)).exists()
 
-    def test_gap_becomes_a_question_not_a_marriage(self):
+    def _q(self):
         from apps.legacy.services import clarification
+        return clarification.pending(self.batch)
+
+    def test_gap_is_a_non_leading_question_with_evidence(self):
         marvin, barbara = self._pair()
         self.assertFalse(self._married(marvin, barbara))          # NOTHING asserted
-        q = clarification.pending(self.batch)
-        self.assertEqual(len(q), 1)                               # a question is raised
-        self.assertEqual(q[0]["kind"], "marriage")
-        self.assertEqual({q[0]["husband"].pk, q[0]["wife"].pk}, {marvin.pk, barbara.pk})
-        self.assertIn("3 shared children", q[0]["reason"])        # internal reason for asking
+        q = self._q()
+        self.assertEqual(len(q), 1)
+        item = q[0]
+        self.assertEqual(item["kind"], "marriage_status")
+        # Non-leading: the prompt must not suggest an answer ("married").
+        self.assertNotIn("married", item["prompt"].lower())
+        self.assertEqual(item["prompt"], "How should Legacy represent this relationship?")
+        # Evidence explains WHY Legacy is asking (both people, the counts, the source).
+        ev = {(e["label"], e["value"]) for e in item["evidence"]}
+        self.assertIn(("Person", "Marvin Lynn Jenkins"), ev)
+        self.assertIn(("Person", "Barbara Jean Dorff"), ev)
+        self.assertIn(("Shared children", "3"), ev)
+        self.assertIn(("Marriage record", "None in the imported file"), ev)
+        # Neutral options incl. free-text Other.
+        vals = {o["value"] for o in item["options"]}
+        self.assertEqual(vals, {"married", "former", "never", "partner"})
+        self.assertTrue(item["allow_other"])
 
-    def test_answer_yes_records_marriage(self):
+    def test_dispatch_by_kind_and_answer_married(self):
         from apps.legacy.services import clarification
         marvin, barbara = self._pair()
-        clarification.resolve(self.batch, clarification.pending(self.batch)[0]["ref"], "yes")
+        item = self._q()[0]
+        self.assertTrue(clarification.resolve(self.batch, item["kind"], item["ref"], "married"))
         self.assertTrue(self._married(marvin, barbara))           # now in Canonical Truth
-        self.assertEqual(clarification.pending(self.batch), [])   # question resolved
+        self.assertEqual(self._q(), [])                           # never asked again
 
-    def test_answer_no_keeps_co_parents(self):
+    def test_answer_never_keeps_co_parents(self):
         from apps.legacy.services import clarification
         marvin, barbara = self._pair()
-        clarification.resolve(self.batch, clarification.pending(self.batch)[0]["ref"], "no")
-        self.assertFalse(self._married(marvin, barbara))          # still just co-parents
-        self.assertEqual(clarification.pending(self.batch), [])   # not asked again
+        item = self._q()[0]
+        clarification.resolve(self.batch, item["kind"], item["ref"], "never")
+        self.assertFalse(self._married(marvin, barbara))          # co-parents only
+        self.assertEqual(self._q(), [])                           # not asked again
+
+    def test_answer_partner_records_domestic_partner(self):
+        from apps.legacy.models import Relationship
+        from apps.legacy.services import clarification
+        marvin, barbara = self._pair()
+        item = self._q()[0]
+        clarification.resolve(self.batch, item["kind"], item["ref"], "partner")
+        self.assertTrue(Relationship.objects.filter(
+            user=self.user, from_person=marvin, to_person=barbara,
+            relationship_type="domestic partner of").exists())
+        self.assertEqual(self._q(), [])
+
+    def test_answer_other_uses_free_text(self):
+        from apps.legacy.models import Relationship
+        from apps.legacy.services import clarification
+        marvin, barbara = self._pair()
+        item = self._q()[0]
+        clarification.resolve(self.batch, item["kind"], item["ref"], "other", "engaged to")
+        self.assertTrue(Relationship.objects.filter(
+            user=self.user, from_person=marvin, to_person=barbara,
+            relationship_type="engaged to").exists())
+        self.assertEqual(self._q(), [])
+
+    def test_unknown_kind_is_ignored(self):
+        from apps.legacy.services import clarification
+        item = self._q()[0]
+        self.assertFalse(clarification.resolve(self.batch, "not_a_type", item["ref"], "married"))
+        self.assertEqual(len(self._q()), 1)                       # still open

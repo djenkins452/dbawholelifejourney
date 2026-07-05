@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-04 — feat(legacy): Universal Clarification Engine — evidence-first, non-leading, teach-once (D1)
+
+Turned the marriage-specific clarification into a general **ambiguity-resolution engine** — a permanent platform capability. Responsibilities stay separate: Importer preserves evidence, Discovery extracts meaning, the Clarification Engine resolves ambiguity, Canonical Truth stores only confirmed facts.
+
+- **Never leads.** Replaced the biasing "Were X and Y married?" with **"Help Legacy understand this relationship"** → a neutral prompt ("How should Legacy represent this relationship?") and neutral options: **Married / Formerly married / Never married / Domestic partner / Other relationship** (free text). Legacy presents evidence; the user supplies truth.
+- **Explains WHY it's asking.** Every clarification carries the evidence that caused the ambiguity ("Legacy found": both people, shared-children count, "no marriage record", the **source file**, and the **original GEDCOM record**) plus a one-line reason. Nothing is lost — the clarification is another layer over the preserved evidence.
+- **Universal, not marriage-specific.** New `apps/legacy/services/clarification.py` is a handler **registry** with a shared evidence contract, `pending(batch)`, and `resolve(batch, kind, ref, answer, detail)` dispatched by `kind`. `MarriageClarification` (`kind='marriage_status'`) is the FIRST registered type; future types (who is 'Dad', story-vs-fact, duplicate people, same place, relationship type, …) plug in the same way and reuse the same UI. The view (`ClarificationResolveView`, url `import_clarify/<kind>/<ref>`) is type-agnostic.
+- **Two states only.** Known / Needs Clarification. Answering writes the confirmed fact into Canonical Truth (`married to` / `former spouse of` / `domestic partner of` / free-text, or none for "never married") and remembers it (`marriage_clarified` on the chunk) — the same question is never asked again. Teach-once.
+
+CSP-safe (native radios + POST forms, no inline handlers — verified). Migration 0025 already clarification-aware. Verified on real data: Marvin + Barbara (4 shared children, no MARR) render the full "Help Legacy understand" card; the resolve round-trip through the real view records the answer and clears the question. 78 legacy tests green.
+
+**Files:** apps/legacy/services/clarification.py (registry + MarriageClarification), apps/legacy/services/gedcom_parser.py, apps/legacy/services/import_engine.py, apps/legacy/views.py, apps/legacy/urls.py, templates/legacy/import_detail.html, static/css/legacy.css (v43), apps/legacy/tests/test_gedcom.py.
+
+
 ## 2026-07-04 — fix(cos): the LLM conversation path now sees today's reported evidence (root cause)
 
 Production contradicted the architecture proof: the merge reached only the deterministic composers (compose_executive_brief, decision_support) via interpret()->ExecutiveSignals. The path that talks to Danny is the LLM, whose context is cos_context (SAE + engine outputs). It never calls interpret(), never gets ExecutiveSignals, never read executive_evidence — so reported evidence was invisible to it.

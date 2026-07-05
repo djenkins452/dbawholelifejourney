@@ -1390,18 +1390,19 @@ class GenealogyCommitView(LegacyContextMixin, View):
 
 
 class ClarificationResolveView(LegacyContextMixin, View):
-    """Resolve a clarification question the engine raised. The user answers; Legacy
-    writes the answer into Canonical Truth — it never guesses on the user's behalf."""
+    """Resolve any clarification the engine raised (marriage today, more later). The
+    user teaches Legacy; Legacy writes the answer into Canonical Truth and never asks
+    again. The engine dispatches by `kind` — this view is not type-specific."""
 
-    def post(self, request, pk, ref, *args, **kwargs):
+    def post(self, request, pk, kind, ref, *args, **kwargs):
         from apps.legacy.services import clarification
         batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
-        answer = "yes" if request.POST.get("answer") == "yes" else "no"
-        clarification.resolve(batch, int(ref), answer)
-        if answer == "yes":
-            messages.success(request, "Recorded as married.")
+        answer = (request.POST.get("answer") or "").strip()
+        detail = (request.POST.get("detail") or "").strip()
+        if clarification.resolve(batch, kind, ref, answer, detail):
+            messages.success(request, "Thanks — Legacy learned that and won't ask again.")
         else:
-            messages.info(request, "Left unmarried — they remain co-parents.")
+            messages.error(request, "Please choose how Legacy should represent this.")
         return redirect("legacy:import_detail", pk=batch.pk)
 
 

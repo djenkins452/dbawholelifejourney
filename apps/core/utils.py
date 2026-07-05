@@ -206,6 +206,47 @@ def classify_time_status(due_date, scheduled_time, user_now, grace_minutes=0):
         }
 
 
+def coerce_to_time(value):
+    """Coerce a time-like input to a ``datetime.time`` (or None).
+
+    Normalize-at-the-boundary helper: callers throughout WLJ legitimately pass a
+    ``datetime.time``, a ``datetime.datetime``, or a string ("06:00",
+    "06:00:00", "6:00 AM", "6:00AM"). Rather than require every caller to parse
+    first, coerce here. An unparseable / empty value returns None (never raises).
+    """
+    import datetime
+
+    if value is None:
+        return None
+    if isinstance(value, datetime.datetime):
+        return value.time()
+    if isinstance(value, datetime.time):
+        return value
+
+    s = str(value).strip()
+    if not s:
+        return None
+
+    # 24-hour forms ("06:00", "06:00:00") via Django's canonical parser.
+    # parse_time raises ValueError on a matched-but-invalid time (e.g. "25:99");
+    # treat that as unparseable rather than propagating.
+    from django.utils.dateparse import parse_time
+    try:
+        parsed = parse_time(s)
+    except (ValueError, TypeError):
+        parsed = None
+    if parsed is not None:
+        return parsed
+
+    # 12-hour forms ("6:00 AM", "6:00AM", "6 AM").
+    for fmt in ("%I:%M %p", "%I:%M%p", "%I %p", "%I%p"):
+        try:
+            return datetime.datetime.strptime(s.upper(), fmt).time()
+        except ValueError:
+            continue
+    return None
+
+
 def normalize_to_quarter_hour(t):
     """
     Round a time to the nearest 15-minute increment (00, 15, 30, 45).
@@ -217,11 +258,12 @@ def normalize_to_quarter_hour(t):
         - If hour overflows past 23, wrap to 00:00
 
     Args:
-        t: datetime.time instance, or None
+        t: datetime.time instance, a time string ('06:00', '6:00 AM'), or None
 
     Returns:
         datetime.time rounded to nearest quarter-hour, or None if input is None
     """
+    t = coerce_to_time(t)
     if t is None:
         return None
 

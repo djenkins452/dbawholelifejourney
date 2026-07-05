@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(life): normalize_to_quarter_hour coerces string scheduled_time (CI red)
+
+**Root cause:** `RoutineSchedule.save()` (`apps/life/models.py:2713`) calls `normalize_to_quarter_hour(self.scheduled_time)`, which computed `t.hour * 60 + t.minute` directly. When a caller (or test) sets `scheduled_time` as a string like `'06:00'` instead of a `datetime.time`, this raised `AttributeError: 'str' object has no attribute 'hour'`. This committed-on-main bug produced 7 errors in `apps/life/tests/test_recurring_delete.py` (TestRoutineScheduleDeactivation + TestEnsureRoutineTasksEndDate, which create schedules with `scheduled_time='06:00'`) and was keeping CI red.
+
+**Fix (normalize at the boundary):** added a `coerce_to_time()` helper in `apps/core/utils.py` that accepts a `datetime.time`, a `datetime.datetime`, or a string (`'06:00'`, `'06:00:00'`, `'6:00 AM'`, `'6:00AM'`, `'6 AM'`) and returns a `datetime.time` (or None; never raises). `normalize_to_quarter_hour` now coerces its input through it before rounding, so any caller passing a string time is handled instead of crashing.
+
+**Files:** `apps/core/utils.py`.
+
+**Verification:** `apps.life.tests.test_recurring_delete` → 21/21 OK (the 7 previously-erroring tests pass); full `apps.life.tests` sweep → 764 tests OK, 0 failures; `manage.py check` clean; no model changes (no migration needed).
+
 ## 2026-07-05 — fix(cos): Evidence Integrity scope — Layer 1+2 certification restored (release blocker)
 
 **Root cause (governing capability that regressed):** the Evidence Integrity Validation gate (`apps/core/truth/integrity.py`, introduced in `9464c161`) lost its *claim scope*. It began applying provenance/currency invariants to claims that are not provenance/current claims, so it hijacked deterministic answers with the "…something doesn't add up… previous isn't older than current" investigation message. Two conflations:

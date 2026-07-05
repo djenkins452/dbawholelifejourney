@@ -535,10 +535,25 @@ def _build_mission_card(user) -> dict | None:
     if snap and snap.momentum_trend:
         momentum = _MOMENTUM_DISPLAY.get(snap.momentum_trend)
 
+    # Current metric truth (weight) — so mission commentary reconciles a
+    # milestone reached in the PAST against the mission's CURRENT state
+    # (Dashboard Truth). Read-only; the SAE cache is primed so this is ~free and
+    # reads the same canonical snapshot the Weight Status block below uses.
+    _current_weight = None
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        _current_weight = (
+            get_module_state(user, "health", allow_rebuild=False) or {}
+        ).get("weight_current")
+    except Exception:
+        logger.debug("mission: current-weight read skipped", exc_info=True)
+
     # Deterministic MISSION-PROGRESS read (milestone events + pace vs plan) —
     # the executive axis that complements habit-momentum. Computed ONCE here and
     # shared by both the panel and the status classifier so they always agree.
-    progress_read = _mission_progress_read(goal, nm, today)
+    progress_read = _mission_progress_read(
+        goal, nm, today, current_weight=_current_weight
+    )
 
     # "How things are going" panel — always present for an active mission. A
     # live progress event (milestone reached / behind plan) LEADS; otherwise it
@@ -651,6 +666,16 @@ def _build_mission_panel(goal, snap, progress: dict | None = None) -> dict:
     """
     prog = progress or {}
     if prog.get("event") == "milestone_reached":
+        # Dashboard Truth: reached in the past, but the current metric no longer
+        # holds it → describe the CURRENT state, achievement as context.
+        if prog.get("last_holds") is False:
+            fluc = (prog.get("last_overage") or 0.0) <= _WEIGHT_FLUCTUATION_LB
+            return {
+                "label": "Holding steady" if fluc else "Slipping",
+                "trend": "flat" if fluc else "down",
+                "narrative": _reconciled_milestone_text(prog),
+                "is_fallback": False,
+            }
         if prog.get("pace") == "ahead":
             traj = "You're ahead of your plan."
         else:
@@ -1136,8 +1161,82 @@ def _evaluate_mission_signals(states: dict, phase: str = "foundation") -> list[d
 
 _RECENT_MILESTONE_DAYS = 14  # a completion within this window is "what changed"
 
+# A weight this far ABOVE a just-cleared weight target reads as normal daily
+# variance (water weight swings ~1–3 lb), not a real regression. Deterministic,
+# defensible line for the Dashboard-Truth reconciliation below.
+_WEIGHT_FLUCTUATION_LB = 2.0
 
-def _mission_progress_read(goal, next_milestone, today) -> dict:
+
+def _reconcile_last_milestone(out, milestone, current_weight) -> None:
+    """Dashboard Truth: decide whether the most-recent CLEARED milestone still
+    describes the mission's CURRENT state, or is only historically true.
+
+    A milestone completion is one-way for title-form weight rungs (they never
+    auto-uncomplete — see objective_weight_milestones), so ``completed=True`` can
+    outlive the metric that earned it. Here we re-check the last cleared WEIGHT
+    milestone against the CURRENT weight (read-only, no write):
+
+      · ``last_holds=True``  — current weight still ≤ the cleared target (a real,
+        current win).
+      · ``last_holds=False`` — weight has climbed back above it; the achievement
+        is context, not the present state. Consumers reframe.
+      · ``last_holds=None``  — not a measurable weight milestone, or no current
+        weight; behaviour is unchanged (we never contradict without truth).
+    """
+    if current_weight is None or milestone is None:
+        return
+    try:
+        from decimal import Decimal
+        from apps.purpose.services.objective_weight_milestones import (
+            _parse_weight_target_from_title,
+        )
+        target = milestone.objective_target_value
+        if target is None:
+            # Title-form weight rung ("Goal Weight of 284.9") — same conservative
+            # parse the evaluator + goal_pace use, so we agree on the target.
+            target = _parse_weight_target_from_title(milestone.title)
+        if target is None:
+            return  # Not a weight-measurable milestone — leave celebratory read.
+        cur = Decimal(str(current_weight))
+        tgt = Decimal(str(target))
+        out["last_current"] = float(cur)
+        out["last_target"] = float(tgt)
+        out["last_holds"] = cur <= tgt   # weight goal → 'lte' (reach a lower #)
+        out["last_overage"] = float(cur - tgt) if cur > tgt else 0.0
+    except Exception:
+        logger.debug("mission milestone reconcile failed", exc_info=True)
+
+
+def _when_phrase(days) -> str:
+    return ("today" if days is not None and days <= 0
+            else "yesterday" if days == 1 else f"{days} days ago")
+
+
+def _reconciled_milestone_text(prog) -> str:
+    """Dashboard-Truth narrative for a milestone reached in the past that the
+    CURRENT metric no longer holds: acknowledge the achievement (as context),
+    state the current value, interpret the gap deterministically, name the next
+    focus. Shared by the panel and the status classifier so they always agree.
+    Every clause names real, deterministic truth — nothing fabricated.
+    """
+    when = _when_phrase(prog.get("last_days_ago"))
+    cur = prog.get("last_current")
+    over = prog.get("last_overage") or 0.0
+    cur_txt = f"{cur:g}" if isinstance(cur, (int, float)) else "—"
+    if over <= _WEIGHT_FLUCTUATION_LB:
+        interp = "a normal short-term fluctuation"
+    else:
+        interp = f"{over:g} lb above it — worth refocusing"
+    parts = [
+        f"You reached “{prog.get('last_title')}” {when}. "
+        f"Current weight is {cur_txt}, {interp}."
+    ]
+    if prog.get("next_title"):
+        parts.append(f"Keep an eye on the trend toward {prog['next_title']}.")
+    return " ".join(parts)
+
+
+def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> dict:
     """Deterministic MISSION-PROGRESS assessment — the axis an executive judges a
     mission by (milestones cleared / pace vs plan), complementing the HABIT
     momentum signals. Reads only GoalMilestone truth already on the goal
@@ -1155,6 +1254,11 @@ def _mission_progress_read(goal, next_milestone, today) -> dict:
         "last_on_time": None, "completed": 0, "total": 0,
         "next_title": None, "next_overdue": False, "next_days_overdue": None,
         "pace": None,
+        # Dashboard-Truth reconciliation of the last cleared milestone vs the
+        # CURRENT metric (see _reconcile_last_milestone). last_holds: True (still
+        # held) / False (regressed above it) / None (not measurable / unknown).
+        "last_holds": None, "last_current": None, "last_target": None,
+        "last_overage": None,
     }
     try:
         out["total"] = goal.milestone_count
@@ -1187,6 +1291,10 @@ def _mission_progress_read(goal, next_milestone, today) -> dict:
                 -1 <= out["last_days_ago"] <= _RECENT_MILESTONE_DAYS:
             out["event"] = "milestone_reached"
             out["pace"] = "ahead" if out["last_on_time"] else "recovering"
+            # Dashboard Truth: reconcile the cleared milestone against the
+            # CURRENT metric. A weight milestone the current weight no longer
+            # satisfies is history (context), not the mission's present state.
+            _reconcile_last_milestone(out, last, current_weight)
         elif out["next_overdue"]:
             out["event"] = "behind"
             out["pace"] = "behind"
@@ -1208,6 +1316,10 @@ def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
     event = prog.get("event")
 
     if event == "milestone_reached":
+        # Dashboard Truth: if the current metric no longer holds the cleared
+        # milestone, the present state — not the past achievement — drives it.
+        if prog.get("last_holds") is False:
+            return _reconciled_milestone_text(prog)
         days = prog.get("last_days_ago")
         when = ("today" if days is not None and days <= 0
                 else "yesterday" if days == 1 else f"{days} days ago")
@@ -1290,8 +1402,16 @@ def _build_mission_status(goal, snap, signals: list[dict], today,
     # deterministic events, so they take precedence; we fall through to the
     # habit-trend classification ONLY when there is no live progress event.
     if prog_event == "milestone_reached":
-        state = (_STATE_AHEAD_OF_PLAN if prog.get("pace") == "ahead"
-                 else _STATE_MILESTONE_WIN)
+        if prog.get("last_holds") is False:
+            # Reached historically, but the current metric has regressed above
+            # it — NOT a present win. Steady for a small fluctuation, Slipping
+            # for a real drift. The narrative reconciles the two.
+            over = prog.get("last_overage") or 0.0
+            state = (_STATE_MAINTAINING if over <= _WEIGHT_FLUCTUATION_LB
+                     else _STATE_SLIPPING)
+        else:
+            state = (_STATE_AHEAD_OF_PLAN if prog.get("pace") == "ahead"
+                     else _STATE_MILESTONE_WIN)
     elif prog_event == "behind":
         state = _STATE_BEHIND_PLAN
     elif trend == "rising":

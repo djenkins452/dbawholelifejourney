@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(dashboard): Mission Truth — "How Things Are Going" reconciles milestone HISTORY with CURRENT state
+
+**Problem:** the mission "How things are going" panel said "Milestone reached — you cleared 'Goal Weight 284.9'" while current weight was 285.3. Historically true, but not the mission's CURRENT state.
+
+**Root cause:** the mission commentary is driven purely by milestone COMPLETION HISTORY. `_mission_progress_read` fires `event="milestone_reached"` whenever a milestone's `completed_date` is within a 14-day window — it never re-checks whether the current metric still holds it. And title-form weight rungs (the common shape, `objective_metric=None`) complete **one-way — they never auto-uncomplete** (`objective_weight_milestones` only auto-uncompletes the rare `objective_*`-wired rung), so `completed=True` outlives the weight that earned it. All three consumers (the panel, the status classifier's state, and the status narrative) then present that stale history as the present state (celebratory MILESTONE_WIN / "up").
+
+**Fix (read-only, at the single choke point):** `_mission_progress_read` now reconciles the last cleared milestone against the CURRENT metric (`_reconcile_last_milestone`, using the same weight source the Weight Status block reads + the same title-parse the evaluator uses). New `last_holds` (True held / False regressed / None not-measurable) drives all three consumers:
+- **Panel:** regressed → "Holding steady" (flat) / "Slipping" (down) instead of "Milestone reached" (up).
+- **State classifier:** regressed → MAINTAINING (≤2 lb, normal daily variance) or SLIPPING (real drift), never a celebratory WIN.
+- **Narrative:** *"You reached 'Goal Weight 284.9' 3 days ago. Current weight is 285.3, a normal short-term fluctuation. Keep an eye on the trend toward Goal Weight 279.9."* — history as context, current state drives the message.
+- Held (current ≤ target), no current weight, and non-weight milestones are byte-identical to before — we never contradict without deterministic truth.
+
+**Broader audit (per the ask):** every other dashboard commentary that references achievements is already current-state-driven — streaks are gated by "days since reading ≤ 2", standing wins (`_merge_standing_wins`) filter to `direction == "improving"` from current SAE state, the Weight Status block tones off current-vs-target, and the victory count is an explicit "wins logged along the way" history trophy (context, correctly framed). The mission panel was the sole outlier because milestone completion is one-way.
+
+**Files:** apps/dashboard_v3/services/composer.py; apps/dashboard_v3/tests/test_mission_truth_reconciliation.py (7 tests). 343 dashboard_v3 + cos_briefing tests green — the change is additive (unchanged unless the current metric contradicts a recent milestone).
+
+
 ## 2026-07-05 — fix(cos): Executive State Reconciliation — accept new evidence, update the picture, continue
 
 **Root cause (proven by trace):** When the user supplied trustworthy evidence that a surfaced item was not today's priority — *"I don't really need one. I showered late yesterday. Too late to Measure, that's a first-thing-in-the-morning activity like weighing in."* — Beth had **no lane that reconciles executive state**. The `weight_history` lane's over-broad cues (`weight`/`weigh`/`weighed`) matched "weighing in," resolved "yesterday," and returned **"On Saturday, July 4 you weighed 284.4 lb"** — a category error (a deferral REASON read as a retrieval query). The corrective "That's not what I was saying" then matched no lane and fell to the tool-loop's `_emergency_fallback` → **"I couldn't pull that together."** `decision_support` recognizes voiced *decisions* (abandon/skip/end-of-day) but not evidence-corrections; `accomplishment` is workout-only. The reconciliation substrate (the `executive_evidence` store that `interpret()` merges) existed but only carried workout accomplishments + subjective energy — it could not defer an arbitrary item.

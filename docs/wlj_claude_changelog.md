@@ -22,6 +22,8 @@ The async/Celery work did not fix the live symptom (dashboard 5–7s, task compl
 
 **Files:** apps/health/medicine_utils.py, apps/dashboard_v3/services/composer.py. 388 tests green (medicine adherence, medicine SAE extensions, dashboard_v3, cos_briefing) — the fix is behavior-identical.
 
+**Enforcement (so it can't silently regress):** `apps/health/tests/test_adherence_query_budget.py` asserts the IntakeSchedule query count for an adherence calc does NOT grow with the date range (1-day vs 60-day must match) and that 30-day adherence stays under 10 schedule queries. Proven to bite: reintroducing the per-day `.filter()` makes 60-day = 121 vs 1-day = 3 and the test fails with the exact diagnosis. This is the query-count analogue of the request-path safety contract test — the N+1 class an AST scan can't catch.
+
 
 ## 2026-07-05 — fix(cos): Executive judgment — health-critical actions outrank routine/convenience (overdue meds lead)
 

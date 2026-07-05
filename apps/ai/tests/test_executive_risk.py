@@ -56,7 +56,9 @@ class ExecutiveRiskTests(TestCase):
         with mock.patch(_DOSES, return_value=[]), mock.patch(_INTEL, return_value=_intel(risks=risks)):
             ans = _deterministic_risk_answer(self.user).lower()
         self.assertIn("protein", ans)
-        self.assertIn("basis:", ans)
+        self.assertIn("nutrition insight", ans)          # the basis is cited (reasoning)
+        # ASSESSMENT (the risk) precedes the reasoning (the basis)
+        self.assertLess(ans.index("protein"), ans.index("nutrition insight"))
 
     def test_at_risk_decision_used_when_no_higher_risk(self):
         with mock.patch(_DOSES, return_value=[]), mock.patch(_INTEL, return_value=_intel()), \
@@ -64,7 +66,7 @@ class ExecutiveRiskTests(TestCase):
                                                     "reason": "it was due yesterday"}):
             ans = _deterministic_risk_answer(self.user).lower()
         self.assertIn("q3 review", ans)
-        self.assertIn("biggest risk", ans)
+        self.assertIn("at risk", ans)
 
     def test_no_meaningful_risk_explains_why_and_offers_opportunity(self):
         opps = [{"text": "workout consistency up 40%"}]

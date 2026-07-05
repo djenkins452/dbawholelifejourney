@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — refine(cos): Executive reasoning structure — assessment → reasoning → action, not question → recommendation
+
+Across production conversations Beth jumped straight from an executive question to a bare fact or a recommendation ("How am I doing?" → health summary; "biggest risk?" → goal update; "opportunity?" → protein rec). An exceptional Chief of Staff first states an ASSESSMENT (the verdict), then the REASONING (why), then the recommended ACTION. This refines HOW the deterministic executive lanes answer — no new engine, smallest safe change.
+
+- New `apps/ai/chatgpt_cos/executive_reasoning.py :: frame(assessment, reasoning, action)` — the one place the ASSESSMENT → REASONING → ACTION order is enforced. A pure formatter (invents nothing; each lane supplies the parts from deterministic truth; assessment always leads; parts capitalize as their own sentences).
+- The deterministic executive lanes now answer through it: `_deterministic_risk_answer` and `_deterministic_priority_answer` (the `executive_risk` and `priority_now` lanes) lead with the assessment, then the evidence, then the action — for every source path (health-critical, computed risk intelligence, at-risk/execution decision, rhythm, canonical, and the no-risk case).
+
+Certified: "biggest risk?" → "The biggest risk on my radar today is protein has been well below target for 3 weeks. That's a flagged nutrition insight at high confidence. I'd get ahead of it before it compounds." (assessment → reasoning → action); "most important thing right now?" → "The highest-leverage move right now is to finish the Q3 report. It's due today. Start there before anything else." — no longer a bare fact or an action-first recommendation. Regression `apps/ai/tests/test_executive_reasoning.py` (6, incl. the order is assessment→reasoning→action) + `test_executive_risk.py` updated to assert the order. 54 across executive-reasoning + executive-risk + overview/priority + health-critical + conversation-lanes GREEN. No model change, no migration.
+
+Scope note: the deterministic executive lanes (risk, priority) are restructured here; "Overall" already leads with an orientation/thesis, and the LLM-answered questions (opportunity/pattern/why) already lead with `interpret().executive_picture` (an assessment). Extending `frame()` to those is additive when production evidence calls for it.
+
+**Files:** apps/ai/chatgpt_cos/executive_reasoning.py (new), apps/ai/chatgpt_cos/lanes.py, apps/ai/tests/test_executive_reasoning.py (new), apps/ai/tests/test_executive_risk.py.
+
+
 ## 2026-07-05 — feat(legacy): Family View — Ancestry-style sex-coloured avatars + focus-named section labels
 
 Brought the Family View closer to the Ancestry.com look Danny likes:

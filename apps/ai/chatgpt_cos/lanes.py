@@ -326,13 +326,16 @@ def _deterministic_priority_answer(user):
     """The single most important action, gracefully degrading through deterministic
     sources — NEVER an error. Order: health-critical → execution decision (selectors) →
     rhythm → canonical last resort. Never returns None."""
+    from apps.ai.chatgpt_cos.executive_reasoning import frame
     # 1) HEALTH-CRITICAL time-sensitive actions outrank everything.
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import _health_critical_actions
         hc = _health_critical_actions(user)
         if hc:
-            return (f"Right now, the single most important thing is to handle {hc[0]['text']} "
-                    f"— {hc[0]['why']}. Do that first.")
+            return frame(
+                assessment=f"The single most important thing right now is health-critical — {hc[0]['text']}",
+                reasoning=hc[0]["why"],
+                action="Do that first")
     except Exception:
         logger.warning("priority_now: health-critical failed", exc_info=True)
     # 2) The canonical deterministic execution decision (build_execution_state → selector).
@@ -344,9 +347,11 @@ def _deterministic_priority_answer(user):
                     "nothing to do", "nothing right now")
         if msg and not any(k in msg.lower() for k in _nothing):
             reason = (d.get("reason") or "").strip()
-            tail = f" — {reason.rstrip('.')}" if reason and reason.lower() not in msg.lower() else ""
             action = msg[0].lower() + msg[1:] if msg[:1].isupper() and " " in msg else msg
-            return f"The single most important thing right now is to {action}{tail}."
+            return frame(
+                assessment=f"The highest-leverage move right now is to {action}",
+                reasoning=reason if reason and reason.lower() not in msg.lower() else None,
+                action="Start there before anything else")
     except Exception:
         logger.warning("priority_now: execution decision failed", exc_info=True)
     # 3) Rhythm — the current scheduled item.
@@ -354,13 +359,16 @@ def _deterministic_priority_answer(user):
         from apps.core.cos_briefing.rhythm_api import get_current_rhythm_item
         item = get_current_rhythm_item(user)
         if item and (item.get("title") or "").strip():
-            return f"Right now, focus on {item['title'].strip()} — it's what's in front of you."
+            return frame(
+                assessment=f"Right now, the thing in front of you is {item['title'].strip()}",
+                action="that's the best use of this moment")
     except Exception:
         logger.warning("priority_now: rhythm failed", exc_info=True)
     # 4) Canonical last resort — a deterministic, honest answer, never an error.
-    return ("Right now, take the next concrete step on today's top commitment. If nothing "
-            "is scheduled, the highest-value move is a quick reset — water, a short walk, "
-            "or your most important task — so you start the next block with momentum.")
+    return frame(
+        assessment="Right now, the best move is the next concrete step on today's top commitment",
+        action=("if nothing's scheduled, a quick reset — water, a short walk, or your most "
+                "important task — starts the next block with momentum"))
 
 
 def _most_important_lane(user, message, conversation=None):
@@ -391,13 +399,16 @@ def _deterministic_risk_answer(user):
     computed risk intelligence → execution/at-risk decision → overdue commitments. If
     nothing rises to a real risk, explain WHY and offer the biggest opportunity. Never
     returns None."""
+    from apps.ai.chatgpt_cos.executive_reasoning import frame
     # 1) Health-critical, time-sensitive — the highest-impact risk.
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import _health_critical_actions
         hc = _health_critical_actions(user)
         if hc:
-            return (f"The biggest risk to watch today is health-critical: {hc[0]['text']} "
-                    f"— {hc[0]['why']}. Handle that first.")
+            return frame(
+                assessment=f"Your single biggest exposure today is health-critical — {hc[0]['text']}",
+                reasoning=hc[0]["why"],
+                action="Handle that first, before anything else")
     except Exception:
         logger.warning("executive_risk: health-critical failed", exc_info=True)
     # 2) Computed risk intelligence (Insight warning/critical, risk predictions).
@@ -407,9 +418,12 @@ def _deterministic_risk_answer(user):
         intel = active_intelligence(user) or {}
         if intel.get("risks"):
             r = intel["risks"][0]
-            conf = f", {r['confidence']} confidence" if r.get("confidence") else ""
-            basis = f" (basis: {r['basis']}{conf})" if r.get("basis") else ""
-            return f"The biggest risk today is {r['text']}{basis}."
+            conf = f" at {r['confidence']} confidence" if r.get("confidence") else ""
+            return frame(
+                assessment=f"The biggest risk on my radar today is {r['text']}",
+                reasoning=(f"that's a flagged {r['basis']}{conf}" if r.get("basis")
+                           else f"the data flags it{conf}"),
+                action="I'd get ahead of it before it compounds")
     except Exception:
         logger.warning("executive_risk: intelligence failed", exc_info=True)
     # 3) The deterministic at-risk decision (overdue commitments / deadlines).
@@ -421,17 +435,21 @@ def _deterministic_risk_answer(user):
                  "no meaningful risk", "nothing overdue", "all caught up", "nothing right now")
         if msg and not any(k in msg.lower() for k in _none):
             reason = (d.get("reason") or "").strip()
-            tail = f" — {reason.rstrip('.')}" if reason and reason.lower() not in msg.lower() else ""
-            return f"The biggest risk today: {msg}{tail}."
+            return frame(
+                assessment=f"The thing most at risk today is {msg}",
+                reasoning=reason if reason and reason.lower() not in msg.lower() else None,
+                action="I'd shore that up today")
     except Exception:
         logger.warning("executive_risk: decision failed", exc_info=True)
-    # 4) No meaningful risk → explain WHY, then offer the biggest opportunity.
-    why = ("Honestly, nothing rises to a real risk today — nothing's overdue, there are "
-           "no health-critical flags, and no warning signals in your data.")
+    # 4) No meaningful risk → ASSESSMENT (no real risk) + REASONING (why) + the biggest
+    #    opportunity as the lever. Never a goal update.
+    reasoning = ("nothing's overdue, there are no health-critical flags, and no warning "
+                 "signals in your data")
     opps = (intel.get("opportunities") or [])
-    if opps:
-        return f"{why} If you want a lever instead, the biggest opportunity is {opps[0]['text']}."
-    return f"{why} The best use of the day is steady progress on what matters most to you."
+    action = (f"if you want a lever instead, the biggest opportunity is {opps[0]['text']}"
+              if opps else "steady progress on what matters most is the best use of the day")
+    return frame(assessment="Honestly, nothing rises to a real risk today",
+                 reasoning=reasoning, action=action)
 
 
 def _executive_risk_lane(user, message, conversation=None):

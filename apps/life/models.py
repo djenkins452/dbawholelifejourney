@@ -2576,12 +2576,25 @@ class RoutineSchedule(models.Model):
     ACTIVITY_TYPE_JOURNAL = "journal"
     ACTIVITY_TYPE_BIBLE = "bible"
     ACTIVITY_TYPE_FAITH = "faith"
+    # Health-logging anchors — the canonical tags the task classifier already
+    # treats as time-windowed ("meaningful inside their window only"). Adding
+    # them here makes a routine's WORKFLOW rename-safe: the Action Router keys
+    # on activity_type, so "Log Weight" → "Step on the Scale" still opens the
+    # weight-entry form. Backfilled from names by migration 0034.
+    ACTIVITY_TYPE_NUTRITION = "nutrition_anchor"
+    ACTIVITY_TYPE_WEIGH_IN = "weigh_in"
+    ACTIVITY_TYPE_MEASUREMENT = "measurement"
+    ACTIVITY_TYPE_PRAYER = "prayer"
 
     ACTIVITY_TYPE_CHOICES = [
         (ACTIVITY_TYPE_WORKOUT, "Workout"),
         (ACTIVITY_TYPE_JOURNAL, "Journal"),
         (ACTIVITY_TYPE_BIBLE, "Bible Reading"),
         (ACTIVITY_TYPE_FAITH, "Faith"),
+        (ACTIVITY_TYPE_PRAYER, "Prayer"),
+        (ACTIVITY_TYPE_NUTRITION, "Nutrition / Food Log"),
+        (ACTIVITY_TYPE_WEIGH_IN, "Weigh-In"),
+        (ACTIVITY_TYPE_MEASUREMENT, "Body Measurement"),
     ]
 
     routine = models.ForeignKey(

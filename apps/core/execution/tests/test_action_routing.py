@@ -123,6 +123,23 @@ class ActionRoutingTests(TestCase):
                 f"{title!r} must route to {expected}, not the Routines page.")
             self.assertNotEqual(resolve_action_destination(item), "/life/routines/")
 
+    # ── metadata-driven health anchors are rename-safe ──
+    def test_activity_type_makes_health_anchors_rename_safe(self):
+        """Once a routine carries a health-anchor activity_type, its workflow is
+        rename-safe — the title can become anything and it still routes right."""
+        cases = [
+            ("weigh_in",         "Unrelated Title 1", "/health/physical/weight/log/"),
+            ("nutrition_anchor", "Unrelated Title 2", "/health/physical/nutrition/"),
+            ("measurement",      "Unrelated Title 3", "/health/physical/body-composition/log/"),
+            ("prayer",           "Unrelated Title 4", "/faith/prayers/"),
+        ]
+        for activity, title, expected in cases:
+            sched = self._routine_schedule(title, activity_type=activity)
+            item = {"source_type": "routine_item", "source_id": sched.pk,
+                    "title": title, "activity_type": activity}
+            self.assertEqual(resolve_action_destination(item), expected,
+                             f"activity_type={activity!r} must route to {expected}")
+
     # ── safe fallback ──
     def test_unknown_falls_back_to_life(self):
         item = {"source_type": "task", "source_id": 999999, "title": "Mystery thing"}

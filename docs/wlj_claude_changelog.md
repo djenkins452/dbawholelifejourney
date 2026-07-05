@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — feat(routing): make nutrition/weigh-in/measurement/prayer routines rename-safe (metadata-driven)
+
+Follow-up to the capability-routing fix: the four `RoutineSchedule.activity_type` values (workout/journal/bible/faith) were rename-safe, but nutrition/weight/measurements/prayer routines still routed via title keyword (worked, but a rename would break them). Closed the gap by making them metadata-driven.
+
+- **`apps/life/models.py`:** extended `ACTIVITY_TYPE_CHOICES` with `nutrition_anchor`, `weigh_in`, `measurement`, `prayer` — aligning with the vocabulary the task classifier ALREADY recognizes (it treats weigh_in/measurement/nutrition_anchor as time-windowed anchors; prayer falls to the default). Migration `0054` (AlterField).
+- **`apps/core/execution/action_routing.py`:** `_activity_to_capability` now maps the new tags → `log_nutrition` / `log_weight` / `log_measurements` / `open_prayer`, so a tagged routine routes by capability regardless of its title.
+- **Data migration `0055` (runs on deploy):** backfills `activity_type` from the schedule name for existing rows whose tag is blank, using the same keyword bridge the router uses (genuine household routines stay untagged). Idempotent; 6 rows tagged locally.
+
+Result: "Log Weight" → "Step on the Scale" still opens the weight-entry form. The title keyword bridge remains as the fallback for any un-tagged / brand-new routine. Note: tagging weigh-in/measurement/nutrition anchors also gives them the classifier's intended time-windowed grace (aligned with existing design, not a new behavior invented here).
+
+**Files:** apps/life/models.py, apps/life/migrations/0054_*, apps/life/migrations/0055_* (new), apps/core/execution/action_routing.py, apps/core/execution/tests/test_action_routing.py (+ rename-safety test). 946 execution + life tests: only 7 pre-existing errors in `test_recurring_delete` (a committed `save()`→`normalize_to_quarter_hour` string-time bug, unrelated to this change — my diff does not touch `save()`).
+
+
 ## 2026-07-05 — fix(legacy): Family Tree — independent per-family connectors, no generation-wide bus (D2, rendering-only)
 
 **Problem:** In blended families the parent→children connectors merged into one continuous horizontal line spanning the whole generation, visually implying everyone on the row was one family. Root cause (proven by dumping edges): every family unit's "bus" was drawn at the SAME `bus_y` and stretched from a shared parent placed at the focus centre to a co-parent placed far across the row — so three unit buses (e.g. Marvin+Gwen, Marvin+Barbara, Barbara+Fred) overlapped into one 990px line. Long couple lines (a step-parent flanked far from their partner) compounded it.

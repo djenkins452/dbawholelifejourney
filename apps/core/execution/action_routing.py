@@ -101,8 +101,17 @@ def _activity_to_capability(activity: str | None) -> str | None:
         return CAP_CREATE_JOURNAL_ENTRY
     if a == "bible":
         return CAP_OPEN_BIBLE_READING
+    if a == "prayer":
+        return CAP_OPEN_PRAYER
     if a == "faith":
         return CAP_OPEN_FAITH
+    # Health-logging anchors (canonical RoutineSchedule tags) → their entry form.
+    if a in ("nutrition_anchor", "nutrition"):
+        return CAP_LOG_NUTRITION
+    if a in ("weigh_in", "weight"):
+        return CAP_LOG_WEIGHT
+    if a in ("measurement", "measurements"):
+        return CAP_LOG_MEASUREMENTS
     return None
 
 

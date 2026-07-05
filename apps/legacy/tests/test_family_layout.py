@@ -209,3 +209,33 @@ class LayoutTests(TestCase):
                 self.assertFalse(abs(a["cx"] - b["cx"]) < family_tree.CARD_W
                                  and abs(a["cy"] - b["cy"]) < family_tree.CARD_H,
                                  "%s overlaps %s" % (a["name"], b["name"]))
+
+    def test_co_parent_families_get_independent_connectors(self):
+        """No generation-wide bus: each family unit owns a compact connector, and a
+        shared parent is DUPLICATED (ghost) beside each co-parent family so the eye reads
+        'these children belong to these parents', not one large family."""
+        danny = self._p("Danny", is_self=True, birth_year=1971)
+        barbara = self._p("Barbara", sex="F", birth_year=1939)
+        marvin = self._p("Marvin", sex="M", birth_year=1937)
+        fred = self._p("Fred", sex="M", birth_year=1940)
+        lynne = self._p("Lynne", birth_year=1964)        # full sibling (Marvin + Barbara)
+        halfsib = self._p("HalfSib", birth_year=1968)    # half sibling (Barbara + Fred)
+        self._rel(marvin, danny, "biological father of"); self._rel(barbara, danny, "biological mother of")
+        self._rel(marvin, lynne, "biological father of"); self._rel(barbara, lynne, "biological mother of")
+        self._rel(barbara, halfsib, "biological mother of"); self._rel(fred, halfsib, "biological father of")
+        g = family_tree.build_family_view(self.user, focus_pk=danny.pk)
+        # The shared parent (Barbara) is duplicated as a ghost beside the co-parent family.
+        ghosts = [n for n in g["nodes"] if n.get("is_ghost")]
+        self.assertTrue(any(n["name"] == "Barbara" for n in ghosts))
+        self.assertFalse(any(n.get("is_ghost") and n["name"] == "Marvin" for n in g["nodes"]))
+        pos = {}
+        for n in g["nodes"]:
+            pos.setdefault(n["name"], []).append(n["cx"])
+        lo, hi = sorted([min(pos["Danny"]), min(pos["HalfSib"])])
+        # No horizontal child-connector spans from the focus siblings all the way to the
+        # distant half-sibling — that continuous bus is exactly what merged the families.
+        for e in g["edges"]:
+            if e["y1"] == e["y2"] and "couple" not in e["type"]:
+                a, b = sorted([e["x1"], e["x2"]])
+                self.assertFalse(a <= lo + 5 and b >= hi - 5,
+                                 "a connector still spans the whole generation")

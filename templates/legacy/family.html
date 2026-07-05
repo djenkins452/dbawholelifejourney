@@ -41,11 +41,12 @@
             </div>
             {% endfor %}
             {% for n in graph.nodes %}
-            <div class="fam-node fam-sex-{% if n.sex == 'M' %}m{% elif n.sex == 'F' %}f{% else %}u{% endif %}{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}"
+            <div class="fam-node fam-sex-{% if n.sex == 'M' %}m{% elif n.sex == 'F' %}f{% else %}u{% endif %}{% if not n.living %} is-deceased{% endif %}{% if n.is_self %} is-me{% endif %}{% if n.is_focus %} is-focus{% endif %}{% if n.is_ghost %} is-ghost{% endif %}"
                  {% if not n.is_focus %}data-recenter="{% url 'legacy:family' %}?focus={{ n.id }}"{% endif %}
                  data-x="{{ n.x }}" data-y="{{ n.y }}" data-cx="{{ n.cx }}" data-cy="{{ n.cy }}"
-                 {% if not n.is_focus %}title="Center on {{ n.name }}"{% endif %} role="button" tabindex="0">
+                 {% if n.is_ghost %}title="{{ n.name }} — also shown with their other family"{% elif not n.is_focus %}title="Center on {{ n.name }}"{% endif %} role="button" tabindex="0">
                 {% if n.is_self %}<span class="fam-node-badge">This is me</span>{% endif %}
+                {% if n.is_ghost %}<span class="fam-node-ghost" title="Also shown with their other family" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8a8 8 0 0 1 14-5M20 8V3M20 8h-5M20 16a8 8 0 0 1-14 5M4 16v5M4 16h5"/></svg></span>{% endif %}
                 <span class="fam-node-av">{% if n.photo %}<img src="{{ n.photo }}" alt="">{% else %}<svg class="fam-av-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4"/><path d="M3.5 21.5c0-4.7 3.8-8.5 8.5-8.5s8.5 3.8 8.5 8.5z"/></svg>{% endif %}</span>
                 <span class="fam-node-name">{{ n.name }}</span>
                 <span class="fam-node-meta">{% if n.birth %}{{ n.birth }}{% endif %}{% if n.birth or n.death %} – {% endif %}{% if n.death %}{{ n.death }}{% elif n.birth %}living{% endif %}</span>

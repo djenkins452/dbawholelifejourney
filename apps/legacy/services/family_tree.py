@@ -366,32 +366,53 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
         row0[bio[1]] = fcc + COUPLE_HALF
     elif len(bio) == 1:
         row0[bio[0]] = fcc
-    # each other unit: its OUTER parent sits over that unit's cluster (pivot already placed)
+    # Each OTHER family unit is a SELF-CONTAINED pod over its own cluster: a DUPLICATE
+    # ("ghost") of the shared parent sits beside the co-parent, directly above their
+    # children — so the group reads as "these parents → these children" instead of a long
+    # connector reaching back to the shared parent's focus position. The shared parent's
+    # real card stays with the focus family; the ghost carries the co-parent family.
+    ghost_slots = []      # {pk, cx, unit} — duplicated shared-parent cards
     for k in others:
-        outer = sorted([q for q in k if q not in real_parents], key=sex_order)
         base = cluster_cx[k]
-        for i, q in enumerate(outer):
-            row0.setdefault(q, base + (i - (len(outer) - 1) / 2.0) * UNIT_STEP)
-    # a real parent's remaining spouses with no children shown (e.g. a step-parent) flank
-    left_x = min(row0.values()) if row0 else fcc
-    right_x = max(row0.values()) if row0 else fcc
+        shared = [q for q in bio if q in k]
+        outer = sorted([q for q in k if q not in real_parents], key=sex_order)
+        members = shared + outer                          # ghost(shared) then co-parent(s)
+        for i, q in enumerate(members):
+            x = base + (i - (len(members) - 1) / 2.0) * (CARD_W + COUPLE_GAP)
+            if q in real_parents:
+                ghost_slots.append({"pk": q, "cx": x, "unit": k})
+            else:
+                row0.setdefault(q, x)
+    # A real parent's remaining spouses with no children shown (e.g. a step-parent) sit
+    # ADJACENT to that partner, on the partner's free side — so the marriage reads as a
+    # short couple line, never a long reach across the generation. Occupied slots (incl.
+    # ghost pods) push the card further out.
+    COUPLE_STEP = CARD_W + COUPLE_GAP
+    occupied = list(row0.values()) + [g["cx"] for g in ghost_slots]
     extras = set()
     for p in real_parents:                       # a real parent's other spouses
         extras |= {s for s in spouses.get(p, ()) if s in pids and s not in row0}
     for sp, c in step_pairs:                      # step-parents of anyone on the focus row
         if sp in pids and sp not in row0 and c in row1:
             extras.add(sp)
+
+    def free_side(p):
+        if p in bio and len(bio) > 1:
+            return -1 if p == bio[0] else 1     # away from the bio partner
+        return -1
+
     for sp in sorted(extras, key=bkey):
         if sp in row0:
             continue
         partner = next((p for p in real_parents
                         if sp in spouses.get(p, ()) and p in row0), None)
-        if partner is not None and row0[partner] <= fcc:
-            left_x -= UNIT_STEP
-            row0[sp] = left_x
-        else:
-            right_x += UNIT_STEP
-            row0[sp] = right_x
+        side = free_side(partner) if partner else -1
+        anchor = row0[partner] if partner is not None else fcc
+        x = anchor + side * COUPLE_STEP
+        while any(abs(x - ox) < CARD_W + UNIT_GAP / 2.0 for ox in occupied):
+            x += side * UNIT_STEP
+        row0[sp] = x
+        occupied.append(x)
 
     # ── Children row (gen +1): the focus's children under the focus couple ─────────
     ctaken = set()
@@ -457,6 +478,35 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
         if p.pk == focus_pk:
             fx, fy = cx, cy
 
+    # Ghost cards: duplicated shared-parent over each co-parent family (device coords).
+    ghost_x = defaultdict(dict)          # unit_key -> {pk: device x}
+    gy = (0 - min_row) * ROW_STRIDE      # parent row (gen −1)
+    gcy = gy + CARD_H / 2.0
+    for g in ghost_slots:
+        pp = P.get(g["pk"])
+        if pp is None:
+            continue
+        gx = g["cx"] + off_x
+        ghost_x[g["unit"]][g["pk"]] = gx
+        max_cx = max(max_cx, gx)
+        nodes.append({
+            "id": pp.pk, "name": pp.display_name, "initials": _initials(pp.display_name),
+            "photo": (pp.portrait.file.url if (pp.portrait and pp.portrait.file) else ""),
+            "sex": (pp.sex or "").upper()[:1],
+            "birth": pp.birth_year, "death": pp.death_year,
+            "birth_display": pp.display_birth, "death_display": pp.display_death,
+            "living": pp.death_year is None, "rel": pp.relationship_label,
+            "x": round(gx - CARD_W / 2.0), "y": round(gy), "cx": round(gx), "cy": round(gcy),
+            "search": "", "is_self": False, "is_focus": False, "is_ghost": True,
+        })
+    # Which co-parent belongs to which shared-parent ghost — so a marriage between them
+    # draws at the local pod, not across to the shared parent's distant real card.
+    coparent_ghost = {}      # co-parent pk -> {shared pk: ghost device x}
+    for k in others:
+        for q in k:
+            if q not in real_parents:
+                coparent_ghost[q] = ghost_x.get(k, {})
+
     # ── Connectors ─────────────────────────────────────────────────────────────
     edges = []
 
@@ -465,38 +515,66 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
                   if (pp, child) in link_style]
         return "dashed" if styles and all(s == "dashed" for s in styles) else "solid"
 
-    def draw_T(stem_xs, parent_row, child_list, child_row, base="link"):
-        """A family-unit connector: a stem drops from EACH parent to a shared bus, the
-        bus spans the children, a riser rises to each child (typed by Canonical Truth).
-        Dropping a stem from every parent is what visibly connects a shared parent
-        (Barbara) to each of her family units."""
+    def draw_T(stem_xs, parent_row, child_list, child_row, base="link", band=0):
+        """One SELF-CONTAINED family-unit connector: a stem drops from each parent, a
+        bus spans ONLY this unit's children, and a riser rises to each child (typed by
+        Canonical Truth). Every unit is drawn on its OWN horizontal band within the row
+        gap (via `band`) so that units sharing a parent read as separate groups instead
+        of merging into one generation-wide line — the eye sees 'these children belong to
+        these parents', not one large family. A parent shared across units simply drops a
+        stem into each unit's band, once per family it produced."""
         if not child_list:
             return
         stem_xs = list(stem_xs)
         p_bottom = (parent_row - min_row) * ROW_STRIDE + CARD_H
         child_top = (child_row - min_row) * ROW_STRIDE
-        bus_y = p_bottom + ROW_GAP / 2.0
-        xs = [cx for cx, _ in child_list] + stem_xs
+        gap = child_top - p_bottom
+        # Focus/primary unit sits mid-gap; co-parent units step DOWN toward their own
+        # children so each bracket hugs the family it belongs to (never a shared bus_y).
+        frac = min(0.80, 0.42 + 0.17 * band)
+        bus_y = p_bottom + gap * frac
+        child_xs = [cx for cx, _ in child_list]
+        # The bus spans this unit's children; it reaches out to a parent stem only far
+        # enough to connect it — and because each unit owns a distinct band, that reach
+        # no longer overlaps a neighbouring unit's bus into a single continuous line.
+        bus_lo = min(child_xs + stem_xs)
+        bus_hi = max(child_xs + stem_xs)
         for sx in stem_xs:
             edges.append({"type": base, "x1": round(sx), "y1": round(p_bottom),
                           "x2": round(sx), "y2": round(bus_y)})
-        edges.append({"type": base, "x1": round(min(xs)), "y1": round(bus_y),
-                      "x2": round(max(xs)), "y2": round(bus_y)})
+        edges.append({"type": base, "x1": round(bus_lo), "y1": round(bus_y),
+                      "x2": round(bus_hi), "y2": round(bus_y)})
         for cx, style in child_list:
             edges.append({"type": "link-dashed" if style == "dashed" else "link",
                           "x1": round(cx), "y1": round(bus_y),
                           "x2": round(cx), "y2": round(child_top)})
 
     # One connector per family UNIT — from the parents that produced it to its children.
+    # The focus's own family is the primary band (0); every other unit gets its own band
+    # so co-parent families never share the focus's horizontal bus.
+    other_band = 0
     for k, kids in unit_kids.items():
         placed = [c for c in kids if c in coords]
         if not placed:
             continue
-        stem_parents = [q for q in (bio if k == focus_key else k) if q in coords]
-        if not stem_parents:
+        if k == focus_key:
+            stem_xs = [coords[q][0] for q in bio if q in coords]
+            b = 0
+        else:
+            # Co-parent family: the shared parent connects from its LOCAL ghost card so
+            # the pod is compact; the co-parent connects from its real card.
+            stem_xs = []
+            for q in k:
+                if q in real_parents and q in ghost_x.get(k, {}):
+                    stem_xs.append(ghost_x[k][q])
+                elif q in coords:
+                    stem_xs.append(coords[q][0])
+            other_band += 1
+            b = other_band
+        if not stem_xs:
             continue
-        draw_T([coords[q][0] for q in stem_parents], 0,
-               [(coords[c][0], child_style(c, k)) for c in placed], 1)
+        draw_T(stem_xs, 0,
+               [(coords[c][0], child_style(c, k)) for c in placed], 1, band=b)
 
     # Focus couple → the focus's own children
     if f_children:
@@ -510,15 +588,25 @@ def _layout(user, people, parents, children, spouses, couples, link_style,
             paired = any(frozenset((sp, rp)) in couples for rp in parents.get(c, ())
                          if (rp, c) not in step_pairs and rp in coords)
             if not paired:
-                draw_T([coords[sp][0]], 0, [(coords[c][0], "dashed")], 1, base="link-dashed")
+                other_band += 1
+                draw_T([coords[sp][0]], 0, [(coords[c][0], "dashed")], 1,
+                       base="link-dashed", band=other_band)
 
     # Couple connectors (typed) — spouses joined by a horizontal line
     for key, style in couples.items():
         a, b = tuple(key)
         if a in coords and b in coords and row.get(a) == row.get(b):
+            ax, ay = coords[a][0], coords[a][1]
+            bx, by = coords[b][0], coords[b][1]
+            # Married shared-parent ↔ co-parent: draw at the co-parent's pod (shared
+            # parent's ghost) instead of a long line back to its distant real card.
+            if b in coparent_ghost and a in coparent_ghost[b]:
+                ax, ay = coparent_ghost[b][a], gcy
+            elif a in coparent_ghost and b in coparent_ghost[a]:
+                bx, by = coparent_ghost[a][b], gcy
             edges.append({"type": "couple-" + style,
-                          "x1": round(coords[a][0]), "y1": round(coords[a][1]),
-                          "x2": round(coords[b][0]), "y2": round(coords[b][1])})
+                          "x1": round(ax), "y1": round(ay),
+                          "x2": round(bx), "y2": round(by)})
 
     # ── Generation labels (left gutter), Ancestry-style by the focus's name ─────
     self_focus = (focus_pk == me_pk)

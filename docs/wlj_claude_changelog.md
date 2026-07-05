@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(legacy): Family Tree — independent per-family connectors, no generation-wide bus (D2, rendering-only)
+
+**Problem:** In blended families the parent→children connectors merged into one continuous horizontal line spanning the whole generation, visually implying everyone on the row was one family. Root cause (proven by dumping edges): every family unit's "bus" was drawn at the SAME `bus_y` and stretched from a shared parent placed at the focus centre to a co-parent placed far across the row — so three unit buses (e.g. Marvin+Gwen, Marvin+Barbara, Barbara+Fred) overlapped into one 990px line. Long couple lines (a step-parent flanked far from their partner) compounded it.
+
+**Fix (rendering-only — Canonical Truth and relationship logic untouched):** each family unit is now drawn as its OWN self-contained pod — `Parent ─ Parent`, a stem, a bus over ONLY that unit's children, risers up:
+- **Ghost duplicates.** A parent shared across families (Barbara: kids with Marvin AND Fred) keeps her real card with the focus family and is DUPLICATED as a subtle "ghost" card (dashed border + repeat glyph, `is_ghost`) beside each co-parent, directly above their children. The co-parent unit's connector now runs from the local ghost, so the pod is compact instead of reaching back across the row. Ghosts recenter/inspect the same person (id preserved).
+- **Per-unit connector bands.** `draw_T` draws each unit on its own horizontal band within the row gap, so units never share one `bus_y`.
+- **Adjacent extra-spouses.** A step-parent / extra spouse now sits next to their partner on the partner's free side (short couple line), not flung to the far flank; occupied slots (incl. ghost pods) push it outward.
+
+Result: focus family reads as one clean bracket; each half-sibling / co-parent family is a visibly separate group. "These children belong to these parents."
+
+**Files:** `apps/legacy/services/family_tree.py` (`_layout`: ghost pods + banded `draw_T` + adjacent extra-spouses + ghost-aware couple lines), `templates/legacy/family.html` (ghost card marker), `static/css/legacy.css` (`.fam-node.is-ghost`, `.fam-node-ghost`; cache-bust `v=52`), `apps/legacy/tests/test_family_layout.py` (new test: shared parent duplicated + no generation-wide connector).
+
+**Verification:** `apps.legacy.tests.test_family_layout` + `test_family` green (35 tests, incl. the new independent-connector test and the existing no-overlap acceptance test). Live-certified in the dev browser with a seeded blended family: three separate connector groups (left co-parent pod / focus family / right co-parent pod), ghost cards showing the repeat marker, no continuous horizontal line; the normal (non-blended) family still renders as one clean bracket. Demo data removed after capture.
+
 ## 2026-07-05 — instrument(cos): staff-only runtime-proof endpoint for the Goals check-in (diagnosis)
 
 Production still returned the hardcoded goals-gap after the One-Brain fix + deploy. Source trace proved the string is single-sourced (`chatgpt_cos/lanes.py` `_GOALS_GAP`) and its only producer for a check-in "4" reply is `resolve_clarification_option` (which the One-Brain fix changed to `_strategic_summary(user) or _GOALS_GAP`); the CoS runtime (`use_chatgpt_cos=True`) reaches it via `CoSGateway → run_chatgpt_cos_generation → ChatGPTCoSService.generate → route_message`. Every path converges on two possibilities that only LIVE runtime data can separate: (a) the resolver ran and `_strategic_summary` returned None, or (b) the deployed build is stale.

@@ -58,6 +58,18 @@ Nonce-based CSP. Browsers ignore `'unsafe-inline'` when nonce is present.
 
 ---
 
+## Vendored Static Assets (REQUIRED)
+
+Whenever you vendor a new JS/CSS library into WLJ (self-host a third-party asset under `static/`), **run the production collectstatic pipeline locally BEFORE pushing:**
+
+```bash
+python3 manage.py collectstatic --noinput   # prod path: WhiteNoise CompressedManifestStaticFilesStorage
+```
+
+Prod's `CompressedManifestStaticFilesStorage` post-processes JS `sourceMappingURL` comments and CSS `url()` / `@import` references and **fails hard on any missing target**. Running it locally catches — before Railway ever sees it — **missing source maps, missing fonts, missing images, bad CSS `url()` references, and WhiteNoise manifest issues**. Fix by removing the dangling reference (e.g. strip a `//# sourceMappingURL=…` comment) or shipping the referenced file (the font/image/map). It must report `… copied, … post-processed` with **0 errors**. (Origin: vendored Leaflet's missing `leaflet.js.map` + `images/*.png` broke a deploy twice.)
+
+---
+
 ## Responsive Design (REQUIRED)
 
 Mobile: `max-width: 480px` | Tablet: `max-width: 768px` | Desktop: `min-width: 769px`

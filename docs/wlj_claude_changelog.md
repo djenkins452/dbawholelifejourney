@@ -6,6 +6,12 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — docs(process): standing rule — run prod collectstatic locally before pushing any vendored JS/CSS
+
+Established a standing rule in `CLAUDE.md` ("Vendored Static Assets (REQUIRED)"): whenever a new JS/CSS library is self-hosted under `static/`, run `python3 manage.py collectstatic --noinput` (the prod WhiteNoise `CompressedManifestStaticFilesStorage` path) locally before pushing. It catches missing source maps, fonts, images, bad CSS `url()` references, and manifest issues before they reach Railway. Origin: vendored Leaflet's missing `.js.map` + marker images broke a deploy. Docs-only.
+
+**Files:** `CLAUDE.md`.
+
 ## 2026-07-06 — fix(legacy): unblock deploy — vendored Leaflet broke collectstatic (manifest storage)
 
 **Root cause:** The self-hosted Leaflet assets broke `collectstatic` under prod's `whitenoise.storage.CompressedManifestStaticFilesStorage`, which post-processes JS `sourceMappingURL` comments AND CSS `url()` references and fails hard on any missing target:

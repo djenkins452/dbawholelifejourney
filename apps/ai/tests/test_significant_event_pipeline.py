@@ -339,3 +339,143 @@ class FranceTitleFormPropagationTests(TestCase):
         for i in range(4, 13):
             m = self.mission.milestones.get(title=f"Run milestone {i}")
             self.assertFalse(m.completed, f"'{m.title}' must stay manual")
+
+
+class WinInternalConsistencyTests(TestCase):
+    """PERMANENT REGRESSION (2026-07-06): a persisted MAJOR-WIN GuidanceItem was
+    internally inconsistent — a completed milestone on the "Relationship with God"
+    goal produced title "Milestone reached" (generic) and a next milestone of
+    "Goal Weight 279.9 lb" (from the WEIGHT goal). Two composer bugs:
+
+      1. title fell back to the literal "Milestone reached" because the event
+         ``data`` carries no title and the real milestone_id title was never read.
+      2. the next milestone came from ``goal_pace(user)`` — a user-global WEIGHT
+         trajectory — instead of the completed goal's own next rung.
+
+    The win's mission, current milestone, and next milestone must ALL come from
+    the SAME goal.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="danny-consistency@example.com", password="pw12345!")
+
+        # The user's PRIMARY MISSION is a weight goal — so goal_pace(user) would
+        # (wrongly) return a weight milestone for ANY completion if unscoped.
+        self.weight_mission = LifeGoal.objects.create(
+            user=self.user, title="France 2027 Family 18K Mission",
+            status="active", is_primary_mission=True)
+        GoalMilestone.objects.create(
+            goal=self.weight_mission, title="Reach 289.9 lb", sort_order=1,
+            objective_metric="weight_lb", objective_operator="lte",
+            objective_target_value=289.9, completed=True,
+            completed_date=date(2026, 5, 1))
+        GoalMilestone.objects.create(
+            goal=self.weight_mission, title="Goal Weight 279.9", sort_order=2,
+            objective_metric="weight_lb", objective_operator="lte",
+            objective_target_value=279.9, target_date=date(2026, 7, 31),
+            completed=False)
+        WeightEntry.objects.create(
+            user=self.user, value=285.0, unit="lb", status="active",
+            recorded_at=timezone.make_aware(datetime(2026, 7, 1, 8, 0)))
+
+        # A SEPARATE, non-primary goal with a real milestone ladder + meanings.
+        self.faith_goal = LifeGoal.objects.create(
+            user=self.user, title="Relationship with God",
+            status="active", is_primary_mission=False)
+        self.june = GoalMilestone.objects.create(
+            goal=self.faith_goal, title="June Prayer Milestone", sort_order=6,
+            description="Six consecutive months of consistent prayer",
+            target_date=date(2026, 6, 30), completed=True,
+            completed_date=date(2026, 6, 30))
+        self.july = GoalMilestone.objects.create(
+            goal=self.faith_goal, title="July Prayer Milestone", sort_order=7,
+            target_date=date(2026, 7, 31), completed=False)
+
+        # The domain event as the purpose evaluator emits it for a NON-weight
+        # milestone: goal_id + milestone_id, but NO "title" (the title-bug trigger).
+        self.faith_data = {
+            "milestone_id": self.june.id,
+            "goal_id": self.faith_goal.id,
+        }
+
+    @mock.patch("apps.core.ai_delivery.delivery_router.deliver_in_app")
+    @mock.patch("apps.core.ai_delivery.delivery_engine.deliver_single")
+    def test_win_is_scoped_to_the_completing_goal(self, _d, _di):
+        summary = react_to_significant_event(
+            self.user, EventTypes.PURPOSE_MILESTONE_COMPLETED, self.faith_data)
+        self.assertTrue(summary["ok"])
+
+        win = GuidanceItem.objects.get(
+            user=self.user,
+            dedupe_key=f"cos_event:win:milestone:{self.june.id}")
+
+        # (1) TITLE is the REAL milestone title — never the generic literal.
+        self.assertEqual(win.title, "June Prayer Milestone")
+        self.assertNotEqual(win.title, "Milestone reached")
+        self.assertIn("June Prayer Milestone", win.message)
+
+        # (2) NEXT milestone belongs to the SAME goal — NOT the weight mission.
+        nm = summary["next_milestone"]
+        self.assertEqual(nm["title"], "July Prayer Milestone")
+        self.assertEqual(nm["kind"], "milestone")
+        self.assertIsNone(nm["target_value"])          # non-weight → no lb number
+
+        # (3) NO cross-mission contamination anywhere in the acknowledgment.
+        self.assertNotIn("279.9", win.message)
+        self.assertNotIn("Goal Weight", win.message)
+        self.assertNotIn(" lb", win.message)
+        self.assertIn("Relationship with God", win.message)   # the right mission
+        self.assertIn("July Prayer Milestone", win.message)   # the right next rung
+
+        # (4) The milestone's OWN meaning is spoken (meaning-first, not generic).
+        self.assertIn("Six consecutive months of consistent prayer", win.message)
+
+    @mock.patch("apps.core.ai_delivery.delivery_router.deliver_in_app")
+    @mock.patch("apps.core.ai_delivery.delivery_engine.deliver_single")
+    def test_final_rung_completion_reports_goal_rungs_done(self, _d, _di):
+        # Complete the LAST incomplete milestone → next-step is the goal itself,
+        # never another goal's plan.
+        self.july.completed = True
+        self.july.completed_date = date(2026, 7, 31)
+        self.july.save(update_fields=["completed", "completed_date"])
+        data = {"milestone_id": self.july.id, "goal_id": self.faith_goal.id}
+        summary = react_to_significant_event(
+            self.user, EventTypes.PURPOSE_MILESTONE_COMPLETED, data)
+        nm = summary["next_milestone"]
+        self.assertEqual(nm["kind"], "goal_reached")
+        self.assertEqual(nm["title"], "Relationship with God")
+
+    def test_recompose_heals_a_cross_mission_row_in_place(self):
+        # Simulate the exact production artifact: a win row persisted by the OLD
+        # composer — generic title + a weight-goal next rung baked into message.
+        bad = GuidanceItem.objects.create(
+            user=self.user, title="Milestone reached",
+            message=("You hit the “Milestone reached” milestone on Relationship "
+                     "with God. That's milestone 6 of 12 on this mission. Bank "
+                     "this one, then line up the next rung: Goal Weight 279.9 "
+                     "(279.9 lb)."),
+            priority=3, guidance_type="cos_event:major_win", source="composite",
+            module="purpose",
+            dedupe_key=f"cos_event:win:milestone:{self.june.id}",
+            metadata={"category": MAJOR_WIN, "significant_event": True,
+                      "next_milestone": {"kind": "milestone",
+                                         "title": "Goal Weight 279.9",
+                                         "target_value": 279.9}})
+
+        from apps.ai.significant_events import recompose_milestone_win
+        healed = recompose_milestone_win(bad)
+
+        self.assertIsNotNone(healed)
+        self.assertEqual(healed.id, bad.id)                 # rewritten IN PLACE
+        self.assertEqual(healed.title, "June Prayer Milestone")
+        self.assertNotIn("279.9", healed.message)           # weight rung gone
+        self.assertNotIn("Goal Weight", healed.message)
+        self.assertIn("June Prayer Milestone", healed.message)
+        self.assertIn("July Prayer Milestone", healed.message)   # SAME-mission next
+        self.assertEqual(
+            healed.metadata["next_milestone"]["title"], "July Prayer Milestone")
+
+        # Only ONE row exists for the key — upsert, not duplicate.
+        self.assertEqual(GuidanceItem.objects.filter(
+            dedupe_key=f"cos_event:win:milestone:{self.june.id}").count(), 1)

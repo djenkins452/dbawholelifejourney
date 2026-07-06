@@ -127,8 +127,11 @@ def react_to_significant_event(user, event_type, data=None):
         done, total = _mission_progress(goal)
         summary["mission_progress"] = {"completed": done, "total": total}
 
-        # ── 8. RE-PLAN — recompute pace + surface the NEXT milestone. ──
-        next_ms = _next_planning_step(user)
+        # ── 8. RE-PLAN — surface the NEXT milestone OF THE SAME MISSION. ──
+        # Scoped to ``goal`` (not a user-global weight-pace) so the win stays
+        # internally consistent: mission, current milestone, next milestone all
+        # belong to ONE goal.
+        next_ms = _next_planning_step(goal)
         summary["next_milestone"] = next_ms
 
         # ── 2/5. PERSIST the significant event (MAJOR WIN) + run the CoS
@@ -206,27 +209,40 @@ def _mission_progress(goal):
         return 0, 0
 
 
-def _next_planning_step(user):
-    """The next milestone / next planning implication, from goal_pace (the same
-    computation Beth's standing read uses). Returns a dict or None."""
-    try:
-        from apps.ai.cos_intelligence import goal_pace
-        gp = goal_pace(user) or {}
-    except Exception:
+def _next_planning_step(goal):
+    """The next milestone WITHIN THE SAME mission that just advanced — the next
+    incomplete milestone of ``goal`` (never another goal's plan). Returns a dict
+    or None.
+
+    This MUST be scoped to ``goal``. It previously called ``goal_pace(user)`` — a
+    user-global, WEIGHT-goal trajectory (see ``apps/ai/cos_intelligence.py ::
+    goal_pace``, "Capability 5 — weight-goal trajectory") — so completing a
+    milestone on ANY goal (e.g. "Relationship with God") inherited the weight
+    goal's next milestone ("Goal Weight 279.9 lb"). That cross-mission leak is the
+    internal-inconsistency bug this fixes: mission, current milestone, and next
+    milestone must all come from the SAME goal. Fail-soft."""
+    if goal is None:
         return None
-    if gp.get("milestone"):
-        return {"title": gp.get("milestone_title"),
-                "target_value": gp.get("goal"),
-                "target_date": gp.get("target_date"),
-                "kind": "milestone"}
-    if gp.get("remaining") is not None and gp.get("remaining") <= 1.0 \
-            and not gp.get("insufficient"):
-        return {"title": "Ultimate goal reached", "kind": "goal_reached",
-                "target_value": gp.get("goal")}
-    if gp.get("goal") is not None:
-        return {"title": "Ultimate weight goal", "target_value": gp.get("goal"),
-                "target_date": gp.get("target_date"), "kind": "ultimate"}
-    return None
+    try:
+        # LifeGoal.next_milestone → next INCOMPLETE milestone of THIS goal, by
+        # target_date (nulls last) then sort_order. The just-completed milestone
+        # is already flipped completed=True, so it is correctly excluded.
+        nxt = goal.next_milestone
+    except Exception:
+        nxt = None
+    if nxt is not None:
+        # ``objective_target_value`` is only set for objective (weight) milestones
+        # (Phase 1). Non-objective milestones (prayer, reading, …) carry no target
+        # number, so ``_what_next`` won't append a "lb" clause — mission-correct.
+        tv = getattr(nxt, "objective_target_value", None)
+        return {
+            "title": (nxt.title or "").strip() or None,
+            "target_value": float(tv) if tv is not None else None,
+            "target_date": nxt.target_date.isoformat() if nxt.target_date else None,
+            "kind": "milestone",
+        }
+    # No incomplete milestones remain on this goal — the mission's rungs are done.
+    return {"title": (goal.title or "").strip() or None, "kind": "goal_reached"}
 
 
 def _persist_major_win(user, verdict, data, goal, progress, next_ms):
@@ -236,7 +252,12 @@ def _persist_major_win(user, verdict, data, goal, progress, next_ms):
     GuidanceItem or None."""
     from apps.ai.cos_event_engine import CoSEvent, MAJOR_WIN, persist_event
     done, total = progress
-    title = (data.get("title") or "Milestone reached").strip()
+    # CANONICAL milestone object — the single source of truth for THIS event's
+    # title + description. Resolving from milestone_id (rather than a loose
+    # ``data["title"]``, which the domain event usually omits) is what stops the
+    # card from falling back to the generic literal "Milestone reached".
+    milestone = _resolve_milestone(verdict, data)
+    title = _win_title(verdict, data, goal, milestone)
     mission_name = goal.title if goal is not None else "your goal"
     target = data.get("target_value")
     current = data.get("current_weight")
@@ -258,7 +279,7 @@ def _persist_major_win(user, verdict, data, goal, progress, next_ms):
     from apps.core.mission_commentary import why_it_matters
     why = why_it_matters(
         mission_title=(goal.title if goal is not None else None),
-        milestone_description=_milestone_description(verdict, data),
+        milestone_description=_milestone_description(milestone),
         completed=done, total=total, milestone_title=title,
     ) or "Real progress on the mission you set."
 
@@ -285,17 +306,89 @@ def _persist_major_win(user, verdict, data, goal, progress, next_ms):
         return None
 
 
-def _milestone_description(verdict, data):
-    """The completed milestone's OWN description (the user's stated meaning), if
-    any — so WHY IT MATTERS can speak to what the milestone means, not a template.
-    Fail-soft: returns None when unavailable."""
+def recompose_milestone_win(item):
+    """Re-compose an EXISTING milestone MAJOR-WIN ``GuidanceItem`` from canonical
+    truth, through the SAME composer as a live win (never string-patching).
+
+    Used by the 2026-07-06 repair migration to heal rows persisted by the old,
+    cross-mission-leaking composer (generic "Milestone reached" title + a next
+    milestone borrowed from the user's WEIGHT goal). Because ``persist_event``
+    upserts on the sticky ``cos_event:win:milestone:<id>`` key, this rewrites the
+    same row in place. Idempotent + fail-soft: returns the item, or None if the
+    row isn't a milestone win / the milestone no longer exists.
+
+    Note: the original weight-vs-target evidence clause is not reconstructable
+    from the row (it lived only in the achievement-time payload), so a healed
+    weight-milestone win omits it — a small, honest loss in exchange for a fully
+    mission-consistent record."""
+    key = getattr(item, "dedupe_key", "") or ""
+    import re as _re
+    m = _re.match(r"cos_event:win:milestone:(\d+)$", key)
+    if not m:
+        return None
+    milestone_id = int(m.group(1))
+    try:
+        from apps.purpose.models import GoalMilestone
+        ms = (GoalMilestone.objects.filter(pk=milestone_id)
+              .select_related("goal").first())
+    except Exception:
+        return None
+    if ms is None or ms.goal is None:
+        return None
+    goal = ms.goal
+    verdict = {
+        "kind": "mission_milestone" if _is_mission_goal(item.user, goal.id)
+        else "goal_milestone",
+        "milestone_id": milestone_id,
+        "goal_id": goal.id,
+        "priority": item.priority,          # preserve the row's existing ranking
+    }
+    data = {"milestone_id": milestone_id, "goal_id": goal.id}
+    progress = _mission_progress(goal)
+    next_ms = _next_planning_step(goal)     # SAME-mission next rung (the fix)
+    return _persist_major_win(item.user, verdict, data, goal, progress, next_ms)
+
+
+def _resolve_milestone(verdict, data):
+    """The completed GoalMilestone (canonical object) for a milestone event, or
+    None (goal-completion events, or when unavailable). Fetched ONCE and reused
+    for both title and description so they can never disagree. Fail-soft."""
     mid = (verdict or {}).get("milestone_id") or (data or {}).get("milestone_id")
     if not mid:
         return None
     try:
         from apps.purpose.models import GoalMilestone
-        ms = GoalMilestone.objects.filter(pk=mid).only("description").first()
-        return ((ms.description or "").strip() or None) if ms is not None else None
+        return GoalMilestone.objects.filter(pk=mid).first()
+    except Exception:
+        return None
+
+
+def _win_title(verdict, data, goal, milestone):
+    """The event's real, mission-consistent title. Prefer an explicit event
+    title, else the completed milestone's OWN title, else (goal completion) the
+    goal name — only fall back to the generic literal when no real name exists.
+    (The generic "Milestone reached" fallback firing on every milestone was the
+    title bug: ``data`` rarely carries a title, and the real milestone_id title
+    was never consulted.)"""
+    explicit = ((data or {}).get("title") or "").strip()
+    if explicit:
+        return explicit
+    if milestone is not None and (milestone.title or "").strip():
+        return milestone.title.strip()
+    if (verdict or {}).get("kind") == "goal_completed" \
+            and goal is not None and (goal.title or "").strip():
+        return goal.title.strip()
+    return "Milestone reached"
+
+
+def _milestone_description(milestone):
+    """The completed milestone's OWN description (the user's stated meaning), if
+    any — so WHY IT MATTERS can speak to what the milestone means, not a template.
+    Fail-soft: returns None when unavailable."""
+    if milestone is None:
+        return None
+    try:
+        return (milestone.description or "").strip() or None
     except Exception:
         return None
 

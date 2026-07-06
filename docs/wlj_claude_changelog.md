@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Milestone win was internally inconsistent — mixed objects from different missions
+
+**Root cause (proven via the debug endpoint):** the Purpose recommendation card renders a MAJOR-WIN `GuidanceItem` (record 515, freshly created — NOT stale/cached) that combined pieces from two different missions: title "Milestone reached" + mission "Relationship with God" + next milestone "Goal Weight 279.9 lb". Two composer bugs in `apps/ai/significant_events.py`:
+1. **Generic title** — `_persist_major_win` did `title = data.get("title") or "Milestone reached"`. The `purpose.milestone.completed` event usually carries NO `title`, and the real `milestone_id`'s title was never read → every milestone win fell back to the literal "Milestone reached".
+2. **Cross-mission next milestone** — `_next_planning_step(user)` called `goal_pace(user)`, a user-global WEIGHT-goal trajectory (`cos_intelligence.py`, "Capability 5 — weight-goal trajectory"). A milestone completed on ANY goal inherited the weight goal's next rung.
+
+**Fix (make the composed object internally consistent — no string patching):**
+- `_win_title(verdict, data, goal, milestone)` resolves the real title: explicit event title → the completed milestone's own title → (goal completion) the goal name → generic only as last resort.
+- `_resolve_milestone` fetches the `GoalMilestone` ONCE; title + description now come from the same canonical object (can't disagree).
+- `_next_planning_step(goal)` is now GOAL-SCOPED — uses `LifeGoal.next_milestone` (next incomplete rung of the SAME goal), never `goal_pace(user)`. Non-weight milestones carry no `objective_target_value`, so no "lb" leaks into non-weight wins.
+- **Existing rows healed:** `recompose_milestone_win(item)` re-composes each `cos_event:win:milestone:*` row through the SAME fixed composer (upsert on the sticky key = rewrite in place). Run by data migration `core/0127_repair_cross_mission_milestone_wins` (idempotent, fail-soft, no-op on fresh DBs) since a one-time achievement never re-fires.
+
+**Files:** `apps/ai/significant_events.py`, `apps/core/migrations/0127_repair_cross_mission_milestone_wins.py`, `apps/ai/tests/test_significant_event_pipeline.py` (+3 regression tests).
+**Verification:** 14 tests green (France weight-mission regression preserved; new `WinInternalConsistencyTests` proves title + same-mission next-rung + recompose-in-place). `makemigrations --check` clean; migration applies OK.
+
+
 ## 2026-07-06 — fix(cos): Check-in continuity — the daily check-in menu is a persistent conversation
 
 **Root cause:** `_clarification_reply_lane` called `_clear_pending()` on EVERY resolve, so after the user picked option 1 the pending menu was wiped — the next reply ("2") found no pending, returned None, and fell through (the "2/3/5 sometimes fails" symptom). The menu was single-shot when it is a conversation the user explores across several picks.

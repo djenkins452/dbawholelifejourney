@@ -113,6 +113,43 @@ class ViewMixinTests(TestCase):
         self.assertEqual(desc["title"], "Goal X")
 
 
+class TemplateCommentLeakTests(TestCase):
+    """Regression: internal template comments must NEVER reach rendered HTML. A MULTI-LINE
+    {# #} is not stripped by Django (single-line only) and leaks as literal text — the
+    2026-07-06 production incident where '{# Current Context Contract … #}' rendered at the
+    top of every page. Multi-line notes must use {% comment %}…{% endcomment %}."""
+
+    def _render(self, template, ctx=None):
+        from django.contrib.auth.models import AnonymousUser
+        from django.template.loader import render_to_string
+        from django.test import RequestFactory
+        req = RequestFactory().get("/")
+        req.user = AnonymousUser()
+        return render_to_string(template, ctx or {}, request=req)
+
+    def test_base_html_leaks_no_comments(self):
+        html = self._render("base.html", {
+            "current_context_descriptor": {"ref": "a.b:1", "kind": "k", "title": "t"}})
+        for marker in ("{#", "#}", "{% comment", "{% endcomment", "Current Context Contract"):
+            self.assertNotIn(marker, html, f"template comment leaked into HTML: {marker!r}")
+
+    def test_no_multiline_hash_comments_in_touched_templates(self):
+        # A multi-line {# … #} (opener and closer on different lines) leaks — forbid it in the
+        # templates the Current Context Contract touches.
+        import os
+        import re
+        from django.conf import settings
+        base = settings.BASE_DIR
+        for rel in ("templates/base.html", "templates/components/chat_widget.html"):
+            path = os.path.join(base, rel)
+            if not os.path.exists(path):
+                continue
+            text = open(path, encoding="utf-8").read()
+            for m in re.finditer(r"\{#(.*?)#\}", text, re.DOTALL):
+                self.assertNotIn("\n", m.group(1),
+                                 f"{rel}: multi-line {{# #}} leaks — use {{% comment %}}")
+
+
 def _onboarded(email):
     from django.conf import settings as s
     u = User.objects.create_user(email=email, password="x")

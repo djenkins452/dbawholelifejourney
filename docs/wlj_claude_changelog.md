@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(ui): multi-line {# #} template comment leaked into rendered HTML
+
+Production incident: a MULTI-LINE {# Current Context Contract … #} comment rendered as literal text at the top of every page. Django strips {# #} only on a SINGLE line; multi-line ones leak (known WLJ gotcha — use {% comment %}). Converted the base.html Current-Context comment to {% comment %}…{% endcomment %}. Regression tests (apps/core/tests/test_current_context.py :: TemplateCommentLeakTests): base.html renders with no comment markers, and touched templates contain no multi-line {# #}. Files: templates/base.html.
+
 ## 2026-07-06 — fix(cos): declare Current Context on PurposeHomeView (/purpose/) + remove diagnostics
 
 Runtime-proven root cause (cc-chain capture): the "Goals" nav page is /purpose/ = PurposeHomeView,

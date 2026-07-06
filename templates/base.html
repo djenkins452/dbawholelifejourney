@@ -5,18 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Whole Life Journey - A calm space for reflection, growth, and faithful living.">
-    {# Current Context Contract — the page declares the canonical object currently in focus;
-       the chat widget sends the reference and the server resolves its content so Beth can
-       hold ANY conversation about it. See apps/core/current_context.py. #}
+    {% comment %}
+    Current Context Contract — the page declares the canonical object in focus; the chat
+    widget sends the reference and the server resolves its content (apps/core/current_context.py).
+    Explicit descriptor (overview pages) takes precedence; else any Narratable DetailView
+    `object` self-declares. Multi-line notes MUST use {% comment %} — a multi-line {# #} leaks.
+    {% endcomment %}
     {% if current_context_descriptor %}
-    {# Explicit declaration — overview pages with one deterministic focused object
-       (CurrentContextMixin.get_current_context_object). Takes precedence. #}
     <meta name="wlj-context" content="{{ current_context_descriptor.ref }}"
           data-kind="{{ current_context_descriptor.kind }}"
           data-title="{{ current_context_descriptor.title }}">
     {% elif object.context_ref %}
-    {# AUTO-DECLARATION — ANY DetailView of a Narratable (UserOwnedModel) object emits its
-       canonical reference with zero per-view code. A new detail page is Beth-aware for free. #}
     <meta name="wlj-context" content="{{ object.context_ref }}"
           data-kind="{{ object.context_kind }}"
           data-title="{{ object.context_title }}">

@@ -61,22 +61,6 @@ def _notify_beth_completion(user_id, conversation_id, assistant_msg, prompt):
         logger.warning("COS completion notification failed", exc_info=True)
 
 
-# --- TEMPORARY worker-client probe (2026-07-06) — runs the deep OpenAI-construction probe
-# IN the Celery worker and caches the result, so the web diagnostic can show why the worker's
-# ai_service.is_available is False. REMOVE with apps/ai/debug_worker_client.py + its import
-# in apps/ai/tasks.py. Never logs the API key (length/shape only). ---
-@shared_task(name="apps.ai.chatgpt_cos.debug_probe_worker_client")
-def debug_probe_worker_client(tag="default"):
-    from django.core.cache import cache
-
-    from apps.ai.debug_worker_client import WORKER_CACHE_KEY, probe
-    out = probe()
-    out["dispatched_to_queue"] = tag
-    cache.set(f"{WORKER_CACHE_KEY}:{tag}", out, 900)
-    logger.info("DEBUG_WORKER_CLIENT_PROBE tag=%s %s", tag, out)
-    return out
-
-
 @shared_task(
     name="apps.ai.chatgpt_cos.run_chatgpt_cos_generation",
     bind=True,
@@ -100,39 +84,6 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
     User = get_user_model()
     t0 = time.monotonic()
     _cid = (page_context or {}).get("beth_cid") if isinstance(page_context, dict) else None
-
-    # --- TEMPORARY (2026-07-06): self-report the EXACT process running production chat.
-    # Task routing (CELERY_TASK_ROUTES → CHAT_GENERATION_QUEUE) can put chat on a DIFFERENT
-    # worker/container than a default-queue probe, so this reports from the real chat task:
-    # celery node, queue, host/pid, git SHA, and whether OPENAI_API_KEY is present IN THIS
-    # process. Never logs the key value. REMOVE with apps/ai/debug_worker_client.py. ---
-    try:
-        import os as _os
-        import socket as _socket
-
-        from django.conf import settings as _s
-        from django.core.cache import cache as _cache
-        from django.utils import timezone as _tz
-
-        from apps.ai.services import ai_service as _svc
-        _key = getattr(_s, "OPENAI_API_KEY", None)
-        _cache.set("wlj:debug:chat_worker_identity", {
-            "celery_node": getattr(self.request, "hostname", "?"),
-            "queue": (getattr(self.request, "delivery_info", None) or {}).get("routing_key"),
-            "chat_generation_queue": getattr(_s, "CHAT_GENERATION_QUEUE", "?"),
-            "socket_host": _socket.gethostname(),
-            "pid": _os.getpid(),
-            "git_sha": (_os.environ.get("RAILWAY_GIT_COMMIT_SHA")
-                        or _os.environ.get("SOURCE_VERSION") or "?")[:12],
-            "key_present": bool(_key),
-            "key_len": (len(_key) if isinstance(_key, str) else None),
-            "env_key_present": ("OPENAI_API_KEY" in _os.environ),
-            "env_key_len": len(_os.environ.get("OPENAI_API_KEY", "")),
-            "is_available": bool(_svc.is_available),
-            "checked_at": _tz.now().isoformat(),
-        }, 900)
-    except Exception:
-        logger.warning("chat identity self-report failed", exc_info=True)
 
     snap = bus.read(job_id) or bus.new_snapshot(user_id, conversation_id)
     snap["status"] = "processing"

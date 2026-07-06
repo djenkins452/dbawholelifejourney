@@ -101,10 +101,10 @@ class RoutingTests(TestCase):
         self.assertNotEqual((out or {}).get("lane"), "page_reference")
 
 
-class FocusedObjectTests(TestCase):
-    """FOCUSED OBJECT AWARENESS — server-side resolution of the entity in focus from the
-    URL when the client sends only the page location (the Goals "details didn't come
-    through" case). Generalizes across modules; user-scoped."""
+class ContractTests(TestCase):
+    """CURRENT CONTEXT CONTRACT — the page DECLARES its focused object via focus_ref
+    (<meta name=wlj-context>), and page_reference resolves the content SERVER-SIDE from the
+    canonical model. No per-module code in Beth; user-scoped."""
 
     def setUp(self):
         self.u = User.objects.create_user(email="fo@x.com", password="x")
@@ -115,45 +115,45 @@ class FocusedObjectTests(TestCase):
         return LifeGoal.objects.create(user=self.u, title=title, description=desc,
                                        target_date=date(2027, 1, 1))
 
-    def test_resolves_goal_from_detail_url(self):
-        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
+    def test_resolve_page_focus_uses_declared_ref(self):
         g = self._goal()
-        f = resolve_focused_object(self.u, f"/purpose/goals/{g.pk}/", "purpose")
-        self.assertEqual(f["kind"], "goal")
-        self.assertIn("Launch WLJ", f["content"])
-        self.assertIn("Ship the app to production", f["content"])
-
-    def test_goals_landing_falls_back_to_mission(self):
-        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
-        g = self._goal(title="France 2027")
-        with mock.patch("apps.purpose.mission_selection.select_active_mission_goal", return_value=g):
-            f = resolve_focused_object(self.u, "/purpose/goals/", "purpose")
-        self.assertIn("France 2027", f["content"])
-
-    def test_resolves_journal_entry(self):
-        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
-        from apps.journal.models import JournalEntry
-        e = JournalEntry.objects.create(user=self.u, title="Gratitude", body="Today I felt grateful.")
-        f = resolve_focused_object(self.u, f"/journal/{e.pk}/", "journal")
-        self.assertEqual(f["kind"], "journal_entry")
-        self.assertIn("grateful", f["content"])
+        pc = {"module": "purpose", "url": f"/purpose/goals/{g.pk}/",
+              "focus_ref": f"purpose.lifegoal:{g.pk}", "page_content": {}}
+        focus = resolve_page_focus(pc, user=self.u)
+        self.assertIn("Launch WLJ", focus["content"])
+        self.assertIn("Ship the app to production", focus["content"])
 
     def test_other_users_object_not_leaked(self):
-        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
         g = self._goal()
         other = User.objects.create_user(email="other-fo@x.com", password="x")
-        self.assertIsNone(resolve_focused_object(other, f"/purpose/goals/{g.pk}/", "purpose"))
+        pc = {"module": "purpose", "focus_ref": f"purpose.lifegoal:{g.pk}", "page_content": {}}
+        self.assertIsNone(resolve_page_focus(pc, user=other))
 
-    def test_explain_this_on_goal_detail_resolves_server_side(self):
-        # The exact production case: client sent NO content, server resolves the goal.
+    def test_explain_this_via_contract_hands_content_to_model(self):
+        # The exact production case: client sent NO content, only the declared reference.
         g = self._goal(title="Launch WLJ", desc="Ship the app to production")
         pc = {"module": "purpose", "url": f"/purpose/goals/{g.pk}/",
-              "page_title": "Launch WLJ", "page_content": {}}
+              "focus_ref": f"purpose.lifegoal:{g.pk}", "page_content": {}}
         with mock.patch(_CALL_API, return_value="This goal is about shipping WLJ.") as m:
             out = answer_page_reference(self.u, "Explain this.", None, pc)
         self.assertEqual(out["lane"], "page_reference")
         self.assertIn("shipping WLJ", out["answer"])
         self.assertIn("Ship the app to production", m.call_args[0][0])   # goal content handed to model
+
+    def test_journal_entry_via_contract(self):
+        from apps.journal.models import JournalEntry
+        e = JournalEntry.objects.create(user=self.u, title="Gratitude", body="Today I felt grateful.")
+        pc = {"module": "journal", "focus_ref": f"journal.journalentry:{e.pk}", "page_content": {}}
+        focus = resolve_page_focus(pc, user=self.u)
+        self.assertIn("grateful", focus["content"])
+
+    def test_new_page_needs_no_beth_code(self):
+        # Any UserOwnedModel with a declared ref is resolvable — no page_reference change.
+        from apps.journal.models import JournalEntry
+        e = JournalEntry.objects.create(user=self.u, title="X", body="body text here")
+        pc = {"focus_ref": f"journal.journalentry:{e.pk}"}
+        focus = resolve_page_focus(pc, user=self.u)
+        self.assertEqual(focus["title"], "X")
 
 
 class DegradationTests(TestCase):
@@ -170,7 +170,7 @@ class DegradationTests(TestCase):
         g = LifeGoal.objects.create(user=self.u, title=title, description="Save and train.",
                                     target_date=date(2027, 6, 1))
         return {"module": "purpose", "url": f"/purpose/goals/{g.pk}/",
-                "page_title": title, "page_content": {}}
+                "focus_ref": f"purpose.lifegoal:{g.pk}", "page_title": title, "page_content": {}}
 
     def test_llm_none_degrades_page_aware_not_none(self):
         pc = self._goal_pc()

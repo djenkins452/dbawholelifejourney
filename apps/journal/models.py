@@ -100,6 +100,8 @@ class JournalEntry(UserOwnedModel):
     - Linked to other entries (cross-module)
     - Archived or deleted
     """
+    # Current Context Contract — the text Beth narrates when this entry is in focus.
+    CONTEXT_FIELDS = ("body",)
 
     MOOD_CHOICES = [
         ("great", "Great"),

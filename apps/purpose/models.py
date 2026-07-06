@@ -194,6 +194,9 @@ class LifeGoal(UserOwnedModel):
     Goals are organized by life domain and focus on direction, not execution.
     This is NOT a task list - no daily checkboxes.
     """
+    # Current Context Contract — the text Beth narrates when this goal is in focus.
+    CONTEXT_FIELDS = ("description", "why_it_matters", "success_looks_like")
+
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('paused', 'Paused'),

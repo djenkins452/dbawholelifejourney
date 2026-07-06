@@ -6,6 +6,37 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(core): Current Context Contract — Page Awareness as a platform capability
+
+Replaces the page-by-page fragmentation (per-module `if module ==` branches in the client
+`extractPageContent` AND server `resolve_focused_object`) with ONE generic contract. A page
+DECLARES its focused canonical object (a ContentType ref via `<meta name="wlj-context">`); the
+client sends the REFERENCE (never scraped truth); the server RESOLVES the content user-scoped
+from the canonical model; Beth (One Brain) consumes the uniform `{title, content, kind}`. A new
+page becomes conversational by adding `CurrentContextMixin` to its view — no Beth code, no
+widget code.
+
+Phase 0 (core): `apps/core/current_context.py` — `resolve_current_context(user, ref)` (generic
+resolver: ContentType → model → user-scoped fetch → `get_context_summary()`), `NarratableMixin`
+(protocol: `get_context_summary` / `context_ref` / `is_owned_by` / `CONTEXT_FIELDS`; mixed into
+`UserOwnedModel` so all user data is narratable by default), `CurrentContextMixin` (view →
+descriptor). `base.html` emits the `<meta>`; the chat widget reads it into `focus_ref`.
+Phase 1: `resolve_page_focus` resolves via `focus_ref` first; DELETED `resolve_focused_object`
+and its per-module branches.
+Phase 2 (migrated — the production failures first): Goals (`GoalDetailView` + `LifeGoal.CONTEXT_FIELDS`),
+Faith reading (`ReadingPlanProgressView` + `UserReadingPlan.get_context_summary` → current day's
+scripture), Journal (`EntryDetailView` + `JournalEntry.CONTEXT_FIELDS`). Task has no detail page.
+Removed all temporary worker diagnostics (debug_worker_client module + URL + worker-probe task +
+import + chat-task self-report) — the worker root cause (duplicate keyless wlj-db-admin worker)
+is resolved. Kept the permanent get_openai_client missing-key warning.
+Tests: `apps/core/tests/test_current_context.py` (resolver, ownership, protocol, Faith summary,
+view mixin) + rewritten `test_page_reference.py::ContractTests`. No migrations (method-only mixin).
+Files: apps/core/current_context.py (new), apps/core/models.py, apps/purpose/models.py+views.py,
+apps/journal/models.py+views.py, apps/faith/models.py+views.py, templates/base.html,
+templates/components/chat_widget.html, apps/ai/chatgpt_cos/page_reference.py,
+apps/ai/{urls,tasks}.py, apps/ai/chatgpt_cos/tasks.py, docs/WLJ_CURRENT_CONTEXT_CONTRACT.md,
+apps/core/fixtures/release_notes.json.
+
 ## 2026-07-06 — debug(ai): prove WHICH worker runs production chat (queue routing)
 
 The contradiction (Railway shows OPENAI_API_KEY set; worker probe shows os.environ lacks it)

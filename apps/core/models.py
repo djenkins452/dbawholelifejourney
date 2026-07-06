@@ -43,6 +43,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from apps.core.current_context import NarratableMixin
+
 
 class TimeStampedModel(models.Model):
     """
@@ -178,11 +180,14 @@ class SoftDeleteModel(TimeStampedModel):
         return max(0, remaining)
 
 
-class UserOwnedModel(SoftDeleteModel):
+class UserOwnedModel(NarratableMixin, SoftDeleteModel):
     """
     Abstract model for records that belong to a specific user.
 
-    Combines soft delete with user ownership.
+    Combines soft delete with user ownership. Inherits the Narratable protocol
+    (get_context_summary / context_ref / is_owned_by) so every user-owned record is
+    Beth-aware by default via the Current Context Contract — see
+    apps/core/current_context.py and docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
     """
 
     # Creation source tracking - indicates how the entry was created

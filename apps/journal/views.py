@@ -53,6 +53,7 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.current_context import CurrentContextMixin
 from apps.core.models import Category, Tag
 from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
@@ -292,7 +293,7 @@ class DeletedEntryListView(LoginRequiredMixin, ListView):
         return JournalEntry.objects.deleted_only().filter(user=self.request.user)
 
 
-class EntryDetailView(HelpContextMixin, LoginRequiredMixin, DetailView):
+class EntryDetailView(CurrentContextMixin, HelpContextMixin, LoginRequiredMixin, DetailView):
     """
     View a single journal entry.
     """

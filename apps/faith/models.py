@@ -589,6 +589,36 @@ class UserReadingPlan(UserOwnedModel):
     def __str__(self):
         return f"{self.user.email}: {self.template.title}"
 
+    def get_context_summary(self):
+        """Current Context Contract — when this reading plan is the page in focus, the object
+        Beth should narrate is the CURRENT DAY's reading (scripture + context + reflection),
+        not the plan row. Returns {title, content, kind}."""
+        plan_name = getattr(self.template, "title", "") or "Reading plan"
+        day = ReadingPlanDay.objects.filter(
+            plan=self.template, day_number=self.current_day
+        ).first()
+        if day is None:
+            return {"title": plan_name, "content": plan_name, "kind": "reading plan"}
+        day_title = (day.title or f"Day {self.current_day}").strip()
+        parts = [f"{plan_name} — Day {self.current_day}: {day_title}"]
+        refs = day.scripture_references or []
+        if isinstance(refs, list) and refs:
+            parts.append("Scripture: " + ", ".join(str(r) for r in refs))
+        texts = []
+        if isinstance(day.scripture_content, list):
+            for item in day.scripture_content:
+                if isinstance(item, dict) and (item.get("text") or "").strip():
+                    ref = item.get("reference", "")
+                    texts.append((f"{ref}: " if ref else "") + item["text"].strip())
+        if texts:
+            parts.append("\n\n".join(texts)[:2500])
+        if (day.context_summary or "").strip():
+            parts.append("Context: " + day.context_summary.strip()[:800])
+        if (day.reflection_prompt or "").strip():
+            parts.append("Reflection: " + day.reflection_prompt.strip()[:500])
+        return {"title": f"{plan_name} — {day_title}",
+                "content": "\n\n".join(parts).strip(), "kind": "scripture reading"}
+
     @property
     def progress_percentage(self):
         """Calculate completion percentage."""

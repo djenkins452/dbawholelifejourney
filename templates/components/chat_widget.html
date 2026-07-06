@@ -1292,6 +1292,17 @@
         // Extract rich content based on page type
         context.page_content = extractPageContent(url, module);
 
+        // CURRENT CONTEXT CONTRACT — the page declares its focused canonical object via
+        // <meta name="wlj-context">. Send the REFERENCE (not scraped truth); the server
+        // resolves the content from the canonical model, user-scoped. Any page becomes
+        // Beth-aware by adding CurrentContextMixin to its view — no widget code needed.
+        var ctxMeta = document.querySelector('meta[name="wlj-context"]');
+        if (ctxMeta) {
+            context.focus_ref = ctxMeta.getAttribute('content') || '';
+            context.focus_kind = ctxMeta.getAttribute('data-kind') || '';
+            context.focus_title = ctxMeta.getAttribute('data-title') || '';
+        }
+
         return context;
     }
 

@@ -5,6 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Whole Life Journey - A calm space for reflection, growth, and faithful living.">
+    {% if current_context_descriptor %}
+    {# Current Context Contract — the page declares its focused canonical object; the chat
+       widget sends this reference and the server resolves the content. Any page becomes
+       Beth-aware by adding CurrentContextMixin to its view. See current_context.py. #}
+    <meta name="wlj-context" content="{{ current_context_descriptor.ref }}"
+          data-kind="{{ current_context_descriptor.kind }}"
+          data-title="{{ current_context_descriptor.title }}">
+    {% endif %}
 
     <!-- Critical CSS inlined to prevent FOUC -->
     <style>

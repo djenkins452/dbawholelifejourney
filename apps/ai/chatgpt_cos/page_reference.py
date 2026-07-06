@@ -62,68 +62,34 @@ def is_page_reference(message):
     return False
 
 
-def resolve_focused_object(user, url, module):
-    """FOCUSED OBJECT AWARENESS — resolve the entity IN FOCUS from the page URL, against the
-    canonical model, when the client sent only the page LOCATION (not the object content).
-    Deterministic, user-scoped, per-module; the URL's /<pk>/ identifies a detail record, and
-    a landing page falls back to that module's current object. Returns {title, content,
-    kind} or None. GENERAL: extend by adding a module branch — no new context system."""
-    if not user or not url:
-        return None
-    u = url.lower()
-    m = re.search(r"/(\d+)(?:/|$)", u)
-    pk = int(m.group(1)) if m else None
-    try:
-        # GOALS — a goal detail, or the mission goal when on the goals landing.
-        if "/goals/" in u or module in ("purpose", "goals"):
-            from apps.purpose.models import LifeGoal
-            g = LifeGoal.objects.filter(user=user, pk=pk).first() if pk else None
-            if g is None and (u.rstrip("/").endswith("/goals") or module in ("purpose", "goals")):
-                try:
-                    from apps.purpose.mission_selection import select_active_mission_goal
-                    g = select_active_mission_goal(user)
-                except Exception:
-                    g = None
-            if g is not None:
-                bits = [g.title]
-                for label, attr in (("", "description"), ("Why it matters: ", "why_it_matters"),
-                                    ("Success looks like: ", "success_looks_like")):
-                    val = (getattr(g, attr, "") or "").strip()
-                    if val:
-                        bits.append(f"{label}{val}")
-                return {"title": g.title, "content": "\n".join(bits), "kind": "goal"}
-        # JOURNAL — a specific entry.
-        if "/journal/" in u and pk:
-            from apps.journal.models import JournalEntry
-            e = JournalEntry.objects.filter(user=user, pk=pk).first()
-            if e is not None:
-                title = e.title or f"Journal entry — {getattr(e, 'entry_date', '')}"
-                head = f"{e.title}\n\n" if e.title else ""
-                return {"title": title, "content": head + (e.body or ""), "kind": "journal_entry"}
-        # TASKS — a specific task.
-        if ("/task" in u) and pk:
-            from apps.life.models import Task
-            t = Task.objects.filter(user=user, pk=pk).first()
-            if t is not None:
-                return {"title": t.title, "content": t.title + (f"\n\n{t.notes}" if (t.notes or "").strip() else ""),
-                        "kind": "task"}
-    except Exception:
-        logger.warning("focused_object: resolve failed url=%s module=%s", url, module, exc_info=True)
-    return None
-
-
 def resolve_page_focus(page_context, user=None):
-    """The entity currently in focus on the page → {module, title, content, kind, url},
-    or None. First reads the content the client captured in `page_content`; if only the
-    page LOCATION came through, resolves the FOCUSED OBJECT server-side from the URL
-    (`resolve_focused_object`). `content` is '' only when neither source has it."""
+    """The entity currently in focus on the page → {module, title, content, kind, url}, or
+    None. Resolution order (CURRENT CONTEXT CONTRACT):
+      1. `focus_ref` — the canonical reference the page DECLARED (<meta name="wlj-context">);
+         resolve its content SERVER-SIDE from the canonical model, user-scoped. This is the
+         generic path every migrated page uses — no per-module code.
+      2. `page_content` — content the client captured inline (legacy / genuinely client-only,
+         e.g. an unsaved draft). Used only when no reference was declared.
+    `content` is '' only when neither source yields text."""
     if not page_context or not isinstance(page_context, dict):
         return None
+    module = (page_context.get("module") or "").strip()
+    url = (page_context.get("url") or "").strip()
+
+    # 1) CONTRACT — the page declared its focused object; resolve it generically, server-side.
+    ref = (page_context.get("focus_ref") or "").strip()
+    if ref and user is not None:
+        from apps.core.current_context import resolve_current_context
+        resolved = resolve_current_context(user, ref=ref)
+        if resolved and (resolved.get("title") or resolved.get("content")):
+            return {"module": module, "title": (resolved.get("title") or "").strip(),
+                    "content": (resolved.get("content") or "").strip(),
+                    "kind": resolved.get("kind") or module, "url": url}
+
+    # 2) Legacy inline content (unmigrated pages / client-only content).
     content = page_context.get("page_content") or {}
     if not isinstance(content, dict):
         content = {}
-    module = (page_context.get("module") or "").strip()
-    url = (page_context.get("url") or "").strip()
     title = (page_context.get("page_title") or content.get("title")
              or content.get("reading_title") or "").strip()
     kind = content.get("type") or module or ""
@@ -140,14 +106,6 @@ def resolve_page_focus(page_context, user=None):
                 text = "; ".join(str(x).strip() for x in v if str(x).strip())
                 if text:
                     break
-    # SERVER-SIDE focused-object resolution — so Beth knows WHICH object even when the
-    # client sent only the page location (the Goals "details didn't come through" case).
-    if not text and user is not None:
-        obj = resolve_focused_object(user, url, module)
-        if obj:
-            title = title or obj.get("title", "")
-            text = (obj.get("content") or "").strip()
-            kind = obj.get("kind") or kind
     if not (title or text):
         return None
     return {"module": module, "title": title, "content": text, "kind": kind, "url": url}

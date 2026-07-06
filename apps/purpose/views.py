@@ -24,6 +24,7 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.current_context import CurrentContextMixin
 from apps.core.utils import get_user_today
 from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
@@ -303,7 +304,7 @@ class GoalListView(PurposeAccessMixin, ListView):
         return context
 
 
-class GoalDetailView(PurposeAccessMixin, DetailView):
+class GoalDetailView(CurrentContextMixin, PurposeAccessMixin, DetailView):
     """View goal details."""
     model = LifeGoal
     template_name = "purpose/goal_detail.html"

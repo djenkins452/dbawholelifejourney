@@ -3833,7 +3833,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 210,
+    "pk": 244,
     "fields": {
       "title": "Forgot to check off a routine? Routine History lets you set the record straight",
       "description": "If you did your prayer time, workout, or evening journaling but forgot to mark it complete, your adherence used to count it as missed — and your Chief of Staff coached from that wrong data. The new Routine History screen fixes that. Open it from the History link on the Routines page, pick any past day with the arrows or date picker, and mark items you actually did — choosing \"On time\" or \"Late\" so the record stays truthful. You can also skip an item or undo a mistaken completion. Anything you log after the fact is clearly badged \"Corrected later\" instead of a clean real-time \"Completed,\" so your genuine in-the-moment consistency stays distinguishable from later catch-up. Corrections flow into your streaks, adherence score, and your Chief of Staff's understanding immediately.",
@@ -3849,7 +3849,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 211,
+    "pk": 245,
     "fields": {
       "title": "Your Executive Briefing now tells you the single smartest move — not just a pattern",
       "description": "The \"Biggest Opportunity\" tile used to describe a pattern in your data (\"recovery is needed\"). Now it names the one highest-leverage thing to do — a clear action plus a one-line why, like \"Prioritize sleep tonight — better sleep lifts your energy, recovery, and glucose all at once.\" When several things need attention, it surfaces the move that lifts the most areas at once (sleep and recovery rank highest because they improve everything downstream), so you always know the smartest next step rather than a list. We also fixed a glitch where \"Recommended Focus\" could show the same suggestion two or three times — recommendations are now de-duplicated and ranked by value, so you only ever see distinct, useful focuses.",
@@ -3865,7 +3865,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 214,
+    "pk": 246,
     "fields": {
       "title": "Your Chief of Staff answers day-planning and health questions even if the AI is briefly busy",
       "description": "Questions your Chief of Staff already has the facts to answer — \"what needs my attention?\", \"help me plan the rest of my day\", \"wrap up my day\", \"give me a health summary\", \"how is my diabetes doing?\" — now always get a real answer drawn from your own data, even in the rare moments the AI service is briefly unavailable. You’ll no longer hit a \"try again later\" message for things we can answer directly. General-knowledge questions phrased in the abstract (\"what is a healthy weight generally?\") are also answered as general information and never mistaken for a question about your personal numbers.",
@@ -3881,7 +3881,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 215,
+    "pk": 247,
     "fields": {
       "title": "Say “Good morning” and your Chief of Staff gives you a real morning briefing",
       "description": "Greeting your Chief of Staff — “Good morning”, “start my day”, “how is my day looking?” — now always returns a real briefing of your day drawn from your own schedule and priorities, even in the rare moments the AI service is briefly busy. You’ll never get a “try again later” message for your morning check-in. Questions about a specific goal (“what comes next on my mission?”, “am I behind?”, “what could derail me today?”) now land on the right answer more reliably, even when phrased loosely.",
@@ -3897,7 +3897,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 216,
+    "pk": 248,
     "fields": {
       "title": "Your Chief of Staff now checks in before briefing you — and fixes its answer when you push back",
       "description": "Mornings now start like a real Chief of Staff would: instead of immediately listing your day, your assistant greets you, notes a thing or two from overnight (like how you slept), and asks how you’re doing before getting into the agenda — and it holds the briefing until you answer. If you tell it you’re running low, it keeps the briefing lighter. And when you push back on something it said — “does that sound right?”, “that wasn’t quite right” — it now recognizes you’re questioning its last answer, re-checks it instead of changing the subject, and offers to correct it. All of this works even if the AI service is briefly busy.",
@@ -3913,7 +3913,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 217,
+    "pk": 249,
     "fields": {
       "title": "Your morning briefing now reads like a real Chief of Staff",
       "description": "When your Chief of Staff briefs you, it no longer starts with a list of tasks. It now opens with where you stand, an honest read on the day (a strong day, a recovery day, a heavier one), what actually matters, your biggest risk, and the single highest-leverage move — and only then the agenda, which is supporting detail, never the headline. If you tell it you're running low, the read adapts. And if you push back that a reply wasn't up to standard, it owns the miss, names what went wrong, and re-briefs you properly instead of asking you to explain what was off.",
@@ -3929,7 +3929,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 218,
+    "pk": 250,
     "fields": {
       "title": "Your briefing now reads like a conversation, not a report",
       "description": "Your Chief of Staff no longer hands you a list of labeled sections. It tells you one clear story: what today actually is, the one thing that matters most and why, what you can safely let wait, and how the afternoon looks — woven together the way a trusted advisor would say it out loud. It leads with the conclusion, only brings up the supporting detail when it strengthens the advice, and reconciles conflicts (if you're running low, it tells you to keep the workout light rather than just listing it). It now adds judgment and clarity your dashboard can't.",
@@ -3945,7 +3945,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 219,
+    "pk": 251,
     "fields": {
       "title": "Add a medication by taking a few photos",
       "description": "Adding a medication or supplement now feels like scanning a document, not filling out a form. Choose what you're adding — a prescription bottle, a supplement, an over-the-counter medicine, or an injection pen — and you'll be guided photo by photo: the front of the bottle, the pharmacy label, the Supplement or Drug Facts. You can take several pictures, and they're combined into one richer reading than any single photo could give. If something is still hard to read, you'll get a plain explanation of exactly which picture would help — for example, “to improve confidence, I'd like a photo of the pharmacy label.” You can skip optional steps, retake or remove a photo, drag and drop images on your computer, and finish whenever you're ready. Nothing is saved until you review the extracted details and confirm. Barcode scanning and manual entry are still there whenever you prefer them.",
@@ -3989,6 +3989,22 @@
       "learn_more_url": "",
       "created_at": "2026-07-06T17:00:00Z",
       "updated_at": "2026-07-06T17:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 252,
+    "fields": {
+      "title": "Ask about whatever you're looking at — just say “Explain this”",
+      "description": "Your Chief of Staff now understands the page you're on and the exact item in focus. Open a goal, a journal entry, or today's Scripture reading and simply ask “Explain this,” “Summarize this,” “What do you think?” or “Should I still do this?” — no need to copy, paste, or re-describe what's on your screen. It works across the app and gets smarter as more pages come online.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-06",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-06T12:00:00Z",
+      "updated_at": "2026-07-06T12:00:00Z"
     }
   }
 ]

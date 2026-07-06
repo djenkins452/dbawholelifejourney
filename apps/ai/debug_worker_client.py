@@ -30,13 +30,18 @@ def probe():
     worker. Never returns or logs the API key — only its length/shape."""
     from django.conf import settings
 
+    import socket
     info = {
         "process": (os.path.basename(sys.argv[0]) if sys.argv else "?"),
         "argv": " ".join(sys.argv[:4]),
         "pid": os.getpid(),
+        "socket_host": socket.gethostname(),   # distinguishes separate containers
         "git_sha": (os.environ.get("RAILWAY_GIT_COMMIT_SHA")
                     or os.environ.get("SOURCE_VERSION")
                     or os.environ.get("GIT_COMMIT") or "?")[:12],
+        # raw process env vs Django settings — proves whether os.environ itself lacks the key
+        "env_OPENAI_API_KEY_present": ("OPENAI_API_KEY" in os.environ),
+        "env_OPENAI_API_KEY_len": len(os.environ.get("OPENAI_API_KEY", "")),
     }
 
     # 1) Is the key actually present/non-empty at runtime IN THIS PROCESS?
@@ -95,12 +100,25 @@ def probe():
 def worker_client_diag(request):
     if not (request.user.is_authenticated and getattr(request.user, "is_staff", False)):
         return JsonResponse({"error": "staff_only"}, status=403)
-    result = {"web": probe()}
+    from django.conf import settings
+    chat_q = getattr(settings, "CHAT_GENERATION_QUEUE", "celery")
+    result = {"web": probe(), "chat_generation_queue": chat_q}
+
+    # Dispatch the deep probe to BOTH the default queue AND the chat queue, so we measure the
+    # worker that actually runs streaming chat (which is routed to CHAT_GENERATION_QUEUE) —
+    # not just whichever worker consumes the default queue.
     try:
         from apps.ai.chatgpt_cos.tasks import debug_probe_worker_client
-        debug_probe_worker_client.delay()
-        result["worker"] = (cache.get(WORKER_CACHE_KEY)
-                            or "dispatched — reload this URL in ~5s to read the worker probe")
+        debug_probe_worker_client.apply_async(kwargs={"tag": "default"}, queue="celery")
+        debug_probe_worker_client.apply_async(kwargs={"tag": "chat"}, queue=chat_q)
     except Exception as e:  # noqa: BLE001
-        result["worker"] = {"dispatch_error": repr(e)}
+        result["dispatch_error"] = repr(e)
+
+    result["worker_default_queue"] = (cache.get(f"{WORKER_CACHE_KEY}:default")
+                                      or "dispatched — reload in ~5s")
+    result["worker_chat_queue"] = (cache.get(f"{WORKER_CACHE_KEY}:chat")
+                                   or "dispatched — reload in ~5s")
+    # Identity self-reported by the REAL streaming-chat task (send one chat first).
+    result["actual_chat_task_identity"] = (cache.get("wlj:debug:chat_worker_identity")
+                                           or "no chat processed yet — send one chat message")
     return JsonResponse(result, json_dumps_params={"indent": 2})

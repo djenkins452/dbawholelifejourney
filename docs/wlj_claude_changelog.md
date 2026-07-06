@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(ai): prove WHICH worker runs production chat (queue routing)
+
+The contradiction (Railway shows OPENAI_API_KEY set; worker probe shows os.environ lacks it)
+is explained by task routing: CELERY_TASK_ROUTES routes `run_chatgpt_cos_generation` (streaming
+chat) to CHAT_GENERATION_QUEUE, while the earlier probe ran on the DEFAULT queue — potentially a
+DIFFERENT worker container. Eliminated the os.environ-mutation hypothesis (no clear/pop/overwrite
+in app or config; only a test uses environ.pop). Instrumented the REAL chat task to self-report
+its process identity into cache `wlj:debug:chat_worker_identity` (celery node, routing queue,
+CHAT_GENERATION_QUEUE, socket host, pid, git SHA, raw os.environ OPENAI_API_KEY presence+length,
+settings key presence+length, ai_service.is_available) — never the key value. Extended the deep
+probe with socket_host + raw-environ-vs-settings, and the diagnostic endpoint now dispatches the
+probe to BOTH the default and chat queues (distinct cache keys) and returns the real chat task's
+identity. This deterministically proves which container/queue runs chat and whether THAT process
+has the key. TEMPORARY. Files: `apps/ai/debug_worker_client.py`, `apps/ai/chatgpt_cos/tasks.py`.
+
 ## 2026-07-06 — debug(ai): TEMPORARY worker-client construction probe
 
 Production disproved the "worker missing OPENAI_API_KEY" conclusion (the key IS configured on

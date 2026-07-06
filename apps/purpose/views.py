@@ -260,11 +260,20 @@ class DirectionDeleteView(PurposeAccessMixin, DeleteView):
 # Life Goals
 # =============================================================================
 
-class GoalListView(PurposeAccessMixin, ListView):
+class GoalListView(CurrentContextMixin, PurposeAccessMixin, ListView):
     """List all life goals."""
     model = LifeGoal
     template_name = "purpose/goal_list.html"
     context_object_name = "goals"
+
+    def get_current_context_object(self):
+        # Current Context Contract — the goals overview's one deterministic focus is the
+        # active mission goal, so "am I making progress?" / "is this still right?" ground here.
+        try:
+            from apps.purpose.mission_selection import select_active_mission_goal
+            return select_active_mission_goal(self.request.user)
+        except Exception:
+            return None
 
     def get_queryset(self):
         queryset = LifeGoal.objects.filter(
@@ -304,7 +313,7 @@ class GoalListView(PurposeAccessMixin, ListView):
         return context
 
 
-class GoalDetailView(CurrentContextMixin, PurposeAccessMixin, DetailView):
+class GoalDetailView(PurposeAccessMixin, DetailView):
     """View goal details."""
     model = LifeGoal
     template_name = "purpose/goal_detail.html"

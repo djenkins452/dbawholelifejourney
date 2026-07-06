@@ -33,7 +33,6 @@ from django.views.generic import (
     View,
 )
 
-from apps.core.current_context import CurrentContextMixin
 from apps.core.models import Category
 from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
@@ -1318,7 +1317,7 @@ class StartReadingPlanView(LoginRequiredMixin, FaithRequiredMixin, View):
         return redirect("faith:reading_plan_progress", pk=user_plan.pk)
 
 
-class ReadingPlanProgressView(CurrentContextMixin, LoginRequiredMixin, FaithRequiredMixin, DetailView):
+class ReadingPlanProgressView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
     """
     View progress on a reading plan.
 

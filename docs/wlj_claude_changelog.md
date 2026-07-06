@@ -6,6 +6,26 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(cos): Object-Centered Conversation + auto-declaration (Current Context restore)
+
+Restored + corrected the Current Context Contract after a coverage regression (only 3 DetailViews
+were migrated; users invoke conversation on overview pages). Two changes, both architectural:
+(1) OBJECT-CENTERED CONVERSATION — the contract's job is to hand Beth the canonical object in
+focus, NOT to match a phrase. `service.generate` now resolves the focused object (`resolve_page_focus`
+via `focus_ref`) and injects it into the system prompt (`CURRENTLY VIEWING`) for the WHOLE turn,
+so ANY natural question ("am I making progress?", "what concerns you?", "how does this apply to my
+life?") is grounded — not gated behind `is_page_reference`. The page_reference lane remains only a
+deterministic deixis fast-path + page-aware degradation. (2) AUTO-DECLARATION — `base.html` emits
+`<meta name="wlj-context">` from `object` whenever it is Narratable (UserOwnedModel), so EVERY
+DetailView is Beth-aware with zero per-view code; removed the per-view mixins from
+GoalDetailView/EntryDetailView/ReadingPlanProgressView (now auto). `CurrentContextMixin` is now used
+only for overview pages with one deterministic focus — added to GoalListView
+(`get_current_context_object` → active mission goal), restoring the pre-regression Goals behavior.
+Tests: apps/core/tests/test_current_context.py (auto-declaration render, overview mission-goal render,
+non-deixis question grounds in the object) — 29 green, no migrations, request-path safety green.
+Files: templates/base.html, apps/purpose/views.py, apps/journal/views.py, apps/faith/views.py,
+apps/ai/chatgpt_cos/service.py, docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
+
 ## 2026-07-06 — feat(core): Current Context Contract — Page Awareness as a platform capability
 
 Replaces the page-by-page fragmentation (per-module `if module ==` branches in the client

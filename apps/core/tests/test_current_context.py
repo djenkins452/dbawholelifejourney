@@ -111,3 +111,73 @@ class ViewMixinTests(TestCase):
         desc = ctx["current_context_descriptor"]
         self.assertEqual(desc["ref"], f"purpose.lifegoal:{g.pk}")
         self.assertEqual(desc["title"], "Goal X")
+
+
+def _onboarded(email):
+    from django.conf import settings as s
+    u = User.objects.create_user(email=email, password="x")
+    try:
+        from apps.users.models import TermsAcceptance
+        TermsAcceptance.objects.create(user=u, terms_version=s.WLJ_SETTINGS["TERMS_VERSION"])
+    except Exception:
+        pass
+    u.preferences.has_completed_onboarding = True
+    u.preferences.save()
+    return u
+
+
+class RenderTests(TestCase):
+    """The page must actually EMIT the meta so the client can send the reference. Auto for
+    DetailViews (via `object`); explicit for overview pages with one deterministic focus."""
+
+    def test_detail_view_auto_declares(self):
+        from django.test import Client
+        from apps.journal.models import JournalEntry
+        u = _onboarded("rd1@x.com")
+        e = JournalEntry.objects.create(user=u, title="My entry", body="body")
+        c = Client(); c.force_login(u)
+        html = c.get(f"/journal/{e.pk}/").content.decode("utf-8", "ignore")
+        self.assertIn(f'content="journal.journalentry:{e.pk}"', html)   # NO per-view mixin
+
+    def test_overview_declares_mission_goal(self):
+        from unittest import mock as _mock
+        from django.test import Client
+        from apps.purpose.models import LifeGoal
+        u = _onboarded("rd2@x.com")
+        g = LifeGoal.objects.create(user=u, title="France 2027", target_date=date(2027, 1, 1))
+        c = Client(); c.force_login(u)
+        with _mock.patch("apps.purpose.mission_selection.select_active_mission_goal", return_value=g):
+            html = c.get("/purpose/goals/").content.decode("utf-8", "ignore")
+        self.assertIn(f'content="purpose.lifegoal:{g.pk}"', html)
+
+
+class ObjectCenteredTests(TestCase):
+    """The contract's job is to hand Beth the object — NOT to match a phrase. A natural,
+    non-deixis question must arrive at the executive brain already grounded in the object."""
+
+    def test_non_deixis_question_grounds_in_object(self):
+        from unittest import mock as _mock
+        from apps.purpose.models import LifeGoal
+        from apps.ai.chatgpt_cos.service import ChatGPTCoSService
+        u = _onboarded("oc@x.com")
+        g = LifeGoal.objects.create(user=u, title="France 2027",
+                                    description="Save and train for the family trip",
+                                    target_date=date(2027, 1, 1))
+        pc = {"module": "purpose", "focus_ref": f"purpose.lifegoal:{g.pk}"}
+        svc = ChatGPTCoSService(u)
+        captured = {}
+
+        def _fake_tools(system_prompt, message, **kw):
+            captured["system"] = system_prompt
+            return "ok"
+
+        with _mock.patch("apps.ai.chatgpt_cos.lanes.route_message", return_value=None), \
+             _mock.patch.object(ChatGPTCoSService, "_history", return_value=[]), \
+             _mock.patch("apps.ai.cos_services.get_standing_context", return_value={"status": "ok"}), \
+             _mock.patch("apps.ai.cos_services.get_tool_schemas", return_value=[]), \
+             _mock.patch("apps.core.ai_state.state_engine.get_user_state", return_value={}), \
+             _mock.patch("apps.ai.services.ai_service._call_api_with_tools", side_effect=_fake_tools):
+            # A natural progress question — NO "this/that", NO page-verb.
+            svc.generate(conversation=object(), message="Am I making progress?", page_context=pc)
+        self.assertIn("CURRENTLY VIEWING", captured["system"])
+        self.assertIn("Save and train for the family trip", captured["system"])   # grounded

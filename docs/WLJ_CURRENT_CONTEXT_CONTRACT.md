@@ -1,6 +1,10 @@
 # WLJ Current Context Contract — Page Awareness as a Platform Capability
 
-**Status:** IMPLEMENTED (2026-07-06). Phase 0–2 shipped: core contract + Beth delegation + Goals/Faith/Journal migrated. Task has no detail page (nothing to migrate). Contract tests in `apps/core/tests/test_current_context.py`.
+**Status:** IMPLEMENTED (2026-07-06). Core contract + auto-declaration + object-centered conversation. Contract tests in `apps/core/tests/test_current_context.py`.
+
+**Governing rule — Object-Centered Conversation, NOT phrase matching.** The contract answers exactly one question: *"What canonical object is the user currently talking about?"* It hands that object to the executive brain; Beth determines intent and handles ANY natural question about it ("am I making progress?", "what concerns you?", "how does this apply to my life?") — grounded, without the user restating what's on screen. The contract never interprets a phrase. Enforcement: the focused object is injected into Beth's system prompt (`CURRENTLY VIEWING`) for the whole turn whenever a focus is resolved — it is NOT gated behind any trigger phrase. (`is_page_reference` still exists only as a deterministic fast-path/degradation for deixis; it is not the capability.)
+
+**Declaration is automatic for DetailViews.** `base.html` emits `<meta name="wlj-context">` from `object` whenever it is a Narratable (`UserOwnedModel`) — so ANY DetailView is Beth-aware with zero per-view code. `CurrentContextMixin` is only for overview pages with ONE deterministic focus (e.g. the goals overview → active mission goal via `get_current_context_object`). A page with no single object stays honestly unresolved (Beth asks which one).
 **Governing principle:** Beth (the One Brain) must understand *where the user is, what page is open, what object is in focus, and what canonical content belongs to it* — for **any** WLJ page — **without page-specific conversational code.** A new page becomes conversational by implementing ONE contract, not by editing Beth.
 
 ---

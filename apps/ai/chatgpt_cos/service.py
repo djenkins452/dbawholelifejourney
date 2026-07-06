@@ -105,16 +105,33 @@ class ChatGPTCoSService:
             out.append({"role": role, "content": (m.content or "")[:_HISTORY_CHARS]})
         return out
 
-    def _system_prompt(self, standing):
+    def _system_prompt(self, standing, focus=None):
         try:
             standing_json = json.dumps(standing, default=str)[:_STANDING_CHARS]
         except Exception:
             standing_json = "{}"
-        return _SYSTEM_PROMPT.format(
+        prompt = _SYSTEM_PROMPT.format(
             cos_name=self._cos_name(),
             first_name=(getattr(self.user, "first_name", "") or "Danny"),
             standing=standing_json,
         )
+        # OBJECT-CENTERED CONVERSATION (Current Context Contract). When the user is looking
+        # at a canonical object, give Beth the object itself — not a phrase trigger. She then
+        # handles ANY natural question about it ("am I making progress?", "what concerns you?",
+        # "how does this apply to my life?") grounded in what's on screen, without the user
+        # repeating it. This is ONE input to the executive brain, never a separate brain.
+        if focus and (focus.get("content") or "").strip():
+            where = focus.get("title") or focus.get("kind") or "this page"
+            kind = focus.get("kind") or ""
+            label = f'"{where}"' + (f" ({kind})" if kind else "")
+            prompt += (
+                f"\n\nCURRENTLY VIEWING\nThe user is looking at {label} in Whole Life "
+                "Journey. When their message is about what they're viewing — explicitly, by "
+                "'this/that/it', or any natural question that clearly refers to it — ground "
+                "your answer in this canonical content; do not ask them to restate it:\n"
+                f"{focus['content'][:3500]}"
+            )
+        return prompt
 
     # ------------------------------------------------------------------
     def generate(self, conversation, message, page_context=None, request_id=None):
@@ -167,7 +184,17 @@ class ChatGPTCoSService:
         standing = get_standing_context(
             self.user, page_context=page_context, allow_build=True,
         )
-        system_prompt = self._system_prompt(standing)
+        # OBJECT-CENTERED CONVERSATION — resolve the canonical object currently in focus
+        # (Current Context Contract) and hand it to the executive brain, so ANY natural
+        # question about it is grounded without the user restating what's on screen.
+        focus = None
+        if page_context:
+            try:
+                from apps.ai.chatgpt_cos.page_reference import resolve_page_focus
+                focus = resolve_page_focus(page_context, user=self.user)
+            except Exception:
+                logger.warning("chatgpt_cos: current-context resolve failed", exc_info=True)
+        system_prompt = self._system_prompt(standing, focus=focus)
         history = self._history(conversation, message)
         tools = get_tool_schemas(enabled_only=True)
         advertised = [t["function"]["name"] for t in tools]

@@ -828,6 +828,10 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
         if not place.has_coordinates and place.location_text:
             from apps.legacy.services.geocode import ensure_place_coordinates
             ensure_place_coordinates(place)
+        # TEMPORARY tile-provider comparison (opt-in via ?compare=1) — lets the keeper
+        # evaluate OSM / CARTO / Esri Streets / Esri Satellite on the SAME Place before we
+        # commit to one. Removed once a provider is chosen. See docs/WLJ_LEGACY_MAP_TILES.md.
+        ctx["tile_compare"] = self.request.GET.get("compare") == "1" and place.has_coordinates
         memories = place.memories.all().select_related("primary_media").order_by("-created_at")
         ctx["memories"] = memories
         ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]

@@ -145,6 +145,34 @@ class PlaceMapViewTests(TestCase):
         obj = form.save(commit=False)
         self.assertEqual(str(obj.latitude), "35.9606")
 
+    def _resolved_place(self):
+        return Place.objects.create(user=self.user, name="Home", location_text="Knoxville, TN",
+                                    latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
+
+    def test_compare_mode_offers_all_four_providers(self):
+        p = self._resolved_place()
+        html = self.client.get(
+            reverse("legacy:place_detail", args=[p.pk]) + "?compare=1").content.decode()
+        self.assertIn('id="compareMap"', html)
+        for label in ["Current OSM", "CARTO Voyager", "Esri Streets", "Esri Satellite"]:
+            self.assertIn(label, html)
+        self.assertIn("leaflet/leaflet.js", html)
+        self.assertNotIn("place-map-frame", html)   # static embed replaced by the comparison
+
+    def test_compare_mode_is_opt_in_only(self):
+        p = self._resolved_place()
+        html = self.client.get(reverse("legacy:place_detail", args=[p.pk])).content.decode()
+        self.assertNotIn('id="compareMap"', html)    # off by default
+        self.assertIn("place-map-frame", html)        # normal static map
+        self.assertIn("Compare map styles", html)     # discoverable entry point
+
+    def test_compare_mode_needs_coordinates(self):
+        # ?compare=1 does nothing until the Place is resolved (no coords to centre on).
+        p = Place.objects.create(user=self.user, name="Unplaced")
+        html = self.client.get(
+            reverse("legacy:place_detail", args=[p.pk]) + "?compare=1").content.decode()
+        self.assertNotIn('id="compareMap"', html)
+
 
 class GeocodeSearchReverseTests(TestCase):
     def test_search_returns_labelled_candidates(self):

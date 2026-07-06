@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): TEMPORARY map-tile comparison mode + OSM-retirement plan (evidence-based provider choice)
+
+**What:** So the tile-provider decision is evidence-based, not theoretical, a resolved Place can now show an opt-in comparison map that switches between **Current OSM · CARTO Voyager · Esri Streets · Esri Satellite** on the *same* location.
+
+- Opt-in via **`?compare=1`** (or the "Compare map styles →" link on the resolved-place map card). Off by default; only on Places that have coordinates.
+- Replaces the static OSM embed with an interactive **Leaflet** map + a base-layer switcher (starts on OSM). No CSP change — tiles are `img-src https:` images; Leaflet is already self-hosted.
+- **Temporary by design** — `PlaceProfileView.tile_compare`, the `place-compare` template block, the link + CSS all get removed once a provider is chosen. Keyless endpoints are used for evaluation only.
+
+**Planning:** added `docs/WLJ_LEGACY_MAP_TILES.md` — provider evaluation summary + a concrete **plan to retire `tile.openstreetmap.org` for production** (where OSM tiles are referenced today, the key structural change of converting the resolved-place `embed.html` iframe to a self-hosted Leaflet layer, env-based API key, attribution, and acceptance = no prod request to OSM public tiles). Leading recommendation pending Danny's eval: CARTO Voyager (streets) + Esri World Imagery (satellite) toggle.
+
+**Files:** `apps/legacy/views.py` (`tile_compare` flag), `templates/legacy/place_detail.html` (comparison block + entry link), `static/css/legacy.css` (compare styles; cache-bust `v=58`), `apps/legacy/tests/test_places_map.py`, `docs/WLJ_LEGACY_MAP_TILES.md` (new). No migration.
+
+**Verification:** `test_places_map` 28 green (compare mode offers all four providers + replaces the static embed; opt-in only; needs coordinates). Live-certified in the dev browser on a resolved Maryville Place: the switcher lists all four; **CARTO Voyager tiles loaded 3/3**, **Esri Streets 15/15**, **Esri Satellite 15/15** (real aerial imagery with the pin) — no CSP violations, no console errors. Throwaway test place removed.
+
 ## 2026-07-06 — debug(dashboard): TEMPORARY raw-truth endpoint for the Purpose recommendation card
 
 **Investigation aid (no production logic changed).** New authenticated endpoint `GET /debug/purpose-recommendation/` returns the RAW deterministic record the dashboard's Purpose accountability card actually renders — no composition, no summarization, no regeneration — so we can determine why production still shows the old milestone wording.

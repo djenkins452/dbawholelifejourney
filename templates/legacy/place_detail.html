@@ -28,7 +28,48 @@
         </div>
     </div>
 
-    {% if place.maps_embed_url %}
+    {% if tile_compare %}
+    <section class="lg-card place-map-card place-compare" id="placeCompare"
+             data-lat="{{ place.latitude }}" data-lon="{{ place.longitude }}">
+        <div class="place-compare-head">
+            <div>
+                <span class="place-map-label">Map style comparison · temporary</span>
+                <p class="place-compare-note">Switch styles with the control on the map — same Place, so you can judge readability, water, and satellite side by side.</p>
+            </div>
+            <a href="{% url 'legacy:place_detail' place.pk %}" class="lg-btn-quiet">Exit comparison</a>
+        </div>
+        <div class="locate-map" id="compareMap"></div>
+        <p class="locate-hint">{{ place.location_text|default:place.name }} · {{ place.latitude }}, {{ place.longitude }}</p>
+
+        <link rel="stylesheet" href="{% static 'legacy/vendor/leaflet/leaflet.css' %}">
+        <script src="{% static 'legacy/vendor/leaflet/leaflet.js' %}"></script>
+        <script nonce="{{ csp_nonce }}">
+        (function () {
+            var root = document.getElementById('placeCompare');
+            if (!root || !window.L) { return; }
+            var lat = parseFloat(root.getAttribute('data-lat'));
+            var lon = parseFloat(root.getAttribute('data-lon'));
+            var map = L.map('compareMap').setView([lat, lon], 14);
+            var osm = '&copy; OpenStreetMap contributors';
+            var bases = {
+                'Current OSM': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    { maxZoom: 19, attribution: osm }),
+                'CARTO Voyager': L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                    { maxZoom: 20, subdomains: 'abcd', attribution: osm + ' &copy; CARTO' }),
+                'Esri Streets': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }),
+                'Esri Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                    { maxZoom: 19, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' })
+            };
+            bases['Current OSM'].addTo(map);   // start from today's experience
+            L.control.layers(bases, null, { collapsed: false }).addTo(map);
+            L.circleMarker([lat, lon], { radius: 9, color: '#8a5a1e', weight: 3,
+                fillColor: '#c9a34e', fillOpacity: .9 }).addTo(map);
+            setTimeout(function () { map.invalidateSize(); }, 80);
+        })();
+        </script>
+    </section>
+    {% elif place.maps_embed_url %}
     <section class="lg-card place-map-card">
         <div class="place-map">
             <iframe class="place-map-frame" src="{{ place.maps_embed_url }}" title="Map showing {{ place.name }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
@@ -39,7 +80,10 @@
                 <span class="place-map-addr">{{ place.location_text|default:place.name }}</span>
                 {% if place.has_coordinates %}<span class="place-map-coords">{{ place.latitude }}, {{ place.longitude }}</span>{% endif %}
             </div>
-            <a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet place-map-open">Open in Google Maps ↗</a>
+            <div class="place-map-actions">
+                <a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet place-map-open">Open in Google Maps ↗</a>
+                {% if place.has_coordinates %}<a href="?compare=1" class="place-map-compare-link">Compare map styles →</a>{% endif %}
+            </div>
         </div>
     </section>
     {% endif %}

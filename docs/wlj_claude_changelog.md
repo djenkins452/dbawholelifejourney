@@ -6,6 +6,14 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(dashboard): TEMPORARY raw-truth endpoint for the Purpose recommendation card
+
+**Investigation aid (no production logic changed).** New authenticated endpoint `GET /debug/purpose-recommendation/` returns the RAW deterministic record the dashboard's Purpose accountability card actually renders — no composition, no summarization, no regeneration — so we can determine why production still shows the old milestone wording.
+
+It replicates the card's real selection verbatim (`apps/dashboard_v3/services/composer.py :: _build_accountability_cards`): `GuidanceItem.objects.filter(user=user, is_active=True).order_by("priority","-created_at")` → `module == "purpose"` → `[0]`, and applies the same render-time `_strip_leading_greeting()` so `displayed_message` is exactly what the browser shows. Reports, per row: `record_id`, `created_at`/`updated_at`, `generator` (derived from `dedupe_key` — e.g. `cos_event:win:milestone:<id>` → `significant_events._persist_major_win`), raw `message` + `what_happened`/`why_it_matters`/`what_to_do` (from metadata), `mission_id`/`goal_id`/`milestone_id`, `is_persisted`, `is_active`, `dedupe_key`, `occurrence_count`, `first_seen`/`last_seen`. Also returns ALL active purpose-module rows in render order (so a stale row outranking a fresh one is visible), the milestone MAJOR_WIN rows regardless of ranking (their timestamps reveal if the message predates the fix deploy), and cache probes for `dashboard_v1:<uid>:purpose` / `wlj:user_state:<uid>` / `wlj:cos_context:<uid>` (the live trace confirms NO cache sits between the query and render). Superuser may inspect another account via `?user_id=` / `?email=`.
+
+**Files:** new `apps/dashboard_v3/debug_views.py`; `config/urls.py` (route). Smoke-tested: 200 JSON for the superuser account. **Temporary — remove after diagnosis.**
+
 ## 2026-07-06 — docs(process): standing rule — run prod collectstatic locally before pushing any vendored JS/CSS
 
 Established a standing rule in `CLAUDE.md` ("Vendored Static Assets (REQUIRED)"): whenever a new JS/CSS library is self-hosted under `static/`, run `python3 manage.py collectstatic --noinput` (the prod WhiteNoise `CompressedManifestStaticFilesStorage` path) locally before pushing. It catches missing source maps, fonts, images, bad CSS `url()` references, and manifest issues before they reach Railway. Origin: vendored Leaflet's missing `.js.map` + marker images broke a deploy. Docs-only.

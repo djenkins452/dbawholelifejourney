@@ -57,6 +57,15 @@ def serve_media(request, path):
 
 
 urlpatterns = [
+    # TEMPORARY debug endpoint (2026-07-06 investigation) — raw truth for the
+    # Purpose recommendation card. Authenticated; remove after diagnosis.
+    path(
+        "debug/purpose-recommendation/",
+        __import__("apps.dashboard_v3.debug_views",
+                   fromlist=["debug_purpose_recommendation"]
+                   ).debug_purpose_recommendation,
+        name="debug_purpose_recommendation",
+    ),
     # Admin - using custom path for security (H-4)
     # The path is configurable via ADMIN_URL_PATH env var, defaults to 'wlj-admin'
     path(f"{settings.ADMIN_URL_PATH}/", admin.site.urls),

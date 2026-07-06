@@ -176,28 +176,29 @@ class RenderTests(TestCase):
         html = c.get(f"/journal/{e.pk}/").content.decode("utf-8", "ignore")
         self.assertIn(f'content="journal.journalentry:{e.pk}"', html)   # NO per-view mixin
 
-    def test_goals_list_overview_declares_mission_goal(self):
-        from unittest import mock as _mock
-        from django.test import Client
+    def _mission_goal(self, user):
+        # REAL selection criteria — is_primary_mission=True + active (no mock), so the test
+        # proves the actual production chain, not an artifact.
         from apps.purpose.models import LifeGoal
+        return LifeGoal.objects.create(user=user, title="France 2027", status="active",
+                                       is_primary_mission=True, target_date=date(2027, 1, 1))
+
+    def test_goals_list_overview_declares_mission_goal(self):
+        from django.test import Client
         u = _onboarded("rd2@x.com")
-        g = LifeGoal.objects.create(user=u, title="France 2027", target_date=date(2027, 1, 1))
+        g = self._mission_goal(u)
         c = Client(); c.force_login(u)
-        with _mock.patch("apps.purpose.mission_selection.select_active_mission_goal", return_value=g):
-            html = c.get("/purpose/goals/").content.decode("utf-8", "ignore")
+        html = c.get("/purpose/goals/").content.decode("utf-8", "ignore")
         self.assertIn(f'content="purpose.lifegoal:{g.pk}"', html)
 
     def test_purpose_home_declares_mission_goal(self):
-        # The ACTUAL "Goals" page in the nav is /purpose/ (PurposeHomeView) — proven in
-        # production to be where "Am I making progress?" was asked. It must declare the focus.
-        from unittest import mock as _mock
+        # The ACTUAL "Goals" page in the nav is /purpose/ (PurposeHomeView) — proven by the
+        # cc-chain capture (url=/purpose/) to be where "Am I making progress?" was asked.
         from django.test import Client
-        from apps.purpose.models import LifeGoal
         u = _onboarded("rd3@x.com")
-        g = LifeGoal.objects.create(user=u, title="France 2027", target_date=date(2027, 1, 1))
+        g = self._mission_goal(u)
         c = Client(); c.force_login(u)
-        with _mock.patch("apps.purpose.mission_selection.select_active_mission_goal", return_value=g):
-            html = c.get("/purpose/").content.decode("utf-8", "ignore")
+        html = c.get("/purpose/").content.decode("utf-8", "ignore")
         self.assertIn(f'content="purpose.lifegoal:{g.pk}"', html)
 
 

@@ -112,6 +112,41 @@ def _top_value_item(items):
     return sorted(incomplete, key=_value_key)[0] if incomplete else None
 
 
+def _join_titles(titles):
+    ts = [t for t in titles if t]
+    if not ts:
+        return ""
+    if len(ts) == 1:
+        return ts[0]
+    if len(ts) == 2:
+        return f"{ts[0]} and {ts[1]}"
+    return ", ".join(ts[:-1]) + ", and " + ts[-1]
+
+
+def _remaining_health_obligations(items):
+    """Incomplete same-day HEALTH obligations (prescriptions first, then supplements) —
+    what still has to happen tonight before winding down."""
+    hl = [i for i in (items or [])
+          if not i.get("completed_today") and (i.get("title") or "").strip()
+          and (i.get("source_type") or "").lower() in ("medication_dose", "supplement_dose")]
+    hl.sort(key=lambda i: 0 if (i.get("source_type") or "").lower() == "medication_dose" else 1)
+    return hl
+
+
+def _domain_done_today(user, domain):
+    """True if the user already completed an item in `domain` today (e.g. journaling) —
+    so a completed activity is never re-recommended."""
+    try:
+        from apps.core.cos_briefing.rhythm import build_rhythm_sections
+        for sec in ((build_rhythm_sections(user) or {}).get("sections") or []):
+            for it in (sec.get("items") or []):
+                if it.get("completed_today") and (it.get("domain") or "").lower() == domain.lower():
+                    return True
+    except Exception:
+        logger.warning("daily_agenda: domain-done read failed", exc_info=True)
+    return False
+
+
 def build_daily_agenda(user):
     """Return a deterministic daily agenda string (always non-empty). TIME-AWARE:
     in the evening it pivots to wrap-up / recovery / tomorrow and never tells the
@@ -128,24 +163,27 @@ def build_daily_agenda(user):
 
     hour = _user_hour(user)
 
-    # ----- Evening (8 PM onward): wind down, don't start the day's activities. ----
+    # ----- Evening (8 PM onward): finish remaining HEALTH obligations, then wind down.
+    # Never bury same-day medication under wind-down; never label today's leftovers as
+    # "tomorrow's first priority"; never re-recommend an already-completed activity. ----
     if hour >= 20:
         parts = ["It's getting late, so let's focus on wrapping up the day well."]
+        health_left = _remaining_health_obligations(remaining)
+        if health_left:
+            names = _join_titles([i["title"].strip() for i in health_left])
+            lead = "medication" if any(
+                (i.get("source_type") or "").lower() == "medication_dose" for i in health_left) else "supplements"
+            parts.append(f"Before you wind down, you still have {names} left to take "
+                         f"tonight — finish your {lead} first; that outranks anything strategic "
+                         "this late.")
         risk = _risk_clause(user)
         if risk:
             parts.append(risk + " Let that go for tonight and reset in the morning.")
-        parts.append("The best use of this evening is to wind down: journal a few "
-                     "lines on how today went, prepare for tomorrow, and protect "
-                     "your sleep.")
-        # Tomorrow's first priority = highest executive VALUE remaining, not earliest-scheduled.
-        top_val = _top_value_item(remaining) or (next_item if isinstance(next_item, dict) else None)
-        nxt = (top_val or {}).get("title") if isinstance(top_val, dict) else None
-        if nxt and nxt.strip():
-            parts.append(f"Tomorrow's first priority looks like {nxt.strip()} — "
-                         f"rest up tonight so you're ready for it.")
-        else:
-            parts.append("Set tomorrow's first priority before bed so you can start "
-                         "with a clear head.")
+        # Wind-down — completion-aware: don't suggest journaling if it's already done today.
+        wind = "prepare for tomorrow and protect your sleep"
+        if not _domain_done_today(user, "journal"):
+            wind = "journal a few lines on how today went, " + wind
+        parts.append("Then wind down: " + wind + ".")
         return " ".join(parts)
 
     parts = []

@@ -98,6 +98,58 @@ def _reconciliation_lane(user, message, conversation=None):
     return reconciliation.answer(user, message, conversation)
 
 
+# The user pushing back that Beth got the PRIORITY wrong — put strategic work ahead of a
+# health obligation, or recommended something already done. Beth must ACKNOWLEDGE, apply
+# the correction, and re-answer with the value-ranked priority — NEVER a fact dump.
+_PRIORITY_PUSHBACK = (
+    "ignoring my", "ignore my", "you're just saying", "you are just saying",
+    "youre just saying", "screw it", "worst cos", "worse cos", "worst chief",
+    "worst assistant", "you realize i", "you prioritized", "you are prioritizing",
+    "youre prioritizing", "over my medic", "over my medication", "over my meds",
+    "the most valuable thing is", "instead of my medic",
+)
+
+
+def _priority_correction_lane(user, message, conversation=None):
+    """When the user corrects Beth's PRIORITY (she put strategic work over remaining
+    medication, or recommended a done activity), acknowledge, drop what's already done,
+    and re-answer with interpret().priority_action — the value-ranked truth, in context.
+    Runs BEFORE the retrieval lanes so it never becomes a medication-list fact dump."""
+    norm = _normalize(message)
+    if not any(c in norm for c in _PRIORITY_PUSHBACK):
+        return None
+    # Record any accomplishment the user names so it drops out of the ranking.
+    already = "already" in norm
+    try:
+        from apps.ai.chatgpt_cos.executive_evidence import record_accomplishment
+        for cue, label in (("journal", "journaled"), ("work out", "worked out"),
+                           ("workout", "worked out"), ("medit", "meditated"),
+                           ("pray", "prayed")):
+            if already and cue in norm:
+                record_accomplishment(user, label)
+    except Exception:
+        pass
+    pa = None
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        pa = interpret(user).priority_action
+    except Exception:
+        logger.warning("priority_correction: interpret failed", exc_info=True)
+    parts = ["You're right — I shouldn't have put that ahead of what actually matters "
+             "right now."]
+    if already:
+        parts.append("I've dropped what you've already done.")
+    if pa and (pa.get("text") or "").strip():
+        why = (pa.get("why") or "").strip()
+        parts.append(f"The most important thing now is {pa['text'].strip()}"
+                     + (f" — {why}." if why else "."))
+    else:
+        parts.append("Tell me what's still left on your plate and I'll re-rank it "
+                     "by what matters, not what's next.")
+    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
+            "lane": "priority_correction"}
+
+
 # Law 0 / Law 4 — DETERMINISTIC STATUS/COUNT questions belong to deterministic
 # providers (workout/journal/appointments), NOT the reasoning planner. Conservative
 # substrings: presence/status phrasings only, never the reasoning cues ("how is my
@@ -1723,6 +1775,9 @@ LANE_REGISTRY = (
     # priority ("I did it yesterday", "that's a morning activity", "meeting canceled")
     # updates the picture — BEFORE retrieval lanes so the REASON isn't read as a query.
     ("reconciliation", _reconciliation_lane),
+    # Priority pushback ("you prioritized X over my medicine") → acknowledge + re-rank,
+    # never a fact dump. Before the retrieval lanes so it isn't read as a med-list query.
+    ("priority_correction", _priority_correction_lane),
     # RECOGNIZE ACCOMPLISHMENTS: a report of what was done today ("I made up my
     # workouts") is celebrated + recorded as today's evidence — before the retrieval
     # lanes so it isn't mistaken for a query.

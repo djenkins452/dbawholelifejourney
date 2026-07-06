@@ -33,7 +33,7 @@ def _item(title, source_type="routine_item", is_foundational=False, urgency="upc
 
 def _rank(user, pool, **kw):
     defaults = dict(health_critical=[], opportunity=None, strategic_text="",
-                    deferred_labels=set(), accomplishments=[], recovery_needed=False)
+                    deferred_labels=set(), accomplishments=[], recovery_needed=False, hour=12)
     defaults.update(kw)
     with mock.patch(_RRI, return_value=pool):
         return _rank_priority_actions(user, **defaults)
@@ -93,6 +93,53 @@ class RankerTests(TestCase):
         self.assertEqual(top2["text"], "Pay the invoice")        # value beats earlier schedule
 
 
+class EveningContextTests(TestCase):
+    """Executive judgment IN CONTEXT — the 9:18 PM production failure. At night, remaining
+    same-day health obligations outrank strategic work; a prescription due today is never
+    buried; a supplement is not 'tomorrow's first priority'."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="pawe@test.com", password="x")
+
+    def test_evening_prescription_leads_strategic_and_supplement(self):
+        # 9:18 PM: Metformin (prescription due tonight) leads; France (strategic) demoted;
+        # Magnesium (supplement) sits below the prescription. THE production scenario.
+        pool = [_item("Metformin HCL ER", "medication_dose", urgency="upcoming",
+                      scheduled_time="21:00", domain="health"),
+                _item("Magnesium glycinate", "supplement_dose", urgency="upcoming",
+                      scheduled_time="21:00", domain="health")]
+        top, ranked = _rank(self.u, pool, strategic_text="moving France 2027 forward", hour=21)
+        self.assertIn("metformin", top["text"].lower())
+        self.assertEqual(top["kind"], "health_obligation")
+        # ordering: prescription > supplement > demoted strategic
+        order = [c["text"].lower() for c in ranked]
+        self.assertLess(order.index("metformin hcl er"),
+                        [i for i, t in enumerate(order) if "france" in t][0])
+
+    def test_strategic_is_demoted_below_remaining_health_at_night(self):
+        pool = [_item("Magnesium", "supplement_dose", urgency="upcoming", domain="health")]
+        top, _ = _rank(self.u, pool, strategic_text="moving France 2027 forward", hour=22)
+        self.assertIn("magnesium", top["text"].lower())   # supplement 34 > evening strategic 26
+
+    def test_prescription_due_now_beats_strategic_in_daytime(self):
+        pool = [_item("Metformin", "medication_dose", urgency="now", domain="health")]
+        top, _ = _rank(self.u, pool, strategic_text="moving France 2027 forward", hour=10)
+        self.assertIn("metformin", top["text"].lower())   # due now (70) > strategic (66)
+
+    def test_prescription_due_later_daytime_yields_to_strategic(self):
+        # Not over-eager: a med due at 9 PM is not "the most important thing" at 10 AM.
+        pool = [_item("Metformin", "medication_dose", urgency="upcoming", domain="health")]
+        top, _ = _rank(self.u, pool, strategic_text="moving France 2027 forward", hour=10)
+        self.assertIn("france", top["text"].lower())      # due later (50) < strategic (66)
+
+    def test_remaining_health_obligations_prescriptions_first(self):
+        from apps.core.cos_briefing.daily_agenda import _remaining_health_obligations
+        items = [_item("Magnesium", "supplement_dose"), _item("Metformin", "medication_dose"),
+                 _item("Shower", "routine_item")]
+        hl = _remaining_health_obligations(items)
+        self.assertEqual([i["title"] for i in hl], ["Metformin", "Magnesium"])  # rx first, hygiene excluded
+
+
 class InterpretIntegrationTests(TestCase):
     def setUp(self):
         self.u = User.objects.create_user(email="pawi@test.com", password="x")
@@ -130,6 +177,36 @@ class LaneConsumptionTests(TestCase):
         self.assertEqual(out["lane"], "next_rhythm")
         low = out["answer"].lower()
         self.assertIn("most valuable thing to do next is finish the launch plan", low)
+
+
+class PriorityCorrectionTests(TestCase):
+    """When the user corrects Beth's priority, she reconciles and re-answers — never a
+    prescription fact dump (the production failure)."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="pawc@test.com", password="x")
+
+    def test_pushback_acknowledges_and_re_ranks(self):
+        from apps.ai.chatgpt_cos.lanes import _priority_correction_lane
+        pa = {"text": "take your remaining medication tonight",
+              "why": "a prescription still due today — adherence comes first"}
+        with mock.patch(_INTERP, return_value=ExecutiveSignals(priority_action=pa)):
+            out = _priority_correction_lane(
+                self.u,
+                "You realize I already journaled, but I have two medicines left for today? "
+                "You are just saying to ignore my medicine? Worst CoS ever. "
+                "The most valuable thing is France 2027?")
+        self.assertIsNotNone(out)
+        self.assertEqual(out["lane"], "priority_correction")
+        low = out["answer"].lower()
+        self.assertIn("you're right", low)                 # acknowledges
+        self.assertIn("already done", low)                 # drops completed journaling
+        self.assertIn("remaining medication", low)         # corrected priority
+        self.assertNotIn("atorvastatin", low)              # NOT a prescription fact dump
+
+    def test_unrelated_message_not_claimed(self):
+        from apps.ai.chatgpt_cos.lanes import _priority_correction_lane
+        self.assertIsNone(_priority_correction_lane(self.u, "what's my weight right now?"))
 
 
 class DailyAgendaValueTests(TestCase):

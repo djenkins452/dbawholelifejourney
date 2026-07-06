@@ -370,26 +370,43 @@ def _pattern_assessment(user):
 # ONLY a tiebreaker. A routine item never outranks strategic/health work just because it
 # is overdue or earliest on the clock. Deterministic; request-path safe (reads the
 # pre-computed execution/rhythm truth, never rebuilds).
-_PA_TIER = {"health_critical": 100, "strategic": 62, "opportunity": 52,
-            "task": 44, "commitment": 40, "routine": 20}
+# Health adherence (a PRESCRIPTION still due today) outranks strategic progress; a
+# supplement is a minor health obligation; hygiene/routine is lowest. CONTEXT MATTERS:
+# in the evening, strategic deep work is no longer the best move and remaining same-day
+# health obligations rise.
+_PA_TIER = {"health_critical": 100, "health_obligation": 70, "strategic": 62,
+            "opportunity": 52, "task": 44, "commitment": 40, "routine": 20}
+_PA_EVENING_HOUR = 18
 
 
 def _pa_norm(s):
     return " ".join((s or "").split()).strip().lower()
 
 
+def _pa_hour(user):
+    try:
+        from apps.core.utils import get_user_now
+        return get_user_now(user).hour
+    except Exception:
+        return 12
+
+
 def _pa_classify(item):
-    """(tier, base) for a candidate by its REAL nature — foundational/task/routine — not
-    its schedule position. Shower=routine_item, Magnesium=supplement_dose → 'routine'."""
+    """(tier, base) for a candidate by its REAL nature — prescription/supplement/task/
+    routine — never its schedule position. Prescription doses are a HEALTH OBLIGATION
+    (above strategic); supplements & hygiene are 'routine'. Checked BEFORE is_foundational
+    so a med dose is never mis-tiered as strategic."""
     st = (item.get("source_type") or "").lower()
     domain = (item.get("domain") or "").lower()
+    if st == "medication_dose":                       # a PRESCRIPTION due today
+        return "health_obligation", _PA_TIER["health_obligation"]
+    if st == "supplement_dose":
+        return "routine", _PA_TIER["routine"]
     if item.get("is_foundational"):
         return "strategic", _PA_TIER["strategic"]
     if st == "task":
         return "task", _PA_TIER["task"]
-    if st == "medication_dose":                       # non-critical dose (critical → health_critical)
-        return "routine", _PA_TIER["routine"] + 6
-    if st in ("routine_item", "supplement_dose"):
+    if st == "routine_item":
         return "routine", _PA_TIER["routine"]
     if domain in ("calendar", "event", "appointment"):
         return "commitment", _PA_TIER["commitment"]
@@ -397,20 +414,28 @@ def _pa_classify(item):
 
 
 def _pa_why(item, tier):
+    st = (item.get("source_type") or "").lower()
+    if tier == "health_obligation":
+        return "a prescription still due today — adherence comes first"
     if tier == "strategic":
         return "foundational to your mission"
     if (item.get("urgency") or "").lower() == "overdue":
         return "overdue"
+    if st == "supplement_dose":
+        return "a supplement still due today"
     return "a routine item" if tier == "routine" else "on today's plan"
 
 
 def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text,
-                           deferred_labels, accomplishments, recovery_needed):
-    """Rank every candidate action by EXECUTIVE VALUE → (top, ranked_list). Candidates:
-    health-critical actions, the strategic/leverage move, the executive opportunity, and
-    today's INCOMPLETE rhythm/execution items. Completed / already-accomplished /
-    user-deferred items are removed (Req 3). Ranked by value (Req 4); chronology is a
-    tiebreaker only (Req 5)."""
+                           deferred_labels, accomplishments, recovery_needed, hour=12):
+    """Rank every candidate action by EXECUTIVE VALUE **in context** → (top, ranked_list).
+    Candidates: health-critical actions, the strategic/leverage move, the executive
+    opportunity, and today's INCOMPLETE rhythm/execution items. Completed / accomplished /
+    deferred items are removed (Req 3). CONTEXT: in the evening, strategic/opportunity work
+    is demoted (not the best move late) and remaining same-day health obligations rise —
+    a prescription due today is never buried under strategic work. Chronology is a
+    tiebreaker only."""
+    evening = hour is not None and hour >= _PA_EVENING_HOUR
     cands, hc_titles = [], set()
     for hc in (health_critical or []):
         t = (hc.get("text") or "").strip()
@@ -421,14 +446,16 @@ def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text
                       "source": "health_critical", "kind": "health_critical",
                       "score": _PA_TIER["health_critical"], "sched": ""})
     if strategic_text:
+        s = _PA_TIER["strategic"] + 4
+        if evening:
+            s -= 40                                # deep strategic work is not the evening's best move
         cands.append({"text": strategic_text, "why": "moves your primary mission forward",
-                      "source": "strategic", "kind": "strategic",
-                      "score": _PA_TIER["strategic"] + 4, "sched": ""})
+                      "source": "strategic", "kind": "strategic", "score": s, "sched": ""})
     if opportunity and opportunity.get("action"):
+        o = _PA_TIER["opportunity"] - (30 if evening else 0)
         cands.append({"text": (opportunity.get("text") or opportunity.get("action")),
                       "why": (opportunity.get("basis") or "high expected value"),
-                      "source": "opportunity", "kind": "opportunity",
-                      "score": _PA_TIER["opportunity"], "sched": ""})
+                      "source": "opportunity", "kind": "opportunity", "score": o, "sched": ""})
     done = {_pa_norm(a) for a in (accomplishments or [])}
     defr = {_pa_norm(d) for d in (deferred_labels or []) if d}
     try:
@@ -443,11 +470,20 @@ def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text
             if any(lbl and lbl in nt for lbl in defr):     # user corrected it away
                 continue
             tier, base = _pa_classify(it)
+            st = (it.get("source_type") or "").lower()
             score, urg = base, (it.get("urgency") or "").lower()
-            if urg == "overdue":                            # consequence of delay — weighted by KIND
+            if tier == "health_obligation":
+                # A prescription due today beats strategic when it's DUE (now/overdue) or
+                # as the day closes; earlier in the day (due later) it's on the radar but
+                # not yet THE thing to do this moment.
+                if not (evening or urg in ("now", "overdue")):
+                    score = 50
+            elif urg == "overdue":                          # consequence of delay — weighted by KIND
                 score += 15 if tier in ("strategic", "task") else 4
             elif urg == "now":
                 score += 6
+            if evening and st == "supplement_dose":         # a remaining health obligation as day closes
+                score += 14
             if recovery_needed and (it.get("domain") or "").lower() == "workout":
                 score -= 18                                 # recovery cost
             cands.append({"text": title, "why": _pa_why(it, tier), "source": "execution",
@@ -674,7 +710,7 @@ def interpret(user, low_energy=False, subjective=None):
         user, health_critical=_health_critical, opportunity=_opportunity,
         strategic_text=(highest_leverage or "").strip(),
         deferred_labels=_deferred_labels, accomplishments=reported_accomplishments,
-        recovery_needed=bool(recovery))
+        recovery_needed=bool(recovery), hour=_pa_hour(user))
 
     return ExecutiveSignals(
         risks=_risks, wins=_wins, opportunity=_opportunity, predictions=_predictions,

@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Executive Priority Weighting IN CONTEXT — health obligations & time-of-day, not raw value
+
+**Root cause (proven):** the value ranker had no time-of-day awareness and mis-tiered medication. At 9:18 PM it ranked France 2027 (strategic, 66) ABOVE the remaining prescription (Metformin, classified as `medication_dose` → routine ~26) because (1) non-overdue same-day meds were scored as routine, (2) strategic had no evening demotion, (3) the evening agenda picked the highest-value *remaining* item and mislabeled it "tomorrow's first priority" (Magnesium, a supplement), (4) wind-down hardcoded "journal" regardless of completion, (5/6) the user's correction hit `foundational_facts` and dumped the prescription list.
+
+**Fix (governing judgment, no new engine):**
+- New tier **`health_obligation` (70)** above strategic (62): a `medication_dose` is a prescription due today — it beats strategic when DUE (now/overdue) or as the day closes; earlier in the day (due later) it sits at 50 (on the radar, not yet THE thing — not over-eager). Supplements/hygiene stay `routine` (20).
+- **Time-of-day context:** `interpret()` passes the user's local `hour`; in the evening (≥18) strategic is demoted (−40) and opportunity (−30) — deep strategic work isn't the night's best move — while a remaining `supplement_dose` rises (+14) as a health obligation. So at 9:18 PM: Metformin 70 > Magnesium 34 > France 26.
+- **Evening agenda** now surfaces remaining same-day health obligations FIRST ("you still have Metformin and Magnesium to take tonight — finish your medication first; that outranks anything strategic this late"), drops the fabricated "tomorrow's first priority = supplement" line, and is completion-aware (no "journal" if already journaled).
+- **Priority correction lane** (new, before the retrieval lanes): pushback ("you prioritized France over my medicine", "worst CoS", "you're ignoring my meds") is acknowledged and re-ranked from `interpret().priority_action`, dropping already-done activities — never a prescription fact dump.
+
+**Files:** `apps/ai/chatgpt_cos/executive_interpretation.py` (context-aware ranker), `apps/ai/chatgpt_cos/lanes.py` (`_priority_correction_lane` + registry), `apps/core/cos_briefing/daily_agenda.py` (evening health-first + completion-aware). Tests: `test_executive_priority_weighting.py` (+9, incl. the 9:18 PM scenario + correction), registry guards. 131 targeted green. No France/Metformin/Magnesium hardcoding.
+
 ## 2026-07-06 — feat(legacy): three-stage Place resolution — auto → search → drop-a-pin; coordinates owned by the canonical Place
 
 **What:** Completes the Place location workflow. A Place resolves in three stages, and once saved the canonical Place permanently owns the coordinates — never asked again, reused by every Story/Timeline/Family Event/Memory/Document/map:
@@ -21,6 +33,19 @@
 **Files:** `static/legacy/vendor/leaflet/leaflet.{js,css}` (vendored 1.9.4, BSD-2), `apps/legacy/services/geocode.py` (search/reverse/parse_latlon), `apps/legacy/views.py` (3 locate views), `apps/legacy/urls.py` (3 routes), `templates/legacy/place_detail.html` (resolver: search box + Leaflet map + save; CSP-nonce init script), `static/css/legacy.css` (resolver styles; cache-bust `v=57`), `apps/legacy/tests/test_places_map.py`. No migration (coords columns already existed).
 
 **Verification:** `test_places_map` 25 green (search/reverse/parse_latlon + all three locate endpoints, owner-scoped, invalid-pin rejected, resolver-shown-when-unresolved / hidden-once-resolved). Live-certified the FULL workflow in the dev browser: the Leaflet map renders over OSM tiles with zoom controls; **clicking the map dropped a pin** → coords `32.147711, -98.437500` + reverse address "FM 2156, Highland, Erath County, Texas" → Save stored them and the resolver vanished (resolved map shown, never asked again); **search "Tuscaloosa"** returned real candidates → selecting one recentred the map + dropped a pin at `33.209561, -87.567526` + enabled Save. Throwaway test places removed.
+
+## 2026-07-06 — fix(dashboard): the meaning-first milestone commentary was NOT reaching the live "Purpose recommendation" — one canonical composer
+
+**Production said the earlier fix didn't land.** The dashboard "Purpose recommendation" still read the OLD generic copy — "Milestone reached / That's milestone 6 of 12 / This is a concrete step… banking it now / next rung." Investigation traced the displayed text end-to-end and found the root cause was **architectural: two milestone-commentary generators.** The earlier change upgraded the dashboard mission *card* (`dashboard_v3/services/composer.py`), but the text on the screenshot comes from a *different* code path — the Significant Event Pipeline's stored MAJOR_WIN recommendation (`apps/ai/significant_events.py :: _persist_major_win`), which was never updated and kept the generic template.
+
+**Proven call chain:** milestone completion → `purpose.milestone.completed` event → `react_to_significant_event` → `_persist_major_win` builds `CoSEvent(what, why, wd)` → `GuidanceItem.message = what + why + wd` → `cos_recommendations` / `dashboard_v3` view → "Purpose recommendation" card. The generic wording originated in `_persist_major_win`'s `what` ("That's milestone N of M"), `why` ("a concrete step… banking it now reinforces the routine"), and `_what_next` ("Bank this one, then line up the next rung").
+
+**Fix — ONE canonical composer, so the two surfaces can never diverge again:** new `apps/core/mission_commentary.py` (`progression_clause`, `why_it_matters`, `milestone_meaning_text`) is now the single source of meaning-first milestone commentary. The dashboard card (`_milestone_meaning_text`) delegates to it (byte-identical output — its tests still pass). The MAJOR_WIN recommendation now composes its `why` from the SAME `why_it_matters` — the milestone's OWN description (fetched from `milestone_id`) grounded by progression toward THIS mission's purpose (named) — drops the bare "milestone N of M" tail from `what` (progression moves into `why`, framed as meaning), and `_what_next` now reads "Next: X is now active." The evidence-rich `what` (weight vs target, lateness) is preserved.
+
+**Before:** *"You hit the "Reach 284.9 lb" milestone… That's milestone 2 of 12 on this mission. This is a concrete step toward the mission you set — banking it now reinforces the routine… Bank this one, then line up the next rung: Reach 279.9 lb."*
+**After:** *"You hit the "Reach 284.9 lb" milestone on France 2027 Family 18K Mission — you're at 283.1 lb against the 284.9 lb target (2 days late). That's 2 of 12 — the foundation is taking shape — real progress toward France 2027 Family 18K Mission. Next: Reach 279.9 lb is now active (279.9 lb)."* And with a described milestone the win speaks the user's own stated meaning.
+
+**Files:** new `apps/core/mission_commentary.py`; `apps/dashboard_v3/services/composer.py` (delegates); `apps/ai/significant_events.py` (`_persist_major_win`, new `_milestone_description`, reworded `_what_next`). Tests: `apps/ai/tests/test_significant_event_pipeline.py` — updated the `why` assertion to the meaning-first contract + new `test_win_speaks_the_milestone_own_meaning_when_described`. 95 targeted tests green (pipeline + MissionCardTests).
 
 ## 2026-07-06 — fix(dashboard): Mission commentary celebrates MEANING, not the number
 

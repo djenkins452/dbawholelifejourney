@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(cos): TEMPORARY staff-only page-reference runtime diagnostic
+
+Adds a temporary staff-only endpoint `POST /assistant/debug/page-reference/` that proves the exact runtime route for a page-reference message ("Explain this" on a Goal page) — deterministic facts only, NO LLM call. Returns: git SHA, the `page_context` actually received (module / page_title / url / page_content keys / extracted pk), `is_page_reference`, `resolve_focused_object` (found? which kind/title/len), `resolve_page_focus` (resolved? len), and which branch `would_answer`. Confirmed via code trace that both the streaming task (`chatgpt_cos/tasks.py`) and non-streaming runtime pass `page_context` to `generate` → `route_message`, so the fallback to the general-lane "external knowledge service unavailable" means `page_reference` DECLINED — this endpoint proves WHY at runtime. TEMPORARY — to be removed (module + URL line) once diagnosed, per the Temporary Infrastructure Lifecycle law. `apps/ai/debug_page_reference.py` + one URL line.
+
 ## 2026-07-06 — feat(cos): Focused Object Awareness — Beth knows WHICH object, not just the page
 
 **Proven root cause:** Page Awareness worked (Beth knew the module/page), but the entity's CONTENT reached her only when the CLIENT extracted it (`extractPageContent` in `chat_widget.html` handles a few pages like Faith scripture; Goals/most pages send only metadata). So `resolve_page_focus` found no content → "I can see you're on Goals, but its details didn't come through." Beth knew the page, not the focused object.

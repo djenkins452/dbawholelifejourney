@@ -14,6 +14,12 @@ from . import views
 app_name = 'ai'
 
 urlpatterns = [
+    # TEMPORARY staff-only page-reference runtime diagnostic (2026-07-06) — REMOVE after
+    # the focused-object issue is diagnosed (temporary-infra lifecycle law).
+    path('debug/page-reference/', __import__(
+        'apps.ai.debug_page_reference', fromlist=['page_reference_diag']
+    ).page_reference_diag, name='debug_page_reference'),
+
     # Assistant Dashboard Page
     path('', views.AssistantDashboardView.as_view(), name='dashboard'),
 

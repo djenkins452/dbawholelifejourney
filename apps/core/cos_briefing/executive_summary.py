@@ -1214,6 +1214,21 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
     from apps.core.ai_guidance.models import GuidanceItem
     from apps.core.action_router import route_for_finding
 
+    # COMPLETION-AWARE: never recommend an activity the user has ALREADY done today
+    # (e.g. "journal" after journaling). Skip guidance whose module has a completed item
+    # today. Deterministic; degrades to no filtering if the read fails.
+    done_modules: set[str] = set()
+    try:
+        from apps.core.cos_briefing.rhythm import build_rhythm_sections
+        for sec in ((build_rhythm_sections(user) or {}).get("sections") or []):
+            for it in (sec.get("items") or []):
+                if it.get("completed_today"):
+                    d = (it.get("domain") or "").strip().lower()
+                    if d:
+                        done_modules.add(d)
+    except Exception:
+        logger.warning("recommendations: completion read failed", exc_info=True)
+
     # Pull a wider pool than we'll show so dedup can collapse repeats without
     # starving the row of distinct items. order_by priority (value) first.
     qs = (
@@ -1225,6 +1240,8 @@ def _collect_recommendations(user) -> list[dict[str, Any]]:
     for g in qs:
         key = (g.title or "").strip().lower()
         if not key or key in seen_titles:
+            continue
+        if (g.module or "").strip().lower() in done_modules:   # already done today
             continue
         seen_titles.add(key)
         out.append({

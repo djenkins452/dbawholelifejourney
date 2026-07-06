@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(cos): Executive Priority Weighting — rank by executive VALUE, not chronology
+
+**Governing capability** behind five production failures (Shower/Protein/Pattern/Magnesium/Journaling): every "what should I do / what's next / tomorrow's first / wind-down" answer ordered by `scheduled_time`/bucket/time-derived-urgency — the *next scheduled* item, not what *matters*. WLJ already computes the value factors and even a ranker (EAE), but the chat brain (`interpret()`) produced multi-dimensional signals with **no single value-ranked action**, and the surfaces fell back to rhythm order.
+
+**Fix (strengthen the one brain — no new engine):** new `interpret().priority_action` — a deterministic value-ranking over the candidate pool (health-critical, strategic/leverage move, executive opportunity, today's incomplete rhythm/execution items), with completed/accomplished/deferred items removed. Tiers = executive VALUE (health-critical 100 > strategic 62 > opportunity 52 > task 44 > commitment 40 > routine 20); modifiers for consequence-of-delay (overdue weighted by KIND — a routine item's overdue-ness barely moves it) and recovery cost; **`scheduled_time` is ONLY a tiebreaker**. Candidates classified by their real nature (`source_type`/`is_foundational`) — Shower is a `routine_item`, Magnesium a `supplement_dose`, so neither outranks strategic/health work regardless of schedule.
+
+**Consumption rewired** to the ranking (Req 6): `_deterministic_priority_answer` (priority_now) and `_next_rhythm_lane` consume `interpret().priority_action`; `daily_agenda` "tomorrow's first priority" + "best next step" use a self-contained value-sort (`_top_value_item`); `_collect_recommendations` skips activities already completed today (fixes journaling-after-journaled). `interpret()` remains the sole chat authority; EAE stays a signal feeder, not a competing chat authority.
+
+**Files:** `apps/ai/chatgpt_cos/executive_interpretation.py` (`_rank_priority_actions`, `priority_action`), `apps/ai/chatgpt_cos/lanes.py` (priority_now + next_rhythm consumption), `apps/core/cos_briefing/daily_agenda.py` (value-sort), `apps/core/cos_briefing/executive_summary.py` (completion filter). Tests: new `test_executive_priority_weighting.py` (10). 125 targeted tests green across priority/overview/health-critical/lanes/goals/opportunity/pattern/risk/reconciliation/whole-life/request-path-safety.
+
+**Before/after (all five):** overdue Shower no longer outranks a real commitment; Magnesium is not "tomorrow's first priority" over foundational work; already-journaled is filtered; a domain trend (protein) is never `priority_action` (only actionable items + opportunity + strategic are candidates); pattern selection is value-ranked (unchanged, reinforced). Chronology proven to be a tiebreaker only (a task at 23:00 outranks supplements at 06:00).
+
 ## 2026-07-06 — fix(legacy): stale relationship-form test assertion ("Step parent" → "Step-parent")
 
 **What:** A full Legacy-app regression sweep (347 tests) surfaced one failing test on main: `test_relationship_types.test_form_renders_with_types` asserted the relationship form renders "Step parent", but the canonical label shipped as "Step-parent" (hyphen) in commit `b9e1df23` (canonical relationship types) — the test wasn't updated with it. Updated the assertion to the shipped label. Test-only; no behaviour change.

@@ -299,6 +299,21 @@ def _next_rhythm_lane(user, message, conversation=None):
     # by Goals, not the schedule rhythm — yield to the goal pre-router.
     if any(g in norm for g in _GOAL_GROUNDED_MARKERS):
         return None
+    # "What should I do next" is a VALUE question — the most valuable next action, not the
+    # next thing on the clock. Consume the one brain's ranking; fall back to rhythm only
+    # if it's unavailable.
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        pa = interpret(user).priority_action
+        if pa and (pa.get("text") or "").strip():
+            ans = f"The most valuable thing to do next is {pa['text'].strip()}"
+            why = (pa.get("why") or "").strip()
+            if why:
+                ans += f" — {why}"
+            return {"answer": ans + ".", "tools_called": [], "tools_advertised": [],
+                    "lane": "next_rhythm"}
+    except Exception:
+        logger.warning("next_rhythm: priority_action failed", exc_info=True)
     try:
         from apps.core.cos_briefing.rhythm_api import (
             get_current_rhythm_item, get_next_rhythm_item,
@@ -336,10 +351,23 @@ _MOST_IMPORTANT_SIGNALS = (
 
 
 def _deterministic_priority_answer(user):
-    """The single most important action, gracefully degrading through deterministic
-    sources — NEVER an error. Order: health-critical → execution decision (selectors) →
-    rhythm → canonical last resort. Never returns None."""
+    """The single most important action by EXECUTIVE VALUE (interpret().priority_action) —
+    what actually matters now, not what's next on the schedule. Degrades gracefully
+    through the deterministic chain if the ranking is unavailable. Never returns None."""
     from apps.ai.chatgpt_cos.executive_reasoning import frame
+    # 0) EXECUTIVE PRIORITY WEIGHTING — the value-ranked top action (the one brain).
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        pa = interpret(user).priority_action
+        if pa and (pa.get("text") or "").strip():
+            why = (pa.get("why") or "").strip()
+            return frame(
+                assessment=f"The single most important thing right now is {pa['text'].strip()}",
+                reasoning=why or None,
+                action="do this first — it's the highest-value move right now, and it "
+                       "outranks what's merely next on the schedule")
+    except Exception:
+        logger.warning("priority_now: priority_action failed", exc_info=True)
     # 1) HEALTH-CRITICAL time-sensitive actions outrank everything.
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import _health_critical_actions

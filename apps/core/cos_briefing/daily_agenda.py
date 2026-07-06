@@ -88,6 +88,30 @@ def _user_hour(user):
         return 12
 
 
+def _value_key(item):
+    """Executive-value sort key for a rhythm item — value DESC, chronology only as a
+    tiebreaker. A routine_item/supplement never leads just because it's earliest on the
+    clock (mirrors interpret()'s priority weighting; kept self-contained in core)."""
+    st = (item.get("source_type") or "").lower()
+    domain = (item.get("domain") or "").lower()
+    if item.get("is_foundational"):
+        base = 3
+    elif st == "task" or domain in ("calendar", "event", "appointment"):
+        base = 2
+    else:                                   # routine_item / supplement_dose / med dose
+        base = 0
+    if (item.get("urgency") or "").lower() == "overdue" and base >= 2:
+        base += 1                           # overdue bumps real commitments, not routine
+    return (-base, item.get("scheduled_time") or "")
+
+
+def _top_value_item(items):
+    """Highest executive-VALUE incomplete item (not the earliest-scheduled)."""
+    incomplete = [i for i in (items or [])
+                  if not i.get("completed_today") and (i.get("title") or "").strip()]
+    return sorted(incomplete, key=_value_key)[0] if incomplete else None
+
+
 def build_daily_agenda(user):
     """Return a deterministic daily agenda string (always non-empty). TIME-AWARE:
     in the evening it pivots to wrap-up / recovery / tomorrow and never tells the
@@ -113,7 +137,9 @@ def build_daily_agenda(user):
         parts.append("The best use of this evening is to wind down: journal a few "
                      "lines on how today went, prepare for tomorrow, and protect "
                      "your sleep.")
-        nxt = (next_item or {}).get("title") if isinstance(next_item, dict) else None
+        # Tomorrow's first priority = highest executive VALUE remaining, not earliest-scheduled.
+        top_val = _top_value_item(remaining) or (next_item if isinstance(next_item, dict) else None)
+        nxt = (top_val or {}).get("title") if isinstance(top_val, dict) else None
         if nxt and nxt.strip():
             parts.append(f"Tomorrow's first priority looks like {nxt.strip()} — "
                          f"rest up tonight so you're ready for it.")
@@ -141,8 +167,9 @@ def build_daily_agenda(user):
     if risk:
         parts.append(risk)
 
-    # 4. Recommended next action (next scheduled rhythm item).
-    if next_item and (next_item.get("title") or "").strip():
-        parts.append(f"Your best next step is to begin {next_item['title'].strip()}.")
+    # 4. Recommended next action — highest executive VALUE, not the next scheduled item.
+    best_next = _top_value_item(remaining) or next_item
+    if best_next and (best_next.get("title") or "").strip():
+        parts.append(f"Your best next step is to begin {best_next['title'].strip()}.")
 
     return " ".join(parts)

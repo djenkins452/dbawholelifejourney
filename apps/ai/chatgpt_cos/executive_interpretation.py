@@ -81,6 +81,12 @@ class ExecutiveSignals:
     # {text, basis, action} or None (honest: no whole-life pattern clears the bar yet;
     # `observation` then names the strongest single-domain trend as NOT a pattern).
     pattern: dict = None
+    # EXECUTIVE PRIORITY WEIGHTING — the single action that actually matters most now,
+    # ranked by executive VALUE (not schedule order) over the candidate pool, with
+    # completed/accomplished/deferred items removed. {text, why, source, kind, score} or
+    # None. Chronology is only a tiebreaker. Every "what should I do / next" surface
+    # consumes THIS instead of the next-scheduled item.
+    priority_action: dict = None
     guidance: list = field(default_factory=list)
 
     def to_dict(self):
@@ -358,6 +364,103 @@ def _pattern_assessment(user):
     return {"observation": data.get("observation")}
 
 
+# ── Executive Priority Weighting ──────────────────────────────────────────────────
+# Rank the candidate ACTIONS by executive VALUE, never by chronology. Tiers are the
+# base value; modifiers (consequence-of-delay, recovery cost) adjust; scheduled_time is
+# ONLY a tiebreaker. A routine item never outranks strategic/health work just because it
+# is overdue or earliest on the clock. Deterministic; request-path safe (reads the
+# pre-computed execution/rhythm truth, never rebuilds).
+_PA_TIER = {"health_critical": 100, "strategic": 62, "opportunity": 52,
+            "task": 44, "commitment": 40, "routine": 20}
+
+
+def _pa_norm(s):
+    return " ".join((s or "").split()).strip().lower()
+
+
+def _pa_classify(item):
+    """(tier, base) for a candidate by its REAL nature — foundational/task/routine — not
+    its schedule position. Shower=routine_item, Magnesium=supplement_dose → 'routine'."""
+    st = (item.get("source_type") or "").lower()
+    domain = (item.get("domain") or "").lower()
+    if item.get("is_foundational"):
+        return "strategic", _PA_TIER["strategic"]
+    if st == "task":
+        return "task", _PA_TIER["task"]
+    if st == "medication_dose":                       # non-critical dose (critical → health_critical)
+        return "routine", _PA_TIER["routine"] + 6
+    if st in ("routine_item", "supplement_dose"):
+        return "routine", _PA_TIER["routine"]
+    if domain in ("calendar", "event", "appointment"):
+        return "commitment", _PA_TIER["commitment"]
+    return "task", _PA_TIER["task"] - 8
+
+
+def _pa_why(item, tier):
+    if tier == "strategic":
+        return "foundational to your mission"
+    if (item.get("urgency") or "").lower() == "overdue":
+        return "overdue"
+    return "a routine item" if tier == "routine" else "on today's plan"
+
+
+def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text,
+                           deferred_labels, accomplishments, recovery_needed):
+    """Rank every candidate action by EXECUTIVE VALUE → (top, ranked_list). Candidates:
+    health-critical actions, the strategic/leverage move, the executive opportunity, and
+    today's INCOMPLETE rhythm/execution items. Completed / already-accomplished /
+    user-deferred items are removed (Req 3). Ranked by value (Req 4); chronology is a
+    tiebreaker only (Req 5)."""
+    cands, hc_titles = [], set()
+    for hc in (health_critical or []):
+        t = (hc.get("text") or "").strip()
+        if not t:
+            continue
+        hc_titles.add(_pa_norm(t))
+        cands.append({"text": t, "why": (hc.get("why") or "health-critical"),
+                      "source": "health_critical", "kind": "health_critical",
+                      "score": _PA_TIER["health_critical"], "sched": ""})
+    if strategic_text:
+        cands.append({"text": strategic_text, "why": "moves your primary mission forward",
+                      "source": "strategic", "kind": "strategic",
+                      "score": _PA_TIER["strategic"] + 4, "sched": ""})
+    if opportunity and opportunity.get("action"):
+        cands.append({"text": (opportunity.get("text") or opportunity.get("action")),
+                      "why": (opportunity.get("basis") or "high expected value"),
+                      "source": "opportunity", "kind": "opportunity",
+                      "score": _PA_TIER["opportunity"], "sched": ""})
+    done = {_pa_norm(a) for a in (accomplishments or [])}
+    defr = {_pa_norm(d) for d in (deferred_labels or []) if d}
+    try:
+        from apps.core.cos_briefing.rhythm_api import get_remaining_rhythm_items
+        for it in (get_remaining_rhythm_items(user) or []):
+            title = (it.get("title") or "").strip()
+            nt = _pa_norm(title)
+            if not title or it.get("completed_today"):    # Req 3 — completion
+                continue
+            if nt in done or nt in hc_titles:              # already done / already surfaced
+                continue
+            if any(lbl and lbl in nt for lbl in defr):     # user corrected it away
+                continue
+            tier, base = _pa_classify(it)
+            score, urg = base, (it.get("urgency") or "").lower()
+            if urg == "overdue":                            # consequence of delay — weighted by KIND
+                score += 15 if tier in ("strategic", "task") else 4
+            elif urg == "now":
+                score += 6
+            if recovery_needed and (it.get("domain") or "").lower() == "workout":
+                score -= 18                                 # recovery cost
+            cands.append({"text": title, "why": _pa_why(it, tier), "source": "execution",
+                          "kind": tier, "score": score, "sched": it.get("scheduled_time") or ""})
+    except Exception:
+        logger.warning("priority_weighting: rhythm read failed", exc_info=True)
+    if not cands:
+        return None, []
+    # RANK BY VALUE; scheduled_time is ONLY the tiebreaker among equal-value candidates.
+    cands.sort(key=lambda c: (-c["score"], c.get("sched") == "", c.get("sched") or ""))
+    return dict(cands[0]), cands
+
+
 def interpret(user, low_energy=False, subjective=None):
     """Produce ExecutiveSignals — ALL executive judgment — from deterministic facts
     plus the user's OWN reported state. The Composer narrates these conclusions; it
@@ -563,10 +666,20 @@ def interpret(user, low_energy=False, subjective=None):
             "everything else today; it comes first. "
             + (executive_picture or "")).strip()
 
+    # EXECUTIVE PRIORITY WEIGHTING — the single action that actually matters most now,
+    # ranked by value across ALL candidates (health-critical, strategic/leverage,
+    # opportunity, today's incomplete items), completion-aware, chronology only a
+    # tiebreaker. Every "what should I do / next" surface consumes this.
+    _priority_action, _ = _rank_priority_actions(
+        user, health_critical=_health_critical, opportunity=_opportunity,
+        strategic_text=(highest_leverage or "").strip(),
+        deferred_labels=_deferred_labels, accomplishments=reported_accomplishments,
+        recovery_needed=bool(recovery))
+
     return ExecutiveSignals(
         risks=_risks, wins=_wins, opportunity=_opportunity, predictions=_predictions,
-        patterns=_patterns, pattern=_pattern, guidance=_guidance,
-        health_critical=_health_critical,
+        patterns=_patterns, pattern=_pattern, priority_action=_priority_action,
+        guidance=_guidance, health_critical=_health_critical,
         workload=workload, workload_summary=wsummary,
         today_count=tw["today"], overdue_count=tw["overdue"], soon_count=tw["soon"],
         backlog_count=tw["backlog"], total_pending=tw["total"],

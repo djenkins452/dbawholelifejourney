@@ -155,8 +155,7 @@ def ensure_place_coordinates(place):
     hit = geocode(place.location_text.strip())
     if not hit:
         return False
-    place.latitude, place.longitude = hit
-    place.save(update_fields=["latitude", "longitude", "updated_at"])
+    place.set_coordinates(hit[0], hit[1], place.CoordinateSource.ESRI)
     return True
 
 

@@ -173,6 +173,19 @@ class Place(LegacyOwnedModel):
     # no deep research). Blank for personal places like "Grandma's house".
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    class CoordinateSource(models.TextChoices):
+        UNKNOWN = "", "Unknown / legacy"          # set before provenance existed
+        ESRI = "esri", "Esri geocoder"            # auto-geocode, search result, or accepted suggestion
+        PIN = "pin", "Dropped pin"                # user placed on the map
+        MANUAL = "manual", "Entered manually"     # typed lat/long on the form
+        REVIEWED = "reviewed", "Reviewed — kept"  # confirmed correct in the location review
+
+    # How the current coordinates were set. Blank = legacy (pre-provenance) — the only
+    # rows the one-time location review considers. Any explicit source drops out of review.
+    coordinate_source = models.CharField(
+        max_length=12, choices=CoordinateSource.choices, blank=True, default="")
+
     primary_photo = models.ForeignKey(
         Media, on_delete=models.SET_NULL, null=True, blank=True, related_name='primary_for_places',
     )
@@ -183,6 +196,13 @@ class Place(LegacyOwnedModel):
 
     def __str__(self):
         return self.name
+
+    def set_coordinates(self, lat, lon, source, save=True):
+        """Set coordinates AND record their provenance — the single write point so a
+        coordinate never lands without a source going forward."""
+        self.latitude, self.longitude, self.coordinate_source = lat, lon, source
+        if save:
+            self.save(update_fields=["latitude", "longitude", "coordinate_source", "updated_at"])
 
     # ── Map projection — every map is just another consumer of the canonical Place;
     # no separate location model. Coordinates give a precise centre; otherwise the

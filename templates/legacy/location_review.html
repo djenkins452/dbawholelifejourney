@@ -1,0 +1,93 @@
+{% extends "legacy/base_legacy.html" %}
+{% load static %}
+
+{% block legacy_content %}
+<div class="profile">
+    <a href="{% url 'legacy:places' %}" class="editor-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>
+        Places
+    </a>
+    <div class="lib-head">
+        <div>
+            <h1 class="lib-title">Review saved locations</h1>
+            <p class="lib-sub">For each place, the current coordinates are compared with a fresh Esri suggestion from its address. Nothing changes until you choose — <strong>Keep current</strong> or <strong>Use suggested</strong>.</p>
+        </div>
+    </div>
+
+    {% if candidates %}
+    <p class="locrev-count">{{ candidates|length }} saved location{{ candidates|length|pluralize }} differ from what the current geocoder suggests.</p>
+    <div class="locrev-list">
+        {% for c in candidates %}
+        <section class="lg-card locrev-card">
+            <div class="locrev-head">
+                <h2 class="locrev-name"><a href="{% url 'legacy:place_detail' c.place.pk %}">{{ c.place.name }}</a></h2>
+                {% if c.place.location_text %}<span class="locrev-loc">{{ c.place.location_text }}</span>{% endif %}
+            </div>
+            <div class="locrev-map" id="locrevMap{{ c.place.pk }}"
+                 data-cur-lat="{{ c.cur_lat }}" data-cur-lon="{{ c.cur_lon }}"
+                 data-sug-lat="{{ c.sug_lat }}" data-sug-lon="{{ c.sug_lon }}"></div>
+            <div class="locrev-body">
+                <div class="locrev-col locrev-current">
+                    <span class="place-map-label">Current location</span>
+                    <span class="locrev-coords">{{ c.cur_lat }}, {{ c.cur_lon }}</span>
+                </div>
+                <div class="locrev-col locrev-dist">
+                    <span class="place-map-label">Apart</span>
+                    <span class="locrev-dist-val">{{ c.distance_phrase }}</span>
+                </div>
+                <div class="locrev-col locrev-suggested">
+                    <span class="place-map-label">Esri suggested</span>
+                    <span class="locrev-coords">{{ c.sug_lat }}, {{ c.sug_lon }}</span>
+                    <span class="locrev-sug-label">{{ c.sug_label }}</span>
+                </div>
+            </div>
+            <div class="locrev-actions">
+                <form method="post" action="{% url 'legacy:location_review_apply' c.place.pk %}" class="locrev-form">
+                    {% csrf_token %}<input type="hidden" name="action" value="keep">
+                    <button type="submit" class="lg-btn-quiet">Keep current</button>
+                </form>
+                <form method="post" action="{% url 'legacy:location_review_apply' c.place.pk %}" class="locrev-form">
+                    {% csrf_token %}<input type="hidden" name="action" value="use">
+                    <input type="hidden" name="lat" value="{{ c.sug_lat }}">
+                    <input type="hidden" name="lon" value="{{ c.sug_lon }}">
+                    <button type="submit" class="lg-btn-primary">Use suggested</button>
+                </form>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    <p class="locrev-attr">Comparison maps &amp; suggestions &copy; Esri. The grey pin is your current location; the gold pin is Esri's suggestion.</p>
+
+    <link rel="stylesheet" href="{% static 'legacy/vendor/leaflet/leaflet.css' %}">
+    <script src="{% static 'legacy/vendor/leaflet/leaflet.js' %}"></script>
+    <script nonce="{{ csp_nonce }}">
+    (function () {
+        if (!window.L) { return; }
+        document.querySelectorAll('.locrev-map').forEach(function (el) {
+            var cl = parseFloat(el.getAttribute('data-cur-lat')), co = parseFloat(el.getAttribute('data-cur-lon'));
+            var sl = parseFloat(el.getAttribute('data-sug-lat')), so = parseFloat(el.getAttribute('data-sug-lon'));
+            var map = L.map(el, { zoomControl: false, attributionControl: false, scrollWheelZoom: false });
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19 }).addTo(map);
+            L.polyline([[cl, co], [sl, so]], { color: '#8a5a1e', weight: 2, dashArray: '4 5' }).addTo(map);
+            L.circleMarker([cl, co], { radius: 8, color: '#4a4a4a', weight: 3, fillColor: '#9a9a9a', fillOpacity: .95 })
+                .addTo(map).bindTooltip('Current');
+            L.circleMarker([sl, so], { radius: 8, color: '#8a5a1e', weight: 3, fillColor: '#c9a34e', fillOpacity: .95 })
+                .addTo(map).bindTooltip('Suggested');
+            map.fitBounds([[cl, co], [sl, so]], { padding: [34, 34], maxZoom: 17 });
+            setTimeout(function () { map.invalidateSize(); }, 60);
+        });
+    })();
+    </script>
+    {% else %}
+    <div class="lib-empty">
+        <span class="lib-empty-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </span>
+        <h2 class="lib-empty-title">Every saved location looks good</h2>
+        <p class="lib-empty-blurb">No legacy places differ from the current geocoder's suggestion — there's nothing to review. New places record where their coordinates came from automatically.</p>
+        <a href="{% url 'legacy:places' %}" class="lg-btn-primary">Back to Places</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -589,6 +589,32 @@ body.theme-ember .legacy-root {
 .leaflet-container { font: inherit; }
 .leaflet-top, .leaflet-bottom { z-index: 2; }
 @media (max-width: 480px) { .locate-map { height: 300px; } .pmap-preview { gap: 8px; } .pmap-arrow { transform: rotate(90deg); } }
+
+/* One-time location review — Current vs Esri-suggested, provider-independent. */
+.locrev-count { font-size: 14px; color: var(--lg-ink-soft); margin: 6px 0 16px; }
+.locrev-list { display: flex; flex-direction: column; gap: 18px; }
+.locrev-card { padding: 16px 18px; }
+.locrev-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.locrev-name { font-family: var(--lg-serif); font-size: 18px; margin: 0; }
+.locrev-name a { color: var(--lg-ink); text-decoration: none; }
+.locrev-name a:hover { text-decoration: underline; }
+.locrev-loc { font-size: 13px; color: var(--lg-muted); }
+.locrev-map { height: 240px; border-radius: 12px; overflow: hidden; border: 1px solid var(--lg-border); background: var(--lg-surface-2, #efe9dd); }
+.locrev-body { display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap; margin: 12px 0; }
+.locrev-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.locrev-current { border-left: 3px solid #9a9a9a; padding-left: 10px; }
+.locrev-suggested { border-left: 3px solid var(--lg-sidebar-gold, #c9a34e); padding-left: 10px; }
+.locrev-coords { font-size: 13.5px; color: var(--lg-ink); font-variant-numeric: tabular-nums; }
+.locrev-sug-label { font-size: 12.5px; color: var(--lg-muted); }
+.locrev-dist { text-align: center; }
+.locrev-dist-val { font-family: var(--lg-serif); font-size: 18px; color: var(--lg-accent-ink, #7a5b1e); }
+.locrev-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.locrev-form { margin: 0; }
+.locrev-attr { font-size: 11.5px; color: var(--lg-muted); margin: 16px 0 0; }
+/* Review link on the Places header */
+.places-review-link { font-size: 13px; color: var(--lg-accent-ink, #7a5b1e); text-decoration: none; }
+.places-review-link:hover { text-decoration: underline; }
+@media (max-width: 560px) { .locrev-actions { flex-direction: column; } .locrev-form, .locrev-actions .lg-btn-primary, .locrev-actions .lg-btn-quiet { width: 100%; } }
 .profile-sec { margin-bottom: 28px; }
 .profile-sec-title { font-family: var(--lg-serif); font-size: 18px; margin-bottom: 14px; }
 .profile-empty { color: var(--lg-muted); font-size: 14px; }

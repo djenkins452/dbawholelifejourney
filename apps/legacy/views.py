@@ -793,6 +793,8 @@ class PlaceCreateView(PlaceFormMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
         form.instance.created_via = Place.CREATED_VIA_MANUAL
+        if form.cleaned_data.get("latitude") is not None:
+            form.instance.coordinate_source = Place.CoordinateSource.MANUAL
         messages.success(self.request, "Place added.")
         return super().form_valid(form)
 
@@ -807,6 +809,9 @@ class PlaceEditView(PlaceFormMixin, UpdateView):
         return ctx
 
     def form_valid(self, form):
+        # Typing/changing coordinates on the form is a manual provenance.
+        if "latitude" in form.changed_data or "longitude" in form.changed_data:
+            form.instance.coordinate_source = Place.CoordinateSource.MANUAL
         messages.success(self.request, "Saved.")
         return super().form_valid(form)
 
@@ -877,11 +882,55 @@ class PlaceLocateSaveView(LegacyContextMixin, View):
         if not pair:
             messages.error(request, "That didn't look like a valid spot — try again.")
             return redirect("legacy:place_detail", pk=place.pk)
-        place.latitude, place.longitude = pair
-        place.save(update_fields=["latitude", "longitude", "updated_at"])
+        # Record provenance: a chosen search result is an Esri coordinate; a map click is a
+        # user-placed pin. The client tells us which; default to a pin.
+        src = request.POST.get("source")
+        source = (place.CoordinateSource.ESRI if src == "esri" else place.CoordinateSource.PIN)
+        place.set_coordinates(pair[0], pair[1], source)
         messages.success(
             request, "Location saved — %s is now on the map everywhere in Legacy." % place.name)
         return redirect("legacy:place_detail", pk=place.pk)
+
+
+class LocationReviewView(LegacyContextMixin, TemplateView):
+    """One-time location review — legacy Places whose current coordinates differ from what
+    Esri now suggests. Provider-independent (Esri + geometry; never Nominatim). The keeper
+    reviews Current vs Suggested on the map and chooses Keep or Use. Nothing changes here."""
+
+    template_name = "legacy/location_review.html"
+    nav_active = "places"
+
+    def get_context_data(self, **kwargs):
+        from apps.legacy.services import location_review
+        ctx = super().get_context_data(**kwargs)
+        cands = location_review.review_candidates(self.request.user)
+        for c in cands:
+            c["distance_phrase"] = location_review.distance_phrase(c["distance_m"])
+        ctx["candidates"] = cands
+        return ctx
+
+
+class LocationReviewApplyView(LegacyContextMixin, View):
+    """Apply one review decision. 'use' adopts the Esri suggestion (source=esri); 'keep'
+    confirms the current coordinates (source=reviewed) so they drop out of future reviews.
+    Never overwrites without an explicit choice."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services import geocode
+        place = get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        action = request.POST.get("action")
+        if action == "use":
+            pair = geocode.parse_latlon(request.POST.get("lat"), request.POST.get("lon"))
+            if pair:
+                place.set_coordinates(pair[0], pair[1], place.CoordinateSource.ESRI)
+                messages.success(request, "Updated %s to the suggested location." % place.name)
+            else:
+                messages.error(request, "That suggestion didn't look valid — left unchanged.")
+        elif action == "keep":
+            place.coordinate_source = place.CoordinateSource.REVIEWED
+            place.save(update_fields=["coordinate_source", "updated_at"])
+            messages.success(request, "Kept the current location for %s." % place.name)
+        return redirect("legacy:location_review")
 
 
 class PlaceArchiveView(LegacyContextMixin, View):

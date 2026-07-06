@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): coordinate provenance + one-time location review (provider-independent)
+
+**Provenance (going forward):** added `Place.coordinate_source` (`esri` / `pin` / `manual` / `reviewed` / `''` legacy) — migration `0035`. Recorded at every write via a single `Place.set_coordinates(lat, lon, source)`: auto-geocode → `esri`; save from a search result → `esri`, from a map click → `pin` (client sends `source`); typed on the form → `manual`. Coordinates never land without a source again. (Root cause of the whole Places saga was that provenance was never recorded.)
+
+**One-time location review (`/legacy/places/review-locations/`, linked from Places):** PROVIDER-INDEPENDENT — never re-calls the retired Nominatim. For each *legacy* Place (`coordinate_source=''`) it asks **Esri** for a fresh suggestion from the Place's `location_text` and, when it differs by >25 m, surfaces **Current coords + Esri-suggested coords + distance apart + a comparison map** (current = grey pin, suggested = gold pin, connector line). The keeper chooses **Keep current** (→ `reviewed`, coords untouched) or **Use suggested** (→ adopts Esri coords, `esri`). Nothing changes without an explicit choice; resolved/reviewed rows drop out, so it's self-terminating. The question is "is the *current* coordinate correct" — not "where did it come from". `apps/legacy/services/location_review.py`, `LocationReview[Apply]View`.
+
+**Files:** `apps/legacy/models.py` (+field, +`set_coordinates`), `migrations/0035_place_coordinate_source.py`, `services/geocode.py`, `services/location_review.py` (new), `views.py`, `urls.py`, `templates/legacy/{location_review.html (new),place_detail.html,places.html,base_legacy.html}` (css `v=61`), `static/css/legacy.css`, `apps/legacy/tests/test_places_map.py`.
+
+**Verification state (per Danny's contract):** 39 place tests + 42 connection/people-places-media green. **Locally Verified in the browser:** a legacy Maryville place (`35.756472,-83.970459`) showed as a candidate **694 m** from Esri's suggestion (`35.750607,-83.973082`) with the comparison map; **Use suggested** adopted the Esri coords + `source=esri`; **Keep current** preserved the coords + `source=reviewed`; both dropped from the list. Provenance recording verified for auto/pin/search/manual. **AWAITING PRODUCTION VERIFICATION** — Esri is external and the real candidate list comes from prod data (Danny runs the review in prod). Not certifying acceptance until confirmed in production.
+
 ## 2026-07-06 — fix(cos): Threshold Intent Understanding — natural human threshold language
 
 **Root cause:** the threshold parser only understood explicit operators (below/under/above/over + a number) and a bare-number crossing verb. "When did I break into the 290s?" matched NOTHING — the bare-number regex `\b(\d{2,3})\b` can't even match "290" inside "290**s**" (no word boundary before the "s"), and there was no concept of a decade BAND or comparative phrasing. So it fell through to the generic "I'm unable to access the history data."

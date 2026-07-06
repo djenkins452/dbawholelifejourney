@@ -79,6 +79,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="lat" id="pmapLat">
                         <input type="hidden" name="lon" id="pmapLon">
+                        <input type="hidden" name="source" id="pmapSource" value="pin">
                         <button type="submit" class="lg-btn-primary">Save changes</button>
                     </form>
                 </div>
@@ -126,15 +127,17 @@
             var prevAddr = document.getElementById('pmapPrevAddr');
             var latIn = document.getElementById('pmapLat');
             var lonIn = document.getElementById('pmapLon');
+            var srcIn = document.getElementById('pmapSource');
             function post(url, body) {
                 return fetch(url, { method: 'POST', headers: {
                     'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/x-www-form-urlencoded' }, body: body });
             }
-            function propose(lat, lon, addr) {
+            function propose(lat, lon, addr, source) {
                 lat = Math.round(lat * 1e6) / 1e6; lon = Math.round(lon * 1e6) / 1e6;
                 if (marker) { marker.setLatLng([lat, lon]); } else { marker = mk(lat, lon); }
                 latIn.value = lat; lonIn.value = lon;
+                srcIn.value = source || 'pin';   // provenance: 'esri' (search) or 'pin' (map click)
                 prevNew.textContent = lat.toFixed(6) + ', ' + lon.toFixed(6);
                 if (addr !== undefined) { prevAddr.textContent = addr || ''; }
                 readEl.hidden = true; editEl.hidden = false;
@@ -145,7 +148,7 @@
                     .then(function (d) { prevAddr.textContent = d.address || ''; })
                     .catch(function () { prevAddr.textContent = ''; });
             }
-            map.on('click', function (e) { propose(e.latlng.lat, e.latlng.lng); reverseLookup(e.latlng.lat, e.latlng.lng); });
+            map.on('click', function (e) { propose(e.latlng.lat, e.latlng.lng, undefined, 'pin'); reverseLookup(e.latlng.lat, e.latlng.lng); });
 
             document.getElementById('pmapCancel').addEventListener('click', function () {
                 if (hasStart) { if (marker) { marker.setLatLng([sLat, sLon]); } map.setView([sLat, sLon], 14); }
@@ -166,7 +169,7 @@
                 list.forEach(function (r) {
                     var li = document.createElement('li'); li.className = 'locate-result';
                     li.setAttribute('role', 'button'); li.tabIndex = 0; li.textContent = r.label;
-                    function pick() { map.setView([+r.lat, +r.lon], 14); propose(+r.lat, +r.lon, r.label); resEl.hidden = true; }
+                    function pick() { map.setView([+r.lat, +r.lon], 14); propose(+r.lat, +r.lon, r.label, 'esri'); resEl.hidden = true; }
                     li.addEventListener('click', pick);
                     li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
                     resEl.appendChild(li);

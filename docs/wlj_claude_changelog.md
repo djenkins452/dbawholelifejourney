@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Historical threshold navigation — any number, any phrasing
+
+**Root cause:** `weight_history` only recognized a threshold with an EXPLICIT direction word (`_THRESH_RE` = below|under|above|over + number), so "when did I break 300?" matched nothing and fell through. And `first_crossing` returned the first below-threshold record regardless of what preceded it, so a series that starts mid-journey (already below) reported a non-crossing day — "go under 300" returned the wrong date.
+
+**Fix (governing, not a 300 patch):** `navigate` now parses a threshold via `_parse_threshold` — explicit direction OR a bare-number **crossing verb** (break/broke/hit/reach/cross/pass/dip/drop/went…) whose **direction is inferred from the weight trend** (`_trend_direction`: a weight-loss series crosses downward). `first_crossing` now finds a genuine **transition** (on-target having been on the other side the prior recorded day), falling back to the earliest on-target day only when the series begins already across. Any number, any phrasing, navigates naturally.
+
+**Files:** `apps/ai/chatgpt_cos/weight_history.py`, `apps/health/services/weight_queries.py`, `apps/ai/tests/test_historical_navigation.py`.
+**Verification:** 21 tests green (break/under 300, genuine transition, honest not-yet, start-below fallback). NOTE (remaining gap): generalizes across WEIGHT thresholds; glucose/A1c threshold navigation needs their own history accessors (not yet built).
+
+
 ## 2026-07-06 — fix(cos): Milestone win was internally inconsistent — mixed objects from different missions
 
 **Root cause (proven via the debug endpoint):** the Purpose recommendation card renders a MAJOR-WIN `GuidanceItem` (record 515, freshly created — NOT stale/cached) that combined pieces from two different missions: title "Milestone reached" + mission "Relationship with God" + next milestone "Goal Weight 279.9 lb". Two composer bugs in `apps/ai/significant_events.py`:

@@ -66,11 +66,27 @@ def series(user, start_date=None, end_date=None):
 
 
 def first_crossing(user, threshold, direction):
-    """The FIRST day the weigh-in went strictly `direction` ('below'/'above') the
-    `threshold` (lb), oldest-first. Record ({date, value_lb, ...}) or None."""
-    for rec in series(user):
+    """The first day the weigh-in genuinely CROSSED `direction` ('below'/'above') the
+    `threshold` (lb) — landing on the target side having been on the OTHER side the prior
+    recorded day (a real transition, e.g. 301 → 299 for 'below 300'). If the series begins
+    already on the target side (no transition recorded — data starts mid-journey), fall
+    back to the earliest on-target day so the answer is still honest rather than a false
+    'never'. Returns a record ({date, value_lb, ...}) or None if never on the target side."""
+    def on_target(v):
+        return v < threshold if direction == "below" else v > threshold
+
+    def on_other(v):
+        return v >= threshold if direction == "below" else v <= threshold
+
+    s = series(user)
+    prev = None
+    for rec in s:
         v = rec["value_lb"]
-        if (direction == "below" and v < threshold) or (direction == "above" and v > threshold):
+        if on_target(v) and prev is not None and on_other(prev):
+            return rec                                   # genuine crossing (transition)
+        prev = v
+    for rec in s:                                        # fallback: earliest on-target day
+        if on_target(rec["value_lb"]):
             return rec
     return None
 

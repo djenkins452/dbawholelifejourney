@@ -143,3 +143,46 @@ class ReferentialBridgeTests(TestCase):
     def test_non_navigable_topic_is_not_hijacked(self):
         last = {"topic": "steps", "fact_key": "steps_today", "fact": {}}
         self.assertIsNone(resolve_referential(self.u, "July 1st?", last))
+
+class ThresholdCrossingTests(TestCase):
+    """Natural threshold navigation — ANY number, ANY phrasing. 'break 300' has no
+    direction word (the production failure); 'go under 300' returned the wrong day.
+    Direction is inferred from the trend; a crossing is a genuine transition."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="thr@x.com", password="x")
+        # a real weight-loss series crossing 300 downward
+        _we(self.u, date(2026, 3, 1), 305.0)
+        _we(self.u, date(2026, 3, 15), 302.0)
+        _we(self.u, date(2026, 4, 1), 299.0)     # the day it crossed below 300
+        _we(self.u, date(2026, 5, 1), 295.0)
+        _we(self.u, date(2026, 6, 1), 285.0)
+
+    def test_break_300_bare_number_infers_downward(self):
+        ans = weight_history.navigate(self.u, "when did I break 300?")
+        self.assertIsNotNone(ans)
+        self.assertIn("dropped below 300", ans.lower())
+        self.assertIn("299", ans)
+        self.assertIn("April 1", ans)
+
+    def test_go_under_300_explicit_is_correct(self):
+        ans = weight_history.navigate(self.u, "when did I go under 300?")
+        self.assertIn("dropped below 300", ans.lower())
+        self.assertIn("299", ans)
+
+    def test_first_crossing_is_a_genuine_transition_not_earliest_low(self):
+        r = weight_queries.first_crossing(self.u, 300, "below")
+        self.assertEqual(r["date"], date(2026, 4, 1))   # 299, not the later 285
+        self.assertEqual(r["value_lb"], 299.0)
+
+    def test_hit_250_not_reached_is_honest(self):
+        ans = weight_history.navigate(self.u, "when did I hit 250?")
+        self.assertIn("haven't", ans.lower())
+        self.assertIn("285", ans)
+
+    def test_crossing_fallback_when_series_starts_already_below(self):
+        u2 = User.objects.create_user(email="thr2@x.com", password="x")
+        _we(u2, date(2026, 6, 1), 288.0)                # already below 290 — no transition
+        _we(u2, date(2026, 6, 2), 286.0)
+        r = weight_queries.first_crossing(u2, 290, "below")
+        self.assertEqual(r["date"], date(2026, 6, 1))   # earliest on-target day

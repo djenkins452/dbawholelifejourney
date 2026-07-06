@@ -26,6 +26,13 @@ _WEIGHT_CUES = ("weight", "weigh", "weighed")
 _THRESH_RE = re.compile(r"\b(below|under|beneath|above|over)\s+(\d{2,3}(?:\.\d)?)\b")
 _CROSS_INTENT = ("first", "drop", "dropp", "fell", "fall", "went", "go ", "got",
                  "get ", "cross", "reach", "hit", "when", "under", "below", "above", "over")
+# A crossing VERB with no explicit direction word ("break 300", "hit 290", "reach 250").
+# Direction is inferred from the user's weight TREND — no hardcoded threshold. This is
+# what makes navigation natural: any number, any phrasing, works.
+_CROSS_VERBS = ("break", "broke", "breaking", "hit", "reach", "reached", "cross",
+                "crossed", "pass", "passed", "dip", "dipped", "drop", "dropped",
+                "fell", "fall", "went", "get to", "got to", "get under", "got under")
+_BARE_NUM_RE = re.compile(r"\b(\d{2,3}(?:\.\d)?)\b")
 _LOWEST = ("lowest", "lightest", "least i weigh", "minimum weight", "min weight")
 _HIGHEST = ("highest", "heaviest", "most i weigh", "maximum weight", "max weight", "peak weight")
 _EXTREMUM_INTENT = ("lowest", "highest", "lightest", "heaviest", "peak", "most i weigh",
@@ -63,6 +70,37 @@ def _window(user, n):
     return None, None, "on record"
 
 
+def _trend_direction(user):
+    """Which way the user is crossing thresholds — inferred from the weight TREND
+    (oldest vs newest). A weight-loss trend crosses DOWNWARD, so 'break 300' means dropped
+    below 300. Defaults to 'below' (the wellness context) when the trend is flat/unknown."""
+    try:
+        s = weight_queries.series(user)
+        if len(s) >= 2:
+            if s[-1]["value_lb"] < s[0]["value_lb"]:
+                return "below"
+            if s[-1]["value_lb"] > s[0]["value_lb"]:
+                return "above"
+    except Exception:
+        logger.warning("weight_history: trend read failed", exc_info=True)
+    return "below"
+
+
+def _parse_threshold(user, n):
+    """(threshold, direction) for a crossing question, or None. Accepts an EXPLICIT
+    direction ('below 290', 'over 300') OR a bare-number crossing verb ('break 300',
+    'hit 250') whose direction is inferred from the trend — so any threshold navigates."""
+    m = _THRESH_RE.search(n)
+    if m and any(w in n for w in _CROSS_INTENT):
+        word = m.group(1)
+        return float(m.group(2)), ("above" if word in ("above", "over") else "below")
+    if any(v in n for v in _CROSS_VERBS):
+        bm = _BARE_NUM_RE.search(n)
+        if bm:
+            return float(bm.group(1)), _trend_direction(user)
+    return None
+
+
 def navigate(user, message):
     """Navigate the weight series for `message`. Returns a human answer string, or None
     when the message isn't a weight-history navigation. Topic is assumed to be weight —
@@ -70,11 +108,11 @@ def navigate(user, message):
     topic). No special-cased dates: every branch reads the canonical weight_queries."""
     n = (message or "").lower()
     try:
-        # 1) THRESHOLD crossing — "when did I first drop below 290?"
-        m = _THRESH_RE.search(n)
-        if m and any(w in n for w in _CROSS_INTENT):
-            word, num = m.group(1), float(m.group(2))
-            direction = "above" if word in ("above", "over") else "below"
+        # 1) THRESHOLD crossing — explicit ("drop below 290") OR a bare-number crossing
+        #    verb ("when did I break 300?") with direction inferred from the trend.
+        thr = _parse_threshold(user, n)
+        if thr is not None:
+            num, direction = thr
             verb = "climbed above" if direction == "above" else "dropped below"
             rec = weight_queries.first_crossing(user, num, direction)
             if rec:

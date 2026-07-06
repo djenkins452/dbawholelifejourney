@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(healthkit): preserve Apple Health sample timestamp (weight stored at noon → future-dated)
+
+**Root cause:** the HealthKit sync discarded the sample time twice. `process_health_metric` parsed the ISO8601 `date` with `.date()` (throwing away 5:53 AM), then `process_weight_metric` stored `recorded_at` at LOCAL NOON. A morning weigh-in synced before noon was therefore future-dated, which broke temporal integrity and made Beth refuse to answer today's weight ("the timestamp on this reading is later than the current time").
+
+**Scope (#7):** the noon default affected the body-composition handlers — **weight, body_fat, lean_body_mass**. Vitals (glucose, heart-rate, blood-pressure, SpO2, body-temperature) already re-parse their own per-sample timestamp and were NOT affected.
+
+**Fix:** `process_health_metric` now preserves the exact tz-aware sample instant as `metric["_sample_dt"]` (from `date`/`recorded_at`/`timestamp`/`start_date`). Weight/body_fat/lean_body_mass use it for `recorded_at`; NOON is used only for genuinely date-only (legacy/manual) payloads. The weight handler also **self-heals** legacy noon rows on re-sync (updates `recorded_at` to the real sample when Apple Health re-pushes it) and never overwrites a real time with noon. Date-based dedup preserved — no duplicate entry.
+
+**Backfill:** migration `0098` corrects unambiguously-wrong FUTURE-dated weigh-ins to the row's real `created_at` (the moment WLJ received the sample — always past, never fabricated); the exact sample time then self-heals on the next re-sync. Temporal integrity is NOT weakened; the future timestamp is fixed at the source.
+
+**Files:** `apps/mobile/views.py`, `apps/health/migrations/0098_fix_future_dated_weight_recorded_at.py`, `apps/mobile/tests/test_weight_timestamp.py`.
+**Verification:** 6 tests green — real time preserved (not noon), date-only → noon, re-sync self-heals, no duplicate, real time never clobbered, glucose regression (own timestamp preserved).
+
+
 ## 2026-07-06 — feat(legacy): one unified interactive Place map (Esri) — edit-on-interaction, OSM tile server retired
 
 **What:** Collapsed the three separate map modes (static embed / "resolve" / "compare") into **one interactive map per Place**, following the same CRUD philosophy as every other canonical entity — the map is simply part of editing a Place.

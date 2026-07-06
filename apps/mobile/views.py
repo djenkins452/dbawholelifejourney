@@ -649,6 +649,24 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
     except ValueError:
         raise ValueError(f"Invalid date format: {metric_date}")
 
+    # PRESERVE the exact HealthKit SAMPLE instant (tz-aware). The calendar-date parse
+    # above throws away the time — but body-composition handlers (weight, body_fat,
+    # lean_body_mass) must store the REAL sample time, not a noon default (a noon default
+    # future-dates a morning weigh-in and breaks temporal integrity). Vitals handlers
+    # (glucose/HR/BP/SpO2/temp) already re-parse their own timestamp, so this is additive.
+    if "_sample_dt" not in metric:
+        sample_dt = None
+        for _k in ("recorded_at", "timestamp", "start_date", "date"):
+            _raw = metric.get(_k)
+            if isinstance(_raw, str) and "T" in _raw:
+                try:
+                    _p = datetime.fromisoformat(_raw.replace("Z", "+00:00"))
+                    sample_dt = _p if not timezone.is_naive(_p) else timezone.make_aware(_p)
+                    break
+                except ValueError:
+                    continue
+        metric["_sample_dt"] = sample_dt
+
     # Route to appropriate handler
     handlers = {
         "steps": process_steps_metric,
@@ -794,6 +812,20 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
     # Check for existing entry by sync_id first, then fall back to date match
     from datetime import time as dt_time
 
+    # The REAL HealthKit sample instant (preserved by process_health_metric). Noon is used
+    # ONLY when the payload is genuinely date-only (a legacy/manual entry with no time).
+    sample_dt = data.get("_sample_dt")
+    recorded_at = sample_dt or timezone.make_aware(datetime.combine(metric_date, dt_time(12, 0)))
+
+    def _heal_time(entry):
+        """Self-heal a stored recorded_at to the true sample instant on re-sync — corrects
+        legacy noon-defaulted rows the moment Apple Health re-pushes the sample. Only when
+        the payload carried a real time (never overwrites a real time with noon)."""
+        if sample_dt is not None and entry.recorded_at != sample_dt:
+            entry.recorded_at = sample_dt
+            return True
+        return False
+
     if sync_id:
         existing = WeightEntry.objects.filter(
             user=user,
@@ -801,11 +833,15 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
         ).first()
 
         if existing:
+            changed = False
             if existing.value != value or existing.unit != unit:
                 existing.value = value
                 existing.unit = unit
                 existing.source = source or "apple_health"
-                existing.save(update_fields=["value", "unit", "source", "updated_at"])
+                changed = True
+            changed = _heal_time(existing) or changed
+            if changed:
+                existing.save(update_fields=["value", "unit", "source", "recorded_at", "updated_at"])
                 _compute_and_sync_fat_mass(user, metric_date, source)
                 return "updated"
             return "skipped"
@@ -817,28 +853,29 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
     ).first()
 
     if existing:
+        changed = False
         if existing.value != value or existing.unit != unit:
             existing.value = value
             existing.unit = unit
             existing.source = source or "apple_health"
-            if not existing.sync_id and sync_id:
-                existing.sync_id = sync_id
-            existing.save(update_fields=["value", "unit", "source", "sync_id", "updated_at"])
-            _compute_and_sync_fat_mass(user, metric_date, source)
-            return "updated"
-        # Backfill sync_id if missing
+            changed = True
         if not existing.sync_id and sync_id:
             existing.sync_id = sync_id
             existing.source = source or "apple_health"
-            existing.save(update_fields=["sync_id", "source", "updated_at"])
+            changed = True
+        changed = _heal_time(existing) or changed
+        if changed:
+            existing.save(update_fields=["value", "unit", "source", "sync_id", "recorded_at", "updated_at"])
+            _compute_and_sync_fat_mass(user, metric_date, source)
+            return "updated"
         return "skipped"
 
-    # Create new entry (use noon as default time)
+    # Create new entry — preserve the real sample time (noon only for date-only payloads).
     WeightEntry.objects.create(
         user=user,
         value=value,
         unit=unit,
-        recorded_at=timezone.make_aware(datetime.combine(metric_date, dt_time(12, 0))),
+        recorded_at=recorded_at,
         source=source or "apple_health",
         sync_id=sync_id,
     )
@@ -1820,9 +1857,9 @@ def process_body_fat_metric(user, metric_date, source, sync_id, data):
         user=user,
         value=Decimal("0"),  # Placeholder - will be updated by weight sync
         unit="lb",
-        recorded_at=timezone.make_aware(
+        recorded_at=(data.get("_sample_dt") or timezone.make_aware(
             datetime.combine(metric_date, datetime.min.time().replace(hour=12))
-        ),
+        )),
         body_fat_percentage=body_fat_percentage,
         source=source,
         sync_id=sync_id,
@@ -2061,9 +2098,9 @@ def process_lean_body_mass_metric(user, metric_date, source, sync_id, data):
         user=user,
         value=Decimal("0"),  # Placeholder - will be updated by weight sync
         unit="lb",
-        recorded_at=timezone.make_aware(
+        recorded_at=(data.get("_sample_dt") or timezone.make_aware(
             datetime.combine(metric_date, datetime.min.time().replace(hour=12))
-        ),
+        )),
         lean_body_mass=lean_mass_value,
         source=source,
         sync_id=sync_id,

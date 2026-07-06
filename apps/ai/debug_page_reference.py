@@ -91,4 +91,50 @@ def page_reference_diag(request):
     else:
         trace["would_answer"] = ("page_reference DECLINES -> normal routing (general lane -> "
                                  "the 'external knowledge service unavailable' fallback)")
+
+    # --- run_llm: execute the EXACT step the real chat path runs but the deterministic
+    # diagnostic skips — answer_page_reference's LLM call — and report WHY it returns
+    # None (no key / breaker open / OpenAI error). Opt-in so the default stays LLM-free.
+    if data.get("run_llm"):
+        from django.core.cache import cache
+        from apps.ai.services import ai_service
+        from apps.ai.chatgpt_cos.page_reference import answer_page_reference
+        trace["llm_state"] = {
+            "is_available": bool(getattr(ai_service, "is_available", False)),
+            "breaker_open": bool(cache.get("openai_rate_limited")),
+        }
+        # 1) The raw call page_reference makes (same args, no bypass_breaker).
+        try:
+            raw = ai_service._call_api(
+                "You are a Chief of Staff. Reply with the single word: ok.",
+                message, max_tokens=8, endpoint="cos_page_reference", user=request.user,
+            )
+            trace["raw_call_api"] = {"returned": ("None" if raw is None else "text"),
+                                     "value": (str(raw)[:60] if raw else None)}
+        except Exception as e:
+            trace["raw_call_api"] = {"exception": repr(e)}
+        # 2) The full lane function (what route_message actually calls).
+        try:
+            res = answer_page_reference(request.user, message, None, pc)
+            trace["answer_page_reference"] = (
+                {"returned": "dict", "lane": res.get("lane"),
+                 "answer_len": len(res.get("answer") or "")}
+                if res else {"returned": "None -> route_message falls to general lane"})
+        except Exception as e:
+            trace["answer_page_reference"] = {"exception": repr(e)}
+        # 3) WORKER-side probe — production streaming chat runs in the Celery worker, not
+        # here (web). Dispatch a probe and return the PREVIOUS cached worker result, so a
+        # second call shows whether the WORKER's LLM call works. This is the true
+        # web-vs-worker comparison.
+        trace["web_process_note"] = ("llm_state/raw_call_api/answer_page_reference above "
+                                     "ran in the WEB process; production chat streams in "
+                                     "the WORKER (below).")
+        try:
+            from apps.ai.chatgpt_cos.tasks import debug_probe_worker_llm
+            debug_probe_worker_llm.delay(request.user.id, message)
+            trace["worker_llm_state"] = (
+                cache.get("wlj:debug:worker_llm_probe")
+                or "dispatched — call this endpoint again in ~5s to read the worker result")
+        except Exception as e:
+            trace["worker_llm_state"] = {"dispatch_error": repr(e)}
     return JsonResponse(trace)

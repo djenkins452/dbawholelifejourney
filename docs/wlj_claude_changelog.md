@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(cos): extend page-reference diagnostic — web-vs-worker LLM probe
+
+Proved the runtime divergence: the diagnostic and real chat paths are identical through
+`resolve_page_focus` (both resolve the France goal, content_len 1601), then split at ONE
+line — `answer_page_reference` (`page_reference.py:187`) makes an LLM call
+`ai_service._call_api(endpoint="cos_page_reference")` that the deterministic diagnostic
+skips. If that call returns None/empty, `answer_page_reference` returns None -> route_message
+falls to the general lane -> the "external knowledge service unavailable" string. Ruled out
+the circuit breaker: the general lane calls `_call_api(bypass_breaker=True)` (`lanes.py:1306`)
+and STILL failed, so the LLM call genuinely failed. The widget's primary send path is
+`/assistant/api/chat/stream/` -> `run_chatgpt_cos_generation` in the Celery WORKER, while the
+diagnostic runs in the WEB process. Extended the temporary diagnostic with `run_llm:true` to
+execute the exact `_call_api` + `answer_page_reference` in-process AND dispatch a worker-side
+probe (`debug_probe_worker_llm`) that reports the WORKER's is_available/breaker/raw call — the
+decisive web-vs-worker comparison. TEMPORARY (remove with the diagnostic).
+`apps/ai/debug_page_reference.py`, `apps/ai/chatgpt_cos/tasks.py`, `apps/ai/tasks.py`.
+
 ## 2026-07-06 — debug(cos): TEMPORARY staff-only page-reference runtime diagnostic
 
 Adds a temporary staff-only endpoint `POST /assistant/debug/page-reference/` that proves the exact runtime route for a page-reference message ("Explain this" on a Goal page) — deterministic facts only, NO LLM call. Returns: git SHA, the `page_context` actually received (module / page_title / url / page_content keys / extracted pk), `is_page_reference`, `resolve_focused_object` (found? which kind/title/len), `resolve_page_focus` (resolved? len), and which branch `would_answer`. Confirmed via code trace that both the streaming task (`chatgpt_cos/tasks.py`) and non-streaming runtime pass `page_context` to `generate` → `route_message`, so the fallback to the general-lane "external knowledge service unavailable" means `page_reference` DECLINED — this endpoint proves WHY at runtime. TEMPORARY — to be removed (module + URL line) once diagnosed, per the Temporary Infrastructure Lifecycle law. `apps/ai/debug_page_reference.py` + one URL line.

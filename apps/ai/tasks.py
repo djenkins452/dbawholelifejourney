@@ -284,5 +284,6 @@ def react_to_significant_event_task(self, user_id, event_type, data):
 # autodiscovered — guarantees the task is registered on every worker.
 # =============================================================================
 from apps.ai.chatgpt_cos.tasks import (  # noqa: E402,F401
+    debug_probe_worker_llm,  # TEMP diagnostic — remove with apps/ai/debug_page_reference.py
     run_chatgpt_cos_generation,
 )

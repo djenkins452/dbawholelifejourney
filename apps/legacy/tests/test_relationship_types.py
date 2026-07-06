@@ -76,7 +76,7 @@ class RelationshipTypeTests(TestCase):
     def test_form_renders_with_types(self):
         r = self.client.get(reverse("legacy:relationship_new", args=[self.a.pk]))
         self.assertEqual(r.status_code, 200)
-        self.assertContains(r, "Step parent")
+        self.assertContains(r, "Step-parent")
         self.assertContains(r, "Coworker")
         self.assertContains(r, "relPeople")   # picker index
 

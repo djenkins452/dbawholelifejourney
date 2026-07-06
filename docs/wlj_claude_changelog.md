@@ -6,6 +6,14 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(legacy): stale relationship-form test assertion ("Step parent" → "Step-parent")
+
+**What:** A full Legacy-app regression sweep (347 tests) surfaced one failing test on main: `test_relationship_types.test_form_renders_with_types` asserted the relationship form renders "Step parent", but the canonical label shipped as "Step-parent" (hyphen) in commit `b9e1df23` (canonical relationship types) — the test wasn't updated with it. Updated the assertion to the shipped label. Test-only; no behaviour change.
+
+**Files:** `apps/legacy/tests/test_relationship_types.py`.
+
+**Verification:** `apps.legacy.tests.test_relationship_types` 7 green; the full `apps.legacy` suite now green (was 347 run / 1 fail → 0 fail).
+
 ## 2026-07-06 — feat(legacy): Places answer "where is this?" — embedded map + coordinates on the canonical Place
 
 **What:** A Place detail page now includes an **embedded, auto-centred map** so a Place immediately answers "where is this?" without leaving Legacy — plus the address/best-known location, latitude/longitude (when known), and an **"Open in Google Maps"** button for full navigation.

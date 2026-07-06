@@ -174,6 +174,7 @@ def answer_page_reference(user, message, conversation, page_context):
                 "page_focus": where}
 
     # We HAVE the focused content — answer the user's request about THIS, grounded in it.
+    text = None
     try:
         from apps.ai.services import ai_service
         system = (
@@ -188,8 +189,24 @@ def answer_page_reference(user, message, conversation, page_context):
                                     endpoint="cos_page_reference", user=user)
     except Exception:
         logger.warning("page_reference: grounded answer failed", exc_info=True)
-        return None
-    if not text or not str(text).strip():
-        return None
-    return {"answer": str(text).strip(), "tools_called": [], "tools_advertised": [],
-            "lane": "page_reference", "page_focus": where}
+        text = None
+    if text and str(text).strip():
+        return {"answer": str(text).strip(), "tools_called": [], "tools_advertised": [],
+                "lane": "page_reference", "page_focus": where}
+
+    # DEGRADE PAGE-AWARE (never fall through to the contextless general lane). We resolved
+    # the focused object but the writing model was unavailable (e.g. an LLM outage, or the
+    # Celery worker lacking an OpenAI client). Returning None here would let the sandboxed
+    # general lane answer as if it had no idea what the user is looking at — losing the
+    # executive context. Instead we keep the focus and fail honestly, so the user still
+    # gets a page-aware reply and can retry once the model is back.
+    kind_label = {"goal": "goal", "journal_entry": "journal entry", "task": "task",
+                  "scripture": "scripture"}.get(focus.get("kind") or "", "")
+    subject = (f"your {kind_label} “{focus['title']}”"
+               if (kind_label and focus.get("title")) else where)
+    logger.warning("page_reference: LLM unavailable — page-aware degrade (focus=%s)", where)
+    return {"answer": (f"I can see you're looking at {subject}, but my writing service is "
+                       "temporarily unavailable right now — try again in a moment and I'll "
+                       "dig right in."),
+            "tools_called": [], "tools_advertised": [], "lane": "page_reference",
+            "page_focus": where, "degraded": True}

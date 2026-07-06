@@ -154,3 +154,47 @@ class FocusedObjectTests(TestCase):
         self.assertEqual(out["lane"], "page_reference")
         self.assertIn("shipping WLJ", out["answer"])
         self.assertIn("Ship the app to production", m.call_args[0][0])   # goal content handed to model
+
+
+class DegradationTests(TestCase):
+    """When the focused object IS resolved but the LLM is unavailable (the worker had no
+    OpenAI client — is_available False), page_reference must DEGRADE PAGE-AWARE, never
+    return None and fall into the contextless general lane."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="deg@x.com", password="x")
+
+    def _goal_pc(self, title="France 2027 Family 18K Mission"):
+        from datetime import date
+        from apps.purpose.models import LifeGoal
+        g = LifeGoal.objects.create(user=self.u, title=title, description="Save and train.",
+                                    target_date=date(2027, 6, 1))
+        return {"module": "purpose", "url": f"/purpose/goals/{g.pk}/",
+                "page_title": title, "page_content": {}}
+
+    def test_llm_none_degrades_page_aware_not_none(self):
+        pc = self._goal_pc()
+        with mock.patch(_CALL_API, return_value=None):     # LLM unavailable (worker)
+            out = answer_page_reference(self.u, "Explain this.", None, pc)
+        self.assertIsNotNone(out)                          # must NOT fall to general lane
+        self.assertEqual(out["lane"], "page_reference")
+        self.assertTrue(out.get("degraded"))
+        self.assertIn("France 2027 Family 18K Mission", out["answer"])   # context preserved
+        self.assertIn("temporarily unavailable", out["answer"].lower())
+
+    def test_llm_exception_also_degrades_page_aware(self):
+        pc = self._goal_pc()
+        with mock.patch(_CALL_API, side_effect=RuntimeError("boom")):
+            out = answer_page_reference(self.u, "Explain this.", None, pc)
+        self.assertEqual(out["lane"], "page_reference")
+        self.assertTrue(out.get("degraded"))
+        self.assertIn("France 2027", out["answer"])
+
+    def test_route_message_returns_page_reference_when_llm_down(self):
+        # End-to-end through the router: LLM down -> still page_reference, NOT general lane.
+        pc = self._goal_pc()
+        with mock.patch(_CALL_API, return_value=None):
+            routed = route_message(self.u, "Explain this.", None, page_context=pc)
+        self.assertIsNotNone(routed)
+        self.assertEqual(routed["lane"], "page_reference")
+        self.assertNotIn("external knowledge service", routed["answer"].lower())

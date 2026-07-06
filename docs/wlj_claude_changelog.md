@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): page_reference degrades PAGE-AWARE when the LLM is unavailable
+
+When `answer_page_reference` had resolved the focused object (content present) but the LLM
+call returned None/empty or raised, it returned None → route_message fell through to the
+SANDBOXED general lane → a contextless "external knowledge service unavailable" reply that
+lost the executive context. Now, once the focus is resolved, an LLM failure returns a
+PAGE-AWARE degraded reply (lane=page_reference, degraded=True) that names what the user is
+looking at ("I can see you're looking at your goal "France 2027…", but my writing service
+is temporarily unavailable — try again in a moment"). Context is preserved; it never falls
+into the general lane. Resolution logic (is_page_reference / resolve_page_focus /
+resolve_focused_object) is UNCHANGED. This is the code-side safety net for any LLM outage,
+including the proven root cause (the Celery worker lacked an OpenAI client). Files:
+`apps/ai/chatgpt_cos/page_reference.py`; tests `apps/ai/tests/test_page_reference.py`
+(DegradationTests: None → page-aware, exception → page-aware, route_message stays
+page_reference, never the general-lane string).
+
 ## 2026-07-06 — debug(cos): extend page-reference diagnostic — web-vs-worker LLM probe
 
 Proved the runtime divergence: the diagnostic and real chat paths are identical through

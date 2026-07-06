@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — chore(cos): remove temporary page-reference runtime diagnostics (lifecycle)
+
+Root cause proven and fixed, so per the Temporary Infrastructure Lifecycle law the diagnostic
+scaffolding is removed COMPLETELY in one commit: deleted `apps/ai/debug_page_reference.py`
+(the staff-only `/assistant/debug/page-reference/` endpoint), its URL line in `apps/ai/urls.py`,
+the `debug_probe_worker_llm` worker-probe task in `apps/ai/chatgpt_cos/tasks.py`, and its
+registration import in `apps/ai/tasks.py`. Repo hygiene: `grep` for debug_page_reference /
+page_reference_diag / debug_probe_worker_llm / wlj:debug:worker_llm_probe / debug/page-reference
+returns nothing outside this changelog. Startup verified: URLconf imports, `ai:debug_page_reference`
+no longer reverses, the worker task is unregistered, `manage.py check` clean.
+
 ## 2026-07-06 — fix(cos): page_reference degrades PAGE-AWARE when the LLM is unavailable
 
 When `answer_page_reference` had resolved the focused object (content present) but the LLM

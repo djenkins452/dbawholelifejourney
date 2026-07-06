@@ -61,39 +61,6 @@ def _notify_beth_completion(user_id, conversation_id, assistant_msg, prompt):
         logger.warning("COS completion notification failed", exc_info=True)
 
 
-# --- TEMPORARY worker-side LLM probe (2026-07-06) — streaming chat runs in THIS worker
-# process; the page-reference diagnostic runs in the WEB process. This proves whether the
-# WORKER can make an LLM call (is_available / breaker / raw _call_api), which is the exact
-# step `answer_page_reference` runs and the diagnostic skips. REMOVE together with
-# apps/ai/debug_page_reference.py and its import in apps/ai/tasks.py. ---
-@shared_task(name="apps.ai.chatgpt_cos.debug_probe_worker_llm")
-def debug_probe_worker_llm(user_id=None, message="Reply with the single word: ok."):
-    from django.core.cache import cache
-    from django.utils import timezone
-
-    from apps.ai.services import ai_service
-
-    out = {
-        "process": "celery_worker",
-        "checked_at": timezone.now().isoformat(),
-        "is_available": bool(getattr(ai_service, "is_available", False)),
-        "breaker_open": bool(cache.get("openai_rate_limited")),
-    }
-    try:
-        raw = ai_service._call_api(
-            "You are a Chief of Staff. Reply with the single word: ok.",
-            message or "hi", max_tokens=8, endpoint="cos_page_reference",
-        )
-        out["raw_call_api"] = "None" if raw is None else "text"
-        out["raw_value"] = (str(raw)[:60] if raw else None)
-    except Exception as e:  # noqa: BLE001
-        out["raw_call_api"] = "exception"
-        out["raw_error"] = repr(e)
-    cache.set("wlj:debug:worker_llm_probe", out, 600)
-    logger.info("DEBUG_WORKER_LLM_PROBE %s", out)
-    return out
-
-
 @shared_task(
     name="apps.ai.chatgpt_cos.run_chatgpt_cos_generation",
     bind=True,

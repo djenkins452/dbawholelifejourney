@@ -59,13 +59,23 @@ class PurposeAccessMixin(LoginRequiredMixin):
 # Dashboard / Home
 # =============================================================================
 
-class PurposeHomeView(HelpContextMixin, PurposeAccessMixin, TemplateView):
+class PurposeHomeView(CurrentContextMixin, HelpContextMixin, PurposeAccessMixin, TemplateView):
     """
     Purpose module dashboard.
     Shows current direction, active goals, and intentions.
     """
     template_name = "purpose/home.html"
     help_context_id = "PURPOSE_HOME"
+
+    def get_current_context_object(self):
+        # Current Context Contract — the Purpose/Goals dashboard's one deterministic focus is
+        # the active mission goal (the card the page leads with), so "am I making progress?"
+        # / "is this still right?" ground here.
+        try:
+            from apps.purpose.mission_selection import select_active_mission_goal
+            return select_active_mission_goal(self.request.user)
+        except Exception:
+            return None
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

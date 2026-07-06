@@ -14,11 +14,6 @@ from . import views
 app_name = 'ai'
 
 urlpatterns = [
-    # TEMPORARY staff-only diagnostic (2026-07-06) — full Current-Context chain. REMOVE once proven.
-    path('debug/cc-chain/', __import__(
-        'apps.ai.debug_cc', fromlist=['cc_chain_diag']
-    ).cc_chain_diag, name='debug_cc_chain'),
-
     # Assistant Dashboard Page
     path('', views.AssistantDashboardView.as_view(), name='dashboard'),
 

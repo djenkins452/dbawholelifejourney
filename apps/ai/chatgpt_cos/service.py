@@ -157,30 +157,6 @@ class ChatGPTCoSService:
                 logger.warning("chatgpt_cos: current-context resolve failed", exc_info=True)
         set_current_focus(_focus)
 
-        # TEMP diagnostic (2026-07-06): prove the whole Current-Context chain for the real turn.
-        try:
-            import os as _os
-            import socket as _socket
-
-            from django.core.cache import cache as _dbgc
-            _pc = page_context if isinstance(page_context, dict) else {}
-            _dbgc.set(f"wlj:dbg:cc:generate:{self.user.id}", {
-                "message": (message or "")[:120],
-                "host": _socket.gethostname(),
-                "git_sha": (_os.environ.get("RAILWAY_GIT_COMMIT_SHA")
-                            or _os.environ.get("SOURCE_VERSION") or "?")[:12],
-                "page_context_present": bool(page_context),
-                "page_context_keys": sorted(_pc.keys()),
-                "focus_ref": _pc.get("focus_ref"),
-                "url": _pc.get("url"),
-                "module": _pc.get("module"),
-                "resolved_focus": (None if not _focus else {
-                    "title": _focus.get("title"), "kind": _focus.get("kind"),
-                    "content_len": len(_focus.get("content") or "")}),
-            }, 900)
-        except Exception:
-            pass
-
         # CONVERSATION LANE REGISTRY (framework-first, P6/P13) — ordered:
         #   Foundational Facts -> Personal Reasoning -> Clarification -> General.
         # The first two are the existing lanes (deterministic facts + the health

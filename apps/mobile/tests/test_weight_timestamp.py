@@ -59,6 +59,37 @@ class WeightTimestampTests(TestCase):
         e = WeightEntry.objects.get(user=self.user)
         self.assertEqual(e.recorded_at, _INSTANT)
 
+    def test_full_history_resync_repairs_all_noon_rows_losslessly(self):
+        # RECOVERY PATH: legacy noon rows across many days are all corrected when Apple
+        # Health re-sends the samples (matched by stable UUID sync_id) — no fabrication,
+        # no duplicates, no server-stored source needed.
+        days = [
+            ("2026-07-04", "2026-07-04T06:15:00-04:00", 284.4, "uuid-a"),
+            ("2026-07-05", "2026-07-05T05:41:00-04:00", 285.3, "uuid-b"),
+            ("2026-07-03", "2026-07-03T06:02:00-04:00", 285.7, "uuid-c"),
+        ]
+        for date_only, _iso, val, sid in days:                     # legacy: stored at noon
+            process_health_metric(self.user, self._weight(date_only, value=val, sync_id=sid))
+        self.assertTrue(all(timezone.localtime(w.recorded_at).hour == 12
+                            for w in WeightEntry.objects.filter(user=self.user)))
+        for _d, iso, val, sid in days:                             # one-time full-history resync
+            process_health_metric(self.user, self._weight(iso, value=val, sync_id=sid))
+        self.assertEqual(WeightEntry.objects.filter(user=self.user).count(), 3)   # no dupes
+        for _d, iso, _v, sid in days:
+            w = WeightEntry.objects.get(user=self.user, sync_id=sid)
+            self.assertEqual(w.recorded_at, datetime.fromisoformat(iso))          # true time restored
+
+    def test_history_resync_heals_a_syncid_less_legacy_row_by_date(self):
+        # Oldest rows may predate sync_id capture — the resync still heals them via the
+        # date match and backfills the UUID.
+        process_health_metric(self.user, self._weight("2026-07-04", value=284.4, sync_id=""))
+        process_health_metric(
+            self.user, self._weight("2026-07-04T06:15:00-04:00", value=284.4, sync_id="uuid-a"))
+        self.assertEqual(WeightEntry.objects.filter(user=self.user).count(), 1)
+        w = WeightEntry.objects.get(user=self.user)
+        self.assertEqual(w.recorded_at, datetime.fromisoformat("2026-07-04T06:15:00-04:00"))
+        self.assertEqual(w.sync_id, "uuid-a")
+
     def test_other_metrics_keep_their_own_timestamp(self):
         # Regression: glucose already parses its own per-sample time — still preserved.
         from apps.health.models import GlucoseEntry

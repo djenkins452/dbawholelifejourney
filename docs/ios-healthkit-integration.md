@@ -149,6 +149,34 @@ let endDate = Date()
 let startDate = calendar.date(byAdding: .day, value: -7, to: endDate)!
 ```
 
+### One-time historical timestamp recovery (weight / body_fat / lean_body_mass)
+
+Body-composition samples synced before 2026-07-06 were stored at **12:00 PM** (a
+server-side noon default that discarded the real sample time — since fixed). The true
+sample times were never retained by WLJ (`HealthIngestionRun` logs metadata only; `date`
+was reduced to a calendar day on ingest), so they are **not recoverable server-side** —
+but they live permanently in Apple Health. The backend now **self-heals** a stored noon
+row to the real sample time whenever Apple Health re-sends the sample, matched by the
+stable HealthKit UUID `sync_id` (or by date for pre-UUID rows, backfilling the UUID). No
+timestamps are fabricated and no duplicate rows are created (verified by
+`apps/mobile/tests/test_weight_timestamp.py`).
+
+To repair ALL historical rows, run ONE full-history resync — widen the weight /
+body-mass / lean-mass `HKSampleQuery` window to the account start instead of −7 days:
+
+```swift
+// ONE-TIME backfill: re-query the whole journey so every sample re-POSTs with its
+// real HealthKit sample date. The server heals each noon row in place by sync_id.
+let startDate = accountCreationDate            // or a safe floor, e.g. 2 years back
+let endDate = Date()
+// …HKSampleQuery for .bodyMass / .bodyFatPercentage / .leanBodyMass over [startDate, endDate]
+// …POST each sample with `date` = sample.startDate (ISO8601) and `sync_id` = "weight-\(sample.uuid)"
+```
+
+After the backfill, revert to the normal 7-day window. This is the only correct repair —
+truth comes from Apple Health, not a fabricated time. (BMI is date-only by design —
+`BodyCompositionEntry.measurement_date` — and is unaffected.)
+
 ### Query Patterns
 
 - **Daily aggregates** (steps, calories, water, nutrients): `HKStatisticsCollectionQuery` with `.cumulativeSum`

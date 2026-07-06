@@ -6,6 +6,14 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — docs/test(healthkit): historical weight timestamp recovery — resync path (no fabrication)
+
+Investigation of whether the noon-defaulted HISTORICAL weight timestamps are recoverable. **Not recoverable server-side** — WLJ never retained the real sample time (`HealthIngestionRun` logs metadata + counts only, no raw payload; ingest reduced `date` to a calendar day; `created_at` clusters at import time so it is not a per-sample proxy). **Recoverable from the source (Apple Health)**: each `WeightEntry` carries the stable HealthKit sample UUID as `sync_id`, and the deployed self-heal corrects a stored noon row to the real sample time on re-sync — matched by UUID, or by date (backfilling the UUID) for pre-UUID rows. Lossless, no duplicates, no fabrication.
+
+Repair = ONE full-history HealthKit resync from the iOS app (widen the weight/body_fat/lean_body_mass `HKSampleQuery` window to the account start for one pass, then revert to 7 days). Scope: weight, body_fat, lean_body_mass (all `WeightEntry.recorded_at`); BMI is date-only by design (`BodyCompositionEntry.measurement_date`) and unaffected; vitals already parse their own timestamp.
+
+Added `test_full_history_resync_repairs_all_noon_rows_losslessly` + `test_history_resync_heals_a_syncid_less_legacy_row_by_date` (8 tests green) proving the backend is ready. Documented the exact iOS backfill procedure in `docs/ios-healthkit-integration.md`.
+
 ## 2026-07-06 — debug(dashboard): capture the ORIGIN /dashboard/ document body (cache-bypassing)
 
 **Why:** to answer "which string is in the actual HTML response body" without browser access. `/debug/purpose-recommendation/` now issues an internal authenticated GET of the full `/dashboard/` document via `django.test.Client` (real URLconf + middleware, real host + HTTPS so it doesn't trip DisallowedHost/SSL-redirect), bypassing every browser/edge/webview cache. Returns `origin_document.body_contains` (does the FULL document contain "Consistent prayer for June" vs "Milestone reached") + `origin_document.response_headers` (Cache-Control/Vary/Age/CF-Cache-Status) — surfacing the enabling defect (the dashboard ships no `Cache-Control: no-store`). If the origin body is current but the browser shows stale, the stale copy provably lives in a cache between origin and DOM.

@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(ai): TEMPORARY worker-client construction probe
+
+Production disproved the "worker missing OPENAI_API_KEY" conclusion (the key IS configured on
+the worker), and the worker runs current code (it produced the page-aware degradation, which
+only exists in the worker as of a785ea86). So ai_service.is_available=False in the worker with
+the key present means construction/retention is failing there. Added a temporary staff-only
+diagnostic `GET /assistant/debug/worker-client/` that runs a DEEP OpenAI-construction probe in
+BOTH the web process and the Celery worker (via task `debug_probe_worker_client`) and returns:
+runtime key LENGTH/shape (never the value), openai/httpx versions, construction-affecting env
+vars (presence only), a FRESH `OpenAI(...)` construction attempt with the exact exception +
+traceback if it raises, and the live singleton state (is_available, client type, shared-singleton
+set, get_openai_client() result, git SHA per process). This captures the exact runtime reason —
+empty key at runtime vs swallowed construction exception vs stale singleton vs code drift — with
+no inference. TEMPORARY (remove once the cause is known). Files: `apps/ai/debug_worker_client.py`,
+`apps/ai/chatgpt_cos/tasks.py`, `apps/ai/tasks.py`, `apps/ai/urls.py`.
+
 ## 2026-07-06 — fix(ai): make missing OPENAI_API_KEY VISIBLE (never-silent) in get_openai_client
 
 Investigation of the worker LLM outage proved the root cause is process-environment: web and

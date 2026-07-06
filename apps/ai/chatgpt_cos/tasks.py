@@ -61,6 +61,21 @@ def _notify_beth_completion(user_id, conversation_id, assistant_msg, prompt):
         logger.warning("COS completion notification failed", exc_info=True)
 
 
+# --- TEMPORARY worker-client probe (2026-07-06) — runs the deep OpenAI-construction probe
+# IN the Celery worker and caches the result, so the web diagnostic can show why the worker's
+# ai_service.is_available is False. REMOVE with apps/ai/debug_worker_client.py + its import
+# in apps/ai/tasks.py. Never logs the API key (length/shape only). ---
+@shared_task(name="apps.ai.chatgpt_cos.debug_probe_worker_client")
+def debug_probe_worker_client():
+    from django.core.cache import cache
+
+    from apps.ai.debug_worker_client import WORKER_CACHE_KEY, probe
+    out = probe()
+    cache.set(WORKER_CACHE_KEY, out, 900)
+    logger.info("DEBUG_WORKER_CLIENT_PROBE %s", out)
+    return out
+
+
 @shared_task(
     name="apps.ai.chatgpt_cos.run_chatgpt_cos_generation",
     bind=True,

@@ -14,6 +14,12 @@ from . import views
 app_name = 'ai'
 
 urlpatterns = [
+    # TEMPORARY staff-only worker-client diagnostic (2026-07-06) — proves why the Celery
+    # worker's OpenAI client is None despite OPENAI_API_KEY being set. REMOVE once known.
+    path('debug/worker-client/', __import__(
+        'apps.ai.debug_worker_client', fromlist=['worker_client_diag']
+    ).worker_client_diag, name='debug_worker_client'),
+
     # Assistant Dashboard Page
     path('', views.AssistantDashboardView.as_view(), name='dashboard'),
 

@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Threshold Intent Understanding — natural human threshold language
+
+**Root cause:** the threshold parser only understood explicit operators (below/under/above/over + a number) and a bare-number crossing verb. "When did I break into the 290s?" matched NOTHING — the bare-number regex `\b(\d{2,3})\b` can't even match "290" inside "290**s**" (no word boundary before the "s"), and there was no concept of a decade BAND or comparative phrasing. So it fell through to the generic "I'm unable to access the history data."
+
+**Fix (general, not a 290s patch):** `weight_history._parse_threshold` now understands, in priority order — (A) DECADE BANDS: "the 290s" = 290–299; entering a band while descending crosses its TOP ("break into the 290s" → below 300), leaving it crosses its BOTTOM ("leave the 300s" → below 300), with enter/leave verbs (into / get into / reach / crack / leave / out of); (B) COMPARATIVE phrases + a number ("less than 285", "get below 250", "stop being over 300" — negation flips direction); (C) bare-number crossing verbs ("break 300", "crack 290"). Direction defaults to the user's weight TREND, so no phrasing needs a math operator. Nothing keyed to a specific number.
+
+**Files:** `apps/ai/chatgpt_cos/weight_history.py`, `apps/ai/tests/test_historical_navigation.py`.
+**Verification:** 30 tests green — every natural variation (break into the 290s / get into the 280s / reach the 270s / leave the 300s / less than 285 / get below 250 / get under 200 / stop being over 300 / break 300 / crack 290) maps to the right (threshold, direction); the exact production path (via the referential bridge, no "weight" keyword) resolves; all prior navigation (yesterday, day-before-yesterday, July 1, extremum, average, drop-below-290) still passes; non-threshold questions ("average last month", "reach my lowest") are not hijacked.
+
 ## 2026-07-06 — fix(ui): Weight table row stays cohesive when the date/time wraps
 
 The Edit/Delete cell used `display: flex` on a `<td>`, which takes the cell out of table layout — so when the date/time wrapped to two lines (e.g. "Jul 6, 2026 / 6:32 AM") the actions cell no longer stretched to the row height and its bottom border sat above the row's, making the Edit/Delete area look detached with a horizontal break. Fix: the `<td>` is now a normal middle-aligned table cell (`vertical-align: middle`) and the flex layout moved to an inner `.entry-actions-inner` wrapper. Naturally handles wrapped date/time, single-line dates, future metadata, and the responsive (overflow-x) layout — no hardcoded row heights, no behavior change. `templates/health/weight_list.html` (inline template CSS — no collectstatic needed).

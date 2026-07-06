@@ -22,17 +22,39 @@ logger = logging.getLogger(__name__)
 
 _WEIGHT_CUES = ("weight", "weigh", "weighed")
 
-# THRESHOLD crossing — a number with an explicit direction ("below 290", "above 300").
-_THRESH_RE = re.compile(r"\b(below|under|beneath|above|over)\s+(\d{2,3}(?:\.\d)?)\b")
-_CROSS_INTENT = ("first", "drop", "dropp", "fell", "fall", "went", "go ", "got",
-                 "get ", "cross", "reach", "hit", "when", "under", "below", "above", "over")
-# A crossing VERB with no explicit direction word ("break 300", "hit 290", "reach 250").
-# Direction is inferred from the user's weight TREND — no hardcoded threshold. This is
-# what makes navigation natural: any number, any phrasing, works.
-_CROSS_VERBS = ("break", "broke", "breaking", "hit", "reach", "reached", "cross",
-                "crossed", "pass", "passed", "dip", "dipped", "drop", "dropped",
-                "fell", "fall", "went", "get to", "got to", "get under", "got under")
-_BARE_NUM_RE = re.compile(r"\b(\d{2,3}(?:\.\d)?)\b")
+# ── THRESHOLD INTENT UNDERSTANDING ─────────────────────────────────────────────────
+# Humans don't speak in operators. "break into the 290s", "leave the 300s", "crack 290",
+# "less than 285", "stop being over 300" all describe a single crossing. We map the
+# natural language to (threshold, direction); direction defaults to the user's TREND
+# (weight loss ⇒ downward) so no phrasing needs a math operator. Nothing is hardcoded to
+# a specific number — every pattern is general.
+
+# A comparative phrase + a number → an explicit direction.
+_LESS_PHRASES = ("less than", "lower than", "under", "below", "beneath", "fewer than",
+                 "smaller than", "down to", "no more than")
+_MORE_PHRASES = ("more than", "greater than", "higher than", "over", "above", "up to",
+                 "at least")
+# Negations flip the comparison: "stop being over 300" / "no longer above 300" = went
+# BELOW 300.
+_NEGATERS = ("stop being", "stopped being", "no longer", "quit being", "not be",
+             "wasnt", "wasn t", "not over", "not above", "not under", "not below",
+             "get out of", "got out of", "leave", "left")
+_NUM = r"(\d{2,3}(?:\.\d)?)"
+
+# A decade BAND — "the 290s" means 290–299. ENTER = "break/get into", "reach", "drop into";
+# LEAVE = "leave/out of". Entering a band from above (weight loss) = crossing its TOP;
+# leaving it downward = crossing its BOTTOM.
+_BAND_RE = re.compile(r"(?<!\d)([1-9]\d?0)s\b")
+_BAND_ENTER = ("into", "reach", "reached", "get to", "got to", "crack", "cracked",
+               "hit", "back to", "down to", "in the")
+_BAND_LEAVE = ("leave", "left", "out of", "escape", "escaped", "out the")
+
+# A crossing VERB with no explicit direction word ("break 300", "crack 290", "hit 250").
+_CROSS_VERBS = ("break", "broke", "breaking", "crack", "cracked", "hit", "reach",
+                "reached", "cross", "crossed", "pass", "passed", "dip", "dipped",
+                "drop", "dropped", "fell", "fall", "went", "get to", "got to",
+                "get under", "got under", "get below", "get above")
+_BARE_NUM_RE = re.compile(r"(?<![\d.])(\d{2,3}(?:\.\d)?)(?![\d])")
 _LOWEST = ("lowest", "lightest", "least i weigh", "minimum weight", "min weight")
 _HIGHEST = ("highest", "heaviest", "most i weigh", "maximum weight", "max weight", "peak weight")
 _EXTREMUM_INTENT = ("lowest", "highest", "lightest", "heaviest", "peak", "most i weigh",
@@ -87,17 +109,41 @@ def _trend_direction(user):
 
 
 def _parse_threshold(user, n):
-    """(threshold, direction) for a crossing question, or None. Accepts an EXPLICIT
-    direction ('below 290', 'over 300') OR a bare-number crossing verb ('break 300',
-    'hit 250') whose direction is inferred from the trend — so any threshold navigates."""
-    m = _THRESH_RE.search(n)
-    if m and any(w in n for w in _CROSS_INTENT):
-        word = m.group(1)
-        return float(m.group(2)), ("above" if word in ("above", "over") else "below")
+    """Map a natural-language threshold question to (threshold, direction), or None.
+
+    Understands, in priority order: DECADE BANDS ("break into the 290s", "leave the
+    300s", "reach the 270s"), COMPARATIVE phrases with a number ("less than 285", "get
+    below 250", "stop being over 300"), and a BARE-NUMBER crossing verb ("crack 290",
+    "break 300"). Direction defaults to the user's trend so plain phrasing needs no
+    operator. General — never keyed to a specific number."""
+    # A) DECADE BAND — "the 290s", "into the 280s", "leave the 300s".
+    bm = _BAND_RE.search(n)
+    if bm and (any(v in n for v in _BAND_ENTER) or any(v in n for v in _BAND_LEAVE)):
+        low = int(bm.group(1))
+        leaving = any(v in n for v in _BAND_LEAVE) and not any(v in n for v in ("into", "reach", "crack"))
+        if _trend_direction(user) == "below":
+            # Descending: entering a band = crossing its TOP (low+10); leaving it = its
+            # BOTTOM (low). "into the 290s" → below 300; "leave the 300s" → below 300.
+            return float(low if leaving else low + 10), "below"
+        # Ascending: mirror — entering = crossing the bottom; leaving = the top.
+        return float(low + 10 if leaving else low), "above"
+
+    # B) COMPARATIVE phrase + a number ("less than 285", "under 250", "over 300").
+    negated = any(neg in n for neg in _NEGATERS)
+    for phrases, direction in ((_LESS_PHRASES, "below"), (_MORE_PHRASES, "above")):
+        for ph in phrases:
+            m = re.search(re.escape(ph) + r"\s+(?:the\s+)?" + _NUM, n)
+            if m:
+                d = direction
+                if negated:
+                    d = "above" if direction == "below" else "below"
+                return float(m.group(1)), d
+
+    # C) BARE-NUMBER crossing verb ("crack 290", "break 300") — direction from the trend.
     if any(v in n for v in _CROSS_VERBS):
-        bm = _BARE_NUM_RE.search(n)
-        if bm:
-            return float(bm.group(1)), _trend_direction(user)
+        bm2 = _BARE_NUM_RE.search(n)
+        if bm2:
+            return float(bm2.group(1)), _trend_direction(user)
     return None
 
 

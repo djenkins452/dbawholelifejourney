@@ -186,3 +186,80 @@ class ThresholdCrossingTests(TestCase):
         _we(u2, date(2026, 6, 2), 286.0)
         r = weight_queries.first_crossing(u2, 290, "below")
         self.assertEqual(r["date"], date(2026, 6, 1))   # earliest on-target day
+
+
+class ThresholdIntentTests(TestCase):
+    """THRESHOLD INTENT UNDERSTANDING — natural human threshold language, not operators.
+    'break into the 290s' / 'leave the 300s' / 'crack 290' / 'stop being over 300' all
+    map to the right crossing. Descending (weight-loss) series so the trend is 'below'."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="thri@x.com", password="x")
+        for d, lb in [(date(2026, 2, 1), 311.0), (date(2026, 3, 1), 305.0),
+                      (date(2026, 4, 1), 299.0), (date(2026, 5, 1), 291.0),
+                      (date(2026, 6, 1), 285.0), (date(2026, 6, 20), 279.0)]:
+            _we(self.u, d, lb)
+
+    def _p(self, phrase):
+        from apps.ai.chatgpt_cos.weight_history import _parse_threshold
+        return _parse_threshold(self.u, phrase.lower())
+
+    def test_decade_band_enter_maps_to_band_top(self):
+        self.assertEqual(self._p("when did I break into the 290s?"), (300.0, "below"))
+        self.assertEqual(self._p("when did I get into the 280s?"), (290.0, "below"))
+        self.assertEqual(self._p("when did I reach the 270s?"), (280.0, "below"))
+
+    def test_decade_band_leave_maps_to_band_bottom(self):
+        self.assertEqual(self._p("when did I leave the 300s?"), (300.0, "below"))
+
+    def test_comparative_phrases(self):
+        self.assertEqual(self._p("when did I first weigh less than 285?"), (285.0, "below"))
+        self.assertEqual(self._p("when did I get below 250?"), (250.0, "below"))
+        self.assertEqual(self._p("when did I finally get under 200?"), (200.0, "below"))
+
+    def test_negated_comparative_flips_direction(self):
+        # "stop being over 300" = went BELOW 300, not above.
+        self.assertEqual(self._p("when did I stop being over 300?"), (300.0, "below"))
+
+    def test_bare_number_crossing_verbs(self):
+        self.assertEqual(self._p("when did I break 300?"), (300.0, "below"))
+        self.assertEqual(self._p("when did I finally crack 290?"), (290.0, "below"))
+
+    def test_full_answer_for_band_question(self):
+        ans = weight_history.navigate(self.u, "when did I break into the 290s?")
+        self.assertIsNotNone(ans)
+        self.assertIn("300", ans)          # crossed below 300
+        self.assertIn("299", ans)          # the crossing-day value (in the 290s)
+        self.assertIn("April 1", ans)
+
+    def test_non_threshold_questions_are_not_hijacked(self):
+        self.assertIsNone(self._p("what was my weight yesterday?"))
+        self.assertIsNone(self._p("what is my average weight last month?"))
+        self.assertIsNone(self._p("when did I reach my lowest weight?"))   # extremum, no number
+
+
+class ThresholdIntentBridgeTests(TestCase):
+    """The EXACT production path: prior weight Q&A makes 'weight' the active topic, so
+    'When did I break into the 290s?' reaches the navigator via the referential bridge
+    (no 'weight' keyword in the message)."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="thrib@x.com", password="x")
+        _we(self.u, date(2026, 3, 1), 305.0)
+        _we(self.u, date(2026, 4, 1), 299.0)   # crossed below 300
+        _we(self.u, date(2026, 6, 1), 285.0)
+        self.last = {"topic": "weight", "fact_key": "weight_today",
+                     "fact": {"value": 285.0, "unit": "lb"}}
+
+    def test_band_question_resolves_via_bridge(self):
+        r = resolve_referential(self.u, "When did I break into the 290s?", self.last)
+        self.assertIsNotNone(r)
+        self.assertIn("299", r["answer"])          # entered the 290s at 299
+        self.assertIn("300", r["answer"])
+
+    def test_plain_yesterday_still_routes(self):
+        # No regression: a normal reference still works through the bridge.
+        _we(self.u, get_user_today(self.u) - timedelta(days=1), 284.4)
+        r = resolve_referential(self.u, "yesterday?", self.last)
+        self.assertIsNotNone(r)
+        self.assertIn("284.4", r["answer"])

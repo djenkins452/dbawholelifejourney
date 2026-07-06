@@ -378,6 +378,10 @@ class HealthKitManager {
         // Submit to API
         let response = try await APIClient.shared.submitHealthMetrics(metrics)
 
+        // Honor any pending server "reimport" directive (the web "Re-import from Apple
+        // Health" button) as part of the normal sync — best-effort, never fails the sync.
+        await checkAndFulfillReimport()
+
         return SyncResult(
             created: response.created,
             updated: response.updated,
@@ -412,6 +416,97 @@ class HealthKitManager {
             skipped: response.skipped,
             errors: response.errors.count
         )
+    }
+
+    // MARK: - Historical Body-Composition Reimport
+
+    /// One-time HISTORICAL BODY-COMPOSITION REIMPORT — the counterpart to the sleep
+    /// replay. Re-fetches weight / body fat / lean mass over [from, to] through the EXACT
+    /// SAME pipeline normal sync uses (`fetchWeight`/`fetchBodyFat`/`fetchLeanBodyMass` →
+    /// `APIClient.submitHealthMetrics` → the server importer). Each sample now carries its
+    /// real ISO8601 sample time, so the server self-heals rows that were previously stored
+    /// at the 12:00 PM noon default — matched by stable sample UUID / date. Idempotent and
+    /// safe to re-run: the server update-or-skips, so nothing is duplicated. `metrics`
+    /// selects which of the three to include (defaults to all three).
+    func syncBodyCompositionHistory(
+        from: Date, to: Date,
+        metrics wanted: Set<String> = ["weight", "body_fat", "lean_body_mass"]
+    ) async throws -> SyncResult {
+        var payload: [HealthMetric] = []
+        if wanted.contains("weight") {
+            payload += try await fetchWeight(from: from, to: to)
+        }
+        if wanted.contains("body_fat") {
+            payload += try await fetchBodyFat(from: from, to: to)
+        }
+        if wanted.contains("lean_body_mass") {
+            payload += try await fetchLeanBodyMass(from: from, to: to)
+        }
+        guard !payload.isEmpty else {
+            return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
+        }
+        let response = try await APIClient.shared.submitHealthMetrics(payload)
+        return SyncResult(
+            created: response.created,
+            updated: response.updated,
+            skipped: response.skipped,
+            errors: response.errors.count
+        )
+    }
+
+    /// Fulfil a server "reimport" directive (from `/health/sync-status/`): re-fetch the
+    /// requested body-composition history and re-submit it, then report counts back to
+    /// `/health/reimport/complete/`. Best-effort completion — the repair itself already
+    /// happened through ingest. Returns the sync result, or nil when no directive.
+    @discardableResult
+    func fulfillReimport(_ directive: ReimportDirective) async throws -> SyncResult {
+        let end = Date()
+        // Full history when `since` is nil — floor at 5 years to bound the HealthKit query.
+        let start: Date = {
+            if let since = directive.since,
+               let d = Self.parseSinceDate(since) { return d }
+            return Calendar.current.date(byAdding: .year, value: -5, to: end) ?? Date.distantPast
+        }()
+
+        let wanted = Set(directive.metrics)
+        let result = try await syncBodyCompositionHistory(from: start, to: end, metrics: wanted)
+        let scanned = result.created + result.updated + result.skipped
+        // Report completion — never fail the reimport if this call errors.
+        try? await APIClient.shared.completeReimport(
+            requestId: directive.requestId,
+            scanned: scanned,
+            created: result.created,
+            updated: result.updated,
+            skipped: result.skipped,
+            failed: result.errors
+        )
+        return result
+    }
+
+    /// Check the server for a pending reimport directive and fulfil it if present. Called
+    /// as part of the normal sync so the web "Re-import from Apple Health" button is
+    /// honored on the next sync — no dedicated app UI required. Never throws.
+    @discardableResult
+    func checkAndFulfillReimport() async -> SyncResult? {
+        guard KeychainManager.shared.getAPIToken() != nil else { return nil }
+        do {
+            let status = try await APIClient.shared.getSyncStatus()
+            guard let directive = status.reimport else { return nil }
+            return try await fulfillReimport(directive)
+        } catch {
+            print("Reimport check/fulfil skipped: \(error)")
+            return nil
+        }
+    }
+
+    /// Parse the directive's `since` (an ISO date "yyyy-MM-dd" or a full ISO8601 instant).
+    private static func parseSinceDate(_ s: String) -> Date? {
+        let iso = ISO8601DateFormatter()
+        if let d = iso.date(from: s) { return d }
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        df.timeZone = TimeZone.current
+        return df.date(from: s)
     }
 
     // MARK: - Fetch Steps
@@ -491,8 +586,12 @@ class HealthKitManager {
                 var metrics: [HealthMetric] = []
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
+                // Send the REAL sample instant (ISO8601), not a date-only string. A
+                // date-only value makes the server default the time to noon, which
+                // future-dates a morning weigh-in and breaks temporal integrity.
+                let isoFormatter = ISO8601DateFormatter()
 
-                // Group by date, take most recent per day
+                // One row per day (most recent sample), preserving that sample's true time.
                 var seenDates: Set<String> = []
 
                 for sample in (samples as? [HKQuantitySample]) ?? [] {
@@ -505,7 +604,7 @@ class HealthKitManager {
 
                     metrics.append(HealthMetric(
                         type: "weight",
-                        date: dateStr,
+                        date: isoFormatter.string(from: sample.startDate),
                         value: weightLbs,
                         unit: "lb",
                         source: "apple_health",
@@ -1192,8 +1291,9 @@ class HealthKitManager {
                 var metrics: [HealthMetric] = []
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
-                let timeFormatter = DateFormatter()
-                timeFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                // Real sample instant (ISO8601) — not date-only, which the server would
+                // noon-default.
+                let isoFormatter = ISO8601DateFormatter()
 
                 // Group by date, keeping most recent per day
                 var latestPerDay: [String: (date: Date, percentage: Double)] = [:]
@@ -1214,7 +1314,7 @@ class HealthKitManager {
                 for (dateStr, data) in latestPerDay {
                     metrics.append(HealthMetric(
                         type: "body_fat",
-                        date: dateStr,
+                        date: isoFormatter.string(from: data.date),
                         bodyFatPercentage: data.percentage,
                         source: "apple_health",
                         syncId: "bodyfat-\(dateStr)"
@@ -1478,6 +1578,9 @@ class HealthKitManager {
                 var metrics: [HealthMetric] = []
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
+                // Real sample instant (ISO8601) — not date-only, which the server would
+                // noon-default.
+                let isoFormatter = ISO8601DateFormatter()
 
                 // Group by date, keeping most recent per day
                 var latestPerDay: [String: (date: Date, mass: Double)] = [:]
@@ -1498,7 +1601,7 @@ class HealthKitManager {
                 for (dateStr, data) in latestPerDay {
                     metrics.append(HealthMetric(
                         type: "lean_body_mass",
-                        date: dateStr,
+                        date: isoFormatter.string(from: data.date),
                         leanMassValue: data.mass,
                         leanMassUnit: "lb",
                         source: "apple_health",

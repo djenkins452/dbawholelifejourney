@@ -13,6 +13,9 @@ struct SettingsView: View {
 
     @State private var isSyncing = false
     @State private var isReplaying = false
+    @State private var isReimportingBody = false
+    @State private var showReimportResult = false
+    @State private var reimportResult: String = ""
     @State private var isConnecting = false
     @State private var showSyncError = false
     @State private var showConnectError = false
@@ -79,6 +82,23 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(isReplaying || isSyncing || !appState.healthKitAuthorized)
+
+                    // One-time historical body-composition reimport: re-fetch weight,
+                    // body fat, and lean mass from Apple Health so entries stored at the
+                    // old 12:00 PM placeholder are repaired with their real sample times.
+                    // Idempotent — the server update-or-skips by sample UUID/date.
+                    Button(action: reimportBodyComposition) {
+                        HStack {
+                            if isReimportingBody {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "scalemass")
+                            }
+                            Text(isReimportingBody ? "Re-importing body composition..." : "Re-import Body Composition")
+                        }
+                    }
+                    .disabled(isReimportingBody || isReplaying || isSyncing || !appState.healthKitAuthorized)
                 } header: {
                     Text("Health")
                 } footer: {
@@ -239,6 +259,11 @@ struct SettingsView: View {
             } message: {
                 Text(replayResult)
             }
+            .alert("Body Composition Re-imported", isPresented: $showReimportResult) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(reimportResult)
+            }
         }
     }
 
@@ -372,6 +397,42 @@ struct SettingsView: View {
                     syncError = error.localizedDescription
                     showSyncError = true
                     isReplaying = false
+                }
+            }
+        }
+    }
+
+    private func reimportBodyComposition() {
+        isReimportingBody = true
+
+        Task {
+            do {
+                // One-time historical reimport: re-fetch weight / body fat / lean mass
+                // since Jan 1, 2026 through the same pipeline normal sync uses, so entries
+                // older than the rolling 7-day window are repaired from their real Apple
+                // Health sample times (the server self-heals the old 12:00 PM default).
+                // Idempotent — the server update-or-skips by sample UUID / date.
+                var comps = DateComponents()
+                comps.year = 2026
+                comps.month = 1
+                comps.day = 1
+                let start = Calendar.current.date(from: comps) ?? Date()
+                let result = try await HealthKitManager.shared.syncBodyCompositionHistory(
+                    from: start, to: Date()
+                )
+
+                await MainActor.run {
+                    reimportResult = "\(result.created) new, \(result.updated) corrected, "
+                        + "\(result.skipped) already up to date."
+                        + (result.errors > 0 ? " \(result.errors) error(s)." : "")
+                    showReimportResult = true
+                    isReimportingBody = false
+                }
+            } catch {
+                await MainActor.run {
+                    syncError = error.localizedDescription
+                    showSyncError = true
+                    isReimportingBody = false
                 }
             }
         }

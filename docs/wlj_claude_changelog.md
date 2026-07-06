@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(ios): native app honors the HealthKit reimport directive + preserves sample time
+
+Completes the HealthKit Historical Reimport loop on the native side (ios/WLJWrapper).
+
+**Root cause found on the client:** `fetchWeight` / `fetchBodyFat` / `fetchLeanBodyMass` sent `date` as a DATE-ONLY string ("yyyy-MM-dd"), so the sample time never left the phone — the server then noon-defaulted it. Fixed: all three now send the real ISO8601 sample instant (`sample.startDate`), so normal syncs store the correct time and the reimport carries the true time for the server self-heal.
+
+**Reimport loop (mirrors the existing Sleep History replay):**
+- `APIClient`: `SyncStatusResponse.reimport` (`ReimportDirective {request_id, metrics, since, status}`) + `completeReimport(...)` → `POST /health/reimport/complete/`.
+- `HealthKitManager`: `syncBodyCompositionHistory(from:to:metrics:)`, `fulfillReimport(_:)` (re-fetch full history → submit → report counts), `checkAndFulfillReimport()`. Called at the end of `syncHealthData()` so the web "Re-import from Apple Health" button is honored on the next sync — no dedicated UI required.
+- `SettingsView`: a "Re-import Body Composition" button (manual trigger) next to "Re-import Sleep History", with a result alert.
+
+Idempotent and safe to re-run (server update-or-skips by sample UUID/date; a real time is never overwritten with noon); does not disturb the normal 7-day incremental sync. **Verified: `xcodebuild` simulator build SUCCEEDED (arm64 + x86_64), no errors.** On-device install/run + button validation is the user's step (device required); the iOS integration doc carries the contract.
+
 ## 2026-07-06 — instrument+fix(legacy): Place resolution pipeline — geocoder → Esri (Issue 2 fixed) + glass box for the Google Maps pin (Issue 1)
 
 Followed `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` — instrumented first, proved with evidence, did not guess.

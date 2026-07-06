@@ -187,6 +187,45 @@ class APIClient {
         }
     }
 
+    // MARK: - Reimport Completion
+
+    /// Report the outcome of fulfilling a reimport directive so the server can close the
+    /// request and the Weight page can show the result. Non-2xx is non-fatal — the actual
+    /// repair already happened through the ingest self-heal.
+    func completeReimport(requestId: Int, scanned: Int, created: Int,
+                          updated: Int, skipped: Int, failed: Int) async throws {
+        guard let token = KeychainManager.shared.getAPIToken() else {
+            throw APIError.notAuthenticated
+        }
+
+        let url = URL(string: "\(baseURL)/api/mobile/health/reimport/complete/")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "request_id": requestId,
+            "scanned": scanned,
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "failed": failed,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 {
+            KeychainManager.shared.deleteAPIToken()
+            throw APIError.notAuthenticated
+        }
+        // Any other non-200 (e.g. 404 unknown/expired request) is intentionally ignored.
+    }
+
     // MARK: - Push Notifications
 
     /// Register APNs push token with the backend.
@@ -387,13 +426,31 @@ struct SyncStatusResponse: Codable {
     let lastSync: String?
     let lastSyncStatus: String?
     let metricsSynced: MetricsSynced
+    let reimport: ReimportDirective?
     let device: DeviceInfo
 
     enum CodingKeys: String, CodingKey {
         case lastSync = "last_sync"
         case lastSyncStatus = "last_sync_status"
         case metricsSynced = "metrics_synced"
+        case reimport
         case device
+    }
+}
+
+/// A user-triggered historical reimport the app should fulfil: re-fetch `metrics` from
+/// Apple Health over `since`..now and re-submit through the normal ingest.
+struct ReimportDirective: Codable {
+    let requestId: Int
+    let metrics: [String]
+    let since: String?
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case requestId = "request_id"
+        case metrics
+        case since
+        case status
     }
 }
 

@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(ai): make missing OPENAI_API_KEY VISIBLE (never-silent) in get_openai_client
+
+Investigation of the worker LLM outage proved the root cause is process-environment: web and
+worker load the IDENTICAL settings module (config.settings via setdefault in wsgi.py/celery.py/
+manage.py), `OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')` has NO default/dotenv/conditional,
+and both run the SAME NIXPACKS image (openai>=1.0.0, client built as OpenAI(api_key=...) with no
+base_url/proxy) — so given the key, construction succeeds identically. By elimination the worker's
+env lacks a non-empty OPENAI_API_KEY. What HID this for three investigations: `get_openai_client()`
+returned None SILENTLY when the key was missing (violating CLAUDE.md "never swallow critical-path
+errors"). Now it logs a WARNING naming the process (proc/pid) so the WORKER log itself proves the
+cause — and after the env is set, the existing "OpenAI client initialized (shared singleton)" log
+proves the fix. No behavior change beyond logging. `apps/ai/services.py`.
+
 ## 2026-07-06 — chore(cos): remove temporary page-reference runtime diagnostics (lifecycle)
 
 Root cause proven and fixed, so per the Temporary Infrastructure Lifecycle law the diagnostic

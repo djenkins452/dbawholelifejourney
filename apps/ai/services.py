@@ -21,6 +21,8 @@ Caching Optimizations (2025-12-31):
 - AIPromptConfig cached (1 hour)
 """
 import logging
+import os
+import sys
 import threading
 import time
 from typing import Optional
@@ -115,6 +117,17 @@ def get_openai_client():
             return _shared_openai_client
         api_key = getattr(settings, 'OPENAI_API_KEY', None)
         if not api_key:
+            # NEVER SILENT (CLAUDE.md: never swallow critical-path errors). A missing key
+            # here means EVERY LLM call in THIS process returns None — and if this is the
+            # Celery worker (which runs streaming chat), the user gets graceful degradation
+            # instead of real answers. Name the process so the WORKER log proves the cause:
+            # this exact silent branch hid a worker env mismatch across three investigations.
+            logger.warning(
+                "OpenAI client NOT created — settings.OPENAI_API_KEY is missing/empty in "
+                "THIS process (proc=%s pid=%s). All AI features are unavailable here until "
+                "OPENAI_API_KEY is set on this service's environment.",
+                os.path.basename(sys.argv[0]) if sys.argv else "?", os.getpid(),
+            )
             return None
         try:
             from openai import OpenAI

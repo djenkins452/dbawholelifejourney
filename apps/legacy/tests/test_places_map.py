@@ -144,3 +144,96 @@ class PlaceMapViewTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         obj = form.save(commit=False)
         self.assertEqual(str(obj.latitude), "35.9606")
+
+
+class GeocodeSearchReverseTests(TestCase):
+    def test_search_returns_labelled_candidates(self):
+        sample = [{"display_name": "Tuscaloosa, AL, USA", "lat": "33.209", "lon": "-87.569"},
+                  {"display_name": "Tuscaloosa County, AL", "lat": "33.29", "lon": "-87.52"}]
+        with mock.patch.object(geocode_svc, "_get", return_value=sample):
+            hits = geocode_svc.search("Tuscaloosa")
+        self.assertEqual(len(hits), 2)
+        self.assertEqual(hits[0]["label"], "Tuscaloosa, AL, USA")
+        self.assertEqual(str(hits[0]["lat"]), "33.209000")
+
+    def test_search_empty_query_skips_network(self):
+        with mock.patch.object(geocode_svc, "_get") as g:
+            self.assertEqual(geocode_svc.search("   "), [])
+            g.assert_not_called()
+
+    def test_reverse_returns_address(self):
+        with mock.patch.object(geocode_svc, "_get", return_value={"display_name": "1 Main St, Maryville"}):
+            self.assertEqual(geocode_svc.reverse("35.75", "-83.97"), "1 Main St, Maryville")
+
+    def test_reverse_miss_returns_blank(self):
+        with mock.patch.object(geocode_svc, "_get", return_value=None):
+            self.assertEqual(geocode_svc.reverse("35.75", "-83.97"), "")
+
+    def test_parse_latlon_validates_range(self):
+        self.assertIsNotNone(geocode_svc.parse_latlon("35.75", "-83.97"))
+        self.assertIsNone(geocode_svc.parse_latlon("120", "0"))      # lat out of range
+        self.assertIsNone(geocode_svc.parse_latlon("0", "200"))      # lon out of range
+        self.assertIsNone(geocode_svc.parse_latlon("abc", "1"))      # not a number
+
+
+class PlaceLocateWorkflowTests(TestCase):
+    def setUp(self):
+        self.user = _make_user("locate@example.com")
+        self.client.force_login(self.user)
+        self.place = Place.objects.create(user=self.user, name="Grandma's farm")  # unresolvable
+
+    def test_resolver_shows_when_unresolved(self):
+        # No location text → auto-geocode is skipped → the resolver (search + pin) shows.
+        html = self.client.get(reverse("legacy:place_detail", args=[self.place.pk])).content.decode()
+        self.assertIn('id="placeLocate"', html)
+        self.assertIn('id="locateMap"', html)
+        self.assertIn("leaflet/leaflet.js", html)          # interactive map assets
+        self.assertIn("Where is this?", html)
+
+    def test_resolver_hidden_once_resolved(self):
+        self.place.latitude = Decimal("35.0"); self.place.longitude = Decimal("-83.0")
+        self.place.save(update_fields=["latitude", "longitude"])
+        html = self.client.get(reverse("legacy:place_detail", args=[self.place.pk])).content.decode()
+        self.assertNotIn('id="placeLocate"', html)          # never asked again
+        self.assertIn("place-map-frame", html)              # shows the resolved map instead
+
+    def test_search_endpoint_returns_json(self):
+        with mock.patch.object(geocode_svc, "search",
+                               return_value=[{"label": "Tuscaloosa, AL", "lat": Decimal("33.2"),
+                                              "lon": Decimal("-87.5")}]):
+            r = self.client.post(reverse("legacy:place_locate_search", args=[self.place.pk]),
+                                 {"q": "Tuscaloosa"})
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(data["results"][0]["label"], "Tuscaloosa, AL")
+        self.assertEqual(data["results"][0]["lat"], "33.2")
+
+    def test_reverse_endpoint_returns_json(self):
+        with mock.patch.object(geocode_svc, "reverse", return_value="1 Main St"):
+            r = self.client.post(reverse("legacy:place_locate_reverse", args=[self.place.pk]),
+                                 {"lat": "35.7", "lon": "-83.9"})
+        self.assertEqual(r.json()["address"], "1 Main St")
+
+    def test_save_stores_coordinates_permanently(self):
+        r = self.client.post(reverse("legacy:place_locate_save", args=[self.place.pk]),
+                             {"lat": "35.756500", "lon": "-83.970500"})
+        self.assertEqual(r.status_code, 302)
+        self.place.refresh_from_db()
+        self.assertTrue(self.place.has_coordinates)
+        self.assertEqual(str(self.place.latitude), "35.756500")
+
+    def test_save_rejects_invalid_pin(self):
+        r = self.client.post(reverse("legacy:place_locate_save", args=[self.place.pk]),
+                             {"lat": "999", "lon": "0"})
+        self.assertEqual(r.status_code, 302)
+        self.place.refresh_from_db()
+        self.assertFalse(self.place.has_coordinates)
+
+    def test_locate_endpoints_are_owner_scoped(self):
+        other = _make_user("intruder2@example.com")
+        self.client.force_login(other)
+        r = self.client.post(reverse("legacy:place_locate_save", args=[self.place.pk]),
+                             {"lat": "1", "lon": "1"})
+        self.assertEqual(r.status_code, 404)
+        self.place.refresh_from_db()
+        self.assertFalse(self.place.has_coordinates)

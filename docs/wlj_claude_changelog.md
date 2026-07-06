@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): three-stage Place resolution — auto → search → drop-a-pin; coordinates owned by the canonical Place
+
+**What:** Completes the Place location workflow. A Place resolves in three stages, and once saved the canonical Place permanently owns the coordinates — never asked again, reused by every Story/Timeline/Family Event/Memory/Document/map:
+1. **Automatic** — geocode the best-known location on view (shipped previously); on success, coordinates are cached forever.
+2. **Search** — if auto fails, a search box lets the keeper refine the description ("Tuscaloosa" → "Tuscaloosa, AL"), pick a result, preview it on the map, and Save.
+3. **Manual pin** — for places no search can find (Grandma's farm, a fishing hole, a family cemetery), an interactive map to zoom/pan/**click to drop a pin**; the pin immediately shows latitude, longitude, and a reverse-geocoded address, then Save.
+
+**Architecture:**
+- Coordinates live on the **canonical Place** (`latitude`/`longitude`) — no new model. The resolver only shows while `not has_coordinates`; once saved it disappears (never ask again).
+- **Interactive map = Leaflet, self-hosted** (`static/legacy/vendor/leaflet/`, served from `'self'`) over keyless OpenStreetMap tiles (`img-src https:`). No CSP change needed — Leaflet is same-origin, tiles are https images, and search/reverse-geocode go through **our own endpoints** (`connect-src 'self'`), keeping the Nominatim User-Agent server-side. The pin is a Leaflet `circleMarker` (no marker-image assets).
+- New service fns `geocode.search()` / `geocode.reverse()` / `geocode.parse_latlon()` (all best-effort, guarded, never raise). New owner-scoped views `PlaceLocateSearchView` / `PlaceLocateReverseView` (JSON) / `PlaceLocateSaveView` (validates + stores + redirect). `geocode()` now delegates to `search(limit=1)`.
+
+**Files:** `static/legacy/vendor/leaflet/leaflet.{js,css}` (vendored 1.9.4, BSD-2), `apps/legacy/services/geocode.py` (search/reverse/parse_latlon), `apps/legacy/views.py` (3 locate views), `apps/legacy/urls.py` (3 routes), `templates/legacy/place_detail.html` (resolver: search box + Leaflet map + save; CSP-nonce init script), `static/css/legacy.css` (resolver styles; cache-bust `v=57`), `apps/legacy/tests/test_places_map.py`. No migration (coords columns already existed).
+
+**Verification:** `test_places_map` 25 green (search/reverse/parse_latlon + all three locate endpoints, owner-scoped, invalid-pin rejected, resolver-shown-when-unresolved / hidden-once-resolved). Live-certified the FULL workflow in the dev browser: the Leaflet map renders over OSM tiles with zoom controls; **clicking the map dropped a pin** → coords `32.147711, -98.437500` + reverse address "FM 2156, Highland, Erath County, Texas" → Save stored them and the resolver vanished (resolved map shown, never asked again); **search "Tuscaloosa"** returned real candidates → selecting one recentred the map + dropped a pin at `33.209561, -87.567526` + enabled Save. Throwaway test places removed.
+
 ## 2026-07-06 — fix(dashboard): Mission commentary celebrates MEANING, not the number
 
 **Mission Dashboard Truth issue (not a CoS issue).** When a mission milestone was cleared, the deterministic mission card celebrated it numerically — "Milestone reached — you cleared "June Prayer Milestone" today (6 of 12)." / "You're ahead of your plan." It announced *that another milestone exists*, not *what the milestone means for this mission*. A milestone is a chapter in a story; the commentary read like a scoreboard.

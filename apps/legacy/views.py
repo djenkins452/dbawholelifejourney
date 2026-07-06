@@ -838,6 +838,51 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
         return ctx
 
 
+class PlaceLocateSearchView(LegacyContextMixin, View):
+    """Stage 2 (search) — candidate locations for a description the keeper refines
+    ("Tuscaloosa" → "Tuscaloosa, AL"). Server-side so the Nominatim call keeps its
+    User-Agent and the browser never needs a cross-origin connect grant."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from django.http import JsonResponse
+        from apps.legacy.services import geocode
+        get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        results = geocode.search((request.POST.get("q") or "").strip(), limit=6)
+        return JsonResponse({"results": [
+            {"label": r["label"], "lat": str(r["lat"]), "lon": str(r["lon"])}
+            for r in results]})
+
+
+class PlaceLocateReverseView(LegacyContextMixin, View):
+    """Reverse-geocode a dropped pin → a human address (best-effort, may be empty)."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from django.http import JsonResponse
+        from apps.legacy.services import geocode
+        get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        return JsonResponse({
+            "address": geocode.reverse(request.POST.get("lat"), request.POST.get("lon"))})
+
+
+class PlaceLocateSaveView(LegacyContextMixin, View):
+    """Stage 2/3 (save) — permanently store the resolved coordinates on the canonical
+    Place. From here every Story, Timeline, Family Event, Memory, Document and map reuses
+    them; Legacy never asks for this Place's location again."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services import geocode
+        place = get_object_or_404(Place.all_objects, pk=pk, user=request.user)
+        pair = geocode.parse_latlon(request.POST.get("lat"), request.POST.get("lon"))
+        if not pair:
+            messages.error(request, "That didn't look like a valid spot — try again.")
+            return redirect("legacy:place_detail", pk=place.pk)
+        place.latitude, place.longitude = pair
+        place.save(update_fields=["latitude", "longitude", "updated_at"])
+        messages.success(
+            request, "Location saved — %s is now on the map everywhere in Legacy." % place.name)
+        return redirect("legacy:place_detail", pk=place.pk)
+
+
 class PlaceArchiveView(LegacyContextMixin, View):
     def post(self, request, pk, *args, **kwargs):
         p = get_object_or_404(Place.all_objects, pk=pk, user=request.user)

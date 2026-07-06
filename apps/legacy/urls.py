@@ -68,6 +68,9 @@ urlpatterns = [
     path("places/new/", views.PlaceCreateView.as_view(), name="place_new"),
     path("places/<int:pk>/", views.PlaceProfileView.as_view(), name="place_detail"),
     path("places/<int:pk>/edit/", views.PlaceEditView.as_view(), name="place_edit"),
+    path("places/<int:pk>/locate/search/", views.PlaceLocateSearchView.as_view(), name="place_locate_search"),
+    path("places/<int:pk>/locate/reverse/", views.PlaceLocateReverseView.as_view(), name="place_locate_reverse"),
+    path("places/<int:pk>/locate/save/", views.PlaceLocateSaveView.as_view(), name="place_locate_save"),
     path("places/<int:pk>/archive/", views.PlaceArchiveView.as_view(), name="place_archive"),
     path("places/<int:pk>/restore/", views.PlaceRestoreView.as_view(), name="place_restore"),
     # Timeline & Life Milestones (emergent chapters)

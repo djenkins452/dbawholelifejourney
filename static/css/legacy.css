@@ -554,6 +554,30 @@ body.theme-ember .legacy-root {
 @media (max-width: 480px) { .place-map { aspect-ratio: 4 / 3; } }
 
 .lg-field-help { font-size: 12.5px; color: var(--lg-muted); margin: 2px 0 0; }
+
+/* Place resolver — Stage 2 (search) + Stage 3 (drop a pin). Interactive Leaflet map
+   over keyless OpenStreetMap tiles; once saved, the canonical Place owns the coords. */
+.place-locate { margin-bottom: 26px; }
+.place-locate-lead { font-size: 14px; color: var(--lg-ink-soft); margin: 0 0 14px; line-height: 1.55; }
+.locate-search { display: flex; gap: 8px; margin-bottom: 8px; }
+.locate-query { flex: 1; }
+.locate-results { list-style: none; margin: 0 0 12px; padding: 5px; border: 1px solid var(--lg-border); border-radius: 11px;
+    background: var(--lg-surface); max-height: 220px; overflow-y: auto; }
+.locate-result { padding: 9px 11px; border-radius: 8px; font-size: 13.5px; color: var(--lg-ink); cursor: pointer; }
+.locate-result:hover, .locate-result:focus-visible { background: var(--lg-surface-2); outline: none; }
+.locate-result:focus-visible { box-shadow: inset 0 0 0 2px var(--lg-accent, #b07a2b); }
+.locate-result-none { padding: 9px 11px; font-size: 13px; color: var(--lg-muted); font-style: italic; }
+.locate-map { height: 380px; border-radius: 12px; overflow: hidden; border: 1px solid var(--lg-border); background: var(--lg-surface-2, #efe9dd); }
+.locate-hint { text-align: center; font-size: 12px; color: var(--lg-muted); margin: 8px 0 0; }
+.locate-picked { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 12px;
+    padding: 12px 16px; background: #f3efe6; border: 1px solid #e7ddc8; border-radius: 12px; }
+.locate-picked-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.locate-picked-addr { font-size: 13.5px; color: var(--lg-ink); }
+.locate-picked-coords { font-size: 12px; color: var(--lg-muted); font-variant-numeric: tabular-nums; }
+.locate-save-form { margin: 0; flex: 0 0 auto; }
+/* Leaflet controls sit under our overlays (panel z-index 8, modal 60). */
+.leaflet-container { font: inherit; }
+.leaflet-top, .leaflet-bottom { z-index: 2; }
 .profile-sec { margin-bottom: 28px; }
 .profile-sec-title { font-family: var(--lg-serif); font-size: 18px; margin-bottom: 14px; }
 .profile-empty { color: var(--lg-muted); font-size: 14px; }

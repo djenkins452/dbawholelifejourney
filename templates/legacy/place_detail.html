@@ -1,4 +1,5 @@
 {% extends "legacy/base_legacy.html" %}
+{% load static %}
 
 {% block legacy_content %}
 <div class="profile">
@@ -40,6 +41,117 @@
             </div>
             <a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet place-map-open">Open in Google Maps ↗</a>
         </div>
+    </section>
+    {% endif %}
+
+    {% if not place.has_coordinates %}
+    <section class="lg-card place-locate" id="placeLocate"
+             data-search-url="{% url 'legacy:place_locate_search' place.pk %}"
+             data-reverse-url="{% url 'legacy:place_locate_reverse' place.pk %}">
+        <h2 class="profile-sec-title">Where is this?</h2>
+        <p class="place-locate-lead">Legacy couldn't place this automatically. Search for it, or drop a pin on the map — once you save, {{ place.name }} owns those coordinates everywhere and you'll never be asked again.</p>
+
+        <div class="locate-search">
+            <input type="search" id="locateQuery" class="lg-input locate-query" value="{{ place.location_text|default:place.name }}" placeholder="e.g. Tuscaloosa, AL" autocomplete="off" aria-label="Search for this location">
+            <button type="button" id="locateSearchBtn" class="lg-btn-quiet">Search</button>
+        </div>
+        <ul class="locate-results" id="locateResults" hidden></ul>
+
+        <div class="locate-map" id="locateMap"></div>
+        <p class="locate-hint">Drag to pan · scroll to zoom · <strong>click the map to drop a pin</strong></p>
+
+        <div class="locate-picked" id="locatePicked" hidden>
+            <div class="locate-picked-info">
+                <span class="locate-picked-addr" id="locateAddr"></span>
+                <span class="locate-picked-coords" id="locateCoords"></span>
+            </div>
+            <form method="post" action="{% url 'legacy:place_locate_save' place.pk %}" class="locate-save-form" id="locateSaveForm">
+                {% csrf_token %}
+                <input type="hidden" name="lat" id="locateLat">
+                <input type="hidden" name="lon" id="locateLon">
+                <button type="submit" class="lg-btn-primary">Save location</button>
+            </form>
+        </div>
+
+        <link rel="stylesheet" href="{% static 'legacy/vendor/leaflet/leaflet.css' %}">
+        <script src="{% static 'legacy/vendor/leaflet/leaflet.js' %}"></script>
+        <script nonce="{{ csp_nonce }}">
+        (function () {
+            var root = document.getElementById('placeLocate');
+            if (!root || !window.L) { return; }
+            var searchUrl = root.getAttribute('data-search-url');
+            var reverseUrl = root.getAttribute('data-reverse-url');
+            var csrf = (root.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
+            var picked = document.getElementById('locatePicked');
+            var addrEl = document.getElementById('locateAddr');
+            var coordsEl = document.getElementById('locateCoords');
+            var latIn = document.getElementById('locateLat');
+            var lonIn = document.getElementById('locateLon');
+            var qEl = document.getElementById('locateQuery');
+            var resEl = document.getElementById('locateResults');
+            var marker = null;
+
+            var map = L.map('locateMap', { scrollWheelZoom: true }).setView([39.5, -98.35], 4);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            setTimeout(function () { map.invalidateSize(); }, 80);
+
+            function post(url, body) {
+                return fetch(url, { method: 'POST', headers: {
+                    'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded' }, body: body });
+            }
+            function setPin(lat, lon) {
+                lat = Math.round(lat * 1e6) / 1e6; lon = Math.round(lon * 1e6) / 1e6;
+                if (marker) { marker.setLatLng([lat, lon]); }
+                else { marker = L.circleMarker([lat, lon], { radius: 9, color: '#8a5a1e',
+                    weight: 3, fillColor: '#c9a34e', fillOpacity: .9 }).addTo(map); }
+                latIn.value = lat; lonIn.value = lon;
+                coordsEl.textContent = lat.toFixed(6) + ', ' + lon.toFixed(6);
+                picked.hidden = false;
+            }
+            function reverseLookup(lat, lon) {
+                addrEl.textContent = 'Looking up address…';
+                post(reverseUrl, 'lat=' + lat + '&lon=' + lon).then(function (r) { return r.json(); })
+                    .then(function (d) { addrEl.textContent = d.address || 'No street address here — the pin is what matters.'; })
+                    .catch(function () { addrEl.textContent = ''; });
+            }
+            map.on('click', function (e) { setPin(e.latlng.lat, e.latlng.lng); reverseLookup(e.latlng.lat, e.latlng.lng); });
+
+            function renderResults(list) {
+                resEl.textContent = '';
+                if (!list.length) {
+                    var n = document.createElement('li'); n.className = 'locate-result-none';
+                    n.textContent = 'No matches — add a state or country, or drop a pin on the map.';
+                    resEl.appendChild(n); resEl.hidden = false; return;
+                }
+                list.forEach(function (r) {
+                    var li = document.createElement('li'); li.className = 'locate-result';
+                    li.setAttribute('role', 'button'); li.tabIndex = 0; li.textContent = r.label;
+                    function pick() {
+                        map.setView([+r.lat, +r.lon], 14); setPin(+r.lat, +r.lon);
+                        addrEl.textContent = r.label; resEl.hidden = true;
+                    }
+                    li.addEventListener('click', pick);
+                    li.addEventListener('keydown', function (e) {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+                    resEl.appendChild(li);
+                });
+                resEl.hidden = false;
+            }
+            function doSearch() {
+                var q = qEl.value.trim(); if (!q) { return; }
+                resEl.textContent = ''; resEl.hidden = false;
+                var busy = document.createElement('li'); busy.className = 'locate-result-none';
+                busy.textContent = 'Searching…'; resEl.appendChild(busy);
+                post(searchUrl, 'q=' + encodeURIComponent(q)).then(function (r) { return r.json(); })
+                    .then(function (d) { renderResults(d.results || []); })
+                    .catch(function () { renderResults([]); });
+            }
+            document.getElementById('locateSearchBtn').addEventListener('click', doSearch);
+            qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
+        })();
+        </script>
     </section>
     {% endif %}
 

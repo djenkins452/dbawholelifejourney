@@ -55,6 +55,11 @@ _CROSS_VERBS = ("break", "broke", "breaking", "crack", "cracked", "hit", "reach"
                 "drop", "dropped", "fell", "fall", "went", "get to", "got to",
                 "get under", "got under", "get below", "get above")
 _BARE_NUM_RE = re.compile(r"(?<![\d.])(\d{2,3}(?:\.\d)?)(?![\d])")
+# APPROXIMATE history — "around 290", "about 250", "close to 200", "roughly 180", "~185".
+# Answered by the NEAREST real weigh-in, not a crossing.
+_APPROX_RE = re.compile(
+    r"\b(?:around|about|approximately|approx|roughly|close to|near|nearabouts|circa)\s+"
+    r"(\d{2,3}(?:\.\d)?)\b|~\s*(\d{2,3}(?:\.\d)?)")
 _LOWEST = ("lowest", "lightest", "least i weigh", "minimum weight", "min weight")
 _HIGHEST = ("highest", "heaviest", "most i weigh", "maximum weight", "max weight", "peak weight")
 _EXTREMUM_INTENT = ("lowest", "highest", "lightest", "heaviest", "peak", "most i weigh",
@@ -147,6 +152,34 @@ def _parse_threshold(user, n):
     return None
 
 
+def _not_yet_answer(user, num, direction, verb):
+    """Reason about a crossing that HASN'T happened: state it honestly, give the CURRENT
+    weight (and the record), and coach that it's within reach ONLY when the user is
+    genuinely close AND trending that way. Never fabricates, never errors."""
+    edge = "lowest" if direction == "below" else "highest"
+    ext = weight_queries.extremum(user, edge)
+    cur = weight_queries.latest(user)
+    if not (ext or cur):
+        return "I don't have any weigh-ins on record yet."
+    msg = f"You haven't {verb} {_fmt_lb(num)} lb yet."
+    if cur:
+        msg += f" You're currently {_fmt_lb(cur['value_lb'])} lb"
+        if ext and abs(cur["value_lb"] - ext["value_lb"]) < 0.05:
+            msg += f" — your {edge} on record."
+        elif ext:
+            msg += (f"; your {edge} on record is {_fmt_lb(ext['value_lb'])} lb on "
+                    f"{fmt_date(ext['date'])}.")
+        else:
+            msg += "."
+        gap = (cur["value_lb"] - num) if direction == "below" else (num - cur["value_lb"])
+        if _trend_direction(user) == direction and 0 < gap <= 8:
+            msg += " At your current pace you're getting close."
+    elif ext:
+        msg += (f" Your {edge} on record is {_fmt_lb(ext['value_lb'])} lb on "
+                f"{fmt_date(ext['date'])}.")
+    return msg
+
+
 def navigate(user, message):
     """Navigate the weight series for `message`. Returns a human answer string, or None
     when the message isn't a weight-history navigation. Topic is assumed to be weight —
@@ -154,6 +187,23 @@ def navigate(user, message):
     topic). No special-cased dates: every branch reads the canonical weight_queries."""
     n = (message or "").lower()
     try:
+        # 0) APPROXIMATE — "when was I around 290?", "about 250", "close to 200". Answered
+        #    by the NEAREST real weigh-in (a reasoning question, not a crossing).
+        am = _APPROX_RE.search(n)
+        if am:
+            target = float(am.group(1) or am.group(2))
+            rec = weight_queries.nearest(user, target)
+            if rec is None:
+                return "I don't have any weigh-ins on record yet."
+            when = fmt_date(rec["date"])
+            if rec["delta"] <= 1.0:
+                return (f"You were right around {_fmt_lb(target)} lb on {when} — "
+                        f"{_fmt_lb(rec['value_lb'])} lb that day.")
+            side = "above" if rec["value_lb"] > target else "below"
+            return (f"The closest you've been to {_fmt_lb(target)} lb was "
+                    f"{_fmt_lb(rec['value_lb'])} lb on {when} — about {_fmt_lb(rec['delta'])} lb "
+                    f"{side} it.")
+
         # 1) THRESHOLD crossing — explicit ("drop below 290") OR a bare-number crossing
         #    verb ("when did I break 300?") with direction inferred from the trend.
         thr = _parse_threshold(user, n)
@@ -164,12 +214,9 @@ def navigate(user, message):
             if rec:
                 return (f"You first {verb} {_fmt_lb(num)} lb on {fmt_date(rec['date'])} — "
                         f"you were {_fmt_lb(rec['value_lb'])} lb that day.")
-            ext = weight_queries.extremum(user, "lowest" if direction == "below" else "highest")
-            if ext:
-                edge = "lowest" if direction == "below" else "highest"
-                return (f"You haven't {verb} {_fmt_lb(num)} lb yet — your {edge} on record is "
-                        f"{_fmt_lb(ext['value_lb'])} lb on {fmt_date(ext['date'])}.")
-            return "I don't have any weigh-ins on record yet."
+            # NOT YET — reason honestly: name it, give the CURRENT weight + record, and (only
+            # when genuinely near and trending that way) coach that it's within reach.
+            return _not_yet_answer(user, num, direction, verb)
 
         # 2) EXTREMUM — "lowest weight this year", "when did I reach my lowest?"
         if any(w in n for w in _EXTREMUM_INTENT):

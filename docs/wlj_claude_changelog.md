@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): reason about MISSING and APPROXIMATE historical events (not just exact matches)
+
+**Root cause (traced, not guessed):** for a crossing that hasn't happened yet ("get below 280", "reach 275"), `navigate()` already returned an honest "haven't yet" via the extremum fallback — so those weren't a reasoning bug (any production failure there was routing/topic-inactive). The real gap was **approximate language**: "when was I around 290?" parsed to nothing → `navigate()` returned None → the lane declined → the generic "service unavailable." The parser only knew crossings and comparisons, never "near a value."
+
+**Fix:**
+- **Approximate** — new `_APPROX_RE` ("around/about/close to/roughly/near/~ N") + `weight_queries.nearest(user, target)` (closest weigh-in, with the gap). "when was I around 290?" → *"You were right around 290 lb on Friday, May 1 — 291 lb that day."*; far targets answer honestly ("The closest you've been to 250 lb was 283.1 lb … about 33.1 lb above it").
+- **Not-yet reasoning strengthened** — new `_not_yet_answer()` + `weight_queries.latest()`: states it honestly, gives the CURRENT weight (and the record), and coaches "at your current pace you're getting close" ONLY when genuinely near (≤8 lb) AND trending that way — never false hope, never a service error, never a hallucination.
+
+**Generalization:** implemented on the weight navigator (the reported domain, and the one with a full `navigate()` contract). The pattern is reusable — any domain navigator adopts the same `nearest`/`latest` accessors + approximate/not-yet branches; noted for sleep/glucose as they gain threshold navigation.
+
+**Files:** `apps/ai/chatgpt_cos/weight_history.py`, `apps/health/services/weight_queries.py`, `apps/ai/tests/test_historical_navigation.py`.
+**Verification:** 35 tests green — around/about/close-to/roughly hit the nearest weigh-in; not-yet gives current + coaching (and withholds "getting close" when 8+ lb away); no missing/approximate form returns None; all prior navigation (yesterday, July 1, extremum, average, threshold bands) unchanged.
+
 ## 2026-07-06 — feat(legacy): coordinate provenance + one-time location review (provider-independent)
 
 **Provenance (going forward):** added `Place.coordinate_source` (`esri` / `pin` / `manual` / `reviewed` / `''` legacy) — migration `0035`. Recorded at every write via a single `Place.set_coordinates(lat, lon, source)`: auto-geocode → `esri`; save from a search result → `esri`, from a map click → `pin` (client sends `source`); typed on the form → `manual`. Coordinates never land without a source again. (Root cause of the whole Places saga was that provenance was never recorded.)

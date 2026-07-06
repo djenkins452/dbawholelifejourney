@@ -105,6 +105,26 @@ def extremum(user, kind, start_date=None, end_date=None):
     return best
 
 
+def latest(user):
+    """The most recent weigh-in ({date, value_lb, ...}) or None — the CURRENT weight,
+    used to reason honestly about events that haven't happened yet."""
+    s = series(user)
+    return s[-1] if s else None
+
+
+def nearest(user, target, start_date=None, end_date=None):
+    """The weigh-in CLOSEST to `target` lb (min |value − target|) in the window, or None.
+    Ties resolve to the most recent day. Adds `delta` (rounded |value − target|). Powers
+    approximate history — "when was I around 290?" → the closest real weigh-in."""
+    s = series(user, start_date, end_date)
+    if not s:
+        return None
+    best = min(s, key=lambda r: (abs(r["value_lb"] - target), -r["date"].toordinal()))
+    out = dict(best)
+    out["delta"] = round(abs(best["value_lb"] - target), 1)
+    return out
+
+
 def average_over(user, start_date, end_date):
     """Mean weigh-in value across the window (inclusive), or None. One reading per day, so
     a day with three weigh-ins doesn't skew the mean. {avg_lb, n, start, end}."""

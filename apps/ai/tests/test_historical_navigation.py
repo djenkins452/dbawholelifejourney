@@ -263,3 +263,48 @@ class ThresholdIntentBridgeTests(TestCase):
         r = resolve_referential(self.u, "yesterday?", self.last)
         self.assertIsNotNone(r)
         self.assertIn("284.4", r["answer"])
+
+
+class MissingAndApproximateHistoryTests(TestCase):
+    """Reasoning when history has NO exact match: not-yet-occurred (honest + coaching) and
+    APPROXIMATE language (nearest weigh-in). No service error, no hallucination."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="miss@x.com", password="x")
+        for d, lb in [(date(2026, 3, 1), 305.0), (date(2026, 4, 1), 299.0),
+                      (date(2026, 5, 1), 291.0), (date(2026, 6, 1), 285.0),
+                      (date(2026, 7, 2), 283.1)]:   # lowest 283.1; never below 280
+            _we(self.u, d, lb)
+
+    def test_not_yet_close_gives_current_and_coaches(self):
+        ans = weight_history.navigate(self.u, "when did I get below 280?")
+        low = ans.lower()
+        self.assertIn("haven't", low)
+        self.assertIn("283.1", ans)                 # current weight
+        self.assertIn("getting close", low)         # within reach + trending down
+
+    def test_not_yet_far_is_honest_without_false_hope(self):
+        ans = weight_history.navigate(self.u, "when did I reach 275?")
+        low = ans.lower()
+        self.assertIn("haven't", low)
+        self.assertIn("283.1", ans)
+        self.assertNotIn("getting close", low)      # 8+ lb away — no false coaching
+
+    def test_approximate_hits_nearest_weigh_in(self):
+        ans = weight_history.navigate(self.u, "when was I around 290?")
+        self.assertIn("291", ans)                   # nearest to 290
+        self.assertIn("May 1", ans)
+
+    def test_approximate_variants(self):
+        self.assertIn("299", weight_history.navigate(self.u, "roughly 300"))
+        self.assertIn("closest", weight_history.navigate(self.u, "about 250").lower())  # never near 250
+        self.assertIsNotNone(weight_history.navigate(self.u, "close to 200"))
+
+    def test_no_service_error_and_still_routes_normal_forms(self):
+        # None of the missing/approximate forms return None (which caused the fallback).
+        for q in ("when did I get below 280?", "when did I reach 275?",
+                  "when was I around 290?", "about 250"):
+            self.assertIsNotNone(weight_history.navigate(self.u, q), q)
+        # Regression: a plain point-in-time still routes.
+        _we(self.u, get_user_today(self.u) - timedelta(days=1), 284.0)
+        self.assertIn("284", weight_history.navigate(self.u, "yesterday"))

@@ -484,6 +484,21 @@ class AIService:
         system_prompt = _ground_current_context(
             system_prompt, endpoint, bypass_breaker=bypass_breaker, skip=skip_current_context)
 
+        if endpoint == "cos_chat":  # TEMP diagnostic (2026-07-06)
+            try:
+                from apps.core.current_context import get_current_focus as _gcf
+                _f = _gcf()
+                cache.set(f"wlj:dbg:cc:prompt:{getattr(user, 'id', None)}", {
+                    "focus_set_at_call": bool(_f),
+                    "focus_title": (_f or {}).get("title"),
+                    "object_in_prompt": "OBJECT IN FOCUS" in system_prompt,
+                    "skip_current_context": skip_current_context,
+                    "bypass_breaker": bypass_breaker,
+                    "system_prompt_head": system_prompt[:1400],
+                }, 900)
+            except Exception:
+                pass
+
         # Build the user message content — supports multiple images
         if all_images and len(all_images) > 0:
             logger.debug("Sending vision request with %d images", len(all_images))

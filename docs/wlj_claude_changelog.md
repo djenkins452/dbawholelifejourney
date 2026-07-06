@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(cos): TEMPORARY full Current-Context chain capture
+
+Prove, at runtime, where the chain breaks for the real turn: GET /assistant/debug/cc-chain/ shows (1) the page_context that arrived (focus_ref present?) + whether the object resolved (resolved_focus), and (2) whether the CURRENT CONTEXT preamble actually reached the cos_chat prompt the reasoning lane sent (object_in_prompt, focus_set_at_call). Captures in service.generate (after set_current_focus) and services._call_api (cos_chat). TEMPORARY. Files: apps/ai/chatgpt_cos/service.py, apps/ai/services.py, apps/ai/debug_cc.py, apps/ai/urls.py.
+
 ## 2026-07-06 — fix(cos): Current Context injected ONCE at the shared LLM choke point (every lane)
 
 Root cause (runtime-proven via prompt capture): Current Context was injected only in the tool-loop

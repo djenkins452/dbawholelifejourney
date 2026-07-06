@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(cos): Executive coaching + health teaching — connect context, don't report
+
+**Executive coaching (Goals & Commitments):** the "today's move" line reported "advance your mission" regardless of context. It now COACHES through the ONE brain's `priority_action`: when what matters most right now is NOT the mission (a health obligation, the evening), Beth names the mission but says the current move is elsewhere and tells the user WHEN to push the mission ("put your real focus on France 2027 tomorrow morning, when you're fresh"). When the mission IS the top move, she names the concrete milestone. Context → mission → decision, not a report. Time is inferred (`part_of_day`), never hardcoded.
+
+**Health teaching (Health check-in):** `_health_overall_summary` was a Weight/Sleep/Glucose dashboard. It now TEACHES from interpret(): overall state ("Health is stable tonight"), the ONE thing that needs action now (remaining health obligation / health-critical), and what's important-but-not-tonight (the standing `biggest_risk` framed as tomorrow's problem). Falls back to the deterministic detail only if the synthesis is unavailable.
+
+**Files:** `apps/ai/chatgpt_cos/lanes.py`, `apps/ai/tests/test_goals_coaching.py`, `apps/ai/tests/test_health_teaching.py`.
+**Verification:** 76 tests green (coaching + teaching + lanes + priority-weighting + historical-navigation).
+
+
 ## 2026-07-06 — fix(cos): Historical threshold navigation — any number, any phrasing
 
 **Root cause:** `weight_history` only recognized a threshold with an EXPLICIT direction word (`_THRESH_RE` = below|under|above|over + number), so "when did I break 300?" matched nothing and fell through. And `first_crossing` returned the first below-threshold record regardless of what preceded it, so a series that starts mid-journey (already below) reported a non-crossing day — "go under 300" returned the wrong date.

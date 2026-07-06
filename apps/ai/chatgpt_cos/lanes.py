@@ -767,11 +767,26 @@ def _strategic_summary(user):
             parts.append("Other active commitments: " + ", ".join(others) + ".")
         elif active_count > 1 and title:
             parts.append(f"You have {active_count} active goals in all.")
-        # Today's move — the CONCRETE next action. Prefer the mission's current milestone
-        # (the real lever) over the generic "move it forward"; fall back to interpret()'s
-        # highest_leverage, then to a plain nudge.
+        # Today's move — COACH, don't report. Connect current context → mission →
+        # decision via the ONE brain's value-ranked priority_action: if what matters most
+        # right now is NOT the mission (a health obligation, recovery, the evening), say so
+        # and tell the user WHEN to push the mission — instead of reflexively "advance the
+        # mission". If the mission IS the top move, name the concrete milestone.
         lever = (getattr(sig, "highest_leverage", "") or "").strip() if sig else ""
-        if focus and title:
+        pa = getattr(sig, "priority_action", None) if sig else None
+        pa_kind = (pa or {}).get("kind")
+        if pa and pa_kind in ("health_critical", "health_obligation") and title:
+            when = "tomorrow, once that's handled and you've got the focus for it"
+            try:
+                from apps.ai.chatgpt_cos.response_coherence import part_of_day, EVENING
+                if part_of_day(user) == EVENING:
+                    when = "tomorrow morning, when you're fresh — that's the right time for it"
+            except Exception:
+                pass
+            parts.append(f"Right now, though, the move that matters most isn't {title} — "
+                         f"it's {pa['text']} ({pa.get('why', 'it comes first')}). "
+                         f"Put your real focus on {title} {when}.")
+        elif focus and title:
             parts.append("The move that matters most today is advancing your current "
                          f"milestone: {focus}.")
         elif lever:
@@ -1020,8 +1035,48 @@ def parse_clarification_reply(message, options):
 # --- Deterministic clarification RESOLVERS (canonical engines only; NO OpenAI,
 # NO new truth, NO deflection). Each selected option carries a 'resolver' tag. ---
 def _health_overall_summary(user):
-    """Deterministic overall-health summary via the EXISTING health reasoning
-    engine's deterministic path (retrieve -> curate -> fallback). No LLM."""
+    """Overall-health the way a Chief of Staff TEACHES it (not a Weight/Sleep/Glucose
+    dashboard): the overall state, the ONE thing (if any) that needs action right now, and
+    what's important-but-not-tonight — grounded in the ONE brain (interpret: health_read +
+    remaining health obligations + biggest_risk). Falls back to the deterministic health
+    detail only if the synthesis is unavailable. No LLM."""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        from apps.ai.chatgpt_cos.response_coherence import part_of_day, EVENING
+        sig = interpret(user)
+        state_word = {"improving": "improving", "declining": "worth a closer look",
+                      "stable": "stable"}.get(
+            (getattr(sig, "health_read", "") or "stable").lower(), "stable")
+        try:
+            evening = part_of_day(user) == EVENING
+        except Exception:
+            evening = False
+        when = " tonight" if evening else " right now"
+        parts = [f"Health is {state_word}{when}."]
+        # What needs action NOW — the one brain's value-ranked top, when it's a health item.
+        hc = getattr(sig, "health_critical", None) or []
+        pa = getattr(sig, "priority_action", None) or {}
+        if hc:
+            why = (hc[0].get("why") or "").strip()
+            parts.append(f"The one thing that needs doing now is {hc[0]['text']}"
+                         + (f" — {why}." if why else "."))
+        elif pa.get("kind") in ("health_critical", "health_obligation"):
+            why = (pa.get("why") or "finish it before the day closes").strip()
+            parts.append(f"The one thing to take care of is {pa['text']} — {why}.")
+        else:
+            parts.append("Nothing needs immediate action beyond your normal routine.")
+        # What's important but NOT tonight — the standing health risk as tomorrow's problem.
+        risk = (getattr(sig, "biggest_risk", "") or "").strip()
+        if risk and risk.lower() not in " ".join(parts).lower():
+            tail = ("tomorrow's focus, not tonight's" if evening
+                    else "worth planning for, not something to act on this minute")
+            parts.append(f"{risk[0].upper()}{risk[1:]} matters, but it's {tail}.")
+        teach = " ".join(parts)
+        if teach.strip():
+            return teach
+    except Exception:
+        logger.warning("clarification: health teach failed", exc_info=True)
+    # Fallback — the deterministic health detail via the existing reasoning path.
     try:
         from apps.ai.chatgpt_cos.reasoning.plan import synthesize_health_plan
         from apps.ai.chatgpt_cos.reasoning.stages import (

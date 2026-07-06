@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(dashboard): never_cache the authenticated dashboard document (DB↔browser divergence, final RCA)
+
+**Incident:** after migration 0127 healed the milestone-win GuidanceItem (DB + composer + template fragment all proven correct via the debug endpoint), the browser still showed the pre-heal card ("Milestone reached") through a hard refresh.
+
+**Final RCA (Case A — origin correct, cache downstream):** the `/dashboard/` response shipped with **no `Cache-Control`**, so a stale authenticated document could be served by the browser cache, the iOS WKWebView `NSURLCache`, an intermediary/CDN/reverse proxy, or restored from bfcache. Nothing server-side was wrong — the full document renders through `dashboard_home_dispatch → DashboardV3View → build_dashboard_v3_context → accountability_cards.html`, the same proven path. (Disambiguation: the string "Milestone reached" ALSO appears legitimately in the document as the mission-panel STATE LABEL `_STATE_MILESTONE_WIN` / `_build_mission_panel`'s hardcoded label — a whole-document substring match is not the card. The expanded probe extracts the purpose card's `<strong>` title specifically.)
+
+**Fix:** `@never_cache` on `dashboard_home_dispatch` (the `/dashboard/` entry point — covers BOTH the v3 and v2-fallback branches) and on `DashboardV3View` (covers the direct `/dashboard-v3/` route). Emits `Cache-Control: no-cache, no-store, must-revalidate, max-age=0` + `Expires: 0` + `Vary: Cookie`, which forbids every cache layer above and disables bfcache. Verified: both routes now return `no-store`.
+
+**Diagnostic (final):** `/debug/purpose-recommendation/`'s `origin_document` expanded with `git_commit` (`RAILWAY_GIT_COMMIT_SHA`), `request_url`, `view_class`, `dashboard_version`, `template_rendered`, `response_headers`, and the precise `accountability_purpose_card_title` — proving which commit/view/template produced the response and which string the actual card carries.
+
+**Files:** `apps/dashboard_v2/views.py`, `apps/dashboard_v3/views.py`, `apps/dashboard_v3/debug_views.py`.
+**Verification:** `manage.py check` clean; both `/dashboard/` and `/dashboard-v3/` return `no-store`. (One pre-existing wall-clock-dependent rhythm-preview test is unrelated — no rhythm logic was touched.)
+
+
 ## 2026-07-06 — fix(legacy): "Open in Google Maps" pins the EXACT coordinate (search action was snapping)
 
 **Root cause (verified, not guessed):** the stored coordinates were correct — proven byte-for-byte identical across all three consumers: canonical Place `35.715768,-83.943357` == Esri map `data-lat/data-lon` == the Google URL's `query`. No swap, no truncation, no sign error. The discrepancy was purely the URL **format**: we built `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>` — the Maps URLs API **search** action, which reverse-geocodes a coordinate and **snaps the pin to the nearest named place/road/POI**, landing it off the exact spot the Esri map shows.

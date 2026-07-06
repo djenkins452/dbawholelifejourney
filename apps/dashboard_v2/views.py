@@ -14,6 +14,7 @@ from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 
 from apps.core.utils import get_user_today
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ── Production dashboard dispatcher ─────────────────────────────────
 
 
+@never_cache
 def dashboard_home_dispatch(request, *args, **kwargs):
     """Canonical /dashboard/ entry point.
 
@@ -39,6 +41,13 @@ def dashboard_home_dispatch(request, *args, **kwargs):
     All dashboard_v2 action endpoints (task_toggle, intake_log,
     routine_schedule_toggle, cockpit_panel, …) remain mounted and are
     reused by dashboard_v3 — this dispatcher only swaps the HOME view.
+
+    ``never_cache`` (2026-07-06): this authenticated, per-user, real-time
+    document must never be cached at ANY layer (browser / iOS WKWebView
+    NSURLCache / intermediary / CDN / reverse proxy) nor restored from bfcache.
+    Applied at the dispatcher so BOTH the v3 and v2 branches are covered. Origin:
+    a healed GuidanceItem (DB correct) still rendered stale in the app because
+    the response shipped no Cache-Control.
     """
     from django.conf import settings
 

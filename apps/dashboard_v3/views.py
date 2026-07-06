@@ -12,7 +12,9 @@ import logging
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import render
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 
 from apps.help.mixins import HelpContextMixin
@@ -22,12 +24,22 @@ from apps.dashboard_v3.services import build_dashboard_v3_context, build_weather
 logger = logging.getLogger(__name__)
 
 
+@method_decorator(never_cache, name="dispatch")
 class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
     """The CoS-first dashboard — PRODUCTION default at /dashboard/ (2026-05-28).
 
     Also reachable at /dashboard-v3/ for validation. The preserved v2
     experience lives at /dashboard/classic/ (rollback target). Reuses the
     DASHBOARD_V2_HOME help context for parity with the help button.
+
+    ``never_cache`` (2026-07-06): this is authenticated, per-user, real-time
+    state — it must NEVER be cached. Without it the response shipped no
+    Cache-Control, so a stale document could be served by the browser cache, the
+    iOS WKWebView NSURLCache, an intermediary/CDN/reverse proxy, or restored from
+    bfcache — the DB↔browser divergence incident (healed GuidanceItem, but the
+    browser still showed the pre-heal card). ``never_cache`` emits
+    ``Cache-Control: max-age=0, no-cache, no-store, must-revalidate, private``
+    (+ ``Expires``), which forbids every one of those caches and disables bfcache.
     """
 
     template_name = "dashboard_v3/home.html"

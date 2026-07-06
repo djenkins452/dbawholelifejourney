@@ -295,13 +295,25 @@ def _origin_document_probe(request, user, rendered_record):
     but the browser shows "Milestone reached", the stale copy lives in a cache
     BETWEEN this origin and the DOM — and the missing Cache-Control below is what
     lets that cache exist. Fail-soft."""
+    import os
+    import re
+
     db_title = (rendered_record.title if rendered_record is not None else None)
     out = {
         "method": "internal authenticated GET via django.test.Client (cache-bypassing)",
+        "git_commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "development"),
+        "request_url": None,
+        "view_class": None,
+        "dashboard_version": None,
+        "template_rendered": None,
         "paths_tried": [],
         "matched_path": None,
         "status": None,
         "content_length": None,
+        # PRECISE: the accountability purpose-card title extracted from the FULL
+        # document (NOT a document-wide substring — "Milestone reached" also
+        # appears legitimately as the mission-panel STATE LABEL).
+        "accountability_purpose_card_title": None,
         "body_contains": {},
         "response_headers": {},
         "note": None,
@@ -338,15 +350,55 @@ def _origin_document_probe(request, user, rendered_record):
             body = resp.content or b""
             out["status"] = resp.status_code
             out["content_length"] = len(body)
+            out["request_url"] = f"https://{host}{out['matched_path']}"
+
+            # WHICH view + WHICH template produced this document. Resolve the
+            # matched path against the real URLconf (works in a live process;
+            # unlike resp.templates, which is only populated under the test
+            # runner's instrumentation).
+            vc = None
+            try:
+                from django.urls import resolve
+                match = resolve(out["matched_path"])
+                vc = getattr(match.func, "view_class", None)
+                out["view_class"] = (
+                    f"{vc.__module__}.{vc.__name__}" if vc
+                    else f"{match.func.__module__}.{getattr(match.func, '__name__', '?')}")
+            except Exception as exc:  # noqa: BLE001
+                out["view_class"] = f"resolve failed: {exc}"
+            # The page's root template = the view's declared template_name. Also
+            # include resp.templates if instrumentation happened to be active.
+            tmpls = [t.name for t in (getattr(resp, "templates", []) or [])
+                     if getattr(t, "name", None)]
+            root_tmpl = getattr(vc, "template_name", None)
+            if root_tmpl and root_tmpl not in tmpls:
+                tmpls.insert(0, root_tmpl)
+            out["template_rendered"] = tmpls or None
+            vc_mod = (vc.__module__ if vc else "") + " " + " ".join(tmpls)
+            out["dashboard_version"] = (
+                "v3" if "dashboard_v3" in vc_mod
+                else "v2" if "dashboard_v2" in vc_mod
+                else "unknown")
+
+            # PRECISE card-title extraction: the purpose accountability card is
+            # <article ... data-domain="purpose"> … first <strong>TITLE</strong>.
+            text = body.decode("utf-8", "replace")
+            m = re.search(r'data-domain="purpose".*?<strong>(.*?)</strong>',
+                          text, re.S)
+            out["accountability_purpose_card_title"] = (
+                m.group(1).strip() if m else None)
+
             probes = {
-                "Consistent prayer for June": b"Consistent prayer for June",
-                "Milestone reached": b"Milestone reached",
-                "banking it now": b"banking it now",
-                "Goal Weight 279.9": b"Goal Weight 279.9",
+                "Consistent prayer for June (anywhere)": b"Consistent prayer for June",
+                "Milestone reached (anywhere — incl. mission-panel label)":
+                    b"Milestone reached",
+                "banking it now (anywhere)": b"banking it now",
+                "Goal Weight 279.9 (anywhere)": b"Goal Weight 279.9",
             }
             if db_title:
-                probes[db_title] = db_title.encode("utf-8")
+                probes[f"{db_title} (anywhere)"] = db_title.encode("utf-8")
             out["body_contains"] = {k: (v in body) for k, v in probes.items()}
+
             # The enabling defect, made visible: does the dashboard response ship
             # a Cache-Control that forbids caching? (Absent/permissive = a cache
             # in front of the origin is free to serve a stale body.)
@@ -354,12 +406,12 @@ def _origin_document_probe(request, user, rendered_record):
                       "CF-Cache-Status"):
                 if h in resp.headers:
                     out["response_headers"][h] = resp.headers[h]
+            cc = resp.headers.get("Cache-Control", "").lower()
             out["note"] = (
                 "No Cache-Control:no-store on the dashboard response → a browser/"
                 "edge/webview cache may serve a stale body even though this origin "
                 "body is current."
-                if "Cache-Control" not in resp.headers
-                or "no-store" not in resp.headers.get("Cache-Control", "").lower()
+                if "no-store" not in cc
                 else "Dashboard response forbids caching (no-store present)."
             )
         elif out["error"] is None:

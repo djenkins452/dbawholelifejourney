@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(ai): TEMPORARY capture of the exact post-governor system prompt
+
+To prove whether the focused object actually reaches the LLM (production disproved the
+"CURRENTLY VIEWING injected for the whole turn" claim), added `_debug_capture_prompt` at BOTH
+CoS LLM call sites in `apps/ai/services.py` — right AFTER `govern_prompt` — recording per
+user+endpoint (cos_chat tool-loop, cos_page_reference deixis): system prompt length before/after
+the token governor, whether CURRENTLY VIEWING is present before vs after, whether the governor's
+"[Context trimmed…]" marker appears, and the first 6000 chars of the system prompt that reached
+OpenAI. Staff-only reader `GET /assistant/debug/last-prompt/`. Motivated by `token_governor.py`
+Phase 2, which truncates the system prompt FROM THE END (where CURRENTLY VIEWING is appended).
+TEMPORARY — remove once proven. Files: apps/ai/services.py, apps/ai/debug_last_prompt.py, apps/ai/urls.py.
+
 ## 2026-07-06 — feat(cos): Object-Centered Conversation + auto-declaration (Current Context restore)
 
 Restored + corrected the Current Context Contract after a coverage regression (only 3 DetailViews

@@ -101,6 +101,28 @@ _client_lock = threading.Lock()
 _shared_openai_client = None
 
 
+def _debug_capture_prompt(endpoint, user, system_before, messages):
+    """TEMPORARY (2026-07-06): capture the EXACT system prompt that reaches OpenAI (post
+    token-governor) for the two CoS endpoints, so we can prove whether the focused object
+    actually arrives. Keyed per user+endpoint; 15-min TTL. Remove with apps/ai/debug_last_prompt.py."""
+    if endpoint not in ("cos_chat", "cos_page_reference"):
+        return
+    try:
+        system_after = messages[0].get("content", "") if messages else ""
+        uid = getattr(user, "id", None)
+        cache.set(f"wlj:debug:last_prompt:{endpoint}:{uid}", {
+            "endpoint": endpoint,
+            "len_before_governor": len(system_before or ""),
+            "len_after_governor": len(system_after),
+            "currently_viewing_before": "CURRENTLY VIEWING" in (system_before or ""),
+            "currently_viewing_after": "CURRENTLY VIEWING" in system_after,
+            "governor_trimmed_marker": "[Context trimmed to fit token budget]" in system_after,
+            "system_after_full": system_after[:6000],
+        }, 900)
+    except Exception:
+        pass
+
+
 def get_openai_client():
     """
     Get or create the shared OpenAI client (thread-safe).
@@ -504,6 +526,8 @@ class AIService:
         except Exception as _gov_err:
             logger.debug("Token governor skipped: %s", _gov_err)
 
+        _debug_capture_prompt(endpoint, user, system_prompt, messages)  # TEMP diagnostic
+
         last_error = None
         _effective_timeout = get_timeout_for_endpoint(endpoint)
         for attempt in range(1, LLM_MAX_RETRIES + 1):
@@ -656,6 +680,8 @@ class AIService:
             pass
         except Exception as _gov_err:
             logger.debug("Token governor skipped (tools): %s", _gov_err)
+
+        _debug_capture_prompt(endpoint, user, system_prompt, messages)  # TEMP diagnostic
 
         effective_model = model or self.model
         _timeout = get_timeout_for_endpoint(endpoint)

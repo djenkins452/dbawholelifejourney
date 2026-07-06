@@ -13,10 +13,56 @@
 #   3. Resolution  — resolve_current_context() fetches the object and calls its
 #                    get_context_summary() (the Narratable protocol), user-scoped.
 # ==============================================================================
+import contextvars
 import logging
 import re
 
 logger = logging.getLogger(__name__)
+
+# TURN-SCOPED CURRENT CONTEXT. Resolved ONCE at the top of a CoS turn (before lane routing)
+# and read at the shared LLM-call choke point, so EVERY reasoning lane's answer begins with
+# the same grounded context — Current Context is a Chief-of-Staff capability, not a per-lane
+# or tool-loop-only one. See docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
+_CURRENT_FOCUS = contextvars.ContextVar("wlj_current_focus", default=None)
+
+
+def set_current_focus(focus):
+    """Set (or clear, with None) the object in focus for the current turn."""
+    _CURRENT_FOCUS.set(focus if (focus and (focus.get("content") or "").strip()) else None)
+
+
+def get_current_focus():
+    try:
+        return _CURRENT_FOCUS.get()
+    except Exception:
+        return None
+
+
+def current_context_preamble():
+    """The leading system-prompt block every reasoning lane starts with when an object is in
+    focus. Authoritative: if the message is about what's on screen, the lane answers about
+    THIS object even when its own specialization is narrower. Empty when nothing is in focus."""
+    focus = get_current_focus()
+    if not focus:
+        return ""
+    content = (focus.get("content") or "").strip()
+    if not content:
+        return ""
+    title = focus.get("title") or focus.get("kind") or "this"
+    kind = focus.get("kind") or ""
+    label = f'"{title}"' + (f" ({kind})" if kind else "")
+    return (
+        f"CURRENT CONTEXT — RIGHT NOW the user is viewing {label} in Whole Life Journey. "
+        "This is the object their message is about when they say 'this/that/it' or ask any "
+        "question that fits what's on screen (e.g. 'am I making progress?', 'what do you "
+        "think?', 'should I change anything?', 'how was I feeling?'). When the message is "
+        "about what they're viewing, answer about THIS object, grounded in the content below "
+        "— even if a more specialized instruction further down is narrower in scope. If the "
+        "message is clearly unrelated to it, follow the instruction below instead.\n"
+        "--- OBJECT IN FOCUS ---\n"
+        f"{content[:3500]}\n"
+        "--- END OBJECT ---\n\n"
+    )
 
 # Canonical reference shape: "app_label.model:pk" (e.g. "purpose.lifegoal:42").
 _REF_RE = re.compile(r"^([a-z_]+)\.([a-z_]+):(\d+)$", re.IGNORECASE)

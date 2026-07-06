@@ -86,6 +86,7 @@ def run_planner(user, message):
         raw = ai_service._call_api(
             _PLANNER_SYSTEM, message or "",
             max_tokens=220, temperature=0.0, endpoint="cos_chat", user=user,
+            skip_current_context=True,  # classifier: JSON only, must not be grounded
         )
     except Exception:
         logger.warning("COS_REASONING_PLANNER_FAILED user=%s",

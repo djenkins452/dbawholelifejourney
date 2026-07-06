@@ -152,32 +152,48 @@ class RenderTests(TestCase):
 
 
 class ObjectCenteredTests(TestCase):
-    """The contract's job is to hand Beth the object — NOT to match a phrase. A natural,
-    non-deixis question must arrive at the executive brain already grounded in the object."""
+    """Current Context is a Chief-of-Staff capability injected ONCE, before lane routing, at
+    the shared LLM-call choke point — so EVERY reasoning lane's answer is grounded, not just
+    the tool-loop and not gated by any phrase."""
 
-    def test_non_deixis_question_grounds_in_object(self):
+    def test_choke_point_gating(self):
+        # Every CoS reasoning ANSWER (cos_chat) is grounded; the sandbox (bypass_breaker),
+        # non-answer calls (skip), page_reference (self-grounds) and non-CoS are NOT.
+        from apps.ai.services import _ground_current_context
+        from apps.core.current_context import set_current_focus
+        set_current_focus({"title": "G", "kind": "goal", "content": "the goal body"})
+        try:
+            self.assertIn("the goal body", _ground_current_context("SYS", "cos_chat"))
+            self.assertEqual(_ground_current_context("SYS", "cos_chat", bypass_breaker=True), "SYS")
+            self.assertEqual(_ground_current_context("SYS", "cos_chat", skip=True), "SYS")
+            self.assertEqual(_ground_current_context("SYS", "cos_page_reference"), "SYS")
+            self.assertEqual(_ground_current_context("SYS", "general"), "SYS")
+        finally:
+            set_current_focus(None)
+
+    def test_focus_set_before_routing_and_cleared_after(self):
+        # The object is available to EVERY lane because it is set BEFORE route_message runs.
         from unittest import mock as _mock
         from apps.purpose.models import LifeGoal
         from apps.ai.chatgpt_cos.service import ChatGPTCoSService
+        from apps.core.current_context import get_current_focus
         u = _onboarded("oc@x.com")
         g = LifeGoal.objects.create(user=u, title="France 2027",
                                     description="Save and train for the family trip",
                                     target_date=date(2027, 1, 1))
         pc = {"module": "purpose", "focus_ref": f"purpose.lifegoal:{g.pk}"}
-        svc = ChatGPTCoSService(u)
-        captured = {}
+        seen = {}
 
-        def _fake_tools(system_prompt, message, **kw):
-            captured["system"] = system_prompt
-            return "ok"
+        def _capture_route(user, message, conversation, page_context=None):
+            f = get_current_focus() or {}
+            seen["content"] = f.get("content", "")
+            return {"answer": "ok", "lane": "x"}   # short-circuit generate
 
-        with _mock.patch("apps.ai.chatgpt_cos.lanes.route_message", return_value=None), \
+        with _mock.patch("apps.ai.chatgpt_cos.lanes.route_message", side_effect=_capture_route), \
              _mock.patch.object(ChatGPTCoSService, "_history", return_value=[]), \
-             _mock.patch("apps.ai.cos_services.get_standing_context", return_value={"status": "ok"}), \
-             _mock.patch("apps.ai.cos_services.get_tool_schemas", return_value=[]), \
-             _mock.patch("apps.core.ai_state.state_engine.get_user_state", return_value={}), \
-             _mock.patch("apps.ai.services.ai_service._call_api_with_tools", side_effect=_fake_tools):
-            # A natural progress question — NO "this/that", NO page-verb.
-            svc.generate(conversation=object(), message="Am I making progress?", page_context=pc)
-        self.assertIn("CURRENTLY VIEWING", captured["system"])
-        self.assertIn("Save and train for the family trip", captured["system"])   # grounded
+             _mock.patch("apps.core.ai_state.state_engine.get_user_state", return_value={}):
+            # A natural, non-deixis question.
+            ChatGPTCoSService(u).generate(conversation=object(),
+                                          message="Am I making progress?", page_context=pc)
+        self.assertIn("Save and train for the family trip", seen["content"])   # every lane sees it
+        self.assertIsNone(get_current_focus())                                 # cleared after the turn

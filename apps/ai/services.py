@@ -101,26 +101,21 @@ _client_lock = threading.Lock()
 _shared_openai_client = None
 
 
-def _debug_capture_prompt(endpoint, user, system_before, messages):
-    """TEMPORARY (2026-07-06): capture the EXACT system prompt that reaches OpenAI (post
-    token-governor) for the two CoS endpoints, so we can prove whether the focused object
-    actually arrives. Keyed per user+endpoint; 15-min TTL. Remove with apps/ai/debug_last_prompt.py."""
-    if endpoint not in ("cos_chat", "cos_page_reference"):
-        return
+def _ground_current_context(system_prompt, endpoint, bypass_breaker=False, skip=False):
+    """CURRENT CONTEXT CONTRACT — the ONE shared insertion point. Prepend the turn's focused
+    object (resolved once, before lane routing) to every CoS reasoning-answer prompt, so
+    EVERY lane begins with the same grounded context and then applies its specialization.
+    Skips the sandboxed general lane (bypass_breaker — must stay personal-data-free) and
+    non-answer calls (planner/phrasing pass skip=True). Only cos_chat answers are grounded;
+    cos_page_reference self-grounds."""
+    if skip or bypass_breaker or endpoint != "cos_chat":
+        return system_prompt
     try:
-        system_after = messages[0].get("content", "") if messages else ""
-        uid = getattr(user, "id", None)
-        cache.set(f"wlj:debug:last_prompt:{endpoint}:{uid}", {
-            "endpoint": endpoint,
-            "len_before_governor": len(system_before or ""),
-            "len_after_governor": len(system_after),
-            "currently_viewing_before": "CURRENTLY VIEWING" in (system_before or ""),
-            "currently_viewing_after": "CURRENTLY VIEWING" in system_after,
-            "governor_trimmed_marker": "[Context trimmed to fit token budget]" in system_after,
-            "system_after_full": system_after[:6000],
-        }, 900)
+        from apps.core.current_context import current_context_preamble
+        pre = current_context_preamble()
+        return (pre + system_prompt) if pre else system_prompt
     except Exception:
-        pass
+        return system_prompt
 
 
 def get_openai_client():
@@ -445,6 +440,7 @@ class AIService:
         all_images: list = None,
         model: str = None,
         bypass_breaker: bool = False,
+        skip_current_context: bool = False,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
@@ -483,6 +479,10 @@ class AIService:
         if cache.get("openai_rate_limited") and not bypass_breaker:
             logger.info("LLM SKIPPED endpoint=%s — circuit breaker active (rate limited)", endpoint)
             return None
+
+        # CURRENT CONTEXT CONTRACT — ground CoS reasoning answers in the object in focus.
+        system_prompt = _ground_current_context(
+            system_prompt, endpoint, bypass_breaker=bypass_breaker, skip=skip_current_context)
 
         # Build the user message content — supports multiple images
         if all_images and len(all_images) > 0:
@@ -525,8 +525,6 @@ class AIService:
             pass
         except Exception as _gov_err:
             logger.debug("Token governor skipped: %s", _gov_err)
-
-        _debug_capture_prompt(endpoint, user, system_prompt, messages)  # TEMP diagnostic
 
         last_error = None
         _effective_timeout = get_timeout_for_endpoint(endpoint)
@@ -649,6 +647,7 @@ class AIService:
         conversation_history: list = None,
         model: str = None,
         max_tool_rounds: int = 3,
+        skip_current_context: bool = False,
     ):
         """
         Bounded agentic completion (ChatGPT CoS — Phase 3).
@@ -667,6 +666,10 @@ class AIService:
         """
         import json as _json
 
+        # CURRENT CONTEXT CONTRACT — ground the tool-loop answer in the object in focus too.
+        system_prompt = _ground_current_context(
+            system_prompt, endpoint, skip=skip_current_context)
+
         messages = [{"role": "system", "content": system_prompt}]
         if conversation_history:
             messages.extend(conversation_history)
@@ -680,8 +683,6 @@ class AIService:
             pass
         except Exception as _gov_err:
             logger.debug("Token governor skipped (tools): %s", _gov_err)
-
-        _debug_capture_prompt(endpoint, user, system_prompt, messages)  # TEMP diagnostic
 
         effective_model = model or self.model
         _timeout = get_timeout_for_endpoint(endpoint)

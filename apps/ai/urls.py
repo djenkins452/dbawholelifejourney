@@ -14,12 +14,6 @@ from . import views
 app_name = 'ai'
 
 urlpatterns = [
-    # TEMPORARY staff-only diagnostic (2026-07-06) — the exact system prompt reaching OpenAI
-    # (post token-governor). REMOVE once the object-in-prompt question is proven.
-    path('debug/last-prompt/', __import__(
-        'apps.ai.debug_last_prompt', fromlist=['last_prompt_diag']
-    ).last_prompt_diag, name='debug_last_prompt'),
-
     # Assistant Dashboard Page
     path('', views.AssistantDashboardView.as_view(), name='dashboard'),
 

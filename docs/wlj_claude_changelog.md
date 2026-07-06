@@ -6,6 +6,26 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Current Context injected ONCE at the shared LLM choke point (every lane)
+
+Root cause (runtime-proven via prompt capture): Current Context was injected only in the tool-loop
+path of `service.generate`, AFTER `route_message`. "Am I making progress?" on the Goal page was
+intercepted by the health REASONING lane (`reasoning/stages.py`), which builds its OWN health-only
+prompt ("Using ONLY the health working memory…") and never saw the object — captured prompt had
+`currently_viewing_before=false`. Each lane builds its own system prompt in isolation; injecting in
+one path can't cover them. FIX (architecture B): resolve the focused object ONCE at the top of
+`generate` (before routing) into a turn-scoped contextvar (`current_context.set_current_focus`), and
+inject it at the SINGLE shared LLM-call choke point `services._ground_current_context` (inside
+`_call_api` + `_call_api_with_tools`) — so EVERY reasoning lane's answer begins with the same
+CURRENT CONTEXT / OBJECT IN FOCUS preamble, then applies its specialization. Exclusions: sandboxed
+general lane (bypass_breaker — no personal data), planner/classifier + fact-phrasing
+(skip_current_context=True), cos_page_reference (self-grounds). Removed the prior tool-loop-only
+`_system_prompt(focus=…)` injection and the temporary prompt-capture diagnostic (module + URL +
+helper + call sites). Tests: apps/core/tests/test_current_context.py (choke-point gating; focus set
+before routing + cleared after) — 68 green across current_context/page_reference/reasoning; no
+migrations; request-path safety green. Files: apps/core/current_context.py, apps/ai/services.py,
+apps/ai/chatgpt_cos/service.py, reasoning/stages.py, foundational_facts.py, apps/ai/urls.py.
+
 ## 2026-07-06 — debug(ai): TEMPORARY capture of the exact post-governor system prompt
 
 To prove whether the focused object actually reaches the LLM (production disproved the

@@ -945,6 +945,7 @@ def answer_fact_by_key(user, key):
                 temperature=0.3,
                 endpoint="cos_chat",
                 user=user,
+                skip_current_context=True,  # phrases ONE retrieved fact; no grounding needed
             )
         except Exception:
             logger.warning("COS_FOUNDATION_PHRASING_FAILED user=%s key=%s",

@@ -6,6 +6,20 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(legacy): unblock deploy — vendored Leaflet broke collectstatic (manifest storage)
+
+**Root cause:** The self-hosted Leaflet assets broke `collectstatic` under prod's `whitenoise.storage.CompressedManifestStaticFilesStorage`, which post-processes JS `sourceMappingURL` comments AND CSS `url()` references and fails hard on any missing target:
+1. `leaflet.js` ended with `//# sourceMappingURL=leaflet.js.map` — the `.map` wasn't shipped → collectstatic error (the reported failure).
+2. `leaflet.css` references `images/marker-icon.png`, `images/layers.png`, `images/layers-2x.png` — those weren't shipped → a second failure waiting behind the first.
+
+**Fix (static-asset packaging only — no architecture/behaviour change):**
+- Removed the `sourceMappingURL` line from `static/legacy/vendor/leaflet/leaflet.js`.
+- Added the Leaflet marker/layer images under `static/legacy/vendor/leaflet/images/` (marker-icon, marker-icon-2x, marker-shadow, layers, layers-2x) so every CSS `url()` resolves.
+
+**Files:** `static/legacy/vendor/leaflet/leaflet.js` (sourceMappingURL removed), `static/legacy/vendor/leaflet/images/*.png` (new).
+
+**Verification:** `python manage.py collectstatic --noinput` (prod path — `CompressedManifestStaticFilesStorage`) now completes: **183 copied, 537 post-processed, 0 errors** (previously failed on `leaflet.js.map`). Hashed `leaflet.<hash>.js` contains no `sourceMappingURL`; hashed `leaflet.<hash>.css` produced. `staticfiles/` build dir is gitignored (not committed).
+
 ## 2026-07-06 — fix(dashboard): the meaning-first milestone commentary was NOT reaching the live "Purpose recommendation" — one canonical composer
 
 **Production said the earlier fix didn't land.** The dashboard "Purpose recommendation" still read the OLD generic copy — "Milestone reached / That's milestone 6 of 12 / This is a concrete step… banking it now / next rung." Investigation traced the displayed text end-to-end and found the root cause was **architectural: two milestone-commentary generators.** The earlier change upgraded the dashboard mission *card* (`dashboard_v3/services/composer.py`), but the text on the screenshot comes from a *different* code path — the Significant Event Pipeline's stored MAJOR_WIN recommendation (`apps/ai/significant_events.py :: _persist_major_win`), which was never updated and kept the generic template.

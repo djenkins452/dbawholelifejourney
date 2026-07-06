@@ -6,6 +6,26 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): one unified interactive Place map (Esri) — edit-on-interaction, OSM tile server retired
+
+**What:** Collapsed the three separate map modes (static embed / "resolve" / "compare") into **one interactive map per Place**, following the same CRUD philosophy as every other canonical entity — the map is simply part of editing a Place.
+
+Every Place detail now always offers, in one map:
+- **Streets / Satellite toggle** (Esri World Street Map default + Esri World Imagery).
+- **Search** for a location, **pan/zoom**, **drop a pin anywhere**.
+- **Current coordinates** + **resolved address** (reverse-geocoded on a dropped pin).
+- **Open in Google Maps**, **Save changes**, **Cancel**.
+
+**Behaviour:** read-only until you search or move the pin; then it enters an editable state showing **Current location → New location (preview)** with **Save / Cancel**. Nothing commits until Save; Cancel reverts (nothing touched). The canonical Place owns its coordinates — every Story/Timeline/Person/Event/Memory consumes them.
+
+**Provider decision (Danny):** **Esri** as the single provider (one ecosystem / attribution / future key / licensing; consistent rendering + zoom + labels across Streets↔Satellite). Recorded in `docs/WLJ_LEGACY_MAP_TILES.md`.
+
+**Retired / removed:** the temporary `?compare=1` comparison mode (view flag, template block, CSS, tests); the OSM static embed — `Place.maps_embed_url` deleted and the `openstreetmap.org/export/embed.html` iframe gone; and **`tile.openstreetmap.org` is no longer requested anywhere** (verified 0 OSM tile requests live). Geocoding stays on keyless Nominatim, server-side (a separate service from the tile server).
+
+**Files:** `apps/legacy/models.py` (−`maps_embed_url`), `apps/legacy/views.py` (−`tile_compare`), `templates/legacy/place_detail.html` (one unified map card + Leaflet/Esri init; replaces embed+resolver+compare), `static/css/legacy.css` (`.pmap-*`; removed dead embed/compare/resolver CSS; cache-bust `v=60`), `apps/legacy/tests/test_places_map.py`, `docs/WLJ_LEGACY_MAP_TILES.md`. No migration (coords columns unchanged). Reuses existing `place_locate_search/reverse/save` endpoints.
+
+**Verification:** 57 tests green (`test_places_map` + `test_people_places_media`). Live-certified end-to-end in the dev browser: Esri Streets renders read-only by default; **Streets↔Satellite toggle** both load Esri tiles; **drop-pin** → edit state with New coords + reverse address ("1437 Forest Avenue… Maryville, TN"); **search "Nashville, TN"** → select → map recentres + pin + edit state (`36.162277, -86.774298`); **Cancel** reverts to the original coords uncommitted; **Save** persists the new coords with the "Location saved…" flash; **0 requests to tile.openstreetmap.org**; no console errors. Also fixed a real bug found in review — `.pmap-read { display:flex }` was overriding the `hidden` attribute so read+edit both showed; added `.pmap-read[hidden]{display:none}`. Also fixed a rendering slip: a multi-line `{# #}` comment (single-line only) leaked as visible text → `{% comment %}`.
+
 ## 2026-07-06 — debug(dashboard): debug endpoint now emits the server-rendered card (record → composer → HTML)
 
 **Why:** DB↔browser contradiction — after migration 0127 healed the win row (DB title "Consistent prayer for June"), the browser still showed "Milestone reached" through a hard refresh. To locate the FIRST point where DB record, server-rendered HTML, and browser DOM stop matching without guessing, the `/debug/purpose-recommendation/` endpoint now also runs the REAL composer (`build_dashboard_v3_context`) and renders the REAL `accountability_cards.html` fragment, returning `server_render.composer_recommendation` (title/message the template binds) + `server_render.rendered_card_html` + `server_render.html_contains` (which competing strings appear in the server HTML).

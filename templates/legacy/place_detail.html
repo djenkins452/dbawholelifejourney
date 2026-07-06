@@ -17,7 +17,6 @@
             {% if place.location_text %}<p class="profile-sub">{{ place.location_text }}</p>{% endif %}
             <div class="profile-actions">
                 <a href="{% url 'legacy:editor_new' %}" class="lg-btn-primary">Remember this place</a>
-                {% if place.maps_link_url %}<a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet">Open in Google Maps ↗</a>{% endif %}
                 <a href="{% url 'legacy:place_edit' place.pk %}" class="lg-btn-quiet">Edit</a>
                 {% if place.status == 'active' %}
                 <form method="post" action="{% url 'legacy:place_archive' place.pk %}" class="m-action-form">{% csrf_token %}<button type="submit" class="lg-btn-ghost">Set aside</button></form>
@@ -28,140 +27,135 @@
         </div>
     </div>
 
-    {% if tile_compare %}
-    <section class="lg-card place-map-card place-compare" id="placeCompare"
-             data-lat="{{ place.latitude }}" data-lon="{{ place.longitude }}">
-        <div class="place-compare-head">
-            <div>
-                <span class="place-map-label">Map style comparison · temporary</span>
-                <p class="place-compare-note">Switch styles with the control on the map — same Place, so you can judge readability, water, and satellite side by side.</p>
-            </div>
-            <a href="{% url 'legacy:place_detail' place.pk %}" class="lg-btn-quiet">Exit comparison</a>
-        </div>
-        <div class="locate-map" id="compareMap"></div>
-        <p class="locate-hint">{{ place.location_text|default:place.name }} · {{ place.latitude }}, {{ place.longitude }}</p>
-
-        <link rel="stylesheet" href="{% static 'legacy/vendor/leaflet/leaflet.css' %}">
-        <script src="{% static 'legacy/vendor/leaflet/leaflet.js' %}"></script>
-        <script nonce="{{ csp_nonce }}">
-        (function () {
-            var root = document.getElementById('placeCompare');
-            if (!root || !window.L) { return; }
-            var lat = parseFloat(root.getAttribute('data-lat'));
-            var lon = parseFloat(root.getAttribute('data-lon'));
-            var map = L.map('compareMap').setView([lat, lon], 14);
-            var osm = '&copy; OpenStreetMap contributors';
-            var bases = {
-                'Current OSM': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    { maxZoom: 19, attribution: osm }),
-                'CARTO Voyager': L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-                    { maxZoom: 20, subdomains: 'abcd', attribution: osm + ' &copy; CARTO' }),
-                'Esri Streets': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-                    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }),
-                'Esri Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                    { maxZoom: 19, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' })
-            };
-            bases['Current OSM'].addTo(map);   // start from today's experience
-            L.control.layers(bases, null, { collapsed: false }).addTo(map);
-            L.circleMarker([lat, lon], { radius: 9, color: '#8a5a1e', weight: 3,
-                fillColor: '#c9a34e', fillOpacity: .9 }).addTo(map);
-            setTimeout(function () { map.invalidateSize(); }, 80);
-        })();
-        </script>
-    </section>
-    {% elif place.maps_embed_url %}
-    <section class="lg-card place-map-card">
-        <div class="place-map">
-            <iframe class="place-map-frame" src="{{ place.maps_embed_url }}" title="Map showing {{ place.name }}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
-        </div>
-        <div class="place-map-meta">
-            <div class="place-map-where">
-                <span class="place-map-label">Where this is</span>
-                <span class="place-map-addr">{{ place.location_text|default:place.name }}</span>
-                {% if place.has_coordinates %}<span class="place-map-coords">{{ place.latitude }}, {{ place.longitude }}</span>{% endif %}
-            </div>
-            <div class="place-map-actions">
-                <a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet place-map-open">Open in Google Maps ↗</a>
-                {% if place.has_coordinates %}<a href="?compare=1" class="place-map-compare-link">Compare map styles →</a>{% endif %}
-            </div>
-        </div>
-    </section>
-    {% endif %}
-
-    {% if not place.has_coordinates %}
-    <section class="lg-card place-locate" id="placeLocate"
+    {% comment %}One interactive map per Place — read-only until you search or move the
+    pin, then an editable Current → New preview with Save / Cancel. Esri tiles (Streets
+    default, World Imagery satellite). The Place owns its coordinates; nothing commits
+    until Save.{% endcomment %}
+    <section class="lg-card pmap-card" id="placeMapCard"
+             data-lat="{{ place.latitude|default:'' }}" data-lon="{{ place.longitude|default:'' }}"
              data-search-url="{% url 'legacy:place_locate_search' place.pk %}"
              data-reverse-url="{% url 'legacy:place_locate_reverse' place.pk %}">
-        <h2 class="profile-sec-title">Where is this?</h2>
-        <p class="place-locate-lead">Legacy couldn't place this automatically. Search for it, or drop a pin on the map — once you save, {{ place.name }} owns those coordinates everywhere and you'll never be asked again.</p>
-
         <div class="locate-search">
-            <input type="search" id="locateQuery" class="lg-input locate-query" value="{{ place.location_text|default:place.name }}" placeholder="e.g. Tuscaloosa, AL" autocomplete="off" aria-label="Search for this location">
-            <button type="button" id="locateSearchBtn" class="lg-btn-quiet">Search</button>
+            <input type="search" id="pmapSearch" class="lg-input locate-query" value="{{ place.location_text|default:place.name }}" placeholder="Search for a location…" autocomplete="off" aria-label="Search for this location">
+            <button type="button" id="pmapSearchBtn" class="lg-btn-quiet">Search</button>
         </div>
-        <ul class="locate-results" id="locateResults" hidden></ul>
+        <ul class="locate-results" id="pmapResults" hidden></ul>
 
-        <div class="locate-map" id="locateMap"></div>
+        <div class="pmap-wrap">
+            <div class="locate-map pmap" id="placeMap"></div>
+            <div class="pmap-toggle" role="group" aria-label="Map style">
+                <button type="button" class="pmap-toggle-btn is-active" data-style="streets">Streets</button>
+                <button type="button" class="pmap-toggle-btn" data-style="satellite">Satellite</button>
+            </div>
+        </div>
         <p class="locate-hint">Drag to pan · scroll to zoom · <strong>click the map to drop a pin</strong></p>
 
-        <div class="locate-picked" id="locatePicked" hidden>
-            <div class="locate-picked-info">
-                <span class="locate-picked-addr" id="locateAddr"></span>
-                <span class="locate-picked-coords" id="locateCoords"></span>
+        <div class="pmap-bar">
+            <div class="pmap-read" id="pmapRead">
+                <div class="pmap-read-info">
+                    <span class="place-map-label">Where this is</span>
+                    {% if place.location_text %}<span class="pmap-addr">{{ place.location_text }}</span>{% endif %}
+                    <span class="pmap-coords">{% if place.has_coordinates %}{{ place.latitude }}, {{ place.longitude }}{% else %}Not located yet — search or drop a pin to place it{% endif %}</span>
+                </div>
+                {% if place.maps_link_url %}<a href="{{ place.maps_link_url }}" target="_blank" rel="noopener" class="lg-btn-quiet">Open in Google Maps ↗</a>{% endif %}
             </div>
-            <form method="post" action="{% url 'legacy:place_locate_save' place.pk %}" class="locate-save-form" id="locateSaveForm">
-                {% csrf_token %}
-                <input type="hidden" name="lat" id="locateLat">
-                <input type="hidden" name="lon" id="locateLon">
-                <button type="submit" class="lg-btn-primary">Save location</button>
-            </form>
+
+            <div class="pmap-edit" id="pmapEdit" hidden>
+                <div class="pmap-preview">
+                    <div class="pmap-prev-col">
+                        <span class="place-map-label">Current location</span>
+                        <span class="pmap-prev-val">{% if place.has_coordinates %}{{ place.latitude }}, {{ place.longitude }}{% else %}Not located yet{% endif %}</span>
+                    </div>
+                    <span class="pmap-arrow" aria-hidden="true">→</span>
+                    <div class="pmap-prev-col">
+                        <span class="place-map-label">New location</span>
+                        <span class="pmap-prev-val" id="pmapPrevNew"></span>
+                        <span class="pmap-prev-addr" id="pmapPrevAddr"></span>
+                    </div>
+                </div>
+                <div class="pmap-edit-actions">
+                    <button type="button" class="lg-btn-quiet" id="pmapCancel">Cancel</button>
+                    <form method="post" action="{% url 'legacy:place_locate_save' place.pk %}" id="pmapSaveForm" class="pmap-save-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="lat" id="pmapLat">
+                        <input type="hidden" name="lon" id="pmapLon">
+                        <button type="submit" class="lg-btn-primary">Save changes</button>
+                    </form>
+                </div>
+            </div>
         </div>
 
         <link rel="stylesheet" href="{% static 'legacy/vendor/leaflet/leaflet.css' %}">
         <script src="{% static 'legacy/vendor/leaflet/leaflet.js' %}"></script>
         <script nonce="{{ csp_nonce }}">
         (function () {
-            var root = document.getElementById('placeLocate');
+            var root = document.getElementById('placeMapCard');
             if (!root || !window.L) { return; }
+            var csrf = (root.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
             var searchUrl = root.getAttribute('data-search-url');
             var reverseUrl = root.getAttribute('data-reverse-url');
-            var csrf = (root.querySelector('[name=csrfmiddlewaretoken]') || {}).value || '';
-            var picked = document.getElementById('locatePicked');
-            var addrEl = document.getElementById('locateAddr');
-            var coordsEl = document.getElementById('locateCoords');
-            var latIn = document.getElementById('locateLat');
-            var lonIn = document.getElementById('locateLon');
-            var qEl = document.getElementById('locateQuery');
-            var resEl = document.getElementById('locateResults');
-            var marker = null;
+            var sLat = parseFloat(root.getAttribute('data-lat'));
+            var sLon = parseFloat(root.getAttribute('data-lon'));
+            var hasStart = !isNaN(sLat) && !isNaN(sLon);
 
-            var map = L.map('locateMap', { scrollWheelZoom: true }).setView([39.5, -98.35], 4);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            // Esri — one provider for both styles (Streets default, World Imagery satellite).
+            var streets = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, attribution: 'Tiles &copy; Esri' });
+            var satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                { maxZoom: 19, attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics' });
+
+            var map = L.map('placeMap').setView(hasStart ? [sLat, sLon] : [39.5, -98.35], hasStart ? 14 : 4);
+            streets.addTo(map);
+            function mk(lat, lon) { return L.circleMarker([lat, lon], { radius: 9, color: '#8a5a1e', weight: 3, fillColor: '#c9a34e', fillOpacity: .9 }).addTo(map); }
+            var marker = hasStart ? mk(sLat, sLon) : null;
             setTimeout(function () { map.invalidateSize(); }, 80);
 
+            // Streets / Satellite toggle — viewing only, never enters edit state.
+            root.querySelectorAll('.pmap-toggle-btn').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    root.querySelectorAll('.pmap-toggle-btn').forEach(function (x) { x.classList.toggle('is-active', x === b); });
+                    if (b.getAttribute('data-style') === 'satellite') { map.removeLayer(streets); satellite.addTo(map); }
+                    else { map.removeLayer(satellite); streets.addTo(map); }
+                });
+            });
+
+            // Read-only until the user searches or moves the pin → then edit state.
+            var readEl = document.getElementById('pmapRead');
+            var editEl = document.getElementById('pmapEdit');
+            var prevNew = document.getElementById('pmapPrevNew');
+            var prevAddr = document.getElementById('pmapPrevAddr');
+            var latIn = document.getElementById('pmapLat');
+            var lonIn = document.getElementById('pmapLon');
             function post(url, body) {
                 return fetch(url, { method: 'POST', headers: {
                     'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/x-www-form-urlencoded' }, body: body });
             }
-            function setPin(lat, lon) {
+            function propose(lat, lon, addr) {
                 lat = Math.round(lat * 1e6) / 1e6; lon = Math.round(lon * 1e6) / 1e6;
-                if (marker) { marker.setLatLng([lat, lon]); }
-                else { marker = L.circleMarker([lat, lon], { radius: 9, color: '#8a5a1e',
-                    weight: 3, fillColor: '#c9a34e', fillOpacity: .9 }).addTo(map); }
+                if (marker) { marker.setLatLng([lat, lon]); } else { marker = mk(lat, lon); }
                 latIn.value = lat; lonIn.value = lon;
-                coordsEl.textContent = lat.toFixed(6) + ', ' + lon.toFixed(6);
-                picked.hidden = false;
+                prevNew.textContent = lat.toFixed(6) + ', ' + lon.toFixed(6);
+                if (addr !== undefined) { prevAddr.textContent = addr || ''; }
+                readEl.hidden = true; editEl.hidden = false;
             }
             function reverseLookup(lat, lon) {
-                addrEl.textContent = 'Looking up address…';
+                prevAddr.textContent = 'Looking up address…';
                 post(reverseUrl, 'lat=' + lat + '&lon=' + lon).then(function (r) { return r.json(); })
-                    .then(function (d) { addrEl.textContent = d.address || 'No street address here — the pin is what matters.'; })
-                    .catch(function () { addrEl.textContent = ''; });
+                    .then(function (d) { prevAddr.textContent = d.address || ''; })
+                    .catch(function () { prevAddr.textContent = ''; });
             }
-            map.on('click', function (e) { setPin(e.latlng.lat, e.latlng.lng); reverseLookup(e.latlng.lat, e.latlng.lng); });
+            map.on('click', function (e) { propose(e.latlng.lat, e.latlng.lng); reverseLookup(e.latlng.lat, e.latlng.lng); });
 
+            document.getElementById('pmapCancel').addEventListener('click', function () {
+                if (hasStart) { if (marker) { marker.setLatLng([sLat, sLon]); } map.setView([sLat, sLon], 14); }
+                else if (marker) { map.removeLayer(marker); marker = null; }
+                editEl.hidden = true; readEl.hidden = false;
+            });
+
+            // Search (server-side geocode; a result re-centres the map + proposes the pin).
+            var qEl = document.getElementById('pmapSearch');
+            var resEl = document.getElementById('pmapResults');
             function renderResults(list) {
                 resEl.textContent = '';
                 if (!list.length) {
@@ -172,13 +166,9 @@
                 list.forEach(function (r) {
                     var li = document.createElement('li'); li.className = 'locate-result';
                     li.setAttribute('role', 'button'); li.tabIndex = 0; li.textContent = r.label;
-                    function pick() {
-                        map.setView([+r.lat, +r.lon], 14); setPin(+r.lat, +r.lon);
-                        addrEl.textContent = r.label; resEl.hidden = true;
-                    }
+                    function pick() { map.setView([+r.lat, +r.lon], 14); propose(+r.lat, +r.lon, r.label); resEl.hidden = true; }
                     li.addEventListener('click', pick);
-                    li.addEventListener('keydown', function (e) {
-                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+                    li.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
                     resEl.appendChild(li);
                 });
                 resEl.hidden = false;
@@ -192,12 +182,11 @@
                     .then(function (d) { renderResults(d.results || []); })
                     .catch(function () { renderResults([]); });
             }
-            document.getElementById('locateSearchBtn').addEventListener('click', doSearch);
+            document.getElementById('pmapSearchBtn').addEventListener('click', doSearch);
             qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
         })();
         </script>
     </section>
-    {% endif %}
 
     {% if place.description %}
     <section class="lg-card profile-bio">

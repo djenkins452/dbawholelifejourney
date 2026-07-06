@@ -198,21 +198,8 @@ class Place(LegacyOwnedModel):
         for it is noise, so a place with no location text simply has no map."""
         return (self.location_text or "").strip()
 
-    @property
-    def maps_embed_url(self):
-        """Keyless, frameable map for an <iframe> — OpenStreetMap's embed (permitted by
-        CSP frame-src https://www.openstreetmap.org; Google's keyless embed is 404 +
-        X-Frame-Options and can't be framed). Centred on the Place's coordinates, so it
-        answers 'where is this?'. Empty until coordinates are known — the view geocodes
-        the best-known location once and caches lat/long on the canonical Place."""
-        if not self.has_coordinates:
-            return ""
-        from urllib.parse import quote
-        lat, lon = float(self.latitude), float(self.longitude)
-        d = 0.02  # ~a couple of km around the point → a legible neighbourhood view
-        bbox = "%f,%f,%f,%f" % (lon - d, lat - d, lon + d, lat + d)
-        return ("https://www.openstreetmap.org/export/embed.html?bbox=%s&layer=mapnik&marker=%f,%f"
-                % (quote(bbox), lat, lon))
+    # The interactive map (place_detail) is a self-hosted Leaflet map over Esri tiles —
+    # it reads latitude/longitude directly, so there is no server-built embed URL.
 
     @property
     def maps_link_url(self):

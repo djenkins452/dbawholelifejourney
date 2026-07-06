@@ -1,7 +1,13 @@
 # Legacy Map Tiles — provider evaluation & OSM retirement plan
 
-**Status:** evaluating (temporary comparison mode live) · **Owner:** Legacy/Places
+**Status:** ✅ DECIDED & IMPLEMENTED — **Esri** (World Street Map default + World Imagery satellite). Comparison mode removed; `tile.openstreetmap.org` + `export/embed.html` retired. · **Owner:** Legacy/Places
 **Goal:** the map must let the keeper *immediately understand where a Place is* — not imitate Google Maps.
+
+## Decision (2026-07-06)
+
+Danny chose **Esri as the single map provider** — Esri Streets (default) + Esri World Imagery (satellite), toggled on every Place. Rationale was architectural, not cosmetic: one ecosystem / attribution / (future) API key / licensing relationship, and consistent rendering, zoom, and labels across Streets ↔ Satellite. (CARTO Voyager was marginally cleaner for streets, but single-vendor consistency won.)
+
+**Shipped:** every Place detail now has ONE interactive Leaflet map (self-hosted Leaflet, Esri tiles) — read-only until you search or move the pin, then an editable Current → New preview with Save / Cancel (nothing commits until Save). The separate "resolve" and temporary "compare" modes are gone; the map is simply part of editing a Place. Geocoding (search/reverse) stays on keyless Nominatim, server-side. The historical evaluation + retirement plan below is kept as the decision record.
 
 ---
 

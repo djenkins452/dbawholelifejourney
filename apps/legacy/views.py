@@ -823,22 +823,19 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         place = self.object
-        # Geocode the best-known location once (cached on the canonical Place) so the map
-        # can centre on it. Best-effort — never raises, and degrades to the Maps link.
+        # Geocode the best-known location once (cached on the canonical Place) so the
+        # interactive map opens centred on it. Best-effort — never raises. The keeper can
+        # always search or drop a pin to refine; nothing commits until they Save.
         if not place.has_coordinates and place.location_text:
             from apps.legacy.services.geocode import ensure_place_coordinates
             ensure_place_coordinates(place)
-        # TEMPORARY tile-provider comparison (opt-in via ?compare=1) — lets the keeper
-        # evaluate OSM / CARTO / Esri Streets / Esri Satellite on the SAME Place before we
-        # commit to one. Removed once a provider is chosen. See docs/WLJ_LEGACY_MAP_TILES.md.
-        ctx["tile_compare"] = self.request.GET.get("compare") == "1" and place.has_coordinates
         memories = place.memories.all().select_related("primary_media").order_by("-created_at")
         ctx["memories"] = memories
         ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
         ctx["people"] = Person.objects.filter(memories__in=memories).distinct()
         ctx["dated_memories"] = memories.exclude(occurred_on__isnull=True).order_by("occurred_on")
-        # The map preview + "Open in Google Maps" come straight off the canonical Place
-        # (place.maps_embed_url / place.maps_link_url) — no separate location model.
+        # The interactive map reads the canonical Place's coordinates directly (Leaflet +
+        # Esri tiles); "Open in Google Maps" is place.maps_link_url. No location model.
         return ctx
 
 

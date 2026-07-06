@@ -34,20 +34,6 @@ class PlaceMapHelperTests(TestCase):
     def _place(self, **kw):
         return Place.objects.create(user=self.user, **kw)
 
-    def test_embed_centres_on_coordinates_via_openstreetmap(self):
-        p = self._place(name="Marvin's home", location_text="Maryville, Tennessee",
-                        latitude=Decimal("35.756000"), longitude=Decimal("-83.972000"))
-        self.assertTrue(p.has_coordinates)
-        url = p.maps_embed_url
-        self.assertTrue(url.startswith("https://www.openstreetmap.org/export/embed.html"))
-        self.assertIn("marker=35.756000,-83.972000", url)
-        self.assertIn("bbox=", url)
-
-    def test_no_coordinates_yields_no_embed(self):
-        p = self._place(name="Grandma's house", location_text="Maryville, Tennessee")
-        self.assertFalse(p.has_coordinates)
-        self.assertEqual(p.maps_embed_url, "")          # geocoded lazily by the view
-
     def test_open_in_maps_link_uses_text_query(self):
         # The "Open in Google Maps" link works from text alone (city), coords not required.
         p = self._place(name="Grandma's house", location_text="Maryville, Tennessee")
@@ -56,17 +42,20 @@ class PlaceMapHelperTests(TestCase):
         self.assertNotIn("Grandma", p.maps_link_url)    # personal name never geocoded
         self.assertTrue(p.maps_link_url.startswith("https://www.google.com/maps/search/"))
 
-    def test_name_only_place_has_no_map(self):
-        # A bare personal name (no location text) would not geocode — no map, no link.
+    def test_open_in_maps_uses_coordinates_when_known(self):
+        p = self._place(name="Home", location_text="Knoxville, TN",
+                        latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
+        self.assertIn("35.9606", p.maps_link_url)
+
+    def test_name_only_place_has_no_maps_link(self):
+        # A bare personal name (no location text) would not geocode — no Google link.
         p = self._place(name="Grandma's house")
         self.assertEqual(p.map_query, "")
-        self.assertEqual(p.maps_embed_url, "")
         self.assertEqual(p.maps_link_url, "")
 
     def test_no_location_yields_nothing(self):
         p = self._place(name="   ")
         self.assertEqual(p.map_query, "")
-        self.assertEqual(p.maps_embed_url, "")
         self.assertEqual(p.maps_link_url, "")
 
 
@@ -111,32 +100,49 @@ class PlaceMapViewTests(TestCase):
         self.user = _make_user("placeview@example.com")
         self.client.force_login(self.user)
 
-    def test_detail_geocodes_a_city_and_embeds_the_map(self):
+    def test_every_place_has_one_interactive_esri_map(self):
         p = Place.objects.create(user=self.user, name="The lake house",
                                  location_text="Maryville, Tennessee")
         with mock.patch.object(geocode_svc, "geocode",
                                return_value=(Decimal("35.756000"), Decimal("-83.972000"))):
             html = self.client.get(reverse("legacy:place_detail", args=[p.pk])).content.decode()
-        self.assertIn("place-map-frame", html)                          # embedded map
-        self.assertIn("openstreetmap.org/export/embed.html", html)      # keyless, frameable
+        self.assertIn('id="placeMapCard"', html)                        # one unified map
+        self.assertIn("World_Street_Map", html)                         # Esri Streets default
+        self.assertIn("World_Imagery", html)                            # Esri Satellite option
+        self.assertIn("leaflet/leaflet.js", html)                       # interactive (Leaflet)
+        self.assertIn(">Streets<", html)
+        self.assertIn(">Satellite<", html)
+        self.assertIn("Save changes", html)
         self.assertIn("Open in Google Maps", html)
-        self.assertIn("Where this is", html)
+        self.assertNotIn("tile.openstreetmap.org", html)                # OSM tile server retired
+        self.assertNotIn("export/embed.html", html)
         p.refresh_from_db()
         self.assertTrue(p.has_coordinates)                              # cached for reuse
 
-    def test_detail_without_geocode_still_offers_open_in_maps(self):
+    def test_unresolved_place_still_gets_the_map(self):
+        # Even with no coordinates, the map is present (read-only prompt to search/pin).
         p = Place.objects.create(user=self.user, name="Mystery spot", location_text="ZzzUnknown")
         with mock.patch.object(geocode_svc, "geocode", return_value=None):
             html = self.client.get(reverse("legacy:place_detail", args=[p.pk])).content.decode()
-        self.assertNotIn("place-map-frame", html)                       # no coords → no embed
-        self.assertIn("Open in Google Maps", html)                      # link still works
+        self.assertIn('id="placeMapCard"', html)
+        self.assertIn("Not located yet", html)
 
     def test_detail_shows_coordinates_when_known(self):
         p = Place.objects.create(user=self.user, name="Home", location_text="Knoxville, TN",
                                  latitude=Decimal("35.960600"), longitude=Decimal("-83.920700"))
         html = self.client.get(reverse("legacy:place_detail", args=[p.pk])).content.decode()
-        self.assertIn("place-map-coords", html)
+        self.assertIn("pmap-coords", html)
         self.assertIn("35.9606", html)
+
+    def test_no_comparison_mode_remains(self):
+        # The temporary provider-comparison mode is gone — ?compare=1 is inert.
+        p = Place.objects.create(user=self.user, name="Home", location_text="Knoxville, TN",
+                                 latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
+        html = self.client.get(
+            reverse("legacy:place_detail", args=[p.pk]) + "?compare=1").content.decode()
+        self.assertNotIn('id="compareMap"', html)
+        self.assertNotIn("Compare map styles", html)
+        self.assertNotIn("CARTO", html)
 
     def test_place_form_accepts_coordinates(self):
         form = PlaceForm(data={"name": "Home", "location_text": "Knoxville, TN",
@@ -144,34 +150,6 @@ class PlaceMapViewTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         obj = form.save(commit=False)
         self.assertEqual(str(obj.latitude), "35.9606")
-
-    def _resolved_place(self):
-        return Place.objects.create(user=self.user, name="Home", location_text="Knoxville, TN",
-                                    latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
-
-    def test_compare_mode_offers_all_four_providers(self):
-        p = self._resolved_place()
-        html = self.client.get(
-            reverse("legacy:place_detail", args=[p.pk]) + "?compare=1").content.decode()
-        self.assertIn('id="compareMap"', html)
-        for label in ["Current OSM", "CARTO Voyager", "Esri Streets", "Esri Satellite"]:
-            self.assertIn(label, html)
-        self.assertIn("leaflet/leaflet.js", html)
-        self.assertNotIn("place-map-frame", html)   # static embed replaced by the comparison
-
-    def test_compare_mode_is_opt_in_only(self):
-        p = self._resolved_place()
-        html = self.client.get(reverse("legacy:place_detail", args=[p.pk])).content.decode()
-        self.assertNotIn('id="compareMap"', html)    # off by default
-        self.assertIn("place-map-frame", html)        # normal static map
-        self.assertIn("Compare map styles", html)     # discoverable entry point
-
-    def test_compare_mode_needs_coordinates(self):
-        # ?compare=1 does nothing until the Place is resolved (no coords to centre on).
-        p = Place.objects.create(user=self.user, name="Unplaced")
-        html = self.client.get(
-            reverse("legacy:place_detail", args=[p.pk]) + "?compare=1").content.decode()
-        self.assertNotIn('id="compareMap"', html)
 
 
 class GeocodeSearchReverseTests(TestCase):
@@ -210,20 +188,21 @@ class PlaceLocateWorkflowTests(TestCase):
         self.client.force_login(self.user)
         self.place = Place.objects.create(user=self.user, name="Grandma's farm")  # unresolvable
 
-    def test_resolver_shows_when_unresolved(self):
-        # No location text → auto-geocode is skipped → the resolver (search + pin) shows.
+    def test_unresolved_place_gets_the_editable_map(self):
+        # No location text → the one map shows, inviting a search or dropped pin.
         html = self.client.get(reverse("legacy:place_detail", args=[self.place.pk])).content.decode()
-        self.assertIn('id="placeLocate"', html)
-        self.assertIn('id="locateMap"', html)
+        self.assertIn('id="placeMapCard"', html)
+        self.assertIn('id="placeMap"', html)
         self.assertIn("leaflet/leaflet.js", html)          # interactive map assets
-        self.assertIn("Where is this?", html)
+        self.assertIn("Not located yet", html)
+        self.assertIn("Search", html)
 
-    def test_resolver_hidden_once_resolved(self):
+    def test_resolved_place_uses_the_same_map(self):
         self.place.latitude = Decimal("35.0"); self.place.longitude = Decimal("-83.0")
         self.place.save(update_fields=["latitude", "longitude"])
         html = self.client.get(reverse("legacy:place_detail", args=[self.place.pk])).content.decode()
-        self.assertNotIn('id="placeLocate"', html)          # never asked again
-        self.assertIn("place-map-frame", html)              # shows the resolved map instead
+        self.assertIn('id="placeMapCard"', html)            # same single map, now centred
+        self.assertIn("World_Imagery", html)                # Satellite toggle available too
 
     def test_search_endpoint_returns_json(self):
         with mock.patch.object(geocode_svc, "search",

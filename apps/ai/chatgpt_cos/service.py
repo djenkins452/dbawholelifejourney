@@ -159,10 +159,17 @@ class ChatGPTCoSService:
 
         # TEMP diagnostic (2026-07-06): prove the whole Current-Context chain for the real turn.
         try:
+            import os as _os
+            import socket as _socket
+
             from django.core.cache import cache as _dbgc
             _pc = page_context if isinstance(page_context, dict) else {}
             _dbgc.set(f"wlj:dbg:cc:generate:{self.user.id}", {
                 "message": (message or "")[:120],
+                "host": _socket.gethostname(),
+                "git_sha": (_os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+                            or _os.environ.get("SOURCE_VERSION") or "?")[:12],
+                "page_context_present": bool(page_context),
                 "page_context_keys": sorted(_pc.keys()),
                 "focus_ref": _pc.get("focus_ref"),
                 "url": _pc.get("url"),

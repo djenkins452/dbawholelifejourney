@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(ui): Weight table row stays cohesive when the date/time wraps
+
+The Edit/Delete cell used `display: flex` on a `<td>`, which takes the cell out of table layout — so when the date/time wrapped to two lines (e.g. "Jul 6, 2026 / 6:32 AM") the actions cell no longer stretched to the row height and its bottom border sat above the row's, making the Edit/Delete area look detached with a horizontal break. Fix: the `<td>` is now a normal middle-aligned table cell (`vertical-align: middle`) and the flex layout moved to an inner `.entry-actions-inner` wrapper. Naturally handles wrapped date/time, single-line dates, future metadata, and the responsive (overflow-x) layout — no hardcoded row heights, no behavior change. `templates/health/weight_list.html` (inline template CSS — no collectstatic needed).
+
 ## 2026-07-06 — feat(ios): native app honors the HealthKit reimport directive + preserves sample time
 
 Completes the HealthKit Historical Reimport loop on the native side (ios/WLJWrapper).

@@ -92,6 +92,7 @@ urlpatterns = [
     path("physical/weight/<int:pk>/edit/", views.WeightUpdateView.as_view(), name="weight_update"),
     path("physical/weight/<int:pk>/delete/", views.WeightDeleteView.as_view(), name="weight_delete"),
     path("physical/weight/bulk/delete/", views.BulkDeleteWeightView.as_view(), name="weight_bulk_delete"),
+    path("physical/weight/reimport/", views.healthkit_reimport_request, name="healthkit_reimport"),
 
     # Fasting
     path("physical/fasting/", views.FastingListView.as_view(), name="fasting_list"),

@@ -2895,6 +2895,16 @@ def sync_status(request):
             source="apple_health",
         ).order_by("-recorded_at").values_list("recorded_at", flat=True).first()
 
+        # A user-triggered historical reimport directive the app should fulfil: re-query
+        # HealthKit over `since`..now for `metrics` and re-POST to /health/ingest/ (which
+        # self-heals noon-defaulted rows), then POST counts to /health/reimport/complete/.
+        try:
+            from apps.health.services.healthkit_reimport import pending_directive
+            reimport = pending_directive(user)
+        except Exception:
+            logger.warning("sync_status: reimport directive failed", exc_info=True)
+            reimport = None
+
         return JsonResponse({
             "last_sync": last_run.created_at.isoformat() if last_run else None,
             "last_sync_status": last_run.status if last_run else None,
@@ -2905,6 +2915,7 @@ def sync_status(request):
                 "sleep": latest_sleep.isoformat() if latest_sleep else None,
                 "blood_glucose": latest_glucose.isoformat() if latest_glucose else None,
             },
+            "reimport": reimport,
             "device": {
                 "name": device.device_name or device.device_model or "Unknown",
                 "last_seen": device.last_seen_at.isoformat() if device.last_seen_at else None,
@@ -3194,3 +3205,46 @@ def _serialize_person(person):
         "relationship_type": person.relationship_type or "",
         "notes": person.notes or "",
     }
+
+
+# =============================================================================
+# HealthKit Historical Reimport — completion callback
+# =============================================================================
+
+
+@require_mobile_auth
+@require_http_methods(["POST"])
+def reimport_complete(request):
+    """The native app reports the result of fulfilling a reimport directive.
+
+    POST /api/mobile/health/reimport/complete/
+    Body: {request_id, scanned, created, updated, skipped, failed, note?}
+
+    The actual repair happens through /health/ingest/ (self-heal); this only records the
+    counts and closes the request so the Settings UI can show the outcome.
+    """
+    try:
+        data = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({"error": "invalid_json"}, status=400)
+
+    request_id = data.get("request_id")
+    if not request_id:
+        return JsonResponse({"error": "request_id_required"}, status=400)
+
+    from apps.health.services.healthkit_reimport import complete_request
+    req = complete_request(
+        request.user, request_id,
+        scanned=data.get("scanned", 0), created=data.get("created", 0),
+        updated=data.get("updated", 0), skipped=data.get("skipped", 0),
+        failed=data.get("failed", 0), note=data.get("note", ""),
+    )
+    if req is None:
+        return JsonResponse({"error": "not_found"}, status=404)
+    return JsonResponse({
+        "success": True,
+        "request_id": req.id,
+        "status": req.status,
+        "counts": {"scanned": req.scanned, "created": req.created,
+                   "updated": req.updated, "skipped": req.skipped, "failed": req.failed},
+    })

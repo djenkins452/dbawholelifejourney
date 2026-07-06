@@ -6,6 +6,19 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(healthkit): user-triggered HealthKit Historical Reimport (repairs noon-defaulted timestamps)
+
+A reusable product capability (not a one-off Xcode hack) to repair historical body-composition samples that were stored at 12:00 PM before the ingest fix. The server can't read HealthKit (on-device), so it's a durable hand-off following the intended "Re-import Sleep History" pattern:
+
+- **Model** `HealthReimportRequest` (mobile) — user + metric list (default weight/body_fat/lean_body_mass) + since_date + status + counts (scanned/created/updated/skipped/failed). Migration `mobile/0003`.
+- **Service** `apps/health/services/healthkit_reimport.py` — `request_reimport` (supersedes any open request), `pending_directive` (marks in_progress), `complete_request`, `latest_request`.
+- **Mobile API** — `GET /api/mobile/health/sync-status/` now returns a `reimport` directive `{request_id, metrics, since, status}` (null when none); new `POST /api/mobile/health/reimport/complete/` records the app's counts. The actual repair flows through the existing `/health/ingest/` self-heal (by stable sample UUID; never fabricates a time; no duplicates).
+- **Web UI** — a "Re-import from Apple Health" control on the Weight page (`weight_list.html`) with plain-language copy (repairs old noon timestamps · safe to run · Apple Health is the source of truth) + last-run status; POST view `health:healthkit_reimport`.
+- **Metrics:** weight, body_fat, lean_body_mass (all `WeightEntry.recorded_at`). BMI is date-only by design and unaffected; vitals already correct. The metric list is generic so the same capability covers any future date-only/noon metric.
+- **Safety/idempotency:** safe to run repeatedly (new request supersedes pending; ingest dedups by sync_id/date; self-heal only when the real time exists); does NOT weaken temporal integrity; never fabricates.
+
+**Files:** `apps/mobile/models.py`, `apps/mobile/migrations/0003_healthreimportrequest.py`, `apps/mobile/views.py`, `apps/mobile/urls.py`, `apps/health/services/healthkit_reimport.py`, `apps/health/views.py`, `apps/health/urls.py`, `templates/health/weight_list.html`, `apps/mobile/tests/test_healthkit_reimport.py`, `docs/ios-healthkit-integration.md`, `apps/core/fixtures/release_notes.json`. **Verification:** 18 tests green (service supersede/directive/complete; mobile sync-status directive + completion endpoint; web POST creates request). One-time iOS support to honor the sync-status directive is documented in the integration doc; after that the button repairs history on demand with no further app changes.
+
 ## 2026-07-06 — fix(dashboard): never_cache the authenticated dashboard document (DB↔browser divergence, final RCA)
 
 **Incident:** after migration 0127 healed the milestone-win GuidanceItem (DB + composer + template fragment all proven correct via the debug endpoint), the browser still showed the pre-heal card ("Milestone reached") through a hard refresh.

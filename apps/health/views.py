@@ -796,6 +796,13 @@ class WeightListView(HelpContextMixin, LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         entries = self.get_queryset()
 
+        # HealthKit historical reimport — the latest request's status/counts for the UI.
+        try:
+            from apps.health.services.healthkit_reimport import latest_request
+            context["reimport_latest"] = latest_request(self.request.user)
+        except Exception:
+            context["reimport_latest"] = None
+
         if entries.exists():
             context["latest"] = entries.first()
             context["total_count"] = entries.count()
@@ -7494,3 +7501,28 @@ class HealthRebuildView(LoginRequiredMixin, View):
             queued += 1
 
         return JsonResponse({'success': True, 'queued': queued, 'days': days})
+
+
+# =============================================================================
+# HealthKit historical reimport — user-triggered repair of noon-defaulted samples
+# =============================================================================
+from django.contrib.auth.decorators import login_required as _hk_login_required
+from django.views.decorators.http import require_POST as _hk_require_POST
+
+
+@_hk_login_required
+@_hk_require_POST
+def healthkit_reimport_request(request):
+    """Request a historical Apple Health re-import to repair noon-defaulted body-
+    composition timestamps (weight / body fat / lean mass). Safe to run repeatedly — a
+    new request supersedes any pending one. The native app fulfils it from Apple Health
+    (the source of truth); the server never fabricates a timestamp."""
+    from apps.health.services.healthkit_reimport import request_reimport
+    request_reimport(request.user)
+    messages.success(
+        request,
+        "Apple Health re-import requested. Open the WLJ app and let it sync — your "
+        "historical body-composition entries will be repaired using Apple Health's real "
+        "sample times. This is safe to run again anytime.",
+    )
+    return redirect("health:weight_list")

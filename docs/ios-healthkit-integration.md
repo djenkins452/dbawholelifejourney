@@ -161,21 +161,39 @@ stable HealthKit UUID `sync_id` (or by date for pre-UUID rows, backfilling the U
 timestamps are fabricated and no duplicate rows are created (verified by
 `apps/mobile/tests/test_weight_timestamp.py`).
 
-To repair ALL historical rows, run ONE full-history resync — widen the weight /
-body-mass / lean-mass `HKSampleQuery` window to the account start instead of −7 days:
+Repair is a **user-triggered product capability** (no per-repair Xcode change). The user
+taps **"Re-import from Apple Health"** on the Weight page → the server records a
+`HealthReimportRequest`. The native app fulfils it via the **sync-status directive** it
+already polls:
 
-```swift
-// ONE-TIME backfill: re-query the whole journey so every sample re-POSTs with its
-// real HealthKit sample date. The server heals each noon row in place by sync_id.
-let startDate = accountCreationDate            // or a safe floor, e.g. 2 years back
-let endDate = Date()
-// …HKSampleQuery for .bodyMass / .bodyFatPercentage / .leanBodyMass over [startDate, endDate]
-// …POST each sample with `date` = sample.startDate (ISO8601) and `sync_id` = "weight-\(sample.uuid)"
+**1. Read the directive** — `GET /api/mobile/health/sync-status/` now returns:
+
+```jsonc
+"reimport": {                       // null when nothing is pending
+  "request_id": 42,
+  "metrics": ["weight", "body_fat", "lean_body_mass"],
+  "since": null,                    // ISO date, or null = full history
+  "status": "in_progress"
+}
 ```
 
-After the backfill, revert to the normal 7-day window. This is the only correct repair —
-truth comes from Apple Health, not a fabricated time. (BMI is date-only by design —
-`BodyCompositionEntry.measurement_date` — and is unaffected.)
+**2. Fulfil it** — when `reimport` is non-null, run a ONE-TIME full-history query for the
+listed metrics and POST each sample to the normal `/health/ingest/` (the server self-heals
+noon rows in place by `sync_id`):
+
+```swift
+let startDate = reimport.since ?? accountCreationDate   // full history when since == nil
+// HKSampleQuery for .bodyMass / .bodyFatPercentage / .leanBodyMass over [startDate, now]
+// POST each: date = sample.startDate (ISO8601), sync_id = "weight-\(sample.uuid)"
+```
+
+**3. Report completion** — `POST /api/mobile/health/reimport/complete/` with
+`{request_id, scanned, created, updated, skipped, failed}`. The Weight page then shows the
+outcome. After fulfilling, resume the normal 7-day window.
+
+Truth comes from Apple Health, never a fabricated time. Safe to run repeatedly (a new
+request supersedes any pending one; ingest dedups by `sync_id`/date). BMI is date-only by
+design (`BodyCompositionEntry.measurement_date`) and is unaffected.
 
 ### Query Patterns
 

@@ -19,6 +19,31 @@
         <a href="{% url 'health:weight_create' %}" class="btn btn-primary" data-testid="health-add-weight-button">Log Weight</a>
     </div>
 
+    <!-- Apple Health historical re-import — repairs old noon-defaulted (12:00 PM) timestamps -->
+    <details class="applehealth-reimport mb-6" data-testid="applehealth-reimport">
+        <summary class="applehealth-reimport__summary">Apple Health data &amp; timestamps</summary>
+        <div class="applehealth-reimport__body">
+            <p>
+                Re-import your historical <strong>body-composition</strong> data (weight, body fat,
+                lean mass) from Apple Health. Older entries may show a placeholder time of
+                <strong>12:00&nbsp;PM</strong> — this repairs them using Apple Health's real sample
+                times. It's safe to run anytime, uses Apple Health as the source of truth, and
+                never changes your recorded weights.
+            </p>
+            {% if reimport_latest %}
+                <p class="applehealth-reimport__status" data-testid="reimport-status">
+                    Last request: <strong>{{ reimport_latest.get_status_display }}</strong>{% if reimport_latest.status == 'completed' %} — {{ reimport_latest.updated }} repaired of {{ reimport_latest.scanned }} scanned.{% elif reimport_latest.is_open %} — open the WLJ app and let it sync to finish.{% endif %}
+                </p>
+            {% endif %}
+            <form method="post" action="{% url 'health:healthkit_reimport' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="reimport-submit">
+                    Re-import from Apple Health
+                </button>
+            </form>
+        </div>
+    </details>
+
     {% if entries %}
         <!-- Stats Summary -->
         <div class="stats-bar mb-6">
@@ -145,6 +170,22 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+.applehealth-reimport__summary {
+    cursor: pointer;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    padding: 0.5rem 0;
+}
+.applehealth-reimport__body {
+    margin-top: 0.5rem;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    max-width: 640px;
+}
+.applehealth-reimport__body p { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.5; }
+.applehealth-reimport__status { color: var(--color-text-muted); font-size: 0.85rem; }
 .stats-bar {
     display: flex;
     flex-wrap: wrap;

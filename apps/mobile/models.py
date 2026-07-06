@@ -470,3 +470,73 @@ class HealthIngestionRun(TimeStampedModel):
         self.completed_at = timezone.now()
         self.error_message = error_message
         self.save(update_fields=["status", "completed_at", "error_message", "updated_at"])
+
+
+class HealthReimportRequest(TimeStampedModel):
+    """A user-triggered request to RE-FETCH historical HealthKit samples from Apple Health
+    and repair WLJ records with the true sample timestamp.
+
+    The server cannot read HealthKit (it lives on-device), so this is the durable
+    hand-off: the user asks for a reimport here (web), the native app reads the pending
+    request from the sync-status poll, re-queries HealthKit over the requested window,
+    re-POSTs each sample to /health/ingest/ (which SELF-HEALS noon-defaulted rows by the
+    stable sample UUID — never fabricating a time), then reports the counts here. Safe to
+    run repeatedly; a new request supersedes any earlier pending one for the same user.
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_COMPLETED = "completed"
+    STATUS_FAILED = "failed"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In progress"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    # The default scope: the metrics that were noon-defaulted (body composition). The
+    # field is a list so the SAME capability repairs any future date-only/noon metric.
+    DEFAULT_METRICS = ["weight", "body_fat", "lean_body_mass"]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="health_reimport_requests",
+    )
+    metrics = models.JSONField(
+        default=list,
+        help_text="HealthKit metric types to re-fetch (e.g. weight, body_fat, lean_body_mass).",
+    )
+    since_date = models.DateField(
+        null=True, blank=True,
+        help_text="Re-fetch samples on/after this local date. NULL = full history.",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    # Counts reported by the app after it fulfils the request.
+    scanned = models.PositiveIntegerField(default=0)
+    created = models.PositiveIntegerField(default=0)
+    updated = models.PositiveIntegerField(default=0)
+    skipped = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+
+    class Meta:
+        verbose_name = "Health Reimport Request"
+        verbose_name_plural = "Health Reimport Requests"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "status"]),
+        ]
+
+    def __str__(self):
+        return f"Reimport {self.id} [{self.status}] {self.user_id}: {','.join(self.metrics or [])}"
+
+    @property
+    def is_open(self):
+        return self.status in (self.STATUS_PENDING, self.STATUS_IN_PROGRESS)

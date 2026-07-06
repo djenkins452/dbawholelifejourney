@@ -99,3 +99,58 @@ class RoutingTests(TestCase):
         with mock.patch(_CALL_API, return_value="general answer"):
             out = route_message(self.u, "Summarize this scripture.", None)
         self.assertNotEqual((out or {}).get("lane"), "page_reference")
+
+
+class FocusedObjectTests(TestCase):
+    """FOCUSED OBJECT AWARENESS — server-side resolution of the entity in focus from the
+    URL when the client sends only the page location (the Goals "details didn't come
+    through" case). Generalizes across modules; user-scoped."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="fo@x.com", password="x")
+
+    def _goal(self, title="Launch WLJ", desc="Ship the app to production"):
+        from datetime import date
+        from apps.purpose.models import LifeGoal
+        return LifeGoal.objects.create(user=self.u, title=title, description=desc,
+                                       target_date=date(2027, 1, 1))
+
+    def test_resolves_goal_from_detail_url(self):
+        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
+        g = self._goal()
+        f = resolve_focused_object(self.u, f"/purpose/goals/{g.pk}/", "purpose")
+        self.assertEqual(f["kind"], "goal")
+        self.assertIn("Launch WLJ", f["content"])
+        self.assertIn("Ship the app to production", f["content"])
+
+    def test_goals_landing_falls_back_to_mission(self):
+        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
+        g = self._goal(title="France 2027")
+        with mock.patch("apps.purpose.mission_selection.select_active_mission_goal", return_value=g):
+            f = resolve_focused_object(self.u, "/purpose/goals/", "purpose")
+        self.assertIn("France 2027", f["content"])
+
+    def test_resolves_journal_entry(self):
+        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
+        from apps.journal.models import JournalEntry
+        e = JournalEntry.objects.create(user=self.u, title="Gratitude", body="Today I felt grateful.")
+        f = resolve_focused_object(self.u, f"/journal/{e.pk}/", "journal")
+        self.assertEqual(f["kind"], "journal_entry")
+        self.assertIn("grateful", f["content"])
+
+    def test_other_users_object_not_leaked(self):
+        from apps.ai.chatgpt_cos.page_reference import resolve_focused_object
+        g = self._goal()
+        other = User.objects.create_user(email="other-fo@x.com", password="x")
+        self.assertIsNone(resolve_focused_object(other, f"/purpose/goals/{g.pk}/", "purpose"))
+
+    def test_explain_this_on_goal_detail_resolves_server_side(self):
+        # The exact production case: client sent NO content, server resolves the goal.
+        g = self._goal(title="Launch WLJ", desc="Ship the app to production")
+        pc = {"module": "purpose", "url": f"/purpose/goals/{g.pk}/",
+              "page_title": "Launch WLJ", "page_content": {}}
+        with mock.patch(_CALL_API, return_value="This goal is about shipping WLJ.") as m:
+            out = answer_page_reference(self.u, "Explain this.", None, pc)
+        self.assertEqual(out["lane"], "page_reference")
+        self.assertIn("shipping WLJ", out["answer"])
+        self.assertIn("Ship the app to production", m.call_args[0][0])   # goal content handed to model

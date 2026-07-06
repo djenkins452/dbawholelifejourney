@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(cos): Focused Object Awareness — Beth knows WHICH object, not just the page
+
+**Proven root cause:** Page Awareness worked (Beth knew the module/page), but the entity's CONTENT reached her only when the CLIENT extracted it (`extractPageContent` in `chat_widget.html` handles a few pages like Faith scripture; Goals/most pages send only metadata). So `resolve_page_focus` found no content → "I can see you're on Goals, but its details didn't come through." Beth knew the page, not the focused object.
+
+**Fix (extend Page Awareness — no new context system):** new `resolve_focused_object(user, url, module)` resolves the entity IN FOCUS **server-side** from the page URL against the canonical model — a `/<pk>/` detail page fetches that record; a module landing falls back to the module's current object (Goals landing → the primary mission goal). `resolve_page_focus(page_context, user=…)` now calls it whenever the client sent only the page location. Wired for Goals (`LifeGoal` → title/description/why-it-matters/success), Journal (`JournalEntry` → title/body), Tasks (`Task` → title/notes); general — one small branch per module. User-scoped (never leaks another user's record). This is another INPUT to the existing page_reference lane / one brain, not a new brain.
+
+**Generalizes** across every detail page whose URL carries the object identity: Goal / Journal entry / Task today; Medication / Health record / Relationship / Transaction / Calendar event by adding a branch.
+
+**Files:** `apps/ai/chatgpt_cos/page_reference.py`, `apps/ai/tests/test_page_reference.py`.
+**Verification:** 16 tests green — "Explain this" on a Goal detail page (empty page_content) resolves the goal server-side and hands its content to the model; Goals landing falls back to the mission goal; journal entry resolves by URL; another user's record is never leaked; client-supplied content still wins when present.
+
 ## 2026-07-06 — feat(cos): Page-Aware Contextual Conversation — "this" binds to the entity on the current page
 
 **Proven root cause (repository-traced):** on the active ChatGPT-CoS path, `route_message` never received `page_context` (the lanes are page-blind), and "Summarize this scripture" was classified GENERAL by `_looks_general` ("this" isn't a personal pronoun, "scripture" wasn't a domain word) → routed to the SANDBOXED general lane, which is explicitly forbidden from referencing page/personal data → "I can't see specific content…". Pronoun resolution (`referential.py`) binds only to conversation history, never the page. The page CONTENT was actually present in `page_context.page_content` (the client sends `scripture_text`) — it was simply never handed to a handler that could use it; the follow-up then fell to a generic executive/sleep answer.

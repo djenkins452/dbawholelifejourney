@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Priority weighting — stem-based completion filter (journaling-after-done)
+
+The ranker filtered accomplished items by EXACT title match, so a reported "journaled" did not filter a "Journal your day" rhythm item (word forms differ). Completion matching is now STEM-based (5-char token overlap), so a reported activity filters its differently-titled scheduled item — closing the "recommended journaling after the user already journaled" symptom end-to-end (the `priority_correction` lane records the accomplishment; the ranker now drops it). 18 priority-weighting tests green.
+
 ## 2026-07-06 — feat(cos): Executive coaching + health teaching — connect context, don't report
 
 **Executive coaching (Goals & Commitments):** the "today's move" line reported "advance your mission" regardless of context. It now COACHES through the ONE brain's `priority_action`: when what matters most right now is NOT the mission (a health obligation, the evening), Beth names the mission but says the current move is elsewhere and tells the user WHEN to push the mission ("put your real focus on France 2027 tomorrow morning, when you're fresh"). When the mission IS the top move, she names the concrete milestone. Context → mission → decision, not a report. Time is inferred (`part_of_day`), never hardcoded.

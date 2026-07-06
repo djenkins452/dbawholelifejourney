@@ -456,7 +456,10 @@ def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text
         cands.append({"text": (opportunity.get("text") or opportunity.get("action")),
                       "why": (opportunity.get("basis") or "high expected value"),
                       "source": "opportunity", "kind": "opportunity", "score": o, "sched": ""})
-    done = {_pa_norm(a) for a in (accomplishments or [])}
+    # Completion match is STEM-based so a reported "journaled" filters a "Journal your
+    # day" item (word forms differ) — the production "recommended journaling after done".
+    done_stems = {w[:5] for a in (accomplishments or []) for w in _pa_norm(a).split()
+                  if len(w) >= 5}
     defr = {_pa_norm(d) for d in (deferred_labels or []) if d}
     try:
         from apps.core.cos_briefing.rhythm_api import get_remaining_rhythm_items
@@ -465,7 +468,10 @@ def _rank_priority_actions(user, *, health_critical, opportunity, strategic_text
             nt = _pa_norm(title)
             if not title or it.get("completed_today"):    # Req 3 — completion
                 continue
-            if nt in done or nt in hc_titles:              # already done / already surfaced
+            if nt in hc_titles:                            # already surfaced as health-critical
+                continue
+            title_stems = {w[:5] for w in nt.split() if len(w) >= 5}
+            if done_stems & title_stems:                   # already accomplished today
                 continue
             if any(lbl and lbl in nt for lbl in defr):     # user corrected it away
                 continue

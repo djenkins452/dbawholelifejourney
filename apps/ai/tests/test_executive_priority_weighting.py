@@ -80,6 +80,14 @@ class RankerTests(TestCase):
         self.assertNotIn("journal", titles)      # already accomplished
         self.assertNotIn("shower", titles)       # user deferred it away
 
+    def test_reported_word_form_filters_a_differently_titled_item(self):
+        # "journaled" (the user's word) must filter a "Journal your day" rhythm item —
+        # stem-based completion match, the production "recommended journaling after done".
+        pool = [_item("Journal your day", "routine_item", domain="journal"),
+                _item("Stretch", "routine_item")]
+        _, ranked = _rank(self.u, pool, accomplishments=["journaled"])
+        self.assertNotIn("journal your day", [c["text"].lower() for c in ranked])
+
     def test_chronology_is_only_a_tiebreaker(self):
         # Equal-value items → earlier scheduled wins (tiebreaker). But VALUE always beats
         # an earlier clock time: a task at 23:00 outranks supplements at 06:00.

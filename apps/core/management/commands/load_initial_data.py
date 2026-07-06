@@ -615,6 +615,9 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for PGE Guidance Inbox Enhancement
         self._reset_pge_inbox_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Legacy Places (release note, teaching destinations, help topic)
+        self._reset_legacy_places_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset fixtures for SAE State Snapshot Panel
         self._reset_sae_state_snapshot_fixtures(DataLoadConfig, force, verbosity)
 
@@ -1928,6 +1931,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset PIE fixtures FAILED: {e}'))
+
+    def _reset_legacy_places_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for the Legacy Places domain.
+        Reloads release_notes (PK 243), teaching_destinations (PKs 188-189),
+        and help_topics (PK 158) so the Places What's New, teaching destinations,
+        and help topic appear.
+        """
+        reset_tracker_name = 'reset_legacy_places_fixtures_2026_07_06'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Legacy Places')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Legacy Places (Jul 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for Legacy Places'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Legacy Places fixtures FAILED: {e}'))
 
     def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

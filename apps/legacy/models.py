@@ -224,14 +224,12 @@ class Place(LegacyOwnedModel):
     @property
     def maps_link_url(self):
         """'Open in Google Maps' (new tab). Uses the Maps URLs API **Search** action with a
-        URL-encoded `lat%2Clng` query — Google's DOCUMENTED format for pinning raw
-        coordinates: per the docs a bare lat/lng query "puts a pin in the specified
-        location" with "no additional place information", i.e. it does not snap to a nearby
-        place. The comma MUST be encoded (`%2C`) per the docs' own example. For a text-only
-        Place the query is a place name (a search is what we want).
-
-        Exact-pin behaviour is confirmed in production via /legacy/debug/map/ (which offers
-        every candidate URL side-by-side) — not assumed here."""
+        URL-encoded `lat%2Clng` query — Google's documented format for pinning raw
+        coordinates (a bare lat/lng query "puts a pin in the specified location" with "no
+        additional place information"; the comma MUST be encoded `%2C` per the docs). For a
+        text-only Place the query is a place name (a search is what we want).
+        Production-verified 2026-07-06: the Google pin matches the Esri map exactly once the
+        Place holds correct coordinates (the earlier mismatch was stale Nominatim coords)."""
         from urllib.parse import quote
         if self.has_coordinates:
             return ("https://www.google.com/maps/search/?api=1&query=%s"

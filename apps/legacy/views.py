@@ -771,6 +771,7 @@ class PlacesView(LegacyContextMixin, TemplateView):
         ctx["places"] = places.select_related("primary_photo")
         ctx["q"] = q
         ctx["total_count"] = places.count()
+        ctx["help_context_id"] = "LEGACY_PLACES"
         return ctx
 
 
@@ -841,6 +842,7 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
         ctx["dated_memories"] = memories.exclude(occurred_on__isnull=True).order_by("occurred_on")
         # The interactive map reads the canonical Place's coordinates directly (Leaflet +
         # Esri tiles); "Open in Google Maps" is place.maps_link_url. No location model.
+        ctx["help_context_id"] = "LEGACY_PLACES"
         return ctx
 
 

@@ -4607,4 +4607,36 @@ Body composition intelligence that transforms raw weight and body-fat data into 
 
 ---
 
-*Last updated: 2026-03-30*
+## Legacy — Places (Family History Locations)
+
+### Overview
+Places are the canonical locations in the Legacy (preservation) domain — homes, towns, a family farm, a favorite table. Each Place **owns its coordinates**; every other feature (Stories, Timeline, People, Memories) consumes the Place rather than storing its own location. Full as-built reference: `docs/WLJ_LEGACY_PLACES.md`.
+
+### The interactive map
+Every Place detail has ONE interactive map (self-hosted **Leaflet** over **Esri** tiles — Streets default, Satellite toggle). It is read-only until you interact, then becomes an editable **Current → New** preview with **Save / Cancel** — nothing commits until Save (the same CRUD philosophy as every canonical entity).
+
+### Workflow
+1. **Add a place** — name + optional address/town; Legacy auto-geocodes it (Esri) when it can.
+2. **Search** — type any address (incl. specific street addresses); pick the match → the pin jumps there.
+3. **Drop a pin** — pan/zoom and click the map for spots no address can find (a farm, a fishing hole).
+4. **Streets / Satellite** — toggle to recognize the location from above.
+5. **Preview & Save** — the change shows side by side; Save writes the coordinate (with provenance), Cancel reverts.
+6. **Open in Google Maps** — one tap opens the exact spot (`?api=1&query=<lat>%2C<lng>`).
+7. **Review saved locations** (`/legacy/places/review-locations/`) — compare each legacy coordinate with a fresh Esri suggestion and **Keep current** or **Use suggested**; provider-independent, never overwrites a self-placed pin.
+
+### Coordinate provenance
+`Place.coordinate_source` records how a coordinate was set — `esri` (geocode/search/accepted suggestion), `pin` (map click), `manual` (typed on form), `reviewed` (kept in review), or `''` (legacy). Migration `0035`. Written through the single `Place.set_coordinates(lat, lon, source)`.
+
+### Key Files
+- `apps/legacy/models.py :: Place` — canonical model, `coordinate_source`, `maps_link_url`, `set_coordinates`.
+- `apps/legacy/services/geocode.py` — Esri World Geocoding (search/reverse/auto), instrumented.
+- `apps/legacy/services/location_review.py` — provider-independent review candidates.
+- `apps/legacy/views.py` — `PlaceProfileView`, `PlaceLocate{Search,Reverse,Save}View`, `LocationReview[Apply]View`.
+- `templates/legacy/{place_detail.html, location_review.html}`; self-hosted Leaflet at `static/legacy/vendor/leaflet/`.
+
+### Testing
+`apps/legacy/tests/test_places_map.py` (map, geocoding, provenance, review), `test_connections.py::PlaceMapLinkTests` (Google Maps link).
+
+---
+
+*Last updated: 2026-07-06*

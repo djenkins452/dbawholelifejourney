@@ -2487,5 +2487,21 @@
       "created_at": "2026-03-07T00:00:00Z",
       "updated_at": "2026-03-07T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 158,
+    "fields": {
+      "context_id": "LEGACY_PLACES",
+      "help_id": "legacy-places",
+      "title": "Places",
+      "description": "Record the locations that mattered and pinpoint each one on an interactive map.",
+      "content": "## Places\n\nPlaces are the locations that mattered — homes, towns, a family farm, a favorite table. Each place opens on an interactive map so you can pinpoint exactly where it is, and that location is then used everywhere in Legacy.\n\n### Adding a place\n\n1. Go to **Legacy → Places** and tap **Add a place**.\n2. Give it a name (\"The lake house\") and, if you know it, an address or town.\n3. Save — Legacy places it on the map automatically when it can.\n\n### The map\n\nEvery place has one interactive map. It stays read-only until you touch it.\n\n- **Search** — type an address or town and pick the match; the pin jumps there.\n- **Drop a pin** — pan and zoom, then click the map to place the pin exactly (perfect for a farm or fishing hole no address can find).\n- **Streets / Satellite** — switch views to recognize the spot from above.\n- **Preview and save** — moving the pin or searching shows the change side by side (current → new). Tap **Save changes** to keep it, or **Cancel** to leave it untouched. Nothing changes until you save.\n- **Open in Google Maps** — one tap opens the exact spot in Google Maps.\n\n### Review saved locations\n\nOlder places may have been located with a less accurate map. Open **Review saved locations** from the Places page to compare each saved spot with a fresh suggestion and choose **Keep current** or **Use suggested**, one at a time. It never overwrites a spot you placed yourself.\n\n### Good to know\n\n- A place owns its coordinates: set a location once and every story, timeline, and map uses it.\n- A place with only a name (like \"Grandma's house\") won't locate itself — drop a pin to place it.",
+      "app_name": "legacy",
+      "order": 210,
+      "is_active": true,
+      "created_at": "2026-07-06T00:00:00Z",
+      "updated_at": "2026-07-06T00:00:00Z"
+    }
   }
 ]

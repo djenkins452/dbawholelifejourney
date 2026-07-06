@@ -5,6 +5,7 @@
 > **Established:** 2026-07-01
 > **Governs:** Everything the Legacy domain ingests, holds, connects, elicits, and produces — for decades.
 > **Companion laws:** `WLJ_ARCHITECTURE_LAWS.md`, `LAYER1_ENTITY_COMPLETENESS_CONTRACT.md`, `LAYER1_CONSTITUTION.md`, `INTELLIGENCE_ARCHITECTURE.md`, `SIGNAL_TAXONOMY.md`, `docs/domain_registry`.
+> **As-built implementations (complete):** Places — `docs/WLJ_LEGACY_PLACES.md` (canonical Place, coordinates + provenance, interactive Esri map, geocoding, location review).
 
 ---
 

@@ -6,6 +6,29 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — docs(legacy): Places integration — production-approved; documentation, discoverability, and cleanup
+
+Places is production-verified and approved. This is the integration pass: making it a first-class, documented, discoverable part of the product, and reconciling earlier docs with the final as-built implementation.
+
+**New as-built reference:** `docs/WLJ_LEGACY_PLACES.md` — one authoritative doc (architecture + data dictionary + developer + reference): governing principles, the `Place` data dictionary incl. `coordinate_source`, the interactive Esri map, the geocoding pipeline (Esri), the location-review tool, the full URL/view/service inventory, CSP/vendored-assets notes, and the history that shaped the design. Written so someone joining in six months understands Places without the chat history.
+
+**User-facing / discoverability:**
+- **What's New** release note (PK 243, major feature) — the living map, search, drop-a-pin, Streets/Satellite, Open in Google Maps, Review saved locations.
+- **Teaching destinations** — `legacy-places` (`/legacy/places/`) and `legacy-location-review` (`/legacy/places/review-locations/`).
+- **Help topic** `LEGACY_PLACES` (context-aware content) + `help_context_id` set on `PlacesView`/`PlaceProfileView`.
+- **One-time fixture reset** `_reset_legacy_places_fixtures` in `load_initial_data.py` so all three fixtures reload on deploy.
+
+**Reference/architecture docs updated to final state:**
+- `docs/wlj_claude_features.md` — new "Legacy — Places" section.
+- `docs/WLJ_Data_Dictionary.md` — new `legacy (19 tables)` section; Place coordinates + `coordinate_source` documented.
+- `CLAUDE.md` Reference-Docs table — added Legacy architecture, Places (as-built), and map-tiles rows.
+- `docs/WLJ_LEGACY_MAP_TILES.md` — corrected stale "geocoding on Nominatim" → Esri; marked as the decision record pointing to the as-built doc.
+- `docs/WLJ_LEGACY_DOMAIN_ARCHITECTURE.md` — cross-linked the Places as-built doc.
+
+**Cleanup (reflect final, not temporary):** removed the temporary glass-box debug endpoint `/legacy/debug/map/` (`apps/legacy/debug_views.py`, the URL + import) — its incidents (Google-Maps pin, search) are production-verified closed, per the Runtime-Trace protocol ("remove when its incident closes"). Updated the `maps_link_url` docstring (production-verified; dropped the debug-endpoint reference) and the `test_places_map.py` module docstring (was still describing the retired OSM embed).
+
+**Verification:** `manage.py check` clean; `makemigrations --check` clean; 39 place tests green; all three edited fixtures deserialize with valid model+fields (the new PKs 243/188/189/158). No feature/behaviour change — documentation, discoverability, and temporary-scaffolding removal only.
+
 ## 2026-07-06 — fix(cos): reason about MISSING and APPROXIMATE historical events (not just exact matches)
 
 **Root cause (traced, not guessed):** for a crossing that hasn't happened yet ("get below 280", "reach 275"), `navigate()` already returned an honest "haven't yet" via the extremum fallback — so those weren't a reasoning bug (any production failure there was routing/topic-inactive). The real gap was **approximate language**: "when was I around 290?" parsed to nothing → `navigate()` returned None → the lane declined → the generic "service unavailable." The parser only knew crossings and comparisons, never "near a value."

@@ -3974,5 +3974,21 @@
       "created_at": "2026-07-06T12:00:00Z",
       "updated_at": "2026-07-06T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 243,
+    "fields": {
+      "title": "Places now open on a living map — search, drop a pin, and open in Google Maps",
+      "description": "Every place in Legacy now opens on an interactive map you can actually use. Search for any address — even a specific street address — and Legacy drops a pin exactly there; or pan the map and drop a pin yourself. Switch between Streets and Satellite to recognize the spot from above. The map is simply part of editing a place: search a better address or move the pin, preview the change side by side (current vs new), and Save — or Cancel to leave it untouched. Nothing changes until you save. Each place keeps its own coordinates, so a location you set once is used everywhere. Open any place in Google Maps with one tap. And a new “Review saved locations” tool compares your saved spots against a fresh suggestion and lets you keep or update each one — so older locations benefit from the improved map without ever overwriting a spot you placed yourself.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-06",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-07-06T17:00:00Z",
+      "updated_at": "2026-07-06T17:00:00Z"
+    }
   }
 ]

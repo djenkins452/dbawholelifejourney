@@ -3136,5 +3136,39 @@
       "created_at": "2026-03-07T00:00:00Z",
       "updated_at": "2026-03-07T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 188,
+    "fields": {
+      "destination_id": "legacy-places",
+      "name": "Places",
+      "path_description": "Legacy - Places",
+      "explanation": "The places that mattered — homes, towns, a family farm. Each opens on an interactive map you can search, pin, and open in Google Maps.",
+      "url": "/legacy/places/",
+      "keywords": "places,location,map,address,where lived,pin,coordinates,geocode,streets,satellite,open in google maps,legacy places",
+      "module": "legacy",
+      "sort_order": 245,
+      "is_active": true,
+      "created_at": "2026-07-06T00:00:00Z",
+      "updated_at": "2026-07-06T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 189,
+    "fields": {
+      "destination_id": "legacy-location-review",
+      "name": "Review saved locations",
+      "path_description": "Legacy - Places - Review saved locations",
+      "explanation": "Compare each saved place's coordinates against a fresh suggestion and keep or update it — fix any locations that drifted, without overwriting spots you placed yourself.",
+      "url": "/legacy/places/review-locations/",
+      "keywords": "review locations,fix coordinates,wrong location,map accuracy,update place,keep current,use suggested,legacy places review",
+      "module": "legacy",
+      "sort_order": 246,
+      "is_active": true,
+      "created_at": "2026-07-06T00:00:00Z",
+      "updated_at": "2026-07-06T00:00:00Z"
+    }
   }
 ]

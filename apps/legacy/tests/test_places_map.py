@@ -1,6 +1,7 @@
-"""Place map preview — the map is another consumer of the canonical Place. It centres on
-the Place's coordinates; when only a city/address is known, the view geocodes it once and
-caches lat/long on the Place (no separate location model). Keyless OpenStreetMap embed."""
+"""Place map + geocoding — the canonical Place owns its coordinates (no separate location
+model). One interactive Leaflet map over Esri tiles; geocoding (search/reverse/auto) via the
+Esri World Geocoding Service; coordinate provenance on every write; and the provider-
+independent one-time location review."""
 
 from decimal import Decimal
 from unittest import mock

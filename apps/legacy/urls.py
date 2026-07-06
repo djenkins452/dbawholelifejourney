@@ -1,7 +1,6 @@
 from django.urls import path
 
 from . import views
-from .debug_views import LegacyMapDebugView
 
 app_name = "legacy"
 
@@ -74,8 +73,6 @@ urlpatterns = [
     path("places/<int:pk>/locate/search/", views.PlaceLocateSearchView.as_view(), name="place_locate_search"),
     path("places/<int:pk>/locate/reverse/", views.PlaceLocateReverseView.as_view(), name="place_locate_reverse"),
     path("places/<int:pk>/locate/save/", views.PlaceLocateSaveView.as_view(), name="place_locate_save"),
-    # Glass-box debug for the Place resolution pipeline (temporary — Runtime-Trace protocol).
-    path("debug/map/", LegacyMapDebugView.as_view(), name="debug_map"),
     path("places/<int:pk>/archive/", views.PlaceArchiveView.as_view(), name="place_archive"),
     path("places/<int:pk>/restore/", views.PlaceRestoreView.as_view(), name="place_restore"),
     # Timeline & Life Milestones (emergent chapters)

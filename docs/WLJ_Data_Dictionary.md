@@ -2927,6 +2927,30 @@ Every table in the WLJ database, verified against Django ORM. Use these exact na
 | `journal_journalentry` | JournalEntry |
 | `journal_journalprompt` | JournalPrompt |
 
+### legacy (19 tables)
+Preservation domain (family history / life memory). The canonical **`Place`** owns its coordinates — `latitude`/`longitude` (Decimal 9,6, WGS84) plus **`coordinate_source`** (`''` legacy · `esri` · `pin` · `manual` · `reviewed`), added in migration `0035`; no separate location model. Full Place field catalog + the map/geocoding/review design: **`docs/WLJ_LEGACY_PLACES.md`**.
+| Table | Model |
+|-------|-------|
+| `legacy_clarificationdecision` | ClarificationDecision |
+| `legacy_clarificationdismissal` | ClarificationDismissal |
+| `legacy_contributor` | Contributor |
+| `legacy_importbatch` | ImportBatch |
+| `legacy_importchunk` | ImportChunk |
+| `legacy_legacyprofile` | LegacyProfile |
+| `legacy_lifemilestone` | LifeMilestone |
+| `legacy_media` | Media |
+| `legacy_memory` | Memory |
+| `legacy_memorydiscovery` | MemoryDiscovery |
+| `legacy_memoryperson` | MemoryPerson |
+| `legacy_memoryplace` | MemoryPlace |
+| `legacy_memoryrevision` | MemoryRevision |
+| `legacy_output` | Output |
+| `legacy_person` | Person |
+| `legacy_place` | Place |
+| `legacy_preservedfact` | PreservedFact |
+| `legacy_relationship` | Relationship |
+| `legacy_relationshipalias` | RelationshipAlias |
+
 ### life (17 tables)
 | Table | Model |
 |-------|-------|

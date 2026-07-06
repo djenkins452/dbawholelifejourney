@@ -242,20 +242,25 @@ def _persist_major_win(user, verdict, data, goal, progress, next_ms):
     current = data.get("current_weight")
     late = _lateness(data)
 
-    # WHAT HAPPENED
+    # WHAT HAPPENED — the milestone, named, with the honest evidence (weight vs
+    # target, lateness). The progression count is NOT the headline here; it
+    # belongs in WHY (framed as meaning), not as a bare "milestone N of M".
     what = f"You hit the “{title}” milestone on {mission_name}"
     if current is not None and target is not None:
         what += f" — you're at {_num(current)} lb against the {_num(target)} lb target"
     if late:
         what += f" ({late})"
     what += "."
-    if total:
-        what += f" That's milestone {done} of {total} on this mission."
 
-    # WHY IT MATTERS
-    why = ("This is a concrete step toward the mission you set — banking it now "
-           "reinforces the routine that produced it and keeps the plan anchored "
-           "to real progress, not just the end goal.")
+    # WHY IT MATTERS — the SAME canonical meaning-first composition the dashboard
+    # card uses: the milestone's own meaning (its description, if any) grounded by
+    # progression toward THIS mission's purpose (named). Never generic boilerplate.
+    from apps.core.mission_commentary import why_it_matters
+    why = why_it_matters(
+        mission_title=(goal.title if goal is not None else None),
+        milestone_description=_milestone_description(verdict, data),
+        completed=done, total=total, milestone_title=title,
+    ) or "Real progress on the mission you set."
 
     # WHAT TO DO NEXT (the re-plan, made actionable)
     wd = _what_next(next_ms)
@@ -280,9 +285,24 @@ def _persist_major_win(user, verdict, data, goal, progress, next_ms):
         return None
 
 
+def _milestone_description(verdict, data):
+    """The completed milestone's OWN description (the user's stated meaning), if
+    any — so WHY IT MATTERS can speak to what the milestone means, not a template.
+    Fail-soft: returns None when unavailable."""
+    mid = (verdict or {}).get("milestone_id") or (data or {}).get("milestone_id")
+    if not mid:
+        return None
+    try:
+        from apps.purpose.models import GoalMilestone
+        ms = GoalMilestone.objects.filter(pk=mid).only("description").first()
+        return ((ms.description or "").strip() or None) if ms is not None else None
+    except Exception:
+        return None
+
+
 def _what_next(next_ms):
     if next_ms and next_ms.get("kind") == "milestone" and next_ms.get("title"):
-        wd = f"Bank this one, then line up the next rung: {next_ms['title']}"
+        wd = f"Next: {next_ms['title']} is now active"
         if next_ms.get("target_value") is not None:
             wd += f" ({_num(next_ms['target_value'])} lb)"
         return wd + "."

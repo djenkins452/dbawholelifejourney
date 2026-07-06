@@ -1310,65 +1310,20 @@ def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> 
     return out
 
 
-def _progression_clause(completed, total) -> str:
-    """A MEANINGFUL progression phrase (momentum / position), never a bare
-    "N of M" as the point. The count supports the meaning; it isn't the headline."""
-    completed = completed or 0
-    total = total or 0
-    if not total:
-        return (f"That's {completed} milestone{'s' if completed != 1 else ''} cleared"
-                if completed else "")
-    if completed >= total:
-        return "That completes every milestone this mission set out to reach"
-    frac = completed / total
-    if frac >= 0.75:
-        return f"You're {completed} of {total} — the finish line is in sight"
-    if frac >= 0.5:
-        return (f"You're {completed} of {total}, past the halfway mark and "
-                "building real momentum")
-    if frac >= 0.25:
-        return (f"You're {completed} of {total} — a quarter of the way in and "
-                "finding your rhythm")
-    return f"That's {completed} of {total} — the foundation is taking shape"
-
-
 def _milestone_meaning_text(prog) -> str:
-    """Mission-MEANING milestone commentary (deterministic). Celebrates what the
-    milestone MEANS, never that another milestone merely exists. Answers:
-
-      1. WHAT happened  — the milestone, named (its title carries the meaning).
-      2. WHY it matters — the milestone's own description if the user wrote one,
-                          plus progression framed toward the mission's PURPOSE
-                          (the goal title), not a bare number.
-      3. WHAT'S NEXT    — the next rung, now active.
-
-    Every clause names real truth (milestone title/description, mission title,
-    next milestone). Nothing fabricated; zero LLM.
-    """
+    """Mission-MEANING milestone commentary for the dashboard card — delegates to
+    the ONE canonical composer (``apps.core.mission_commentary``) so the card and
+    the Significant Event Pipeline major-win recommendation can never diverge.
+    Answers: (1) WHAT happened, (2) WHY it matters for THIS mission, (3) NEXT."""
+    from apps.core.mission_commentary import milestone_meaning_text
     prog = prog or {}
-    title = (prog.get("last_title") or "").strip() or "A milestone"
-    desc = (prog.get("last_description") or "").strip()
-    mission = (prog.get("mission_title") or "").strip()
-    nxt = (prog.get("next_title") or "").strip()
-
-    parts = [f"{title} — completed."]
-
-    # WHY it matters. The milestone's own description is the truest meaning; a
-    # progression clause tied to the mission's purpose grounds it either way.
-    if desc and desc.lower() != title.lower():
-        parts.append(desc if desc[-1:] in ".!?" else f"{desc}.")
-    prog_clause = _progression_clause(prog.get("completed"), prog.get("total"))
-    if prog_clause and mission:
-        parts.append(f"{prog_clause} — real progress toward {mission}.")
-    elif mission:
-        parts.append(f"Real progress toward {mission}.")
-    elif prog_clause:
-        parts.append(f"{prog_clause}.")
-
-    # WHAT'S NEXT — the next milestone becomes the live focus.
-    if nxt:
-        parts.append(f"Next: {nxt} is now active.")
-    return " ".join(parts)
+    return milestone_meaning_text(
+        milestone_title=prog.get("last_title"),
+        mission_title=prog.get("mission_title"),
+        milestone_description=prog.get("last_description"),
+        completed=prog.get("completed"), total=prog.get("total"),
+        next_title=prog.get("next_title"),
+    )
 
 
 def _mission_status_narrative(state, prog, helping, watching, needs) -> str:

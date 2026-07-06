@@ -184,8 +184,12 @@ class SignificantEventPipelineTests(TestCase):
         self.assertIn("283.1", ack)                    # actual weight (evidence)
         self.assertIn("284.9", ack)                    # target (evidence)
         self.assertIn("2 days late", ack)              # honest: achieved late
-        self.assertIn("2 of 12", ack)                  # mission progress
-        self.assertIn("reinforc", ack.lower())         # why it matters
+        self.assertIn("2 of 12", ack)                  # mission progress (framed as meaning)
+        # WHY is meaning-first now — progression tied to THIS mission's purpose,
+        # never the old generic "concrete step / reinforces the routine" copy.
+        self.assertIn("real progress toward", ack.lower())
+        self.assertIn("France 2027 Family 18K Mission", ack)
+        self.assertNotIn("concrete step toward the mission you set", ack)
 
         # next milestone / next planning step is identified
         nm = summary["next_milestone"]
@@ -203,6 +207,24 @@ class SignificantEventPipelineTests(TestCase):
         payload = deliver.call_args[1]["payload"]
         self.assertEqual(payload["priority"], 2)                  # mission priority
         self.assertEqual(payload["message_type"], "cos_major_win")
+
+    @mock.patch("apps.core.ai_delivery.delivery_router.deliver_in_app")
+    @mock.patch("apps.core.ai_delivery.delivery_engine.deliver_single")
+    def test_win_speaks_the_milestone_own_meaning_when_described(self, _d, _di):
+        # When the milestone has its OWN meaning (a description), the win
+        # acknowledgment must speak THAT — not a generic template. Proves the
+        # stored recommendation uses the meaning-first composer, meaning-first.
+        self.m2.description = "Six consecutive months of consistent progress"
+        self.m2.save(update_fields=["description"])
+        self._log_weight(283.1, date(2026, 7, 2))
+        summary = react_to_significant_event(
+            self.user, EventTypes.PURPOSE_MILESTONE_COMPLETED, self.france_data)
+        ack = summary["acknowledgment"]
+        self.assertIn("Six consecutive months of consistent progress", ack)
+        self.assertIn("real progress toward", ack.lower())
+        self.assertNotIn("concrete step toward the mission you set", ack)
+        self.assertNotIn("banking it now", ack.lower())
+        self.assertNotIn("next rung", ack.lower())
 
     # ── the one-time win is sticky (not auto-resolved by re-detection) ──
 

@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Check-in continuity — the daily check-in menu is a persistent conversation
+
+**Root cause:** `_clarification_reply_lane` called `_clear_pending()` on EVERY resolve, so after the user picked option 1 the pending menu was wiped — the next reply ("2") found no pending, returned None, and fell through (the "2/3/5 sometimes fails" symptom). The menu was single-shot when it is a conversation the user explores across several picks.
+
+**Fix (governing):** menu-type clarifications (`daily_checkin_candidate`, in `_PERSISTENT_CLARIFICATIONS`) are marked `persistent` in `_set_pending`; `_clarification_reply_lane` keeps the pending alive across resolves so 1 → 2 → 5 all work without re-establishing "check in". The menu clears only on a topic-change (a non-option message), so it never hijacks an unrelated request. One-shot clarifications (help/review) are unchanged.
+
+**Files:** `apps/ai/chatgpt_cos/lanes.py`, `apps/ai/tests/test_conversation_lanes.py`.
+**Verification:** 51 tests green (new continuity + topic-change tests; priority-weighting suite unaffected).
+
+
 ## 2026-07-06 — feat(legacy): TEMPORARY map-tile comparison mode + OSM-retirement plan (evidence-based provider choice)
 
 **What:** So the tile-provider decision is evidence-based, not theoretical, a resolved Place can now show an opt-in comparison map that switches between **Current OSM · CARTO Voyager · Esri Streets · Esri Satellite** on the *same* location.

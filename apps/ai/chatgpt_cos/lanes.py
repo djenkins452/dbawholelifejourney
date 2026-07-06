@@ -939,6 +939,13 @@ def _spec_for(ambiguity_type):
     return next((a for a in AMBIGUITY_TYPES if a["type"] == ambiguity_type), None)
 
 
+# A MENU the user explores across several picks (check in → 1 … then 2 … then 5) — the
+# pending stays alive across resolves so the conversation continues; it clears only when
+# the user changes topic (a non-option message). One-shot clarifications (help/review)
+# resolve once and clear.
+_PERSISTENT_CLARIFICATIONS = {"daily_checkin_candidate"}
+
+
 def _set_pending(conversation, ambiguity_type):
     spec = _spec_for(ambiguity_type)
     if conversation is None or not spec:
@@ -947,6 +954,7 @@ def _set_pending(conversation, ambiguity_type):
         md = dict(getattr(conversation, "metadata", None) or {})
         md["pending_clarification"] = {
             "ambiguity_type": ambiguity_type,
+            "persistent": ambiguity_type in _PERSISTENT_CLARIFICATIONS,
             "options": [
                 {"n": o["n"], "aliases": list(o.get("aliases", ())),
                  "resolution": o["resolution"], "resolver": o.get("resolver")}
@@ -1087,9 +1095,12 @@ def _clarification_reply_lane(user, message, conversation=None):
         return None
     opt = parse_clarification_reply(message, pending.get("options") or [])
     if opt is None:
-        _clear_pending(conversation)        # not a reply -> clear stale, route fresh
+        _clear_pending(conversation)        # topic change -> end the menu, route fresh
         return None
-    _clear_pending(conversation)
+    # A persistent MENU stays open so the user can keep exploring (1 … then 2 … then 5)
+    # without re-establishing context; a one-shot clarification clears after resolving.
+    if not pending.get("persistent"):
+        _clear_pending(conversation)
     answer = resolve_clarification_option(user, opt)    # deterministic synthesis
     logger.info("COS_CLARIFY_RESOLVED user=%s type=%s option=%s resolver=%s",
                 getattr(user, "id", None), pending.get("ambiguity_type"),

@@ -325,15 +325,41 @@ class ApprovedRegistryOrderTests(TestCase):
         self.assertEqual(out["lane"], "clarification")
         self.assertEqual(out["ambiguity_type"], "daily_checkin_candidate")
 
-    def test_check_in_then_1_resolves_state(self):
+    def test_check_in_menu_is_a_persistent_conversation(self):
+        # CHECK-IN CONTINUITY: the daily check-in menu is a conversation the user explores
+        # across several picks (1 … then 2 … then 5). Resolving one option must NOT wipe
+        # the menu — subsequent numbers keep resolving without re-establishing "check in".
         with mock.patch(_CALL_API, side_effect=AssertionError("planner")), \
              mock.patch(_FOUNDATIONAL, return_value=None):
             route_message(self.user, "check in", self.conv)
         with mock.patch(_CALL_API, side_effect=AssertionError("openai")), \
              mock.patch(_CALL_API_TOOLS, side_effect=AssertionError("tool loop")):
-            out = route_message(self.user, "1", self.conv)
-        self.assertEqual(out["lane"], "clarification_reply")
-        self.assertEqual(out["resolved_option"], 1)
+            out1 = route_message(self.user, "1", self.conv)
+            self.assertEqual(out1["lane"], "clarification_reply")
+            self.assertEqual(out1["resolved_option"], 1)
+            self.conv.refresh_from_db()
+            # menu STAYS open after the first pick
+            self.assertIn("pending_clarification", self.conv.metadata or {})
+            # a SECOND pick still resolves — the failure the user hit ("2 sometimes fails")
+            out2 = route_message(self.user, "2", self.conv)
+            self.assertEqual(out2["lane"], "clarification_reply")
+            self.assertEqual(out2["resolved_option"], 2)
+            # and a THIRD
+            out5 = route_message(self.user, "5", self.conv)
+            self.assertEqual(out5["lane"], "clarification_reply")
+            self.assertEqual(out5["resolved_option"], 5)
+
+    def test_check_in_menu_clears_on_topic_change(self):
+        # The menu ends the moment the user says something that isn't an option — it must
+        # never hijack an unrelated message.
+        with mock.patch(_CALL_API, side_effect=AssertionError("planner")), \
+             mock.patch(_FOUNDATIONAL, return_value=None):
+            route_message(self.user, "check in", self.conv)
+        self.conv.refresh_from_db()
+        self.assertIn("pending_clarification", self.conv.metadata or {})
+        # a real question is NOT an option -> menu clears, message routes fresh
+        self.assertIsNone(_clarification_reply_lane(
+            self.user, "what was my weight on July 1st?", self.conv))
         self.conv.refresh_from_db()
         self.assertNotIn("pending_clarification", self.conv.metadata or {})
 

@@ -6,6 +6,10 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(legacy): remove stale debug_views import crashing Railway startup
+
+`apps/legacy/urls.py` imported `from .debug_views import LegacyMapDebugView` and routed `path("debug/map/", LegacyMapDebugView.as_view())`, but `apps/legacy/debug_views.py` had been deleted — so the deployed URLconf failed to import (`ModuleNotFoundError: apps.legacy.debug_views`) and Railway startup crashed. Removed the stale import and its URL pattern (temporary Runtime-Trace glass-box endpoint that was retired). Repo-wide search confirms no remaining `LegacyMapDebugView` / `apps.legacy.debug_views` references. Validated: full URLconf imports cleanly and `manage.py check` reports no errors. Infra cleanup — unrelated to CoS work; no behavior change.
+
 ## 2026-07-06 — docs(legacy): Places integration — production-approved; documentation, discoverability, and cleanup
 
 Places is production-verified and approved. This is the integration pass: making it a first-class, documented, discoverable part of the product, and reconciling earlier docs with the final as-built implementation.

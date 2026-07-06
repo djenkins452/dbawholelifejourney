@@ -6,6 +6,18 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): one executive narrative, not domain sections — the communication architecture
+
+**Proven root cause (traced, quoted from the repo):** broad executive questions ("if you were my Chief of Staff this morning, what would you tell me?") fall to the tool-loop LLM, which receives the standing context as a FLAT JSON of ~18 parallel per-domain fields — `_project_standing` (`apps/ai/cos_services/standing_context.py`) emits `health_summary`, `relational_status`, `momentum`, `pressure`, `top_risks`, `top_signals`, `medication_adherence`, `priorities`, plus the `cos_intelligence` catalog (`cos_intelligence_narrative` renders "Risk to watch / What's going well / Pattern / Prediction / Guidance …" as bullets). The LLM faithfully renders that decomposition as sections (Sleep / Protein / Calories / Medication / Relationships / Recommendation). The one brain's single conclusion — `interpret().executive_picture` + `priority_action` — was NEVER injected as the lead. Fragmentation is at the CONTEXT-ASSEMBLY layer, not the prompt. This violated the established principle "compose one state object for Beth to narrate, not atomic signals to reason from."
+
+**Fix (strengthen the one brain — no prompt rewrite, no hardcoding):**
+- New `cos_intelligence.compose_executive_read(user)` — ONE narrative from `interpret()`: CONCLUSION (`executive_picture`) → the MOVE (`priority_action`) → the ARC (`strategic_focus` north star). The composed state object Beth narrates.
+- Composed at WARM time into the cached context (`cos_context.py`, next to `build_cos_intelligence`), so the request path only reads it (cache-first / no-live-compute law honored).
+- `_project_standing` now LEADS with `executive_read` (placed first) and its `trust_framing` instructs: open with that one conclusion, then reason, then move; EVERY other field is SUPPORTING EVIDENCE — never separate sections/dashboard. The full-context path (`cos_intelligence_narrative` block) likewise leads with the read and labels the catalog "supporting evidence."
+
+**Files:** `apps/ai/cos_intelligence.py`, `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/cos_services/standing_context.py`, `apps/ai/tests/test_executive_read.py`.
+**Verification:** 28 directly-affected tests green (cos_intelligence + standing_context + executive_read). `compose_executive_read` yields one conclusion→move→arc narrative with NO section labels; the standing package leads with it and subordinates the domain fields. (Pre-existing unrelated `test_executive_briefing.test_second_call_is_noop` keepdb flake unchanged.)
+
 ## 2026-07-06 — fix(legacy): remove stale debug_views import crashing Railway startup
 
 `apps/legacy/urls.py` imported `from .debug_views import LegacyMapDebugView` and routed `path("debug/map/", LegacyMapDebugView.as_view())`, but `apps/legacy/debug_views.py` had been deleted — so the deployed URLconf failed to import (`ModuleNotFoundError: apps.legacy.debug_views`) and Railway startup crashed. Removed the stale import and its URL pattern (temporary Runtime-Trace glass-box endpoint that was retired). Repo-wide search confirms no remaining `LegacyMapDebugView` / `apps.legacy.debug_views` references. Validated: full URLconf imports cleanly and `manage.py check` reports no errors. Infra cleanup — unrelated to CoS work; no behavior change.

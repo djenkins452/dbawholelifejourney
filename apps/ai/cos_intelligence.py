@@ -538,6 +538,44 @@ def build_cos_intelligence(user):
     return intel
 
 
+def compose_executive_read(user):
+    """The ONE executive narrative — the single conclusion Beth leads with, in the shape a
+    Chief of Staff speaks: CONCLUSION → the reason → the move → the arc. Composed from the
+    ONE brain (interpret): `executive_picture` is the reasoned conclusion, `priority_action`
+    is the move, `strategic_focus` is the north star. This is the composed state object Beth
+    NARRATES — not a catalog of atomic signals she reports section-by-section. Every other
+    standing-context field is evidence FOR this read. Deterministic; None if nothing to say.
+
+    Warm-time composition (called where cos_intelligence is built into the cached context),
+    so the request path only READS it — honoring the cache-first / no-live-compute law."""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import interpret
+        sig = interpret(user)
+    except Exception:
+        logger.debug("executive_read: interpret failed", exc_info=True)
+        return None
+    parts = []
+    # 1) THE conclusion — one thought. executive_picture already reads "reason → conclusion";
+    #    when the day has no single limiter, the conclusion is disciplined execution.
+    picture = (getattr(sig, "executive_picture", "") or "").strip()
+    parts.append(picture or (
+        "Today isn't about working harder — it's about executing well on what matters "
+        "while your energy is where it is."))
+    # 2) THE move — the value-ranked priority action (what I'd do), subordinate to the read.
+    pa = getattr(sig, "priority_action", None) or {}
+    if pa.get("text"):
+        move = f"The one move that matters most right now is {pa['text'].strip()}"
+        if pa.get("why"):
+            move += f" — {pa['why'].strip()}"
+        parts.append(move.rstrip('.') + ".")
+    # 3) THE arc — the mission as north star, so the day connects to the larger story.
+    strat = (getattr(sig, "strategic_focus", "") or "").strip()
+    if strat and strat.lower() not in " ".join(parts).lower():
+        parts.append(f"{strat} stays the north star — today either protects it or moves it forward.")
+    read = " ".join(p for p in parts if p).strip()
+    return read or None
+
+
 def cos_intelligence_narrative(intel):
     """Render the standing read as a prompt section (None if nothing grounded)."""
     if not intel:

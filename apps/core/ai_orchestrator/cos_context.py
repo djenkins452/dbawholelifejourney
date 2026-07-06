@@ -3980,6 +3980,15 @@ def build_cos_context(user, scoped_builders=None):
     except Exception:
         logger.debug("CoS context: cos_intelligence build failed", exc_info=True)
 
+    # The ONE executive narrative Beth LEADS with (conclusion → move → arc), composed from
+    # the single brain (interpret) at WARM time so the request path only reads it. This is
+    # what makes Beth speak as one Chief of Staff instead of concatenating domain sections.
+    try:
+        from apps.ai.cos_intelligence import compose_executive_read
+        context['executive_read'] = compose_executive_read(user)
+    except Exception:
+        logger.debug("CoS context: executive_read build failed", exc_info=True)
+
     elapsed_ms = (_time.monotonic() - start) * 1000
     try:
         from apps.ai.readiness_telemetry import log_parallel_build
@@ -6254,10 +6263,20 @@ def format_cos_system_injection(context, user_message=None):
     # prompt. See apps/ai/cos_intelligence.py.
     # ══════════════════════════════════════════════════════════════
     try:
+        # LEAD with the ONE executive narrative (conclusion → move → arc); the atomic
+        # standing read below is SUPPORTING EVIDENCE for it, never separate sections.
+        _exec_read = context.get('executive_read')
+        if _exec_read:
+            lines.append(
+                "EXECUTIVE READ (your ONE conclusion — open with this; everything below "
+                "is supporting evidence for it, never separate sections):\n" + _exec_read)
+            lines.append("")
         from apps.ai.cos_intelligence import cos_intelligence_narrative
         _cos_intel_block = cos_intelligence_narrative(context.get('cos_intelligence'))
         if _cos_intel_block:
-            lines.append(_cos_intel_block)
+            _label = ("SUPPORTING EVIDENCE for the executive read above (do not list as "
+                      "sections):\n" if _exec_read else "")
+            lines.append(_label + _cos_intel_block)
             lines.append("")
     except Exception:
         logger.debug("CoS standing-read section failed", exc_info=True)

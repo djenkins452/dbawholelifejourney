@@ -109,6 +109,11 @@ def _project_standing(user, context, *, source, build_ms, page_context):
         "personalization": _personalization(user, context),
         # current_screen is the ONLY client-supplied field (PARTIAL — in-app only).
         "current_screen": page_context if page_context else None,
+        # THE EXECUTIVE READ — the SINGLE conclusion Beth leads with (conclusion → reason →
+        # move → arc), composed from the one brain (interpret). Everything below is
+        # SUPPORTING EVIDENCE for this read, never parallel sections. Placed first, on
+        # purpose. Composed at warm time; read-only here (no live compute).
+        "executive_read": context.get("executive_read"),
         "time": {
             "now": timezone.now().isoformat(),
             "day_significance": context.get("day_significance"),
@@ -141,10 +146,16 @@ def _project_standing(user, context, *, source, build_ms, page_context):
         "cos_intelligence": context.get("cos_intelligence"),
         # --- explicit gaps (do not imply truth that isn't computed) ---
         "travel_state": None,  # Travel is an unbuilt domain (ABSENT) — never inferred.
-        # --- narration guard (Law 16) ---
+        # --- narration guard (Law 16) — speak as ONE Chief of Staff, not sections ---
         "trust_framing": (
-            "Standing context is canonical SUMMARY state. Treat rollups as "
-            "summaries, not per-item truth; confirm item-level claims "
+            "LEAD with `executive_read`: it is your ONE executive conclusion right now. "
+            "Speak as a single Chief of Staff — open with that conclusion, then the reason, "
+            "then what you'd do. EVERY other field here (health, momentum, pressure, risks, "
+            "signals, medication, relationships, priorities, …) is SUPPORTING EVIDENCE for "
+            "that read: weave a detail in ONLY to justify the conclusion, and only if it "
+            "changes the read. Never present the fields as separate sections, a list, or a "
+            "dashboard. One thought; everything else supports it. "
+            "Standing context is canonical SUMMARY state; confirm item-level claims "
             "(completed/overdue/next-action) via domain or decision tools."
         ),
         "_meta": {"source": source, "build_ms": build_ms},

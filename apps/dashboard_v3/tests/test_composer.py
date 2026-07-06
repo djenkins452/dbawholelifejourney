@@ -1166,10 +1166,49 @@ class MissionCardTests(TestCase):
         self.assertEqual(status["state"], "AHEAD_OF_PLAN")
         self.assertEqual(status["ring_word"], "AHEAD")
         self.assertEqual(status["tone"], "up")
-        # Narrative communicates WHAT CHANGED + NEXT FOCUS, grounded in truth.
-        self.assertIn("Milestone reached", status["narrative"])
-        self.assertIn("Reach 284.9 lb", status["narrative"])
-        self.assertIn("Next focus: Reach 279.9 lb", status["narrative"])
+        # Meaning-first commentary: WHAT changed (named milestone), WHY it
+        # matters (tied to the mission), and WHAT'S NEXT — grounded in truth.
+        self.assertIn("Reach 284.9 lb", status["narrative"])          # what
+        self.assertIn("France 2027", status["narrative"])             # why (mission)
+        self.assertIn("Reach 279.9 lb", status["narrative"])          # next
+        self.assertIn("now active", status["narrative"])
+
+    def test_milestone_commentary_celebrates_meaning_not_number(self):
+        # Mission Dashboard Truth: commentary must answer three questions —
+        # (1) WHAT happened, (2) WHY it matters for THIS mission, (3) WHAT'S
+        # NEXT — not "that's milestone 6 of 12". Deterministic, zero LLM.
+        from datetime import date, timedelta
+        goal = self._goal(title="Deepen My Walk With God")
+        self._momentum(goal, trend="stable")
+        self._seed_state(faith={"prayer_7d": 6})
+        # Five prior rungs already cleared → this is the 6th.
+        for i in range(5):
+            self._milestone(goal, title=f"Prior {i}", completed=True,
+                            completed_date=date.today() - timedelta(days=30 * (6 - i)))
+        self._milestone(
+            goal, title="June Prayer Milestone", completed=True,
+            completed_date=date.today(),
+            target_date=date.today() + timedelta(days=2),
+            description="Six consecutive months of consistent prayer")
+        # Six more rungs still ahead (total 12); July is the next live rung.
+        self._milestone(goal, title="July Prayer Milestone",
+                        target_date=date.today() + timedelta(days=30))
+        for i in range(5):
+            self._milestone(goal, title=f"Future {i}",
+                            target_date=date.today() + timedelta(days=60 + 30 * i))
+
+        narrative = self._status()["narrative"]
+        # (1) WHAT happened — the milestone, named.
+        self.assertIn("June Prayer Milestone", narrative)
+        # (2) WHY it matters — its own meaning + tied to the mission's purpose.
+        self.assertIn("Six consecutive months of consistent prayer", narrative)
+        self.assertIn("Deepen My Walk With God", narrative)
+        # (3) WHAT'S NEXT — the next rung is now the live focus.
+        self.assertIn("July Prayer Milestone", narrative)
+        self.assertIn("now active", narrative)
+        # NOT a bare numeric celebration.
+        self.assertNotIn("milestone 6 of 12", narrative)
+        self.assertNotIn("That's milestone", narrative)
 
     def test_recent_milestone_reached_late_reads_milestone_win(self):
         from datetime import date, timedelta
@@ -1214,8 +1253,10 @@ class MissionCardTests(TestCase):
         panel = self._panel()
         self.assertEqual(panel["label"], "Milestone reached")
         self.assertEqual(panel["trend"], "up")
+        # Meaning-first: names what was cleared and the next live focus.
         self.assertIn("Reach 284.9 lb", panel["narrative"])
-        self.assertIn("ahead of your plan", panel["narrative"].lower())
+        self.assertIn("Reach 279.9 lb", panel["narrative"])
+        self.assertIn("now active", panel["narrative"].lower())
 
     def test_undated_completion_does_not_trigger_progress_state(self):
         # Back-compat: a completed milestone with NO completed_date (the legacy

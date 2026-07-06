@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(dashboard): Mission commentary celebrates MEANING, not the number
+
+**Mission Dashboard Truth issue (not a CoS issue).** When a mission milestone was cleared, the deterministic mission card celebrated it numerically — "Milestone reached — you cleared "June Prayer Milestone" today (6 of 12)." / "You're ahead of your plan." It announced *that another milestone exists*, not *what the milestone means for this mission*. A milestone is a chapter in a story; the commentary read like a scoreboard.
+
+**Fix (deterministic, zero LLM):** milestone commentary now answers three questions — (1) WHAT happened (the milestone, named — its title carries the meaning), (2) WHY it's meaningful for THIS mission (the milestone's own `description` if the user wrote one, plus progression framed toward the mission's PURPOSE — the goal title — never a bare "N of M"), and (3) WHAT naturally comes next (the next rung, now the live focus). Two new helpers in the composer: `_progression_clause(completed, total)` turns a count into a *meaning* phrase ("past the halfway mark and building real momentum", "the finish line is in sight"), and `_milestone_meaning_text(prog)` weaves title + description + mission-tied progression + next milestone. Both the status narrative (`_mission_status_narrative`) and the "how things are going" panel (`_build_mission_panel`) consume it — a single meaning-first source, so the two surfaces agree. The Dashboard-Truth reconciliation branch (`last_holds is False` — a cleared weight milestone the current metric no longer holds) is preserved untouched; present reality still overrides a past achievement.
+
+**Example:** *"June Prayer Milestone — completed. Six consecutive months of consistent prayer. You're 6 of 12, past the halfway mark and building real momentum — real progress toward Deepen My Walk With God. Next: July Prayer Milestone is now active."*
+
+**Files:** `apps/dashboard_v3/services/composer.py` (`_progression_clause`, `_milestone_meaning_text`; rewired status + panel milestone branches; `_mission_progress_read` now carries `mission_title` + `last_description`). Tests: `apps/dashboard_v3/tests/test_composer.py` — new `test_milestone_commentary_celebrates_meaning_not_number`; two existing milestone assertions updated from the old numeric wording to the meaning-first contract. 84 MissionCardTests green.
+
 ## 2026-07-06 — feat(cos): Executive Priority Weighting — rank by executive VALUE, not chronology
 
 **Governing capability** behind five production failures (Shower/Protein/Pattern/Magnesium/Journaling): every "what should I do / what's next / tomorrow's first / wind-down" answer ordered by `scheduled_time`/bucket/time-derived-urgency — the *next scheduled* item, not what *matters*. WLJ already computes the value factors and even a ranker (EAE), but the chat brain (`interpret()`) produced multi-dimensional signals with **no single value-ranked action**, and the surfaces fell back to rhythm order.

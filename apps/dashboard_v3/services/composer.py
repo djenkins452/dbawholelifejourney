@@ -676,16 +676,11 @@ def _build_mission_panel(goal, snap, progress: dict | None = None) -> dict:
                 "narrative": _reconciled_milestone_text(prog),
                 "is_fallback": False,
             }
-        if prog.get("pace") == "ahead":
-            traj = "You're ahead of your plan."
-        else:
-            traj = "Momentum is back — carry it into the next rung."
-        nxt = (f" Next: {prog['next_title']}." if prog.get("next_title")
-               else " Set your next milestone to keep a concrete target.")
         return {
             "label": "Milestone reached",
             "trend": "up",
-            "narrative": f"You cleared “{prog.get('last_title')}”. {traj}{nxt}",
+            # Mission-meaning commentary — what it means for the mission + next.
+            "narrative": _milestone_meaning_text(prog),
             "is_fallback": False,
         }
     if prog.get("event") == "behind":
@@ -1259,10 +1254,15 @@ def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> 
         # held) / False (regressed above it) / None (not measurable / unknown).
         "last_holds": None, "last_current": None, "last_target": None,
         "last_overage": None,
+        # Mission-MEANING context for semantic milestone commentary.
+        "mission_title": None, "last_description": None,
     }
     try:
         out["total"] = goal.milestone_count
         out["completed"] = goal.completed_milestone_count
+        # The mission's purpose handle — so a milestone celebration can say what
+        # it means FOR THIS MISSION, not just that another milestone exists.
+        out["mission_title"] = (getattr(goal, "title", "") or "").strip() or None
 
         # Most-recent DATED completion. (Test fixtures create completed=True with
         # no completed_date; those legitimately don't count as a fresh event —
@@ -1272,6 +1272,10 @@ def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> 
                 .order_by("-completed_date").first())
         if last is not None:
             out["last_title"] = last.title
+            # The milestone's OWN meaning, if the user wrote one — the truest
+            # "why this matters" for this specific rung.
+            out["last_description"] = (
+                getattr(last, "description", "") or "").strip() or None
             out["last_days_ago"] = (today - last.completed_date).days
             if last.target_date is not None:
                 out["last_on_time"] = last.completed_date <= last.target_date
@@ -1306,6 +1310,67 @@ def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> 
     return out
 
 
+def _progression_clause(completed, total) -> str:
+    """A MEANINGFUL progression phrase (momentum / position), never a bare
+    "N of M" as the point. The count supports the meaning; it isn't the headline."""
+    completed = completed or 0
+    total = total or 0
+    if not total:
+        return (f"That's {completed} milestone{'s' if completed != 1 else ''} cleared"
+                if completed else "")
+    if completed >= total:
+        return "That completes every milestone this mission set out to reach"
+    frac = completed / total
+    if frac >= 0.75:
+        return f"You're {completed} of {total} — the finish line is in sight"
+    if frac >= 0.5:
+        return (f"You're {completed} of {total}, past the halfway mark and "
+                "building real momentum")
+    if frac >= 0.25:
+        return (f"You're {completed} of {total} — a quarter of the way in and "
+                "finding your rhythm")
+    return f"That's {completed} of {total} — the foundation is taking shape"
+
+
+def _milestone_meaning_text(prog) -> str:
+    """Mission-MEANING milestone commentary (deterministic). Celebrates what the
+    milestone MEANS, never that another milestone merely exists. Answers:
+
+      1. WHAT happened  — the milestone, named (its title carries the meaning).
+      2. WHY it matters — the milestone's own description if the user wrote one,
+                          plus progression framed toward the mission's PURPOSE
+                          (the goal title), not a bare number.
+      3. WHAT'S NEXT    — the next rung, now active.
+
+    Every clause names real truth (milestone title/description, mission title,
+    next milestone). Nothing fabricated; zero LLM.
+    """
+    prog = prog or {}
+    title = (prog.get("last_title") or "").strip() or "A milestone"
+    desc = (prog.get("last_description") or "").strip()
+    mission = (prog.get("mission_title") or "").strip()
+    nxt = (prog.get("next_title") or "").strip()
+
+    parts = [f"{title} — completed."]
+
+    # WHY it matters. The milestone's own description is the truest meaning; a
+    # progression clause tied to the mission's purpose grounds it either way.
+    if desc and desc.lower() != title.lower():
+        parts.append(desc if desc[-1:] in ".!?" else f"{desc}.")
+    prog_clause = _progression_clause(prog.get("completed"), prog.get("total"))
+    if prog_clause and mission:
+        parts.append(f"{prog_clause} — real progress toward {mission}.")
+    elif mission:
+        parts.append(f"Real progress toward {mission}.")
+    elif prog_clause:
+        parts.append(f"{prog_clause}.")
+
+    # WHAT'S NEXT — the next milestone becomes the live focus.
+    if nxt:
+        parts.append(f"Next: {nxt} is now active.")
+    return " ".join(parts)
+
+
 def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
     """Compose the executive narrative deterministically: what changed · why /
     trajectory · next focus · one grounded habit clause. A progress state LEADS
@@ -1320,18 +1385,12 @@ def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
         # milestone, the present state — not the past achievement — drives it.
         if prog.get("last_holds") is False:
             return _reconciled_milestone_text(prog)
-        days = prog.get("last_days_ago")
-        when = ("today" if days is not None and days <= 0
-                else "yesterday" if days == 1 else f"{days} days ago")
-        completed, total = prog.get("completed", 0), prog.get("total", 0)
-        count = f" ({completed} of {total})" if total else ""
-        parts = [f"Milestone reached — you cleared “{prog.get('last_title')}” "
-                 f"{when}{count}.", _STATE_BASE[state]]
-        if prog.get("next_title"):
-            parts.append(f"Next focus: {prog['next_title']}.")
+        # Celebrate what the milestone MEANS for this mission — not a bare count.
+        text = _milestone_meaning_text(prog)
+        # One grounded habit clause, only if a real helping signal exists.
         if helping and helping[0].get("help_frag"):
-            parts.append(helping[0]["help_frag"])
-        return " ".join(p for p in parts if p)
+            text = f"{text} {helping[0]['help_frag']}"
+        return text
 
     if event == "behind":
         od = prog.get("next_days_overdue") or 0

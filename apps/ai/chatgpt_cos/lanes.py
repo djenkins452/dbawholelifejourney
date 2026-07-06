@@ -608,6 +608,15 @@ _GOALS_GAP = ("I don't have enough active goal information to include goals in "
               "health, and priorities.")
 
 
+def _goal_title(t):
+    """Extract a title string from a goal entry that may be a plain string OR a rich
+    dict ({title, context, evidence, target_date, ...}) — production returns dicts.
+    Never raises; returns '' for anything untitled."""
+    if isinstance(t, dict):
+        return (t.get("title") or "").strip()
+    return "" if t is None else str(t).strip()
+
+
 def _strategic_summary(user):
     """The Goals & Commitments view of the ONE executive understanding — the SAME
     strategic context interpret()/the Executive Briefing/Opportunity consume: mission +
@@ -616,7 +625,12 @@ def _strategic_summary(user):
     Consumes the existing brain; it is NOT a second strategic source — it reads
     interpret() (strategic_focus, highest_leverage), get_domain_state('purpose') (the
     mission/active-goal snapshot), and select_active_mission_goal() (the very pick
-    build_goal_state itself uses, as the existence source of truth)."""
+    build_goal_state itself uses, as the existence source of truth).
+
+    ROBUSTNESS CONTRACT: active goals may be plain strings OR rich dicts; a formatting
+    failure must NEVER surface as "no active goal information" while goals actually exist
+    — it degrades to a simple truthful summary instead (origin: prod TypeError on
+    dict-shaped active_titles falling back to _GOALS_GAP)."""
     sig = None
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import interpret
@@ -629,7 +643,9 @@ def _strategic_summary(user):
         st = (get_domain_state(user, "purpose").get("state") or {})
         if isinstance(st.get("mission"), dict):
             mission = st["mission"]
-        active_titles = [t for t in (st.get("active_titles") or []) if t]
+        # active_titles may be plain strings OR rich dicts — normalize to title strings.
+        active_titles = [tt for tt in (_goal_title(t) for t in (st.get("active_titles") or []))
+                         if tt]
         active_count = int(st.get("active_goal_count") or 0)
     except Exception:
         logger.warning("goals_checkin: purpose state read failed", exc_info=True)
@@ -643,43 +659,54 @@ def _strategic_summary(user):
         pass
 
     strategic = (getattr(sig, "strategic_focus", "") or "").strip() if sig else ""
-    title = ((mission or {}).get("title") or strategic
-             or (mission_goal.title if mission_goal is not None else "")).strip()
+    title = (_goal_title((mission or {}).get("title")) or strategic
+             or (getattr(mission_goal, "title", "") if mission_goal is not None else "")).strip()
     # Honest-empty ONLY when there is genuinely nothing strategic anywhere in WLJ.
     if not title and active_count == 0 and not active_titles and mission_goal is None:
         return None
 
-    focus = (mission or {}).get("current_focus")
-    parts = []
+    # Compose the rich summary. If ANY formatting step fails, degrade to a simple but
+    # TRUE summary — goals exist, so never fall through to the "no goal information" gap.
+    try:
+        focus = _goal_title((mission or {}).get("current_focus"))
+        parts = []
+        if title:
+            stand = []
+            dr = (mission or {}).get("days_remaining")
+            if isinstance(dr, int) and dr >= 0:
+                stand.append(f"{dr} days to target")
+            tl = str((mission or {}).get("momentum_trend") or "").lower()
+            if any(w in tl for w in ("declin", "down", "fall", "slow", "stall")):
+                stand.append("momentum has dipped — worth a deliberate push")
+            elif any(w in tl for w in ("ris", " up", "improv", "strong", "accel")):
+                stand.append("momentum is strong")
+            tail = (" — " + ", ".join(stand)) if stand else ""
+            parts.append(f"Your mission is {title}{tail}.")
+        others = [t for t in active_titles if t and t != title][:3]
+        if others:
+            parts.append("Other active commitments: " + ", ".join(others) + ".")
+        elif active_count > 1 and title:
+            parts.append(f"You have {active_count} active goals in all.")
+        # Today's move — the CONCRETE next action. Prefer the mission's current milestone
+        # (the real lever) over the generic "move it forward"; fall back to interpret()'s
+        # highest_leverage, then to a plain nudge.
+        lever = (getattr(sig, "highest_leverage", "") or "").strip() if sig else ""
+        if focus and title:
+            parts.append("The move that matters most today is advancing your current "
+                         f"milestone: {focus}.")
+        elif lever:
+            parts.append(f"The highest-leverage move today is {lever}.")
+        elif title:
+            parts.append(f"Today, the most valuable thing you can do is move {title} forward.")
+        composed = " ".join(p for p in parts if p)
+        if composed:
+            return composed
+    except Exception:
+        logger.warning("goals_checkin: summary composition failed", exc_info=True)
+    # Degraded but TRUTHFUL fallback — goals DO exist here; never claim otherwise.
     if title:
-        stand = []
-        dr = (mission or {}).get("days_remaining")
-        if isinstance(dr, int) and dr >= 0:
-            stand.append(f"{dr} days to target")
-        tl = ((mission or {}).get("momentum_trend") or "").lower()
-        if any(w in tl for w in ("declin", "down", "fall", "slow", "stall")):
-            stand.append("momentum has dipped — worth a deliberate push")
-        elif any(w in tl for w in ("ris", " up", "improv", "strong", "accel")):
-            stand.append("momentum is strong")
-        tail = (" — " + ", ".join(stand)) if stand else ""
-        parts.append(f"Your mission is {title}{tail}.")
-    others = [t for t in active_titles if t and t != title][:3]
-    if others:
-        parts.append("Other active commitments: " + ", ".join(others) + ".")
-    elif active_count > 1 and title:
-        parts.append(f"You have {active_count} active goals in all.")
-    # Today's move — the CONCRETE next action. Prefer the mission's current milestone
-    # (the real lever) over the generic "move it forward"; fall back to interpret()'s
-    # highest_leverage, then to a plain nudge.
-    lever = (getattr(sig, "highest_leverage", "") or "").strip() if sig else ""
-    if focus and title:
-        parts.append(f"The move that matters most today is advancing your current "
-                     f"milestone: {focus}.")
-    elif lever:
-        parts.append(f"The highest-leverage move today is {lever}.")
-    elif title:
-        parts.append(f"Today, the most valuable thing you can do is move {title} forward.")
-    return " ".join(parts) if parts else None
+        return f"You do have active goals. Your primary mission is {title}."
+    return "You do have active goals and commitments — I can walk through them with you."
 
 
 # Direct goal/commitment questions must consume the SAME strategic understanding as the

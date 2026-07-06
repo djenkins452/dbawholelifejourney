@@ -6,6 +6,14 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-05 — fix(cos): Goals check-in TypeError on dict-shaped goals — the REAL cause of the false goal-gap
+
+**Proven by the live runtime diagnostic** (`git_sha` current, `deployed_resolver_calls_strategic_summary: true`, `select_active_mission_goal: France 2027 Family 18K Mission`, `purpose_active_goal_count: 4`, `response_source: _GOALS_GAP`, `strategic_summary_error: TypeError('sequence item 0: expected str instance, dict found')`). The One-Brain fix WAS deployed and executing — but `_strategic_summary` assumed `get_domain_state("purpose").active_titles` were strings, while production returns them as rich **dicts** (`{title, context, evidence, target_date, ...}`). `", ".join(others)` raised `TypeError`; `resolve_clarification_option`'s `except` then returned the hardcoded `_GOALS_GAP` — falsely telling the user there were no active goals while a mission and 4 goals existed.
+
+**Fix (`_strategic_summary`):** new `_goal_title()` extracts a title from string-OR-dict goal entries; `active_titles` and the mission title are normalized through it. The composition is wrapped so a formatting failure **degrades to a simple truthful summary** ("You do have active goals. Your primary mission is …") instead of raising — it can NEVER surface `_GOALS_GAP` while a mission/goals exist. Honest-empty preserved only when there is truly no mission and no active goals.
+
+**Files:** `apps/ai/chatgpt_cos/lanes.py` (`_goal_title`, robust `_strategic_summary`). Tests: `test_goals_checkin_strategic.py` — fixture now uses realistic dict-shaped `active_titles`; new `test_dict_shaped_active_titles_never_crash_or_gap` asserts no crash, real summary end-to-end through the resolver, no goal-gap. 10 tests green. (The staff-only `/assistant/api/goals-checkin-debug/` endpoint is retained for one validation pass, then removed.)
+
 ## 2026-07-05 — fix(life): normalize_to_quarter_hour coerces string scheduled_time (CI red)
 
 **Root cause:** `RoutineSchedule.save()` (`apps/life/models.py:2713`) calls `normalize_to_quarter_hour(self.scheduled_time)`, which computed `t.hour * 60 + t.minute` directly. When a caller (or test) sets `scheduled_time` as a string like `'06:00'` instead of a `datetime.time`, this raised `AttributeError: 'str' object has no attribute 'hour'`. This committed-on-main bug produced 7 errors in `apps/life/tests/test_recurring_delete.py` (TestRoutineScheduleDeactivation + TestEnsureRoutineTasksEndDate, which create schedules with `scheduled_time='06:00'`) and was keeping CI red.

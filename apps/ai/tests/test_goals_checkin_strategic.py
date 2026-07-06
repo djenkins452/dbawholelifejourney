@@ -29,10 +29,14 @@ _MISSION = "apps.purpose.mission_selection.select_active_mission_goal"
 _SIG = ExecutiveSignals(
     strategic_focus="France 2027",
     highest_leverage="moving France 2027 forward — that's where the leverage is today")
+# active_titles are RICH DICTS in production (title + context + evidence + …), not
+# strings — this fixture mirrors that so the tests exercise the real shape.
 _STATE = {"state": {
     "mission": {"title": "France 2027", "current_focus": "Book the flights",
                 "days_remaining": 540, "momentum_trend": "rising"},
-    "active_titles": ["France 2027", "Read 24 books"], "active_goal_count": 2}}
+    "active_titles": [{"title": "France 2027", "context": {}, "evidence": {}},
+                      {"title": "Read 24 books", "context": {}, "evidence": {}}],
+    "active_goal_count": 2}}
 
 
 def _with_mission():
@@ -67,6 +71,37 @@ class StrategicSummaryTests(TestCase):
                 mock.patch(_GDS, return_value={"state": {"active_goal_count": 0}}), \
                 mock.patch(_MISSION, return_value=None):
             self.assertIsNone(_strategic_summary(self.user))
+
+    def test_dict_shaped_active_titles_never_crash_or_gap(self):
+        # PROD REGRESSION: active_titles came back as rich DICTS, `", ".join(dicts)` raised
+        # TypeError('sequence item 0: expected str instance, dict found'), the resolver's
+        # except returned _GOALS_GAP — falsely telling the user there were no goals.
+        prod_state = {"state": {
+            "mission": {"title": "France 2027 Family 18K Mission",
+                        "current_focus": "Goal Weight 279.9", "momentum_trend": "moderate"},
+            "active_titles": [
+                {"title": "Launch Whole Life Journey", "context": {"has_milestones": True},
+                 "evidence": {"momentum": "moderate"}, "target_date": "2026-12-25"},
+                {"title": "Relationship with God", "context": {}, "evidence": {}},
+                {"title": "Serve Others"},
+                {"title": "France 2027 Family 18K Mission", "is_foundational": True},
+            ],
+            "active_goal_count": 4}}
+        sig = ExecutiveSignals(strategic_focus="France 2027 Family 18K Mission",
+                               highest_leverage="moving the mission forward")
+        with mock.patch(_INTERP, return_value=sig), \
+                mock.patch(_GDS, return_value=prod_state), \
+                mock.patch(_MISSION, return_value=mock.Mock(title="France 2027 Family 18K Mission")):
+            out = _strategic_summary(self.user)
+            # and end-to-end through the resolver (the actual check-in "4" path)
+            resolved = resolve_clarification_option(self.user, {"resolver": "goals_gap"})
+        self.assertIsNotNone(out)
+        self.assertNotIn("don't have enough active goal information", out.lower())
+        self.assertIn("France 2027 Family 18K Mission", out)
+        self.assertIn("launch whole life journey", out.lower())   # dict title extracted
+        self.assertIn("goal weight 279.9", out.lower())           # current milestone move
+        self.assertNotIn("don't have enough active goal information", resolved.lower())
+        self.assertIn("France 2027 Family 18K Mission", resolved)
 
     def test_never_empty_when_mission_exists_despite_stale_snapshot(self):
         # Requirement 4: never claim "no goals" while a mission exists — even if the

@@ -182,6 +182,14 @@ def debug_purpose_recommendation(request):
         .order_by("-updated_at")
     )
 
+    # ── SERVER RENDER — the MIDDLE representation. Run the REAL composer the
+    #    dashboard uses + render the REAL accountability-card fragment, so this
+    #    one request exposes: DB record → composer output → rendered HTML. If the
+    #    rendered HTML here disagrees with the browser DOM, the divergence is
+    #    downstream of Django (edge/CDN cache or an in-app webview URL cache),
+    #    NOT in the composer. ──
+    server_render = _server_render(request, user, rendered)
+
     payload = {
         "user_id": user.id,
         "user_email": getattr(user, "email", None),
@@ -205,6 +213,10 @@ def debug_purpose_recommendation(request):
             _raw_record(g, rendered=(g is rendered)) for g in win_rows
         ],
 
+        # The MIDDLE representation: what the composer produces + what the
+        # template actually renders (server-side), compared to the DB record.
+        "server_render": server_render,
+
         "counts": {
             "active_guidance_total": len(fresh_guidance),
             "active_purpose_guidance": len(purpose_candidates),
@@ -212,3 +224,52 @@ def debug_purpose_recommendation(request):
         },
     }
     return JsonResponse(payload, json_dumps_params={"indent": 2})
+
+
+def _server_render(request, user, rendered_record):
+    """Run the REAL dashboard composer + render the REAL accountability-card
+    fragment for the purpose domain. Returns the composer's recommendation
+    (title/message the template binds to) and the literal rendered HTML, plus
+    which candidate strings appear in that HTML. Fail-soft."""
+    out = {
+        "composer": "apps/dashboard_v3/services/composer.py :: build_dashboard_v3_context",
+        "template": "templates/dashboard_v3/sections/accountability_cards.html",
+        "composer_recommendation": None,
+        "rendered_card_html": None,
+        "html_contains": {},
+        "error": None,
+    }
+    try:
+        from apps.dashboard_v3.services.composer import build_dashboard_v3_context
+        v3 = build_dashboard_v3_context(user)
+        cards = v3.get("accountability_cards") or []
+        purpose_card = next(
+            (c for c in cards if c.get("slug") == "purpose"), None)
+        rec = (purpose_card or {}).get("recommendation")
+        if rec is not None:
+            out["composer_recommendation"] = {
+                "title": rec.get("title"),
+                "message": rec.get("message"),
+                "id": rec.get("id"),
+            }
+
+        # Render the ACTUAL fragment (only the purpose card) exactly as the
+        # dashboard does, through the real template + context processors.
+        from django.template.loader import render_to_string
+        html = render_to_string(
+            "dashboard_v3/sections/accountability_cards.html",
+            {"cards": [purpose_card] if purpose_card else []},
+            request=request,
+        )
+        out["rendered_card_html"] = html
+
+        # Which competing strings actually appear in the server HTML.
+        probes = ["Milestone reached", "milestone 6 of 12", "banking it now",
+                  "next rung", "Goal Weight 279.9"]
+        db_title = (rendered_record.title if rendered_record is not None else None)
+        if db_title:
+            probes.append(db_title)
+        out["html_contains"] = {p: (p in html) for p in probes}
+    except Exception as exc:  # noqa: BLE001 — debug endpoint, surface the error
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out

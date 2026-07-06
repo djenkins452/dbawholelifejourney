@@ -6,6 +6,15 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(dashboard): debug endpoint now emits the server-rendered card (record → composer → HTML)
+
+**Why:** DB↔browser contradiction — after migration 0127 healed the win row (DB title "Consistent prayer for June"), the browser still showed "Milestone reached" through a hard refresh. To locate the FIRST point where DB record, server-rendered HTML, and browser DOM stop matching without guessing, the `/debug/purpose-recommendation/` endpoint now also runs the REAL composer (`build_dashboard_v3_context`) and renders the REAL `accountability_cards.html` fragment, returning `server_render.composer_recommendation` (title/message the template binds) + `server_render.rendered_card_html` + `server_render.html_contains` (which competing strings appear in the server HTML).
+
+**Ruled out (read-only investigation):** no `{% cache %}` fragment cache, no `cache_page`/cache middleware, no `_build_accountability_cards` caching (query→render is direct); the registered service worker (`static/js/service-worker.js`) has NO `fetch` handler (capture-upload/push only) so it cannot serve stale page HTML; only the *utilities* section self-refreshes via HTMX (accountability is server-rendered once). The dashboard response carries NO `Cache-Control`/`@never_cache` — so a heuristically-cached copy in the iOS WKWebView (NSURLCache) / edge is the leading divergence candidate, to be confirmed by `server_render`.
+
+**Files:** `apps/dashboard_v3/debug_views.py` (diagnostic only — no production logic changed).
+
+
 ## 2026-07-06 — fix(cos): Priority weighting — stem-based completion filter (journaling-after-done)
 
 The ranker filtered accomplished items by EXACT title match, so a reported "journaled" did not filter a "Journal your day" rhythm item (word forms differ). Completion matching is now STEM-based (5-char token overlap), so a reported activity filters its differently-titled scheduled item — closing the "recommended journaling after the user already journaled" symptom end-to-end (the `priority_correction` lane records the accomplishment; the ranker now drops it). 18 priority-weighting tests green.

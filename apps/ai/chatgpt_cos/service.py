@@ -149,7 +149,7 @@ class ChatGPTCoSService:
         # personal/SAE data). If every lane declines, fall through to the tool
         # loop below (the terminal fallback, P8).
         from apps.ai.chatgpt_cos.lanes import route_message
-        _routed = route_message(self.user, message, conversation)
+        _routed = route_message(self.user, message, conversation, page_context=page_context)
         # P25 SHADOW instrumentation (Phase 1/2) — classify the request as
         # PERSONAL/EXTERNAL/MIXED/AMBIGUOUS and log agreement with the CURRENT
         # routing outcome. SHADOW ONLY: this does NOT affect routing or behavior.

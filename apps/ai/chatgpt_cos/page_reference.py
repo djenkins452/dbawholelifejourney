@@ -1,0 +1,135 @@
+# ==============================================================================
+# File: apps/ai/chatgpt_cos/page_reference.py
+# Capability: PAGE-AWARE CONTEXTUAL CONVERSATION. When the user is looking at a WLJ page
+# and says "summarize this", "explain this", "what do you think?", "should I still do
+# this?" — the deictic "this/that/it" refers to the ENTITY CURRENTLY IN FOCUS on that
+# page. Beth must resolve it against the current page's content, not restate it.
+#
+# Production failure that motivated this: on the Faith "Today's Reading" page (Isaiah
+# 6:1-8 / 53:1-12), "Summarize this scripture" was misrouted to the SANDBOXED general
+# lane (no personal/page data) → "I can't see specific content…", and the follow-up fell
+# to a generic sleep recommendation. The page content was actually present in
+# `page_context.page_content` — it just never reached a handler that could use it.
+#
+# GENERAL, NOT FAITH-SPECIFIC: resolves the focused entity across modules (scripture,
+# journal entry, goal/milestone, task, health record, transaction) from the content the
+# client already captured. Deterministic gate; one grounded LLM call to answer about the
+# focused content; degrades to an honest "I see the page but not its details" (never
+# abandons the thread). Consumes page_context; no new state.
+# ==============================================================================
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+# Deixis + page-action language that refers to what's ON the page.
+_PAGE_VERBS = (
+    "summarize", "summarise", "explain", "what does", "what do you think",
+    "what are your thoughts", "tell me about", "break this down", "break it down",
+    "should i still", "what should i do", "help me understand", "what's this",
+    "whats this", "what is this", "walk me through", "unpack", "your take on",
+)
+_DEIXIS = ("this", "that", "these", "those", "it")
+
+# Where to find the focused entity's text, across the page_content shapes the client
+# sends for different modules. Ordered: single-text fields first, then list-shaped.
+_TEXT_FIELDS = ("scripture_text", "body", "content", "description", "text", "summary",
+                "entry_text", "note", "details", "message")
+_LIST_FIELDS = ("scriptures", "milestones", "items", "verses")
+
+
+def _cos_name(user):
+    try:
+        prefs = getattr(user, "preferences", None)
+        if prefs is not None:
+            return (getattr(prefs, "cos_display_name", "") or "Chief of Staff")
+    except Exception:
+        pass
+    return "Chief of Staff"
+
+
+def is_page_reference(message):
+    """True when the message refers to what's on the current page — a page-action verb
+    ('summarize/explain/what do you think'), or a SHORT deictic ('this'/'that') message
+    (short so a long general question that merely contains 'this' isn't hijacked)."""
+    n = (message or "").lower().strip()
+    if not n:
+        return False
+    if any(v in n for v in _PAGE_VERBS):
+        return True
+    if len(n.split()) <= 8 and any(re.search(rf"\b{d}\b", n) for d in _DEIXIS):
+        return True
+    return False
+
+
+def resolve_page_focus(page_context):
+    """The entity currently in focus on the page → {module, title, content, kind, url},
+    or None. Reads the content the client already captured in `page_content` (general
+    across modules). `content` is '' when only the page LOCATION came through."""
+    if not page_context or not isinstance(page_context, dict):
+        return None
+    content = page_context.get("page_content") or {}
+    if not isinstance(content, dict):
+        content = {}
+    module = (page_context.get("module") or "").strip()
+    title = (page_context.get("page_title") or content.get("title")
+             or content.get("reading_title") or "").strip()
+    text = ""
+    for k in _TEXT_FIELDS:
+        v = content.get(k)
+        if isinstance(v, str) and v.strip():
+            text = v.strip()
+            break
+    if not text:
+        for k in _LIST_FIELDS:
+            v = content.get(k)
+            if isinstance(v, list) and v:
+                text = "; ".join(str(x).strip() for x in v if str(x).strip())
+                if text:
+                    break
+    if not (title or text):
+        return None
+    return {"module": module, "title": title, "content": text,
+            "kind": content.get("type") or module or "", "url": (page_context.get("url") or "").strip()}
+
+
+def answer_page_reference(user, message, conversation, page_context):
+    """Resolve a page-referential request against the focused entity and answer about it,
+    grounded in its content. Returns a lane result dict, or None to let normal routing
+    proceed (not a page reference, or no focused entity)."""
+    if not is_page_reference(message):
+        return None
+    focus = resolve_page_focus(page_context)
+    if focus is None:
+        return None
+
+    where = focus["title"] or (f"the {focus['module']} page" if focus["module"] else "this page")
+
+    # Location came through but not the content — acknowledge WHERE they are and ask for
+    # the detail, instead of a generic disclaimer or abandoning the thread.
+    if not focus["content"]:
+        return {"answer": (f"I can see you're on {where}, but its details didn't come "
+                           "through to me — paste it here and I'll dig right in."),
+                "tools_called": [], "tools_advertised": [], "lane": "page_reference",
+                "page_focus": where}
+
+    # We HAVE the focused content — answer the user's request about THIS, grounded in it.
+    try:
+        from apps.ai.services import ai_service
+        system = (
+            f"You are {_cos_name(user)}, the user's Chief of Staff. The user is viewing "
+            f"\"{where}\" in Whole Life Journey. Here is the content in focus:\n\n"
+            f"{focus['content'][:4000]}\n\n"
+            "Answer their request about THIS, grounded ONLY in the content above and the "
+            "conversation so far. Be warm, specific, and concise — like one person talking, "
+            "not a report. Never say you can't see the page or the content; you have it."
+        )
+        text = ai_service._call_api(system, message, max_tokens=500,
+                                    endpoint="cos_page_reference", user=user)
+    except Exception:
+        logger.warning("page_reference: grounded answer failed", exc_info=True)
+        return None
+    if not text or not str(text).strip():
+        return None
+    return {"answer": str(text).strip(), "tools_called": [], "tools_advertised": [],
+            "lane": "page_reference", "page_focus": where}

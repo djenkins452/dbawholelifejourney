@@ -1188,6 +1188,10 @@ _DOMAIN_WORDS = (
     "tonight", "this week", "faith", "prayer", "bible reading plan", "journal",
     "mood", "energy", "workout", "fitness", "nutrition", "medication",
     "appointment", "my day",
+    # WLJ content nouns — a request naming one is about the user's OWN data, never a
+    # sandboxed general-knowledge question (backstop; the page_reference lane leads).
+    "scripture", "reading", "passage", "verse", "entry", "milestone", "transaction",
+    "result", "lab", "reflection",
 )
 _GENERAL_OPENERS = (
     "who ", "who was", "who is", "what is", "what was", "what are", "what's",
@@ -1882,11 +1886,39 @@ LANE_REGISTRY = (
 )
 
 
-def route_message(user, message, conversation=None):
+def route_message(user, message, conversation=None, page_context=None):
     """Try each lane in order; return the first non-None result (tagged with its
     lane), or None if every lane declines (caller runs the tool-loop fallback)."""
     uid = getattr(user, "id", None)
     tried = []                      # Issue #1 trace: which lanes were consulted
+
+    # PAGE-AWARE CONTEXTUAL CONVERSATION (runs FIRST when the user is on a WLJ page): a
+    # deictic request ("summarize this", "explain this", "what do you think?") binds to
+    # the entity IN FOCUS on the current page — before the sandboxed general lane can
+    # mistake it for a generic question and lose the context. Declines when there's no
+    # page focus, so normal routing is unaffected.
+    if page_context:
+        try:
+            from apps.ai.chatgpt_cos.page_reference import answer_page_reference
+            _pr = answer_page_reference(user, message, conversation, page_context)
+        except Exception:
+            logger.warning("route: page_reference failed", exc_info=True)
+            _pr = None
+        if _pr is not None:
+            if _pr.get("answer"):
+                try:
+                    from apps.ai.chatgpt_cos.response_coherence import harmonize
+                    _pr["answer"] = harmonize(_pr["answer"], user)
+                except Exception:
+                    logger.warning("route: coherence pass failed", exc_info=True)
+                try:
+                    from apps.ai.chatgpt_cos.conversation_memory import record_last_answer
+                    record_last_answer(conversation, "page_reference", _pr)
+                except Exception:
+                    pass
+            logger.info("COS_LANE_TRACE user=%s tried=page_reference winner=page_reference", uid)
+            return _pr
+
     for name, fn in LANE_REGISTRY:
         tried.append(name)
         result = fn(user, message, conversation)

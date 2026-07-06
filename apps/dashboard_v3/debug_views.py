@@ -190,6 +190,13 @@ def debug_purpose_recommendation(request):
     #    NOT in the composer. ──
     server_render = _server_render(request, user, rendered)
 
+    # ── ORIGIN DOCUMENT — the FULL /dashboard/ response body straight from
+    #    Django (bypasses every browser/edge/webview cache). This is the exact
+    #    thing DevTools "Copy Response" would show IF no cache sat in front of
+    #    the origin. Reports which competing string the document contains + the
+    #    cache-control headers the dashboard response actually ships with. ──
+    origin_document = _origin_document_probe(request, user, rendered)
+
     payload = {
         "user_id": user.id,
         "user_email": getattr(user, "email", None),
@@ -216,6 +223,9 @@ def debug_purpose_recommendation(request):
         # The MIDDLE representation: what the composer produces + what the
         # template actually renders (server-side), compared to the DB record.
         "server_render": server_render,
+
+        # The ORIGIN /dashboard/ document body (cache-bypassing) + its headers.
+        "origin_document": origin_document,
 
         "counts": {
             "active_guidance_total": len(fresh_guidance),
@@ -271,5 +281,89 @@ def _server_render(request, user, rendered_record):
             probes.append(db_title)
         out["html_contains"] = {p: (p in html) for p in probes}
     except Exception as exc:  # noqa: BLE001 — debug endpoint, surface the error
+        out["error"] = f"{type(exc).__name__}: {exc}"
+    return out
+
+
+def _origin_document_probe(request, user, rendered_record):
+    """Issue an internal, authenticated GET of the FULL dashboard document
+    straight from Django (via the test Client → the real URLconf + middleware),
+    bypassing every browser/edge/webview cache. Reports which competing string
+    the document body contains + the response's cache-control headers.
+
+    This is the origin truth: if the body here says "Consistent prayer for June"
+    but the browser shows "Milestone reached", the stale copy lives in a cache
+    BETWEEN this origin and the DOM — and the missing Cache-Control below is what
+    lets that cache exist. Fail-soft."""
+    db_title = (rendered_record.title if rendered_record is not None else None)
+    out = {
+        "method": "internal authenticated GET via django.test.Client (cache-bypassing)",
+        "paths_tried": [],
+        "matched_path": None,
+        "status": None,
+        "content_length": None,
+        "body_contains": {},
+        "response_headers": {},
+        "note": None,
+        "error": None,
+    }
+    try:
+        from django.test import Client
+        client = Client()
+        client.force_login(user)
+        # Use the REAL host (ALLOWED_HOSTS) + HTTPS so we don't trip
+        # DisallowedHost (400) or SECURE_SSL_REDIRECT (301) on the internal GET.
+        host = request.get_host()
+        # /dashboard/ is the production surface; try the obvious candidates and
+        # report the first that renders the dashboard document (200 + card markup).
+        candidates = ["/dashboard/", "/", "/dashboard-v3/"]
+        resp = None
+        for path in candidates:
+            out["paths_tried"].append(path)
+            try:
+                r = client.get(path, follow=True, secure=True, HTTP_HOST=host)
+            except Exception as exc:  # noqa: BLE001
+                out["error"] = f"{path}: {type(exc).__name__}: {exc}"
+                continue
+            if r.status_code == 200 and b"v3-card" in (r.content or b""):
+                resp = r
+                out["matched_path"] = path
+                break
+            # Remember the last 200 even if it isn't obviously the v3 dashboard.
+            if resp is None and r.status_code == 200:
+                resp = r
+                out["matched_path"] = path
+
+        if resp is not None:
+            body = resp.content or b""
+            out["status"] = resp.status_code
+            out["content_length"] = len(body)
+            probes = {
+                "Consistent prayer for June": b"Consistent prayer for June",
+                "Milestone reached": b"Milestone reached",
+                "banking it now": b"banking it now",
+                "Goal Weight 279.9": b"Goal Weight 279.9",
+            }
+            if db_title:
+                probes[db_title] = db_title.encode("utf-8")
+            out["body_contains"] = {k: (v in body) for k, v in probes.items()}
+            # The enabling defect, made visible: does the dashboard response ship
+            # a Cache-Control that forbids caching? (Absent/permissive = a cache
+            # in front of the origin is free to serve a stale body.)
+            for h in ("Cache-Control", "Vary", "Age", "Expires", "Pragma",
+                      "CF-Cache-Status"):
+                if h in resp.headers:
+                    out["response_headers"][h] = resp.headers[h]
+            out["note"] = (
+                "No Cache-Control:no-store on the dashboard response → a browser/"
+                "edge/webview cache may serve a stale body even though this origin "
+                "body is current."
+                if "Cache-Control" not in resp.headers
+                or "no-store" not in resp.headers.get("Cache-Control", "").lower()
+                else "Dashboard response forbids caching (no-store present)."
+            )
+        elif out["error"] is None:
+            out["error"] = "No candidate path returned a dashboard document."
+    except Exception as exc:  # noqa: BLE001
         out["error"] = f"{type(exc).__name__}: {exc}"
     return out

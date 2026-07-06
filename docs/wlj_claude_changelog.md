@@ -6,6 +6,13 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — debug(dashboard): capture the ORIGIN /dashboard/ document body (cache-bypassing)
+
+**Why:** to answer "which string is in the actual HTML response body" without browser access. `/debug/purpose-recommendation/` now issues an internal authenticated GET of the full `/dashboard/` document via `django.test.Client` (real URLconf + middleware, real host + HTTPS so it doesn't trip DisallowedHost/SSL-redirect), bypassing every browser/edge/webview cache. Returns `origin_document.body_contains` (does the FULL document contain "Consistent prayer for June" vs "Milestone reached") + `origin_document.response_headers` (Cache-Control/Vary/Age/CF-Cache-Status) — surfacing the enabling defect (the dashboard ships no `Cache-Control: no-store`). If the origin body is current but the browser shows stale, the stale copy provably lives in a cache between origin and DOM.
+
+**Files:** `apps/dashboard_v3/debug_views.py` (diagnostic only — no production logic changed).
+
+
 ## 2026-07-06 — fix(healthkit): preserve Apple Health sample timestamp (weight stored at noon → future-dated)
 
 **Root cause:** the HealthKit sync discarded the sample time twice. `process_health_metric` parsed the ISO8601 `date` with `.date()` (throwing away 5:53 AM), then `process_weight_metric` stored `recorded_at` at LOCAL NOON. A morning weigh-in synced before noon was therefore future-dated, which broke temporal integrity and made Beth refuse to answer today's weight ("the timestamp on this reading is later than the current time").

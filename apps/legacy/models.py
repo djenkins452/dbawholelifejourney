@@ -184,6 +184,46 @@ class Place(LegacyOwnedModel):
     def __str__(self):
         return self.name
 
+    # ── Map projection — every map is just another consumer of the canonical Place;
+    # no separate location model. Coordinates give a precise centre; otherwise the
+    # best-known location text (a city like "Maryville, Tennessee") centres the map. ──
+    @property
+    def has_coordinates(self):
+        return self.latitude is not None and self.longitude is not None
+
+    @property
+    def map_query(self):
+        """The geocodable location string — the address/city. Deliberately NOT the place
+        name: a personal name like "Grandma's house" wouldn't geocode and a Google search
+        for it is noise, so a place with no location text simply has no map."""
+        return (self.location_text or "").strip()
+
+    @property
+    def maps_embed_url(self):
+        """Keyless, frameable map for an <iframe> — OpenStreetMap's embed (permitted by
+        CSP frame-src https://www.openstreetmap.org; Google's keyless embed is 404 +
+        X-Frame-Options and can't be framed). Centred on the Place's coordinates, so it
+        answers 'where is this?'. Empty until coordinates are known — the view geocodes
+        the best-known location once and caches lat/long on the canonical Place."""
+        if not self.has_coordinates:
+            return ""
+        from urllib.parse import quote
+        lat, lon = float(self.latitude), float(self.longitude)
+        d = 0.02  # ~a couple of km around the point → a legible neighbourhood view
+        bbox = "%f,%f,%f,%f" % (lon - d, lat - d, lon + d, lat + d)
+        return ("https://www.openstreetmap.org/export/embed.html?bbox=%s&layer=mapnik&marker=%f,%f"
+                % (quote(bbox), lat, lon))
+
+    @property
+    def maps_link_url(self):
+        """'Open in Google Maps' — full navigation, opened in a new tab."""
+        from urllib.parse import quote
+        if self.has_coordinates:
+            return ("https://www.google.com/maps/search/?api=1&query=%s,%s"
+                    % (self.latitude, self.longitude))
+        q = self.map_query
+        return "https://www.google.com/maps/search/?api=1&query=%s" % quote(q) if q else ""
+
 
 # ──────────────────────────────────────────────────────────────────────────
 # Life Milestone — a major chapter of a life (an organizing layer, not an owner)

@@ -69,7 +69,7 @@ class PersonForm(forms.ModelForm):
 class PlaceForm(forms.ModelForm):
     class Meta:
         model = Place
-        fields = ["name", "location_text", "description"]
+        fields = ["name", "location_text", "description", "latitude", "longitude"]
         widgets = {
             "name": forms.TextInput(attrs={
                 "class": "lg-input", "placeholder": "e.g. The lake house", "autocomplete": "off"}),
@@ -78,6 +78,14 @@ class PlaceForm(forms.ModelForm):
             "description": forms.Textarea(attrs={
                 "class": "lg-textarea", "rows": 6,
                 "placeholder": "What was this place? What happened here? What did it feel like?"}),
+            "latitude": forms.NumberInput(attrs={
+                "class": "lg-input", "placeholder": "e.g. 35.756", "step": "any", "inputmode": "decimal"}),
+            "longitude": forms.NumberInput(attrs={
+                "class": "lg-input", "placeholder": "e.g. -83.972", "step": "any", "inputmode": "decimal"}),
+        }
+        help_texts = {
+            "location_text": "A city or full address — the map centres here when there are no coordinates.",
+            "latitude": "Optional. Pins the map exactly when known.",
         }
 
 

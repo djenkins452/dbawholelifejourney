@@ -823,18 +823,18 @@ class PlaceProfileView(LegacyContextMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         place = self.object
+        # Geocode the best-known location once (cached on the canonical Place) so the map
+        # can centre on it. Best-effort — never raises, and degrades to the Maps link.
+        if not place.has_coordinates and place.location_text:
+            from apps.legacy.services.geocode import ensure_place_coordinates
+            ensure_place_coordinates(place)
         memories = place.memories.all().select_related("primary_media").order_by("-created_at")
         ctx["memories"] = memories
         ctx["media"] = Media.objects.filter(memories__in=memories).distinct()[:12]
         ctx["people"] = Person.objects.filter(memories__in=memories).distinct()
         ctx["dated_memories"] = memories.exclude(occurred_on__isnull=True).order_by("occurred_on")
-        # A Google Maps link (new tab) when we have coordinates or an address.
-        from urllib.parse import quote
-        if place.latitude is not None and place.longitude is not None:
-            ctx["map_url"] = "https://www.google.com/maps?q=%s,%s" % (place.latitude, place.longitude)
-        elif place.location_text:
-            q = quote("%s %s" % (place.name, place.location_text))
-            ctx["map_url"] = "https://www.google.com/maps/search/?api=1&query=%s" % q
+        # The map preview + "Open in Google Maps" come straight off the canonical Place
+        # (place.maps_embed_url / place.maps_link_url) — no separate location model.
         return ctx
 
 

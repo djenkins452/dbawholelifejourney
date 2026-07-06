@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): Places answer "where is this?" — embedded map + coordinates on the canonical Place
+
+**What:** A Place detail page now includes an **embedded, auto-centred map** so a Place immediately answers "where is this?" without leaving Legacy — plus the address/best-known location, latitude/longitude (when known), and an **"Open in Google Maps"** button for full navigation.
+
+**Architecture (no new location model — the map is another consumer of the canonical Place):**
+- Reusable helpers on `Place`: `has_coordinates`, `map_query`, `maps_embed_url`, `maps_link_url`. The embed centres on the Place's coordinates.
+- **Coordinates are stored on the Place and reused everywhere.** `latitude`/`longitude` already existed on the model; they're now editable on the Place form and populated by geocoding.
+- **Geocoding:** when only a city/address is known (e.g. "Maryville, Tennessee"), the detail view geocodes it once via OpenStreetMap Nominatim and **caches lat/long on the Place** (`apps/legacy/services/geocode.py`). Best-effort and non-blocking-by-design — every call is guarded, short-timeout (4s), and never raises; on failure the page still shows the location and the Maps link. A bare personal name with no location text ("Grandma's house") is deliberately never geocoded.
+- **Embed provider = OpenStreetMap** (keyless, frameable). Google's keyless `output=embed` is now `404 + X-Frame-Options: SAMEORIGIN` on both `www.google.com/maps` and `maps.google.com/maps`, so it can't be framed anywhere (verified by header check); OSM's `export/embed.html` returns `200` with no frame-blocking. CSP `frame-src` gains `https://www.openstreetmap.org`. The "Open in Google Maps" link still uses Google (a text/coord query, which works fine as a link).
+
+**Scope:** map only. The richer future Place (photos, stories, timeline of visits, people, events, documents) is explicitly NOT built here.
+
+**Files:** `apps/legacy/models.py` (Place map helpers), `apps/legacy/services/geocode.py` (new), `apps/legacy/views.py` (`PlaceProfileView` geocodes-once + uses the helpers), `apps/legacy/forms.py` (editable latitude/longitude + help text), `apps/core/middleware.py` (CSP `frame-src` += OpenStreetMap), `templates/legacy/place_detail.html` (map card), `templates/legacy/place_form.html` (help text), `static/css/legacy.css` (+cache-bust `v=56`), tests `apps/legacy/tests/test_places_map.py` (new) + `test_connections.py` (updated link format). No migration (lat/long columns already existed).
+
+**Verification:** `test_places_map` (13) + `test_connections` (10) + `test_request_path_safety_contract` (3) green — geocode helpers mocked (no network in tests); the request-path safety contract still passes with the geocode call. Live-certified in the dev browser: the OSM embed renders auto-centred on Maryville with a marker, zoom controls, the coordinates (`35.756500, -83.970500`), the location text, and the Open-in-Google-Maps link; frame fills the card width; `openstreetmap.org/export/embed.html … → 200` (frameable, no CSP/X-Frame block). Graceful-degradation path (geocode miss → no embed, Maps link still shown) covered by tests. (In the preview sandbox, live Nominatim geocoding hit an SSL handshake timeout — an environment limitation; the OSM embed was verified with coordinates set directly, and the geocode logic is unit-tested.) Throwaway test place removed.
+
 ## 2026-07-06 — feat(legacy): Clarifications are first-class CRUD — delete one / many / all, with Undo (Canonical Truth untouched)
 
 **What:** Clarification questions ("Help Legacy understand…") were write-only — you could only Answer them. They're now full CRUD entities, like People / Relationships / Stories / Media. Nothing in Legacy is write-only.

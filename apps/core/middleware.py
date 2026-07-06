@@ -375,7 +375,7 @@ class ContentSecurityPolicyMiddleware:
             "img-src 'self' data: https: blob:",
             "font-src 'self' https://fonts.gstatic.com",
             "connect-src 'self' https://www.google.com",
-            "frame-src 'self' https://www.google.com",
+            "frame-src 'self' https://www.google.com https://www.openstreetmap.org",
             "frame-ancestors 'self'",
             "base-uri 'self'",
             "form-action 'self'",

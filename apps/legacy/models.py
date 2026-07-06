@@ -203,20 +203,21 @@ class Place(LegacyOwnedModel):
 
     @property
     def maps_link_url(self):
-        """'Open in Google Maps' — drops a pin at the EXACT point (opened in a new tab).
+        """'Open in Google Maps' (new tab). Uses the Maps URLs API **Search** action with a
+        URL-encoded `lat%2Clng` query — Google's DOCUMENTED format for pinning raw
+        coordinates: per the docs a bare lat/lng query "puts a pin in the specified
+        location" with "no additional place information", i.e. it does not snap to a nearby
+        place. The comma MUST be encoded (`%2C`) per the docs' own example. For a text-only
+        Place the query is a place name (a search is what we want).
 
-        Uses the `?q=<lat>,<lng>` coordinate form, NOT the Maps URLs API search action
-        (`/maps/search/?api=1&query=<lat>,<lng>`). That 'search' action reverse-geocodes a
-        coordinate and snaps the pin to the nearest named place/road/POI, landing it off
-        the exact spot the Esri map shows. `?q=lat,lng` is read as a literal coordinate, so
-        Google pins exactly where the canonical Place is. (The Maps URLs API has no
-        exact-coordinate-pin action — only search, which snaps.) For a text-only place the
-        query IS a place name, so a search is what we want."""
+        Exact-pin behaviour is confirmed in production via /legacy/debug/map/ (which offers
+        every candidate URL side-by-side) — not assumed here."""
         from urllib.parse import quote
         if self.has_coordinates:
-            return "https://www.google.com/maps?q=%s,%s" % (self.latitude, self.longitude)
+            return ("https://www.google.com/maps/search/?api=1&query=%s"
+                    % quote("%s,%s" % (self.latitude, self.longitude)))
         q = self.map_query
-        return "https://www.google.com/maps?q=%s" % quote(q) if q else ""
+        return "https://www.google.com/maps/search/?api=1&query=%s" % quote(q) if q else ""
 
 
 # ──────────────────────────────────────────────────────────────────────────

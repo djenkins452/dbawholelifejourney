@@ -40,15 +40,16 @@ class PlaceMapHelperTests(TestCase):
         self.assertEqual(p.map_query, "Maryville, Tennessee")
         self.assertIn("Maryville", p.maps_link_url)
         self.assertNotIn("Grandma", p.maps_link_url)    # personal name never geocoded
-        self.assertTrue(p.maps_link_url.startswith("https://www.google.com/maps?q="))
+        self.assertTrue(p.maps_link_url.startswith("https://www.google.com/maps/search/?api=1&query="))
 
-    def test_open_in_maps_pins_exact_coordinates(self):
-        # Exact-pin form ?q=lat,lng — NOT the search action, which snaps the pin to a
-        # nearby named place. The link must land on the same point the Esri map shows.
+    def test_open_in_maps_uses_documented_coordinate_format(self):
+        # Google's DOCUMENTED raw-coordinate pin: search action with URL-ENCODED comma
+        # (%2C). Which format Google actually honours is confirmed in production via the
+        # /legacy/debug/map/ glass box — not asserted here.
         p = self._place(name="Home", location_text="Knoxville, TN",
                         latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
-        self.assertEqual(p.maps_link_url, "https://www.google.com/maps?q=35.9606,-83.9207")
-        self.assertNotIn("maps/search", p.maps_link_url)
+        self.assertEqual(p.maps_link_url,
+                         "https://www.google.com/maps/search/?api=1&query=35.9606%2C-83.9207")
 
     def test_name_only_place_has_no_maps_link(self):
         # A bare personal name (no location text) would not geocode — no Google link.
@@ -156,27 +157,50 @@ class PlaceMapViewTests(TestCase):
 
 
 class GeocodeSearchReverseTests(TestCase):
-    def test_search_returns_labelled_candidates(self):
-        sample = [{"display_name": "Tuscaloosa, AL, USA", "lat": "33.209", "lon": "-87.569"},
-                  {"display_name": "Tuscaloosa County, AL", "lat": "33.29", "lon": "-87.52"}]
-        with mock.patch.object(geocode_svc, "_get", return_value=sample):
-            hits = geocode_svc.search("Tuscaloosa")
+    # Esri findAddressCandidates / reverseGeocode shapes (location: x=lon, y=lat).
+    ESRI_SEARCH = ('{"candidates":['
+                   '{"address":"3242 Old Plantation Way, Maryville, Tennessee, 37804",'
+                   '"location":{"x":-83.8936,"y":35.7686},"score":100},'
+                   '{"address":"Tuscaloosa County, AL","location":{"x":-87.525,"y":33.2895},"score":95}]}')
+    ESRI_REVERSE = '{"address":{"LongLabel":"1 Main St, Maryville, TN, USA","Match_addr":"1 Main St"}}'
+    ESRI_EMPTY = '{"candidates":[]}'
+
+    def test_search_returns_a_valid_residential_address(self):
+        # The exact address Nominatim returned [] for — Esri resolves it (score 100).
+        with mock.patch.object(geocode_svc, "_http_get", return_value=(200, self.ESRI_SEARCH)):
+            hits = geocode_svc.search("3242 Old Plantation Way, Maryville, TN 37804")
         self.assertEqual(len(hits), 2)
-        self.assertEqual(hits[0]["label"], "Tuscaloosa, AL, USA")
-        self.assertEqual(str(hits[0]["lat"]), "33.209000")
+        self.assertIn("Old Plantation Way", hits[0]["label"])
+        self.assertEqual(str(hits[0]["lat"]), "35.768600")     # y → lat
+        self.assertEqual(str(hits[0]["lon"]), "-83.893600")    # x → lon, not swapped
+        self.assertEqual(hits[0]["score"], 100)
 
     def test_search_empty_query_skips_network(self):
-        with mock.patch.object(geocode_svc, "_get") as g:
+        with mock.patch.object(geocode_svc, "_http_get") as g:
             self.assertEqual(geocode_svc.search("   "), [])
             g.assert_not_called()
 
+    def test_search_empty_result_returns_empty(self):
+        with mock.patch.object(geocode_svc, "_http_get", return_value=(200, self.ESRI_EMPTY)):
+            self.assertEqual(geocode_svc.search("nowhere xyz"), [])
+
     def test_reverse_returns_address(self):
-        with mock.patch.object(geocode_svc, "_get", return_value={"display_name": "1 Main St, Maryville"}):
-            self.assertEqual(geocode_svc.reverse("35.75", "-83.97"), "1 Main St, Maryville")
+        with mock.patch.object(geocode_svc, "_http_get", return_value=(200, self.ESRI_REVERSE)):
+            self.assertEqual(geocode_svc.reverse("35.75", "-83.97"), "1 Main St, Maryville, TN, USA")
 
     def test_reverse_miss_returns_blank(self):
-        with mock.patch.object(geocode_svc, "_get", return_value=None):
+        with mock.patch.object(geocode_svc, "_http_get", return_value=(None, None)):
             self.assertEqual(geocode_svc.reverse("35.75", "-83.97"), "")
+
+    def test_probe_exposes_request_and_raw_response(self):
+        with mock.patch.object(geocode_svc, "_http_get", return_value=(200, self.ESRI_SEARCH)):
+            p = geocode_svc.probe("3242 Old Plantation Way, Maryville, TN 37804")
+        self.assertEqual(p["provider"], "esri")
+        self.assertIn("geocode.arcgis.com", p["request_url"])
+        self.assertEqual(p["http_status"], 200)
+        self.assertEqual(p["raw_candidate_count"], 2)
+        self.assertEqual(p["returned_count"], 2)
+        self.assertEqual(p["dropped_no_coords"], 0)
 
     def test_parse_latlon_validates_range(self):
         self.assertIsNotNone(geocode_svc.parse_latlon("35.75", "-83.97"))

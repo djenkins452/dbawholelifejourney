@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — instrument+fix(legacy): Place resolution pipeline — geocoder → Esri (Issue 2 fixed) + glass box for the Google Maps pin (Issue 1)
+
+Followed `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` — instrumented first, proved with evidence, did not guess.
+
+**ISSUE 2 (search returned "No matches" for a valid USPS address) — ROOT CAUSE FOUND, fix locally verified.**
+- **Evidence (not reasoning):** ran the actual geocoder for `3242 Old Plantation Way, Maryville, TN 37804`. Exact request `…/search?q=3242+Old+Plantation+Way%2C+Maryville%2C+TN+37804` → **Nominatim returned `[]` (HTTP 200, empty)**. Encoding, parsing, filtering were all correct — OSM's database simply lacks this residential address at house-number precision (a known Nominatim limitation). **Esri** `findAddressCandidates` for the same string → **score-100 PointAddress** `35.768621,-83.893601`.
+- **Fix:** rebuilt `apps/legacy/services/geocode.py` on the **Esri ArcGIS World Geocoding Service** (same vendor as the tiles) for `search` + `reverse`; USPS-grade US coverage; optional `ARCGIS_API_KEY`; token-free works. Every call logs the exact request URL (token redacted), HTTP status, raw candidate count, and returned count. **Nothing is filtered by score.**
+- **Verified (Locally Verified):** `geocode.search(...)` returns the address (score 100); reverse returns the street address; **in the real map UI the search box now returns "3242 Old Plantation Way, Maryville, Tennessee, 37804"** (was "No matches") and selecting it drops the pin at `35.768621,-83.893601`.
+
+**ISSUE 1 (Open in Google Maps lands off the Esri pin) — instrumented; coords proven identical; URL format set to Google's documented form; production confirmation pending.**
+- **Runtime call chain (proven via the new glass box):** DB `Place.latitude/longitude` → `PlaceProfileView` → `legacy/place_detail.html` `#placeMapCard[data-lat/data-lon]` (Esri map) → `Place.maps_link_url` (Open-in-Maps href). A **cache-bypassing origin GET** of the real page shows **five-way agreement: DB `35.768621,-83.893601` == rendered Esri data-attrs == Google URL query — MATCH.** So the stored coordinates are correct and identical everywhere; the discrepancy is purely Google's interpretation of the URL, which **cannot be observed from the dev sandbox** (external navigation to google.com is blocked).
+- **Why the earlier assumption was wrong:** I'd claimed the Maps URLs API *search* action snaps and switched to `?q=lat,lng`. Google's **official docs** (fetched) say the opposite — a bare `query=lat%2Clng` (comma URL-encoded) "puts a pin… with no additional place information", i.e. does not snap; `?q=` was a move *away* from the documented format. `maps_link_url` now uses the documented `…/maps/search/?api=1&query=<lat>%2C<lng>`.
+- **Glass box (new):** `/legacy/debug/map/?place=<pk>` renders the five-way table AND **every candidate Google URL side-by-side** (search-encoded, q-plain, q-encoded, place-path, place@zoom, ll+q) as clickable links, so the coordinate Google honours is determined **in production by clicking**, not assumed. `?q=<address>` shows the exact geocoder request URL, HTTP status, and raw response. `@login_required` (own places; superuser any). Temporary — remove when the incident closes.
+
+**Files:** `apps/legacy/services/geocode.py` (Esri + instrumentation + `probe()`), `apps/legacy/models.py` (`maps_link_url` → documented format), `apps/legacy/debug_views.py` (new), `apps/legacy/urls.py`, `apps/legacy/tests/{test_places_map,test_connections}.py`. No migration.
+
+**Verification state (per Danny's contract):** 30 tests green. **Issue 2: Locally Verified** (real UI). **Issue 1: Implementation complete** (documented format + glass box; coords proven identical). **Both AWAITING PRODUCTION VERIFICATION** — Esri is an external provider and Google's pin behaviour is observable only in production. Not certifying acceptance until Danny confirms in prod.
+
 ## 2026-07-06 — docs: Runtime-Trace Debugging Protocol (governing production-debugging standard)
 
 **Why:** the milestone-win incident cost several rounds proving *which* layer produced the browser's output before the real fix (missing `Cache-Control`) was found. Codified the protocol so proof-of-runtime-path is the FIRST move, not the last.

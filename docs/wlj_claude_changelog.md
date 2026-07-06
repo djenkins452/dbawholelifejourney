@@ -6,6 +6,22 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — feat(legacy): Clarifications are first-class CRUD — delete one / many / all, with Undo (Canonical Truth untouched)
+
+**What:** Clarification questions ("Help Legacy understand…") were write-only — you could only Answer them. They're now full CRUD entities, like People / Relationships / Stories / Media. Nothing in Legacy is write-only.
+
+**Capability (delete = remove the QUESTION, never Canonical Truth):**
+- Per-card **⋮ menu** → **Answer** (focus the inline teach form) · **Delete** (remove this question).
+- Per-card **checkbox** + toolbar **Select all** · **Delete selected** · **Delete all**.
+- **Delete all** shows the exact confirmation ("Delete all outstanding clarification questions? This does not delete any people or relationships. It only removes the unanswered questions." · Cancel / Delete all).
+- **Undo** banner immediately after any removal — one click restores the question(s).
+
+**Architecture (the key decision):** clarifications are DERIVED on read from preserved evidence (not stored rows), with teach-once via chunk data / `ClarificationDecision`. So "delete a clarification" = **suppress that question**, not delete data. New `ClarificationDismissal(user, cid)` model records a dismissal by a stable `cid` (`"<kind>:<scope…>:<ref>"` — batch-scoped for marriage, person-pair for step). `clarification.pending()` filters out dismissed cids; `dismiss()`/`restore()`/`pending_cids()` are the CRUD service. Deleting NEVER writes or removes a Person, Relationship, Story, Media, or fact; Undo hard-deletes the dismissal so the question re-derives from the same evidence and reappears. Answering is unchanged (still writes Canonical Truth).
+
+**Files:** `apps/legacy/models.py` (+`ClarificationDismissal`), `apps/legacy/migrations/0034_clarificationdismissal.py`, `apps/legacy/services/clarification.py` (`cid` on every item; `pending` filter; `dismiss`/`restore`/`pending_cids`), `apps/legacy/views.py` (`ClarificationDismissView`, `ClarificationRestoreView`, one-time undo via session), `apps/legacy/urls.py` (`clarify_dismiss`, `clarify_restore`), `templates/legacy/import_detail.html` (toolbar, per-card select + ⋮ menu, confirm modal, undo banner, CSP-nonce script — no inline handlers), `static/css/legacy.css` (+cache-bust `v=55`), `apps/legacy/tests/test_clarification_crud.py` (new).
+
+**Verification:** `apps.legacy.tests.test_clarification_crud` 11 green (delete one/all + undo + `re-dismiss` idempotent + owner-scoped 404 + answer-still-writes-truth + Person/Relationship counts unchanged through delete→undo); existing `ClarificationEngineTests` + `test_relationship_categories` 18 green (no regression). Live-certified in the dev browser on a throwaway batch: ⋮ menu (Answer/Delete), Select all → "1 selected" + Delete-selected enabled, Delete-all confirmation copy exact, single Delete → Undo banner ("…deleted no people or relationships…") → Undo restored the question; the 4 placeholder people survived delete+undo (Canonical Truth intact). `makemigrations --check` clean; throwaway data removed after capture.
+
 ## 2026-07-05 — fix(cos): Goals check-in TypeError on dict-shaped goals — the REAL cause of the false goal-gap
 
 **Proven by the live runtime diagnostic** (`git_sha` current, `deployed_resolver_calls_strategic_summary: true`, `select_active_mission_goal: France 2027 Family 18K Mission`, `purpose_active_goal_count: 4`, `response_source: _GOALS_GAP`, `strategic_summary_error: TypeError('sequence item 0: expected str instance, dict found')`). The One-Brain fix WAS deployed and executing — but `_strategic_summary` assumed `get_domain_state("purpose").active_titles` were strings, while production returns them as rich **dicts** (`{title, context, evidence, target_date, ...}`). `", ".join(others)` raised `TypeError`; `resolve_clarification_option`'s `except` then returned the hardcoded `_GOALS_GAP` — falsely telling the user there were no active goals while a mission and 4 goals existed.

@@ -93,14 +93,50 @@
     </div>
     {% endif %}
 
+    {% if clarify_undo %}
+    <div class="clarify-undo" role="status">
+        <span class="clarify-undo-msg">{{ clarify_undo|length }} {{ clarify_undo|length|pluralize:"question,questions" }} removed. This deleted no people or relationships — only the unanswered {{ clarify_undo|length|pluralize:"question,questions" }}.</span>
+        <form method="post" action="{% url 'legacy:clarify_restore' batch.pk %}" class="clarify-undo-form">
+            {% csrf_token %}
+            {% for cid in clarify_undo %}<input type="hidden" name="cids" value="{{ cid }}">{% endfor %}
+            <button type="submit" class="clarify-undo-btn">Undo</button>
+        </form>
+    </div>
+    {% endif %}
+
     {% if clarifications %}
     <div class="clarify-intro">
         <h2 class="lg-section-title">Help Legacy understand</h2>
-        <p class="editor-aside-note">Legacy preserves exactly what the file records and never guesses. Here are the things it couldn't determine on its own — the evidence it found, and a question. You teach Legacy the answer, and it won't ask again.</p>
+        <p class="editor-aside-note">Legacy preserves exactly what the file records and never guesses. Here are the things it couldn't determine on its own — the evidence it found, and a question. You teach Legacy the answer, and it won't ask again. Removing a question only clears the question — it never deletes a person, relationship, or anything you've saved.</p>
     </div>
+
+    <div class="clarify-toolbar">
+        <label class="clarify-selectall"><input type="checkbox" id="clarifySelectAll"> Select all</label>
+        <span class="clarify-selcount" id="clarifySelCount" aria-live="polite"></span>
+        <div class="clarify-toolbar-actions">
+            <button type="button" class="lg-btn-quiet" id="clarifyDeleteSelected" disabled>Delete selected</button>
+            <button type="button" class="lg-btn-quiet clarify-danger" id="clarifyDeleteAll">Delete all</button>
+        </div>
+    </div>
+
+    <!-- JS posts selected/single cids through these standalone forms — the per-card
+         answer forms stay separate, so nothing is ever nested. -->
+    <form method="post" action="{% url 'legacy:clarify_dismiss' batch.pk %}" id="clarifyDismissForm" hidden>{% csrf_token %}<span id="clarifyDismissCids"></span></form>
+    <form method="post" action="{% url 'legacy:clarify_dismiss' batch.pk %}" id="clarifyDeleteAllForm" hidden>{% csrf_token %}<input type="hidden" name="scope" value="all"></form>
+
     {% for c in clarifications %}
-    <section class="lg-card clarify-card">
-        <h3 class="lg-card-h">{{ c.title }}</h3>
+    <section class="lg-card clarify-card" data-cid="{{ c.cid }}">
+        <div class="clarify-card-top">
+            <label class="clarify-pick"><input type="checkbox" class="clarify-check" value="{{ c.cid }}" aria-label="Select this question"></label>
+            <h3 class="lg-card-h clarify-card-h">{{ c.title }}</h3>
+            <div class="clarify-menu">
+                <button type="button" class="clarify-menu-btn" aria-haspopup="true" aria-expanded="false" aria-label="Question actions">⋮</button>
+                <div class="clarify-menu-pop" hidden role="menu">
+                    <button type="button" class="clarify-menu-item" data-act="answer" role="menuitem">Answer</button>
+                    <button type="button" class="clarify-menu-item clarify-menu-del" data-act="delete" data-cid="{{ c.cid }}" role="menuitem">Delete</button>
+                </div>
+            </div>
+        </div>
         <p class="clarify-reason">{{ c.reason }}.</p>
         <div class="clarify-evidence-wrap">
             <span class="clarify-evidence-label">Legacy found</span>
@@ -126,6 +162,105 @@
         </form>
     </section>
     {% endfor %}
+
+    <div class="clarify-confirm-overlay" id="clarifyConfirm" hidden role="dialog" aria-modal="true" aria-labelledby="clarifyConfirmTitle">
+        <div class="clarify-confirm">
+            <h3 id="clarifyConfirmTitle" class="clarify-confirm-title">Delete all outstanding clarification questions?</h3>
+            <p class="clarify-confirm-note">This does not delete any people or relationships. It only removes the unanswered questions.</p>
+            <div class="clarify-confirm-actions">
+                <button type="button" class="lg-btn-quiet" id="clarifyConfirmCancel">Cancel</button>
+                <button type="button" class="lg-btn-primary clarify-danger" id="clarifyConfirmDelete">Delete all</button>
+            </div>
+        </div>
+    </div>
+
+    <script nonce="{{ csp_nonce }}">
+    (function () {
+        var checks = Array.prototype.slice.call(document.querySelectorAll('.clarify-check'));
+        var selectAll = document.getElementById('clarifySelectAll');
+        var delSelected = document.getElementById('clarifyDeleteSelected');
+        var selCount = document.getElementById('clarifySelCount');
+        var dismissForm = document.getElementById('clarifyDismissForm');
+        var dismissCids = document.getElementById('clarifyDismissCids');
+        function selected() { return checks.filter(function (c) { return c.checked; }); }
+        function refresh() {
+            var n = selected().length;
+            if (delSelected) { delSelected.disabled = n === 0; }
+            if (selCount) { selCount.textContent = n ? (n + ' selected') : ''; }
+            if (selectAll) {
+                selectAll.checked = n > 0 && n === checks.length;
+                selectAll.indeterminate = n > 0 && n < checks.length;
+            }
+        }
+        checks.forEach(function (c) { c.addEventListener('change', refresh); });
+        if (selectAll) {
+            selectAll.addEventListener('change', function () {
+                checks.forEach(function (c) { c.checked = selectAll.checked; });
+                refresh();
+            });
+        }
+        function submitDismiss(cids) {
+            if (!cids.length) { return; }
+            dismissCids.textContent = '';
+            cids.forEach(function (cid) {
+                var i = document.createElement('input');
+                i.type = 'hidden'; i.name = 'cids'; i.value = cid;
+                dismissCids.appendChild(i);
+            });
+            dismissForm.submit();
+        }
+        if (delSelected) {
+            delSelected.addEventListener('click', function () {
+                submitDismiss(selected().map(function (c) { return c.value; }));
+            });
+        }
+        // Per-card ⋮ menu
+        function closeMenus() {
+            document.querySelectorAll('.clarify-menu-pop').forEach(function (p) { p.hidden = true; });
+            document.querySelectorAll('.clarify-menu-btn').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+        }
+        document.querySelectorAll('.clarify-menu-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var pop = btn.nextElementSibling;
+                var isOpen = !pop.hidden;
+                closeMenus();
+                if (!isOpen) { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+            });
+        });
+        document.querySelectorAll('.clarify-menu-item').forEach(function (item) {
+            item.addEventListener('click', function (e) {
+                e.stopPropagation();
+                closeMenus();
+                var act = item.getAttribute('data-act');
+                var card = item.closest('.clarify-card');
+                if (act === 'delete') {
+                    submitDismiss([item.getAttribute('data-cid')]);
+                } else if (act === 'answer' && card) {
+                    var f = card.querySelector('.clarify-form');
+                    if (f) { var r = f.querySelector('input'); if (r) { r.focus(); } f.scrollIntoView({ block: 'nearest' }); }
+                }
+            });
+        });
+        document.addEventListener('click', closeMenus);
+        // Delete all → confirmation
+        var modal = document.getElementById('clarifyConfirm');
+        var delAll = document.getElementById('clarifyDeleteAll');
+        var cancel = document.getElementById('clarifyConfirmCancel');
+        var confirmBtn = document.getElementById('clarifyConfirmDelete');
+        var allForm = document.getElementById('clarifyDeleteAllForm');
+        function openModal() { if (modal) { modal.hidden = false; if (confirmBtn) { confirmBtn.focus(); } } }
+        function closeModal() { if (modal) { modal.hidden = true; if (delAll) { delAll.focus(); } } }
+        if (delAll) { delAll.addEventListener('click', openModal); }
+        if (cancel) { cancel.addEventListener('click', closeModal); }
+        if (confirmBtn) { confirmBtn.addEventListener('click', function () { if (allForm) { allForm.submit(); } }); }
+        if (modal) { modal.addEventListener('click', function (e) { if (e.target === modal) { closeModal(); } }); }
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { if (modal && !modal.hidden) { closeModal(); } closeMenus(); }
+        });
+        refresh();
+    })();
+    </script>
     {% endif %}
 
     {% if batch.coverage.needs_support or batch.coverage.unknown or batch.coverage.supported %}

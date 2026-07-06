@@ -1371,6 +1371,8 @@ class ImportDetailView(LegacyContextMixin, DetailView):
         # unit with no marriage record). Only meaningful once genealogy is committed.
         from apps.legacy.services import clarification
         ctx["clarifications"] = clarification.pending(self.object)
+        # Show a one-time Undo banner right after questions were removed.
+        ctx["clarify_undo"] = self.request.session.pop("clarify_undo", None)
         ctx["stats"] = import_engine.batch_stats(self.object)
         ctx["next_review"] = (
             self.object.memories.filter(entry_state=Memory.EntryState.DRAFT)
@@ -1453,6 +1455,50 @@ class ClarificationResolveView(LegacyContextMixin, View):
             messages.success(request, "Thanks — Legacy learned that and won't ask again.")
         else:
             messages.error(request, "Please choose how Legacy should represent this.")
+        return redirect("legacy:import_detail", pk=batch.pk)
+
+
+class ClarificationDismissView(LegacyContextMixin, View):
+    """Remove clarification questions from the queue — one, a selected set, or all.
+
+    A clarification is a first-class entity with full CRUD: dismissing it deletes the
+    QUESTION only. It never deletes a Person, Relationship, Story, Media, or any
+    Canonical Truth. The action is reversible (see the Undo banner / restore view)."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services import clarification
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        if request.POST.get("scope") == "all":
+            cids = clarification.pending_cids(batch)
+        else:
+            cids = request.POST.getlist("cids")
+        removed = clarification.dismiss(request.user, cids)
+        if removed:
+            request.session["clarify_undo"] = removed
+            n = len(removed)
+            messages.success(
+                request,
+                "Removed %d clarification %s. This did not delete any people or "
+                "relationships — only the unanswered %s."
+                % (n, "question" if n == 1 else "questions",
+                   "question" if n == 1 else "questions"))
+        else:
+            messages.info(request, "No questions were removed.")
+        return redirect("legacy:import_detail", pk=batch.pk)
+
+
+class ClarificationRestoreView(LegacyContextMixin, View):
+    """Undo — bring dismissed clarification questions back to the queue. They re-derive
+    from the same preserved evidence; Canonical Truth is untouched either way."""
+
+    def post(self, request, pk, *args, **kwargs):
+        from apps.legacy.services import clarification
+        batch = get_object_or_404(ImportBatch.all_objects, pk=pk, user=request.user)
+        restored = clarification.restore(request.user, request.POST.getlist("cids"))
+        if restored:
+            n = len(restored)
+            messages.success(
+                request, "Restored %d %s." % (n, "question" if n == 1 else "questions"))
         return redirect("legacy:import_detail", pk=batch.pk)
 
 

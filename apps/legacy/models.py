@@ -975,6 +975,26 @@ class ClarificationDecision(LegacyOwnedModel):
         return f"{self.kind}:{self.ref} → {self.answer}"
 
 
+class ClarificationDismissal(LegacyOwnedModel):
+    """A clarification question the keeper chose to REMOVE from the queue without
+    answering it. Suppresses that question (by its stable `cid`) from
+    `clarification.pending()`.
+
+    Deleting a clarification deletes NOTHING in Canonical Truth — no Person,
+    Relationship, Story, Media, or fact. It only clears the outstanding question.
+    Undo simply removes this row, and the question re-derives from the same evidence
+    and reappears. Clarifications are first-class here: full CRUD, never write-only."""
+
+    cid = models.CharField(max_length=200, db_index=True,
+                           help_text="Stable clarification id: '<kind>:<scope…>:<ref>'.")
+
+    class Meta:
+        unique_together = ['user', 'cid']
+
+    def __str__(self):
+        return f"dismissed {self.cid}"
+
+
 class RelationshipAlias(LegacyOwnedModel):
     """A relational term the keeper uses — "Dad", "Mom", "Coach", "Pastor" — mapped
     to the actual Person it refers to. Learned once (on review) and reused on every

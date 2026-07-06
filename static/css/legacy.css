@@ -1266,6 +1266,51 @@ a.fam-result { text-decoration: none; }
 .clarify-detail { margin-top: 2px; margin-left: 26px; max-width: 340px; padding: 8px 11px; border: 1px solid var(--lg-border); border-radius: 9px; font-size: 14px; background: var(--lg-surface); color: var(--lg-ink); }
 .clarify-submit { align-self: flex-start; }
 
+/* Clarifications as first-class CRUD — bulk toolbar, per-card select + menu, undo,
+   and the Delete-All confirmation. Removing a question never touches Canonical Truth. */
+.clarify-toolbar { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 4px 0 14px; padding: 10px 14px;
+    background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; }
+.clarify-selectall { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--lg-ink); cursor: pointer; }
+.clarify-selectall input, .clarify-check { width: 17px; height: 17px; accent-color: var(--lg-accent, #b07a2b); cursor: pointer; }
+.clarify-selcount { font-size: 12.5px; color: var(--lg-muted); }
+.clarify-toolbar-actions { display: flex; gap: 8px; margin-left: auto; }
+.clarify-danger { color: #b3402e; border-color: #e2c3bd; }
+.clarify-danger:hover:not(:disabled) { background: #fbeeeb; border-color: #d99a8e; }
+.lg-btn-primary.clarify-danger { color: #fff; background: #b3402e; border-color: #b3402e; }
+.lg-btn-primary.clarify-danger:hover { background: #9c3626; }
+
+.clarify-card-top { display: flex; align-items: flex-start; gap: 12px; }
+.clarify-pick { flex: 0 0 auto; padding-top: 2px; cursor: pointer; }
+.clarify-card-h { flex: 1; min-width: 0; margin: 0; }
+.clarify-menu { position: relative; flex: 0 0 auto; }
+.clarify-menu-btn { width: 32px; height: 32px; border: 1px solid transparent; border-radius: 8px; background: none; cursor: pointer;
+    font-size: 20px; line-height: 1; color: var(--lg-muted); }
+.clarify-menu-btn:hover { background: var(--lg-surface-2); color: var(--lg-ink); }
+.clarify-menu-btn:focus-visible, .clarify-menu-item:focus-visible, .clarify-undo-btn:focus-visible {
+    outline: 2px solid var(--lg-accent, #b07a2b); outline-offset: 2px; }
+.clarify-menu-pop { position: absolute; top: 36px; right: 0; z-index: 12; min-width: 148px; padding: 5px;
+    background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 10px; box-shadow: 0 18px 40px -22px rgba(30, 25, 15, .55); }
+.clarify-menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 7px;
+    background: none; cursor: pointer; font-size: 13.5px; font-family: inherit; color: var(--lg-ink); }
+.clarify-menu-item:hover { background: var(--lg-surface-2); }
+.clarify-menu-del { color: #b3402e; }
+.clarify-menu-del:hover { background: #fbeeeb; }
+
+.clarify-undo { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 4px 0 16px;
+    padding: 12px 16px; background: #f3efe6; border: 1px solid #e7ddc8; border-radius: 12px; }
+.clarify-undo-msg { font-size: 13.5px; color: #6f5f3d; }
+.clarify-undo-form { margin: 0; }
+.clarify-undo-btn { font-size: 13.5px; font-weight: 700; color: var(--lg-accent-ink, #7a5b1e); background: none; border: 0;
+    cursor: pointer; text-decoration: underline; font-family: inherit; padding: 4px 6px; }
+
+.clarify-confirm-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+    padding: 20px; background: rgba(30, 25, 15, .45); }
+.clarify-confirm { width: 100%; max-width: 420px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 16px;
+    padding: 22px 24px; box-shadow: 0 30px 60px -30px rgba(30, 25, 15, .6); }
+.clarify-confirm-title { font-family: var(--lg-serif); font-size: 19px; color: var(--lg-ink); margin: 0 0 8px; }
+.clarify-confirm-note { font-size: 13.5px; color: var(--lg-ink-soft); margin: 0 0 18px; line-height: 1.5; }
+.clarify-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 /* Relationships — canonical person-centric browser */
 .rel-browser { margin-top: 12px; }
 .rel-search { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--lg-surface); border: 1px solid var(--lg-border); border-radius: 12px; color: var(--lg-muted); margin-bottom: 16px; }

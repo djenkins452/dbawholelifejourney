@@ -17,10 +17,17 @@ resolve dispatch. Marriage status is simply the FIRST registered type; future ty
 (who is 'Dad', story vs fact, duplicate people, same place, relationship type, …)
 plug in the same way.
 
+Clarifications are first-class, fully CRUD-able entities — never write-only. Beyond
+answering (which writes Canonical Truth), a question can be DISMISSED (removed from the
+queue) singly, in bulk, or all at once, and that dismissal is reversible (undo). A
+dismissal deletes NOTHING in Canonical Truth — it only clears the outstanding question,
+suppressed by a stable `cid` (see `dismiss` / `restore` / `pending`).
+
 A clarification item (the evidence contract every type returns):
     {
       "kind":        "<type key>",          # which handler resolves it
       "ref":         "<opaque id>",          # passed back to resolve()
+      "cid":         "<stable id>",          # '<kind>:<scope…>:<ref>' — CRUD/dismiss handle
       "title":       "Help Legacy understand …",
       "prompt":      "<neutral question — never leading>",
       "reason":      "<one line: why Legacy is asking>",
@@ -40,11 +47,50 @@ def register(handler):
 
 
 def pending(batch):
-    """Every open clarification for a committed import batch, across all types."""
+    """Every open clarification for a committed import batch, across all types —
+    excluding questions the keeper has DISMISSED (removed from the queue)."""
+    from apps.legacy.models import ClarificationDismissal
+    dismissed = set(ClarificationDismissal.objects.filter(user=batch.user)
+                    .values_list("cid", flat=True))
     out = []
     for handler in _REGISTRY:
-        out.extend(handler.detect(batch))
+        for item in handler.detect(batch):
+            if item.get("cid") not in dismissed:
+                out.append(item)
     return out
+
+
+def pending_cids(batch):
+    """The stable ids of every question currently in the queue (for 'delete all')."""
+    return [item["cid"] for item in pending(batch) if item.get("cid")]
+
+
+def dismiss(user, cids):
+    """Remove clarification questions from the queue by `cid`. This is a first-class
+    delete of the QUESTION only — it never touches a Person, Relationship, Story,
+    Media, or any Canonical Truth. Returns the cids newly dismissed (so the caller can
+    offer Undo). Re-dismissing an already-dismissed question is a no-op."""
+    from apps.legacy.models import ClarificationDismissal
+    done = []
+    for cid in cids or []:
+        cid = (cid or "").strip()
+        if not cid:
+            continue
+        _obj, created = ClarificationDismissal.objects.get_or_create(user=user, cid=cid)
+        if created:
+            done.append(cid)
+    return done
+
+
+def restore(user, cids):
+    """Undo a dismissal — the question re-derives from the same evidence and reappears.
+    Canonical Truth is untouched either way. Returns the cids restored."""
+    from apps.legacy.models import ClarificationDismissal
+    cids = [(c or "").strip() for c in (cids or []) if (c or "").strip()]
+    if not cids:
+        return []
+    ClarificationDismissal.objects.filter(user=user, cid__in=cids).delete()
+    return cids
 
 
 def resolve(batch, kind, ref, answer, detail=""):
@@ -93,9 +139,12 @@ class MarriageClarification:
                     Q(from_person=hp, to_person=wp) | Q(from_person=wp, to_person=hp)).exists():
                 continue
             n = len(d.get("children") or [])
+            ref = str(ch.index)
             yield {
                 "kind": self.kind,
-                "ref": str(ch.index),
+                "ref": ref,
+                # Chunk index is unique only WITHIN a batch → scope the cid by batch.
+                "cid": "%s:%d:%s" % (self.kind, batch.id, ref),
                 "title": "Help Legacy understand this relationship",
                 "prompt": "How should Legacy represent this relationship?",
                 "reason": "They share %d %s, but the file records no marriage event"
@@ -182,9 +231,12 @@ class StepParentClarification:
         for c in clarify:
             spouse_id, parent_id = c["spouse_id"], c["parent_id"]
             kid_names = ", ".join(names.get(k, "?") for k in sorted(c["child_ids"]))
+            ref = "%d:%d" % (spouse_id, parent_id)
             yield {
                 "kind": self.kind,
-                "ref": "%d:%d" % (spouse_id, parent_id),
+                "ref": ref,
+                # Step candidates are user-global (a person pair), not batch-scoped.
+                "cid": "%s:%s" % (self.kind, ref),
                 "title": "Help Legacy understand this relationship",
                 "prompt": "How is %s related to %s's %s?" % (
                     names.get(spouse_id, "this person"), names.get(parent_id, "the parent"),

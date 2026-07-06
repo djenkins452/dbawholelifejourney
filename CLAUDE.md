@@ -20,6 +20,8 @@
 
 **Auto-fix rule:** Fix broken/non-compliant code (CSP violations, quality issues) when you encounter it in files you're touching.
 
+**Production debugging (REQUIRED):** For ANY "the app shows X but should show Y" bug, follow `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`. **Never modify code until you have PROVEN (not guessed) that it executed on the request that produced the behavior.** Trace Browser→HTML→Template→View→Composer→Builder→DB; find ALL producers (persisted object vs live composer are different!); build a glass-box debug endpoint if ownership is unclear; verify five-way agreement (DB→Object→Composer→Template→Browser). A passing unit test is NOT proof.
+
 **Conserve limits:** Keep responses concise. Batch changes. Use Task/Explore agent for broad searches. Warn before high-token operations.
 
 ---
@@ -268,6 +270,7 @@ Every operational feature review must end by answering these five. If any obviou
 | `docs/CLAUDE_DOC_UPDATES.md` | After completing features/enhancements |
 | `docs/CLAUDE_IOS.md` | iOS app / mobile API work |
 | `docs/CLAUDE_BIBLE_PLANS.md` | Bible reading plan work |
+| `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` | **ANY "app shows X, should show Y" bug — PROVE the runtime path before changing code. Governing debugging standard.** |
 | `docs/wlj_claude_troubleshoot.md` | When something isn't working (CHECK FIRST) |
 | `docs/wlj_claude_deploy.md` | Deployment issues |
 | `docs/wlj_claude_features.md` | Feature documentation |

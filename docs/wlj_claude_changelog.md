@@ -6,6 +6,17 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — docs: Runtime-Trace Debugging Protocol (governing production-debugging standard)
+
+**Why:** the milestone-win incident cost several rounds proving *which* layer produced the browser's output before the real fix (missing `Cache-Control`) was found. Codified the protocol so proof-of-runtime-path is the FIRST move, not the last.
+
+**Added `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`** — governing standard: never modify code until you've PROVEN it executed on the request that produced the behavior (plausible/similar code is not enough). Seven phases (Reproduce → Trace runtime backwards → Prove execution → Identify duplicate producers → Build a glass box → Implement → Verify five-way agreement DB→Object→Composer→Template→Browser). Encodes the WLJ traps proven in real incidents: persisted object vs live composer are different producers; a by-design label ("Milestone reached" mission-panel state label) can share the buggy string; cache-bypassing origin capture separates a render bug from a cache bug. Reference glass box: `apps/dashboard_v3/debug_views.py`.
+
+**Wired into `CLAUDE.md`:** new Behavior Rule ("Production debugging (REQUIRED)") + Reference Docs table row.
+
+**Files:** `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` (new), `CLAUDE.md`.
+
+
 ## 2026-07-06 — feat(healthkit): user-triggered HealthKit Historical Reimport (repairs noon-defaulted timestamps)
 
 A reusable product capability (not a one-off Xcode hack) to repair historical body-composition samples that were stored at 12:00 PM before the ingest fix. The server can't read HealthKit (on-device), so it's a durable hand-off following the intended "Re-import Sleep History" pattern:

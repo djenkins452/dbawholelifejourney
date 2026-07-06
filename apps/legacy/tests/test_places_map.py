@@ -40,12 +40,15 @@ class PlaceMapHelperTests(TestCase):
         self.assertEqual(p.map_query, "Maryville, Tennessee")
         self.assertIn("Maryville", p.maps_link_url)
         self.assertNotIn("Grandma", p.maps_link_url)    # personal name never geocoded
-        self.assertTrue(p.maps_link_url.startswith("https://www.google.com/maps/search/"))
+        self.assertTrue(p.maps_link_url.startswith("https://www.google.com/maps?q="))
 
-    def test_open_in_maps_uses_coordinates_when_known(self):
+    def test_open_in_maps_pins_exact_coordinates(self):
+        # Exact-pin form ?q=lat,lng — NOT the search action, which snaps the pin to a
+        # nearby named place. The link must land on the same point the Esri map shows.
         p = self._place(name="Home", location_text="Knoxville, TN",
                         latitude=Decimal("35.9606"), longitude=Decimal("-83.9207"))
-        self.assertIn("35.9606", p.maps_link_url)
+        self.assertEqual(p.maps_link_url, "https://www.google.com/maps?q=35.9606,-83.9207")
+        self.assertNotIn("maps/search", p.maps_link_url)
 
     def test_name_only_place_has_no_maps_link(self):
         # A bare personal name (no location text) would not geocode — no Google link.

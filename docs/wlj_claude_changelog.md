@@ -6,6 +6,16 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(legacy): "Open in Google Maps" pins the EXACT coordinate (search action was snapping)
+
+**Root cause (verified, not guessed):** the stored coordinates were correct — proven byte-for-byte identical across all three consumers: canonical Place `35.715768,-83.943357` == Esri map `data-lat/data-lon` == the Google URL's `query`. No swap, no truncation, no sign error. The discrepancy was purely the URL **format**: we built `https://www.google.com/maps/search/?api=1&query=<lat>,<lng>` — the Maps URLs API **search** action, which reverse-geocodes a coordinate and **snaps the pin to the nearest named place/road/POI**, landing it off the exact spot the Esri map shows.
+
+**Fix:** the coordinate case now uses the exact-pin idiom **`https://www.google.com/maps?q=<lat>,<lng>`**, which Google reads as a literal coordinate and pins exactly. (The Maps URLs API has *no* exact-coordinate-pin action — only search, which snaps — so `?q=lat,lng` is the correct tool; we were already on the "newer" API, and that API was the cause.) Text-only places keep `?q=<place name>` (a search is right when the query is a name). `Place.maps_link_url` only.
+
+**Files:** `apps/legacy/models.py` (`maps_link_url`), `apps/legacy/tests/test_places_map.py`, `apps/legacy/tests/test_connections.py`. No migration (property only).
+
+**Verification:** 28 tests green. Live: the rendered "Open in Google Maps" href is `https://www.google.com/maps?q=35.715768,-83.943357` with `usesSearchAction:false`, and the Esri map reads the identical coordinates — same point, exact-pin form. (Could not click through to Google Maps to eyeball the pin — external navigation is blocked in the dev sandbox — but coordinates are provably identical and the format is now the exact-coordinate idiom; final visual confirmation is one click for Danny.)
+
 ## 2026-07-06 — docs/test(healthkit): historical weight timestamp recovery — resync path (no fabrication)
 
 Investigation of whether the noon-defaulted HISTORICAL weight timestamps are recoverable. **Not recoverable server-side** — WLJ never retained the real sample time (`HealthIngestionRun` logs metadata + counts only, no raw payload; ingest reduced `date` to a calendar day; `created_at` clusters at import time so it is not a per-sample proxy). **Recoverable from the source (Apple Health)**: each `WeightEntry` carries the stable HealthKit sample UUID as `sync_id`, and the deployed self-heal corrects a stored noon row to the real sample time on re-sync — matched by UUID, or by date (backfilling the UUID) for pre-UUID rows. Lossless, no duplicates, no fabrication.

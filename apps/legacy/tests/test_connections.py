@@ -120,15 +120,17 @@ class PlaceMapLinkTests(TestCase):
         place = Place.objects.create(user=self.user, name="Marie Callender's",
                                      latitude="33.84", longitude="-117.95")
         r = self.client.get(reverse("legacy:place_detail", args=[place.pk]))
-        self.assertContains(r, "google.com/maps/search")
-        self.assertContains(r, "query=33.84")
+        # Exact-pin coordinate form (?q=lat,lng), NOT the search action which snaps.
+        # (DB normalises the Decimal to 6 places → 33.840000,-117.950000.)
+        self.assertContains(r, "google.com/maps?q=33.84")
+        self.assertNotContains(r, "maps/search")
         self.assertContains(r, "Open in Google Maps")
 
     def test_map_link_from_address_when_no_coords(self):
         place = Place.objects.create(user=self.user, name="The chapel",
                                      location_text="Tuscaloosa, Alabama")
         r = self.client.get(reverse("legacy:place_detail", args=[place.pk]))
-        self.assertContains(r, "google.com/maps/search")
+        self.assertContains(r, "google.com/maps?q=")
 
     def test_no_map_link_without_location(self):
         place = Place.objects.create(user=self.user, name="Grandma's house")

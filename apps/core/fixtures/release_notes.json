@@ -4118,5 +4118,21 @@
       "created_at": "2026-07-07T16:00:00Z",
       "updated_at": "2026-07-07T16:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 259,
+    "fields": {
+      "title": "Your Chief of Staff coaches within your training plan",
+      "description": "Recovery advice now respects the program you've chosen. If you follow a structured week — alternating training with a built-in rest day — your Chief of Staff won't tell you to take an extra rest day just because your workout count is high; it recognizes that's the plan. When your sleep runs low, it points you to the real lever — protecting tonight's sleep so your next session stays strong — instead of second-guessing your program. And your everyday operating tasks, like logging nutrition or weighing in, no longer get the same attention as a genuine commitment like an appointment or an errand.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T17:00:00Z",
+      "updated_at": "2026-07-07T17:00:00Z"
+    }
   }
 ]

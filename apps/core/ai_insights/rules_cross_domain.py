@@ -242,23 +242,58 @@ class OvertrainingRiskRule(CrossDomainRule):
         )
         self._elevate_guidance(user, "health")
 
-        return [{
-            "severity": "warning",
-            "title": "Overtraining Risk",
-            "message": (
+        # PLAN-AWARE RECOVERY REASONING: a high workout count that MATCHES the user's
+        # intentional program — one with a built-in recovery day — is not overtraining,
+        # it is the plan. Coach WITHIN the program (protect sleep so the next session
+        # stays productive) instead of casually recommending another rest day. Only when
+        # there is NO structured plan, or the volume EXCEEDS it, is the raw
+        # "recovery compromised — take a rest day" framing appropriate.
+        on_plan_with_recovery = False
+        try:
+            from apps.health.services.training_plan import read_training_plan
+            plan = read_training_plan(user)
+            on_plan_with_recovery = (
+                plan.get("has_plan") and plan.get("has_recovery_day")
+                and workout_count_7d <= (plan.get("days_per_week") or workout_count_7d))
+        except Exception:
+            on_plan_with_recovery = False
+
+        if on_plan_with_recovery:
+            title = "Protect tonight's sleep to keep your training on plan"
+            message = (
+                f"Your sleep's been running light ({sleep_avg:.1f}h a night) — protect "
+                "tonight's rest so your next session stays strong. Your training's on "
+                "plan and you've already got a recovery day built into the week, so the "
+                "move is better sleep, not another rest day."
+            )
+            explain_why = (
+                "The workout frequency matches the user's intentional program (which "
+                "includes a built-in recovery day), so the lever is sleep quality, not "
+                "reducing training."
+            )
+        else:
+            title = "Overtraining Risk"
+            message = (
                 f"Sleep averaging {sleep_avg:.1f}h/night with {workout_count_7d} "
                 f"workouts in 7 days. Recovery is compromised — consider a "
                 "rest day or lighter session."
-            ),
-            "confidence_score": confidence,
-            "explain_why": (
+            )
+            explain_why = (
                 "Cross-domain correlation: declining sleep combined with high "
                 "workout frequency signals overtraining risk."
-            ),
+            )
+
+        return [{
+            "severity": "warning",
+            "title": title,
+            "message": message,
+            "confidence_score": confidence,
+            "explain_why": explain_why,
             "evidence": {
                 "sleep_avg_7d": sleep_avg,
                 "workout_count_7d": workout_count_7d,
                 "sleep_trend": sleep_trend,
+                "on_plan_with_recovery": on_plan_with_recovery,
                 "rule": self.rule_name,
             },
             "dedupe_key": dedupe,

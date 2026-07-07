@@ -124,11 +124,31 @@ def _rhythm_split(user):
     return ahead, past, now.hour
 
 
+# A task that is part of the user's normal OPERATING RHYTHM (logging, tracking, weighing
+# in, hydrating) — not a discrete commitment. It rides in the same daily cadence and
+# should not compete with a real commitment ("pick up the motorcycle", "call the dentist")
+# for the user's attention, even though it is a "task" by source_type.
+_ROUTINE_OPERATING_RE = re.compile(
+    r"^\s*(log|logging|track|record|update|weigh|weigh[\s-]?in|journal|check[\s-]?in|"
+    r"hydrate|drink water|stretch|take (my|your) (vitamins|supplements)|meal prep)\b",
+    re.IGNORECASE)
+
+
+def _is_routine_operating_task(title):
+    """A logging/tracking task that is part of the daily operating rhythm, not a
+    meaningful commitment."""
+    return bool(_ROUTINE_OPERATING_RE.match((title or "").strip()))
+
+
 def _agenda_worth_surfacing(it):
-    """Executive filter: a Chief of Staff does not read the whole list. A ROUTINE item
-    (a supplement dose, a 'log X' reminder) rarely deserves airtime next to a real
-    commitment. Keep meaningful items (appointments, tasks, prescriptions, mission
-    work); drop routine. Deterministic — reuses the priority-tier classifier."""
+    """Executive filter: a Chief of Staff does not read the whole list. Two kinds of work
+    that don't deserve airtime next to a real commitment: (1) ROUTINE items by nature —
+    a supplement dose, a scheduled routine (priority-tier classifier); (2) OPERATING-
+    RHYTHM tasks — 'log nutrition', 'weigh in' — which are cadence, not commitments, even
+    when stored as a 'task'. Keep meaningful items (appointments, real tasks, prescriptions,
+    mission work); drop routine + operating-rhythm. Deterministic."""
+    if _is_routine_operating_task(it.get("title")):
+        return False
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import _pa_classify
         tier, _ = _pa_classify(it)

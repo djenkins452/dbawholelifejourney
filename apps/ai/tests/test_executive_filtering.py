@@ -48,6 +48,17 @@ class AgendaFilteringTests(SimpleTestCase):
         self.assertTrue(EB._agenda_worth_surfacing(
             {"title": "Dentist", "source_type": "task", "domain": "appointment"}))
 
+    def test_operating_rhythm_tasks_are_filtered_even_when_stored_as_tasks(self):
+        # The production case: "Log Nutrition" is a TASK by source_type but is daily
+        # operating rhythm, not a commitment like "Pick up motorcycle".
+        for t in ("Log Nutrition", "log my meals", "Weigh in", "Track macros",
+                  "Journal", "Update my food log"):
+            self.assertFalse(
+                EB._agenda_worth_surfacing({"title": t, "source_type": "task"}), t)
+        for t in ("Pick up motorcycle", "Call the dentist", "Sign the lease"):
+            self.assertTrue(
+                EB._agenda_worth_surfacing({"title": t, "source_type": "task"}), t)
+
     def _agenda(self, items, hour=9):
         import datetime
         now = datetime.datetime(2026, 7, 3, hour, 0, tzinfo=datetime.timezone.utc)

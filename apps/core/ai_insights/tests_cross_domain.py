@@ -85,26 +85,21 @@ class OvertrainingRiskRuleTest(CrossDomainRuleTestBase):
         event = {
             **self.base_event,
             "user_state": {
-                "health": {
-                    "sleep_avg_hours_7d": 7.5,
-                    "workout_count_7d": 6,
-                    "sleep_trend": "stable",
-                },
+                "health": {"sleep_avg_hours_7d": 7.5, "sleep_trend": "stable"},
+                "fitness": {"workouts_7d": 6},   # count lives on FITNESS state
             },
         }
         insights = rule.evaluate(self.user, event)
         self.assertEqual(insights, [])
 
     def test_insight_when_sleep_low_and_workouts_high(self):
+        # No structured training plan for this user → the raw overtraining framing.
         rule = OvertrainingRiskRule()
         event = {
             **self.base_event,
             "user_state": {
-                "health": {
-                    "sleep_avg_hours_7d": 5.0,
-                    "workout_count_7d": 7,
-                    "sleep_trend": "decreasing",
-                },
+                "health": {"sleep_avg_hours_7d": 5.0, "sleep_trend": "decreasing"},
+                "fitness": {"workouts_7d": 7},
             },
         }
         insights = rule.evaluate(self.user, event)
@@ -116,11 +111,8 @@ class OvertrainingRiskRuleTest(CrossDomainRuleTestBase):
         event = {
             **self.base_event,
             "user_state": {
-                "health": {
-                    "sleep_avg_hours_7d": 5.0,
-                    "workout_count_7d": 2,
-                    "sleep_trend": "decreasing",
-                },
+                "health": {"sleep_avg_hours_7d": 5.0, "sleep_trend": "decreasing"},
+                "fitness": {"workouts_7d": 2},
             },
         }
         insights = rule.evaluate(self.user, event)

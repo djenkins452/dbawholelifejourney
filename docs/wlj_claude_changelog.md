@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): plan-aware recovery reasoning + finer operational filtering
+
+**Phase-2 reasoning gaps (Beth reacted to isolated metrics instead of the user's plan):**
+1. **Recovery reasoning ignored the intentional training program.** Beth said "Sleep
+   averaging 5.7h/night with 5 workouts in 7 days. Recovery is compromised — consider a
+   rest day or lighter session." But the user runs a structured 6-day split (alternating
+   strength/cardio) with a built-in Sunday recovery day. TRACE: `OvertrainingRiskRule`
+   (`apps/core/ai_insights/rules_cross_domain.py`) fires on `sleep < 6.5 AND workouts_7d
+   >= 5` reading ONLY sleep avg + workout count — never the `WorkoutPlan`/`WorkoutSchedule`
+   — and its Insight flows `active_intelligence → interpret().biggest_risk → executive_brief`.
+2. **Operational filtering too coarse:** "Log Nutrition" (daily operating rhythm) was
+   surfaced next to "Pick up motorcycle" (a real commitment) because it's stored as a
+   `task` (not a `routine_item`), so the tier classifier didn't catch it.
+
+**Fix (existing architecture, no new engine — strengthen the reasoning):**
+- New deterministic reader `apps/health/services/training_plan.py :: read_training_plan(user)`
+  — the active `WorkoutPlan` + `WorkoutSchedule` rotation: `has_plan`, `has_recovery_day`
+  (a built-in rest day), `days_per_week`, `alternates` (strength/cardio, heuristic on
+  template names), `today_type`/`today_is_rest`. Read-only, no migration.
+- `OvertrainingRiskRule` is now PLAN-AWARE: when the workout count MATCHES a structured
+  plan that already has a built-in recovery day, it REFRAMES from "consider a rest day"
+  to coaching WITHIN the program — "Protect tonight's sleep to keep your training on plan
+  … you've already got a recovery day built in, so the move is better sleep, not another
+  rest day." Only an unstructured plan, or volume EXCEEDING the plan, keeps the raw
+  overtraining framing. Coaches within the plan; changes it only on real evidence.
+- Operational filtering: `executive_brief._agenda_worth_surfacing` now also drops
+  OPERATING-RHYTHM tasks ("log nutrition", "weigh in", "track macros") by nature, even
+  when stored as a `task`, so cadence never competes with a real commitment.
+
+**Files:** apps/health/services/training_plan.py (new), apps/core/ai_insights/rules_cross_domain.py
+(plan-aware reframe), apps/ai/chatgpt_cos/executive_brief.py (operating-rhythm filter),
+apps/core/ai_insights/tests_plan_aware_recovery.py (new), apps/ai/tests/test_executive_filtering.py,
+apps/core/ai_insights/tests_cross_domain.py (fixed stale overtraining tests: workout count
+reads from `fitness.workouts_7d`), apps/core/fixtures/release_notes.json (PK 259),
+apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new tests_plan_aware_recovery (7) + operating-rhythm filter cases; ~180-test
+regression green. Two PRE-EXISTING unrelated failures noted (verified on a clean tree, not
+this change): `tests_cross_domain.ComplianceRiskRuleTest.test_insight_when_weight_up_and_meds_missed`
+and body-comp tests in `test_physical_intelligence_v2`. No new engine; no migration.
+
 ## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — Phase 0C (realize + verify)
 
 Made Phase 4 observable, schedulable, and live-verifiable WITHOUT expanding scope

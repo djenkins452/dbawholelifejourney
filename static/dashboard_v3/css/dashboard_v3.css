@@ -87,7 +87,8 @@
     border-color: var(--v3-accent);
     font-size: 0.66rem;
 }
-.v3-pill-weather { gap: 6px; box-shadow: var(--v3-shadow-sm); }
+.v3-pill-weather { gap: 6px; box-shadow: var(--v3-shadow-sm); cursor: pointer; }
+a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-pill-weather-temp { font-weight: 700; color: var(--v3-ink); }
 .v3-pill-weather-cond { color: var(--v3-text-mute); }
 .v3-pill-weather-city { color: var(--v3-text-soft); font-size: 0.7rem; }

@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260531a">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260707a">
 {% endblock %}
 
 {% block content %}
@@ -16,13 +16,15 @@
         </div>
         <div class="v3-topbar-meta">
             {% if weather_tile.available and weather_tile.data %}
-                <span class="v3-pill v3-pill-weather" title="{{ weather_tile.data.city }}">
+                <a href="{{ weather_tile.data.weather_url|default:'https://weather.com' }}"
+                   target="_blank" rel="noopener noreferrer"
+                   class="v3-pill v3-pill-weather" title="{{ weather_tile.data.city }} — full forecast on Weather.com">
                     <span class="v3-pill-weather-temp">{{ weather_tile.data.temperature_f }}°</span>
                     <span class="v3-pill-weather-cond">{{ weather_tile.data.condition|default:"" }}</span>
                     {% if weather_tile.data.city %}
                         <span class="v3-pill-weather-city">{{ weather_tile.data.city }}</span>
                     {% endif %}
-                </span>
+                </a>
             {% else %}
                 <a href="{% url 'users:preferences' %}" class="v3-pill v3-pill-weather v3-pill-weather-empty">
                     <span class="v3-pill-weather-temp">—</span>

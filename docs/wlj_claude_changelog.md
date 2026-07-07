@@ -41,6 +41,36 @@ changed. Validation matrix: scheduled task → timeline; calendar event → time
 due today without time → "Due Today (No Time Assigned)"; no fake 23:59 blocks on timeline;
 Chief of Staff still recommends windows via Smart Suggestions.
 
+## 2026-07-07 — fix(dashboard_v3): restore weather pill click-through to Weather.com
+
+**Regression:** After the weather-pill render fix, the pill displayed correctly but was
+no longer clickable. Intended behavior (originating in the original dashboard weather
+card, commits `76aa8560` "dynamic weather link" + `09e9ab0f` "make weather alert tile
+clickable"): clicking weather opens Weather.com for the user's location (hourly/daily/
+radar/extended) in a new tab, via `WeatherData.to_dict()["weather_url"]` and
+`<a … target="_blank" rel="noopener noreferrer">`.
+
+**Root cause:** The render fix narrowed `build_weather_tile`'s data dict to
+`{temperature_f, condition, city}`, dropping the `weather_url` key. The v3 header pill's
+available branch was also a plain `<span>` (never an `<a>` since it was introduced in
+`ae67dfea`), so there was no navigation control to carry the URL. Net effect: no link.
+
+**Fix (reuses the existing provider + URL — no new weather system):**
+- `apps/dashboard_v3/services/composer.py` — `build_weather_tile` again includes
+  `weather_url` (from `to_dict()`, fallback `https://weather.com`).
+- `templates/dashboard_v3/home.html` — available-branch pill is now
+  `<a href="{{ weather_tile.data.weather_url }}" target="_blank" rel="noopener noreferrer">`
+  (same pattern as the original card). Bumped the CSS cache-bust to `?v=20260707a`.
+- `static/dashboard_v3/css/dashboard_v3.css` — `.v3-pill-weather { cursor: pointer; }`
+  + a subtle `a.v3-pill-weather:hover` border so clickability is obvious.
+- `apps/dashboard_v3/tests/test_composer.py` — assert the available tile carries a
+  `weather_url` (regression guard so it can't be dropped again).
+
+**Verification:** `WeatherTileTests` (3) pass; full dashboard render (weather mocked
+available) returns 200 with `<a … target="_blank" rel="noopener noreferrer">` linking to
+weather.com and showing the temperature — no rendering regression. CSP-safe (plain anchor,
+no inline handlers).
+
 ## 2026-07-07 — fix(life): recurring occurrence edit — born-overdue + vanishing series
 
 **Incident:** Recurring task "Check on Von's House" (series began 7/5). User edited

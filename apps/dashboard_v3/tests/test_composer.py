@@ -2099,6 +2099,11 @@ class WeatherTileTests(TestCase):
         self.assertEqual(data["temperature_f"], 72)  # rounded for display
         self.assertEqual(data["condition"], "Partly Cloudy")
         self.assertEqual(data["city"], "Maryville")
+        # The header pill is an <a> that deep-links to Weather.com — the tile
+        # MUST carry a weather_url so the pill stays clickable. (Regression:
+        # narrowing the data dict once dropped this and killed the link.)
+        self.assertIn("weather_url", data)
+        self.assertTrue(data["weather_url"].startswith("http"))
 
     def test_weather_tile_falls_back_when_service_returns_none(self):
         """Cold cache / timeout / geocode-miss / 429 backoff → service returns

@@ -62,15 +62,64 @@ def is_page_reference(message):
     return False
 
 
+def resolve_focused_object(user, url, module):
+    """DETERMINISTIC URL-BASED resolution of the object in focus — the Current Context
+    Contract's server-side fallback for when the page did not DECLARE a focus_ref and no
+    client content came through. User-scoped; per-module URL patterns; the object's content
+    comes from the Narratable protocol (get_context_summary), so goal/journal/faith/task all
+    resolve consistently. Returns {title, content, kind, ref} or None."""
+    if not user or not url:
+        return None
+    u = url.lower()
+    m = re.search(r"/(\d+)(?:/|$)", u)
+    pk = int(m.group(1)) if m else None
+    obj = None
+    try:
+        # GOALS — a goal detail (/goals/<pk>/), or the active mission goal on the goals
+        # landing / Purpose dashboard (module 'purpose'/'goals' with no goal pk in the URL).
+        if "/goals/" in u or module in ("purpose", "goals"):
+            from apps.purpose.models import LifeGoal
+            obj = LifeGoal.objects.filter(user=user, pk=pk).first() if (pk and "/goals/" in u) else None
+            if obj is None:
+                from apps.purpose.mission_selection import select_active_mission_goal
+                obj = select_active_mission_goal(user)
+        # JOURNAL — a specific entry.
+        elif "/journal/" in u and pk:
+            from apps.journal.models import JournalEntry
+            obj = JournalEntry.objects.filter(user=user, pk=pk).first()
+        # FAITH — the reading plan (get_context_summary narrates the current day's reading).
+        elif "/reading-plans/progress/" in u and pk:
+            from apps.faith.models import UserReadingPlan
+            obj = UserReadingPlan.objects.filter(user=user, pk=pk).first()
+        # TASKS — a specific task.
+        elif "/task" in u and pk:
+            from apps.life.models import Task
+            obj = Task.objects.filter(user=user, pk=pk).first()
+    except Exception:
+        logger.warning("focused_object: resolve failed url=%s module=%s", url, module, exc_info=True)
+        return None
+    if obj is None or not hasattr(obj, "get_context_summary"):
+        return None
+    try:
+        summ = obj.get_context_summary() or {}
+    except Exception:
+        logger.warning("focused_object: summary failed url=%s", url, exc_info=True)
+        return None
+    if not (summ.get("title") or summ.get("content")):
+        return None
+    if hasattr(obj, "context_ref"):
+        summ.setdefault("ref", obj.context_ref())
+    return summ
+
+
 def resolve_page_focus(page_context, user=None):
-    """The entity currently in focus on the page → {module, title, content, kind, url}, or
-    None. Resolution order (CURRENT CONTEXT CONTRACT):
-      1. `focus_ref` — the canonical reference the page DECLARED (<meta name="wlj-context">);
-         resolve its content SERVER-SIDE from the canonical model, user-scoped. This is the
-         generic path every migrated page uses — no per-module code.
-      2. `page_content` — content the client captured inline (legacy / genuinely client-only,
-         e.g. an unsaved draft). Used only when no reference was declared.
-    `content` is '' only when neither source yields text."""
+    """The entity currently in focus on the page → {module, title, content, kind, url, ref},
+    or None. Resolution order:
+      1. `focus_ref` — the canonical reference the page DECLARED (<meta name="wlj-context">).
+      2. Deterministic URL-based server resolution (`resolve_focused_object`) — works on any
+         detail pk-URL or known landing WITHOUT the page declaring anything (restored
+         fallback; server owns truth over the client scrape).
+      3. `page_content` — content the client captured inline (last resort / client-only)."""
     if not page_context or not isinstance(page_context, dict):
         return None
     module = (page_context.get("module") or "").strip()
@@ -84,9 +133,18 @@ def resolve_page_focus(page_context, user=None):
         if resolved and (resolved.get("title") or resolved.get("content")):
             return {"module": module, "title": (resolved.get("title") or "").strip(),
                     "content": (resolved.get("content") or "").strip(),
-                    "kind": resolved.get("kind") or module, "url": url}
+                    "kind": resolved.get("kind") or module, "url": url,
+                    "ref": resolved.get("ref")}
 
-    # 2) Legacy inline content (unmigrated pages / client-only content).
+    # 2) Deterministic URL-based server resolution (the restored fallback).
+    if user is not None:
+        obj = resolve_focused_object(user, url, module)
+        if obj and (obj.get("title") or obj.get("content")):
+            return {"module": module, "title": (obj.get("title") or "").strip(),
+                    "content": (obj.get("content") or "").strip(),
+                    "kind": obj.get("kind") or module, "url": url, "ref": obj.get("ref")}
+
+    # 3) Legacy inline content (unmigrated pages / client-only content).
     content = page_context.get("page_content") or {}
     if not isinstance(content, dict):
         content = {}
@@ -108,7 +166,8 @@ def resolve_page_focus(page_context, user=None):
                     break
     if not (title or text):
         return None
-    return {"module": module, "title": title, "content": text, "kind": kind, "url": url}
+    return {"module": module, "title": title, "content": text, "kind": kind, "url": url,
+            "ref": None}
 
 
 def answer_page_reference(user, message, conversation, page_context):

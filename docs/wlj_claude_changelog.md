@@ -6,6 +6,33 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): restore focused-object resolver + feed focus IDENTITY to the planner
+
+Implements the proven Current Context architecture (owner = the planner) and fixes both proven
+regressions.
+
+REGRESSION #1 (page-reference / "Explain this."): restored the deterministic URL-based
+`resolve_focused_object()` inside `resolve_page_focus()` — deleted by f422a450. It now delegates
+content to the Narratable protocol (`get_context_summary`) so goal/journal/FAITH/task all resolve
+consistently, returns a canonical `ref`, and covers the goals landing (→ active mission goal) and
+the Faith reading page. Resolution order: declared `focus_ref` → URL resolver (server truth) →
+client `page_content`. "Explain this." now resolves on ANY page with a pk-URL/known landing, with
+no per-page declaration. Verified: undeclared goal detail, goals landing, and journal all resolve.
+
+REGRESSION #2 (reasoning lane / "Am I making progress?"): the planner OWNS object selection, so
+Current Context is fed to it BEFORE planning — IDENTITY ONLY (kind + title, never the object's
+content). `run_planner(user, message, focus)` prepends a concise CURRENT FOCUS line to the planner
+message; `_PLANNER_SYSTEM` gains a rule: a GOAL in focus makes a generic question ('am I making
+progress?', 'on track?', 'what am I missing?') a `goals_progress`/`goal_on_track` intent, NOT
+health. `engine.answer_reasoning_question` reads `get_current_focus()` and passes it to the planner.
+The reasoner then grounds through the normal domain-truth → working-memory channel; its `_call_api`
+now sets `skip_current_context=True` (NO prompt prepend, NO working-memory injection — per the
+architecture). Retrieval/working-memory unchanged (deterministic executors of the plan).
+
+Tests: apps/core/tests/test_current_context.py — planner receives identity-only focus; 74 green
+across current_context/page_reference/reasoning; request-path safety green; no migrations. Files:
+apps/ai/chatgpt_cos/page_reference.py, reasoning/stages.py, reasoning/engine.py.
+
 ## 2026-07-06 — fix(ui): multi-line {# #} template comment leaked into rendered HTML
 
 Production incident: a MULTI-LINE {# Current Context Contract … #} comment rendered as literal text at the top of every page. Django strips {# #} only on a SINGLE line; multi-line ones leak (known WLJ gotcha — use {% comment %}). Converted the base.html Current-Context comment to {% comment %}…{% endcomment %}. Regression tests (apps/core/tests/test_current_context.py :: TemplateCommentLeakTests): base.html renders with no comment markers, and touched templates contain no multi-line {# #}. Files: templates/base.html.

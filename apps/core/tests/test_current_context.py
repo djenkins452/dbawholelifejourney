@@ -222,6 +222,30 @@ class ObjectCenteredTests(TestCase):
         finally:
             set_current_focus(None)
 
+    def test_reasoning_planner_receives_focus_identity(self):
+        # Regression #2: the reasoning lane's planner must receive the focused-object identity
+        # (so it owns domain selection), not have it prepended after planning.
+        from unittest import mock as _mock
+        from apps.core.current_context import set_current_focus
+        from apps.ai.chatgpt_cos.reasoning import engine
+        u = _onboarded("rp@x.com")
+        set_current_focus({"kind": "Life Goal", "title": "France 2027", "content": "the goal body"})
+        seen = {}
+
+        def _cap_planner(user, message, focus=None):
+            seen["focus"] = focus
+            return None  # decline; we only assert the planner got the focus
+
+        try:
+            with _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.run_planner", side_effect=_cap_planner), \
+                 _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.preroute_named_goal", return_value=None), \
+                 _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.deterministic_health_intent", return_value=None):
+                engine.answer_reasoning_question(u, "Am I making progress?")
+            self.assertIsNotNone(seen.get("focus"))
+            self.assertEqual(seen["focus"]["title"], "France 2027")
+        finally:
+            set_current_focus(None)
+
     def test_focus_set_before_routing_and_cleared_after(self):
         # The object is available to EVERY lane because it is set BEFORE route_message runs.
         from unittest import mock as _mock

@@ -73,18 +73,32 @@ _PLANNER_SYSTEM = (
     "'what could make X fail'→goal_failure_modes; 'how confident'→goal_confidence.\n"
     "Match the DOMAIN to the question: health questions → health intents + health "
     "truth; goal/habit/mission/priority questions → goal intents + goal truth. "
+    "CURRENT FOCUS: if the message begins with '[CURRENT FOCUS: … viewing a <kind> …]', "
+    "the user is looking at that object RIGHT NOW. For a GENERIC question (progress / on "
+    "track / what am I missing / is this still right / how's it going), classify it in the "
+    "FOCUSED object's domain — a GOAL in focus makes 'am I making progress?' a 'goals_progress' "
+    "or 'goal_on_track' intent, NOT a health intent. Only override the focus when the message "
+    "is EXPLICITLY about another domain (e.g. names weight/sleep/glucose). "
     "NEVER mix truth across domains (no health truth for a goal intent, or "
     "vice-versa). Use intent='other' for anything else. NEVER invent truth keys "
     "outside the lists. NEVER write prose. NEVER answer the user. JSON only."
 )
 
 
-def run_planner(user, message):
-    """Stage 1: the constrained Planner LLM returns a RetrievalPlan (or None)."""
+def run_planner(user, message, focus=None):
+    """Stage 1: the constrained Planner LLM returns a RetrievalPlan (or None). When a Current
+    Context object is in focus, the planner receives its IDENTITY ONLY (kind + title — never
+    the object's content) so it can OWN object selection using the message + what's on screen."""
     from apps.ai.services import ai_service
+    user_msg = message or ""
+    if focus and focus.get("kind"):
+        title = (focus.get("title") or "").strip()
+        where = f"{focus.get('kind')} titled '{title}'" if title else focus.get("kind")
+        user_msg = (f"[CURRENT FOCUS: the user is viewing a {where}. If this question is about "
+                    f"what they're viewing, classify it in that object's domain.]\n\n{user_msg}")
     try:
         raw = ai_service._call_api(
-            _PLANNER_SYSTEM, message or "",
+            _PLANNER_SYSTEM, user_msg,
             max_tokens=220, temperature=0.0, endpoint="cos_chat", user=user,
             skip_current_context=True,  # classifier: JSON only, must not be grounded
         )
@@ -1552,6 +1566,9 @@ def run_reasoning(user, message, plan, working_memory):
             profile["system"], user_prompt,
             max_tokens=profile["max_tokens"], temperature=0.4,
             endpoint="cos_chat", user=user,
+            # The reasoner grounds in its curated WORKING MEMORY (the object arrives through
+            # planner→retrieval), NOT via a prompt prepend. Exclude the choke-point injection.
+            skip_current_context=True,
         )
     except Exception:
         logger.warning("COS_REASONING_LLM_FAILED user=%s intent=%s",

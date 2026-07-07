@@ -77,7 +77,15 @@ def answer_reasoning_question(user, message):
             },
         }
 
-    plan = run_planner(user, message)
+    # CURRENT CONTEXT → PLANNER (ownership): the planner decides the domain using the message
+    # AND the focused-object identity (resolved once, before routing). Identity only — the
+    # object's content flows through retrieval/working memory, never a prompt prepend.
+    try:
+        from apps.core.current_context import get_current_focus
+        _focus = get_current_focus()
+    except Exception:
+        _focus = None
+    plan = run_planner(user, message, focus=_focus)
 
     # Resilience: planner unavailable (None) OR misclassified (not implemented).
     # If the message is a recognizable implemented health intent, proceed

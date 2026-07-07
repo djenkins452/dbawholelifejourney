@@ -6,6 +6,30 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — docs(cos): Executive Reflection engineering-memory document (v1.0 seal)
+
+Added `docs/WLJ_EXECUTIVE_REFLECTION_DESIGN_ASSUMPTIONS.md` — the engineering-memory
+companion to the Phase 4 governing architecture. Not a spec or implementation doc:
+it captures WHY Executive Reflection was built the way it was and, critically, what
+was intentionally NOT built, to protect against future architectural drift.
+
+Sections: purpose; core philosophy (Trust/Value/Effectiveness, not learning-for-its-
+own-sake); guiding assumptions (default-deny; truth never learned; defects surfaced
+not memorized; observer not replacement); intentional conservative decisions (why
+reinforcement is conservative, why behavior_guidance + read-back are gated, why EIOs
+need human review, why deterministic truth always wins); intentionally deferred items
+(auto reinforcement weighting, autonomous EIO prioritization, self-generated tasks,
+adaptive confidence, cross-user learning — each with a promotion trigger); assumptions
+to validate in production; success criteria; warning signs (rising learning rate =
+gate leak; any truth override; heuristic sprawl; unresolved-EIO pile-up); and future
+evolution as ideas, not designs.
+
+Registered in the CLAUDE.md Reference Docs table and `docs/README.md`. This seals
+Executive Reflection v1.0 (Phases 0A→0B→0C).
+
+Files: `docs/WLJ_EXECUTIVE_REFLECTION_DESIGN_ASSUMPTIONS.md` (new), `CLAUDE.md`,
+`docs/README.md`.
+
 ## 2026-07-07 — fix(cos): plan-aware recovery reasoning + finer operational filtering
 
 **Phase-2 reasoning gaps (Beth reacted to isolated metrics instead of the user's plan):**

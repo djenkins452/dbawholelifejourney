@@ -37,6 +37,47 @@ _CRITIQUE_CUES = (
     "you forgot what i", "i just told you", "did you miss",
 )
 
+# A META-CONVERSATIONAL reference to BETH'S OWN prior turn — the user is talking about
+# the MESSAGE Beth just gave, not the world. "Look at the message you gave me", "read
+# your last response", "that's not what I meant", "you misunderstood me". A human Chief
+# of Staff hears this instantly as feedback about HER answer; without it Beth mistakes
+# it for a new domain request (a plan change, a fact query). This is a STRUCTURED class
+# — a second-person reference to Beth's speech/output, or a correction of her
+# understanding — not an open-ended phrase whitelist. Gated on has_prior at the call
+# site, so it only fires when there IS a prior Beth turn to refer to.
+#
+# (a) A DIRECTIVE to re-examine Beth's message, or an explicit reference to the
+# message artifact she produced. Kept to unambiguous "look at / read your message"
+# forms — bare recall ("remind me what you said about my weight") is intentionally
+# NOT here; that belongs to the why_explainer / conversation-memory lanes.
+_PRIOR_TURN_REFS = (
+    "look at the message you", "look at your response", "look at your last",
+    "look at your answer", "look at your message", "look at what you said",
+    "look at what you wrote", "look at what you gave", "look back at your",
+    "read your response", "read your last", "read your answer", "read your message",
+    "read what you said", "read what you wrote", "reread your", "re-read your",
+    "go back and read your", "go back to your", "check your last message",
+    "check your last response", "the message you gave", "the message you sent",
+    "the message you just gave", "your last message", "your last response",
+    "your previous message", "your previous response", "your earlier message",
+    "your earlier response", "what you wrote", "review your response",
+    "review your last",
+)
+# (b) A correction of Beth's UNDERSTANDING of the user (not a critique of a fact).
+_META_CORRECTION = (
+    "that's not what i meant", "thats not what i meant", "not what i meant",
+    "that's not what i asked", "thats not what i asked", "not what i asked",
+    "that wasn't my question", "that wasnt my question", "that's not my question",
+    "you misunderstood", "you misunderstand", "you're misunderstanding",
+    "youre misunderstanding", "you misread", "you're misreading", "youre misreading",
+    "you didn't answer", "you didnt answer", "you did not answer",
+    "you're not answering", "youre not answering", "that doesn't answer",
+    "that didn't answer", "i didn't ask that", "i didnt ask that",
+    "i didn't ask for that", "i didnt ask for that", "you missed my point",
+    "you're missing my point", "youre missing my point", "you got me wrong",
+    "you took that wrong", "you misheard",
+)
+
 _GREETING_CUES = (
     "good morning", "good afternoon", "good evening", "morning beth", "evening beth",
     "afternoon beth", "hey beth", "hi beth", "hello beth", "good morning beth",
@@ -81,6 +122,25 @@ def is_greeting(message):
 def is_critique(message):
     n = _norm(message)
     return any(c in n for c in _CRITIQUE_CUES)
+
+
+def refers_to_prior_turn(message):
+    """True when the user is talking ABOUT Beth's own prior turn — pointing at the
+    message she gave, or correcting how she understood them — rather than asking a new
+    question about the world. Generalizes the critique cues to the whole meta-
+    conversational class so 'look at the message you gave me' / 'that's not what I
+    meant' / 'you misunderstood me' route to REPAIR instead of a domain lane."""
+    n = _norm(message)
+    if not n:
+        return False
+    return (any(c in n for c in _PRIOR_TURN_REFS)
+            or any(c in n for c in _META_CORRECTION))
+
+
+def is_meta_conversational(message):
+    """A critique OF, or a reference TO, Beth's previous answer. The full trigger for
+    the self-aware REPAIR path."""
+    return is_critique(message) or refers_to_prior_turn(message)
 
 
 def _looks_like_question(message):
@@ -191,8 +251,11 @@ def plan(user, conversation, message):
     prior = last_assistant_text(conversation)
     has_prior = bool(prior) or bool(state.get("last_beth_act"))
 
-    # 1) REPAIR — a critique of Beth's PREVIOUS answer.
-    if is_critique(message) and has_prior:
+    # 1) REPAIR — a critique OF, or a reference TO, Beth's PREVIOUS answer ("look at
+    #    the message you gave me", "that's not what I meant"). Meta-conversational
+    #    feedback is about MY turn, never a fresh domain request — catch it before the
+    #    retrieval/decision lanes read it as a plan change or a fact query.
+    if is_meta_conversational(message) and has_prior:
         write_state(conversation, state="repair", objective="repair",
                     last_beth_act="repaired")
         return {"handler": "repair", "prior_answer": prior}
@@ -210,7 +273,7 @@ def plan(user, conversation, message):
     #    clarification, which already clears on a non-reply), so an interrupted or
     #    FAILED check-in can no longer trap the next unrelated conversation in
     #    personal coaching.
-    if cur == "check_in" and not is_critique(message):
+    if cur == "check_in" and not is_meta_conversational(message):
         if _is_plausible_feeling(message):
             write_state(conversation, state="briefing", objective="executive_briefing",
                         last_beth_act="briefed", feeling=_norm(message)[:120])

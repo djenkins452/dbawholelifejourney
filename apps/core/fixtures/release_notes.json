@@ -4006,5 +4006,21 @@
       "created_at": "2026-07-06T12:00:00Z",
       "updated_at": "2026-07-06T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 253,
+    "fields": {
+      "title": "Your Chief of Staff now reads the room — the hour and the conversation",
+      "description": "Ask “How am I doing today?” and you'll get an answer that fits the moment. In the morning your Chief of Staff helps you plan the day; through the middle of the day it keeps you moving on what matters; in the evening it helps you land the day; and at night it closes the day out — a calm look back and a nudge to rest, never a fresh to-do list at bedtime. It also understands when you're talking about its last reply: say “that's not what I meant,” “you misunderstood me,” or “look at the message you gave me,” and it recognizes the feedback and fixes its answer instead of changing your plans.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T12:00:00Z",
+      "updated_at": "2026-07-07T12:00:00Z"
+    }
   }
 ]

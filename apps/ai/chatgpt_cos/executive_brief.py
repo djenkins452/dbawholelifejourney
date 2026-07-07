@@ -299,6 +299,33 @@ def _priority_story(sig):
     return " ".join(out)
 
 
+def _close_out_story(user, sig):
+    """The NIGHT posture (executive stance = close_out). The day is over: reflect on
+    what it held, acknowledge it, and orient to rest — NEVER plan the day, name today's
+    priorities, or tell the user not to fall behind (those are morning/midday framings
+    that read as incoherent at bedtime). Health-critical, time-sensitive actions still
+    lead — an overdue nightly dose matters before sleep — then the day closes."""
+    story = []
+    # A time-sensitive clinical action still comes first, framed for bedtime.
+    for hc in (getattr(sig, "health_critical", None) or [])[:1]:
+        story.append(f"Before you settle in — {hc['text']}. {hc['why'][:1].upper()}"
+                     f"{hc['why'][1:]}, so take care of that first, then rest.")
+    # Reflect what the day actually held (banked accomplishments), in a closing frame.
+    acc = list(getattr(sig, "accomplishments", []) or [])
+    if acc:
+        joined = acc[0] if len(acc) == 1 else ", ".join(acc[:-1]) + " and " + acc[-1]
+        story.append(f"Looking back on today, you {joined} — that's a solid day behind "
+                     "you.")
+    else:
+        story.append("Looking back, today's basically done — and there's nothing left "
+                     "that has to be forced tonight.")
+    # Close it. Calm, short, no forward planning.
+    story.append("Let the rest of the list wait for tomorrow; the best thing you can do "
+                 "now is wind down and get some real rest.")
+    out = " ".join(s for s in story if s).strip()
+    return _scrub(out) or out
+
+
 def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None):
     """Compose ONE coherent executive CONVERSATION by NARRATING ExecutiveSignals
     (P35: the composer is a speechwriter — it never invents priorities, leverage,
@@ -310,6 +337,14 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
     shaped the read, the brief LEADS with the reconciliation (the listening beat)
     instead of the generic thesis — so the user hears that Beth weighed what they said."""
     sig = _safe_interpret(user, low_energy=low_energy, subjective=subjective)
+    # EXECUTIVE STANCE (situational grounding): at NIGHT the day is over — Beth closes
+    # it out rather than planning it. Without this gate the composer welds a morning
+    # execution thesis ("today is full but workable … I'll count today a win") to a
+    # bedtime wind-down tail — the exact production incoherence. A `lead` (e.g. a repair
+    # preamble) is preserved ahead of the close-out.
+    if (getattr(sig, "stance", None) or {}).get("stance") == "close_out":
+        close = _close_out_story(user, sig)
+        return " ".join(s for s in (lead.strip() if lead else "", close) if s).strip()
     story = []
     if lead:
         story.append(lead.strip())

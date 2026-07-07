@@ -7,6 +7,7 @@
 #   and conversation REPAIR on critique (no jump to unrelated facts). Validates
 #   ACTUAL rendered responses + conversation STATE transitions.
 # ==============================================================================
+from datetime import datetime, timezone as _tz
 from unittest import mock
 
 from django.conf import settings
@@ -20,6 +21,10 @@ from apps.ai.chatgpt_cos import conversation_planner as cp
 User = get_user_model()
 _C = "apps.ai.services.ai_service._call_api"
 _CT = "apps.ai.services.ai_service._call_api_with_tools"
+# Pin a daytime clock so a briefing assertion tests the DAYTIME read, not the night
+# 'close_out' wind-down posture (apps/core/truth/daypart.py).
+_NOW = "apps.core.utils.get_user_now"
+DAY = datetime(2026, 7, 3, 9, 0, tzinfo=_tz.utc)
 _AGENDA_WORDS = ("coming up", "next up", "highest priority", "scheduled", "begin ",
                  "first up", "your agenda")
 
@@ -56,7 +61,8 @@ class _ConvMixin:
         from apps.ai.models import AssistantMessage
         AssistantMessage.objects.create(conversation=self.conv, role="user", content=msg)
         with mock.patch(_C, side_effect=RuntimeError("openai down")), \
-             mock.patch(_CT, side_effect=RuntimeError("openai down")):
+             mock.patch(_CT, side_effect=RuntimeError("openai down")), \
+             mock.patch(_NOW, return_value=DAY):
             res = route_message(self.u, msg, self.conv)
         if res:
             AssistantMessage.objects.create(conversation=self.conv, role="assistant",

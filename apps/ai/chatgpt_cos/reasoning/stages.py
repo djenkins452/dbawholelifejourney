@@ -1551,8 +1551,21 @@ def run_reasoning(user, message, plan, working_memory):
     truth-based fallback so the user always gets an authoritative answer."""
     from apps.ai.services import ai_service
     profile = REASONING_PROFILES[plan.intent]
+    # EXECUTIVE STANCE (situational grounding): the day's hour dictates POSTURE, not
+    # just wording. A "how am I doing today?" at 10pm must reflect + close the day, not
+    # plan it. The canonical directive (apps/core/truth/daypart.py) is injected here so
+    # every reasoning intent shares one situational posture. Fail-safe: no directive on
+    # error, so the reasoner behaves exactly as before.
+    posture = ""
+    try:
+        from apps.core.truth.daypart import resolve as _resolve_stance
+        posture = (_resolve_stance(user) or {}).get("posture") or ""
+    except Exception:
+        posture = ""
     user_prompt = (
-        f"Question: {message}\n\n"
+        (f"Situational context (governs your POSTURE, not the facts): {posture}\n\n"
+         if posture else "")
+        + f"Question: {message}\n\n"
         f"Working memory (the ONLY facts you may use):\n"
         f"{json.dumps(working_memory, default=str)}"
     )

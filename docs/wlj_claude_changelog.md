@@ -6,6 +6,56 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): Executive Stance — daypart reasoning & conversation awareness
+
+**Root cause (two failures, one gap):** Beth grounded every answer in the user's WORLD
+(facts) and the focused OBJECT (Current Context) but never in the SITUATION of the
+conversation. (1) "Part of day" was computed in THREE independent places
+(`response_coherence.part_of_day` for wording, `executive_brief._rhythm_split` for the
+agenda tail, `reasoning/stages` for nutrition), each with a different bucketing and NONE
+carrying an executive STANCE — and none had a night/bedtime phase. So at 10pm
+`compose_executive_brief` welded a morning EXECUTION thesis ("today is full but
+workable… I'll count today as a win") to a bedtime wind-down tail: internally
+incoherent. (2) No lane recognized when the user was talking about Beth's OWN prior turn
+("look at the message you gave me", "that's not what I meant") — the phrase fell through
+to the retrieval/decision lanes and was read as a plan change.
+
+**Architectural decision:** Introduce ONE canonical **Executive Stance** — the
+situational grounding of the day — and consume it everywhere instead of re-deriving
+daypart. Governing capability, not a per-example patch.
+- New canonical source `apps/core/truth/daypart.py`: `phase_of_day` / `executive_stance`
+  / `resolve` map the user's LOCAL hour → phase (morning/midday/evening/night, night
+  wrapping midnight) → stance (plan/execute/wind_down/close_out) + a governing POSTURE
+  directive that says what to say AND what NOT to say at that hour. Deterministic,
+  clock-injectable, fail-safe (degrades to EXECUTE).
+- `interpret()` resolves the stance ONCE and attaches it to `ExecutiveSignals.stance`, so
+  every consumer of the single executive picture shares it.
+- `executive_brief.compose_executive_brief` gates on `sig.stance`: at NIGHT (close_out)
+  it composes a reflective close-out (look back, let the rest wait, rest) instead of the
+  morning execution thesis — health-critical actions still lead. Daytime is unchanged.
+- `reasoning/stages.run_reasoning` injects the stance POSTURE into the LLM reasoner
+  prompt so "how am I doing today?" respects posture for every reasoning intent.
+- `conversation_planner`: generalized the critique cues into a principled
+  `refers_to_prior_turn` / `is_meta_conversational` detector (second-person reference to
+  Beth's message, or a correction of her understanding). Routes to the self-aware REPAIR
+  path (priority 6, before decision_support/reconciliation) so meta-conversational
+  feedback is never read as a domain request.
+
+**Files:** apps/core/truth/daypart.py (new), apps/ai/chatgpt_cos/executive_interpretation.py,
+apps/ai/chatgpt_cos/executive_brief.py, apps/ai/chatgpt_cos/reasoning/stages.py,
+apps/ai/chatgpt_cos/conversation_planner.py, apps/core/tests/test_daypart_stance.py (new),
+apps/ai/tests/test_daypart_conversation_awareness.py (new),
+apps/ai/tests/test_p31_conversation_planning.py, apps/ai/tests/test_p32_executive_brief.py,
+apps/ai/tests/test_p34_executive_narrative.py (pinned daytime clock — stance is now a real
+input), apps/core/fixtures/release_notes.json (PK 253),
+apps/core/management/commands/load_initial_data.py (one-time reset).
+
+**Verification:** new: test_daypart_stance (10), test_daypart_conversation_awareness (5);
+regression: test_p31/p32/p34/response_coherence (35), reasoning+coherence suites (206),
+safety-contract+repair+briefing (81) — all pass. Pre-existing unrelated failure noted:
+test_executive_briefing.TestHandleDayStart.test_second_call_is_noop fails on a clean tree
+(cache no-op test, independent of this change).
+
 ## 2026-07-06 — docs: Page-Aware Contextual Conversation — full documentation pass
 
 Documented the Current Context Contract / Page-Aware Contextual Conversation capability across ALL

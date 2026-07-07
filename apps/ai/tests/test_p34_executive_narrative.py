@@ -21,6 +21,11 @@ _HZN = "apps.ai.chatgpt_cos.executive_interpretation._task_horizons"
 _ES = "apps.ai.chatgpt_cos.executive_interpretation._exec_summary"
 _HEALTH = "apps.ai.chatgpt_cos.executive_interpretation._health_read"
 _AGENDA = "apps.ai.chatgpt_cos.executive_brief._agenda_narrative"
+# These assert the DAYTIME executive narrative; pin a daytime clock so the executive
+# STANCE (apps/core/truth/daypart.py) is 'plan'/'execute', not the night 'close_out'
+# posture (which correctly composes a wind-down, not a plan).
+_NOW = "apps.core.utils.get_user_now"
+DAY = datetime(2026, 7, 3, 9, 0, tzinfo=_tz.utc)
 
 # The production scenario: 22 pending / 1 due today, ~5h sleep, feeling stretched.
 PROD = {"today": 1, "overdue": 0, "soon": 3, "backlog": 18, "total": 22}
@@ -40,7 +45,7 @@ class ExecutiveNarrativeTests(TestCase):
 
     def _brief(self, **kw):
         with mock.patch(_HZN, return_value=PROD), mock.patch(_ES, return_value={}), \
-             mock.patch(_HEALTH, return_value=RECOVERY), \
+             mock.patch(_HEALTH, return_value=RECOVERY), mock.patch(_NOW, return_value=DAY), \
              mock.patch(_AGENDA, return_value="This afternoon you've still got "
                         "Bike Ride at 2:00 PM — keep it light, none of it has to be heavy."):
             return eb.compose_executive_brief(self.u, **kw)
@@ -112,7 +117,8 @@ class RepairDemonstratesBetterJudgmentTests(TestCase):
         AssistantMessage.objects.create(conversation=self.conv, role="user",
                                         content="Does that sound right to you?")
         with mock.patch(_C, side_effect=RuntimeError("down")), \
-             mock.patch(_CT, side_effect=RuntimeError("down")):
+             mock.patch(_CT, side_effect=RuntimeError("down")), \
+             mock.patch(_NOW, return_value=DAY):
             res = route_message(self.u, "Does that sound right to you?", self.conv)
         self.assertEqual(res["lane"], "conversation_repair")
         ans = res["answer"]

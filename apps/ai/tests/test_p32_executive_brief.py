@@ -8,6 +8,7 @@
 #   grades orientation/assessment/prioritization/synthesis/temporal/actionability/
 #   agenda-ordering. Includes the EXACT production conversation.
 # ==============================================================================
+from datetime import datetime, timezone as _tz
 from unittest import mock
 
 from django.conf import settings
@@ -21,11 +22,16 @@ from apps.ai.chatgpt_cos import executive_brief as eb
 User = get_user_model()
 _C = "apps.ai.services.ai_service._call_api"
 _CT = "apps.ai.services.ai_service._call_api_with_tools"
+# These assert the DAYTIME executive read; pin a daytime clock so the executive STANCE
+# (apps/core/truth/daypart.py) is a daytime posture, not the night 'close_out' wind-down.
+_NOW = "apps.core.utils.get_user_now"
+DAY = datetime(2026, 7, 3, 9, 0, tzinfo=_tz.utc)
 
 
 class ComposerStructureTests(TestCase):
     def setUp(self):
         from apps.users.models import TermsAcceptance
+        _c = mock.patch(_NOW, return_value=DAY); _c.start(); self.addCleanup(_c.stop)
         self.u = User.objects.create_user(email="p32c@example.com", password="x")
         TermsAcceptance.objects.create(
             user=self.u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
@@ -114,6 +120,7 @@ class _Conv:
 
 class ProductionConversationTests(_Conv, TestCase):
     def setUp(self):
+        _c = mock.patch(_NOW, return_value=DAY); _c.start(); self.addCleanup(_c.stop)
         self.setup_user()
 
     def test_exact_production_conversation(self):

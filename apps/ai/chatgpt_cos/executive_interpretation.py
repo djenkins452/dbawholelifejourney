@@ -34,6 +34,13 @@ class ExecutiveSignals:
     confidence: str = "medium"         # low|medium|high
     headline: str = ""                 # the one-line executive thesis
     sleep_hours: float = None          # last-night sleep (evidence for the energy story)
+    # ── EXECUTIVE STANCE — the situational grounding of the whole read. What POSTURE
+    # the day's hour demands (plan the morning / execute the middle / land the evening /
+    # close out the night). The canonical source is apps/core/truth/daypart.py; every
+    # narrator (deterministic brief AND the LLM reasoner) consults THIS so Beth's
+    # posture always matches the clock — a bedtime "how am I doing?" never plans the
+    # day. {phase, stance, hour, is_close_out, posture}. ──
+    stance: dict = field(default_factory=dict)
     # ── Executive JUDGMENTS the composer must NARRATE, not invent (P35) ──
     primary_challenge: str = "none"    # energy | workload | none — what's the real limiter
     challenge_reason: str = ""         # the conclusion (e.g. "more than the open-item count")
@@ -718,7 +725,17 @@ def interpret(user, low_energy=False, subjective=None):
         deferred_labels=_deferred_labels, accomplishments=reported_accomplishments,
         recovery_needed=bool(recovery), hour=_pa_hour(user))
 
+    # EXECUTIVE STANCE — resolve the day's posture ONCE, here at the single
+    # construction point, so every consumer of the one picture shares it.
+    try:
+        from apps.core.truth.daypart import resolve as _resolve_stance
+        _stance = _resolve_stance(user)
+    except Exception:
+        logger.warning("interpret: stance resolve failed", exc_info=True)
+        _stance = {}
+
     return ExecutiveSignals(
+        stance=_stance,
         risks=_risks, wins=_wins, opportunity=_opportunity, predictions=_predictions,
         patterns=_patterns, pattern=_pattern, priority_action=_priority_action,
         guidance=_guidance, health_critical=_health_critical,

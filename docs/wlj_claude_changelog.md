@@ -6,6 +6,66 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): Morning check-in trust — deterministic day-truth grounding + user-correction repair
+
+**Root cause (production trust failure):** a morning check-in where Beth (a) recommended
+"strength training" on a day whose ACTUAL scheduled workout was Cardio at 6pm, (b) said
+"focus on protein" with no concrete options, (c) ignored that the user reported already
+completing prayer + Bible reading, and (d) — when corrected — replied "Tell me what
+you're moving to and I'll sanity-check it…" as if he were rescheduling. Four distinct
+gaps, one theme: the CoS reasoned from GOALS/ASSUMPTIONS instead of deterministic
+day-truth, and had no capability to recognize a factual CORRECTION.
+- **Workout modality inferred from goals, not schedule.** `reasoning/stages.py`
+  (`_rank_health_concerns` muscle/plateau actions, `_concrete_today_action`) emitted
+  exercise modality from health-risk labels and never read the ACTUAL planned workout,
+  deterministically available via `get_remaining_rhythm_items` (WorkoutSchedule→
+  CalendarEvent projection).
+- **Correction mis-routed.** `decision_support._CHANGE_MIND` matches bare "instead of"/
+  "rather than"; a correction ("it's cardio instead of strength") was caught as a
+  voluntary plan-change (`decision_support.py:409`). No factual-correction handler
+  existed — conversation_planner repair keys on critique cues, priority_correction on
+  priority pushback, reconciliation on already-done evidence; none catch a bare fact
+  correction of what Beth reasoned from.
+- **Protein advice not actionable / completed foundation work discarded** — protein
+  guidance was static template strings; `accomplishment.detect()` was workout-only and
+  `_post_checkin_brief` consumed the reply as feeling-only.
+
+**Fix (architecture-compliant — WLJ owns truth, CoS narrates over deterministic
+providers; no new engine):**
+- New `apps/ai/chatgpt_cos/day_truth.py`: read-only projection over existing providers —
+  `todays_planned_workout(user)` + `protein_options(user)` (dietary-appropriate).
+- `reasoning/stages.py`: health curator injects `todays_planned_workout` +
+  `protein_options` into working memory; `_rank_health_concerns` / `_concrete_today_action`
+  / `_movement_action` defer any movement recommendation to the actual schedule (never a
+  goal-inferred modality); `_HEALTH_GUIDANCE` tells the LLM to use ONLY
+  `todays_planned_workout` and to name concrete protein options.
+- New `apps/ai/chatgpt_cos/correction.py`: `is_factual_correction` (knowledge challenge /
+  fact-negation / bare "instead of" without a first-person decision frame) + `respond`
+  (trust-repair: acknowledge the miss → restate corrected truth from the schedule → name
+  the source Beth should have checked → corrected plan + protein options — no apology
+  loop). New `correction` lane runs BEFORE `decision_support`; `detect_decision` gains a
+  defense-in-depth decline guard so a correction is never read as change-of-mind.
+- `accomplishment.detect()` recognizes completed FOUNDATION work (prayer / Bible reading);
+  `_post_checkin_brief` acknowledges it up front instead of discarding the report.
+
+**Files:** apps/ai/chatgpt_cos/day_truth.py (new), apps/ai/chatgpt_cos/correction.py (new),
+apps/ai/chatgpt_cos/reasoning/stages.py, apps/ai/chatgpt_cos/decision_support.py,
+apps/ai/chatgpt_cos/accomplishment.py, apps/ai/chatgpt_cos/lanes.py,
+apps/ai/tests/test_morning_correction_trust.py (new),
+apps/core/fixtures/release_notes.json (PK 255),
+apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_morning_correction_trust (14); regression across reasoning/
+conversation/decision/accomplishment/trust suites (~370 tests) — all pass. Streaming/
+non-streaming parity preserved (all changes in the shared `route_message` lane pipeline +
+reasoning/composer layer both chat paths call). No model migration.
+
+**Why production-readiness, not a one-off:** the CoS now VERIFIES a day-action against
+deterministic today-state before recommending it (future modality mistakes are
+structurally prevented, not phrase-patched) and TREATS a factual correction as a
+trust-repair moment that re-reads the same source of truth — the general capability that
+makes the whole "confidently wrong, then defensive" failure class recoverable.
+
 ## 2026-07-07 — fix(calendar): Time Command Center — truth split, unscheduled due tasks off the timeline
 
 **Root cause (truth-hierarchy violation — recommendation presented as fact):** A task

@@ -618,6 +618,10 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Legacy Places (release note, teaching destinations, help topic)
         self._reset_legacy_places_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Calendar Projection Layer + Availability Blocks
+        # (release note PK 254, teaching destination PK 190, help topic PK 160)
+        self._reset_calendar_projection_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset fixtures for SAE State Snapshot Panel
         self._reset_sae_state_snapshot_fixtures(DataLoadConfig, force, verbosity)
 
@@ -1101,6 +1105,10 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for Daypart Reasoning & Conversation Awareness
         # (release note PK 253)
         self._reset_daypart_stance_release_note(DataLoadConfig, force, verbosity)
+
+        # One-time: Reload release_notes for Morning Check-in Trust / day-truth grounding
+        # (release note PK 255)
+        self._reset_morning_trust_release_note(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -1972,6 +1980,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Legacy Places fixtures FAILED: {e}'))
 
+    def _reset_calendar_projection_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for the Calendar Projection Layer +
+        Availability Blocks. Reloads release_notes (PK 254), teaching_destinations
+        (PK 190 calendar-availability), and help_topics (PK 160 CALENDAR_AVAILABILITY)
+        so the What's New entry, teaching destination, and help topic appear.
+        """
+        reset_tracker_name = 'reset_calendar_projection_fixtures_2026_07_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Calendar Projection Layer')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Calendar Projection Layer (Jul 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for the Calendar Projection Layer + Availability Blocks'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Calendar Projection fixtures FAILED: {e}'))
+
     def _reset_current_context_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
         One-time reset to reload fixtures for Page-Aware Contextual Conversation /
@@ -2031,6 +2071,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Daypart Stance release note FAILED: {e}'))
+
+    def _reset_morning_trust_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 255) so the What's New entry for
+        Morning Check-in Trust / deterministic day-truth grounding appears in production.
+        """
+        reset_tracker_name = 'reset_morning_trust_release_note_2026_07_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Morning Trust')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Morning Trust (Jul 2026)',
+                'command', 'One-time reset to reload the release note for Morning Check-in Trust / day-truth grounding'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Morning Trust release note FAILED: {e}'))
 
     def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

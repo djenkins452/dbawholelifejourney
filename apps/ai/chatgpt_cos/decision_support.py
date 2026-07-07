@@ -164,6 +164,16 @@ def detect_decision(message, recent_context=""):
     norm = _norm(message)
     if not norm:
         return None
+    # A FACTUAL CORRECTION of Beth ("today is not strength, it's cardio") is NOT a voiced
+    # decision — it must never be read as a change-of-mind ("instead of"/"rather than").
+    # The correction lane (which runs first) owns it; this is defense-in-depth so the
+    # decision path can't claim it even if reached directly.
+    try:
+        from apps.ai.chatgpt_cos.correction import is_factual_correction
+        if is_factual_correction(message):
+            return None
+    except Exception:
+        pass
     ctx = (norm + " " + _norm(recent_context)).strip()
 
     has_abandon = any(c in norm for c in _ABANDON)

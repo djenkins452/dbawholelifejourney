@@ -72,6 +72,28 @@ def _weight_history_lane(user, message, conversation=None):
     return weight_history.answer(user, message, conversation)
 
 
+def _correction_lane(user, message, conversation=None):
+    """USER-CORRECTION TRUST-REPAIR: when the user CORRECTS a fact/recommendation Beth
+    just made ("today is not strength, it's cardio", "why didn't you know that?"), enter
+    trust-repair — re-read the deterministic source Beth should have checked and give the
+    corrected plan. Runs BEFORE decision_support so a correction that carries "instead
+    of / rather than" is NEVER mistaken for a plan-change ("what are you moving to?").
+    Gated on a prior Beth turn to correct. Declines everything else."""
+    if conversation is None:
+        return None
+    try:
+        from apps.ai.chatgpt_cos import correction
+        from apps.ai.chatgpt_cos.conversation_planner import last_assistant_text
+        if not correction.is_factual_correction(message):
+            return None
+        if not last_assistant_text(conversation):
+            return None                       # nothing of Beth's to correct
+        return correction.respond(user, message, conversation)
+    except Exception:
+        logger.warning("correction_lane failed", exc_info=True)
+        return None
+
+
 def _decision_support_lane(user, message, conversation=None):
     """Layer 2 DECISION SUPPORT: when the user is COMMUNICATING A DECISION (abandoning
     a plan, reprioritizing, accepting a tradeoff, giving up, or calling it a night)
@@ -1456,6 +1478,17 @@ def _post_checkin_brief(user, message, feeling):
             pass
     heavy = subjective == "negative" or any(w in f for w in _NEGATIVE_FEELING)
     lead = ("Thanks for telling me. " if heavy else "Got it. ")
+    # FOUNDATION ACKNOWLEDGMENT: a morning check-in reply often also REPORTS completed
+    # foundation work ("I already did my prayer and Bible reading"). Recognize it and
+    # acknowledge it up front — never silently discard the report (the production miss).
+    try:
+        from apps.ai.chatgpt_cos import accomplishment as _acc
+        _a = _acc.detect(message)
+        if _a is not None and getattr(_a, "kind", "") == "foundation":
+            lead += (f"And you've already got {_a.label} behind you — that's your "
+                     "foundation set for the day, which is the right way to start. ")
+    except Exception:
+        logger.warning("post_checkin_brief: accomplishment detect failed", exc_info=True)
     try:
         from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
         answer = compose_executive_brief(user, lead=lead, low_energy=heavy,
@@ -1837,6 +1870,12 @@ LANE_REGISTRY = (
     ("referential", _referential_lane),
     ("clarification_reply", _clarification_reply_lane),
     ("conversation_planner", _conversation_planner_lane),
+    # USER-CORRECTION TRUST-REPAIR runs BEFORE decision_support: a factual correction of
+    # Beth's recommendation ("today is not strength, it's cardio", "why didn't you know
+    # that?") is a trust-repair moment, never a plan-change. It re-reads the deterministic
+    # source Beth should have checked. Without it, a correction carrying "instead of" was
+    # mis-caught by decision_support as a reschedule ("what are you moving to?").
+    ("correction", _correction_lane),
     # Layer 2 DECISION SUPPORT runs BEFORE fact retrieval: a voiced decision that
     # merely names a fact ("just need to take my nightly meds and I'm done") is a
     # tradeoff to evaluate, not a fact to look up. Declines for real questions.

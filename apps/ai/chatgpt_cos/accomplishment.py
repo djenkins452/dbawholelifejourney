@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 
 _WORKOUT_WORDS = ("workout", "workouts", "session", "sessions", "training", "lift",
                   "lifts", "lifting", "run", "ride", "rides", "cardio")
+# FOUNDATION habits — the spiritual/foundational work a user reports during a morning
+# check-in ("I already did my prayer and Bible reading"). Recognized so it is captured
+# as completed evidence and acknowledged, not silently discarded.
+_FAITH_PRAYER = ("prayer", "prayed", "pray", "praying")
+_FAITH_BIBLE = ("bible", "scripture", "scriptures", "devotional", "devotions",
+                "devotion", "quiet time", "word of god", "bible reading")
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 _NUMWORDS = {"a": 1, "one": 1, "two": 2, "both": 2, "couple": 2, "three": 3, "few": 3,
              "four": 4, "five": 5}
@@ -75,6 +81,21 @@ def detect(message):
     # "I got my workout in" / "I finished my session" / "I did my workout".
     if any(c in n for c in _COMPLETED_CUES) and has_workout:
         return Accomplishment("completed", "got today's workout in")
+
+    # FOUNDATION work — "I already did my prayer and Bible reading" / "did my quiet
+    # time". Recognized so the morning brief reflects the foundation already laid.
+    padded = f" {n} "
+    did_prayer = any(f" {w} " in padded or f" {w}." in padded for w in _FAITH_PRAYER)
+    did_bible = any(w in n for w in _FAITH_BIBLE)
+    if (did_prayer or did_bible) and any(c in n for c in _COMPLETED_CUES):
+        done = []
+        if did_prayer:
+            done.append("prayer")
+        if did_bible:
+            done.append("Bible reading")
+        # label is the bare habit list ("prayer and Bible reading") — the consumer
+        # frames the sentence (kind == "foundation").
+        return Accomplishment("foundation", " and ".join(done))
     return None
 
 

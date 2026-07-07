@@ -330,6 +330,7 @@ def _rank_health_concerns(buckets):
     cs = buckets.get("current_status") or {}
     tr = buckets.get("major_trends") or {}
     nc = buckets.get("nutrition_context") or {}
+    planned = buckets.get("todays_planned_workout") or None   # deterministic day-truth
     out = []  # (severity, {concern, evidence, action, why})
 
     def add(sev, concern, evidence, action, why):
@@ -374,18 +375,33 @@ def _rank_health_concerns(buckets):
             "log your meals and trim about 100–200 calories a day rather than making a big change",
             "a small, steady deficit is far more sustainable than a sharp cut")
 
-    # Plateau.
+    # Plateau. Ground the movement lever in the ACTUAL planned workout, never a type
+    # inferred from the goal.
     if _nonbenign(risks.get("plateau_risk_label")):
+        plateau_action = ("take a short diet break or add an extra training day to "
+                          "restart progress")
+        if planned and planned.get("type"):
+            plateau_action = ("take a short diet break and make today's "
+                              f"{planned['type']} session count")
         add(2, "your weight loss looks like it may be stalling",
             "your weight trend has flattened out recently",
-            "take a short diet break or add a heavier workout day to restart progress",
+            plateau_action,
             "a deliberate change breaks a plateau better than just doing more of the same")
 
-    # Muscle preservation.
+    # Muscle preservation. Only prescribe a strength session when it is ACTUALLY on the
+    # schedule; otherwise reference the training plan generically — never tell the user
+    # to strength-train on a day their plan has something else (the production miss).
     if _nonbenign(risks.get("muscle_loss_risk_level")):
+        if planned and "strength" in (planned.get("type") or ""):
+            muscle_action = ("keep your protein up and make today's strength session count")
+        elif planned:
+            muscle_action = ("keep your protein up and stay consistent with your "
+                             "training schedule")
+        else:
+            muscle_action = "keep your protein up and keep resistance work in your week"
         add(2, "you may be losing some muscle along with the fat",
             "your recent trend suggests some lean mass is coming off too",
-            "keep your protein up and strength-train 2–3× a week",
+            muscle_action,
             "protecting muscle keeps your metabolism up and the results lasting")
 
     # Nutrition — only a genuine late-day gap, never early-day; lowest priority.
@@ -480,6 +496,9 @@ def health_working_memory(truth, user=None):
         "current_status": _pick(state, _H_STATUS),
         "major_trends": _pick(state, _H_TRENDS),
         "nutrition_context": _nutrition_time_context(user) if user is not None else {},
+        # DETERMINISTIC DAY-TRUTH: today's ACTUAL planned workout, so a movement
+        # recommendation defers to the schedule instead of inferring a type from goals.
+        "todays_planned_workout": _todays_planned_workout(user),
     }
     ranked = _rank_health_concerns(rank_input)
 
@@ -495,12 +514,41 @@ def health_working_memory(truth, user=None):
         facts["goal_progress"] = rank_input["goal_progress"]
     if rank_input["nutrition_context"]:
         facts["nutrition_context"] = rank_input["nutrition_context"]
+    # Model-facing day-truth: the real planned workout + concrete protein options, so
+    # both the LLM and the deterministic fallback ground recommendations in truth.
+    if rank_input["todays_planned_workout"]:
+        facts["todays_planned_workout"] = rank_input["todays_planned_workout"]
+    if user is not None:
+        _po = _protein_options(user)
+        if _po:
+            facts["protein_options"] = _po
     ff = _strip_source(fh) if isinstance(fh, dict) else {}
     if ff:
         facts["foundational_facts"] = ff
     if ranked:
         facts["ranked_concerns"] = ranked
     return facts
+
+
+def _todays_planned_workout(user):
+    """Deterministic today's planned workout (or None). Never raises."""
+    if user is None:
+        return None
+    try:
+        from apps.ai.chatgpt_cos.day_truth import todays_planned_workout
+        return todays_planned_workout(user)
+    except Exception:
+        logger.warning("stages: planned workout read failed", exc_info=True)
+        return None
+
+
+def _protein_options(user):
+    """Deterministic, dietary-appropriate protein options phrase (or "")."""
+    try:
+        from apps.ai.chatgpt_cos.day_truth import protein_options
+        return protein_options(user)
+    except Exception:
+        return ""
 
 
 def _generic_curator(truth, user=None):
@@ -1318,7 +1366,10 @@ def _health_concerns_fallback(wm):
 
 # INV-5: map the top concern to a CONCRETE imperative the user can do in 24h.
 # Never vague ("work on nutrition"); always a specific, completable action.
-def _concrete_today_action(concern, phase):
+def _concrete_today_action(concern, phase, planned=None, protein=None):
+    """Map the top concern to a CONCRETE 24h action. A movement action defers to the
+    ACTUAL planned workout (`planned`) instead of inventing a modality; protein advice
+    is made actionable with concrete, dietary-appropriate options (`protein`)."""
     c = (concern or "").lower()
     after = "after dinner tonight" if phase == "evening" else "after your biggest meal today"
     if "blood sugar" in c or "glucose" in c:
@@ -1328,29 +1379,44 @@ def _concrete_today_action(concern, phase):
     if "weight-loss pace" in c or "pace" in c:
         return "log everything you eat today and keep your portions steady"
     if "protein" in c:
-        return "make your next meal protein-forward — aim for about 30g"
+        base = "make your next meal protein-forward — aim for about 30g"
+        return f"{base} ({protein})" if protein else base
     if "calorie" in c:
         return "plan one balanced meal to close today's gap"
-    if "stalling" in c or "plateau" in c:
-        return "add a 20-minute walk or one short strength set today"
-    if "muscle" in c:
-        return "get a protein-rich meal and a short strength set in today"
-    return "take one 20-minute walk today"
+    # Movement concerns (plateau / muscle) MUST reference the scheduled workout, never a
+    # goal-inferred type — recommending strength on a cardio day is the production miss.
+    if "stalling" in c or "plateau" in c or "muscle" in c:
+        return _movement_action(planned)
+    return _movement_action(planned)
+
+
+def _movement_action(planned):
+    """A concrete movement step grounded in the day's actual schedule."""
+    if planned and planned.get("type"):
+        when = f" at {planned['time']}" if planned.get("time") else ""
+        if planned.get("completed"):
+            return (f"you've already done today's {planned['type']} workout — that's "
+                    "today's movement handled")
+        return f"make today's scheduled {planned['type']} workout{when} count"
+    return "fit in a 20-minute walk today"
 
 
 def _health_focus_today_fallback(wm):
     # health_focus_today: (1) today's focus, (2) why today, (3) ONE concrete 24h
-    # action (INV-5). Time-aware via nutrition_context.day_phase.
+    # action (INV-5). Time-aware via nutrition_context.day_phase; movement grounded in
+    # the deterministic planned workout; protein made actionable with concrete options.
     f = wm.get("facts") or {}
     ranked = f.get("ranked_concerns") or []
     phase = ((f.get("nutrition_context") or {}).get("day_phase")) or "today"
+    planned = f.get("todays_planned_workout")
+    protein = f.get("protein_options")
     if not ranked:
         return ("Today, keep your healthy routine steady — nothing urgent stands "
-                "out. It keeps your momentum going. One concrete step: take a "
-                "20-minute walk today.")
+                "out. It keeps your momentum going. One concrete step: "
+                + _movement_action(planned) + ".")
     top = ranked[0]
     focus = top.get("concern", "your health")
-    action = _concrete_today_action(focus, phase)
+    action = _concrete_today_action(focus, phase, planned=planned, protein=protein)
     return (f"Today, focus on {focus}. Acting on it today keeps it from "
             f"compounding and protects your momentum. One concrete step: "
             f"{action}.")
@@ -1373,6 +1439,14 @@ _HEALTH_GUIDANCE = (
     " treat 0 calories/protein as a risk or deficit (it is simply early in the "
     "day). Only call out a nutrition gap when the interpretation shows a late-day "
     "shortfall or a sustained trend below the 7-day typical."
+    " If you advise protein, be ACTIONABLE — name concrete options from "
+    "'protein_options' (e.g. 'have eggs or Greek yogurt'), never just 'focus on "
+    "protein'."
+    " WORKOUTS: if you reference a workout for today, use ONLY "
+    "'todays_planned_workout' (the user's ACTUAL schedule). NEVER infer or "
+    "recommend a workout TYPE (strength, cardio, etc.) from a health goal — if "
+    "'todays_planned_workout' is absent, do not prescribe a type; suggest a simple "
+    "walk or defer to what they have planned."
 )
 
 REASONING_PROFILES = {

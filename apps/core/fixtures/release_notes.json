@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 254,
+    "fields": {
+      "title": "Your Calendar now projects your whole life — and knows when you're free",
+      "description": "The Calendar has been rebuilt as a true window into your time. It projects every part of WLJ — tasks, medications, workouts, routines, goals, reading plans, and events — into one timeline, while each item stays owned and edited in its home. Click a task on the Calendar and you edit the task; click a medication and you edit the medication — the Calendar never keeps a separate copy. We also added Availability Blocks: set your work hours, PTO, or any unavailable window (recurring, with Outlook-style \"this occurrence / this and future / entire series\" edits) so the Calendar can honestly show your open time. As always, the timeline shows only what truly has a set time — nothing is given a made-up hour. Find it under Organize → Calendar, and set your availability from Calendar → Availability.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/calendar/availability/",
+      "created_at": "2026-07-07T13:00:00Z",
+      "updated_at": "2026-07-07T13:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 242,
     "fields": {
       "title": "Your timeline now shows what's truly scheduled — nothing faked",
@@ -4037,6 +4053,22 @@
       "learn_more_url": "",
       "created_at": "2026-07-07T12:00:00Z",
       "updated_at": "2026-07-07T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 255,
+    "fields": {
+      "title": "Your Chief of Staff checks your real schedule — and takes corrections gracefully",
+      "description": "Recommendations now start from what's actually on your day, not a guess. If your Chief of Staff mentions a workout, it reads your real workout schedule first — so it won't suggest strength on a cardio day. “Focus on protein” now comes with concrete options for your next meal, and if you've already done your prayer or Bible reading, it's acknowledged as your foundation for the day. And when you correct it — “that's not right, today is cardio,” or “why didn't you check my schedule?” — it treats that as feedback: it owns the miss, states the corrected plan from your actual schedule, and moves on, instead of thinking you're trying to reschedule something.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T13:00:00Z",
+      "updated_at": "2026-07-07T13:00:00Z"
     }
   }
 ]

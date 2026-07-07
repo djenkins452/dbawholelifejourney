@@ -6,6 +6,46 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — Phase 0C (realize + verify)
+
+Made Phase 4 observable, schedulable, and live-verifiable WITHOUT expanding scope
+or touching the ratified design/models. No new migrations.
+
+**1. Live verification (real seams).** New `apps/ai/tests/test_reflection_phase0c.py`
+drives the actual production assembly, not just the reflection unit:
+- a bounded PREFERENCE correction is learned AND appears in the REAL
+  `ChatGPTCoSService._system_prompt()` (LEARNED PREFERENCES block);
+- a TRUTH correction creates an EIO, is NOT learned, and never reaches the CoS
+  prompt;
+- open EIOs surface as KNOWN LIMITATIONS via the real
+  `get_gap_awareness_injection()`.
+
+**2. Scorecard scheduling (smallest existing ISE path).** New runner
+`scheduler_runner.run_executive_scorecards()` + registry entry
+`compute_executive_scorecards` (daily). BOUNDED to users with reflections in the
+last 7 days — no full-user sweep, no request-path compute (WLJ F5).
+
+**3. Read-only admin visibility.** `apps/ai/admin.py` now registers
+`ReflectionEvent` and `ExecutiveScorecardSnapshot` as strictly read-only
+(`has_add/change/delete_permission → False`): recent reflections (filter by
+disposition/locus/trust delta), and the scorecard trend (trust net, learning
+events, EIO counts). Unresolved EIOs already surface on the existing assistant
+improvement dashboard (they are `ImprovementTaskModel source=reflection`).
+
+**4. Reinforcement — DEFERRED (disciplined).** Directive-level success
+reinforcement is NOT added: a success cannot be deterministically attributed to a
+specific directive, so strengthening one would risk the wrong directive. The safe
+reinforcement already exists — re-learning a preference compresses/strengthens its
+directive via `behavior_guidance.learn`. Reinforcement is still recorded on the
+ReflectionEvent (scorecard counts it).
+
+**Tests:** 7 new Phase 0C (all pass) + 0B (10) + 0A (7) = 24 reflection tests pass;
+`manage.py check` + `makemigrations --check` clean. No full-suite run.
+
+Files: `apps/ai/tests/test_reflection_phase0c.py` (new),
+`apps/core/ai_scheduler/scheduler_runner.py`, `apps/core/ai_scheduler/scheduler_registry.py`,
+`apps/ai/admin.py`.
+
 ## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — Phase 0B (lifecycle, classifier, gate, EIOs, scorecard)
 
 Implemented the ratified Executive Reflection architecture on top of the Phase 0A

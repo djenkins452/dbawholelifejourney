@@ -590,6 +590,48 @@ def run_prediction_validation():
         return {"validated": validated, "errors": errors}
 
 
+def run_executive_scorecards():
+    """
+    Compute + persist Executive Scorecard snapshots (Phase 4 Executive Reflection).
+
+    Bounded to users with RECENT reflections — never a full-user sweep and never a
+    request-path compute (WLJ F5). Reads ReflectionEvents, composes the scorecard,
+    writes one snapshot per user.
+
+    Returns:
+        dict — {computed: int, errors: int}
+    """
+    with trace_context(source="scheduler"):
+        try:
+            from apps.ai.models import ReflectionEvent
+            from apps.ai.reflection.scorecard import compute_and_store
+        except ImportError:
+            logger.error("ISE: Executive Scorecard not available (import failed)")
+            return {"computed": 0, "errors": 0}
+
+        from datetime import timedelta
+        from django.utils import timezone
+
+        since = timezone.now() - timedelta(days=7)
+        user_ids = list(
+            ReflectionEvent.objects.filter(created_at__gte=since)
+            .values_list("user_id", flat=True).distinct()
+        )
+        computed = 0
+        errors = 0
+        for uid in user_ids:
+            try:
+                user = User.objects.filter(id=uid, is_active=True).first()
+                if user and compute_and_store(user):
+                    computed += 1
+            except Exception as e:
+                errors += 1
+                logger.warning(f"ISE: Executive Scorecard failed for user {uid}: {e}")
+
+        logger.info(f"ISE: Executive Scorecards — computed={computed}, errors={errors}")
+        return {"computed": computed, "errors": errors}
+
+
 def run_intervention_effectiveness():
     """
     Evaluate intervention effectiveness for all active users.

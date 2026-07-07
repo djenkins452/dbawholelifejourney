@@ -1,8 +1,62 @@
 from django.contrib import admin
 from .models import (
     CoachingStyle, AIInsight, AIUsageLog, AIPromptConfig,
-    ValuesGuardrailPattern, ValuesRedirectSuggestion
+    ValuesGuardrailPattern, ValuesRedirectSuggestion,
+    ReflectionEvent, ExecutiveScorecardSnapshot,
 )
+
+
+class _ReadOnlyAdmin(admin.ModelAdmin):
+    """Executive Reflection surfaces are OBSERVATIONAL — operators view, never
+    edit. Reflection is written only by the classifier/engine; the admin is a
+    read-only window (Phase 0C)."""
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ReflectionEvent)
+class ReflectionEventAdmin(_ReadOnlyAdmin):
+    list_display = ("created_at", "user", "trigger", "outcome", "trust_delta",
+                    "locus", "disposition", "topic", "confidence")
+    list_filter = ("disposition", "locus", "trust_delta", "outcome", "trigger")
+    search_fields = ("user__email", "topic", "user_message", "directive_key")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields] + ["eio"]
+
+
+@admin.register(ExecutiveScorecardSnapshot)
+class ExecutiveScorecardSnapshotAdmin(_ReadOnlyAdmin):
+    list_display = ("created_at", "user", "window_days", "reflection_count",
+                    "_trust_net", "_learning_events", "_eios")
+    list_filter = ("window_days",)
+    search_fields = ("user__email",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in self.model._meta.fields]
+
+    @admin.display(description="Trust net")
+    def _trust_net(self, obj):
+        return (obj.dimensions or {}).get("user_trust", {}).get("net")
+
+    @admin.display(description="Learning events")
+    def _learning_events(self, obj):
+        return (obj.dimensions or {}).get("learning_events")
+
+    @admin.display(description="EIOs")
+    def _eios(self, obj):
+        return (obj.dimensions or {}).get("executive_improvement_opportunities")
 
 
 @admin.register(CoachingStyle)

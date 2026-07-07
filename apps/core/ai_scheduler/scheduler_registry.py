@@ -87,6 +87,11 @@ SCHEDULED_TASKS = {
         "interval_seconds": 86400,  # 24 hours
         "description": "Evaluate intervention effectiveness and calibrate escalation speed (Phase 4 feedback).",
     },
+    "compute_executive_scorecards": {
+        "function_path": "apps.core.ai_scheduler.scheduler_runner.run_executive_scorecards",
+        "interval_seconds": 86400,  # 24 hours
+        "description": "Compute + persist Executive Scorecard snapshots for users with recent reflections (Phase 4 Executive Reflection).",
+    },
     "run_cdce_correlations": {
         "function_path": "apps.core.ai_scheduler.scheduler_runner.run_cdce_synthetic",
         "interval_seconds": 21600,  # 6 hours

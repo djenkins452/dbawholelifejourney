@@ -4150,5 +4150,21 @@
       "created_at": "2026-07-07T18:00:00Z",
       "updated_at": "2026-07-07T18:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 261,
+    "fields": {
+      "title": "Your Chief of Staff orients you — then hands the conversation back",
+      "description": "Mornings feel like a conversation now, not a report. When you check in, your Chief of Staff acknowledges where you stand, points you at the single next thing worth keeping in front of you, and asks what you need — then it stops and lets you steer. It saves the full rundown for when you actually ask for it (\"what do I need to know today?\"). Tell it you're wiped out and it offers to lighten the day; mention someone on your mind and it simply listens. Less talking, better conversation.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T19:00:00Z",
+      "updated_at": "2026-07-07T19:00:00Z"
+    }
   }
 ]

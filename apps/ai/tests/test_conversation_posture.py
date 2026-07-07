@@ -90,15 +90,34 @@ class PostureRoutingTests(TestCase):
         self.assertEqual(res["lane"], "personal_concern")
         ans = res["answer"].lower()
         self.assertIn("haley", ans)
-        self.assertIn("listening", ans)
-        # The executive concern has CHANGED — no protein / workout / mission talk.
-        for off_topic in ("protein", "workout", "france", "backlog", "sleep"):
+        self.assertIn("what's going on", ans)          # invites them to talk
+        # The executive concern has CHANGED — no protein / workout / mission talk, and no
+        # priorities at all. Minimal, then stop.
+        for off_topic in ("protein", "workout", "france", "backlog", "sleep", "priority"):
             self.assertNotIn(off_topic, ans)
 
     def test_bare_greeting_still_opens_with_the_check_in(self):
         res = self._route("Good morning.")
         self.assertEqual(res["lane"], "conversation_checkin")
 
-    def test_positive_opener_still_gets_the_executive_read(self):
-        res = self._route("I feel great today.")
+    def test_positive_opener_gets_orientation_then_stops(self):
+        # A volunteered self-report is ORIENTED, not briefed: it hands the conversation
+        # back with a question and does NOT enumerate every domain.
+        res = self._route("I feel great today. Knocked out a few things already.")
         self.assertEqual(res["lane"], "self_report")
+        ans = res["answer"]
+        self.assertTrue(ans.rstrip().endswith("?"))          # hands it back with a question
+        self.assertIn("what do you need from me", ans.lower())
+        low = ans.lower()
+        # Not the full report machinery.
+        self.assertNotIn("looking at everything together", low)
+        self.assertNotIn("through-line", low)
+        self.assertNotIn("the rest of what's on your list", low)
+
+    def test_explicit_briefing_request_still_gets_the_full_read(self):
+        # Briefing is still available — when the user asks for the picture.
+        res = self._route("How am I doing today?")
+        self.assertIsNotNone(res)
+        ans = (res.get("answer") or "").lower()
+        # The full read does more than orient — it doesn't just hand back a question.
+        self.assertNotIn("what do you need from me", ans)

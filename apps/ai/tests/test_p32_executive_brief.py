@@ -129,13 +129,13 @@ class ProductionConversationTests(_Conv, TestCase):
         self.assertEqual(r1["lane"], "conversation_checkin")
         self.assertNotIn("coming up", r1["answer"].lower())
 
-        # 2. I'm tired but okay -> EXECUTIVE brief (orientation first, recovery framing)
+        # 2. I'm tired but okay -> ORIENT gently and hand the conversation back — a
+        #    conversational opener is oriented, not briefed. (The full read is step 3.)
         r2 = self.say("I'm tired but okay")
         self.assertEqual(r2["lane"], "conversation_brief")
-        s2 = eb.score_executive_presence(r2["answer"])
-        self.assertTrue(s2["no_report_headings"], r2["answer"][:200])
-        self.assertTrue(s2["synthesis"])
-        self.assertIn("it's your energy", r2["answer"].lower())
+        low2 = r2["answer"].lower()
+        self.assertTrue(r2["answer"].rstrip().endswith("?"))        # returns the turn
+        self.assertIn("light", low2)                               # gentle low-energy framing
         self.assertFalse(r2["answer"].lower().startswith(("coming up", "drink")))
 
         # 3. What do I need to know about today? -> executive composer again

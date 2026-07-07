@@ -6,6 +6,48 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): executive conversational discipline — orient, then stop talking
+
+**Phase-2 gap:** the previous change classified the conversational NEED, but what
+happened AFTER was still a full executive briefing. A volunteered self-report ("I feel
+good, knocked out a few things") ran `_self_report_lane` → `compose_executive_brief` and
+got the whole report — foundation, France, sleep, protein, due/overdue items, the
+motorcycle, medication. That's an executive REPORT, not an executive CONVERSATION. Beth
+kept talking because she still had information, not because the user needed it.
+
+**Fix (existing architecture, no new engine, no scripts):** teach Beth to ORIENT and
+hand the conversation back — the full read is reserved for an explicit request.
+- New `executive_brief.compose_orientation(user, …)` — a SHORT composer: acknowledge the
+  executive, orient them (ahead / steady / lighter), name the SINGLE next thing worth
+  keeping in front of them (the next meaningful scheduled item via the existing filter,
+  else the one value-ranked priority), hand it back with "What do you need from me
+  {part-of-day}?" — then STOP. No domain enumeration. Health-critical still leads; at
+  night it defers to the close-out.
+- The two conversational-opener paths now ORIENT instead of briefing: `_self_report_lane`
+  (volunteered feeling) and `_post_checkin_brief` (the reply after "good morning"). The
+  FULL executive read stays exactly where an explicit request lives — the `cos_briefing`
+  lane ("how am I doing today?", "what do I need to know?") and the self-aware repair —
+  so briefing is still available, just not by default (acceptance 4).
+- `classify_need` extended: NEGATIVE energy the user isn't brushing off ("I'm exhausted")
+  now routes to the problem-solving OFFER (make the day easier), matching the executive
+  examples; a self-qualified "tired but okay" stays a light orientation. (Apostrophes are
+  now stripped so "i'm" matches the cue lexicons.)
+- `_personal_concern_open` tightened to the minimal listening posture ("Okay — tell me
+  what's going on with Haley.") — no status, no priorities, then stop.
+
+**Files:** apps/ai/chatgpt_cos/executive_brief.py (compose_orientation + helpers),
+apps/ai/chatgpt_cos/lanes.py (reroute self_report + post_checkin to orient; tighten
+personal_concern), apps/ai/chatgpt_cos/conversation_planner.py (negative→problem_solving,
+apostrophe fix), apps/ai/tests/test_conversation_posture.py + updated routed-flow
+assertions (p31/p32/executive_synthesis/evidence_reconciliation now expect orientation,
+with the full-read capabilities still covered by the direct-compose tests),
+apps/core/fixtures/release_notes.json (PK 261), apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new/updated posture tests (orientation ends with a question and omits
+the report machinery; explicit "how am I doing today?" still gets the full read;
+exhausted → problem-solving offer; concern → minimal listening); ~250-test regression
+green. No new engine; no migration.
+
 ## 2026-07-07 — feat(cos): conversational-need classification — choose the conversation, not the script
 
 **Phase-2 gap:** Beth didn't understand what KIND of conversation she was in. Every

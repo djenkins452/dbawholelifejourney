@@ -431,6 +431,70 @@ def _close_out_story(user, sig):
     return _scrub(out) or out
 
 
+def _orientation_when(user):
+    try:
+        from apps.ai.chatgpt_cos.response_coherence import part_of_day
+        return "this " + part_of_day(user)
+    except Exception:
+        return "today"
+
+
+def _orientation_open(sig, subjective, low_energy):
+    """One adaptive sentence that acknowledges what the user reported and orients them —
+    ahead / steady / lighter — WITHOUT enumerating domains."""
+    acc = list(getattr(sig, "accomplishments", []) or []) \
+        + list(getattr(sig, "foundation", []) or [])
+    if low_energy or subjective == "negative":
+        return "Thanks for telling me — let's keep the load light and steady, then."
+    if acc or subjective == "positive":
+        return ("Sounds like you're off to a strong start — you're actually ahead of "
+                "where I'd expect you to be right now.")
+    return "You're in good shape heading into the day."
+
+
+def _orientation_next(user, sig):
+    """The SINGLE next thing worth keeping in front of the executive — the next
+    meaningful scheduled item, else the one value-ranked priority. Never a list."""
+    try:
+        ahead, _past, _hour = _rhythm_split(user)
+        worth = [it.get("_label") for it in ahead if _agenda_worth_surfacing(it)]
+        worth = [w for w in worth if w]
+        if worth:
+            return f"The next thing I'd keep in front of you is {worth[0]}."
+    except Exception:
+        logger.warning("orientation: rhythm read failed", exc_info=True)
+    pa = getattr(sig, "priority_action", None) or {}
+    text = (pa.get("text") or "").strip()
+    if text:
+        return f"The one thing I'd keep in front of you is {text}."
+    return ""
+
+
+def compose_orientation(user, *, lead="", low_energy=False, subjective=None):
+    """ORIENTATION, not a briefing — executive conversational discipline. A Chief of
+    Staff acknowledges the executive, orients them to where the day stands, names the
+    SINGLE next thing worth keeping in front of them, hands the conversation back with a
+    question, and then STOPS. She does not enumerate every domain she knows about; the
+    full executive read is reserved for an explicit request ('what do I need to know?').
+    Health-critical, time-sensitive actions still lead. At night, defers to the close-out."""
+    sig = _safe_interpret(user, low_energy=low_energy, subjective=subjective)
+    if (getattr(sig, "stance", None) or {}).get("stance") == "close_out":
+        return compose_executive_brief(user, lead=lead, low_energy=low_energy,
+                                       subjective=subjective)
+    parts = []
+    if lead:
+        parts.append(lead.strip())
+    for hc in (getattr(sig, "health_critical", None) or [])[:1]:
+        parts.append(f"Before anything else — {hc['text']}. Take care of that first.")
+    parts.append(_orientation_open(sig, subjective, low_energy))
+    nxt = _orientation_next(user, sig)
+    if nxt:
+        parts.append(nxt)
+    parts.append(f"What do you need from me {_orientation_when(user)}?")
+    out = " ".join(p for p in parts if p).strip()
+    return _scrub(out) or out
+
+
 def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None):
     """Compose ONE coherent executive CONVERSATION by NARRATING ExecutiveSignals
     (P35: the composer is a speechwriter — it never invents priorities, leverage,

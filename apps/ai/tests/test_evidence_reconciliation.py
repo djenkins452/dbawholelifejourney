@@ -117,5 +117,9 @@ class RoutedReconciliationTests(TestCase):
                 self.conv)
         self.assertEqual(out["lane"], "conversation_brief")
         low = out["answer"].lower()
-        self.assertIn("good to hear", low)                   # natural voice
+        # A positive check-in reply is ORIENTED (acknowledge the good start, hand back),
+        # not handed a full energy/recovery briefing. (The reconciliation composer itself
+        # is covered by ReconciliationBriefTests.)
+        self.assertTrue(out["answer"].rstrip().endswith("?"))
+        self.assertIn("strong start", low)
         self.assertNotIn("bigger challenge today", low)

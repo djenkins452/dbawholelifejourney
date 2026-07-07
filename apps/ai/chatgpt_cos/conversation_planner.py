@@ -147,15 +147,23 @@ _EXEC_DOMAIN_WORDS = (
 )
 
 
+# A reply that self-qualifies as coping ("tired but okay") wants a light touch, not a
+# problem-solving intervention.
+_MANAGING_QUALIFIERS = ("but okay", "but ok", "but fine", "but good", "but alright",
+                        "but managing", "but hanging in", "but doing okay", "not too bad",
+                        "could be worse", "ill be fine", "im fine", "im okay", "im ok",
+                        "still good", "nothing i cant handle", "nothing i can't handle")
+
+
 def classify_need(message):
     """Classify the conversational NEED behind an opener → NEED_PROBLEM_SOLVING /
     NEED_PERSONAL_CONCERN / None. Deterministic and conservative: it fires only on a
     clear problem-to-solve or a clear personal worry; everything else returns None so
     the existing routing (orientation, execution, briefing) is untouched."""
-    n = _norm(message)
-    if not n or _looks_like_question(n):
-        # A direct question is a request for an answer, not an emotional opener.
-        pass
+    # Strip apostrophes so the apostrophe-free cue lexicons match ("i'm" → "im").
+    n = re.sub(r"[’']", "", _norm(message))
+    if not n:
+        return None
     if any(c in n for c in _PROBLEM_SOLVING_CUES):
         return NEED_PROBLEM_SOLVING
     for cue in _CONCERN_CUES:
@@ -167,6 +175,16 @@ def classify_need(message):
         # person / life situation is a listening moment.
         if not any(w in tail or w in n for w in _EXEC_DOMAIN_WORDS):
             return NEED_PERSONAL_CONCERN
+    # NEGATIVE energy the user ISN'T already brushing off ("I'm exhausted") is a moment to
+    # make the day easier, not to brief or to lecture on recovery — offer to help. A reply
+    # that self-qualifies as managing ("tired but okay") stays a light orientation.
+    if not _looks_like_question(n) and not any(q in n for q in _MANAGING_QUALIFIERS):
+        try:
+            from apps.ai.chatgpt_cos.executive_interpretation import classify_subjective_energy
+            if classify_subjective_energy(message) == "negative":
+                return NEED_PROBLEM_SOLVING
+        except Exception:
+            pass
     return None
 
 

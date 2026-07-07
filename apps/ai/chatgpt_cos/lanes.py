@@ -105,12 +105,14 @@ def _self_report_lane(user, message, conversation=None):
             _acc.record(user, _a.label)
     except Exception:
         logger.warning("self_report: record failed", exc_info=True)
-    # LISTEN, then synthesize — one executive brief (foundation → energy/recovery → the
-    # next best move), never a single-domain answer.
+    # ORIENT, don't brief — executive conversational discipline. A volunteered self-
+    # report is a conversation opener, not a request for the full picture: acknowledge,
+    # orient, name the ONE next thing, hand it back. The full executive read is reserved
+    # for an explicit "what do I need to know?" (the cos_briefing lane).
+    low = subjective == "negative"
     try:
-        from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
-        answer = compose_executive_brief(user, lead="Got it — thanks for the rundown. ",
-                                         subjective=subjective)
+        from apps.ai.chatgpt_cos.executive_brief import compose_orientation
+        answer = compose_orientation(user, subjective=subjective, low_energy=low)
     except Exception:
         logger.warning("self_report: compose failed", exc_info=True)
         return None
@@ -1535,13 +1537,16 @@ def _post_checkin_brief(user, message, feeling):
             _acc.record(user, _a.label)
     except Exception:
         logger.warning("post_checkin_brief: accomplishment detect failed", exc_info=True)
+    # ORIENT after the check-in — acknowledge, orient, one next thing, hand back. A
+    # "good morning" that becomes a full report is a briefing, not a conversation; the
+    # full read is reserved for an explicit request.
     try:
-        from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
-        answer = compose_executive_brief(user, lead=lead, low_energy=heavy,
-                                         subjective=subjective)
+        from apps.ai.chatgpt_cos.executive_brief import compose_orientation
+        answer = compose_orientation(user, lead=lead, low_energy=heavy,
+                                     subjective=subjective)
     except Exception:
         logger.warning("post_checkin_brief: compose failed", exc_info=True)
-        answer = lead + "Here's your day at a glance."
+        answer = lead + "Here's where things stand."
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "conversation_brief"}
 
@@ -1658,12 +1663,12 @@ def _personal_concern_open(user, message):
         obj = concern_object(message)
     except Exception:
         obj = ""
+    # Minimal by design — the conversation has changed. Acknowledge and invite; do NOT
+    # add priorities, status, or a briefing. Then stop and let them talk.
     if obj:
-        answer = (f"{obj} is clearly on your mind, and that matters more than anything "
-                  f"on today's list. Tell me what's going on with {obj} — I'm listening.")
+        answer = f"Okay — tell me what's going on with {obj}."
     else:
-        answer = ("That's clearly weighing on you, and it matters more than anything on "
-                  "today's list. Tell me what's going on — I'm listening.")
+        answer = "Okay — tell me what's going on."
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
             "lane": "personal_concern"}
 

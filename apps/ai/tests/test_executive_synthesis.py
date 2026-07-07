@@ -135,12 +135,14 @@ class SelfReportRoutingTests(TestCase):
         res = self._route(REPORT)
         self.assertIsNotNone(res)
         self.assertEqual(res["lane"], "self_report")
-        ans = res["answer"].lower()
-        # It LISTENED: the prayer/Bible foundation is acknowledged, not dropped.
-        self.assertIn("prayer and bible reading", ans)
-        # It is NOT the single-domain sleep recommendation.
-        self.assertFalse(ans.startswith("today's focus"))
-        self.assertFalse(ans.startswith("today, focus on"))
+        ans = res["answer"]
+        low = ans.lower()
+        # A volunteered positive report is ORIENTED (acknowledge the strong start, hand
+        # back), not answered with a single-domain sleep recommendation or a full report.
+        self.assertTrue(ans.rstrip().endswith("?"))
+        self.assertIn("strong start", low)
+        self.assertFalse(low.startswith("today's focus"))
+        self.assertFalse(low.startswith("today, focus on"))
 
     def test_a_plain_question_is_not_stolen_by_self_report(self):
         # A real question must still fall through to normal routing (not self_report).

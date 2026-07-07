@@ -100,8 +100,11 @@ class MorningCheckinScenarioTests(_ConvMixin, TestCase):
         self._say("Good morning")
         res = self._say("honestly exhausted and stressed")
         low = res["answer"].lower()
-        # P32: low energy -> executive recovery framing, not a task dump
-        self.assertTrue("recovery day" in low or "protect your energy" in low, low[:200])
+        # Executive conversational discipline: an exhausted user is OFFERED help to make
+        # the day easier — not handed a briefing or a recovery lecture.
+        self.assertEqual(res["lane"], "problem_solving")
+        self.assertIn("lighter", low)
+        self.assertTrue("move" in low or "simplify" in low or "let go" in low)
 
     def test_checkin_followed_by_direct_question_is_answered(self):
         self._say("Good morning")

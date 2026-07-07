@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(dashboard_v3): weather pill — data-contract key mismatch (dot-only pill)
+
+**Root cause (data-contract key mismatch, NOT caching/JS/lifecycle):** The dashboard_v3
+header weather pill (`templates/dashboard_v3/home.html:19-23`) reads
+`weather_tile.data.temperature_f`, `.condition`, and `.city`. But `build_weather_tile`
+(`apps/dashboard_v3/services/composer.py`) passed `WeatherData.to_dict()` through raw,
+which emits `current_temp`, `current_condition`, and `location` — three different key
+names. So whenever weather was actually AVAILABLE, every template variable resolved to
+blank and the pill rendered only a bare `°` — the "small black dot" reported in
+production. The "Weather unavailable" text only appeared when the weather service
+returned `None` (cold cache / 3s timeout / geocode miss / 429 backoff). That fully
+explains the reported behavior: fresh load (cold cache → `None`) showed the fallback
+text; returning to the dashboard (1-hour weather cache now warm → available branch →
+broken keys) showed the dot. There is NO weather JavaScript — the pill is 100%
+server-rendered on each full-page load, and the view is already `@never_cache`, so
+caching/lifecycle was ruled out.
+
+**Fix:** `build_weather_tile` now adapts the shared weather-service contract to the exact
+keys the pill reads — `{temperature_f (rounded), condition, city}` — and, if no usable
+temperature is present, returns the honest `available=False` / "Weather unavailable"
+fallback instead of a blank available pill. Template left unchanged (its key names are
+now the stable v3 pill contract; the composer is the adapter).
+
+**Files changed:**
+- `apps/dashboard_v3/services/composer.py` — `build_weather_tile` maps
+  current_temp/current_condition/location → temperature_f/condition/city; guards missing temp.
+- `apps/dashboard_v3/tests/test_composer.py` — added two regression tests: available-branch
+  shape matches template keys (rounded temp), and service-returns-None → "Weather unavailable".
+
+**Verification:** `apps.dashboard_v3.tests.test_composer.WeatherTileTests` — 3/3 pass.
+Direct Django template render of the pill fragment confirmed both states: available →
+`72° Partly Cloudy Maryville` (no bare `°`); unavailable → `— Weather unavailable`.
+Confirmed `home.html` is the only `weather_tile` consumer, so narrowing the data dict is safe.
+
+**Why:** A missing-var mismatch produced a broken control (dot-only pill) that violated
+the "never leave a blank/broken pill" bar and read as a weather-system failure.
+
 ## 2026-07-07 — feat(cos): Executive Stance — daypart reasoning & conversation awareness
 
 **Root cause (two failures, one gap):** Beth grounded every answer in the user's WORLD

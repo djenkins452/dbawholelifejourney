@@ -2065,3 +2065,55 @@ class WeatherTileTests(TestCase):
         self.assertFalse(tile["available"])
         self.assertIsNone(tile["data"])
         self.assertIn("location", tile["message"].lower())
+
+    def test_weather_tile_available_shape_matches_template_keys(self):
+        """Regression: the header pill reads data.temperature_f / .condition /
+        .city. The weather service emits current_temp / current_condition /
+        location. build_weather_tile MUST bridge the two, else the pill renders
+        a bare "°" (dot-only broken pill). Origin: 2026-07-07 production bug."""
+        from unittest.mock import patch
+        from apps.dashboard_v3.services import build_weather_tile
+        from apps.dashboard.services.weather import WeatherData
+
+        self.user.preferences.location_city = "Maryville, TN"
+        self.user.preferences.save()
+
+        fake = WeatherData(
+            location="Maryville",
+            current_temp=72.4,
+            current_condition="Partly Cloudy",
+            current_code=2,
+            humidity=55,
+            wind_speed=6.0,
+        )
+        with patch(
+            "apps.dashboard.services.weather.weather_service.get_weather_data",
+            return_value=fake,
+        ):
+            tile = build_weather_tile(self.user)
+
+        self.assertTrue(tile["available"])
+        self.assertIsNone(tile["message"])
+        data = tile["data"]
+        # Exact keys the template reads — not the service's raw keys.
+        self.assertEqual(data["temperature_f"], 72)  # rounded for display
+        self.assertEqual(data["condition"], "Partly Cloudy")
+        self.assertEqual(data["city"], "Maryville")
+
+    def test_weather_tile_falls_back_when_service_returns_none(self):
+        """Cold cache / timeout / geocode-miss / 429 backoff → service returns
+        None → honest 'Weather unavailable', never a blank available pill."""
+        from unittest.mock import patch
+        from apps.dashboard_v3.services import build_weather_tile
+
+        self.user.preferences.location_city = "Maryville, TN"
+        self.user.preferences.save()
+        with patch(
+            "apps.dashboard.services.weather.weather_service.get_weather_data",
+            return_value=None,
+        ):
+            tile = build_weather_tile(self.user)
+
+        self.assertFalse(tile["available"])
+        self.assertIsNone(tile["data"])
+        self.assertEqual(tile["message"], "Weather unavailable")

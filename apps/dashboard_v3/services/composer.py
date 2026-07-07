@@ -2204,9 +2204,25 @@ def build_weather_tile(user) -> dict:
         from apps.dashboard.services.weather import weather_service
         weather_data = weather_service.get_weather_data(location_city)
         if weather_data:
+            # Adapt the shared weather-service contract (current_temp /
+            # current_condition / location) to the exact keys the v3 header
+            # pill reads (temperature_f / condition / city). Without this
+            # mapping the pill rendered a bare "°" — a broken dot-only pill —
+            # whenever weather was actually available.
+            raw = weather_data.to_dict()
+            temp = raw.get("current_temp")
+            temperature_f = round(temp) if isinstance(temp, (int, float)) else None
+            if temperature_f is None:
+                # No usable temperature — render the honest fallback instead
+                # of a blank pill.
+                return {"available": False, "data": None, "message": "Weather unavailable"}
             return {
                 "available": True,
-                "data": weather_data.to_dict(),
+                "data": {
+                    "temperature_f": temperature_f,
+                    "condition": raw.get("current_condition") or "",
+                    "city": raw.get("location") or "",
+                },
                 "message": None,
             }
     except Exception:

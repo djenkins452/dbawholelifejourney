@@ -6,6 +6,41 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(calendar): Time Command Center — truth split, unscheduled due tasks off the timeline
+
+**Root cause (truth-hierarchy violation — recommendation presented as fact):** A task
+with a `due_date` but NO `scheduled_time` is projected into a `KIND_DEADLINE_MARKER`
+CalendarEvent pinned to **23:59** (`apps/calendar_engine/services/projection.py:158-207`,
+`upsert_from_task`). The Time Command Center timeline (`templates/calendar_engine/dashboard.html`,
+`renderEvents`) buckets every event by the hour of its `start_dt`, so the marker landed
+in the 11 PM row rendered as "11:59 PM — 12:00 AM" with a "Deadline" badge. That read as
+though the task were *already scheduled* at 11:59 PM — a fabricated execution time. The
+timeline is supposed to represent REALITY (what is actually scheduled); WHEN to do an
+unscheduled task is STRATEGY, which belongs to the Chief of Staff (already surfaced
+separately in the "Smart Suggestions" sidebar via `suggestions.generate_suggestions`).
+Proven by tracing Producer (projection) → Composer (`_get_events_in_range`, `views.py:78`)
+→ Browser (`renderEvents`); the `scheduled_time` → `execution_block` path, calendar
+events, routines, and recurring blocks were confirmed untouched.
+
+**Fix (smallest correction — presentation layer only):** `renderEvents` now partitions
+events: `deadline_marker` events come OFF the factual timeline into a new "Due Today (No
+Time Assigned)" section (`renderUnscheduled`) rendered above the timeline — task name
+only, no fabricated time, dashed/muted styling that never resembles a scheduled block or
+completion. Range views ("Due (No Time Assigned)") show the due date per item. Timed
+items (execution blocks, calendar events, appointments, routines, recurring blocks) render
+on the timeline exactly as before. No change to the projection, scheduler, or suggestion
+engine — the Chief of Staff still recommends execution windows separately.
+
+**Files:** `templates/calendar_engine/dashboard.html` (new section markup + CSS +
+`renderUnscheduled`/`renderEvents` partition). No Python/model changes.
+
+**Verification:** `python3 manage.py check` clean (only pre-existing Stripe config
+warnings). Backend unchanged — projection still emits deadline markers (still used for
+CoS prompt anchoring and Smart Suggestion targeting); only their placement in the UI
+changed. Validation matrix: scheduled task → timeline; calendar event → timeline; task
+due today without time → "Due Today (No Time Assigned)"; no fake 23:59 blocks on timeline;
+Chief of Staff still recommends windows via Smart Suggestions.
+
 ## 2026-07-07 — fix(dashboard_v3): weather pill — data-contract key mismatch (dot-only pill)
 
 **Root cause (data-contract key mismatch, NOT caching/JS/lifecycle):** The dashboard_v3

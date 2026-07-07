@@ -31,6 +31,17 @@
 .cal-balance-legend-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-text-muted); }
 .cal-balance-dot { width: 8px; height: 8px; border-radius: 50%; }
 
+/* Due — No Time Assigned (facts without an execution time).
+   Deliberately NOT styled like timeline blocks: no time column, muted,
+   dashed border so it never reads as "scheduled". */
+.cal-unscheduled { border: 1px dashed var(--color-border); border-radius: var(--radius-lg); padding: 0.75rem 1rem; margin-bottom: 1rem; }
+.cal-unscheduled-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+.cal-unscheduled-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.375rem; }
+.cal-unscheduled-item { font-size: 0.9375rem; color: var(--color-text); padding: 0.375rem 0.625rem; border-left: 3px solid var(--color-accent); border-radius: 4px; }
+.cal-unscheduled-date { font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600; }
+.cal-unscheduled-domain { font-size: 0.75rem; color: var(--color-text-muted); }
+.cal-unscheduled-hint { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; font-style: italic; }
+
 /* Timeline */
 .cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
 .cal-timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -157,6 +168,9 @@
             <div class="cal-timeline-header">
                 <span class="cal-timeline-date" id="cal-date-label"></span>
             </div>
+            <!-- Facts due today with NO execution time — surfaced here, never
+                 placed on the factual timeline as a fake 23:59 block. -->
+            <div id="cal-unscheduled-container"></div>
             <div id="cal-events-container">
                 <div class="cal-empty-state">Loading timeline...</div>
             </div>
@@ -351,18 +365,66 @@
         return y + '-' + mo + '-' + dy + 'T' + h + ':' + mi;
     }
 
+    function renderUnscheduled(items) {
+        // Deadline markers are FACTS (this is due) with no real execution time.
+        // They belong here, above the timeline — never placed at their 23:59
+        // marker time (which would read as "already scheduled"). Beth recommends
+        // WHEN via the Smart Suggestions sidebar — that's strategy, not reality.
+        var el = document.getElementById('cal-unscheduled-container');
+        if (!el) return;
+        if (!items || items.length === 0) { el.innerHTML = ''; return; }
+
+        var isToday = (currentView === 'today');
+        var heading = isToday ? 'Due Today (No Time Assigned)' : 'Due (No Time Assigned)';
+
+        var html = '<div class="cal-unscheduled">';
+        html += '<div class="cal-unscheduled-title">' + heading + '</div>';
+        html += '<ul class="cal-unscheduled-list">';
+        items.forEach(function(evt) {
+            // Deadline markers are titled "Due: <task>" — show just the task name.
+            var name = (evt.title || '').replace(/^Due:\s*/, '');
+            var meta = '';
+            if (!isToday) {
+                var m = evt.start_dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) meta += ' <span class="cal-unscheduled-date">' + m[2] + '/' + m[3] + '</span>';
+            }
+            if (evt.domain) meta += ' <span class="cal-unscheduled-domain">&middot; ' + escHtml(evt.domain) + '</span>';
+            var borderColor = evt.domain_color || 'var(--color-accent)';
+            html += '<li class="cal-unscheduled-item" data-event-id="' + evt.id + '" data-source-type="' + escHtml(evt.source_type || 'none') + '" data-source-id="' + escHtml(evt.source_id || '') + '" style="border-left-color:' + borderColor + '">';
+            html += escHtml(name) + meta;
+            html += '</li>';
+        });
+        html += '</ul>';
+        html += '<div class="cal-unscheduled-hint">No execution time set. Accept a Smart Suggestion or set a time to place it on the timeline.</div>';
+        html += '</div>';
+        el.innerHTML = html;
+    }
+
     function renderEvents(events, label) {
         var container = document.getElementById('cal-events-container');
         document.getElementById('cal-date-label').textContent = label || 'Today';
         eventsCache = events || [];
 
-        if (!events || events.length === 0) {
-            container.innerHTML = '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
+        // Truth split: deadline markers (due, no execution time) come off the
+        // factual timeline into the "Due — No Time Assigned" section above it.
+        var timed = [];
+        var unscheduled = [];
+        (events || []).forEach(function(evt) {
+            if (evt.event_kind === 'deadline_marker') { unscheduled.push(evt); }
+            else { timed.push(evt); }
+        });
+
+        renderUnscheduled(unscheduled);
+
+        if (timed.length === 0) {
+            container.innerHTML = unscheduled.length > 0
+                ? '<div class="cal-empty-state">Nothing scheduled at a set time.</div>'
+                : '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
             return;
         }
 
         var hourGroups = {};
-        events.forEach(function(evt) {
+        timed.forEach(function(evt) {
             var hMatch = evt.start_dt.match(/T(\d{2}):/);
             var hour = hMatch ? parseInt(hMatch[1], 10) : new Date(evt.start_dt).getHours();
             if (!hourGroups[hour]) hourGroups[hour] = [];

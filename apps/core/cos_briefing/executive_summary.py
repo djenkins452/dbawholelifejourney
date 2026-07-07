@@ -708,10 +708,21 @@ def _collect_needs_attention(user) -> list[dict[str, Any]]:
     # surface (briefing, accountability card, Beth) offers the SAME "go do it"
     # affordance instead of only describing the problem.
     from apps.core.action_router import route_for_finding
+
+    # PLAN-AWARE RECOVERY GUARD: this briefing does NOT flow through route_message, so
+    # reframe the stale "consider a rest day" overtraining wording here too (old persisted
+    # insights) when the training plan has a built-in recovery day.
+    def _reframe(msg):
+        try:
+            from apps.ai.chatgpt_cos.naturalize import recovery_reframe
+            return recovery_reframe(msg, user)
+        except Exception:
+            return msg
+
     return [
         {
             "title": i.title,
-            "message": i.message,
+            "message": _reframe(i.message),
             "module": i.module,
             "severity": i.severity,
             "insight_type": i.insight_type,

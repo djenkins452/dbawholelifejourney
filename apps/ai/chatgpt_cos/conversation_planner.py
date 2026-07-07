@@ -214,6 +214,29 @@ def concern_object(message):
     return ""
 
 
+# A REFRESH / RE-CHECK request — the user changed their data and wants Beth to look at
+# the CURRENT version. In an active task-review flow this is "re-read my tasks", NOT a
+# critique of Beth's turn (even though "look again" is also a critique cue). Gated on the
+# problem-solving context at the call site so it only overrides repair when appropriate.
+_REFRESH_CUES = (
+    "look again", "look at it again", "look at that again", "look once more",
+    "look one more time", "take another look", "have another look", "another look",
+    "check again", "check it again", "recheck", "re-check", "re check", "look now",
+    "check now", "refresh", "re-look", "relook", "look back at it", "run it again",
+    "look at my updated", "see the updated", "updated it", "updated them", "updated my",
+    "i updated", "ive updated", "just updated", "i changed it", "i changed my",
+    "changed it now", "made changes", "made some changes", "made a few changes",
+    "made an update", "recheck it", "look at the current", "pull it up again",
+)
+
+
+def is_refresh_request(message):
+    """True when the user is asking Beth to RE-READ the current state (they updated their
+    data): 'look again', 'I updated my tasks', 'refresh', 'recheck'. Not a critique."""
+    n = re.sub(r"[’']", "", _norm(message))
+    return any(c in n for c in _REFRESH_CUES)
+
+
 def is_greeting(message):
     n = _norm(message)
     if not n:
@@ -354,6 +377,16 @@ def plan(user, conversation, message):
     cur = state.get("state")
     prior = last_assistant_text(conversation)
     has_prior = bool(prior) or bool(state.get("last_beth_act"))
+
+    # 0.5) REFRESH within an active PROBLEM-SOLVING / task-review flow. The user updated
+    #      their tasks and asked Beth to look again — that means RE-READ today's task/
+    #      schedule truth and keep helping, NOT critique-repair (even though "look again"
+    #      is also a critique cue). Gated on the problem-solving context so a genuine
+    #      "look again [you got it wrong]" in any other context still routes to repair.
+    if cur == "problem_solving" and is_refresh_request(message):
+        write_state(conversation, state="problem_solving", objective="ease_the_load",
+                    last_beth_act="refreshed")
+        return {"handler": "problem_solving_refresh"}
 
     # 1) REPAIR — a critique OF, or a reference TO, Beth's PREVIOUS answer ("look at
     #    the message you gave me", "that's not what I meant"). Meta-conversational

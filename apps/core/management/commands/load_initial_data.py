@@ -1133,6 +1133,9 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for Goal Question-Scope (PK 262)
         self._reset_goal_scope_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload release_notes for Refresh Intent + Plan-Aware Recovery (PK 263)
+        self._reset_refresh_recovery_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2326,6 +2329,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Goal Scope release note FAILED: {e}'))
+
+    def _reset_refresh_recovery_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 263) so the What's New entry for
+        the Refresh Intent + plan-aware recovery guard ("look again" re-reads the
+        current state instead of repeating an old brief) appears.
+        """
+        reset_tracker_name = 'reset_refresh_recovery_release_note_2026_07_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Refresh/Recovery')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Refresh/Recovery (Jul 2026)',
+                'command', 'One-time reset to reload the release note for Refresh Intent'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Refresh/Recovery release note FAILED: {e}'))
 
     def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

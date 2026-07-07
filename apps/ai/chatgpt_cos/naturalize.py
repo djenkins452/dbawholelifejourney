@@ -43,6 +43,39 @@ _RULES = [
 _COMPILED = [(re.compile(p, re.IGNORECASE), r) for p, r in _RULES]
 
 
+# PLAN-AWARE RECOVERY REFRAME (last-mile guard). The plan-aware `OvertrainingRiskRule`
+# only reframes NEW insights; OLD persisted rows keep the raw "N workouts in 7 days.
+# Recovery is compromised — consider a rest day or lighter session." wording, which is
+# then re-read verbatim by several consumers. This catches that exact wording ANYWHERE it
+# reaches the user and reframes it — but ONLY when the user's structured training plan
+# actually has a built-in recovery day (otherwise the rest-day advice is legitimate).
+_OVERTRAIN_RE = re.compile(
+    r"(?:sleep\s+averaging[^.]*\.\s*)?[^.]*?\b\d+\s+workouts?\s+in\s+\d+\s+days?\b[^.]*?\.\s*"
+    r"recovery is compromised[^.]*\.",
+    re.IGNORECASE)
+_PLAN_AWARE_RECOVERY = ("Sleep's been running short lately, so the move is protecting "
+                        "tonight's sleep to keep your training plan on track.")
+
+
+def recovery_reframe(text, user):
+    """Reframe the stale overtraining "consider a rest day" wording to plan-aware
+    coaching when the user's structured training plan already has a built-in recovery
+    day. Never raises. No-op when the wording isn't present or the plan can't be read."""
+    if not text or "recovery is compromised" not in text.lower():
+        return text
+    try:
+        from apps.health.services.training_plan import read_training_plan
+        if not read_training_plan(user).get("has_recovery_day"):
+            return text                    # no built-in rest day → rest-day advice stands
+    except Exception:
+        return text
+    try:
+        return _OVERTRAIN_RE.sub(_PLAN_AWARE_RECOVERY, text)
+    except Exception:
+        logger.warning("recovery_reframe failed", exc_info=True)
+        return text
+
+
 def naturalize(text):
     """Return `text` with internal reasoning vocabulary translated into natural
     executive language. Never raises — a voice pass must never break a response."""

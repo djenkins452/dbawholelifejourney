@@ -4182,5 +4182,21 @@
       "created_at": "2026-07-07T20:00:00Z",
       "updated_at": "2026-07-07T20:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 263,
+    "fields": {
+      "title": "\"Look again\" now checks the current version",
+      "description": "When your Chief of Staff is helping you lighten your day and you update your tasks, just say “look again” (or “refresh” / “I updated my tasks”) and it re-reads the current state right then — showing what still needs you versus what can move — instead of repeating an earlier briefing. Recovery guidance also now respects your training plan: if your plan already builds in a rest day, it won’t nudge you toward yet another one — it points to protecting tonight’s sleep instead.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T21:00:00Z",
+      "updated_at": "2026-07-07T21:00:00Z"
+    }
   }
 ]

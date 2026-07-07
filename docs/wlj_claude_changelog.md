@@ -6,6 +6,53 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): refresh intent + plan-aware recovery guard on every path
+
+**Production trust failure (three linked defects):** in a problem-solving flow (user
+overwhelmed → Beth offered to help → "yes" → schedule reviewed), the user said "I updated
+my stuff, look again" and Beth mis-fired: an unrelated correction-repair about prayer/Bible,
+then an old executive briefing including the already-fixed stale recovery line.
+1. **Refresh mis-routed:** "look again" is a `_CRITIQUE_CUES` entry, so `is_critique` →
+   conversation_planner REPAIR → `_repair_response` (recalls prayer/Bible accomplishments +
+   replays `compose_executive_brief`). "refresh"/"recheck"/"I updated my tasks" matched
+   nothing.
+2. **Stale recovery wording:** "Sleep averaging 5.7h/night with 5 workouts in 7 days.
+   Recovery is compromised — consider a rest day or lighter session." The plan-aware
+   `OvertrainingRiskRule` fix only reframes NEW insights; OLD persisted `Insight` rows keep
+   the wording and are re-read verbatim by `cos_intelligence.active_intelligence` →
+   `biggest_risk` → the brief (Path A, via route_message) and by `cos_briefing/
+   executive_summary._collect_needs_attention`/`_collect_biggest_risk` (Path B, not).
+3. **Context contamination:** the repair pulled prayer/Bible + a morning brief into a
+   workload conversation.
+
+**Fix (existing architecture, no new engine):**
+- `conversation_planner.is_refresh_request` (look again / recheck / refresh / "I updated my
+  tasks" / "I changed it") + a REFRESH branch in `plan()` placed BEFORE repair, gated on
+  `state == "problem_solving"` — so "look again" in a task-review flow re-reads tasks
+  instead of triggering repair; a genuine "look again" in any other context still repairs.
+- New `_problem_solving_refresh` handler (`lanes.py`): best-effort `ensure_fresh(["tasks"])`,
+  re-reads today's rhythm/execution truth (filtered via `_agenda_worth_surfacing` +
+  `_pa_classify`), and gives a SHORT problem-solving read — what genuinely needs you vs
+  what can move — with NO briefing, prayer/Bible, France, protein, or sleep. Fixes 1 + 3.
+- `naturalize.recovery_reframe(text, user)` — a last-mile plan-aware guard: reframes the
+  stale overtraining wording to "Sleep's been running short, so protect tonight's sleep to
+  keep your training plan on track." ONLY when `read_training_plan(user).has_recovery_day`.
+  Wired at BOTH `route_message` choke points (Path A + all conversational leaks) AND at
+  `cos_briefing/executive_summary._collect_needs_attention` (Path B). Fixes 2 everywhere.
+
+**Files:** apps/ai/chatgpt_cos/conversation_planner.py, apps/ai/chatgpt_cos/lanes.py
+(refresh handler + dispatch + two choke-point guards), apps/ai/chatgpt_cos/naturalize.py
+(recovery_reframe), apps/core/cos_briefing/executive_summary.py (Path B guard),
+apps/ai/tests/test_refresh_and_recovery.py (new), apps/core/fixtures/release_notes.json
+(PK 263), apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_refresh_and_recovery (7) — refresh detection; "look again" after
+problem-solving → refresh (not repair, no prayer/Bible/France/old-recovery); "look again"
+elsewhere still repairs; recovery_reframe reframes with a built-in rest day and leaves it
+alone without. ~130-test conversation/repair/reasoning/briefing regression green. Preserves
+orientation-vs-briefing, executive filtering, goal-scope, plan-aware recovery, posture
+classification. No new engine; no migration.
+
 ## 2026-07-07 — fix(cos): question-scope discipline — a named goal returns only that goal
 
 **Phase-2 gap:** "How am I doing overall towards my 2027 France goal?" answered France

@@ -1619,6 +1619,8 @@ def _conversation_planner_lane(user, message, conversation=None):
         return _repair_response(user, message, p.get("prior_answer"))
     if handler == "problem_solving":
         return _problem_solving_offer(user, message)
+    if handler == "problem_solving_refresh":
+        return _problem_solving_refresh(user, message)
     if handler == "personal_concern":
         return _personal_concern_open(user, message)
     if handler == "checkin_open":
@@ -1648,6 +1650,53 @@ def _problem_solving_offer(user, message):
               "lighter." + load + " Want me to look at what's on your plate today and "
               "find something we can move, simplify, or let go?")
     return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "problem_solving"}
+
+
+def _problem_solving_refresh(user, message):
+    """The user updated their tasks and asked Beth to look AGAIN. RE-READ today's
+    deterministic task/schedule truth and give a SHORT, problem-solving read — what's
+    still open, what genuinely needs them, what can move — and keep helping. It must NOT
+    become a briefing, a correction-repair, or pull in unrelated context (prayer/Bible,
+    France, protein, sleep): the current task is simplifying today."""
+    # Best-effort freshness so a just-made update is reflected in what we read.
+    try:
+        from apps.core.ai_state.state_freshness import ensure_fresh
+        ensure_fresh(user, ["tasks"])
+    except Exception:
+        pass
+    from apps.ai.chatgpt_cos.executive_brief import _fmt_titles
+    need_you, movable = [], []
+    try:
+        from apps.ai.chatgpt_cos.executive_brief import _rhythm_split, _agenda_worth_surfacing
+        from apps.ai.chatgpt_cos.executive_interpretation import _pa_classify
+        ahead, past, _hour = _rhythm_split(user)
+        for it in (past + ahead):                       # everything still open today
+            if not isinstance(it, dict) or not _agenda_worth_surfacing(it):
+                continue
+            label = it.get("_label")
+            if not label:
+                continue
+            tier = _pa_classify(it)[0]
+            (need_you if tier in ("health_critical", "health_obligation", "commitment")
+             else movable).append(label)
+    except Exception:
+        logger.warning("problem_solving_refresh: read failed", exc_info=True)
+    parts = ["Got it — I'm looking at the current version now."]
+    if not need_you and not movable:
+        parts.append("You're actually clear — nothing meaningful is still open for today. "
+                     "That's a good place to land; the rest can wait.")
+    else:
+        if need_you:
+            parts.append("What genuinely needs you today: " + _fmt_titles(need_you[:4]) + ".")
+        if movable:
+            parts.append(("The rest could move to tomorrow or come off entirely — "
+                          + _fmt_titles(movable[:4]) + "."))
+            parts.append("Want me to clear any of those off today?")
+        else:
+            parts.append("That's the short list — nothing here is really optional, so the "
+                         "move is to protect the time for it, not add more.")
+    return {"answer": " ".join(parts), "tools_called": [], "tools_advertised": [],
             "lane": "problem_solving"}
 
 
@@ -2054,8 +2103,9 @@ def route_message(user, message, conversation=None, page_context=None):
                 try:
                     from apps.ai.chatgpt_cos.response_coherence import harmonize
                     _pr["answer"] = harmonize(_pr["answer"], user)
-                    from apps.ai.chatgpt_cos.naturalize import naturalize
+                    from apps.ai.chatgpt_cos.naturalize import naturalize, recovery_reframe
                     _pr["answer"] = naturalize(_pr["answer"])
+                    _pr["answer"] = recovery_reframe(_pr["answer"], user)
                 except Exception:
                     logger.warning("route: coherence/voice pass failed", exc_info=True)
                 try:
@@ -2082,9 +2132,12 @@ def route_message(user, message, conversation=None, page_context=None):
                         result["answer"] = harmonize(result["answer"], user)
                         # NATURAL VOICE: translate any leaked internal vocabulary
                         # ("backlog", "energy-management day", …) into human executive
-                        # language — catches deterministic AND LLM-narrated leaks.
-                        from apps.ai.chatgpt_cos.naturalize import naturalize
+                        # language — catches deterministic AND LLM-narrated leaks. Then a
+                        # plan-aware recovery reframe kills the stale "consider a rest day"
+                        # overtraining wording from old persisted insights.
+                        from apps.ai.chatgpt_cos.naturalize import naturalize, recovery_reframe
                         result["answer"] = naturalize(result["answer"])
+                        result["answer"] = recovery_reframe(result["answer"], user)
                     except Exception:
                         logger.warning("route: coherence/voice pass failed", exc_info=True)
                 # Record the structured memory of this turn so the NEXT follow-up is

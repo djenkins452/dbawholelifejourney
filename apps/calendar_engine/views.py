@@ -171,6 +171,207 @@ def _parse_body(request):
 # Dashboard View
 # ──────────────────────────────────────────────────────────
 
+# Rhythm sources — recurring life-habit items (the heartbeat of the day), shown
+# in "Today's Rhythms" grouped by daypart, NOT on the hard commitment timeline.
+_RHYTHM_SOURCES = {
+    CalendarEvent.SOURCE_HABIT,
+    CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+    CalendarEvent.SOURCE_FAITH_ROUTINE,
+    CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+}
+
+
+def _fmt_time(local_dt):
+    """12-hour label, e.g. '7:30 AM'."""
+    return local_dt.strftime('%-I:%M %p')
+
+
+def _fmt_hm(minutes):
+    """'10h 30m' / '45m' / '2h'."""
+    minutes = max(int(minutes), 0)
+    h, m = divmod(minutes, 60)
+    if h and m:
+        return f"{h}h {m}m"
+    if h:
+        return f"{h}h"
+    return f"{m}m"
+
+
+def _merge_intervals(intervals):
+    """Union of [(start, end)] aware-datetime intervals (merged, sorted)."""
+    if not intervals:
+        return []
+    ordered = sorted(intervals, key=lambda p: p[0])
+    merged = [list(ordered[0])]
+    for s, e in ordered[1:]:
+        if s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    return [(s, e) for s, e in merged]
+
+
+def _free_windows(busy, window_start, window_end):
+    """Complement of merged busy intervals within [window_start, window_end]."""
+    free = []
+    cursor = window_start
+    for s, e in _merge_intervals(busy):
+        if e <= cursor:
+            continue
+        if s > cursor:
+            free.append((cursor, min(s, window_end)))
+        cursor = max(cursor, e)
+        if cursor >= window_end:
+            break
+    if cursor < window_end:
+        free.append((cursor, window_end))
+    return [(s, e) for s, e in free if (e - s).total_seconds() >= 15 * 60]
+
+
+def _waking_window(user, day):
+    """(wake_dt, sleep_dt) for the day — from the operating blueprint if set,
+    else 6:00 AM–10:00 PM. Crash-safe."""
+    tz = timezone.get_current_timezone()
+    wake, sleep = dt.time(6, 0), dt.time(22, 0)
+    try:
+        from apps.core.blueprint.models import PersonalOperatingBlueprint
+        bp = PersonalOperatingBlueprint.objects.filter(user=user).first()
+        if bp:
+            wake = getattr(bp, 'recommended_wake_time', None) or wake
+            sleep = getattr(bp, 'recommended_sleep_time', None) or sleep
+    except Exception:
+        pass
+    return (
+        timezone.make_aware(dt.datetime.combine(day, wake), tz),
+        timezone.make_aware(dt.datetime.combine(day, sleep), tz),
+    )
+
+
+def _compose_today(user):
+    """Compose the executive "story of the day" from the existing projection.
+
+    Pure, bounded, request-path-safe (reads _get_events_in_range + arithmetic — no
+    LLM, no rebuild). Returns the structured context the executive Calendar renders.
+    """
+    tz = timezone.get_current_timezone()
+    today = timezone.localdate()
+    day_start = timezone.make_aware(dt.datetime.combine(today, dt.time.min), tz)
+    day_end = timezone.make_aware(dt.datetime.combine(today, dt.time.max), tz)
+    now = timezone.localtime()
+
+    events = _get_events_in_range(user, day_start, day_end)
+
+    commitments, rhythms_flat, due = [], [], []
+    busy = []  # (start, end) aware intervals that consume time
+
+    for e in events:
+        start = dt.datetime.fromisoformat(e['start_dt'])
+        end = dt.datetime.fromisoformat(e['end_dt'])
+        kind = e['event_kind']
+        src = e['source_type']
+
+        if kind == CalendarEvent.KIND_DEADLINE_MARKER:
+            due.append(e)
+            continue
+
+        if kind == 'availability':
+            # Only "unavailable" availability consumes time (Work, Sleep, …).
+            if not e.get('is_available'):
+                busy.append((start, end))
+                commitments.append({**e, '_start': start, '_end': end})
+            continue
+
+        if src in _RHYTHM_SOURCES:
+            rhythms_flat.append({**e, '_start': start, '_end': end})
+            busy.append((start, end))
+            continue
+
+        # Calendar events, life events, scheduled tasks → hard commitments.
+        commitments.append({**e, '_start': start, '_end': end})
+        busy.append((start, end))
+
+    commitments.sort(key=lambda c: c['_start'])
+
+    # Commitment rows for the template (range vs point).
+    commit_rows = []
+    for c in commitments:
+        is_range = (c['_end'] - c['_start']).total_seconds() >= 30 * 60
+        commit_rows.append({
+            'title': c['title'],
+            'time_label': _fmt_time(c['_start']),
+            'end_label': _fmt_time(c['_end']),
+            'is_range': is_range,
+            'domain_color': c.get('domain_color') or '#6b7280',
+            'source_type': c['source_type'],
+            'source_id': c['source_id'],
+            'event_id': c['id'],
+            'is_availability': c['event_kind'] == 'availability',
+        })
+
+    # Rhythms grouped by daypart.
+    dayparts = {'morning': [], 'day': [], 'evening': [], 'night': []}
+    for r in sorted(rhythms_flat, key=lambda x: x['_start']):
+        hour = timezone.localtime(r['_start']).hour
+        bucket = ('morning' if hour < 12 else 'day' if hour < 17
+                  else 'evening' if hour < 21 else 'night')
+        dayparts[bucket].append({
+            'title': r['title'],
+            'time_label': _fmt_time(r['_start']),
+            'domain_color': r.get('domain_color') or '#6b7280',
+            'source_type': r['source_type'],
+            'source_id': r['source_id'],
+            'event_id': r['id'],
+        })
+    rhythm_groups = [
+        {'key': k, 'label': lbl, 'items': dayparts[k]}
+        for k, lbl in (('morning', 'Morning'), ('day', 'Day'),
+                       ('evening', 'Evening'), ('night', 'Night'))
+        if dayparts[k]
+    ]
+
+    # Available time — free windows from now until sleep (executive: what's LEFT).
+    wake_dt, sleep_dt = _waking_window(user, today)
+    free_from = max(now, wake_dt)
+    free = _free_windows(busy, free_from, sleep_dt) if free_from < sleep_dt else []
+    available_windows = [{
+        'start_label': _fmt_time(s), 'end_label': _fmt_time(e),
+        'label': _fmt_hm((e - s).total_seconds() / 60),
+    } for s, e in free]
+    available_minutes = sum(int((e - s).total_seconds() / 60) for s, e in free)
+
+    # Committed time — total busy across the waking day (union, no double count).
+    committed_minutes = sum(
+        int((e - s).total_seconds() / 60)
+        for s, e in _merge_intervals(busy)
+    )
+
+    events_count = sum(
+        1 for c in commitments
+        if c['source_type'] in (CalendarEvent.SOURCE_NONE, '', CalendarEvent.SOURCE_LIFE_EVENT)
+    )
+
+    return {
+        'today_weekday': now.strftime('%A'),
+        'today_long': now.strftime('%B %-d'),
+        'today_iso': today.isoformat(),
+        'glance': {
+            'committed': _fmt_hm(committed_minutes),
+            'available': _fmt_hm(available_minutes),
+            'due_count': len(due),
+            'events_count': events_count,
+        },
+        'commitments': commit_rows,
+        'due_today': [{
+            'title': (d['title'] or '').replace('Due: ', ''),
+            'source_type': d['source_type'], 'source_id': d['source_id'],
+            'event_id': d['id'], 'domain_color': d.get('domain_color') or '#6b7280',
+        } for d in due],
+        'rhythm_groups': rhythm_groups,
+        'available_windows': available_windows,
+        'has_anything': bool(commit_rows or due or rhythm_groups),
+    }
+
+
 class CalendarDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = 'calendar_engine/dashboard.html'
     help_context_id = 'CALENDAR_MAIN'
@@ -178,8 +379,7 @@ class CalendarDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        ctx['today_balance'] = metrics.get_today_balance(user)
-        ctx['week_balance'] = metrics.get_week_balance(user)
+        ctx['today'] = _compose_today(user)
         ctx['suggestions'] = suggestions.generate_suggestions(user)
         ctx['app_name'] = 'calendar_engine'
         return ctx

@@ -1,285 +1,318 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Calendar — Time Command Center{% endblock %}
+{% block title %}Calendar — Today{% endblock %}
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
-/* Calendar Engine — CoS Time Command Center */
-.cal-container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
-.cal-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem; }
-.cal-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0; }
-.cal-header-right { display: flex; gap: 0.5rem; align-items: center; }
+/* ============================================================
+   Calendar — the operational view of time.
+   "What does my life actually look like today?"
+   ============================================================ */
+.exec { max-width: 1120px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
 
-/* View Toggles */
-.cal-view-toggles { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; }
-.cal-view-btn { padding: 0.5rem 1rem; font-size: 0.875rem; border: none; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; transition: all 0.15s; }
+/* — Section 1: Today — */
+.exec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
+.exec-head-main { min-width: 0; }
+.exec-eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-text-muted); margin-bottom: 0.25rem; }
+.exec-date { font-size: clamp(1.9rem, 5vw, 2.75rem); font-weight: 700; line-height: 1.05; color: var(--color-text); letter-spacing: -0.02em; }
+.exec-date .exec-dow { color: var(--color-accent); }
+.exec-meta { text-align: right; }
+.exec-clock { font-size: 1.5rem; font-weight: 600; color: var(--color-text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.exec-subtle { font-size: 0.8125rem; color: var(--color-text-muted); margin-top: 0.15rem; }
+
+/* — Section 2: At a Glance — */
+.exec-glance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 2rem; }
+@media (max-width: 640px) { .exec-glance { grid-template-columns: repeat(2, 1fr); } }
+.exec-stat { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 1rem 1.1rem; }
+.exec-stat-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
+.exec-stat-value { font-size: 1.75rem; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 0.35rem; letter-spacing: -0.02em; }
+.exec-stat.accent .exec-stat-value { color: var(--color-accent); }
+.exec-stat.free .exec-stat-value { color: #059669; }
+
+/* — Layout: main + rail — */
+.exec-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
+@media (max-width: 900px) { .exec-grid { grid-template-columns: 1fr; } }
+.exec-col { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+
+.exec-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 18px; padding: 1.25rem 1.35rem; }
+.exec-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; }
+.exec-section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); font-weight: 600; }
+.exec-section-note { font-size: 0.75rem; color: var(--color-text-muted); }
+.exec-empty { color: var(--color-text-muted); font-size: 0.9375rem; padding: 0.5rem 0; }
+
+/* — Section 3: Time Commitments — */
+.exec-commit { display: flex; gap: 0.9rem; align-items: stretch; padding: 0.7rem 0; border-top: 1px solid var(--color-border); cursor: pointer; }
+.exec-commit:first-child { border-top: none; }
+.exec-commit:hover .exec-commit-title { color: var(--color-accent); }
+.exec-commit-time { flex: 0 0 auto; width: 88px; text-align: right; font-size: 0.8125rem; color: var(--color-text-muted); font-variant-numeric: tabular-nums; padding-top: 0.1rem; line-height: 1.3; }
+.exec-commit-time .to { display: block; font-size: 0.75rem; opacity: 0.75; }
+.exec-rail { flex: 0 0 3px; border-radius: 3px; background: var(--color-border); }
+.exec-commit-body { flex: 1; min-width: 0; }
+.exec-commit-title { font-size: 1rem; font-weight: 600; color: var(--color-text); }
+.exec-commit-tag { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.1rem; }
+.exec-commit.availability .exec-commit-title { font-weight: 500; }
+
+/* — Section 4: Due Today — */
+.exec-due { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0; border-top: 1px solid var(--color-border); cursor: pointer; }
+.exec-due:first-child { border-top: none; }
+.exec-due:hover .exec-due-title { color: var(--color-accent); }
+.exec-check { flex: 0 0 auto; width: 18px; height: 18px; border: 1.5px solid var(--color-border); border-radius: 5px; }
+.exec-due-title { font-size: 0.9375rem; color: var(--color-text); }
+
+/* — Section 5: Rhythms — */
+.exec-rhythm-group { margin-bottom: 1rem; }
+.exec-rhythm-group:last-child { margin-bottom: 0; }
+.exec-rhythm-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+.exec-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.exec-chip { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; padding: 0.35rem 0.7rem; cursor: pointer; }
+.exec-chip:hover { border-color: var(--color-accent); }
+.exec-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+.exec-chip .t { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+
+/* — Section 6: Available Time — */
+.exec-free { border: 1px solid rgba(5,150,105,0.35); background: rgba(5,150,105,0.06); border-radius: 12px; padding: 0.75rem 0.9rem; margin-bottom: 0.5rem; }
+.exec-free:last-child { margin-bottom: 0; }
+.exec-free-window { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
+.exec-free-dur { font-size: 0.8125rem; color: #059669; margin-top: 0.1rem; }
+
+/* — Section 7: Recommendations — */
+.exec-rec { border: 1px dashed var(--color-border); border-radius: 12px; padding: 0.8rem 0.9rem; margin-bottom: 0.6rem; }
+.exec-rec:last-child { margin-bottom: 0; }
+.exec-rec-title { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
+.exec-rec-detail { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.1rem; }
+.exec-rec-actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+.exec-rec-actions button { font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 8px; cursor: pointer; min-height: 34px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+.exec-rec-accept { background: var(--color-accent) !important; color: #fff !important; border-color: var(--color-accent) !important; }
+
+/* Quick add on the rail */
+.exec-quick { display: flex; gap: 0.4rem; }
+.exec-quick input { flex: 1; padding: 0.6rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); color: var(--color-text); }
+.exec-quick button { padding: 0 1rem; border: none; border-radius: 10px; background: var(--color-accent); color: #fff; cursor: pointer; min-height: 44px; }
+
+/* — Section 8: Traditional Calendar (supporting, not hero) — */
+.exec-views { margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem; }
+.exec-views-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.exec-views-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); font-weight: 600; }
+.cal-view-toggles { display: inline-flex; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.cal-view-btn { padding: 0.45rem 0.85rem; font-size: 0.8125rem; border: none; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
 .cal-view-btn.active { background: var(--color-accent); color: #fff; }
-.cal-view-btn:hover:not(.active) { background: var(--color-border); }
-
-/* Layout */
-.cal-layout { display: grid; grid-template-columns: 1fr 320px; gap: 1.5rem; }
-@media (max-width: 768px) { .cal-layout { grid-template-columns: 1fr; } }
-
-/* Domain Imbalance Bar */
-.cal-balance-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
-.cal-balance-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
-.cal-balance-toggle { font-size: 0.75rem; border: none; background: none; color: var(--color-accent); cursor: pointer; text-decoration: underline; }
-.cal-balance-bar { display: flex; height: 24px; border-radius: 12px; overflow: hidden; background: var(--color-border); }
-.cal-balance-segment { height: 100%; transition: width 0.3s ease; min-width: 2px; }
-.cal-balance-legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-.cal-balance-legend-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-text-muted); }
-.cal-balance-dot { width: 8px; height: 8px; border-radius: 50%; }
-
-/* Due — No Time Assigned (facts without an execution time).
-   Deliberately NOT styled like timeline blocks: no time column, muted,
-   dashed border so it never reads as "scheduled". */
-.cal-unscheduled { border: 1px dashed var(--color-border); border-radius: var(--radius-lg); padding: 0.75rem 1rem; margin-bottom: 1rem; }
-.cal-unscheduled-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
-.cal-unscheduled-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.375rem; }
-.cal-unscheduled-item { font-size: 0.9375rem; color: var(--color-text); padding: 0.375rem 0.625rem; border-left: 3px solid var(--color-accent); border-radius: 4px; }
-.cal-unscheduled-date { font-size: 0.75rem; color: var(--color-text-muted); font-weight: 600; }
-.cal-unscheduled-domain { font-size: 0.75rem; color: var(--color-text-muted); }
-.cal-unscheduled-hint { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; font-style: italic; }
-
-/* Availability constraints — a planning-constraint lane, muted, never a task. */
-.cal-availability-link { font-size: 0.75rem; color: var(--color-accent); text-decoration: none; }
-.cal-availability-link:hover { text-decoration: underline; }
-.cal-constraints { margin-bottom: 1rem; }
-.cal-constraints-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
-.cal-constraint-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--color-text-muted); padding: 0.375rem 0.625rem; border-left: 3px solid #94a3b8; border-radius: 4px; cursor: pointer; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(148,163,184,0.08) 6px, rgba(148,163,184,0.08) 12px); margin-bottom: 0.25rem; }
-.cal-constraint-item.available { border-left-color: #34d399; }
+.cal-view-btn:hover:not(.active) { background: var(--color-bg); }
+.cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 1rem 1.1rem; }
+.cal-timeline-date { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
+.cal-hour-group { display: flex; gap: 0.75rem; padding: 0.35rem 0; }
+.cal-hour-label { flex: 0 0 60px; font-size: 0.75rem; color: var(--color-text-muted); text-align: right; padding-top: 0.35rem; }
+.cal-hour-events { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; }
+.cal-event-item { display: flex; gap: 0.5rem; padding: 0.45rem 0.65rem; border: 1px solid var(--color-border); border-left: 3px solid var(--color-accent); border-radius: 8px; cursor: pointer; background: var(--color-bg); }
+.cal-event-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); }
+.cal-event-time { font-size: 0.75rem; color: var(--color-text-muted); }
+.cal-empty-state { color: var(--color-text-muted); font-size: 0.9375rem; text-align: center; padding: 1.5rem; }
+.cal-unscheduled, .cal-constraints { margin-bottom: 0.75rem; }
+.cal-unscheduled-title, .cal-constraints-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); margin-bottom: 0.4rem; }
+.cal-unscheduled-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.cal-unscheduled-item { font-size: 0.875rem; color: var(--color-text); padding: 0.35rem 0.6rem; border-left: 3px solid var(--color-accent); border-radius: 4px; cursor: pointer; }
+.cal-constraint-item { display: flex; gap: 0.5rem; font-size: 0.8125rem; color: var(--color-text-muted); padding: 0.35rem 0.6rem; border-left: 3px solid #94a3b8; border-radius: 4px; cursor: pointer; }
 .cal-constraint-time { font-weight: 600; }
 
-/* Timeline */
-.cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
-.cal-timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.cal-timeline-date { font-size: 1.125rem; font-weight: 600; color: var(--color-text); }
-.cal-hour-group { border-bottom: 1px solid var(--color-border); padding: 0.5rem 0; }
-.cal-hour-group:last-child { border-bottom: none; }
-.cal-hour-label { font-size: 0.75rem; color: var(--color-text-muted); min-width: 60px; display: inline-block; }
-.cal-event-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.5rem; margin: 0.25rem 0 0.25rem 60px; border-radius: var(--radius-lg); border-left: 3px solid var(--color-accent); background: var(--color-background); cursor: pointer; transition: box-shadow 0.15s; }
-.cal-event-item:hover { box-shadow: var(--shadow-md); background: var(--color-surface); }
-.cal-event-item.protected { border-left-color: #ef4444; }
-.cal-event-item.deadline { border-left-color: #f59e0b; }
-.cal-event-item.execution { border-left-color: #3b82f6; }
-.cal-event-title { font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
-.cal-event-time { font-size: 0.75rem; color: var(--color-text-muted); }
-.cal-event-badge { font-size: 0.625rem; padding: 0.125rem 0.375rem; border-radius: 9999px; text-transform: uppercase; font-weight: 600; }
-.cal-event-badge.deadline { background: #fef3c7; color: #92400e; }
-.cal-event-badge.execution { background: #dbeafe; color: #1e40af; }
-.cal-event-badge.protected { background: #fee2e2; color: #991b1b; }
-.cal-empty-state { text-align: center; padding: 2rem; color: var(--color-text-muted); font-size: 0.875rem; }
-
-/* Sidebar */
-.cal-sidebar { display: flex; flex-direction: column; gap: 1rem; }
-
-/* Quick Add */
-.cal-quick-add { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
-.cal-quick-add-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.5rem; }
-.cal-quick-add-input { display: flex; gap: 0.5rem; }
-.cal-quick-add-input input { flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 16px; background: var(--color-background); color: var(--color-text); }
-.cal-quick-add-input button { padding: 0.5rem 1rem; border: none; border-radius: var(--radius-lg); background: var(--color-accent); color: #fff; font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
-.cal-quick-add-input button:hover { opacity: 0.9; }
-
-/* Suggestions Panel */
-.cal-suggestions { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
-.cal-suggestions-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.75rem; }
-.cal-suggestion-item { background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 0.75rem; margin-bottom: 0.5rem; }
-.cal-suggestion-item:last-child { margin-bottom: 0; }
-.cal-suggestion-name { font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
-.cal-suggestion-detail { font-size: 0.75rem; color: var(--color-text-muted); margin: 0.25rem 0; }
-.cal-suggestion-rationale { font-size: 0.75rem; color: var(--color-accent); font-style: italic; margin-bottom: 0.5rem; }
-.cal-suggestion-actions { display: flex; gap: 0.5rem; }
-.cal-suggestion-accept { padding: 0.375rem 0.75rem; border: 1px solid var(--color-accent); border-radius: var(--radius-lg); background: transparent; color: var(--color-accent); font-size: 0.75rem; cursor: pointer; font-weight: 500; }
-.cal-suggestion-accept:hover { background: var(--color-accent); color: #fff; }
-.cal-suggestion-decline { padding: 0.375rem 0.75rem; border: 1px solid var(--color-text-muted); border-radius: var(--radius-lg); background: transparent; color: var(--color-text-muted); font-size: 0.75rem; cursor: pointer; font-weight: 500; }
-.cal-suggestion-decline:hover { background: var(--color-text-muted); color: #fff; }
-.cal-no-suggestions { font-size: 0.875rem; color: var(--color-text-muted); }
-
-/* Conflict Modal */
-.cal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+/* Modals */
+.cal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
 .cal-modal-overlay.active { display: flex; }
-.cal-modal { background: var(--color-background); border-radius: var(--radius-lg); padding: 1.5rem; max-width: 400px; width: 90%; box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); }
-.cal-modal h3 { font-size: 1rem; font-weight: 600; color: var(--color-text); margin-bottom: 0.5rem; }
-.cal-modal p { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1rem; }
-.cal-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
-.cal-modal-btn { padding: 0.5rem 1rem; border-radius: var(--radius-lg); font-size: 0.875rem; cursor: pointer; border: 1px solid var(--color-border); }
-.cal-modal-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
-.cal-modal-btn.danger { background: #ef4444; color: #fff; border-color: #ef4444; }
-.cal-modal-btn:hover { opacity: 0.9; }
-
-/* Event edit modal form */
-.cal-form-group { margin-bottom: 0.75rem; }
-.cal-form-label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
-.cal-form-input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); font-size: 16px; background: var(--color-background); color: var(--color-text); box-sizing: border-box; }
+.cal-modal { background: var(--color-surface); border-radius: 16px; padding: 1.5rem; max-width: 460px; width: 100%; }
+.cal-modal h3 { margin: 0 0 1rem; color: var(--color-text); font-size: 1.1rem; }
+.cal-form-group { margin-bottom: 0.85rem; }
+.cal-form-label { display: block; font-size: 0.8125rem; color: var(--color-text-muted); margin-bottom: 0.3rem; }
+.cal-form-input { width: 100%; padding: 0.55rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); color: var(--color-text); box-sizing: border-box; }
 .cal-form-row { display: flex; gap: 0.75rem; }
-.cal-form-row .cal-form-group { flex: 1; min-width: 0; }
-@media (max-width: 480px) { .cal-form-row { flex-direction: column; } }
-.cal-edit-source-link { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--color-accent); margin-top: 0.5rem; text-decoration: none; }
-.cal-edit-source-link:hover { text-decoration: underline; }
-
-/* Source indicator on event cards */
-.cal-event-source-icon { font-size: 0.625rem; color: var(--color-text-muted); margin-left: 0.25rem; }
-
-/* Status toast */
-.cal-status-toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%); padding: 0.75rem 1.5rem; border-radius: var(--radius-lg); font-size: 0.875rem; z-index: 1100; box-shadow: var(--shadow-md); transition: opacity 0.3s; }
-.cal-status-toast.success { background: #d1fae5; color: #065f46; }
-.cal-status-toast.error { background: #fee2e2; color: #991b1b; }
+.cal-form-row .cal-form-group { flex: 1; }
+.cal-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+.cal-modal-btn { padding: 0.55rem 1.1rem; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); cursor: pointer; min-height: 44px; }
+.cal-modal-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.cal-modal-btn.danger { background: #dc2626; color: #fff; border-color: #dc2626; }
+.cal-status-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.7rem 1.2rem; border-radius: 10px; font-size: 0.875rem; transition: opacity 0.3s; z-index: 1100; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="cal-container" data-testid="calendar-dashboard">
-    {% csrf_token %}
-    <!-- Header -->
-    <div class="cal-header">
-        <h1>Time Command Center</h1>
-        <div class="cal-header-right">
-            <a href="{% url 'calendar_engine:manage' %}" style="font-size:0.875rem;color:var(--color-accent);text-decoration:none;margin-right:0.5rem" data-testid="calendar-manage-link">Manage Events</a>
-            <div class="cal-view-toggles" id="cal-view-toggles">
-                <button class="cal-view-btn active" data-view="today">Today</button>
-                <button class="cal-view-btn" data-view="3day">3-Day</button>
-                <button class="cal-view-btn" data-view="week">Week</button>
-                <button class="cal-view-btn" data-view="agenda">Agenda</button>
-                <a href="{% url 'calendar_engine:month' %}" class="cal-view-btn">Month</a>
-            </div>
+<div class="exec">
+
+    <!-- Section 1 · TODAY -->
+    <div class="exec-head">
+        <div class="exec-head-main">
+            <div class="exec-eyebrow">Today</div>
+            <div class="exec-date"><span class="exec-dow">{{ today.today_weekday }}</span>, {{ today.today_long }}</div>
+        </div>
+        <div class="exec-meta">
+            <div class="exec-clock" id="exec-clock">—</div>
+            <div class="exec-subtle" id="exec-tz"></div>
         </div>
     </div>
 
-    <!-- Domain Imbalance Bar -->
-    <div class="cal-balance-card">
-        <div class="cal-balance-title">
-            <span>Life Balance</span>
-            <button class="cal-balance-toggle" id="cal-balance-period" data-period="today">Today</button>
-        </div>
-        <div class="cal-balance-bar" id="cal-balance-bar">
-            {% for item in today_balance %}
-            <div class="cal-balance-segment" style="width: {{ item.percentage }}%; background: {{ item.color }}" title="{{ item.name }}: {{ item.percentage }}%"></div>
-            {% empty %}
-            <div class="cal-balance-segment" style="width: 100%; background: var(--color-border)" title="No events scheduled"></div>
-            {% endfor %}
-        </div>
-        <div class="cal-balance-legend" id="cal-balance-legend">
-            {% for item in today_balance %}
-            <div class="cal-balance-legend-item">
-                <span class="cal-balance-dot" style="background: {{ item.color }}"></span>
-                {{ item.name }} {{ item.percentage }}%
-            </div>
-            {% endfor %}
-        </div>
+    <!-- Section 2 · AT A GLANCE -->
+    <div class="exec-glance">
+        <div class="exec-stat"><div class="exec-stat-label">Committed</div><div class="exec-stat-value">{{ today.glance.committed }}</div></div>
+        <div class="exec-stat free"><div class="exec-stat-label">Available</div><div class="exec-stat-value">{{ today.glance.available }}</div></div>
+        <div class="exec-stat accent"><div class="exec-stat-label">Due Today</div><div class="exec-stat-value">{{ today.glance.due_count }}</div></div>
+        <div class="exec-stat"><div class="exec-stat-label">Events</div><div class="exec-stat-value">{{ today.glance.events_count }}</div></div>
     </div>
 
-    <!-- Main Layout -->
-    <div class="cal-layout">
-        <!-- Timeline (left) -->
-        <div class="cal-timeline" id="cal-timeline">
-            <div class="cal-timeline-header">
-                <span class="cal-timeline-date" id="cal-date-label"></span>
-                <a href="{% url 'calendar_engine:availability' %}" class="cal-availability-link">Availability &rarr;</a>
+    <div class="exec-grid">
+        <!-- MAIN COLUMN -->
+        <div class="exec-col">
+
+            <!-- Section 3 · TIME COMMITMENTS -->
+            <div class="exec-section">
+                <div class="exec-section-head">
+                    <span class="exec-section-title">Time Commitments</span>
+                    <span class="exec-section-note">Reality — what actually holds your time</span>
+                </div>
+                {% for c in today.commitments %}
+                <div class="exec-commit {% if c.is_availability %}availability{% endif %}" data-source-type="{{ c.source_type }}" data-source-id="{{ c.source_id }}" data-event-id="{{ c.event_id }}">
+                    <div class="exec-commit-time">{{ c.time_label }}{% if c.is_range %}<span class="to">{{ c.end_label }}</span>{% endif %}</div>
+                    <div class="exec-rail" style="background: {{ c.domain_color }}"></div>
+                    <div class="exec-commit-body">
+                        <div class="exec-commit-title">{{ c.title }}</div>
+                        {% if c.is_availability %}<div class="exec-commit-tag">Availability</div>{% endif %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="exec-empty">Nothing on the clock yet today.</div>
+                {% endfor %}
             </div>
-            <!-- Availability constraints (when the user is (un)available) — a
-                 planning-constraint lane, never a task/commitment. -->
-            <div id="cal-constraints-container"></div>
-            <!-- Facts due today with NO execution time — surfaced here, never
-                 placed on the factual timeline as a fake 23:59 block. -->
-            <div id="cal-unscheduled-container"></div>
-            <div id="cal-events-container">
-                <div class="cal-empty-state">Loading timeline...</div>
+
+            <!-- Section 4 · DUE TODAY -->
+            <div class="exec-section">
+                <div class="exec-section-head">
+                    <span class="exec-section-title">Due Today</span>
+                    <span class="exec-section-note">Obligations — no set time</span>
+                </div>
+                {% for d in today.due_today %}
+                <div class="exec-due" data-source-type="{{ d.source_type }}" data-source-id="{{ d.source_id }}" data-event-id="{{ d.event_id }}">
+                    <span class="exec-check" style="border-color: {{ d.domain_color }}"></span>
+                    <span class="exec-due-title">{{ d.title }}</span>
+                </div>
+                {% empty %}
+                <div class="exec-empty">Nothing due today.</div>
+                {% endfor %}
+            </div>
+
+            <!-- Section 5 · TODAY'S RHYTHMS -->
+            <div class="exec-section">
+                <div class="exec-section-head">
+                    <span class="exec-section-title">Today's Rhythms</span>
+                    <span class="exec-section-note">The heartbeat of your day</span>
+                </div>
+                {% for g in today.rhythm_groups %}
+                <div class="exec-rhythm-group">
+                    <div class="exec-rhythm-label">{{ g.label }}</div>
+                    <div class="exec-chips">
+                        {% for it in g.items %}
+                        <span class="exec-chip" data-source-type="{{ it.source_type }}" data-source-id="{{ it.source_id }}" data-event-id="{{ it.event_id }}">
+                            <span class="dot" style="background: {{ it.domain_color }}"></span>{{ it.title }} <span class="t">{{ it.time_label }}</span>
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% empty %}
+                <div class="exec-empty">No routines scheduled today.</div>
+                {% endfor %}
             </div>
         </div>
 
-        <!-- Sidebar (right) -->
-        <div class="cal-sidebar">
-            <!-- Quick Add -->
-            <div class="cal-quick-add">
-                <div class="cal-quick-add-title">Quick Add</div>
-                <div class="cal-quick-add-input">
-                    <input type="text" id="cal-quick-input" placeholder="e.g. Bible Study Wed 6pm-8pm" />
+        <!-- RAIL -->
+        <div class="exec-col">
+
+            <!-- Section 6 · AVAILABLE TIME -->
+            <div class="exec-section">
+                <div class="exec-section-head">
+                    <span class="exec-section-title">Available Time</span>
+                    <span class="exec-section-note">What's left</span>
+                </div>
+                {% for w in today.available_windows %}
+                <div class="exec-free">
+                    <div class="exec-free-window">{{ w.start_label }} – {{ w.end_label }}</div>
+                    <div class="exec-free-dur">{{ w.label }} free</div>
+                </div>
+                {% empty %}
+                <div class="exec-empty">No open time left today.</div>
+                {% endfor %}
+            </div>
+
+            <!-- Quick add -->
+            <div class="exec-section">
+                <div class="exec-section-head"><span class="exec-section-title">Quick Add</span></div>
+                <div class="exec-quick">
+                    <input type="text" id="cal-quick-input" placeholder="Dinner 6:30pm" />
                     <button id="cal-quick-submit">Add</button>
                 </div>
             </div>
 
-            <!-- Smart Suggestions -->
-            <div class="cal-suggestions">
-                <div class="cal-suggestions-title">Smart Suggestions</div>
+            <!-- Section 7 · SMART RECOMMENDATIONS -->
+            <div class="exec-section">
+                <div class="exec-section-head">
+                    <span class="exec-section-title">Smart Recommendations</span>
+                    <span class="exec-section-note">Strategy, not commitments</span>
+                </div>
                 <div id="cal-suggestions-list">
                     {% for s in suggestions %}
-                    <div class="cal-suggestion-item" data-source-type="{{ s.source_type }}" data-source-id="{{ s.source_id }}" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}" data-title="{{ s.title }}">
-                        <div class="cal-suggestion-name">{{ s.title }}</div>
-                        <div class="cal-suggestion-detail" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}"></div>
-                        <div class="cal-suggestion-rationale">{{ s.rationale }}</div>
-                        <div class="cal-suggestion-actions">
-                            <button class="cal-suggestion-accept">Accept</button>
-                            <button class="cal-suggestion-decline">Decline</button>
+                    <div class="exec-rec cal-suggestion-item" data-source-type="{{ s.source_type }}" data-source-id="{{ s.source_id }}" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}" data-title="{{ s.title }}">
+                        <div class="exec-rec-title">{{ s.title }}</div>
+                        <div class="exec-rec-detail">{{ s.rationale }}</div>
+                        <div class="exec-rec-actions">
+                            <button class="cal-suggestion-accept exec-rec-accept">Schedule it</button>
+                            <button class="cal-suggestion-decline">Dismiss</button>
                         </div>
                     </div>
                     {% empty %}
-                    <div class="cal-no-suggestions">No suggestions right now. Keep it up!</div>
+                    <div class="exec-empty" id="cal-no-suggestions">No recommendations right now.</div>
                     {% endfor %}
                 </div>
             </div>
+
+            <!-- Availability shortcut -->
+            <div class="exec-section">
+                <div class="exec-section-head"><span class="exec-section-title">Availability</span></div>
+                <div class="exec-rec-detail" style="margin-bottom:0.6rem;">Define work hours, sleep, focus time, PTO — so the Calendar knows when you're free.</div>
+                <a href="{% url 'calendar_engine:availability' %}" class="cal-modal-btn">Manage availability &rarr;</a>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Conflict Modal -->
-<div class="cal-modal-overlay" id="cal-conflict-modal">
-    <div class="cal-modal">
-        <h3>Protected Time Conflict</h3>
-        <p id="cal-conflict-message"></p>
-        <div class="cal-modal-actions">
-            <button class="cal-modal-btn" id="cal-conflict-cancel">Cancel</button>
-            <button class="cal-modal-btn danger" id="cal-conflict-confirm">Override</button>
+    <!-- Section 8 · TRADITIONAL CALENDAR (supporting) -->
+    <div class="exec-views">
+        <div class="exec-views-head">
+            <span class="exec-views-title">Calendar</span>
+            <div class="cal-view-toggles" id="cal-view-toggles">
+                <button class="cal-view-btn active" data-view="today">Day</button>
+                <button class="cal-view-btn" data-view="3day">3-Day</button>
+                <button class="cal-view-btn" data-view="week">Week</button>
+                <button class="cal-view-btn" data-view="agenda">Agenda</button>
+                <a class="cal-view-btn" href="{% url 'calendar_engine:month' %}">Month</a>
+            </div>
+        </div>
+        <div class="cal-timeline">
+            <div style="margin-bottom:0.75rem;"><span class="cal-timeline-date" id="cal-date-label"></span></div>
+            <div id="cal-constraints-container"></div>
+            <div id="cal-unscheduled-container"></div>
+            <div id="cal-events-container"><div class="cal-empty-state">Loading…</div></div>
         </div>
     </div>
 </div>
 
 <!-- Event Edit Modal -->
 <div class="cal-modal-overlay" id="cal-event-edit-modal">
-    <div class="cal-modal" style="max-width:520px">
+    <div class="cal-modal">
         <h3 id="cal-event-edit-title">Edit Event</h3>
         <input type="hidden" id="cal-event-edit-id" />
-
-        <div class="cal-form-group">
-            <label class="cal-form-label" for="cal-event-edit-name">Title</label>
-            <input type="text" class="cal-form-input" id="cal-event-edit-name" />
-        </div>
-
-        <div class="cal-form-group">
-            <label class="cal-form-label" for="cal-event-edit-desc">Description</label>
-            <input type="text" class="cal-form-input" id="cal-event-edit-desc" />
-        </div>
-
+        <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-name">Title</label><input type="text" class="cal-form-input" id="cal-event-edit-name" /></div>
+        <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-desc">Description</label><input type="text" class="cal-form-input" id="cal-event-edit-desc" /></div>
         <div class="cal-form-row">
-            <div class="cal-form-group">
-                <label class="cal-form-label" for="cal-event-edit-start">Start</label>
-                <input type="datetime-local" class="cal-form-input" id="cal-event-edit-start" />
-            </div>
-            <div class="cal-form-group">
-                <label class="cal-form-label" for="cal-event-edit-end">End</label>
-                <input type="datetime-local" class="cal-form-input" id="cal-event-edit-end" />
-            </div>
+            <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-start">Start</label><input type="datetime-local" class="cal-form-input" id="cal-event-edit-start" /></div>
+            <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-end">End</label><input type="datetime-local" class="cal-form-input" id="cal-event-edit-end" /></div>
         </div>
-
-        <div id="cal-event-edit-source-info"></div>
-
         <div class="cal-modal-actions">
             <button class="cal-modal-btn" id="cal-event-edit-cancel">Cancel</button>
             <button class="cal-modal-btn danger" id="cal-event-edit-delete">Delete</button>
-            <button class="cal-modal-btn primary" id="cal-event-edit-save">Update</button>
-        </div>
-    </div>
-</div>
-
-<!-- Event Delete Confirm Modal -->
-<div class="cal-modal-overlay" id="cal-event-delete-modal">
-    <div class="cal-modal">
-        <h3>Delete Event?</h3>
-        <p id="cal-event-delete-message">Are you sure you want to delete this event?</p>
-        <div class="cal-modal-actions">
-            <button class="cal-modal-btn" id="cal-event-delete-cancel">Cancel</button>
-            <button class="cal-modal-btn danger" id="cal-event-delete-confirm">Delete</button>
+            <button class="cal-modal-btn primary" id="cal-event-edit-save">Save</button>
         </div>
     </div>
 </div>
@@ -289,565 +322,170 @@
 <script nonce="{{ csp_nonce }}">
 (function() {
     'use strict';
-
-    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value
-        || '{{ csrf_token }}';
-
-    // State
-    let currentView = 'today';
-    let pendingMove = null;
-    let eventsCache = [];
-    let deleteTargetId = null;
-
-    // ── Helpers ──
+    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+    var currentView = 'today';
+    var eventsCache = [];
 
     function api(url, options) {
-        const defaults = {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': CSRF,
-            },
-            credentials: 'same-origin',
-        };
+        const defaults = { headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, credentials: 'same-origin' };
         return fetch(url, Object.assign(defaults, options)).then(function(r) {
-            return r.json().then(function(data) {
-                return { ok: r.ok, status: r.status, data: data };
-            });
+            return r.json().then(function(d){ return { ok:r.ok, status:r.status, data:d }; }).catch(function(){ return { ok:r.ok, status:r.status, data:{} }; });
         });
     }
+    function escHtml(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+    function toast(msg, type){ var e=document.querySelector('.cal-status-toast'); if(e)e.remove(); var el=document.createElement('div'); el.className='cal-status-toast'; el.textContent=msg; document.body.appendChild(el); setTimeout(function(){el.style.opacity='0';},2500); setTimeout(function(){el.remove();},3000); }
+    function fmtTime(iso){ var m=(iso||'').match(/T(\d{2}):(\d{2})/); if(!m)return ''; var h=parseInt(m[1],10),ap=h>=12?'PM':'AM'; h=h%12||12; return h+(m[2]>'00'?':'+m[2]:':'+m[2])+' '+ap; }
+    function fmtDateTime(iso){ var m=(iso||'').match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); if(!m)return ''; return m[2]+'/'+m[3]+' '+fmtTime(iso); }
+    function toLocalInput(iso){ var m=(iso||'').match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/); return m?m[1]:''; }
+    function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+    function dateOffset(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
-    function formatTime(isoStr) {
-        // Parse directly from ISO string — server already returns user's timezone
-        var match = isoStr.match(/T(\d{2}):(\d{2})/);
-        if (!match) return '';
-        var h = parseInt(match[1], 10);
-        var m = parseInt(match[2], 10);
-        var ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12 || 12;
-        return h + (m > 0 ? ':' + String(m).padStart(2, '0') : '') + ' ' + ampm;
+    // ── Live clock ──
+    function tick(){
+        var now=new Date();
+        var el=document.getElementById('exec-clock');
+        if(el) el.textContent=now.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
     }
+    tick(); setInterval(tick, 15000);
+    try { document.getElementById('exec-tz').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.replace('_',' '); } catch(e){}
 
-    function formatDateTime(isoStr) {
-        // Parse directly from ISO string — server already returns user's timezone
-        var match = isoStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-        if (!match) return '';
-        var h = parseInt(match[4], 10);
-        var ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12 || 12;
-        var time = h + ':' + match[5] + ' ' + ampm;
-        return match[2] + '/' + match[3] + '/' + match[1] + ' ' + time;
-    }
-
-    function formatHour(hour) {
-        var ampm = hour >= 12 ? 'PM' : 'AM';
-        var h = hour % 12 || 12;
-        return h + ' ' + ampm;
-    }
-
-    function todayISO() {
-        var d = new Date();
-        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }
-
-    function dateOffset(days) {
-        var d = new Date();
-        d.setDate(d.getDate() + days);
-        return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }
-
-    // ── Render Timeline ──
-
-    function escHtml(s) {
-        var d = document.createElement('div');
-        d.textContent = s || '';
-        return d.innerHTML;
-    }
-
-    function toLocalInput(isoStr) {
-        if (!isoStr) return '';
-        // Server returns ISO with user's timezone offset — extract directly
-        var match = isoStr.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
-        if (match) return match[1];
-        // Fallback for Date objects (e.g., new Date().toISOString())
-        var d = new Date(isoStr);
-        var y = d.getFullYear();
-        var mo = String(d.getMonth()+1).padStart(2,'0');
-        var dy = String(d.getDate()).padStart(2,'0');
-        var h = String(d.getHours()).padStart(2,'0');
-        var mi = String(d.getMinutes()).padStart(2,'0');
-        return y + '-' + mo + '-' + dy + 'T' + h + ':' + mi;
-    }
-
-    function renderUnscheduled(items) {
-        // Deadline markers are FACTS (this is due) with no real execution time.
-        // They belong here, above the timeline — never placed at their 23:59
-        // marker time (which would read as "already scheduled"). Beth recommends
-        // WHEN via the Smart Suggestions sidebar — that's strategy, not reality.
-        var el = document.getElementById('cal-unscheduled-container');
-        if (!el) return;
-        if (!items || items.length === 0) { el.innerHTML = ''; return; }
-
-        var isToday = (currentView === 'today');
-        var heading = isToday ? 'Due Today (No Time Assigned)' : 'Due (No Time Assigned)';
-
-        var html = '<div class="cal-unscheduled">';
-        html += '<div class="cal-unscheduled-title">' + heading + '</div>';
-        html += '<ul class="cal-unscheduled-list">';
-        items.forEach(function(evt) {
-            // Deadline markers are titled "Due: <task>" — show just the task name.
-            var name = (evt.title || '').replace(/^Due:\s*/, '');
-            var meta = '';
-            if (!isToday) {
-                var m = evt.start_dt.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                if (m) meta += ' <span class="cal-unscheduled-date">' + m[2] + '/' + m[3] + '</span>';
-            }
-            if (evt.domain) meta += ' <span class="cal-unscheduled-domain">&middot; ' + escHtml(evt.domain) + '</span>';
-            var borderColor = evt.domain_color || 'var(--color-accent)';
-            html += '<li class="cal-unscheduled-item" data-event-id="' + evt.id + '" data-source-type="' + escHtml(evt.source_type || 'none') + '" data-source-id="' + escHtml(evt.source_id || '') + '" style="border-left-color:' + borderColor + '">';
-            html += escHtml(name) + meta;
-            html += '</li>';
-        });
-        html += '</ul>';
-        html += '<div class="cal-unscheduled-hint">No execution time set. Accept a Smart Suggestion or set a time to place it on the timeline.</div>';
-        html += '</div>';
-        el.innerHTML = html;
-    }
-
-    function renderConstraints(items) {
-        // Availability blocks — a planning-constraint lane. Muted, never a task.
-        var el = document.getElementById('cal-constraints-container');
-        if (!el) return;
-        if (!items || items.length === 0) { el.innerHTML = ''; return; }
-        var html = '<div class="cal-constraints"><div class="cal-constraints-title">Availability</div>';
-        items.forEach(function(evt) {
-            var cls = evt.is_available ? ' available' : '';
-            html += '<div class="cal-constraint-item' + cls + '" data-event-id="' + evt.id + '" data-availability="1">';
-            html += '<span class="cal-constraint-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt) + '</span>';
-            html += '<span>' + escHtml(evt.title) + '</span></div>';
-        });
-        html += '</div>';
-        el.innerHTML = html;
-    }
-
-    function renderEvents(events, label) {
-        var container = document.getElementById('cal-events-container');
-        document.getElementById('cal-date-label').textContent = label || 'Today';
-        eventsCache = events || [];
-
-        // Truth split: deadline markers (due, no execution time) come off the
-        // factual timeline into the "Due — No Time Assigned" section above it;
-        // availability blocks go to their own constraints lane above that.
-        var timed = [];
-        var unscheduled = [];
-        var constraints = [];
-        (events || []).forEach(function(evt) {
-            if (evt.event_kind === 'availability') { constraints.push(evt); }
-            else if (evt.event_kind === 'deadline_marker') { unscheduled.push(evt); }
-            else { timed.push(evt); }
-        });
-
-        renderConstraints(constraints);
-        renderUnscheduled(unscheduled);
-
-        if (timed.length === 0) {
-            container.innerHTML = unscheduled.length > 0
-                ? '<div class="cal-empty-state">Nothing scheduled at a set time.</div>'
-                : '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
-            return;
-        }
-
-        var hourGroups = {};
-        timed.forEach(function(evt) {
-            var hMatch = evt.start_dt.match(/T(\d{2}):/);
-            var hour = hMatch ? parseInt(hMatch[1], 10) : new Date(evt.start_dt).getHours();
-            if (!hourGroups[hour]) hourGroups[hour] = [];
-            hourGroups[hour].push(evt);
-        });
-
-        var html = '';
-        var hours = Object.keys(hourGroups).map(Number).sort(function(a,b){return a-b;});
-        hours.forEach(function(hour) {
-            html += '<div class="cal-hour-group">';
-            html += '<span class="cal-hour-label">' + formatHour(hour) + '</span>';
-            hourGroups[hour].forEach(function(evt) {
-                var kindClass = '';
-                var badgeHtml = '';
-                if (evt.event_kind === 'deadline_marker') { kindClass = ' deadline'; badgeHtml = '<span class="cal-event-badge deadline">Deadline</span>'; }
-                else if (evt.event_kind === 'execution_block') { kindClass = ' execution'; badgeHtml = '<span class="cal-event-badge execution">Execution</span>'; }
-                if (evt.is_protected) { kindClass = ' protected'; badgeHtml += '<span class="cal-event-badge protected">Protected</span>'; }
-
-                var borderColor = evt.domain_color || 'var(--color-accent)';
-                var sourceType = escHtml(evt.source_type || 'none');
-                var sourceId = escHtml(evt.source_id || '');
-                var eventKind = escHtml(evt.event_kind || 'manual');
-                html += '<div class="cal-event-item' + kindClass + '" data-event-id="' + evt.id + '" data-source-type="' + sourceType + '" data-source-id="' + sourceId + '" data-event-kind="' + eventKind + '" style="border-left-color:' + borderColor + '">';
-                html += '<div style="flex:1"><div class="cal-event-title">' + escHtml(evt.title) + ' ' + badgeHtml + '</div>';
-                html += '<div class="cal-event-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt);
-                if (evt.domain) html += ' &middot; ' + escHtml(evt.domain);
-                html += '</div></div></div>';
-            });
-            html += '</div>';
-        });
-
-        container.innerHTML = html;
-    }
-
-    // ── Load Data ──
-
-    function loadView(view) {
-        currentView = view;
-        var url, label;
-
-        if (view === 'today') {
-            url = '/calendar/api/today/';
-            label = 'Today';
-        } else if (view === '3day') {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(2);
-            label = 'Next 3 Days';
-        } else if (view === 'week') {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(6);
-            label = 'This Week';
-        } else {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(13);
-            label = 'Agenda (2 Weeks)';
-        }
-
-        api(url).then(function(resp) {
-            if (resp.ok) {
-                renderEvents(resp.data.events, label);
-            }
-        });
-    }
-
-    // ── View Toggle Buttons ──
-
-    document.getElementById('cal-view-toggles').addEventListener('click', function(e) {
-        var btn = e.target.closest('.cal-view-btn');
-        if (!btn) return;
-        document.querySelectorAll('.cal-view-btn').forEach(function(b){ b.classList.remove('active'); });
-        btn.classList.add('active');
-        loadView(btn.dataset.view);
-    });
-
-    // ── Balance Period Toggle ──
-
-    document.getElementById('cal-balance-period').addEventListener('click', function(e) {
-        var btn = e.target;
-        var period = btn.dataset.period === 'today' ? 'week' : 'today';
-        btn.dataset.period = period;
-        btn.textContent = period === 'today' ? 'Today' : 'This Week';
-
-        api('/calendar/api/metrics/balance/?period=' + period).then(function(resp) {
-            if (!resp.ok) return;
-            var balance = resp.data.balance;
-            var bar = document.getElementById('cal-balance-bar');
-            var legend = document.getElementById('cal-balance-legend');
-
-            bar.innerHTML = '';
-            legend.innerHTML = '';
-
-            if (balance.length === 0) {
-                bar.innerHTML = '<div class="cal-balance-segment" style="width:100%;background:var(--color-border)" title="No events"></div>';
-                return;
-            }
-
-            balance.forEach(function(item) {
-                bar.innerHTML += '<div class="cal-balance-segment" style="width:' + item.percentage + '%;background:' + item.color + '" title="' + item.name + ': ' + item.percentage + '%"></div>';
-                legend.innerHTML += '<div class="cal-balance-legend-item"><span class="cal-balance-dot" style="background:' + item.color + '"></span>' + item.name + ' ' + item.percentage + '%</div>';
-            });
-        });
-    });
-
-    // ── Quick Add (NLP) ──
-
-    document.getElementById('cal-quick-submit').addEventListener('click', function() {
-        var input = document.getElementById('cal-quick-input');
-        var text = input.value.trim();
-        if (!text) return;
-
-        api('/calendar/api/nlp_create/', {
-            method: 'POST',
-            body: JSON.stringify({ text: text }),
-        }).then(function(resp) {
-            if (resp.ok) {
-                input.value = '';
-                loadView(currentView);
-            }
-        });
-    });
-
-    document.getElementById('cal-quick-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            document.getElementById('cal-quick-submit').click();
-        }
-    });
-
-    // ── Accept / Decline Suggestion ──
-
-    document.getElementById('cal-suggestions-list').addEventListener('click', function(e) {
-        var acceptBtn = e.target.closest('.cal-suggestion-accept');
-        var declineBtn = e.target.closest('.cal-suggestion-decline');
-        if (!acceptBtn && !declineBtn) return;
-
-        var item = (acceptBtn || declineBtn).closest('.cal-suggestion-item');
-
-        if (acceptBtn) {
-            var data = {
-                source_type: item.dataset.sourceType,
-                source_id: item.dataset.sourceId,
-                start_dt: item.dataset.start,
-                end_dt: item.dataset.end,
-                title: item.dataset.title,
-            };
-            api('/calendar/api/suggestions/accept/', {
-                method: 'POST',
-                body: JSON.stringify(data),
-            }).then(function(resp) {
-                if (resp.ok) {
-                    item.remove();
-                    loadView(currentView);
-                    checkEmptySuggestions();
-                }
-            });
-        } else if (declineBtn) {
-            api('/calendar/api/suggestions/decline/', {
-                method: 'POST',
-                body: JSON.stringify({
-                    source_type: item.dataset.sourceType,
-                    source_id: item.dataset.sourceId,
-                }),
-            }).then(function(resp) {
-                if (resp.ok) {
-                    item.remove();
-                    checkEmptySuggestions();
-                }
-            });
-        }
-    });
-
-    function checkEmptySuggestions() {
-        var list = document.getElementById('cal-suggestions-list');
-        if (!list.querySelector('.cal-suggestion-item')) {
-            list.innerHTML = '<div class="cal-no-suggestions">No suggestions right now. Keep it up!</div>';
-        }
-    }
-
-    // ── Source URL Map — click an item, edit its OWNING object ──
-    // The Calendar projects each domain's truth; editing routes back to the owner.
-    // Paths with {id} edit the specific object; the rest open the owning domain.
+    // ── Owner routing — click an item, edit its owning object ──
     var SOURCE_URLS = {
-        'task': '/life/tasks/{id}/edit/',
-        'life_event': '/life/events/{id}/edit/',
-        'goal': '/purpose/goals/{id}/',
-        'goal_milestone': '/purpose/milestones/{id}/edit/',
-        'habit': '/purpose/habits/{id}/',
-        'medicine_schedule': '/health/physical/intake/',
-        'workout_schedule': '/health/physical/fitness/workouts/',
-        'faith_routine': '/faith/reading-plans/',
-        'availability': "{% url 'calendar_engine:availability' %}"
+        'task':'/life/tasks/{id}/edit/', 'life_event':'/life/events/{id}/edit/',
+        'goal':'/purpose/goals/{id}/', 'goal_milestone':'/purpose/milestones/{id}/edit/',
+        'habit':'/purpose/habits/{id}/', 'medicine_schedule':'/health/physical/intake/',
+        'workout_schedule':'/health/physical/fitness/workouts/', 'faith_routine':'/faith/reading-plans/',
+        'availability':"{% url 'calendar_engine:availability' %}"
     };
-
-    function routeToOwner(sourceType, sourceId, eventId) {
-        var url = SOURCE_URLS[sourceType];
-        if (sourceType && sourceType !== 'none' && url) {
-            window.location.href = url.indexOf('{id}') >= 0
-                ? url.replace('{id}', sourceId) : url;
-            return;
-        }
-        // Calendar-native (manual) events are owned here → edit in the modal.
-        openEventEdit(eventId);
+    function routeToOwner(st, sid, eventId){
+        var url=SOURCE_URLS[st];
+        if(st && st!=='none' && url){ window.location.href = url.indexOf('{id}')>=0 ? url.replace('{id}', sid) : url; return; }
+        if(eventId) openEventEditById(eventId);
     }
-
-    // ── Event Click Handler ──
-
-    document.getElementById('cal-events-container').addEventListener('click', function(e) {
-        var item = e.target.closest('.cal-event-item');
-        if (!item) return;
-        routeToOwner(item.dataset.sourceType, item.dataset.sourceId, Number(item.dataset.eventId));
-    });
-
-    // Due (no time) items also route to their owning object.
-    document.getElementById('cal-unscheduled-container').addEventListener('click', function(e) {
-        var li = e.target.closest('.cal-unscheduled-item');
-        if (!li) return;
-        routeToOwner(li.dataset.sourceType, li.dataset.sourceId, Number(li.dataset.eventId));
-    });
-
-    // Availability constraints → the availability editor (calendar-native).
-    document.getElementById('cal-constraints-container').addEventListener('click', function(e) {
-        if (e.target.closest('.cal-constraint-item')) {
-            window.location.href = "{% url 'calendar_engine:availability' %}";
-        }
-    });
-
-    // ── Event Edit Modal ──
-
-    function showToast(msg, type) {
-        var existing = document.querySelector('.cal-status-toast');
-        if (existing) existing.remove();
-        var el = document.createElement('div');
-        el.className = 'cal-status-toast ' + (type || 'success');
-        el.textContent = msg;
-        document.body.appendChild(el);
-        setTimeout(function() { el.style.opacity = '0'; }, 2500);
-        setTimeout(function() { el.remove(); }, 3000);
-    }
-
-    function openEventEdit(eventId) {
-        var evt = eventsCache.find(function(e) { return e.id === eventId; });
-        if (!evt) return;
-
-        document.getElementById('cal-event-edit-id').value = evt.id;
-        document.getElementById('cal-event-edit-name').value = evt.title;
-        document.getElementById('cal-event-edit-desc').value = evt.description || '';
-        document.getElementById('cal-event-edit-start').value = toLocalInput(evt.start_dt);
-        document.getElementById('cal-event-edit-end').value = toLocalInput(evt.end_dt);
-        document.getElementById('cal-event-edit-title').textContent = 'Edit: ' + evt.title;
-
-        // Show source link if linked (but NOT for execution blocks —
-        // the source task may have been recycled/deleted)
-        var sourceEl = document.getElementById('cal-event-edit-source-info');
-        if (evt.event_kind !== 'execution_block' && evt.source_type && evt.source_type !== 'none' && evt.source_id && SOURCE_URLS[evt.source_type]) {
-            var url = SOURCE_URLS[evt.source_type].replace('{id}', evt.source_id);
-            sourceEl.innerHTML = '<a href="' + url + '" class="cal-edit-source-link">View ' + escHtml(evt.source_type) + ' &#8599;</a>';
-        } else {
-            sourceEl.innerHTML = '';
-        }
-
-        document.getElementById('cal-event-edit-modal').classList.add('active');
-    }
-
-    function closeEventEdit() {
-        document.getElementById('cal-event-edit-modal').classList.remove('active');
-    }
-
-    function saveEventEdit() {
-        var id = document.getElementById('cal-event-edit-id').value;
-        var body = {
-            title: document.getElementById('cal-event-edit-name').value,
-            description: document.getElementById('cal-event-edit-desc').value,
-            start_dt: document.getElementById('cal-event-edit-start').value,
-            end_dt: document.getElementById('cal-event-edit-end').value,
-        };
-
-        api('/calendar/api/events/' + id + '/', {
-            method: 'PATCH',
-            body: JSON.stringify(body),
-        }).then(function(resp) {
-            if (resp.ok) {
-                closeEventEdit();
-                showToast('Event updated.');
-                loadView(currentView);
-            } else {
-                showToast('Update failed: ' + (resp.data.error || 'Unknown error'), 'error');
-            }
+    function bindRoute(containerId, itemSel){
+        var c=document.getElementById(containerId); if(!c) return;
+        c.addEventListener('click', function(e){
+            if(e.target.closest('.cal-suggestion-accept')||e.target.closest('.cal-suggestion-decline')) return;
+            var it=e.target.closest(itemSel); if(!it) return;
+            routeToOwner(it.dataset.sourceType, it.dataset.sourceId, Number(it.dataset.eventId));
         });
     }
+    // Executive sections are server-rendered — delegate on document.
+    document.querySelector('.exec').addEventListener('click', function(e){
+        var it=e.target.closest('.exec-commit, .exec-due, .exec-chip');
+        if(!it) return;
+        routeToOwner(it.dataset.sourceType, it.dataset.sourceId, Number(it.dataset.eventId));
+    });
 
-    function openEventDelete(eventId, title) {
-        deleteTargetId = eventId;
-        document.getElementById('cal-event-delete-message').textContent = 'Delete "' + title + '"? This cannot be undone.';
-        document.getElementById('cal-event-delete-modal').classList.add('active');
-    }
-
-    function closeEventDelete() {
-        document.getElementById('cal-event-delete-modal').classList.remove('active');
-        deleteTargetId = null;
-    }
-
-    function confirmEventDelete() {
-        if (!deleteTargetId) return;
-        api('/calendar/api/events/' + deleteTargetId + '/', {
-            method: 'DELETE',
-        }).then(function(resp) {
-            closeEventDelete();
-            closeEventEdit();
-            if (resp.ok) {
-                showToast('Event deleted.');
-                loadView(currentView);
-            } else {
-                showToast('Delete failed.', 'error');
-            }
+    // ── Edit modal (native calendar events) ──
+    function openEventEditById(id){
+        api('/calendar/api/events/'+id+'/').then(function(resp){
+            if(!resp.ok||!resp.data.event){ return; }
+            var evt=resp.data.event;
+            document.getElementById('cal-event-edit-id').value=evt.id;
+            document.getElementById('cal-event-edit-name').value=evt.title;
+            document.getElementById('cal-event-edit-desc').value=evt.description||'';
+            document.getElementById('cal-event-edit-start').value=toLocalInput(evt.start_dt);
+            document.getElementById('cal-event-edit-end').value=toLocalInput(evt.end_dt);
+            document.getElementById('cal-event-edit-title').textContent='Edit: '+evt.title;
+            document.getElementById('cal-event-edit-modal').classList.add('active');
         });
     }
-
-    // Edit modal button listeners
+    function closeEventEdit(){ document.getElementById('cal-event-edit-modal').classList.remove('active'); }
     document.getElementById('cal-event-edit-cancel').addEventListener('click', closeEventEdit);
-    document.getElementById('cal-event-edit-save').addEventListener('click', saveEventEdit);
-    document.getElementById('cal-event-edit-delete').addEventListener('click', function() {
-        var id = document.getElementById('cal-event-edit-id').value;
-        var title = document.getElementById('cal-event-edit-name').value;
-        openEventDelete(Number(id), title);
+    document.getElementById('cal-event-edit-modal').addEventListener('click', function(e){ if(e.target===this) closeEventEdit(); });
+    document.getElementById('cal-event-edit-save').addEventListener('click', function(){
+        var id=document.getElementById('cal-event-edit-id').value;
+        api('/calendar/api/events/'+id+'/', { method:'PATCH', body: JSON.stringify({
+            title:document.getElementById('cal-event-edit-name').value,
+            description:document.getElementById('cal-event-edit-desc').value,
+            start_dt:document.getElementById('cal-event-edit-start').value,
+            end_dt:document.getElementById('cal-event-edit-end').value,
+        })}).then(function(resp){ if(resp.ok){ closeEventEdit(); toast('Updated.'); loadView(currentView); reloadToday(); } else { toast(resp.data.error||'Update failed.'); } });
     });
-
-    // Delete modal button listeners
-    document.getElementById('cal-event-delete-cancel').addEventListener('click', closeEventDelete);
-    document.getElementById('cal-event-delete-confirm').addEventListener('click', confirmEventDelete);
-
-    // Close modals on overlay click
-    document.getElementById('cal-event-edit-modal').addEventListener('click', function(e) {
-        if (e.target === this) closeEventEdit();
+    document.getElementById('cal-event-edit-delete').addEventListener('click', function(){
+        var id=document.getElementById('cal-event-edit-id').value;
+        if(!window.confirm('Delete this event?')) return;
+        api('/calendar/api/events/'+id+'/', { method:'DELETE' }).then(function(resp){ if(resp.ok){ closeEventEdit(); toast('Deleted.'); loadView(currentView); reloadToday(); } });
     });
-    document.getElementById('cal-event-delete-modal').addEventListener('click', function(e) {
-        if (e.target === this) closeEventDelete();
-    });
+    function reloadToday(){ /* executive sections refresh on next full load */ }
 
-    // ── Conflict Modal ──
-
-    document.getElementById('cal-conflict-cancel').addEventListener('click', function() {
-        document.getElementById('cal-conflict-modal').classList.remove('active');
-        pendingMove = null;
-    });
-
-    document.getElementById('cal-conflict-confirm').addEventListener('click', function() {
-        document.getElementById('cal-conflict-modal').classList.remove('active');
-        if (pendingMove) {
-            pendingMove.override = true;
-            api('/calendar/api/events/' + pendingMove.eventId + '/move/', {
-                method: 'POST',
-                body: JSON.stringify(pendingMove),
-            }).then(function(resp) {
-                if (resp.ok) loadView(currentView);
-            });
-            pendingMove = null;
-        }
-    });
-
-    // Expose moveEvent for drag-drop integration
-    window.calMoveEvent = function(eventId, newStart, newEnd) {
-        var body = {
-            new_start_dt: newStart,
-            new_end_dt: newEnd,
-        };
-
-        api('/calendar/api/events/' + eventId + '/move/', {
-            method: 'POST',
-            body: JSON.stringify(body),
-        }).then(function(resp) {
-            if (resp.status === 409) {
-                // Conflict — show modal
-                pendingMove = { eventId: eventId, new_start_dt: newStart, new_end_dt: newEnd };
-                document.getElementById('cal-conflict-message').textContent = resp.data.conflict_message;
-                document.getElementById('cal-conflict-modal').classList.add('active');
-            } else if (resp.ok) {
-                loadView(currentView);
-            }
+    // ── Traditional calendar (supporting) ──
+    function renderConstraints(items){
+        var el=document.getElementById('cal-constraints-container'); if(!el)return;
+        if(!items||!items.length){ el.innerHTML=''; return; }
+        var h='<div class="cal-constraints"><div class="cal-constraints-title">Availability</div>';
+        items.forEach(function(v){ h+='<div class="cal-constraint-item" data-event-id="'+v.id+'"><span class="cal-constraint-time">'+fmtTime(v.start_dt)+' — '+fmtTime(v.end_dt)+'</span><span>'+escHtml(v.title)+'</span></div>'; });
+        el.innerHTML=h+'</div>';
+    }
+    function renderUnscheduled(items){
+        var el=document.getElementById('cal-unscheduled-container'); if(!el)return;
+        if(!items||!items.length){ el.innerHTML=''; return; }
+        var h='<div class="cal-unscheduled"><div class="cal-unscheduled-title">Due — no time</div><ul class="cal-unscheduled-list">';
+        items.forEach(function(v){ var n=(v.title||'').replace(/^Due:\s*/,''); h+='<li class="cal-unscheduled-item" data-source-type="'+escHtml(v.source_type||'none')+'" data-source-id="'+escHtml(v.source_id||'')+'" data-event-id="'+v.id+'">'+escHtml(n)+'</li>'; });
+        el.innerHTML=h+'</ul></div>';
+    }
+    function renderEvents(events, label){
+        document.getElementById('cal-date-label').textContent=label||'Today';
+        eventsCache=events||[];
+        var timed=[],unsch=[],constr=[];
+        (events||[]).forEach(function(v){ if(v.event_kind==='availability')constr.push(v); else if(v.event_kind==='deadline_marker')unsch.push(v); else timed.push(v); });
+        renderConstraints(constr); renderUnscheduled(unsch);
+        var c=document.getElementById('cal-events-container');
+        if(!timed.length){ c.innerHTML=unsch.length?'<div class="cal-empty-state">Nothing at a set time.</div>':'<div class="cal-empty-state">Nothing scheduled.</div>'; return; }
+        var groups={};
+        timed.forEach(function(v){ var m=v.start_dt.match(/T(\d{2}):/); var hr=m?parseInt(m[1],10):0; (groups[hr]=groups[hr]||[]).push(v); });
+        var h='';
+        Object.keys(groups).map(Number).sort(function(a,b){return a-b;}).forEach(function(hr){
+            var ap=hr>=12?'PM':'AM', h12=hr%12||12;
+            h+='<div class="cal-hour-group"><span class="cal-hour-label">'+h12+' '+ap+'</span><div class="cal-hour-events">';
+            groups[hr].forEach(function(v){ h+='<div class="cal-event-item" data-source-type="'+escHtml(v.source_type||'none')+'" data-source-id="'+escHtml(v.source_id||'')+'" data-event-id="'+v.id+'" style="border-left-color:'+(v.domain_color||'var(--color-accent)')+'"><div><div class="cal-event-title">'+escHtml(v.title)+'</div><div class="cal-event-time">'+fmtTime(v.start_dt)+' — '+fmtTime(v.end_dt)+(v.domain?' · '+escHtml(v.domain):'')+'</div></div></div>'; });
+            h+='</div></div>';
         });
-    };
+        c.innerHTML=h;
+    }
+    function loadView(view){
+        currentView=view;
+        var start=todayISO(), end=todayISO(), label='Today';
+        if(view==='3day'){ end=dateOffset(2); label='Next 3 Days'; }
+        else if(view==='week'){ end=dateOffset(6); label='This Week'; }
+        else if(view==='agenda'){ end=dateOffset(13); label='Agenda'; }
+        api('/calendar/api/range/?start='+start+'&end='+end).then(function(resp){ if(resp.ok) renderEvents(resp.data.events, label); });
+    }
+    document.getElementById('cal-view-toggles').addEventListener('click', function(e){
+        var b=e.target.closest('button.cal-view-btn'); if(!b) return;
+        document.querySelectorAll('.cal-view-btn').forEach(function(x){ x.classList.remove('active'); });
+        b.classList.add('active'); loadView(b.dataset.view);
+    });
+    bindRoute('cal-events-container', '.cal-event-item');
+    bindRoute('cal-unscheduled-container', '.cal-unscheduled-item');
+    document.getElementById('cal-constraints-container').addEventListener('click', function(e){ if(e.target.closest('.cal-constraint-item')) window.location.href="{% url 'calendar_engine:availability' %}"; });
 
-    // ── Format Suggestion Dates & Remove Past-Due ──
-    var now = new Date();
-    document.querySelectorAll('.cal-suggestion-detail[data-start]').forEach(function(el) {
-        var endDt = new Date(el.dataset.end);
-        if (endDt <= now) {
-            // Suggested time is entirely in the past — remove it
-            var item = el.closest('.cal-suggestion-item');
-            if (item) item.remove();
+    // ── Quick add ──
+    document.getElementById('cal-quick-submit').addEventListener('click', function(){
+        var i=document.getElementById('cal-quick-input'); var t=i.value.trim(); if(!t) return;
+        api('/calendar/api/nlp_create/', { method:'POST', body: JSON.stringify({ text:t }) }).then(function(resp){ if(resp.ok){ i.value=''; toast('Added.'); loadView(currentView); } });
+    });
+    document.getElementById('cal-quick-input').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('cal-quick-submit').click(); });
+
+    // ── Recommendations accept/decline ──
+    document.getElementById('cal-suggestions-list').addEventListener('click', function(e){
+        var a=e.target.closest('.cal-suggestion-accept'), d=e.target.closest('.cal-suggestion-decline');
+        if(!a&&!d) return;
+        var item=(a||d).closest('.cal-suggestion-item');
+        if(a){
+            api('/calendar/api/suggestions/accept/', { method:'POST', body: JSON.stringify({ source_type:item.dataset.sourceType, source_id:item.dataset.sourceId, start_dt:item.dataset.start, end_dt:item.dataset.end, title:item.dataset.title }) })
+                .then(function(resp){ if(resp.ok){ item.remove(); toast('Scheduled.'); loadView(currentView); } });
         } else {
-            el.textContent = formatDateTime(el.dataset.start) + ' — ' + formatDateTime(el.dataset.end);
+            api('/calendar/api/suggestions/decline/', { method:'POST', body: JSON.stringify({ source_type:item.dataset.sourceType, source_id:item.dataset.sourceId }) })
+                .then(function(resp){ if(resp.ok) item.remove(); });
         }
     });
-    checkEmptySuggestions();
+    // Fill recommendation times.
+    document.querySelectorAll('.cal-suggestion-item').forEach(function(el){
+        var d=el.querySelector('.exec-rec-detail'); if(!d) return;
+        var s=el.dataset.start; if(s){ /* keep rationale; append time subtly */ }
+    });
 
     // ── Init ──
     loadView('today');

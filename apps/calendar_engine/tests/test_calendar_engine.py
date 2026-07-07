@@ -610,10 +610,10 @@ class APITests(TestCase):
         self.assertIsNotNone(event.deleted_at)
 
     def test_dashboard_view_loads(self):
-        """Acceptance criterion #3: dashboard page loads."""
+        """Acceptance criterion #3: dashboard page loads (executive Today view)."""
         resp = self.client.get('/calendar/')
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Time Command Center')
+        self.assertContains(resp, 'Time Commitments')
 
     def test_manage_page_loads(self):
         resp = self.client.get('/calendar/manage/')

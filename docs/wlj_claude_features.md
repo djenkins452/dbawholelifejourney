@@ -4693,6 +4693,17 @@ of Truth architecture. **The Calendar owns TIME, not OBJECTS** — it answers on
 *"what occupies my time?"*, by projecting every domain's truth into a single view while
 each object stays owned and edited in its home domain.
 
+### The executive "Today" experience
+
+Opening `/calendar/` presents the **operational view of time** — a story of the day, top
+to bottom: **Today** (large date, live clock), **At a Glance** (Committed / Available /
+Due / Events), **Time Commitments** (reality — real execution times only), **Due Today**
+(obligations, no fabricated hours), **Today's Rhythms** (recurring life-habits grouped by
+daypart), **Available Time** (free windows left today), **Smart Recommendations** (strategy,
+kept separate), and the traditional **Day/Week/Month** views demoted to a supporting section.
+Composed server-side by `views.py :: _compose_today()` (request-path-safe) from the existing
+projection — no new data model. Every item routes click-through to its owning object.
+
 ### Core principle
 
 - **Each domain owns its truth** — Tasks own tasks, Medicine owns medications, Workouts

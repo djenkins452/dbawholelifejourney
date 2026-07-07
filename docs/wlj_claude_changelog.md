@@ -6,6 +6,53 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(calendar): flagship executive redesign — "the operational view of time"
+
+**Product goal:** opening the Calendar should make you think *"I understand my day,"* not
+*"I see my appointments."* Redesigned the `/calendar/` screen from a timeline-first tool
+into an executive **story of the day** — calm, modern, high information density without
+crowding. Uses the existing Calendar architecture (no new data model, no new endpoints for
+the core view); the redesign is composition + presentation.
+
+**The screen now tells the day in order:**
+1. **Today** — large date (weekday in WLJ gold), live clock, timezone.
+2. **At a Glance** — four executive stat cards: Committed, Available (green), Due Today
+   (accent), Events.
+3. **Time Commitments** — REALITY only (real execution times): calendar events,
+   availability blocks, scheduled tasks. Color-railed rows, range times.
+4. **Due Today** — obligations with no set time, separate, no fabricated hours.
+5. **Today's Rhythms** — the recurring life-habits (prayer, medicine, workout, …) grouped
+   by daypart (Morning/Day/Evening/Night) as chips — the heartbeat of the day.
+6. **Available Time** — free windows from now until sleep, computed from busy intervals
+   (includes availability blocks), answering "what room do I have left?".
+7. **Smart Recommendations** — the suggestions engine, clearly labeled strategy (never
+   mixed with the factual timeline).
+8. **Calendar** — the traditional Day/3-Day/Week/Agenda/Month views, demoted to a
+   supporting section below the executive view.
+
+**Composition (request-path-safe, F5):** new `views.py :: _compose_today(user)` — pure,
+bounded arithmetic over the existing `_get_events_in_range()` plus the operating
+blueprint's wake/sleep window; classifies items into commitments / rhythms / due /
+availability, computes committed-time (merged-interval union), available windows
+(interval complement), and daypart grouping. No LLM, no rebuild — request-path safety
+contract passes. Every item routes click-through to its owning object (Calendar owns time,
+not objects). Beth/CoS/Planner/Current-Context untouched.
+
+**Deliberately NOT wired (flagged):** live weather/location in the header (Section 1) come
+from a separate subsystem whose composer would risk the request path (F5); the header has
+a clean slot and live clock, and weather is a follow-up hook rather than a request-path
+dependency.
+
+**Files:** `apps/calendar_engine/views.py` (`_compose_today` + helpers; CalendarDashboardView
+now composes the executive context), `templates/calendar_engine/dashboard.html` (complete
+executive redesign — theme-aware, responsive, CSP-clean), `apps/calendar_engine/tests/`
+(composition + render tests; updated the dashboard-branding assertion), `docs/wlj_claude_features.md`.
+
+**Verification:** 162 calendar_engine tests pass; request-path safety contract passes;
+`makemigrations --check` clean; CSP-clean; rendered + screenshotted live (desktop + mobile)
+via an authenticated preview session — 8 sections, responsive 2×2 glance on mobile, no
+console errors.
+
 ## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — RATIFIED architecture + Phase 0A reconnection
 
 **Part 1 — Governing architecture (design, ratified).**

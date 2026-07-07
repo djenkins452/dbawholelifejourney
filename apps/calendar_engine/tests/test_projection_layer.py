@@ -29,7 +29,7 @@ from apps.calendar_engine.models import (
     RecurrenceException,
     RecurrenceRule,
 )
-from apps.calendar_engine.views import _get_events_in_range
+from apps.calendar_engine.views import _get_events_in_range, _compose_today
 
 User = get_user_model()
 TZ = "America/Chicago"
@@ -179,6 +179,59 @@ class ProjectionStreamTests(TestCase):
         avail = [e for e in events if e["event_kind"] == "availability"][0]
         self.assertEqual(avail["source_type"], "availability")
         self.assertFalse(avail["is_available"])
+
+
+# ── Executive "story of the day" composition ──
+
+class ComposeTodayTests(TestCase):
+    def setUp(self):
+        self.user = _user()
+        tz = timezone.get_current_timezone()
+        self.today = timezone.localdate()
+
+        def at(h, m=0):
+            return timezone.make_aware(dt.datetime.combine(self.today, dt.time(h, m)), tz)
+
+        # Commitment (calendar event) + rhythm (medicine) + due (deadline) + availability
+        _ce(user=self.user, title="Lunch", start_dt=at(12), end_dt=at(12, 45))
+        _ce(user=self.user, title="Take Vitamin D", start_dt=at(8), end_dt=at(8, 5),
+            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+            source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE, source_id="1")
+        _ce(user=self.user, title="Due: Repair fridge", start_dt=at(23, 59),
+            end_dt=at(23, 59) + dt.timedelta(minutes=1), is_all_day=True,
+            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
+            source_type=CalendarEvent.SOURCE_TASK, source_id="42")
+        AvailabilityBlock.objects.create(
+            user=self.user, label="Work", kind=AvailabilityBlock.KIND_UNAVAILABLE,
+            start_dt=at(9), end_dt=at(17), timezone=TZ)
+
+    def test_sections_partitioned(self):
+        c = _compose_today(self.user)
+        commit_titles = [x["title"] for x in c["commitments"]]
+        self.assertIn("Lunch", commit_titles)
+        self.assertIn("Work", commit_titles)           # availability is a commitment
+        self.assertNotIn("Take Vitamin D", commit_titles)  # rhythm, not commitment
+        self.assertNotIn("Due: Repair fridge", commit_titles)  # due, not on timeline
+
+        rhythm_titles = [it["title"] for g in c["rhythm_groups"] for it in g["items"]]
+        self.assertIn("Take Vitamin D", rhythm_titles)
+
+        self.assertEqual(len(c["due_today"]), 1)
+        self.assertEqual(c["due_today"][0]["title"], "Repair fridge")  # prefix stripped
+
+    def test_glance_counts(self):
+        c = _compose_today(self.user)
+        self.assertEqual(c["glance"]["due_count"], 1)
+        self.assertEqual(c["glance"]["events_count"], 1)  # Lunch (calendar event)
+        # committed time includes the 8h Work block → at least 8h
+        self.assertRegex(c["glance"]["committed"], r"\dh")
+
+    def test_dashboard_renders(self):
+        self.client.force_login(self.user)
+        resp = self.client.get("/calendar/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Time Commitments")
+        self.assertContains(resp, "Today's Rhythms")
 
 
 # ── Manual events stay calendar-native (auto-Task retired) ──

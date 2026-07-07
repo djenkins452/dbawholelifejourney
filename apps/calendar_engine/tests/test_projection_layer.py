@@ -29,7 +29,9 @@ from apps.calendar_engine.models import (
     RecurrenceException,
     RecurrenceRule,
 )
-from apps.calendar_engine.views import _get_events_in_range, _compose_today
+from apps.calendar_engine.views import (
+    _get_events_in_range, _compose_life_day, _classify_moment,
+)
 
 User = get_user_model()
 TZ = "America/Chicago"
@@ -181,9 +183,9 @@ class ProjectionStreamTests(TestCase):
         self.assertFalse(avail["is_available"])
 
 
-# ── Executive "story of the day" composition ──
+# ── The life-story composition (chapters · people · memory) ──
 
-class ComposeTodayTests(TestCase):
+class LifeDayTests(TestCase):
     def setUp(self):
         self.user = _user()
         tz = timezone.get_current_timezone()
@@ -192,11 +194,14 @@ class ComposeTodayTests(TestCase):
         def at(h, m=0):
             return timezone.make_aware(dt.datetime.combine(self.today, dt.time(h, m)), tz)
 
-        # Commitment (calendar event) + rhythm (medicine) + due (deadline) + availability
-        _ce(user=self.user, title="Lunch", start_dt=at(12), end_dt=at(12, 45))
+        _ce(user=self.user, title="Prayer", start_dt=at(6), end_dt=at(6, 20),
+            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
+            source_type=CalendarEvent.SOURCE_FAITH_ROUTINE, source_id="1")
         _ce(user=self.user, title="Take Vitamin D", start_dt=at(8), end_dt=at(8, 5),
             event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
             source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE, source_id="1")
+        _ce(user=self.user, title="Lunch", start_dt=at(12), end_dt=at(12, 45))
+        _ce(user=self.user, title="Dinner with Heather", start_dt=at(18, 30), end_dt=at(19, 15))
         _ce(user=self.user, title="Due: Repair fridge", start_dt=at(23, 59),
             end_dt=at(23, 59) + dt.timedelta(minutes=1), is_all_day=True,
             event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
@@ -205,33 +210,44 @@ class ComposeTodayTests(TestCase):
             user=self.user, label="Work", kind=AvailabilityBlock.KIND_UNAVAILABLE,
             start_dt=at(9), end_dt=at(17), timezone=TZ)
 
-    def test_sections_partitioned(self):
-        c = _compose_today(self.user)
-        commit_titles = [x["title"] for x in c["commitments"]]
-        self.assertIn("Lunch", commit_titles)
-        self.assertIn("Work", commit_titles)           # availability is a commitment
-        self.assertNotIn("Take Vitamin D", commit_titles)  # rhythm, not commitment
-        self.assertNotIn("Due: Repair fridge", commit_titles)  # due, not on timeline
+    def test_chapters_from_life(self):
+        c = _compose_life_day(self.user)
+        names = [ch["name"] for ch in c["chapters"]]
+        self.assertIn("Morning", names)   # prayer + vitamin (before work)
+        self.assertIn("Work", names)      # the work availability block
+        self.assertIn("Evening", names)   # dinner (after work)
+        # Work is a chapter you're inside, with lunch nested in it.
+        work = [ch for ch in c["chapters"] if ch["name"] == "Work"][0]
+        self.assertTrue(work["is_work"])
+        titles = [m.get("title") for m in work["moments"]]
+        self.assertIn("Lunch", titles)
 
-        rhythm_titles = [it["title"] for g in c["rhythm_groups"] for it in g["items"]]
-        self.assertIn("Take Vitamin D", rhythm_titles)
+    def test_person_is_human_not_task(self):
+        c = _compose_life_day(self.user)
+        moments = [m for ch in c["chapters"] for m in ch["moments"]]
+        heather = [m for m in moments if m.get("title") == "Dinner with Heather"][0]
+        self.assertTrue(heather["is_person"])
+        self.assertEqual(heather["person_initial"], "H")
+        self.assertTrue(heather["is_rel"])
 
-        self.assertEqual(len(c["due_today"]), 1)
-        self.assertEqual(c["due_today"][0]["title"], "Repair fridge")  # prefix stripped
+    def test_due_stays_off_the_thread(self):
+        c = _compose_life_day(self.user)
+        self.assertEqual(len(c["due"]), 1)
+        self.assertEqual(c["due"][0]["title"], "Repair fridge")  # prefix stripped
+        titles = [m.get("title") for ch in c["chapters"] for m in ch["moments"]]
+        self.assertNotIn("Due: Repair fridge", titles)
 
-    def test_glance_counts(self):
-        c = _compose_today(self.user)
-        self.assertEqual(c["glance"]["due_count"], 1)
-        self.assertEqual(c["glance"]["events_count"], 1)  # Lunch (calendar event)
-        # committed time includes the 8h Work block → at least 8h
-        self.assertRegex(c["glance"]["committed"], r"\dh")
+    def test_classify(self):
+        self.assertEqual(_classify_moment({"title": "Dinner with Heather", "source_type": "none"})[0], "rel")
+        self.assertEqual(_classify_moment({"title": "Take Vitamin D", "source_type": "medicine_schedule"})[0], "health")
+        self.assertEqual(_classify_moment({"title": "Team standup", "source_type": "none"})[0], "work")
 
     def test_dashboard_renders(self):
         self.client.force_login(self.user)
         resp = self.client.get("/calendar/")
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Time Commitments")
-        self.assertContains(resp, "Today's Rhythms")
+        self.assertContains(resp, "Agenda")          # perspective nav
+        self.assertContains(resp, "Dinner with Heather")
 
 
 # ── Manual events stay calendar-native (auto-Task retired) ──

@@ -6,6 +6,48 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(calendar): "A Calendar View of Life" — the signature Day experience
+
+**What:** replaced the calendar dashboard (`/calendar/`) with the approved product-design
+experience: not a calendar of appointments, a **calendar of life**. The Day view reads
+like a journal that became a calendar — the day unfolds in **chapters** (Morning · Work ·
+Evening · Night), everything meaningful is a **moment on one thread** (prayer, meds, meals,
+water, work, meetings, workout, journal), **Work is a chapter you live inside** (ambient
+context, "you're here," meetings/lunch nested within it — not an appointment), **people are
+first-class** (relationship moments carry a face + name and read warm, distinct from tasks),
+the past is faded like **memory**, and a warm gold **NOW** line is the living edge. Perspective
+**nav** (Day / 3-Day / Week / Month / Agenda) sits at the top — one life, five zoom levels.
+
+**Backend (composition only — no new data model, request-path-safe, F5):**
+`views.py :: _compose_life_day(user)` — pure, bounded arithmetic over the existing
+`_get_events_in_range()`. Classifies each timed event into a life domain
+(`_classify_moment`, people-first so relationships aren't tasks), detects a person's name
+for an avatar (`_detect_person`), derives the Work chapter from the user's Work availability
+block (`_work_window`), assigns moments to chapters, marks lived/now/upcoming state, and
+inserts the NOW marker. Due-with-no-time and availability stay OFF the thread. No LLM, no
+rebuild — request-path safety contract passes.
+
+**Front end:** `templates/calendar_engine/dashboard.html` — the Day view is server-rendered
+from `life` (chapters/moments/people, serif "journal" voice via New York/Georgia for the
+date + chapter names, restrained warmth for relationship rows, the Work field, the gold NOW
+line). Scoped under `.cal10`; CSP-clean (nonce scripts, event delegation, data-attributes;
+clicking a moment routes to its owning object). The other four perspectives lazy-render
+client-side from the existing `/api/range/`: **Agenda** (chronological), **3-Day** (near
+horizon), **Week** (this week's life — per-day life-texture with a work band and domain
+dots), **Month** (the month's story — its multi-day/all-day life chapters). Availability is
+one click away.
+
+**Files:** `apps/calendar_engine/views.py` (new life composition + helpers, replaces
+`_compose_today`), `templates/calendar_engine/dashboard.html` (full redesign),
+`apps/calendar_engine/tests/test_projection_layer.py` (LifeDayTests — chapters, people,
+due-off-thread, classify, render), `apps/calendar_engine/tests/test_calendar_engine.py`
+(dashboard assertion), `docs/wlj_claude_features.md`.
+
+**Verification:** 164 calendar_engine tests pass (incl. the new LifeDayTests); request-path
+safety contract passes; `makemigrations --check` clean; CSP-clean; rendered + screenshotted
+live against the dev DB via an authenticated session — Day (server) and Agenda (client lazy)
+verified, no console errors.
+
 ## 2026-07-07 — feat(cos): executive conversational discipline — orient, then stop talking
 
 **Phase-2 gap:** the previous change classified the conversational NEED, but what

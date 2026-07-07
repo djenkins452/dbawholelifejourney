@@ -247,11 +247,125 @@ def _waking_window(user, day):
     )
 
 
-def _compose_today(user):
-    """Compose the executive "story of the day" from the existing projection.
+# ── The life-story composition (A Calendar View of Life) ──────────────────
+# Domain palette (kept in sync with the calendar template's colors).
+_LIFE_COLORS = {
+    'faith': '#6a64cf', 'health': '#3f9d78', 'meal': '#c58524', 'work': '#79839a',
+    'move': '#df6a4c', 'journal': '#8a6fce', 'water': '#3f9fc4', 'sleep': '#7b8496',
+    'rel': '#cf5a86',
+}
+
+_WORK_MEETING_CUES = ('1:1', 'standup', 'stand-up', 'meeting', 'sync', 'review',
+                      'client', 'interview', 'deadline', 'project', 'work', 'email')
+_PERSONAL_CUES = ('dinner with', 'lunch with', 'breakfast with', 'coffee with',
+                  'date night', 'date with', 'family night', 'family time',
+                  'visit', 'call mom', 'call dad')
+
+
+def _detect_person(title):
+    """Extract a person's first name from a title ("… with Sarah", "Call Haley").
+
+    Keyword is matched case-insensitively; the name must still be capitalized.
+    """
+    import re
+    for pat in (r'\b[Ww]ith ([A-Z][a-zA-Z]+)', r'\b[Cc]all ([A-Z][a-zA-Z]+)',
+                r'\b[Vv]isit ([A-Z][a-zA-Z]+)'):
+        m = re.search(pat, title or '')
+        if m:
+            name = m.group(1)
+            if name.lower() not in ('the', 'team', 'my', 'your', 'a', 'mom', 'dad'):
+                return name
+    return None
+
+
+def _classify_moment(ev):
+    """Return (domain_key, person_name|None) for a projected event.
+
+    People-first: personal relationship moments (dinner with Heather, call Haley)
+    classify as 'rel' so they read as human, not as tasks. A person in a work
+    meeting keeps 'work' but still surfaces an avatar.
+    """
+    title = ev.get('title') or ''
+    low = title.lower()
+    dom = (ev.get('domain') or '').lower()
+    src = ev.get('source_type') or ''
+    person = _detect_person(title)
+
+    def has(*ks):
+        return any(k in low for k in ks)
+
+    # Projected rhythm sources are unambiguous.
+    if src == CalendarEvent.SOURCE_MEDICINE_SCHEDULE:
+        return 'health', person
+    if src == CalendarEvent.SOURCE_FAITH_ROUTINE:
+        return 'faith', person
+    if src == CalendarEvent.SOURCE_WORKOUT_SCHEDULE:
+        return 'move', person
+
+    is_work_meeting = has(*_WORK_MEETING_CUES)
+    # 1. Personal relationships — warm, human.
+    if dom in ('relationships', 'relationship', 'family') or has(*_PERSONAL_CUES) \
+            or (person and not is_work_meeting):
+        return 'rel', person
+    # 2. Faith / movement / meals / etc.
+    if has('prayer', 'bible', 'devotion', 'scripture', 'quiet time', 'reading plan'):
+        return 'faith', person
+    if has('workout', 'run', 'gym', 'exercise', 'lift', 'cardio', 'yoga', 'stretch', 'walk'):
+        return 'move', person
+    if has('breakfast', 'lunch', 'dinner', 'brunch', 'meal', 'snack', 'coffee'):
+        return 'meal', person
+    if has('water', 'hydrat'):
+        return 'water', person
+    if has('journal', 'reflect', 'gratitude'):
+        return 'journal', person
+    if has('medication', 'medicine', 'supplement', 'vitamin', 'pill', 'dose'):
+        return 'health', person
+    if has('sleep', 'bed', 'wind down', 'night reset', 'wake'):
+        return 'sleep', person
+    # 3. Work (may carry a person → avatar).
+    if is_work_meeting or has('call'):
+        return 'work', person
+    if dom == 'faith':
+        return 'faith', person
+    if dom == 'health':
+        return 'health', person
+    return 'work', person
+
+
+def _work_window(events):
+    """(work_start, work_end) from today's unavailable 'work' availability block,
+    or (None, None) if there isn't one."""
+    starts, ends = [], []
+    for e in events:
+        if e.get('event_kind') == 'availability' and not e.get('is_available'):
+            label = (e.get('title') or '').lower()
+            if 'work' in label or 'office' in label:
+                starts.append(dt.datetime.fromisoformat(e['start_dt']))
+                ends.append(dt.datetime.fromisoformat(e['end_dt']))
+    if starts:
+        return min(starts), max(ends)
+    return None, None
+
+
+def _opening_line(current_name, next_moment):
+    phase = {
+        'Morning': 'Your morning is underway.',
+        'Work': "You're in the workday.",
+        'Day': "You're partway through the day.",
+        'Evening': 'Into the evening now.',
+        'Night': 'The day is winding down.',
+    }.get(current_name, "Here's your day.")
+    if next_moment and next_moment.get('time_label'):
+        return f"{phase} Next — {next_moment['title']} at {next_moment['time_label']}."
+    return phase
+
+
+def _compose_life_day(user):
+    """Compose today as a life story in chapters (Morning · Work · Evening · Night).
 
     Pure, bounded, request-path-safe (reads _get_events_in_range + arithmetic — no
-    LLM, no rebuild). Returns the structured context the executive Calendar renders.
+    LLM, no rebuild). Everything meaningful that happens in time becomes a moment on
+    the day's thread; due-with-no-time and availability stay off it.
     """
     tz = timezone.get_current_timezone()
     today = timezone.localdate()
@@ -260,115 +374,111 @@ def _compose_today(user):
     now = timezone.localtime()
 
     events = _get_events_in_range(user, day_start, day_end)
+    work_start, work_end = _work_window(events)
+    has_work = work_start is not None
 
-    commitments, rhythms_flat, due = [], [], []
-    busy = []  # (start, end) aware intervals that consume time
-
+    due = []
+    moments = []  # timed life moments (not availability, not deadline markers)
     for e in events:
-        start = dt.datetime.fromisoformat(e['start_dt'])
-        end = dt.datetime.fromisoformat(e['end_dt'])
-        kind = e['event_kind']
-        src = e['source_type']
-
-        if kind == CalendarEvent.KIND_DEADLINE_MARKER:
+        if e.get('event_kind') == CalendarEvent.KIND_DEADLINE_MARKER:
             due.append(e)
             continue
-
-        if kind == 'availability':
-            # Only "unavailable" availability consumes time (Work, Sleep, …).
-            if not e.get('is_available'):
-                busy.append((start, end))
-                commitments.append({**e, '_start': start, '_end': end})
-            continue
-
-        if src in _RHYTHM_SOURCES:
-            rhythms_flat.append({**e, '_start': start, '_end': end})
-            busy.append((start, end))
-            continue
-
-        # Calendar events, life events, scheduled tasks → hard commitments.
-        commitments.append({**e, '_start': start, '_end': end})
-        busy.append((start, end))
-
-    commitments.sort(key=lambda c: c['_start'])
-
-    # Commitment rows for the template (range vs point).
-    commit_rows = []
-    for c in commitments:
-        is_range = (c['_end'] - c['_start']).total_seconds() >= 30 * 60
-        commit_rows.append({
-            'title': c['title'],
-            'time_label': _fmt_time(c['_start']),
-            'end_label': _fmt_time(c['_end']),
-            'is_range': is_range,
-            'domain_color': c.get('domain_color') or '#6b7280',
-            'source_type': c['source_type'],
-            'source_id': c['source_id'],
-            'event_id': c['id'],
-            'is_availability': c['event_kind'] == 'availability',
+        if e.get('event_kind') == 'availability':
+            continue  # availability is context (Work chapter), never a moment
+        start = dt.datetime.fromisoformat(e['start_dt'])
+        end = dt.datetime.fromisoformat(e['end_dt'])
+        domain_key, person = _classify_moment(e)
+        if end <= now:
+            state = 'lived'
+        elif start <= now < end:
+            state = 'now'
+        else:
+            state = 'upcoming'
+        moments.append({
+            '_start': start, '_end': end,
+            'title': e['title'],
+            'time_label': _fmt_time(start) if not e.get('is_all_day') else '',
+            'domain': domain_key,
+            'color': _LIFE_COLORS.get(domain_key, '#79839a'),
+            'is_person': bool(person),
+            'person_initial': person[0].upper() if person else '',
+            'is_rel': domain_key == 'rel',
+            'state': state,
+            'source_type': e['source_type'],
+            'source_id': e['source_id'],
+            'event_id': e['id'],
         })
+    moments.sort(key=lambda m: m['_start'])
 
-    # Rhythms grouped by daypart.
-    dayparts = {'morning': [], 'day': [], 'evening': [], 'night': []}
-    for r in sorted(rhythms_flat, key=lambda x: x['_start']):
-        hour = timezone.localtime(r['_start']).hour
-        bucket = ('morning' if hour < 12 else 'day' if hour < 17
-                  else 'evening' if hour < 21 else 'night')
-        dayparts[bucket].append({
-            'title': r['title'],
-            'time_label': _fmt_time(r['_start']),
-            'domain_color': r.get('domain_color') or '#6b7280',
-            'source_type': r['source_type'],
-            'source_id': r['source_id'],
-            'event_id': r['id'],
+    # Assign each moment to a chapter.
+    def chapter_of(start):
+        h = timezone.localtime(start).hour
+        if has_work:
+            if start < work_start:
+                return 'Morning'
+            if start < work_end:
+                return 'Work'
+            return 'Evening' if h < 21 else 'Night'
+        if h < 12:
+            return 'Morning'
+        if h < 17:
+            return 'Day'
+        if h < 21:
+            return 'Evening'
+        return 'Night'
+
+    order = ['Morning', 'Work', 'Day', 'Evening', 'Night']
+    subs = {
+        'Morning': 'before the day begins', 'Work': 'the workday',
+        'Day': 'midday', 'Evening': 'back home', 'Night': 'winding down',
+    }
+    buckets = {name: [] for name in order}
+    for m in moments:
+        buckets[chapter_of(m['_start'])].append(m)
+
+    current_chapter = chapter_of(now)
+    next_moment = next((m for m in moments if m['state'] == 'upcoming'), None)
+    if next_moment:
+        next_moment['is_next'] = True
+
+    chapters = []
+    for name in order:
+        items = buckets[name]
+        is_work_ch = (name == 'Work' and has_work)
+        if not items and not is_work_ch:
+            continue
+        here = is_work_ch and work_start <= now < work_end
+        sub = subs[name]
+        if is_work_ch:
+            sub = f"{_fmt_time(work_start)} – {_fmt_time(work_end)}"
+        # Insert the NOW marker into the current chapter (between lived & upcoming).
+        rendered = []
+        now_inserted = False
+        for m in items:
+            if (name == current_chapter and not now_inserted
+                    and m['state'] != 'lived'):
+                rendered.append({'is_now_marker': True, 'time_label': _fmt_time(now)})
+                now_inserted = True
+            rendered.append(m)
+        if name == current_chapter and not now_inserted:
+            rendered.append({'is_now_marker': True, 'time_label': _fmt_time(now)})
+        chapters.append({
+            'name': name, 'sub': sub, 'is_work': is_work_ch, 'here': here,
+            'ambient': (f"Heads-down until {_fmt_time(work_end)}." if here else ''),
+            'moments': rendered,
         })
-    rhythm_groups = [
-        {'key': k, 'label': lbl, 'items': dayparts[k]}
-        for k, lbl in (('morning', 'Morning'), ('day', 'Day'),
-                       ('evening', 'Evening'), ('night', 'Night'))
-        if dayparts[k]
-    ]
-
-    # Available time — free windows from now until sleep (executive: what's LEFT).
-    wake_dt, sleep_dt = _waking_window(user, today)
-    free_from = max(now, wake_dt)
-    free = _free_windows(busy, free_from, sleep_dt) if free_from < sleep_dt else []
-    available_windows = [{
-        'start_label': _fmt_time(s), 'end_label': _fmt_time(e),
-        'label': _fmt_hm((e - s).total_seconds() / 60),
-    } for s, e in free]
-    available_minutes = sum(int((e - s).total_seconds() / 60) for s, e in free)
-
-    # Committed time — total busy across the waking day (union, no double count).
-    committed_minutes = sum(
-        int((e - s).total_seconds() / 60)
-        for s, e in _merge_intervals(busy)
-    )
-
-    events_count = sum(
-        1 for c in commitments
-        if c['source_type'] in (CalendarEvent.SOURCE_NONE, '', CalendarEvent.SOURCE_LIFE_EVENT)
-    )
 
     return {
-        'today_weekday': now.strftime('%A'),
-        'today_long': now.strftime('%B %-d'),
-        'today_iso': today.isoformat(),
-        'glance': {
-            'committed': _fmt_hm(committed_minutes),
-            'available': _fmt_hm(available_minutes),
-            'due_count': len(due),
-            'events_count': events_count,
-        },
-        'commitments': commit_rows,
-        'due_today': [{
+        'date_serif': now.strftime('%A, %B %-d'),
+        'clock': _fmt_time(now),
+        'opening': _opening_line(current_chapter, next_moment),
+        'chapters': chapters,
+        'due': [{
             'title': (d['title'] or '').replace('Due: ', ''),
             'source_type': d['source_type'], 'source_id': d['source_id'],
-            'event_id': d['id'], 'domain_color': d.get('domain_color') or '#6b7280',
+            'event_id': d['id'],
         } for d in due],
-        'rhythm_groups': rhythm_groups,
-        'available_windows': available_windows,
-        'has_anything': bool(commit_rows or due or rhythm_groups),
+        'has_anything': bool(chapters or due),
     }
 
 
@@ -379,8 +489,8 @@ class CalendarDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        ctx['today'] = _compose_today(user)
-        ctx['suggestions'] = suggestions.generate_suggestions(user)
+        ctx['life'] = _compose_life_day(user)
+        ctx['recommendations'] = suggestions.generate_suggestions(user)[:2]
         ctx['app_name'] = 'calendar_engine'
         return ctx
 

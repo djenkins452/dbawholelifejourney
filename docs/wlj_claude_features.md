@@ -4693,16 +4693,23 @@ of Truth architecture. **The Calendar owns TIME, not OBJECTS** — it answers on
 *"what occupies my time?"*, by projecting every domain's truth into a single view while
 each object stays owned and edited in its home domain.
 
-### The executive "Today" experience
+### A Calendar View of Life
 
-Opening `/calendar/` presents the **operational view of time** — a story of the day, top
-to bottom: **Today** (large date, live clock), **At a Glance** (Committed / Available /
-Due / Events), **Time Commitments** (reality — real execution times only), **Due Today**
-(obligations, no fabricated hours), **Today's Rhythms** (recurring life-habits grouped by
-daypart), **Available Time** (free windows left today), **Smart Recommendations** (strategy,
-kept separate), and the traditional **Day/Week/Month** views demoted to a supporting section.
-Composed server-side by `views.py :: _compose_today()` (request-path-safe) from the existing
-projection — no new data model. Every item routes click-through to its owning object.
+Opening `/calendar/` is not a calendar of appointments — it's a **calendar of life**. The
+Day view reads like a journal that became a calendar: the day unfolds in **chapters**
+(Morning · Work · Evening · Night); everything meaningful is a **moment on one thread**
+(prayer, medication, meals, water, work, meetings, workout, journal); **Work is a chapter you
+live inside** (ambient context with "you're here" and meetings/lunch nested within — not an
+appointment); **people are first-class** (relationship moments carry a face + name and read
+warm, distinct from tasks); the past is faded like **memory**; and a warm gold **NOW** line
+marks the present edge. A **perspective nav** (Day / 3-Day / Week / Month / Agenda) sits at
+the top — one life, five zoom levels: Day (hours), 3-Day (near horizon), Week (this week's
+life texture), Month (the month's story of chapters), Agenda (pure order).
+
+Composed server-side by `views.py :: _compose_life_day()` — request-path-safe, no new data
+model, built from the existing projection (`_get_events_in_range`). Due-with-no-time and
+availability stay off the thread; every moment routes click-through to its owning object;
+the other four perspectives lazy-render from `/api/range/`.
 
 ### Core principle
 

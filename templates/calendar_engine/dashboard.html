@@ -1,494 +1,303 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Calendar — Today{% endblock %}
+{% block title %}Calendar — A View of Life{% endblock %}
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
 /* ============================================================
-   Calendar — the operational view of time.
-   "What does my life actually look like today?"
+   A Calendar View of Life — one life, five zoom levels.
+   A journal that became a calendar: chapters, people, memory.
    ============================================================ */
-.exec { max-width: 1120px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.cal10{ --c-ink:#211e18; --c-ink2:#4a453b; --c-muted:#8b8578; --c-faint:#b3ad9f;
+  --c-line:#e5e2d8; --c-line2:#eeebe2; --c-field:#efece3;
+  --c-faith:#6a64cf; --c-health:#3f9d78; --c-meal:#c58524; --c-work:#79839a;
+  --c-move:#df6a4c; --c-journal:#8a6fce; --c-water:#3f9fc4; --c-sleep:#7b8496;
+  --c-rel:#cf5a86; --c-now:#c0872b;
+  max-width:600px; margin:0 auto; color:var(--c-ink);
+  font-family:-apple-system,"SF Pro Text","Segoe UI",Roboto,Inter,system-ui,sans-serif;
+}
+.cal10 .serif{ font-family:"New York",ui-serif,Georgia,"Iowan Old Style",Charter,"Times New Roman",serif; }
 
-/* — Section 1: Today — */
-.exec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
-.exec-head-main { min-width: 0; }
-.exec-eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-text-muted); margin-bottom: 0.25rem; }
-.exec-date { font-size: clamp(1.9rem, 5vw, 2.75rem); font-weight: 700; line-height: 1.05; color: var(--color-text); letter-spacing: -0.02em; }
-.exec-date .exec-dow { color: var(--color-accent); }
-.exec-meta { text-align: right; }
-.exec-clock { font-size: 1.5rem; font-weight: 600; color: var(--color-text); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.exec-subtle { font-size: 0.8125rem; color: var(--color-text-muted); margin-top: 0.15rem; }
+/* sticky perspective nav */
+.cal10 .bar{ position:sticky; top:0; z-index:15; margin:0 -24px; padding:6px 24px 0; background:var(--color-bg,#f5f4ef); border-bottom:1px solid var(--c-line); }
+.cal10 .tabs{ display:flex; overflow-x:auto; }
+.cal10 .tab{ appearance:none; border:none; background:none; font:inherit; cursor:pointer; padding:10px 0; margin-right:22px; font-size:14px; color:var(--c-muted); font-weight:500; position:relative; white-space:nowrap; }
+.cal10 .tab.on{ color:var(--c-ink); font-weight:650; }
+.cal10 .tab.on::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--c-ink); border-radius:2px; }
 
-/* — Section 2: At a Glance — */
-.exec-glance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 2rem; }
-@media (max-width: 640px) { .exec-glance { grid-template-columns: repeat(2, 1fr); } }
-.exec-stat { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 1rem 1.1rem; }
-.exec-stat-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); }
-.exec-stat-value { font-size: 1.75rem; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 0.35rem; letter-spacing: -0.02em; }
-.exec-stat.accent .exec-stat-value { color: var(--color-accent); }
-.exec-stat.free .exec-stat-value { color: #059669; }
+.cal10 .wrap{ padding:28px 0 90px; }
+.cal10 .view{ display:none; } .cal10 .view.on{ display:block; }
+.cal10 .vloading{ color:var(--c-faint); font-size:14px; padding:40px 0; text-align:center; }
 
-/* — Layout: main + rail — */
-.exec-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
-@media (max-width: 900px) { .exec-grid { grid-template-columns: 1fr; } }
-.exec-col { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+/* header */
+.cal10 .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:14px; }
+.cal10 .kicker{ font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--c-faint); font-weight:600; }
+.cal10 .day-date{ font-size:32px; font-weight:600; letter-spacing:-.01em; line-height:1.07; margin:5px 0 0; color:var(--c-ink); }
+.cal10 .clock{ font-size:14px; color:var(--c-muted); font-variant-numeric:tabular-nums; padding-top:6px; }
+.cal10 .opening{ font-size:16px; line-height:1.55; color:var(--c-ink2); margin:16px 0 4px; max-width:46ch; }
+.cal10 .opening b{ color:var(--c-ink); font-weight:600; }
 
-.exec-section { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 18px; padding: 1.25rem 1.35rem; }
-.exec-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin-bottom: 1rem; }
-.exec-section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); font-weight: 600; }
-.exec-section-note { font-size: 0.75rem; color: var(--color-text-muted); }
-.exec-empty { color: var(--color-text-muted); font-size: 0.9375rem; padding: 0.5rem 0; }
+/* chapter + life-thread */
+.cal10 .chapter{ margin-top:32px; }
+.cal10 .ch-head{ display:flex; align-items:baseline; gap:12px; margin-bottom:12px; }
+.cal10 .ch-name{ font-size:21px; font-weight:600; letter-spacing:-.01em; }
+.cal10 .ch-sub{ margin-left:auto; font-size:12.5px; color:var(--c-faint); font-style:italic; }
+.cal10 .here{ font-style:normal; color:var(--c-now); font-weight:700; }
+.cal10 .moments{ position:relative; }
+.cal10 .moments::before{ content:""; position:absolute; left:11px; top:10px; bottom:10px; width:2px; background:var(--c-line); border-radius:2px; }
+.cal10 .m{ display:flex; gap:13px; align-items:flex-start; padding:9px 0; position:relative; cursor:pointer; }
+.cal10 .lead-col{ width:24px; flex:none; display:flex; justify-content:center; position:relative; z-index:1; }
+.cal10 .node{ width:12px; height:12px; border-radius:50%; background:var(--color-bg,#f5f4ef); border:2px solid var(--c-faint); margin-top:4px; }
+.cal10 .avatar{ width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:10.5px; font-weight:700; color:#fff; margin:-2px 0; box-shadow:0 0 0 3px var(--color-bg,#f5f4ef); }
+.cal10 .tm{ width:58px; flex:none; font-size:12.5px; color:var(--c-muted); font-variant-numeric:tabular-nums; padding-top:5px; }
+.cal10 .body{ flex:1; min-width:0; padding-top:2px; }
+.cal10 .ti{ font-size:15.5px; font-weight:500; letter-spacing:-.005em; color:var(--c-ink); }
+.cal10 .de{ font-size:12.5px; color:var(--c-muted); margin-top:1px; }
+.cal10 .m.lived{ opacity:.46; }
+.cal10 .m:hover .ti{ color:var(--c-now); }
+.cal10 .next{ display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.07em; color:#fff; background:var(--c-ink); padding:1px 7px; border-radius:999px; margin-left:8px; vertical-align:2px; }
+/* relationship moments — warm, human, distinct from tasks (restrained) */
+.cal10 .m.rel .body{ background:rgba(207,90,134,.055); border-left:2px solid rgba(207,90,134,.4); border-radius:8px; padding:6px 12px; margin-top:-3px; }
+.cal10 .m.rel .ti{ font-weight:600; }
+.cal10 .m.rel .de{ color:#b06485; }
+/* Work — a chapter you live inside */
+.cal10 .chapter.work .field{ background:var(--c-field); border:1px solid #e6e2d6; border-radius:16px; padding:6px 16px 12px; }
+.cal10 .nowrow{ display:flex; align-items:center; gap:10px; padding:7px 0 4px; }
+.cal10 .nowrow .nd{ width:9px; height:9px; border-radius:50%; background:var(--c-now); box-shadow:0 0 0 4px rgba(192,135,43,.16); margin-left:6px; }
+.cal10 .nowrow .lbl{ font-size:10.5px; font-weight:800; letter-spacing:.09em; color:var(--c-now); }
+.cal10 .nowrow .ln{ flex:1; height:1.5px; background:linear-gradient(90deg,var(--c-now),rgba(192,135,43,.12)); }
+.cal10 .ambient{ margin-top:2px; font-size:12.5px; color:var(--c-faint); font-style:italic; padding-left:37px; }
 
-/* — Section 3: Time Commitments — */
-.exec-commit { display: flex; gap: 0.9rem; align-items: stretch; padding: 0.7rem 0; border-top: 1px solid var(--color-border); cursor: pointer; }
-.exec-commit:first-child { border-top: none; }
-.exec-commit:hover .exec-commit-title { color: var(--color-accent); }
-.exec-commit-time { flex: 0 0 auto; width: 88px; text-align: right; font-size: 0.8125rem; color: var(--color-text-muted); font-variant-numeric: tabular-nums; padding-top: 0.1rem; line-height: 1.3; }
-.exec-commit-time .to { display: block; font-size: 0.75rem; opacity: 0.75; }
-.exec-rail { flex: 0 0 3px; border-radius: 3px; background: var(--color-border); }
-.exec-commit-body { flex: 1; min-width: 0; }
-.exec-commit-title { font-size: 1rem; font-weight: 600; color: var(--color-text); }
-.exec-commit-tag { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.1rem; }
-.exec-commit.availability .exec-commit-title { font-weight: 500; }
+/* coda */
+.cal10 .coda{ margin-top:34px; padding-top:22px; border-top:1px solid var(--c-line); }
+.cal10 .coda-h{ font-size:12px; letter-spacing:.11em; text-transform:uppercase; color:var(--c-muted); font-weight:650; margin-bottom:12px; }
+.cal10 .coda-h .n{ font-size:11px; color:var(--c-faint); text-transform:none; letter-spacing:0; font-weight:400; margin-left:8px; }
+.cal10 .todo{ display:flex; align-items:center; gap:12px; padding:8px 0; cursor:pointer; }
+.cal10 .todo .bx{ width:17px; height:17px; border:1.5px solid #d2cdbf; border-radius:6px; flex:none; }
+.cal10 .todo .t{ font-size:15px; color:var(--c-ink2); }
+.cal10 .rec{ padding:9px 0; } .cal10 .rec .t{ font-size:14.5px; font-weight:550; color:var(--c-ink); }
+.cal10 .empty{ color:var(--c-faint); font-size:14px; padding:8px 0; }
 
-/* — Section 4: Due Today — */
-.exec-due { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0; border-top: 1px solid var(--color-border); cursor: pointer; }
-.exec-due:first-child { border-top: none; }
-.exec-due:hover .exec-due-title { color: var(--color-accent); }
-.exec-check { flex: 0 0 auto; width: 18px; height: 18px; border: 1.5px solid var(--color-border); border-radius: 5px; }
-.exec-due-title { font-size: 0.9375rem; color: var(--color-text); }
+/* WEEK — this week's life */
+.cal10 .lead{ font-size:16px; line-height:1.55; color:var(--c-ink2); margin:14px 0 22px; max-width:46ch; }
+.cal10 .lead b{ color:var(--c-ink); font-weight:600; }
+.cal10 .wl-row{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--c-line2); }
+.cal10 .wl-row.today .wl-day{ color:var(--c-ink); font-weight:750; }
+.cal10 .wl-day{ width:52px; flex:none; font-size:12.5px; color:var(--c-muted); font-weight:600; }
+.cal10 .wl-track{ position:relative; flex:1; height:20px; }
+.cal10 .wl-track::before{ content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--c-line); }
+.cal10 .wl-band{ position:absolute; top:4px; height:12px; border-radius:6px; background:#e7e3d8; }
+.cal10 .wl-dot{ position:absolute; top:50%; width:8px; height:8px; border-radius:50%; transform:translate(-50%,-50%); }
+.cal10 .wl-tag{ width:52px; flex:none; text-align:right; font-size:11px; color:var(--c-faint); }
 
-/* — Section 5: Rhythms — */
-.exec-rhythm-group { margin-bottom: 1rem; }
-.exec-rhythm-group:last-child { margin-bottom: 0; }
-.exec-rhythm-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
-.exec-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.exec-chip { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; color: var(--color-text); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 999px; padding: 0.35rem 0.7rem; cursor: pointer; }
-.exec-chip:hover { border-color: var(--color-accent); }
-.exec-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
-.exec-chip .t { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+/* MONTH — the month's story */
+.cal10 .mchap{ display:flex; gap:16px; padding:17px 0; border-bottom:1px solid var(--c-line2); }
+.cal10 .mchap .mbar{ width:3px; border-radius:3px; flex:none; align-self:stretch; background:var(--c-faint); }
+.cal10 .mchap .when{ font-size:12px; color:var(--c-faint); font-weight:600; width:78px; flex:none; padding-top:4px; }
+.cal10 .mchap .mt{ font-size:18px; font-weight:600; letter-spacing:-.01em; color:var(--c-ink); }
+.cal10 .mchap .mw{ font-size:13px; color:var(--c-muted); margin-top:3px; }
 
-/* — Section 6: Available Time — */
-.exec-free { border: 1px solid rgba(5,150,105,0.35); background: rgba(5,150,105,0.06); border-radius: 12px; padding: 0.75rem 0.9rem; margin-bottom: 0.5rem; }
-.exec-free:last-child { margin-bottom: 0; }
-.exec-free-window { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
-.exec-free-dur { font-size: 0.8125rem; color: #059669; margin-top: 0.1rem; }
-
-/* — Section 7: Recommendations — */
-.exec-rec { border: 1px dashed var(--color-border); border-radius: 12px; padding: 0.8rem 0.9rem; margin-bottom: 0.6rem; }
-.exec-rec:last-child { margin-bottom: 0; }
-.exec-rec-title { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
-.exec-rec-detail { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.1rem; }
-.exec-rec-actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
-.exec-rec-actions button { font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 8px; cursor: pointer; min-height: 34px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
-.exec-rec-accept { background: var(--color-accent) !important; color: #fff !important; border-color: var(--color-accent) !important; }
-
-/* Quick add on the rail */
-.exec-quick { display: flex; gap: 0.4rem; }
-.exec-quick input { flex: 1; padding: 0.6rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); color: var(--color-text); }
-.exec-quick button { padding: 0 1rem; border: none; border-radius: 10px; background: var(--color-accent); color: #fff; cursor: pointer; min-height: 44px; }
-
-/* — Section 8: Traditional Calendar (supporting, not hero) — */
-.exec-views { margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem; }
-.exec-views-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.exec-views-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); font-weight: 600; }
-.cal-view-toggles { display: inline-flex; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
-.cal-view-btn { padding: 0.45rem 0.85rem; font-size: 0.8125rem; border: none; background: var(--color-surface); color: var(--color-text-muted); cursor: pointer; }
-.cal-view-btn.active { background: var(--color-accent); color: #fff; }
-.cal-view-btn:hover:not(.active) { background: var(--color-bg); }
-.cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 1rem 1.1rem; }
-.cal-timeline-date { font-size: 0.9375rem; font-weight: 600; color: var(--color-text); }
-.cal-hour-group { display: flex; gap: 0.75rem; padding: 0.35rem 0; }
-.cal-hour-label { flex: 0 0 60px; font-size: 0.75rem; color: var(--color-text-muted); text-align: right; padding-top: 0.35rem; }
-.cal-hour-events { flex: 1; display: flex; flex-direction: column; gap: 0.35rem; }
-.cal-event-item { display: flex; gap: 0.5rem; padding: 0.45rem 0.65rem; border: 1px solid var(--color-border); border-left: 3px solid var(--color-accent); border-radius: 8px; cursor: pointer; background: var(--color-bg); }
-.cal-event-title { font-size: 0.875rem; font-weight: 600; color: var(--color-text); }
-.cal-event-time { font-size: 0.75rem; color: var(--color-text-muted); }
-.cal-empty-state { color: var(--color-text-muted); font-size: 0.9375rem; text-align: center; padding: 1.5rem; }
-.cal-unscheduled, .cal-constraints { margin-bottom: 0.75rem; }
-.cal-unscheduled-title, .cal-constraints-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-muted); margin-bottom: 0.4rem; }
-.cal-unscheduled-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.cal-unscheduled-item { font-size: 0.875rem; color: var(--color-text); padding: 0.35rem 0.6rem; border-left: 3px solid var(--color-accent); border-radius: 4px; cursor: pointer; }
-.cal-constraint-item { display: flex; gap: 0.5rem; font-size: 0.8125rem; color: var(--color-text-muted); padding: 0.35rem 0.6rem; border-left: 3px solid #94a3b8; border-radius: 4px; cursor: pointer; }
-.cal-constraint-time { font-weight: 600; }
-
-/* Modals */
-.cal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 1rem; }
-.cal-modal-overlay.active { display: flex; }
-.cal-modal { background: var(--color-surface); border-radius: 16px; padding: 1.5rem; max-width: 460px; width: 100%; }
-.cal-modal h3 { margin: 0 0 1rem; color: var(--color-text); font-size: 1.1rem; }
-.cal-form-group { margin-bottom: 0.85rem; }
-.cal-form-label { display: block; font-size: 0.8125rem; color: var(--color-text-muted); margin-bottom: 0.3rem; }
-.cal-form-input { width: 100%; padding: 0.55rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); color: var(--color-text); box-sizing: border-box; }
-.cal-form-row { display: flex; gap: 0.75rem; }
-.cal-form-row .cal-form-group { flex: 1; }
-.cal-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
-.cal-modal-btn { padding: 0.55rem 1.1rem; border-radius: 8px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); cursor: pointer; min-height: 44px; }
-.cal-modal-btn.primary { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
-.cal-modal-btn.danger { background: #dc2626; color: #fff; border-color: #dc2626; }
-.cal-status-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.7rem 1.2rem; border-radius: 10px; font-size: 0.875rem; transition: opacity 0.3s; z-index: 1100; }
+/* AGENDA / 3-DAY */
+.cal10 .ag-day{ font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--c-faint); font-weight:700; margin:20px 0 2px; }
+.cal10 .ag{ display:flex; gap:14px; align-items:baseline; padding:7px 0; border-top:1px solid var(--c-line2); cursor:pointer; }
+.cal10 .ag .t{ width:78px; flex:none; font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums; }
+.cal10 .ag .d{ width:8px; height:8px; border-radius:50%; flex:none; align-self:center; }
+.cal10 .ag .nm{ font-size:14.5px; color:var(--c-ink); }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="exec">
+<div class="cal10">
+  <div class="bar"><div class="tabs" id="cal-tabs">
+    <button class="tab on" data-v="day">Day</button>
+    <button class="tab" data-v="d3">3-Day</button>
+    <button class="tab" data-v="week">Week</button>
+    <button class="tab" data-v="month">Month</button>
+    <button class="tab" data-v="agenda">Agenda</button>
+  </div></div>
 
-    <!-- Section 1 · TODAY -->
-    <div class="exec-head">
-        <div class="exec-head-main">
-            <div class="exec-eyebrow">Today</div>
-            <div class="exec-date"><span class="exec-dow">{{ today.today_weekday }}</span>, {{ today.today_long }}</div>
+  <div class="wrap">
+
+    <!-- ============ DAY (server-rendered life story) ============ -->
+    <section class="view on" data-v="day">
+      <div class="head">
+        <div><div class="kicker">Today</div><h1 class="day-date serif">{{ life.date_serif }}</h1></div>
+        <div class="clock" id="cal-clock">{{ life.clock }}</div>
+      </div>
+      {% if life.opening %}<p class="opening">{{ life.opening }}</p>{% endif %}
+
+      {% for ch in life.chapters %}
+      <div class="chapter{% if ch.is_work %} work{% endif %}">
+        <div class="ch-head">
+          <span class="ch-name serif">{{ ch.name }}</span>
+          <span class="ch-sub">{{ ch.sub }}{% if ch.here %} · <span class="here">you're here</span>{% endif %}</span>
         </div>
-        <div class="exec-meta">
-            <div class="exec-clock" id="exec-clock">—</div>
-            <div class="exec-subtle" id="exec-tz"></div>
+        {% if ch.is_work %}<div class="field">{% endif %}
+        <div class="moments">
+          {% for m in ch.moments %}
+            {% if m.is_now_marker %}
+            <div class="nowrow"><span class="nd"></span><span class="lbl">NOW · {{ m.time_label }}</span><span class="ln"></span></div>
+            {% else %}
+            <div class="m {{ m.state }}{% if m.is_rel %} rel{% endif %}" data-source-type="{{ m.source_type }}" data-source-id="{{ m.source_id }}" data-event-id="{{ m.event_id }}">
+              <span class="lead-col">
+                {% if m.is_person %}<span class="avatar" style="background:{{ m.color }}">{{ m.person_initial }}</span>
+                {% else %}<span class="node" style="border-color:{{ m.color }}"></span>{% endif %}
+              </span>
+              <span class="tm">{{ m.time_label }}</span>
+              <div class="body"><div class="ti">{{ m.title }}{% if m.is_next %} <span class="next">NEXT</span>{% endif %}</div></div>
+            </div>
+            {% endif %}
+          {% endfor %}
         </div>
-    </div>
+        {% if ch.is_work %}{% if ch.ambient %}<div class="ambient">{{ ch.ambient }}</div>{% endif %}</div>{% endif %}
+      </div>
+      {% empty %}
+      <div class="empty" style="margin-top:28px;">Nothing on your day yet. Add moments, or set your availability.</div>
+      {% endfor %}
 
-    <!-- Section 2 · AT A GLANCE -->
-    <div class="exec-glance">
-        <div class="exec-stat"><div class="exec-stat-label">Committed</div><div class="exec-stat-value">{{ today.glance.committed }}</div></div>
-        <div class="exec-stat free"><div class="exec-stat-label">Available</div><div class="exec-stat-value">{{ today.glance.available }}</div></div>
-        <div class="exec-stat accent"><div class="exec-stat-label">Due Today</div><div class="exec-stat-value">{{ today.glance.due_count }}</div></div>
-        <div class="exec-stat"><div class="exec-stat-label">Events</div><div class="exec-stat-value">{{ today.glance.events_count }}</div></div>
-    </div>
+      {% if life.due %}
+      <div class="coda">
+        <div class="coda-h">Still to place <span class="n">no set time</span></div>
+        {% for d in life.due %}
+        <div class="todo" data-source-type="{{ d.source_type }}" data-source-id="{{ d.source_id }}" data-event-id="{{ d.event_id }}"><span class="bx"></span><span class="t">{{ d.title }}</span></div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
-    <div class="exec-grid">
-        <!-- MAIN COLUMN -->
-        <div class="exec-col">
+      {% if recommendations %}
+      <div class="coda">
+        <div class="coda-h">A thought <span class="n">not on your day</span></div>
+        {% for s in recommendations %}
+        <div class="rec"><div class="t">{{ s.title }}</div></div>
+        {% endfor %}
+      </div>
+      {% endif %}
 
-            <!-- Section 3 · TIME COMMITMENTS -->
-            <div class="exec-section">
-                <div class="exec-section-head">
-                    <span class="exec-section-title">Time Commitments</span>
-                    <span class="exec-section-note">Reality — what actually holds your time</span>
-                </div>
-                {% for c in today.commitments %}
-                <div class="exec-commit {% if c.is_availability %}availability{% endif %}" data-source-type="{{ c.source_type }}" data-source-id="{{ c.source_id }}" data-event-id="{{ c.event_id }}">
-                    <div class="exec-commit-time">{{ c.time_label }}{% if c.is_range %}<span class="to">{{ c.end_label }}</span>{% endif %}</div>
-                    <div class="exec-rail" style="background: {{ c.domain_color }}"></div>
-                    <div class="exec-commit-body">
-                        <div class="exec-commit-title">{{ c.title }}</div>
-                        {% if c.is_availability %}<div class="exec-commit-tag">Availability</div>{% endif %}
-                    </div>
-                </div>
-                {% empty %}
-                <div class="exec-empty">Nothing on the clock yet today.</div>
-                {% endfor %}
-            </div>
+      <div class="coda">
+        <div class="coda-h">Availability</div>
+        <a href="{% url 'calendar_engine:availability' %}" class="rec"><span class="t" style="color:var(--c-now);">Set when you're available &rarr;</span></a>
+      </div>
+    </section>
 
-            <!-- Section 4 · DUE TODAY -->
-            <div class="exec-section">
-                <div class="exec-section-head">
-                    <span class="exec-section-title">Due Today</span>
-                    <span class="exec-section-note">Obligations — no set time</span>
-                </div>
-                {% for d in today.due_today %}
-                <div class="exec-due" data-source-type="{{ d.source_type }}" data-source-id="{{ d.source_id }}" data-event-id="{{ d.event_id }}">
-                    <span class="exec-check" style="border-color: {{ d.domain_color }}"></span>
-                    <span class="exec-due-title">{{ d.title }}</span>
-                </div>
-                {% empty %}
-                <div class="exec-empty">Nothing due today.</div>
-                {% endfor %}
-            </div>
-
-            <!-- Section 5 · TODAY'S RHYTHMS -->
-            <div class="exec-section">
-                <div class="exec-section-head">
-                    <span class="exec-section-title">Today's Rhythms</span>
-                    <span class="exec-section-note">The heartbeat of your day</span>
-                </div>
-                {% for g in today.rhythm_groups %}
-                <div class="exec-rhythm-group">
-                    <div class="exec-rhythm-label">{{ g.label }}</div>
-                    <div class="exec-chips">
-                        {% for it in g.items %}
-                        <span class="exec-chip" data-source-type="{{ it.source_type }}" data-source-id="{{ it.source_id }}" data-event-id="{{ it.event_id }}">
-                            <span class="dot" style="background: {{ it.domain_color }}"></span>{{ it.title }} <span class="t">{{ it.time_label }}</span>
-                        </span>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% empty %}
-                <div class="exec-empty">No routines scheduled today.</div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- RAIL -->
-        <div class="exec-col">
-
-            <!-- Section 6 · AVAILABLE TIME -->
-            <div class="exec-section">
-                <div class="exec-section-head">
-                    <span class="exec-section-title">Available Time</span>
-                    <span class="exec-section-note">What's left</span>
-                </div>
-                {% for w in today.available_windows %}
-                <div class="exec-free">
-                    <div class="exec-free-window">{{ w.start_label }} – {{ w.end_label }}</div>
-                    <div class="exec-free-dur">{{ w.label }} free</div>
-                </div>
-                {% empty %}
-                <div class="exec-empty">No open time left today.</div>
-                {% endfor %}
-            </div>
-
-            <!-- Quick add -->
-            <div class="exec-section">
-                <div class="exec-section-head"><span class="exec-section-title">Quick Add</span></div>
-                <div class="exec-quick">
-                    <input type="text" id="cal-quick-input" placeholder="Dinner 6:30pm" />
-                    <button id="cal-quick-submit">Add</button>
-                </div>
-            </div>
-
-            <!-- Section 7 · SMART RECOMMENDATIONS -->
-            <div class="exec-section">
-                <div class="exec-section-head">
-                    <span class="exec-section-title">Smart Recommendations</span>
-                    <span class="exec-section-note">Strategy, not commitments</span>
-                </div>
-                <div id="cal-suggestions-list">
-                    {% for s in suggestions %}
-                    <div class="exec-rec cal-suggestion-item" data-source-type="{{ s.source_type }}" data-source-id="{{ s.source_id }}" data-start="{{ s.start_dt }}" data-end="{{ s.end_dt }}" data-title="{{ s.title }}">
-                        <div class="exec-rec-title">{{ s.title }}</div>
-                        <div class="exec-rec-detail">{{ s.rationale }}</div>
-                        <div class="exec-rec-actions">
-                            <button class="cal-suggestion-accept exec-rec-accept">Schedule it</button>
-                            <button class="cal-suggestion-decline">Dismiss</button>
-                        </div>
-                    </div>
-                    {% empty %}
-                    <div class="exec-empty" id="cal-no-suggestions">No recommendations right now.</div>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- Availability shortcut -->
-            <div class="exec-section">
-                <div class="exec-section-head"><span class="exec-section-title">Availability</span></div>
-                <div class="exec-rec-detail" style="margin-bottom:0.6rem;">Define work hours, sleep, focus time, PTO — so the Calendar knows when you're free.</div>
-                <a href="{% url 'calendar_engine:availability' %}" class="cal-modal-btn">Manage availability &rarr;</a>
-            </div>
-        </div>
-    </div>
-
-    <!-- Section 8 · TRADITIONAL CALENDAR (supporting) -->
-    <div class="exec-views">
-        <div class="exec-views-head">
-            <span class="exec-views-title">Calendar</span>
-            <div class="cal-view-toggles" id="cal-view-toggles">
-                <button class="cal-view-btn active" data-view="today">Day</button>
-                <button class="cal-view-btn" data-view="3day">3-Day</button>
-                <button class="cal-view-btn" data-view="week">Week</button>
-                <button class="cal-view-btn" data-view="agenda">Agenda</button>
-                <a class="cal-view-btn" href="{% url 'calendar_engine:month' %}">Month</a>
-            </div>
-        </div>
-        <div class="cal-timeline">
-            <div style="margin-bottom:0.75rem;"><span class="cal-timeline-date" id="cal-date-label"></span></div>
-            <div id="cal-constraints-container"></div>
-            <div id="cal-unscheduled-container"></div>
-            <div id="cal-events-container"><div class="cal-empty-state">Loading…</div></div>
-        </div>
-    </div>
+    <!-- ============ other perspectives (client-rendered) ============ -->
+    <section class="view" data-v="d3"><div class="vloading">Loading…</div></section>
+    <section class="view" data-v="week"><div class="vloading">Loading…</div></section>
+    <section class="view" data-v="month"><div class="vloading">Loading…</div></section>
+    <section class="view" data-v="agenda"><div class="vloading">Loading…</div></section>
+  </div>
 </div>
 
-<!-- Event Edit Modal -->
-<div class="cal-modal-overlay" id="cal-event-edit-modal">
-    <div class="cal-modal">
-        <h3 id="cal-event-edit-title">Edit Event</h3>
-        <input type="hidden" id="cal-event-edit-id" />
-        <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-name">Title</label><input type="text" class="cal-form-input" id="cal-event-edit-name" /></div>
-        <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-desc">Description</label><input type="text" class="cal-form-input" id="cal-event-edit-desc" /></div>
-        <div class="cal-form-row">
-            <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-start">Start</label><input type="datetime-local" class="cal-form-input" id="cal-event-edit-start" /></div>
-            <div class="cal-form-group"><label class="cal-form-label" for="cal-event-edit-end">End</label><input type="datetime-local" class="cal-form-input" id="cal-event-edit-end" /></div>
-        </div>
-        <div class="cal-modal-actions">
-            <button class="cal-modal-btn" id="cal-event-edit-cancel">Cancel</button>
-            <button class="cal-modal-btn danger" id="cal-event-edit-delete">Delete</button>
-            <button class="cal-modal-btn primary" id="cal-event-edit-save">Save</button>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
 <script nonce="{{ csp_nonce }}">
-(function() {
-    'use strict';
-    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
-    var currentView = 'today';
-    var eventsCache = [];
+(function(){
+  'use strict';
+  var CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
 
-    function api(url, options) {
-        const defaults = { headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, credentials: 'same-origin' };
-        return fetch(url, Object.assign(defaults, options)).then(function(r) {
-            return r.json().then(function(d){ return { ok:r.ok, status:r.status, data:d }; }).catch(function(){ return { ok:r.ok, status:r.status, data:{} }; });
-        });
-    }
-    function escHtml(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
-    function toast(msg, type){ var e=document.querySelector('.cal-status-toast'); if(e)e.remove(); var el=document.createElement('div'); el.className='cal-status-toast'; el.textContent=msg; document.body.appendChild(el); setTimeout(function(){el.style.opacity='0';},2500); setTimeout(function(){el.remove();},3000); }
-    function fmtTime(iso){ var m=(iso||'').match(/T(\d{2}):(\d{2})/); if(!m)return ''; var h=parseInt(m[1],10),ap=h>=12?'PM':'AM'; h=h%12||12; return h+(m[2]>'00'?':'+m[2]:':'+m[2])+' '+ap; }
-    function fmtDateTime(iso){ var m=(iso||'').match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); if(!m)return ''; return m[2]+'/'+m[3]+' '+fmtTime(iso); }
-    function toLocalInput(iso){ var m=(iso||'').match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/); return m?m[1]:''; }
-    function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-    function dateOffset(n){ var d=new Date(); d.setDate(d.getDate()+n); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  // ── Live clock ──
+  function tick(){ var el=document.getElementById('cal-clock'); if(el){ var d=new Date(); el.textContent=d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } }
+  tick(); setInterval(tick, 20000);
 
-    // ── Live clock ──
-    function tick(){
-        var now=new Date();
-        var el=document.getElementById('exec-clock');
-        if(el) el.textContent=now.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
-    }
-    tick(); setInterval(tick, 15000);
-    try { document.getElementById('exec-tz').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.replace('_',' '); } catch(e){}
+  // ── Owner routing — click a moment, edit its owning object ──
+  var SOURCE_URLS = {
+    'task':'/life/tasks/{id}/edit/','life_event':'/life/events/{id}/edit/',
+    'goal':'/purpose/goals/{id}/','goal_milestone':'/purpose/milestones/{id}/edit/',
+    'habit':'/purpose/habits/{id}/','medicine_schedule':'/health/physical/intake/',
+    'workout_schedule':'/health/physical/fitness/workouts/','faith_routine':'/faith/reading-plans/',
+    'availability':"{% url 'calendar_engine:availability' %}"
+  };
+  function routeToOwner(st, sid){
+    var url=SOURCE_URLS[st];
+    if(st && st!=='none' && url){ window.location.href = url.indexOf('{id}')>=0 ? url.replace('{id}', sid) : url; }
+  }
+  document.querySelector('.cal10').addEventListener('click', function(e){
+    var it=e.target.closest('[data-source-type]'); if(!it) return;
+    routeToOwner(it.dataset.sourceType, it.dataset.sourceId);
+  });
 
-    // ── Owner routing — click an item, edit its owning object ──
-    var SOURCE_URLS = {
-        'task':'/life/tasks/{id}/edit/', 'life_event':'/life/events/{id}/edit/',
-        'goal':'/purpose/goals/{id}/', 'goal_milestone':'/purpose/milestones/{id}/edit/',
-        'habit':'/purpose/habits/{id}/', 'medicine_schedule':'/health/physical/intake/',
-        'workout_schedule':'/health/physical/fitness/workouts/', 'faith_routine':'/faith/reading-plans/',
-        'availability':"{% url 'calendar_engine:availability' %}"
-    };
-    function routeToOwner(st, sid, eventId){
-        var url=SOURCE_URLS[st];
-        if(st && st!=='none' && url){ window.location.href = url.indexOf('{id}')>=0 ? url.replace('{id}', sid) : url; return; }
-        if(eventId) openEventEditById(eventId);
-    }
-    function bindRoute(containerId, itemSel){
-        var c=document.getElementById(containerId); if(!c) return;
-        c.addEventListener('click', function(e){
-            if(e.target.closest('.cal-suggestion-accept')||e.target.closest('.cal-suggestion-decline')) return;
-            var it=e.target.closest(itemSel); if(!it) return;
-            routeToOwner(it.dataset.sourceType, it.dataset.sourceId, Number(it.dataset.eventId));
-        });
-    }
-    // Executive sections are server-rendered — delegate on document.
-    document.querySelector('.exec').addEventListener('click', function(e){
-        var it=e.target.closest('.exec-commit, .exec-due, .exec-chip');
-        if(!it) return;
-        routeToOwner(it.dataset.sourceType, it.dataset.sourceId, Number(it.dataset.eventId));
+  // ── helpers ──
+  function api(url){ return fetch(url,{credentials:'same-origin',headers:{'X-CSRFToken':CSRF}}).then(function(r){return r.json();}); }
+  function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+  function iso(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function offset(n){ var d=new Date(); d.setDate(d.getDate()+n); return iso(d); }
+  function fmtTime(s){ var m=(s||'').match(/T(\d{2}):(\d{2})/); if(!m)return ''; var h=parseInt(m[1],10),ap=h>=12?'PM':'AM'; h=h%12||12; return h+':'+m[2]+' '+ap; }
+  function dayName(s){ var m=(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m)return ''; var d=new Date(+m[1],+m[2]-1,+m[3]); return d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); }
+  function isTimeless(e){ return e.event_kind==='deadline_marker' || e.is_all_day; }
+  function timedOnly(evs){ return (evs||[]).filter(function(e){ return !isTimeless(e) && e.event_kind!=='availability'; }); }
+
+  // ── renderers ──
+  function renderAgenda(el, evs, dayCap){
+    var byDay={}, order=[];
+    timedOnly(evs).sort(function(a,b){return a.start_dt<b.start_dt?-1:1;}).forEach(function(e){
+      var d=e.start_dt.slice(0,10); if(!byDay[d]){byDay[d]=[];order.push(d);} byDay[d].push(e);
     });
+    if(dayCap) order=order.slice(0,dayCap);
+    if(!order.length){ el.innerHTML='<div class="empty">Nothing ahead.</div>'; return; }
+    var today=iso(new Date()), h='';
+    order.forEach(function(d){
+      h+='<div class="ag-day">'+(d===today?'Today · ':'')+dayName(d)+'</div>';
+      byDay[d].forEach(function(e){
+        h+='<div class="ag" data-source-type="'+esc(e.source_type)+'" data-source-id="'+esc(e.source_id)+'"><span class="t">'+fmtTime(e.start_dt)+'</span><span class="d" style="background:'+(e.domain_color||'#79839a')+'"></span><span class="nm">'+esc(e.title)+'</span></div>';
+      });
+    });
+    el.innerHTML=h;
+  }
 
-    // ── Edit modal (native calendar events) ──
-    function openEventEditById(id){
-        api('/calendar/api/events/'+id+'/').then(function(resp){
-            if(!resp.ok||!resp.data.event){ return; }
-            var evt=resp.data.event;
-            document.getElementById('cal-event-edit-id').value=evt.id;
-            document.getElementById('cal-event-edit-name').value=evt.title;
-            document.getElementById('cal-event-edit-desc').value=evt.description||'';
-            document.getElementById('cal-event-edit-start').value=toLocalInput(evt.start_dt);
-            document.getElementById('cal-event-edit-end').value=toLocalInput(evt.end_dt);
-            document.getElementById('cal-event-edit-title').textContent='Edit: '+evt.title;
-            document.getElementById('cal-event-edit-modal').classList.add('active');
-        });
-    }
-    function closeEventEdit(){ document.getElementById('cal-event-edit-modal').classList.remove('active'); }
-    document.getElementById('cal-event-edit-cancel').addEventListener('click', closeEventEdit);
-    document.getElementById('cal-event-edit-modal').addEventListener('click', function(e){ if(e.target===this) closeEventEdit(); });
-    document.getElementById('cal-event-edit-save').addEventListener('click', function(){
-        var id=document.getElementById('cal-event-edit-id').value;
-        api('/calendar/api/events/'+id+'/', { method:'PATCH', body: JSON.stringify({
-            title:document.getElementById('cal-event-edit-name').value,
-            description:document.getElementById('cal-event-edit-desc').value,
-            start_dt:document.getElementById('cal-event-edit-start').value,
-            end_dt:document.getElementById('cal-event-edit-end').value,
-        })}).then(function(resp){ if(resp.ok){ closeEventEdit(); toast('Updated.'); loadView(currentView); reloadToday(); } else { toast(resp.data.error||'Update failed.'); } });
+  function renderWeek(el, evs){
+    // 7 day rows, each a life-thread of dots; work band from availability.
+    var start=new Date(); start.setDate(start.getDate()-((start.getDay()+6)%7)); // Monday
+    var days=[]; for(var i=0;i<7;i++){ var d=new Date(start); d.setDate(start.getDate()+i); days.push(d); }
+    var todayS=iso(new Date());
+    function pct(s){ var m=s.match(/T(\d{2}):(\d{2})/); if(!m)return 50; var v=parseInt(m[1],10)+parseInt(m[2],10)/60; return Math.max(0,Math.min(100,(v-6)/16*100)); }
+    var h='<p class="lead">Your week, as it’s actually lived — faith, work, movement, meals, and the people you make time for.</p>';
+    days.forEach(function(d){
+      var ds=iso(d), dayEvs=(evs||[]).filter(function(e){return e.start_dt.slice(0,10)===ds;});
+      var band='';
+      dayEvs.filter(function(e){return e.event_kind==='availability' && !e.is_available;}).forEach(function(e){
+        band+='<div class="wl-band" style="left:'+pct(e.start_dt)+'%;right:'+(100-pct(e.end_dt))+'%"></div>';
+      });
+      var dots='';
+      timedOnly(dayEvs).forEach(function(e){ dots+='<div class="wl-dot" style="left:'+pct(e.start_dt)+'%;background:'+(e.domain_color||'#79839a')+'"></div>'; });
+      var lbl=d.toLocaleDateString(undefined,{weekday:'short'})+' '+d.getDate();
+      h+='<div class="wl-row'+(ds===todayS?' today':'')+'"><div class="wl-day">'+lbl+'</div><div class="wl-track">'+band+dots+'</div><div class="wl-tag">'+(ds===todayS?'Today':'')+'</div></div>';
     });
-    document.getElementById('cal-event-edit-delete').addEventListener('click', function(){
-        var id=document.getElementById('cal-event-edit-id').value;
-        if(!window.confirm('Delete this event?')) return;
-        api('/calendar/api/events/'+id+'/', { method:'DELETE' }).then(function(resp){ if(resp.ok){ closeEventEdit(); toast('Deleted.'); loadView(currentView); reloadToday(); } });
-    });
-    function reloadToday(){ /* executive sections refresh on next full load */ }
+    el.innerHTML=h;
+  }
 
-    // ── Traditional calendar (supporting) ──
-    function renderConstraints(items){
-        var el=document.getElementById('cal-constraints-container'); if(!el)return;
-        if(!items||!items.length){ el.innerHTML=''; return; }
-        var h='<div class="cal-constraints"><div class="cal-constraints-title">Availability</div>';
-        items.forEach(function(v){ h+='<div class="cal-constraint-item" data-event-id="'+v.id+'"><span class="cal-constraint-time">'+fmtTime(v.start_dt)+' — '+fmtTime(v.end_dt)+'</span><span>'+escHtml(v.title)+'</span></div>'; });
-        el.innerHTML=h+'</div>';
-    }
-    function renderUnscheduled(items){
-        var el=document.getElementById('cal-unscheduled-container'); if(!el)return;
-        if(!items||!items.length){ el.innerHTML=''; return; }
-        var h='<div class="cal-unscheduled"><div class="cal-unscheduled-title">Due — no time</div><ul class="cal-unscheduled-list">';
-        items.forEach(function(v){ var n=(v.title||'').replace(/^Due:\s*/,''); h+='<li class="cal-unscheduled-item" data-source-type="'+escHtml(v.source_type||'none')+'" data-source-id="'+escHtml(v.source_id||'')+'" data-event-id="'+v.id+'">'+escHtml(n)+'</li>'; });
-        el.innerHTML=h+'</ul></div>';
-    }
-    function renderEvents(events, label){
-        document.getElementById('cal-date-label').textContent=label||'Today';
-        eventsCache=events||[];
-        var timed=[],unsch=[],constr=[];
-        (events||[]).forEach(function(v){ if(v.event_kind==='availability')constr.push(v); else if(v.event_kind==='deadline_marker')unsch.push(v); else timed.push(v); });
-        renderConstraints(constr); renderUnscheduled(unsch);
-        var c=document.getElementById('cal-events-container');
-        if(!timed.length){ c.innerHTML=unsch.length?'<div class="cal-empty-state">Nothing at a set time.</div>':'<div class="cal-empty-state">Nothing scheduled.</div>'; return; }
-        var groups={};
-        timed.forEach(function(v){ var m=v.start_dt.match(/T(\d{2}):/); var hr=m?parseInt(m[1],10):0; (groups[hr]=groups[hr]||[]).push(v); });
-        var h='';
-        Object.keys(groups).map(Number).sort(function(a,b){return a-b;}).forEach(function(hr){
-            var ap=hr>=12?'PM':'AM', h12=hr%12||12;
-            h+='<div class="cal-hour-group"><span class="cal-hour-label">'+h12+' '+ap+'</span><div class="cal-hour-events">';
-            groups[hr].forEach(function(v){ h+='<div class="cal-event-item" data-source-type="'+escHtml(v.source_type||'none')+'" data-source-id="'+escHtml(v.source_id||'')+'" data-event-id="'+v.id+'" style="border-left-color:'+(v.domain_color||'var(--color-accent)')+'"><div><div class="cal-event-title">'+escHtml(v.title)+'</div><div class="cal-event-time">'+fmtTime(v.start_dt)+' — '+fmtTime(v.end_dt)+(v.domain?' · '+escHtml(v.domain):'')+'</div></div></div>'; });
-            h+='</div></div>';
-        });
-        c.innerHTML=h;
-    }
-    function loadView(view){
-        currentView=view;
-        var start=todayISO(), end=todayISO(), label='Today';
-        if(view==='3day'){ end=dateOffset(2); label='Next 3 Days'; }
-        else if(view==='week'){ end=dateOffset(6); label='This Week'; }
-        else if(view==='agenda'){ end=dateOffset(13); label='Agenda'; }
-        api('/calendar/api/range/?start='+start+'&end='+end).then(function(resp){ if(resp.ok) renderEvents(resp.data.events, label); });
-    }
-    document.getElementById('cal-view-toggles').addEventListener('click', function(e){
-        var b=e.target.closest('button.cal-view-btn'); if(!b) return;
-        document.querySelectorAll('.cal-view-btn').forEach(function(x){ x.classList.remove('active'); });
-        b.classList.add('active'); loadView(b.dataset.view);
+  function renderMonth(el, evs){
+    // The month's story = its multi-day + all-day life chapters, in order.
+    var chapters=(evs||[]).filter(function(e){
+      if(e.event_kind==='availability') return false;
+      var s=new Date(e.start_dt), en=new Date(e.end_dt);
+      return e.is_all_day || (en-s) >= 20*3600*1000; // all-day or multi-day
+    }).sort(function(a,b){return a.start_dt<b.start_dt?-1:1;});
+    var now=new Date();
+    var h='<div class="head"><div><div class="kicker">This month</div><h1 class="day-date serif">'+now.toLocaleDateString(undefined,{month:'long'})+'</h1></div></div>';
+    if(!chapters.length){ el.innerHTML=h+'<div class="empty" style="margin-top:18px;">No trips, milestones, or multi-day plans yet this month.</div>'; return; }
+    h+='<div style="margin-top:18px;">';
+    chapters.forEach(function(e){
+      var sd=dayName(e.start_dt), ed=e.end_dt.slice(0,10)!==e.start_dt.slice(0,10)?(' – '+dayName(e.end_dt)):'';
+      h+='<div class="mchap" data-source-type="'+esc(e.source_type)+'" data-source-id="'+esc(e.source_id)+'"><div class="mbar" style="background:'+(e.domain_color||'#79839a')+'"></div><div style="display:flex;gap:16px;flex:1;"><div class="when">'+sd+ed+'</div><div><div class="mt serif">'+esc(e.title)+'</div>'+(e.domain?'<div class="mw">'+esc(e.domain)+'</div>':'')+'</div></div></div>';
     });
-    bindRoute('cal-events-container', '.cal-event-item');
-    bindRoute('cal-unscheduled-container', '.cal-unscheduled-item');
-    document.getElementById('cal-constraints-container').addEventListener('click', function(e){ if(e.target.closest('.cal-constraint-item')) window.location.href="{% url 'calendar_engine:availability' %}"; });
+    el.innerHTML=h+'</div>';
+  }
 
-    // ── Quick add ──
-    document.getElementById('cal-quick-submit').addEventListener('click', function(){
-        var i=document.getElementById('cal-quick-input'); var t=i.value.trim(); if(!t) return;
-        api('/calendar/api/nlp_create/', { method:'POST', body: JSON.stringify({ text:t }) }).then(function(resp){ if(resp.ok){ i.value=''; toast('Added.'); loadView(currentView); } });
-    });
-    document.getElementById('cal-quick-input').addEventListener('keydown', function(e){ if(e.key==='Enter') document.getElementById('cal-quick-submit').click(); });
-
-    // ── Recommendations accept/decline ──
-    document.getElementById('cal-suggestions-list').addEventListener('click', function(e){
-        var a=e.target.closest('.cal-suggestion-accept'), d=e.target.closest('.cal-suggestion-decline');
-        if(!a&&!d) return;
-        var item=(a||d).closest('.cal-suggestion-item');
-        if(a){
-            api('/calendar/api/suggestions/accept/', { method:'POST', body: JSON.stringify({ source_type:item.dataset.sourceType, source_id:item.dataset.sourceId, start_dt:item.dataset.start, end_dt:item.dataset.end, title:item.dataset.title }) })
-                .then(function(resp){ if(resp.ok){ item.remove(); toast('Scheduled.'); loadView(currentView); } });
-        } else {
-            api('/calendar/api/suggestions/decline/', { method:'POST', body: JSON.stringify({ source_type:item.dataset.sourceType, source_id:item.dataset.sourceId }) })
-                .then(function(resp){ if(resp.ok) item.remove(); });
-        }
-    });
-    // Fill recommendation times.
-    document.querySelectorAll('.cal-suggestion-item').forEach(function(el){
-        var d=el.querySelector('.exec-rec-detail'); if(!d) return;
-        var s=el.dataset.start; if(s){ /* keep rationale; append time subtly */ }
-    });
-
-    // ── Init ──
-    loadView('today');
+  // ── tab activation (lazy load) ──
+  var loaded={day:true};
+  function activate(v){
+    document.querySelectorAll('.cal10 .tab').forEach(function(t){ t.classList.toggle('on', t.dataset.v===v); });
+    document.querySelectorAll('.cal10 .view').forEach(function(s){ s.classList.toggle('on', s.dataset.v===v); });
+    if(loaded[v]) { window.scrollTo(0,0); return; }
+    loaded[v]=true;
+    var el=document.querySelector('.cal10 .view[data-v="'+v+'"]');
+    if(v==='agenda'){ api('/calendar/api/range/?start='+iso(new Date())+'&end='+offset(21)).then(function(r){ renderAgenda(el, r.events); }); }
+    else if(v==='d3'){ api('/calendar/api/range/?start='+iso(new Date())+'&end='+offset(2)).then(function(r){ renderAgenda(el, r.events, 3); }); }
+    else if(v==='week'){ var mon=new Date(); mon.setDate(mon.getDate()-((mon.getDay()+6)%7)); var e2=new Date(mon); e2.setDate(mon.getDate()+6); api('/calendar/api/range/?start='+iso(mon)+'&end='+iso(e2)).then(function(r){ renderWeek(el, r.events); }); }
+    else if(v==='month'){ var d=new Date(), s=new Date(d.getFullYear(),d.getMonth(),1), en=new Date(d.getFullYear(),d.getMonth()+1,0); api('/calendar/api/range/?start='+iso(s)+'&end='+iso(en)).then(function(r){ renderMonth(el, r.events); }); }
+    window.scrollTo(0,0);
+  }
+  document.getElementById('cal-tabs').addEventListener('click', function(e){
+    var b=e.target.closest('.tab'); if(!b) return; activate(b.dataset.v);
+  });
 })();
 </script>
 {% endblock %}

@@ -86,8 +86,8 @@ class ReconciliationBriefTests(TestCase):
 
     def test_production_case_reconciles_and_never_asserts_energy(self):
         out = self._brief(6.4, "positive")
-        self.assertIn("encouraging", out)
-        self.assertIn("lived experience", out)
+        self.assertIn("good to hear", out)                   # natural voice
+        self.assertIn("if you're feeling good", out)         # weighs the user's own report
         # The production failure line must be gone.
         self.assertNotIn("bigger challenge today", out)
         self.assertNotIn("it's your energy", out)
@@ -117,5 +117,5 @@ class RoutedReconciliationTests(TestCase):
                 self.conv)
         self.assertEqual(out["lane"], "conversation_brief")
         low = out["answer"].lower()
-        self.assertIn("encouraging", low)
+        self.assertIn("good to hear", low)                   # natural voice
         self.assertNotIn("bigger challenge today", low)

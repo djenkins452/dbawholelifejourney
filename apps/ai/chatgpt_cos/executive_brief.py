@@ -187,9 +187,9 @@ def _momentum_story(sig):
     if not acc:
         return ""
     joined = acc[0] if len(acc) == 1 else ", ".join(acc[:-1]) + " and " + acc[-1]
-    return (f"First, you've already {joined} today — so you're ahead of plan, not behind "
-            "it. That earns some recovery latitude, and I'll factor it into today's "
-            "priorities.")
+    return (f"First, you've already {joined} today — so you're ahead of where the day "
+            "expected you to be. That gives you room to ease off later without losing "
+            "any ground.")
 
 
 def _foundation_story(sig):
@@ -202,6 +202,22 @@ def _foundation_story(sig):
     joined = fnd[0] if len(fnd) == 1 else ", ".join(fnd[:-1]) + " and " + fnd[-1]
     return (f"You've started the day the right way — you've already got your {joined} in, "
             "so the foundation of your day is set before anything else asks for you.")
+
+
+def _mission_thesis(sig):
+    """The day's THROUGH-LINE when the primary mission is advanced by daily health
+    execution (parent→child). Frames nutrition/training/weight/sleep as the mission
+    itself — one strategy — rather than a separate priority "to move forward". This is
+    the dominant executive idea the rest of the read supports."""
+    m = getattr(sig, "mission", None) or {}
+    title = m.get("title")
+    if not title or m.get("advanced_by") != "health":
+        return ""
+    return (f"And here's the through-line to hold onto: the everyday work you're already "
+            f"putting in — your nutrition, your training, your weight and sleep — is "
+            f"exactly what moves {title} forward. It isn't one more thing competing for "
+            f"your time; it IS the mission, so you're advancing it today just by doing "
+            "the day well.")
 
 
 def _next_move_story(sig, user):
@@ -233,17 +249,18 @@ def _reconciliation_story(sig):
     visibly weighing lived experience against the objective signal, not ignoring it."""
     r = sig.reconciliation
     sh = getattr(sig, "sleep_hours", None)
-    num = f"{round(sh, 1)} hours" if isinstance(sh, (int, float)) and sh else "a short night"
+    if isinstance(sh, (int, float)) and sh:
+        _h = round(sh, 1)
+        num = f"{int(_h) if _h == int(_h) else _h} hours"
+    else:
+        num = "a short night"
     if r == "positive_over_debt":
-        # Hold BOTH truths: energy is fine (trust the lived report) AND the sleep debt is
-        # real (metabolic recovery still owed). That's the executive distinction — not an
-        # energy-management day, but still a recovery-management one.
-        return (f"That's actually encouraging. {num[0].upper()}{num[1:]} is below your "
-                "long-term goal, but what matters more this morning is that you're telling "
-                "me you feel refreshed — and I trust your lived experience. So today isn't "
-                "an energy-management day. It is still a recovery-management one, though: "
-                "your energy's there, but the sleep math hasn't gone away, so the move is "
-                "to use the good energy now and protect an earlier bedtime tonight.")
+        # Hold BOTH truths — energy is fine AND the short night still matters — but say it
+        # like a person, not with internal labels ("energy/recovery-management day").
+        return (f"That's good to hear. {num[0].upper()}{num[1:]} is a little under what "
+                "you're aiming for, but if you're feeling good, let's put that energy to "
+                "work today. Just make an earlier night a priority so the short sleep "
+                "doesn't start adding up.")
     if r == "confirmed_good":
         return ("Good to hear — and the numbers don't argue with you. Nothing about this "
                 "morning says slow down, so let's put that energy to work.")
@@ -270,8 +287,8 @@ def _thesis(sig):
     wl = sig.workload
     if wl in ("light", "manageable"):
         return ("Looking at everything together, today is more manageable than it "
-                "probably feels — you don't have an overloaded schedule, just a "
-                "healthy backlog that isn't actually due now.")
+                "probably feels — your schedule isn't overloaded, just a handful of "
+                "things on your list that aren't actually due today.")
     if wl == "full":
         return ("Looking at the whole picture, today is full but workable if we're "
                 "deliberate about the order things happen in.")
@@ -401,6 +418,13 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
     foundation = _foundation_story(sig)
     if foundation:
         story.append(foundation)
+    # MISSION THROUGH-LINE: the dominant executive idea. When the primary mission is
+    # advanced by the user's daily health execution, name that ONE strategy up front so
+    # the rest of the read (energy, the next move, what can wait) supports it — instead
+    # of the mission reading as a separate priority to "move forward".
+    mission_thesis = _mission_thesis(sig)
+    if mission_thesis:
+        story.append(mission_thesis)
     # The brief reflects what the user has already done today — straight from the one
     # executive picture (interpret merged it), no consumer-specific cache read.
     momentum = _momentum_story(sig)
@@ -426,7 +450,7 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
         else:
             story.append(_priority_story(sig))
     if sig.backlog_can_wait:
-        story.append("The rest of your backlog can wait — none of it is due today.")
+        story.append("The rest of what's on your list can wait — none of it is due today.")
     agenda = _agenda_narrative(user, sig.ease_load, deprioritized=sig.deprioritized)
     if agenda:
         story.append(agenda)

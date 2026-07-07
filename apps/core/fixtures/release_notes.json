@@ -4086,5 +4086,21 @@
       "created_at": "2026-07-07T14:00:00Z",
       "updated_at": "2026-07-07T14:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 257,
+    "fields": {
+      "title": "Your Chief of Staff connects today's work to your bigger mission — in plain language",
+      "description": "Your Chief of Staff now sees your biggest goal the way you do: not as one more task on the pile, but as the outcome your daily work is already building. When your health routine — nutrition, training, sleep — is what moves a mission like a big weight or fitness goal forward, it says so: today's effort is the mission, and you're already advancing it. The read is also one clear story with a single main point, spoken like a person rather than a report — no jargon, no software words, just a trusted right hand telling you what matters and why.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T15:00:00Z",
+      "updated_at": "2026-07-07T15:00:00Z"
+    }
   }
 ]

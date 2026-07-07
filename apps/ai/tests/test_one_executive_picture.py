@@ -57,7 +57,7 @@ class OneExecutivePictureTests(TestCase):
             ev.record_accomplishment(self.user, ACC)
             brief = compose_executive_brief(self.user).lower()
         self.assertIn("made up 2 missed workouts", brief)
-        self.assertIn("ahead of plan", brief)
+        self.assertIn("ahead of where the day expected", brief)   # accomplishment reflected (natural voice)
 
     # Decision Support presents the SHARED picture — not the cache.
     def test_decision_support_reads_the_picture_not_the_cache(self):

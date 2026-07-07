@@ -92,10 +92,12 @@ class ExecutiveSynthesisTests(SimpleTestCase):
         # 1. acknowledges the foundation (listening + accomplishment incorporated)
         self.assertIn("prayer and bible reading", brief)
         self.assertIn("foundation", brief)
-        # 2. distinguishes ENERGY from RECOVERY/metabolic
-        self.assertIn("energy-management day", brief)
-        self.assertIn("recovery-management", brief)
-        self.assertIn("bedtime", brief)
+        # 2. distinguishes ENERGY (use it) from RECOVERY (still protect sleep) — in
+        #    natural language, no internal "energy/recovery-management day" labels.
+        self.assertIn("put that energy to work", brief)
+        self.assertIn("earlier night", brief)
+        self.assertNotIn("energy-management day", brief)
+        self.assertNotIn("lived experience", brief)
         # 3. actionable, personalized next move tied to tonight's ACTUAL workout
         self.assertIn("protein", brief)
         self.assertIn("cardio", brief)

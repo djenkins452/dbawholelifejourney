@@ -30,6 +30,11 @@ class ExecutiveSignals:
     biggest_risk: str = ""
     highest_leverage: str = ""
     strategic_focus: str = ""
+    # ── The primary MISSION as a hierarchy, not a competing task. {title, advanced_by,
+    # current_focus}. When advanced_by == "health", today's health execution ADVANCES
+    # the mission (parent→child) — the composer frames it as the day's through-line
+    # rather than a separate priority "to move forward". ──
+    mission: dict = field(default_factory=dict)
     intervention_required: bool = False
     confidence: str = "medium"         # low|medium|high
     headline: str = ""                 # the one-line executive thesis
@@ -223,16 +228,24 @@ def _health_read(user):
     return out
 
 
-def _strategic_focus(user):
+def _mission_info(user):
+    """The primary mission as a hierarchy dict {title, advanced_by, current_focus}, or
+    {} when there is none. Read-only from the purpose domain snapshot."""
     try:
         from apps.ai.cos_services import get_domain_state
         st = (get_domain_state(user, "purpose").get("state") or {})
         m = st.get("mission")
-        if isinstance(m, dict):
-            return m.get("title") or ""
+        if isinstance(m, dict) and m.get("title"):
+            return {"title": m.get("title") or "",
+                    "advanced_by": m.get("advanced_by"),
+                    "current_focus": m.get("current_focus")}
     except Exception:
         pass
-    return ""
+    return {}
+
+
+def _strategic_focus(user):
+    return (_mission_info(user).get("title") or "")
 
 
 # ── Interpretation (the JUDGMENT — workload from horizon, not count) ───────
@@ -585,7 +598,9 @@ def interpret(user, low_energy=False, subjective=None):
     if not biggest_risk and recovery:
         biggest_risk = "sleep debt is the main thing to watch"
 
-    strategic = _strategic_focus(user)
+    mission_info = _mission_info(user)
+    strategic = mission_info.get("title") or ""
+    mission_is_health = mission_info.get("advanced_by") == "health"
     # Highest leverage is a JUDGMENT, not the first available task (P33.1: a routine
     # task must not outrank strategic leverage without justification). Priority:
     # recovery (when it's the limiting factor) > a real risk-driven move > the
@@ -595,6 +610,12 @@ def interpret(user, low_energy=False, subjective=None):
     if recovery:
         highest_leverage = ("protecting your sleep and energy today — that compounds "
                             "into everything else")
+    elif strategic and mission_is_health:
+        # A mission ADVANCED BY today's health execution is NOT a competing leverage
+        # item — it's the day's through-line. The composer's mission-thesis beat carries
+        # it; don't also emit it as a separate "move X forward" bullet (that's what made
+        # the mission read as another task).
+        highest_leverage = ""
     elif strategic:
         highest_leverage = (f"moving {strategic} forward — that's where the leverage "
                             "is today, not the routine items")
@@ -772,7 +793,8 @@ def interpret(user, low_energy=False, subjective=None):
         directive_explanations=directive_explanations,
         reconciliation=reconciliation,
         accomplishments=reported_accomplishments,
-        foundation=reported_foundation)
+        foundation=reported_foundation,
+        mission=mission_info)
 
 
 def _behavior_adapt(user):

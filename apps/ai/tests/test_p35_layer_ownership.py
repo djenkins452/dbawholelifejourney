@@ -30,7 +30,7 @@ class ComposerInventsNothingTests(SimpleTestCase):
         sig = ExecutiveSignals(workload="manageable", today_count=0)
         brief = _brief(sig)
         for invented in ("the bigger challenge", "because of that", "the real leverage",
-                         "backlog can wait", "keep an eye on", "it's your energy"):
+                         "can wait", "keep an eye on", "it's your energy"):
             self.assertNotIn(invented, brief, f"composer invented: {invented!r}")
 
     def test_no_risk_no_risk_sentence(self):
@@ -39,7 +39,7 @@ class ComposerInventsNothingTests(SimpleTestCase):
 
     def test_no_backlog_signal_no_backlog_sentence(self):
         sig = ExecutiveSignals(workload="manageable", today_count=1, backlog_can_wait=False)
-        self.assertNotIn("backlog can wait", _brief(sig))
+        self.assertNotIn("can wait", _brief(sig))
 
 
 class ComposerNarratesTheSignalTests(SimpleTestCase):
@@ -78,7 +78,7 @@ class ComposerNarratesTheSignalTests(SimpleTestCase):
         self.assertNotIn("shipping the investor deck", _brief(b))
 
     def test_backlog_disposition_comes_from_the_signal(self):
-        self.assertIn("backlog can wait",
+        self.assertIn("can wait",
                       _brief(ExecutiveSignals(workload="manageable", backlog_can_wait=True)))
 
 

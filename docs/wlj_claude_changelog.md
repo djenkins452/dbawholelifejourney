@@ -6,6 +6,53 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): executive voice + goal hierarchy — natural language, one mission thesis
+
+**Phase-2 reasoning gaps (truth already correct, the READ wasn't executive enough):**
+1. **Goal hierarchy.** Beth treated the primary mission "France 2027 Family 18K Mission"
+   as a competing priority ("the real leverage is moving France 2027 forward"). But the
+   mission is an OUTCOME advanced by the user's daily health execution — losing weight,
+   nutrition, cardio, sleep ARE France 2027. `interpret()` collapsed the mission to its
+   title and emitted it as a separate leverage/priority candidate.
+2. **Internal vocabulary leaked** to the user: "backlog", "I trust your lived experience",
+   "energy-management day", "recovery-management day", "recovery latitude".
+3. **Thesis drift** — the read started strong ("You've started the day right") then
+   drifted through sleep/protein/France/backlog without a single dominant idea.
+
+**Fix (existing architecture, no new engine, no redesign):**
+- **Hierarchy signal (deterministic, already in the data):** the primary mission's
+  milestones are wired to `objective_metric="weight_lb"` — the SAME metric health
+  execution moves. `build_goal_state` now exposes `mission["advanced_by"] = "health"`
+  when the mission's milestones use a health metric (or the goal is in a health domain).
+  Read-only, no migration.
+- **interpret():** new `_mission_info()` + `ExecutiveSignals.mission`. When
+  `advanced_by == "health"` it STOPS emitting the mission as a competing leverage bullet
+  (`highest_leverage=""`, so it also drops out of the priority-action ranking) — the
+  mission becomes the day's through-line, not a task.
+- **compose_executive_brief:** new `_mission_thesis` beat leads the read — "the everyday
+  work you're already putting in — your nutrition, your training, your weight and sleep —
+  is exactly what moves {mission} forward … it IS the mission" — one dominant idea the
+  rest supports. Reworded the reconciliation / thesis / momentum / backlog beats into
+  natural executive language (no "lived experience", "energy/recovery-management day",
+  "backlog", "recovery latitude").
+- **Natural-voice safety net:** new `apps/ai/chatgpt_cos/naturalize.py :: naturalize()` at
+  the `route_message` choke point (sibling of `response_coherence.harmonize`) translates
+  any leaked internal vocabulary — from deterministic beats AND LLM narration — into human
+  words ("backlog"→"open items", "energy-management day"→"a day to watch your energy", …).
+
+**Files:** apps/core/ai_state/state_builder.py (mission advanced_by),
+apps/ai/chatgpt_cos/executive_interpretation.py (mission signal + leverage reframe),
+apps/ai/chatgpt_cos/executive_brief.py (mission thesis + natural voice),
+apps/ai/chatgpt_cos/naturalize.py (new), apps/ai/chatgpt_cos/lanes.py (naturalize at choke
+point), apps/ai/tests/test_voice_and_hierarchy.py (new) + updated composer wording
+assertions (p33/p33_1/p34/p35/one_executive_picture/evidence_reconciliation/synthesis),
+apps/core/fixtures/release_notes.json (PK 257), apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_voice_and_hierarchy (6); ~340-test regression green (all composer/
+interpretation/reconciliation/mission/goal-state suites, request-path safety). No new engine;
+streaming/non-streaming parity preserved (all changes in the shared route_message pipeline +
+interpret/composer); no migration.
+
 ## 2026-07-07 — feat(calendar): complete the Availability capability (recurring work schedule + per-occurrence edits)
 
 **Why:** production review showed the Calendar still couldn't answer "when is Danny

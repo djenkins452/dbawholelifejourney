@@ -81,7 +81,7 @@ class ComposerOwnsFinalStoryTests(TestCase):
         # interpretation says "manageable"; the brief must NOT then echo "22 pending"
         brief = self._brief().lower()
         self.assertIn("manageable", brief)
-        self.assertIn("backlog", brief)
+        self.assertIn("can wait", brief)                  # not-due items distinguished (natural voice)
         self.assertNotIn("22 pending tasks", brief)
         self.assertNotIn("pending tasks", brief)
 

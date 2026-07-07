@@ -2000,8 +2000,10 @@ def route_message(user, message, conversation=None, page_context=None):
                 try:
                     from apps.ai.chatgpt_cos.response_coherence import harmonize
                     _pr["answer"] = harmonize(_pr["answer"], user)
+                    from apps.ai.chatgpt_cos.naturalize import naturalize
+                    _pr["answer"] = naturalize(_pr["answer"])
                 except Exception:
-                    logger.warning("route: coherence pass failed", exc_info=True)
+                    logger.warning("route: coherence/voice pass failed", exc_info=True)
                 try:
                     from apps.ai.chatgpt_cos.conversation_memory import record_last_answer
                     record_last_answer(conversation, "page_reference", _pr)
@@ -2024,8 +2026,13 @@ def route_message(user, message, conversation=None, page_context=None):
                     try:
                         from apps.ai.chatgpt_cos.response_coherence import harmonize
                         result["answer"] = harmonize(result["answer"], user)
+                        # NATURAL VOICE: translate any leaked internal vocabulary
+                        # ("backlog", "energy-management day", …) into human executive
+                        # language — catches deterministic AND LLM-narrated leaks.
+                        from apps.ai.chatgpt_cos.naturalize import naturalize
+                        result["answer"] = naturalize(result["answer"])
                     except Exception:
-                        logger.warning("route: coherence pass failed", exc_info=True)
+                        logger.warning("route: coherence/voice pass failed", exc_info=True)
                 # Record the structured memory of this turn so the NEXT follow-up is
                 # explained deterministically (conversation memory).
                 try:

@@ -73,7 +73,7 @@ class ExecutiveNarrativeTests(TestCase):
         low = self._brief().lower()
         self.assertIn("because of that", low)                 # explains WHY
         self.assertIn("count today as a win", low)            # a real recommendation
-        self.assertIn("backlog can wait", low)
+        self.assertIn("can wait", low)                        # not-due items set aside (natural voice)
         self.assertIn("keep it light", low)                   # bike ride reconciled w/ recovery
 
     def test_no_repeated_raw_evidence_or_coming_up(self):

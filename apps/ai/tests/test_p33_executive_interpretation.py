@@ -88,11 +88,11 @@ class ComposerNarratesJudgmentTests(TestCase):
         low = brief.lower()
         # the success criterion, demonstrated:
         self.assertIn("manageable", low)
-        self.assertIn("backlog", low)                  # backlog distinguished, can wait
+        self.assertIn("aren't actually due today", low)  # not-due items distinguished (natural voice)
         self.assertNotIn("22 pending", low)
         self.assertNotIn("is overloaded", low)
         self.assertNotIn("high workload", low)
-        self.assertIn("don't have an overloaded", low)   # explicitly negates overload
+        self.assertIn("isn't overloaded", low)           # explicitly negates overload
         # judgment scorer agrees
         j = eb.score_executive_judgment(brief)
         self.assertTrue(j["workload_interpreted"])

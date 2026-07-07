@@ -1766,8 +1766,26 @@ def build_goal_state(user):
         nm = mission_goal.next_milestone
         m_ctx = _build_goal_context(mission_goal)
         m_target = mission_goal.target_date
+        # PARENT→CHILD hierarchy signal: is this mission ADVANCED BY the user's daily
+        # health execution? Deterministic — the mission's milestones are wired to a
+        # health metric (weight_lb), the SAME metric nutrition/cardio/weight work moves;
+        # or the mission lives in a health domain. Lets the CoS frame today's execution
+        # as advancing the mission, not competing with it. Read-only, no migration.
+        advanced_by = None
+        try:
+            _health_metrics = {"weight_lb"}
+            if any(getattr(ms, "objective_metric", None) in _health_metrics
+                   for ms in mission_goal.milestones.all()):
+                advanced_by = "health"
+            else:
+                _dom = (getattr(getattr(mission_goal, "domain", None), "name", "") or "").lower()
+                if _dom in ("health", "wellness", "fitness", "physical health"):
+                    advanced_by = "health"
+        except Exception:
+            advanced_by = None
         state["mission"] = {
             "title": mission_goal.title,
+            "advanced_by": advanced_by,
             "current_focus": nm.title if nm else None,
             "momentum_trend": snap.momentum_trend if snap else None,
             "days_remaining": (m_target - today).days

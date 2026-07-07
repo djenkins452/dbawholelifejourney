@@ -975,6 +975,41 @@ class AvailabilityDetailView(LoginRequiredMixin, View):
         return JsonResponse({'status': 'deleted'})
 
 
+class AvailabilityOccurrencesView(LoginRequiredMixin, View):
+    """GET /calendar/api/availability/<id>/occurrences/?days=42
+
+    Upcoming occurrences of a recurring block, so the management UI can act on a
+    single occurrence (delete/move this one) with the exact occurrence start — the
+    Outlook "edit this occurrence" flow without the user typing a timestamp.
+    """
+
+    def get(self, request, pk):
+        from apps.calendar_engine.models import AvailabilityBlock
+        try:
+            block = AvailabilityBlock.objects.get(
+                pk=pk, user=request.user, deleted_at__isnull=True)
+        except AvailabilityBlock.DoesNotExist:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        try:
+            days = min(max(int(request.GET.get('days', 42)), 1), 180)
+        except (ValueError, TypeError):
+            days = 42
+
+        tz = timezone.get_current_timezone()
+        start = timezone.make_aware(
+            dt.datetime.combine(timezone.localdate(), dt.time.min), tz)
+        end = start + dt.timedelta(days=days)
+        occ = [
+            {
+                'start_dt': timezone.localtime(s).isoformat(),
+                'end_dt': timezone.localtime(e).isoformat(),
+            }
+            for s, e in block.get_occurrences(start, end)
+        ]
+        return JsonResponse({'occurrences': occ, 'is_recurring': block.is_recurring})
+
+
 class MonthDataView(LoginRequiredMixin, View):
     """
     GET /calendar/api/month/?year=2026&month=2

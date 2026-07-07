@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(calendar): complete the Availability capability (recurring work schedule + per-occurrence edits)
+
+**Why:** production review showed the Calendar still couldn't answer "when is Danny
+actually available?" — there was no usable way to define recurring availability (Work
+Mon–Fri 7:30 AM–6:00 PM) or to edit a single occurrence (skip a Friday for vacation,
+change one Tuesday). The `AvailabilityBlock` backend already supported all of it; the
+management UI could not drive it (it fell back to typing raw ISO timestamps).
+
+**Completed the capability (calendar-native only — no Beth/Planner/Current-Context/CoS
+changes; no Calendar-screen redesign):**
+- **Occurrences endpoint** — `GET /calendar/api/availability/<id>/occurrences/?days=N`
+  (`AvailabilityOccurrencesView`) returns a recurring block's upcoming occurrences with
+  exact starts, so single-occurrence edits are a click, not a typed timestamp.
+- **Rewrote the availability management page** (`templates/calendar_engine/availability.html`)
+  into a complete manager: preset quick-picks (Work, Sleep, Focus Time, Deep Work, Church,
+  Vacation, Travel), create/edit series, and a per-block **occurrence manager** — each
+  upcoming occurrence has **Skip this** (delete one — vacation/PTO/holiday), **Change time**
+  (modify one day inline), and **End here** (this-and-future). CSP-clean (nonce scripts,
+  event delegation, data-attributes).
+- Backend already provided the Outlook semantics via `AvailabilityBlock` model methods
+  (`cancel_occurrence` / `move_occurrence` / `split_future`) + JSON `exceptions`; this
+  change makes them usable and proves them end-to-end.
+
+**Validation (3 new endpoint tests drive the exact scenario through the real API):**
+create Work Mon–Fri 7:30–18:00 recurring → delete only the first Friday (Mondays + future
+Fridays remain) → modify one Tuesday to 9:00–17:00 (next Tuesday stays 7:30, series intact)
+→ this-and-future delete truncates correctly. Availability appears on the timeline via
+`_get_events_in_range` (event_kind='availability').
+
+**Files:** `apps/calendar_engine/views.py` (AvailabilityOccurrencesView),
+`apps/calendar_engine/urls.py` (occurrences route),
+`templates/calendar_engine/availability.html` (complete manager + presets),
+`apps/calendar_engine/tests/test_projection_layer.py` (3 scenario tests; 16 total).
+
+**Verification:** 16 calendar projection tests pass (incl. the 3 scenario tests) +
+existing calendar_engine suite green; `makemigrations --check` clean; availability page
+renders 200 via authed client; CSP-clean. No migrations (backend model unchanged).
+
 ## 2026-07-07 — fix(cos): executive synthesis — listen, incorporate accomplishments, one whole-picture read
 
 **Root cause (Phase-2 reasoning gap; deterministic truth was already correct):** at a

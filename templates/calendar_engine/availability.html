@@ -5,7 +5,7 @@
 
 {% block extra_css %}
 <style nonce="{{ csp_nonce }}">
-.av-container { max-width: 820px; margin: 0 auto; padding: 1rem; }
+.av-container { max-width: 860px; margin: 0 auto; padding: 1rem; }
 .av-header { margin-bottom: 1.5rem; }
 .av-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0 0 0.25rem; }
 .av-header p { color: var(--color-text-muted); font-size: 0.9375rem; margin: 0; }
@@ -19,19 +19,34 @@
 .av-row .av-form-group { flex: 1; min-width: 140px; }
 .av-kind { display: flex; gap: 0.75rem; }
 .av-kind label { display: flex; align-items: center; gap: 0.375rem; font-size: 0.9375rem; color: var(--color-text); cursor: pointer; }
+.av-presets { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 1rem; }
+.av-preset { font-size: 0.8125rem; padding: 0.375rem 0.75rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); color: var(--color-text); cursor: pointer; }
+.av-preset:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .av-weekdays { display: flex; gap: 0.375rem; flex-wrap: wrap; }
 .av-weekday { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.8125rem; cursor: pointer; user-select: none; color: var(--color-text-muted); }
 .av-weekday.on { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 .av-btn { padding: 0.625rem 1.25rem; font-size: 0.9375rem; border: none; border-radius: var(--radius-md); background: var(--color-accent); color: #fff; cursor: pointer; min-height: 44px; }
 .av-btn.secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
 .av-btn.danger { background: #dc2626; }
-.av-list-item { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--color-border); border-left: 3px solid #94a3b8; border-radius: var(--radius-md); margin-bottom: 0.5rem; }
+.av-list-item { border: 1px solid var(--color-border); border-left: 3px solid #94a3b8; border-radius: var(--radius-md); margin-bottom: 0.5rem; overflow: hidden; }
 .av-list-item.available { border-left-color: #34d399; }
+.av-list-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem; }
 .av-list-main { flex: 1; }
 .av-list-title { font-weight: 600; color: var(--color-text); }
 .av-list-detail { font-size: 0.8125rem; color: var(--color-text-muted); }
-.av-list-actions { display: flex; gap: 0.375rem; }
+.av-list-actions { display: flex; gap: 0.375rem; flex-wrap: wrap; }
 .av-list-actions button { font-size: 0.8125rem; padding: 0.375rem 0.625rem; min-height: 36px; }
+.av-scopebar { display: flex; gap: 0.375rem; align-items: center; flex-wrap: wrap; padding: 0 0.75rem 0.75rem; }
+.av-scopebar .av-label { margin: 0 0.25rem 0 0; }
+.av-occ { border-top: 1px dashed var(--color-border); padding: 0.75rem; background: var(--color-bg); }
+.av-occ-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+.av-occ-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.375rem 0; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.av-occ-row:last-child { border-bottom: none; }
+.av-occ-when { font-size: 0.875rem; color: var(--color-text); }
+.av-occ-actions { display: flex; gap: 0.375rem; align-items: center; flex-wrap: wrap; }
+.av-occ-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; min-height: 32px; }
+.av-occ-edit { display: flex; gap: 0.375rem; align-items: center; flex-wrap: wrap; margin-top: 0.375rem; width: 100%; }
+.av-occ-edit input[type=time] { padding: 0.375rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); }
 .av-empty { color: var(--color-text-muted); font-size: 0.9375rem; text-align: center; padding: 1rem; }
 .av-hidden { display: none; }
 .av-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.75rem 1.25rem; border-radius: var(--radius-md); font-size: 0.875rem; transition: opacity 0.3s; z-index: 1000; }
@@ -43,12 +58,22 @@
     <div class="av-header">
         <a href="{% url 'calendar_engine:dashboard' %}">&larr; Back to Calendar</a>
         <h1>Availability</h1>
-        <p>Planning constraints — when you're realistically available. Not tasks, not events. Every planner in WLJ can read these to respect your time.</p>
+        <p>When you're realistically available. Work, sleep, focus time, church, travel, vacation — planning constraints the Calendar uses to know your free time. Not tasks, not events.</p>
     </div>
 
     <div class="av-card">
         <div class="av-card-title" id="av-form-title">Add Availability Block</div>
         <input type="hidden" id="av-edit-id" value="" />
+
+        <div class="av-presets" id="av-presets">
+            <button type="button" class="av-preset" data-label="Work" data-kind="unavailable" data-days="1,2,3,4,5" data-start="07:30" data-end="18:00">Work</button>
+            <button type="button" class="av-preset" data-label="Sleep" data-kind="unavailable" data-days="1,2,3,4,5,6,7" data-start="22:00" data-end="06:00">Sleep</button>
+            <button type="button" class="av-preset" data-label="Focus Time" data-kind="unavailable" data-days="1,2,3,4,5" data-start="09:00" data-end="11:00">Focus Time</button>
+            <button type="button" class="av-preset" data-label="Deep Work" data-kind="unavailable" data-days="1,2,3,4,5" data-start="13:00" data-end="15:00">Deep Work</button>
+            <button type="button" class="av-preset" data-label="Church" data-kind="unavailable" data-days="7" data-start="09:00" data-end="12:00">Church</button>
+            <button type="button" class="av-preset" data-label="Vacation" data-kind="unavailable" data-days="" data-start="00:00" data-end="23:59">Vacation</button>
+            <button type="button" class="av-preset" data-label="Travel" data-kind="unavailable" data-days="" data-start="08:00" data-end="20:00">Travel</button>
+        </div>
 
         <div class="av-form-group">
             <label class="av-label" for="av-label-input">Label</label>
@@ -129,26 +154,26 @@
                 .catch(function() { return { ok: r.ok, status: r.status, data: {} }; });
         });
     }
-
     function escHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
+    function pad(n) { return String(n).padStart(2, '0'); }
     function toast(msg) {
         var el = document.createElement('div'); el.className = 'av-toast'; el.textContent = msg;
         document.body.appendChild(el);
         setTimeout(function(){ el.style.opacity = '0'; }, 2200);
         setTimeout(function(){ el.remove(); }, 2600);
     }
-
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function localInput(iso) {
-        if (!iso) return '';
-        var m = iso.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
-        return m ? m[1] : '';
-    }
+    function localInput(iso) { var m = (iso || '').match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/); return m ? m[1] : ''; }
+    function dateOf(iso) { var m = (iso || '').match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : ''; }
+    function timeOf(iso) { var m = (iso || '').match(/T(\d{2}:\d{2})/); return m ? m[1] : ''; }
     function fmtTime(iso) {
-        var m = iso.match(/T(\d{2}):(\d{2})/); if (!m) return '';
+        var m = (iso || '').match(/T(\d{2}):(\d{2})/); if (!m) return '';
         var h = parseInt(m[1],10), am = h>=12?'PM':'AM'; h = h%12||12;
         return h + ':' + m[2] + ' ' + am;
+    }
+    function fmtDate(iso) {
+        var m = (iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return '';
+        var d = new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10));
+        return d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
     }
 
     // ── Weekday selector ──
@@ -165,21 +190,41 @@
             d.classList.toggle('on', (list || []).indexOf(parseInt(d.dataset.iso,10)) !== -1);
         });
     }
-
     function syncWeekdayVisibility() {
-        var freq = document.getElementById('av-frequency').value;
-        document.getElementById('av-weekdays-group').style.display = (freq === 'weekly') ? '' : 'none';
+        document.getElementById('av-weekdays-group').style.display =
+            (document.getElementById('av-frequency').value === 'weekly') ? '' : 'none';
     }
     document.getElementById('av-frequency').addEventListener('change', syncWeekdayVisibility);
 
-    // ── Defaults: today 09:00–17:00 ──
+    // ── Presets ──
+    document.getElementById('av-presets').addEventListener('click', function(e) {
+        var b = e.target.closest('.av-preset'); if (!b) return;
+        document.getElementById('av-label-input').value = b.dataset.label;
+        document.querySelector('input[name=av-kind][value=' + b.dataset.kind + ']').checked = true;
+        var days = (b.dataset.days || '').split(',').filter(Boolean).map(Number);
+        var freq = days.length ? 'weekly' : '';
+        document.getElementById('av-frequency').value = freq;
+        setWeekdays(days);
+        syncWeekdayVisibility();
+        // Apply preset times to today's date.
+        var now = new Date();
+        var base = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+        document.getElementById('av-start').value = base + 'T' + b.dataset.start;
+        // End time earlier than start (e.g. Sleep 22:00→06:00) rolls to next day.
+        var endDay = base;
+        if (b.dataset.end <= b.dataset.start) {
+            var t = new Date(now); t.setDate(t.getDate()+1);
+            endDay = t.getFullYear() + '-' + pad(t.getMonth()+1) + '-' + pad(t.getDate());
+        }
+        document.getElementById('av-end').value = endDay + 'T' + b.dataset.end;
+    });
+
     function seedDefaults() {
         var now = new Date();
-        var y = now.getFullYear(), mo = pad(now.getMonth()+1), da = pad(now.getDate());
-        document.getElementById('av-start').value = y+'-'+mo+'-'+da+'T09:00';
-        document.getElementById('av-end').value = y+'-'+mo+'-'+da+'T17:00';
+        var base = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+        document.getElementById('av-start').value = base + 'T09:00';
+        document.getElementById('av-end').value = base + 'T17:00';
     }
-
     function resetForm() {
         document.getElementById('av-edit-id').value = '';
         document.getElementById('av-form-title').textContent = 'Add Availability Block';
@@ -193,27 +238,28 @@
         seedDefaults();
     }
 
-    // ── List ──
+    // ── List rendering ──
     function describe(b) {
-        if (!b.is_recurring) return fmtTime(b.start_dt) + ' — ' + fmtTime(b.end_dt) + ' (one-off)';
         var when = fmtTime(b.start_dt) + ' — ' + fmtTime(b.end_dt);
+        if (!b.is_recurring) return when + ' · one-off · ' + fmtDate(b.start_dt);
         if (b.frequency === 'weekly' && b.byweekday && b.byweekday.length) {
             return when + ' · ' + b.byweekday.map(function(d){ return DOW[d]; }).join(', ');
         }
         return when + ' · ' + b.frequency;
     }
-
     function renderList(blocks) {
         var el = document.getElementById('av-list');
-        if (!blocks || blocks.length === 0) { el.innerHTML = '<div class="av-empty">No availability blocks yet. Add one above.</div>'; return; }
+        if (!blocks || blocks.length === 0) { el.innerHTML = '<div class="av-empty">No availability blocks yet. Pick a preset above or add one.</div>'; return; }
         var html = '';
         blocks.forEach(function(b) {
             var cls = b.kind === 'available' ? ' available' : '';
-            html += '<div class="av-list-item'+cls+'" data-id="'+b.id+'">';
-            html += '<div class="av-list-main"><div class="av-list-title">'+escHtml(b.label)+' <span class="av-list-detail">('+escHtml(b.kind)+')</span></div>';
-            html += '<div class="av-list-detail">'+escHtml(describe(b))+'</div></div>';
-            html += '<div class="av-list-actions"><button class="av-btn secondary av-edit" data-id="'+b.id+'">Edit</button>';
-            html += '<button class="av-btn danger av-delete" data-id="'+b.id+'" data-recurring="'+(b.is_recurring?'1':'0')+'">Delete</button></div>';
+            html += '<div class="av-list-item' + cls + '" data-id="' + b.id + '">';
+            html += '<div class="av-list-head"><div class="av-list-main"><div class="av-list-title">' + escHtml(b.label) + ' <span class="av-list-detail">(' + escHtml(b.kind) + ')</span></div>';
+            html += '<div class="av-list-detail">' + escHtml(describe(b)) + '</div></div>';
+            html += '<div class="av-list-actions"><button class="av-btn secondary av-edit" data-id="' + b.id + '">Edit series</button>';
+            if (b.is_recurring) html += '<button class="av-btn secondary av-occ-toggle" data-id="' + b.id + '">Occurrences</button>';
+            html += '<button class="av-btn danger av-del-series" data-id="' + b.id + '">Delete</button></div></div>';
+            html += '<div class="av-occ av-hidden" data-occ-for="' + b.id + '"></div>';
             html += '</div>';
         });
         el.innerHTML = html;
@@ -221,12 +267,13 @@
 
     var cache = [];
     function load() {
-        api('/calendar/api/availability/').then(function(resp) {
+        return api('/calendar/api/availability/').then(function(resp) {
             if (resp.ok) { cache = resp.data.blocks || []; renderList(cache); }
         });
     }
+    function blockById(id) { return cache.find(function(x){ return x.id === Number(id); }); }
 
-    // ── Save (create or series-edit) ──
+    // ── Save (create or edit series) ──
     document.getElementById('av-save').addEventListener('click', function() {
         var id = document.getElementById('av-edit-id').value;
         var freq = document.getElementById('av-frequency').value;
@@ -241,30 +288,28 @@
             until_dt: untilVal ? (untilVal + 'T23:59') : null,
         };
         if (!body.start_dt || !body.end_dt) { toast('Start and end are required.'); return; }
-
         var url = id ? '/calendar/api/availability/' + id + '/' : '/calendar/api/availability/';
         var method = id ? 'PATCH' : 'POST';
         if (id) { body.scope = 'series'; }
-
         api(url, { method: method, body: JSON.stringify(body) }).then(function(resp) {
-            if (resp.ok) { toast(id ? 'Availability updated.' : 'Availability added.'); resetForm(); load(); }
+            if (resp.ok) { toast(id ? 'Series updated.' : 'Availability added.'); resetForm(); load(); }
             else { toast(resp.data.error || 'Save failed.'); }
         });
     });
-
     document.getElementById('av-cancel-edit').addEventListener('click', resetForm);
 
-    // ── Edit / Delete (event delegation) ──
+    // ── List interactions (event delegation) ──
     document.getElementById('av-list').addEventListener('click', function(e) {
         var editBtn = e.target.closest('.av-edit');
-        var delBtn = e.target.closest('.av-delete');
+        var delBtn = e.target.closest('.av-del-series');
+        var occBtn = e.target.closest('.av-occ-toggle');
+
         if (editBtn) {
-            var b = cache.find(function(x){ return x.id === Number(editBtn.dataset.id); });
-            if (!b) return;
+            var b = blockById(editBtn.dataset.id); if (!b) return;
             document.getElementById('av-edit-id').value = b.id;
-            document.getElementById('av-form-title').textContent = 'Edit Availability Block';
+            document.getElementById('av-form-title').textContent = 'Edit Availability Series';
             document.getElementById('av-label-input').value = b.label;
-            document.querySelector('input[name=av-kind][value='+b.kind+']').checked = true;
+            document.querySelector('input[name=av-kind][value=' + b.kind + ']').checked = true;
             document.getElementById('av-frequency').value = b.frequency || '';
             setWeekdays(b.byweekday || []);
             document.getElementById('av-start').value = localInput(b.start_dt);
@@ -276,26 +321,101 @@
             return;
         }
         if (delBtn) {
-            var id = delBtn.dataset.id;
-            var recurring = delBtn.dataset.recurring === '1';
-            var body = {};
-            if (recurring) {
-                var choice = window.prompt('Delete which? Type: series (all), or future, or occurrence (this one). Leave blank to cancel.', 'series');
-                if (!choice) return;
-                choice = choice.trim().toLowerCase();
-                if (['series','future','occurrence'].indexOf(choice) === -1) { toast('Unknown option.'); return; }
-                body.scope = choice;
-                if (choice !== 'series') {
-                    var occ = window.prompt('Occurrence start (YYYY-MM-DDTHH:MM) to act from:', '');
-                    if (!occ) return;
-                    body.occurrence_start = occ;
-                }
-            } else if (!window.confirm('Delete this availability block?')) {
-                return;
-            }
-            api('/calendar/api/availability/' + id + '/', { method: 'DELETE', body: JSON.stringify(body) }).then(function(resp) {
-                if (resp.ok) { toast('Deleted.'); load(); } else { toast(resp.data.error || 'Delete failed.'); }
+            if (!window.confirm('Delete this entire availability series?')) return;
+            api('/calendar/api/availability/' + delBtn.dataset.id + '/', {
+                method: 'DELETE', body: JSON.stringify({ scope: 'series' }),
+            }).then(function(resp) { if (resp.ok) { toast('Deleted.'); load(); } else { toast(resp.data.error || 'Delete failed.'); } });
+            return;
+        }
+        if (occBtn) {
+            var panel = document.querySelector('[data-occ-for="' + occBtn.dataset.id + '"]');
+            if (!panel) return;
+            if (!panel.classList.contains('av-hidden')) { panel.classList.add('av-hidden'); panel.innerHTML=''; return; }
+            loadOccurrences(occBtn.dataset.id, panel);
+            return;
+        }
+    });
+
+    // ── Occurrence manager ──
+    function loadOccurrences(id, panel) {
+        panel.classList.remove('av-hidden');
+        panel.innerHTML = '<div class="av-occ-title">Loading occurrences…</div>';
+        api('/calendar/api/availability/' + id + '/occurrences/?days=42').then(function(resp) {
+            if (!resp.ok) { panel.innerHTML = '<div class="av-occ-title">Could not load occurrences.</div>'; return; }
+            var occ = resp.data.occurrences || [];
+            if (!occ.length) { panel.innerHTML = '<div class="av-occ-title">No upcoming occurrences.</div>'; return; }
+            var html = '<div class="av-occ-title">Upcoming occurrences — skip or change a single day</div>';
+            occ.forEach(function(o) {
+                html += '<div class="av-occ-row" data-start="' + o.start_dt + '" data-end="' + o.end_dt + '">';
+                html += '<span class="av-occ-when">' + fmtDate(o.start_dt) + ' · ' + fmtTime(o.start_dt) + '–' + fmtTime(o.end_dt) + '</span>';
+                html += '<span class="av-occ-actions">';
+                html += '<button class="av-btn secondary av-occ-move">Change time</button>';
+                html += '<button class="av-btn danger av-occ-skip">Skip this</button>';
+                html += '<button class="av-btn danger av-occ-endhere">End here</button>';
+                html += '</span></div>';
             });
+            panel.innerHTML = html;
+            panel.dataset.blockId = id;
+        });
+    }
+
+    // Occurrence actions (delegated on the list container)
+    document.getElementById('av-list').addEventListener('click', function(e) {
+        var row = e.target.closest('.av-occ-row');
+        if (!row) return;
+        var panel = row.closest('.av-occ');
+        var id = panel ? panel.dataset.blockId : null;
+        if (!id) return;
+        var occStart = row.dataset.start, occEnd = row.dataset.end;
+
+        if (e.target.closest('.av-occ-skip')) {
+            api('/calendar/api/availability/' + id + '/', {
+                method: 'DELETE', body: JSON.stringify({ scope: 'occurrence', occurrence_start: occStart }),
+            }).then(function(resp) {
+                if (resp.ok) { toast('This occurrence removed.'); loadOccurrences(id, panel); }
+                else { toast(resp.data.error || 'Failed.'); }
+            });
+            return;
+        }
+        if (e.target.closest('.av-occ-endhere')) {
+            if (!window.confirm('End this series from this date forward? Earlier occurrences stay.')) return;
+            api('/calendar/api/availability/' + id + '/', {
+                method: 'DELETE', body: JSON.stringify({ scope: 'future', occurrence_start: occStart }),
+            }).then(function(resp) {
+                if (resp.ok) { toast('Series ended from here.'); load(); }
+                else { toast(resp.data.error || 'Failed.'); }
+            });
+            return;
+        }
+        if (e.target.closest('.av-occ-move')) {
+            // Reveal an inline time editor for THIS occurrence only.
+            if (row.querySelector('.av-occ-edit')) { row.querySelector('.av-occ-edit').remove(); return; }
+            var ed = document.createElement('div');
+            ed.className = 'av-occ-edit';
+            ed.innerHTML = '<input type="time" class="av-occ-newstart" value="' + timeOf(occStart) + '"> to '
+                + '<input type="time" class="av-occ-newend" value="' + timeOf(occEnd) + '"> '
+                + '<button class="av-btn av-occ-save">Save this day</button>';
+            row.appendChild(ed);
+            return;
+        }
+        if (e.target.closest('.av-occ-save')) {
+            var ed2 = row.querySelector('.av-occ-edit');
+            var ns = ed2.querySelector('.av-occ-newstart').value;
+            var ne = ed2.querySelector('.av-occ-newend').value;
+            if (!ns || !ne) { toast('Pick a start and end time.'); return; }
+            var day = dateOf(occStart);
+            var endDay = (ne <= ns) ? dateOf(occEnd) : day; // keep overnight span
+            api('/calendar/api/availability/' + id + '/', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    scope: 'occurrence', occurrence_start: occStart,
+                    start_dt: day + 'T' + ns, end_dt: endDay + 'T' + ne,
+                }),
+            }).then(function(resp) {
+                if (resp.ok) { toast('This day updated.'); loadOccurrences(id, panel); }
+                else { toast(resp.data.error || 'Failed.'); }
+            });
+            return;
         }
     });
 

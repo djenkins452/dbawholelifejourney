@@ -239,6 +239,88 @@ class EndpointTests(TestCase):
     def test_availability_page_renders(self):
         self.assertEqual(self.client.get("/calendar/availability/").status_code, 200)
 
+    def _mk_work_block(self):
+        """Create Work Mon–Fri 7:30–18:00 recurring unavailable via the API."""
+        tz = timezone.get_current_timezone()
+        today = timezone.localdate()
+        monday = today - dt.timedelta(days=today.weekday())
+        s = timezone.make_aware(dt.datetime.combine(monday, dt.time(7, 30)), tz)
+        e = timezone.make_aware(dt.datetime.combine(monday, dt.time(18, 0)), tz)
+        resp = self.client.post(
+            "/calendar/api/availability/",
+            data={"label": "Work", "kind": "unavailable",
+                  "start_dt": s.isoformat(), "end_dt": e.isoformat(),
+                  "frequency": "weekly", "byweekday": [1, 2, 3, 4, 5]},
+            content_type="application/json")
+        self.assertEqual(resp.status_code, 201)
+        return resp.json()["block"]["id"]
+
+    def _occurrences(self, block_id, days=14):
+        resp = self.client.get(f"/calendar/api/availability/{block_id}/occurrences/?days={days}")
+        self.assertEqual(resp.status_code, 200)
+        return resp.json()["occurrences"]
+
+    def _weekday(self, iso):  # 0=Mon
+        return dt.date.fromisoformat(iso[:10]).weekday()
+
+    def test_scenario_delete_one_friday(self):
+        """Delete only THIS Friday → Mondays remain, future Fridays remain."""
+        bid = self._mk_work_block()
+        occ = self._occurrences(bid)
+        fridays = [o for o in occ if self._weekday(o["start_dt"]) == 4]
+        self.assertGreaterEqual(len(fridays), 2)
+        first_friday = fridays[0]["start_dt"]
+
+        resp = self.client.delete(
+            f"/calendar/api/availability/{bid}/",
+            data={"scope": "occurrence", "occurrence_start": first_friday},
+            content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+
+        after = self._occurrences(bid)
+        self.assertNotIn(first_friday, [o["start_dt"] for o in after])
+        # future Friday + all Mondays still present
+        self.assertTrue([o for o in after if self._weekday(o["start_dt"]) == 4])
+        self.assertEqual(len([o for o in after if self._weekday(o["start_dt"]) == 0]), 2)
+
+    def test_scenario_modify_one_tuesday(self):
+        """Modify one Tuesday's time → next Tuesday unchanged, series intact."""
+        bid = self._mk_work_block()
+        occ = self._occurrences(bid)
+        tuesdays = [o for o in occ if self._weekday(o["start_dt"]) == 1]
+        first_tue = tuesdays[0]["start_dt"]
+        day = first_tue[:10]
+
+        resp = self.client.patch(
+            f"/calendar/api/availability/{bid}/",
+            data={"scope": "occurrence", "occurrence_start": first_tue,
+                  "start_dt": day + "T09:00", "end_dt": day + "T17:00"},
+            content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+
+        after = self._occurrences(bid)
+        moved = [o for o in after if o["start_dt"][:10] == day]
+        self.assertEqual(len(moved), 1)
+        self.assertEqual(moved[0]["start_dt"][11:16], "09:00")
+        # next Tuesday still at 07:30, series length unchanged
+        next_tue = [o for o in after if self._weekday(o["start_dt"]) == 1 and o["start_dt"][:10] != day]
+        self.assertTrue(next_tue)
+        self.assertEqual(next_tue[0]["start_dt"][11:16], "07:30")
+        self.assertEqual(len(after), len(occ))
+
+    def test_scenario_this_and_future_delete(self):
+        """End the series from a date forward → earlier occurrences remain."""
+        bid = self._mk_work_block()
+        occ = self._occurrences(bid)
+        boundary = occ[5]["start_dt"]  # some mid occurrence
+        resp = self.client.delete(
+            f"/calendar/api/availability/{bid}/",
+            data={"scope": "future", "occurrence_start": boundary},
+            content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        after = self._occurrences(bid)
+        self.assertEqual(len(after), 5)  # only the 5 before the boundary
+
     def test_range_query_budget(self):
         tz = timezone.get_current_timezone()
         base = timezone.make_aware(dt.datetime.combine(timezone.localdate(), dt.time(9, 0)), tz)

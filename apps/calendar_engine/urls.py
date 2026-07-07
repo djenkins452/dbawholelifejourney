@@ -23,6 +23,7 @@ urlpatterns = [
     # API — availability blocks
     path('api/availability/', views.AvailabilityListCreateView.as_view(), name='api_availability'),
     path('api/availability/<int:pk>/', views.AvailabilityDetailView.as_view(), name='api_availability_detail'),
+    path('api/availability/<int:pk>/occurrences/', views.AvailabilityOccurrencesView.as_view(), name='api_availability_occurrences'),
     path('api/events/all/', views.AllEventsView.as_view(), name='api_all_events'),
     path('api/events/', views.EventCreateView.as_view(), name='api_event_create'),
     path('api/events/<int:pk>/', views.EventDetailView.as_view(), name='api_event_detail'),

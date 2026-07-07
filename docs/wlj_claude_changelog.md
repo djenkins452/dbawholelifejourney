@@ -6,6 +6,46 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): question-scope discipline — a named goal returns only that goal
+
+**Phase-2 gap:** "How am I doing overall towards my 2027 France goal?" answered France
+briefly, then also briefed Launch Whole Life Journey, Relationship with God, and Serve
+Others. The user named ONE goal; Beth returned the whole portfolio. TRACE: the question
+routes to `personal_reasoning` → `preroute_named_goal` (matches the "France" token), then
+`_infer_named_goal_intent` (`reasoning/plan.py`) — lacking "on track"/"on pace" words —
+**defaulted to `goals_progress`, the PORTFOLIO intent**, whose curator (`goals_working_memory`)
+enumerates every active goal. And even the goal-specific `goal_on_track` wasn't scoped:
+`preroute_named_goal` discarded the matched title, and `_focal_goal` is mission-first.
+
+**Fix (existing architecture, no new engine):**
+- Intent selection (`plan.py::_infer_named_goal_intent`): a per-goal progress/trajectory
+  question ("how am I doing / how's it going / progress toward / where do I stand on
+  [named goal]") now maps to `goal_on_track` (scoped), and the DEFAULT for a named-goal
+  question changed from `goals_progress` (portfolio) to `goal_on_track`. `_infer_named_goal_intent`
+  only ever runs for a singular named/deictic goal, so the portfolio default was wrong;
+  the plural "how are my goals?" routes elsewhere and still gets `goals_progress`.
+- Focal scoping (`plan.py::preroute_named_goal` → `engine.py` → `synthesize_plan(focal_goal=)`
+  → `stages.build_working_memory`): the matched goal title is now threaded through as the
+  focal goal, and `stages._scope_to_focal_goal` trims the goals working memory to ONLY
+  that goal's evidence (dropping the portfolio `active_goals` list) for goal-specific
+  intents — so neither the LLM nor the fallback can enumerate the others. It records
+  `other_active_goal_count` so the answer MAY offer, in one sentence, to review the rest.
+- `goal_on_track` profile + fallback: explicitly talk about ONLY the focal goal and, when
+  others exist, close with a single-sentence offer to review them — never an unasked brief.
+- Parent/child reasoning intact: France's answer still frames today's health execution as
+  advancing the mission (unchanged). Portfolio questions still get the portfolio.
+
+**Files:** apps/ai/chatgpt_cos/reasoning/plan.py (intent + focal return), reasoning/engine.py
+(pass focal), reasoning/stages.py (_scope_to_focal_goal + build_working_memory + goal_on_track
+profile/fallback), apps/ai/tests/test_goal_question_scope.py (new) + updated goals-reasoning
+preroute assertions (tuple return + goal_on_track default), apps/core/fixtures/release_notes.json
+(PK 262), apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_goal_question_scope (8) — named-goal progress → goal_on_track,
+scoping keeps only the named goal + drops the portfolio + records the others, portfolio
+intent NOT scoped, fallback answers one goal and offers the rest. ~230-test reasoning/goals
+regression green. No new engine; no migration.
+
 ## 2026-07-07 — feat(calendar): "A Calendar View of Life" — the signature Day experience
 
 **What:** replaced the calendar dashboard (`/calendar/`) with the approved product-design

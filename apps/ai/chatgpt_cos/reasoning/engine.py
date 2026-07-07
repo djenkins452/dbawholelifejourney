@@ -53,11 +53,11 @@ def answer_reasoning_question(user, message):
     # by the Goals domain and must never be stolen by the health planner. Health
     # evidence may support a goal answer, but Health does not own the response.
     # Gated on goal context + title length so unrelated questions are untouched.
-    forced_goal_intent = preroute_named_goal(user, message)
+    forced_goal_intent, focal_goal = preroute_named_goal(user, message)
     if forced_goal_intent is not None:
-        logger.info("COS_REASONING_GOAL_PREROUTE user=%s intent=%s",
-                    getattr(user, "id", None), forced_goal_intent)
-        plan = synthesize_plan(forced_goal_intent)
+        logger.info("COS_REASONING_GOAL_PREROUTE user=%s intent=%s focal=%r",
+                    getattr(user, "id", None), forced_goal_intent, focal_goal)
+        plan = synthesize_plan(forced_goal_intent, focal_goal=focal_goal)
         truth = retrieve_truth(user, plan)
         working_memory = build_working_memory(plan, truth, user)
         answer, used_fallback = run_reasoning(user, message, plan, working_memory)

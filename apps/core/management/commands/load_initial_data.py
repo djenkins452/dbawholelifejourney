@@ -1130,6 +1130,9 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for Conversational Discipline / Orientation (PK 261)
         self._reset_orientation_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload release_notes for Goal Question-Scope (PK 262)
+        self._reset_goal_scope_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2294,6 +2297,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Orientation release note FAILED: {e}'))
+
+    def _reset_goal_scope_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 262) so the What's New entry for
+        Goal Question-Scope discipline (one named goal → that goal only) appears.
+        """
+        reset_tracker_name = 'reset_goal_scope_release_note_2026_07_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Goal Scope')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Goal Scope (Jul 2026)',
+                'command', 'One-time reset to reload the release note for Goal Question-Scope'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Goal Scope release note FAILED: {e}'))
 
     def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

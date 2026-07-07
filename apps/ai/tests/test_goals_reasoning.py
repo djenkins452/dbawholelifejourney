@@ -889,12 +889,13 @@ class NamedGoalPrerouteDecisionTests(SimpleTestCase):
         return planmod.named_goal_intent(msg, titles, mission)[0]   # (intent, matched)
 
     def test_named_goal_progress_routes_to_goals(self):
-        # (1) named-goal progress questions route to Goals, not Health.
+        # (1) named-goal progress questions route to Goals, SCOPED to that goal
+        # (goal_on_track), never the whole portfolio (goals_progress).
         for msg in ("how is France 2027 progressing",
                     "how's France 2027 going",
                     "where am i on Write a book",
                     "give me an update on France 2027"):
-            self.assertEqual(self._route(msg), "goals_progress", msg)
+            self.assertEqual(self._route(msg), "goal_on_track", msg)
 
     def test_mission_and_deictic_route_to_goals(self):
         # (2) "my mission" and "this goal" route to Goals.
@@ -941,7 +942,7 @@ class NamedGoalPrerouteDecisionTests(SimpleTestCase):
         # titles are loaded (cold/empty snapshot). This is the Q2 ("how is my
         # mission going") fix — it must NOT depend on titles existing.
         self.assertEqual(self._route("how is my mission going", titles=[], mission=None),
-                         "goals_progress")
+                         "goal_on_track")
         self.assertEqual(self._route("what should i focus on for this goal",
                                      titles=[], mission=None), "goals_focus_today")
         # A NAMED title with no titles loaded still can't match (needs the title) —
@@ -984,11 +985,13 @@ class NamedGoalPrerouteWrapperTests(TestCase):
     def test_wrapper_routes_named_goal_with_populated_snapshot(self, mock_gds):
         from apps.core.ai_state.state_builder import build_goal_state
         mock_gds.return_value = {"status": "ready", "state": build_goal_state(self.user)}
+        # preroute_named_goal now returns (intent, focal_goal) — a named-goal progress
+        # question is scoped to THAT goal (goal_on_track), not the portfolio.
         self.assertEqual(
-            planmod.preroute_named_goal(self.user, "how is France 2027 progressing"),
-            "goals_progress")
+            planmod.preroute_named_goal(self.user, "how is France 2027 progressing")[0],
+            "goal_on_track")
         self.assertIsNone(
-            planmod.preroute_named_goal(self.user, "what is my biggest health risk"))
+            planmod.preroute_named_goal(self.user, "what is my biggest health risk")[0])
         self.assertTrue(mock_gds.called)
 
     @patch("apps.ai.cos_services.get_domain_state",
@@ -997,23 +1000,23 @@ class NamedGoalPrerouteWrapperTests(TestCase):
         # Root cause: cold/pending snapshot -> no titles. The DB fallback must
         # recover the named goal, and the deictic must route with no titles.
         self.assertEqual(
-            planmod.preroute_named_goal(self.user, "how is France 2027 going"),
-            "goals_progress")                                   # DB title fallback
+            planmod.preroute_named_goal(self.user, "how is France 2027 going")[0],
+            "goal_on_track")                                   # DB title fallback, scoped
         self.assertEqual(
-            planmod.preroute_named_goal(self.user, "how is my mission going"),
-            "goals_progress")                                   # deictic, no titles
+            planmod.preroute_named_goal(self.user, "how is my mission going")[0],
+            "goal_on_track")                                   # deictic, no titles, scoped
         self.assertEqual(
-            planmod.preroute_named_goal(self.user, "what should i focus on for this goal"),
+            planmod.preroute_named_goal(self.user, "what should i focus on for this goal")[0],
             "goals_focus_today")
         self.assertIsNone(
-            planmod.preroute_named_goal(self.user, "what is my biggest health risk"))
+            planmod.preroute_named_goal(self.user, "what is my biggest health risk")[0])
 
     @patch("apps.ai.cos_services.get_domain_state", side_effect=RuntimeError("boom"))
     def test_wrapper_db_fallback_on_read_failure(self, _mock):
         # Snapshot read throws -> degrade to the DB title fallback, still route.
         self.assertEqual(
-            planmod.preroute_named_goal(self.user, "how is France 2027 going"),
-            "goals_progress")
+            planmod.preroute_named_goal(self.user, "how is France 2027 going")[0],
+            "goal_on_track")
 
     @patch("apps.ai.cos_services.get_domain_state",
            return_value={"status": "pending", "state": None})
@@ -1021,7 +1024,7 @@ class NamedGoalPrerouteWrapperTests(TestCase):
         from apps.purpose.models import LifeGoal
         LifeGoal.objects.filter(user=self.user).delete()        # no active goals at all
         self.assertIsNone(
-            planmod.preroute_named_goal(self.user, "how is France 2027 going"))
+            planmod.preroute_named_goal(self.user, "how is France 2027 going")[0])
 
 
 # ---------------------------------------------------------------------------

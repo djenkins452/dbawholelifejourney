@@ -303,12 +303,19 @@ def _infer_named_goal_intent(text):
                             "what phase", "comes next", "next checkpoint",
                             "what's after", "whats after", "where should i be next")):
         return "goal_next_milestone"
-    # Trajectory — on track / on pace / behind. ("behind" is a TRAJECTORY verdict,
-    # not a slipping-concerns list.)
+    # Trajectory / progress toward THIS named goal — on track / on pace / behind, AND
+    # the everyday "how am I doing / how's it going / progress toward X" phrasing. Because
+    # we are ALREADY inside a NAMED-goal question, this is a per-goal trajectory read, not
+    # the portfolio. ("behind" is a TRAJECTORY verdict, not a slipping-concerns list.)
     if any(k in t for k in ("on track", "on pace", "on schedule", "behind schedule",
                             "still on track", "make it in time", "going to make it",
                             "will i finish in time", "behind", "am i behind",
-                            "falling behind", "fallen behind", "keeping pace", "caught up")):
+                            "falling behind", "fallen behind", "keeping pace", "caught up",
+                            "how am i doing", "how am i tracking", "how is it going",
+                            "hows it going", "how's it going", "how am i progressing",
+                            "coming along", "progress toward", "progress towards",
+                            "toward my", "towards my", "toward the", "towards the",
+                            "where am i on", "where do i stand", "how far along")):
         return "goal_on_track"
     # Focus today / move-the-needle action.
     if any(k in t for k in ("what should i do", "focus on today", "do today",
@@ -327,8 +334,10 @@ def _infer_named_goal_intent(text):
     if any(k in t for k in ("concerns", "slipping", "stalling", "stalled",
                             "problems with", "drifting", "needs attention")):
         return "goal_concerns"
-    # Default — progress summary.
-    return "goals_progress"
+    # DEFAULT — a bare named-goal question is about THAT goal (its trajectory), NEVER the
+    # whole portfolio. goals_progress (the portfolio summary) is reserved for an explicit
+    # plural "how are my goals?" (which never reaches this named-goal classifier).
+    return "goal_on_track"
 
 
 # ---------------------------------------------------------------------------
@@ -513,30 +522,35 @@ def preroute_named_goal(user, message):
                     uid, db_count, matched, intent)
 
     if intent is not None:
+        # The FOCAL goal — the concrete goal the user named — so the answer can be scoped
+        # to it and never enumerate the whole portfolio. A deictic ("my mission") / a
+        # meaning-only match has no title; it falls back to mission-first ordering.
+        focal = matched if matched not in (None, "<deictic>", "<meaning>") else None
         logger.info(
             "BETH_GOAL_ROUTE_RESULT user=%s fired=True snap_status=%s "
             "snap_titles=%d db_titles=%d matched=%r intent=%s",
             uid, snap_status, len(snap_titles), db_count, matched, intent)
-        return intent
+        return intent, focal
 
     logger.info(
         "BETH_GOAL_ROUTE_NO_MATCH user=%s fired=False snap_status=%s "
         "snap_titles=%d db_titles=%d", uid, snap_status, len(snap_titles), db_count)
-    return None
+    return None, None
 
 
-def synthesize_plan(intent):
+def synthesize_plan(intent, focal_goal=None):
     """A domain-scoped RetrievalPlan for the resilience path, scoped by intent.
 
     Health intents map to the same domain + required_truth as before, so health
-    behavior is byte-identical; goal intents map to goals truth."""
+    behavior is byte-identical; goal intents map to goals truth. `focal_goal` (a title
+    or distinctive token) scopes a named-goal answer to THAT goal."""
     domain, required = INTENT_DOMAINS.get(intent, ("health", _HEALTH_REQUIRED))
     return RetrievalPlan(
         intent=intent, response_mode="reasoning", domains=[domain],
         required_truth=list(required),
         optional_truth=[], reasoning_style="resilience_fallback",
         urgency="normal", confidence=0.0,
-        raw={"source": "deterministic_fallback"},
+        raw={"source": "deterministic_fallback", "focal_goal": focal_goal},
     )
 
 

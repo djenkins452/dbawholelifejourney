@@ -1119,6 +1119,11 @@ def _goal_on_track_fallback(wm):
     if why:
         parts.append(why)
     parts.append(f"Next move: {_concrete_action(item)}.")
+    # MAY offer to review the others — one sentence, never an unasked portfolio brief.
+    others = (wm.get("facts") or {}).get("other_active_goal_count")
+    if isinstance(others, int) and others > 0:
+        parts.append(f"Want me to run through your other {others} goal"
+                     f"{'s' if others != 1 else ''} too, or stay on this one?")
     return " ".join(parts)
 
 
@@ -1268,12 +1273,49 @@ INTENT_CURATORS = {
 }
 
 
+# Goal intents that are about ONE goal — their working memory must be scoped to the
+# named/focal goal, never the whole portfolio. (goals_progress is the deliberate
+# portfolio intent and is NOT scoped.)
+_GOAL_SPECIFIC_INTENTS = ("goal_on_track", "goal_why_priority", "goal_next_milestone",
+                          "goal_confidence", "goal_failure_modes", "biggest_goal_risk",
+                          "goal_concerns", "goals_focus_today")
+
+
+def _scope_to_focal_goal(facts, focal):
+    """Scope goals working memory to the ONE goal the user named: keep only that goal's
+    evidence and drop the portfolio list, so a per-goal answer can never enumerate the
+    other goals. Records the count of the others so the answer MAY offer to review them
+    in a single sentence — but never briefs them unasked."""
+    if not focal or not isinstance(facts, dict):
+        return facts
+    ev = facts.get("goal_evidence") or []
+    if not ev:
+        return facts
+    fl = str(focal).lower()
+    match = [e for e in ev if fl in str((e or {}).get("goal", "")).lower()]
+    if not match:
+        return facts                      # named goal not in evidence — stay honest
+    scoped = dict(facts)
+    scoped["goal_evidence"] = match[:1]   # ONLY the named goal
+    others = len(ev) - len(match)
+    scoped.pop("active_goals", None)      # never enumerate the portfolio
+    if others > 0:
+        scoped["other_active_goal_count"] = others
+    return scoped
+
+
 def build_working_memory(plan, truth, user=None):
     """Stage 3: curate the truth into bounded, inspectable working memory via the
     intent's curator. This is the ONLY data the reasoning model sees — never raw
     SAE, and for health intents never cross-domain truth."""
     curator = INTENT_CURATORS.get(plan.intent, _generic_curator)
     facts = curator(truth, user)
+    # QUESTION-SCOPE DISCIPLINE: a question about ONE named goal is answered about THAT
+    # goal only — scope the evidence to it so neither the LLM nor the fallback can drift
+    # into the whole goal portfolio.
+    focal = (getattr(plan, "raw", None) or {}).get("focal_goal")
+    if focal and plan.intent in _GOAL_SPECIFIC_INTENTS:
+        facts = _scope_to_focal_goal(facts, focal)
     wm = {"intent": plan.intent, "reasoning_style": plan.reasoning_style,
           "urgency": plan.urgency, "facts": facts}
     logger.info(
@@ -1567,7 +1609,10 @@ REASONING_PROFILES = {
             "for the FOCAL goal (goal_evidence[0]): are they on track? Lead with a "
             "clear yes / roughly / no, then the EVIDENCE (whats_working, momentum, "
             "state) and WHY, then the concrete next move (recommended_action). This "
-            "is a verdict, NOT a progress summary and NOT a portfolio overview."
+            "is a verdict, NOT a progress summary and NOT a portfolio overview. The user "
+            "asked about ONE goal — talk about ONLY that goal; do NOT mention or list any "
+            "other goal. If 'other_active_goal_count' is present you MAY close with a "
+            "single-sentence offer to review the others, but never brief them unasked."
             + _GOAL_GUIDANCE + " Max 110 words."
         ),
         "max_tokens": 200,

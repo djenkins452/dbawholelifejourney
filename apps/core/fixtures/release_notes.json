@@ -4166,5 +4166,21 @@
       "created_at": "2026-07-07T19:00:00Z",
       "updated_at": "2026-07-07T19:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 262,
+    "fields": {
+      "title": "Ask about one goal, get an answer about that goal",
+      "description": "When you ask how you're doing on a specific goal, your Chief of Staff now stays on that goal — its progress, the current milestone, and the next best move — instead of running through your whole list. If it thinks the others are worth a look, it'll offer in a single sentence, but it won't brief them unless you ask. Ask about all your goals and you'll still get the full picture.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T20:00:00Z",
+      "updated_at": "2026-07-07T20:00:00Z"
+    }
   }
 ]

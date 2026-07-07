@@ -6,6 +6,102 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): executive synthesis — listen, incorporate accomplishments, one whole-picture read
+
+**Root cause (Phase-2 reasoning gap; deterministic truth was already correct):** at a
+morning check-in the user volunteered "Overall I feel rested. Six hours isn't bad for my
+energy. I wish I'd gotten more for my health. I got a great start by finishing my prayer
+and Bible reading." Beth answered with a single-domain "Today's focus: prioritize sleep"
+— ignoring almost everything said, dropping the prayer/Bible accomplishment, and
+reasoning one domain at a time instead of synthesizing. Two layers:
+- **Routing.** A volunteered self-report (feeling + accomplishments, NO greeting, NO
+  question) was claimed by `personal_reasoning` → the single `health_focus_today` intent.
+  `compose_executive_brief` (the whole-picture synthesis) is only reachable via a pending
+  check-in (needs a prior greeting) or a briefing question — so the executive read was
+  structurally unreachable from a state report. `accomplishment.detect()` also near-missed
+  the natural phrasing ("finishing my prayer", "great start").
+- **Synthesis.** Even when reached, the brief led domain-first (the whole-picture `_thesis`
+  beat is skipped whenever a subjective report exists), workout-framed foundation work
+  ("ahead of plan → recovery latitude", grammatically broken on a noun-phrase label),
+  collapsed the sleep debt the moment the user felt rested (no energy-vs-recovery
+  distinction), and never tied protein to tonight's workout.
+
+**Fix (Phase-2 reasoning strengthened; existing architecture, no new engine):**
+- New `self_report` lane (before accomplishment/retrieval/reasoning): a volunteered
+  subjective state report is LISTENED to — records the subjective energy + any completed
+  accomplishment into the one executive picture, then composes the whole-picture brief.
+  Declines questions, so normal routing is unaffected.
+- `accomplishment.detect()` robust to natural foundation phrasing ("finishing", "great
+  start", "started my day with…"); new `is_foundation_label()` classifier.
+- `interpret()` separates FOUNDATION (spiritual) from EFFORT (physical) accomplishments —
+  only physical effort earns "recovery latitude"; foundation lands in a new
+  `ExecutiveSignals.foundation` and never flips the day into a recovery day.
+- `compose_executive_brief`: new `_foundation_story` (leads — "the foundation of your day
+  is set"); `_reconciliation_story` positive_over_debt now HOLDS BOTH energy and recovery
+  ("not an energy-management day… still a recovery-management one — protect an earlier
+  bedtime"); new `_next_move_story` ties protein-early to the day's ACTUAL planned workout
+  with concrete options (day_truth). `_post_checkin_brief` now records foundation so both
+  the greeting and volunteered paths flow through the same synthesis beat.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py (self_report lane + registry + post-checkin unify),
+apps/ai/chatgpt_cos/accomplishment.py, apps/ai/chatgpt_cos/executive_interpretation.py
+(foundation split + field), apps/ai/chatgpt_cos/executive_brief.py (foundation / next-move
+beats + energy-vs-recovery), apps/ai/tests/test_executive_synthesis.py (new),
+apps/core/fixtures/release_notes.json (PK 256),
+apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_executive_synthesis (7) — foundation capture, foundation≠recovery
+in interpret(), whole-picture synthesis (foundation + energy/recovery + protein→cardio),
+self_report routing, question-not-stolen. Regression across ~390 tests
+(p31/p32/p33/p34, checkin, accomplishment, decision, trust, reasoning, one_executive_picture,
+safety-contract) — all pass. Streaming/non-streaming parity preserved (all changes in the
+shared route_message lane pipeline + interpret/composer). No model migration.
+
+## 2026-07-07 — refactor(calendar): reduce Projection Layer to an evolution of the existing module
+
+**Why:** the first pass (commit c2fecfb7) achieved the product goals but over-built the
+architecture — it introduced a projection engine, a provider registry, an editor-routing
+framework, a truth-contract layer, and a mutation-service layer. That violated WLJ's
+"modify before add" principle and read as a new Calendar platform rather than an evolution
+of the existing module. This change keeps every capability and deletes the excess.
+
+**Deleted (folded into existing components):**
+- `services/time_projection.py` (TimeProjection + provider registry + ProjectedBlock) →
+  extended the existing `views.py :: _get_events_in_range()` to also yield availability
+  occurrences (flagged `event_kind='availability'`); reused the existing `/api/today/`
+  and `/api/range/` endpoints. Removed `ProjectionView` + `/api/projection/`.
+- `services/editor_route.py` (editor-routing framework) → extended the existing
+  `SOURCE_URLS` map + click handler in `dashboard.html` to route every projected item to
+  its owning object.
+- `services/recurrence_engine.py` → folded into a `RecurrenceRule.expand()` classmethod
+  on the existing model; `get_occurrences()` calls it and still applies
+  `RecurrenceException`.
+- `services/availability_queries.py` → `AvailabilityBlock.active()` manager method.
+- `services/availability_service.py` → `AvailabilityBlock` model methods
+  (`cancel_occurrence`, `move_occurrence`, `split_future`).
+
+**Model simplification:** `AvailabilityException` model dropped; single-occurrence
+overrides now live in a JSON `exceptions` list on `AvailabilityBlock` (one model total).
+Migration `0012`.
+
+**Net footprint:** the Calendar stays recognizable — one new model
+(`AvailabilityBlock`) and one new template (`availability.html`); everything else is a
+modification of existing files (`RecurrenceRule`, `_get_events_in_range`, `dashboard.html`,
+`calendar_mutation_service.py`, plus availability CRUD added into the existing
+`views.py`/`urls.py`). Capability unchanged: Outlook-quality recurrence + single-occurrence
+overrides, recurring work schedule, Due Today lane, availability constraints, owner-routing.
+
+**Files:** deleted 5 `services/*.py`; `models.py` (RecurrenceRule.expand + slim
+AvailabilityBlock + JSON exceptions, drop AvailabilityException); migration `0012`;
+`views.py` (remove ProjectionView, availability views use model methods, availability in
+`_get_events_in_range`); `urls.py` (drop projection route); `dashboard.html` (extend
+SOURCE_URLS + constraints lane, revert to existing endpoints/renderEvents);
+`tests/test_projection_layer.py` (rewritten, 13 tests); rewrote the design note.
+
+**Verification:** 13 new + 143 existing calendar_engine tests pass (156 total);
+`makemigrations --check` clean; real dashboard + availability pages render 200 via authed
+client; CSP-clean.
+
 ## 2026-07-07 — feat(calendar): Calendar Projection Layer + Availability Blocks (Phases 0–3)
 
 **Initiative:** Rebuild the Calendar as a first-class WLJ module that complies with the

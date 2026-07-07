@@ -4714,23 +4714,26 @@ each object stays owned and edited in its home domain.
   **this and future**, or the **entire series**. These are planning constraints (not tasks
   or events) that any planner in WLJ can read to respect your real free time.
 
-### Technical
+### Technical (built by extending the existing module — no new frameworks)
 
-- **Read contract:** `apps/calendar_engine/services/time_projection.py` —
-  `TimeProjection.for_range()` → `committed`/`due`/`constraints` lanes of `ProjectedBlock`
-  DTOs, each with an `editor_route` to its owning domain. Providers register against the
-  registry (`CalendarCacheProvider`, `AvailabilityProvider`); adding a domain is one
-  registration. API: `GET /calendar/api/projection/`.
-- **Editor routing:** `services/editor_route.py :: resolve_editor_route()`.
-- **Availability domain:** `AvailabilityBlock` + `AvailabilityException` models,
-  `availability_queries.py` (canonical truth), `availability_service.py` (this/future/
-  series). CRUD API under `/calendar/api/availability/`.
-- **Recurrence:** calendar-native objects use `RecurrenceRule` via the shared, DST-safe,
-  exception-aware `services/recurrence_engine.py` (which fixed the previously-dead
-  `RecurrenceException`). Task recurrence remains in `life.RecurrencePattern`.
+- **Projection:** the existing `apps/calendar_engine/views.py :: _get_events_in_range()`
+  was extended to also yield Availability Block occurrences (flagged
+  `event_kind='availability'`); the existing `/api/today/` + `/api/range/` endpoints serve
+  them. No projection engine, provider registry, or new endpoint.
+- **Editor routing:** the existing `SOURCE_URLS` map + click handler in
+  `dashboard.html`, extended to every source type — projected items navigate to their
+  owning object; calendar-native events open the existing modal.
+- **Availability:** one `AvailabilityBlock` model (inline recurrence + JSON `exceptions`)
+  with model methods `active()`, `get_occurrences()`, `cancel_occurrence()`,
+  `move_occurrence()`, `split_future()`. Managed at `/calendar/availability/`; CRUD API
+  under `/calendar/api/availability/`.
+- **Recurrence:** the existing `RecurrenceRule` gained a reusable `expand()` classmethod
+  (DST-safe, exception-aware); `get_occurrences()` now applies `RecurrenceException`
+  (previously a silent no-op). Availability Blocks reuse `RecurrenceRule.expand()`. Task
+  recurrence remains in `life.RecurrencePattern` (engines not merged).
 - **Cache posture:** the materialized `CalendarEvent` rows remain as a non-authoritative
-  projection cache (never edited as truth); ~49 consumers still read them, so full
-  de-materialization is a separate future initiative.
+  cache (never edited as truth); ~49 consumers still read them, so full de-materialization
+  is a separate future initiative.
 
 Full design + rationale: `docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md`.
 

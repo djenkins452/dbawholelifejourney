@@ -240,27 +240,118 @@ class RecurrenceRule(models.Model):
         Generate occurrence datetimes within the given range.
         Returns list of (start_dt, end_dt) tuples.
 
-        Delegates to the shared calendar-native recurrence engine, which is
-        DST-safe (preserves wall-clock time across CST↔CDT) AND applies this
-        event's RecurrenceException rows (moved/canceled single occurrences).
-        Before 2026-07-07 exceptions were silently ignored here.
+        Applies this event's RecurrenceException rows (moved/canceled single
+        occurrences) — before 2026-07-07 they were silently ignored here.
         """
-        from apps.calendar_engine.services.recurrence_engine import expand_occurrences
-
         event_duration = self.event.end_dt - self.event.start_dt
-        return expand_occurrences(
-            self.event.start_dt,
-            event_duration,
-            frequency=self.frequency,
-            byweekday=self.byweekday,
-            interval=self.interval,
-            until_dt=self.until_dt,
-            count=self.count,
-            tz_name=self.timezone,
-            range_start=range_start,
-            range_end=range_end,
+        return self.expand(
+            self.event.start_dt, event_duration,
+            frequency=self.frequency, byweekday=self.byweekday,
+            interval=self.interval, until_dt=self.until_dt, count=self.count,
+            tz_name=self.timezone, range_start=range_start, range_end=range_end,
             exceptions=self.event.recurrence_exceptions.all(),
         )
+
+    @staticmethod
+    def expand(anchor_start, duration, *, frequency, byweekday=None, interval=1,
+               until_dt=None, count=None, tz_name='America/Chicago',
+               range_start, range_end, exceptions=None, max_iterations=1000):
+        """Calendar-native recurrence expansion — the one place recurrence +
+        per-occurrence exceptions compose. DST-safe (iterates in the series'
+        local timezone so wall-clock time is preserved across CST↔CDT), and
+        applies exceptions (canceled occurrences dropped, moved ones relocated).
+
+        Reused by AvailabilityBlock so calendar-native recurring objects share
+        one engine. Task recurrence stays in life.RecurrencePattern.
+
+        `exceptions` items expose .original_start_dt / .is_canceled /
+        .new_start_dt / .new_end_dt (a small duck-typed object).
+        """
+        import datetime as _dt
+        from zoneinfo import ZoneInfo
+        from django.utils import timezone as _tz
+
+        interval = max(int(interval or 1), 1)
+        byweekday = list(byweekday or [])
+
+        # Index exceptions by their original occurrence instant (UTC).
+        exc_map = {}
+        for exc in (exceptions or []):
+            try:
+                exc_map[exc.original_start_dt.astimezone(_dt.timezone.utc)] = exc
+            except Exception:
+                continue
+
+        try:
+            local_tz = ZoneInfo(tz_name)
+        except Exception:
+            local_tz = _tz.get_current_timezone()
+
+        local_start = anchor_start.astimezone(local_tz)
+        local_time = local_start.time()
+        current_date = local_start.date()
+
+        def _advance(d):
+            if frequency == RecurrenceRule.FREQ_DAILY:
+                return d + _dt.timedelta(days=interval)
+            if frequency == RecurrenceRule.FREQ_WEEKLY:
+                if byweekday:
+                    nxt = d + _dt.timedelta(days=1)
+                    checked = 0
+                    while checked < 7 * interval:
+                        if nxt.isoweekday() in byweekday:
+                            return nxt
+                        nxt += _dt.timedelta(days=1)
+                        checked += 1
+                    return d + _dt.timedelta(weeks=interval)
+                return d + _dt.timedelta(weeks=interval)
+            if frequency == RecurrenceRule.FREQ_MONTHLY:
+                month = d.month + interval
+                year = d.year + (month - 1) // 12
+                month = ((month - 1) % 12) + 1
+                return d.replace(year=year, month=month, day=min(d.day, 28))
+            return d + _dt.timedelta(days=1)
+
+        occurrences = []
+        iteration = generated = 0
+        while iteration < max_iterations:
+            iteration += 1
+            naive = _dt.datetime.combine(current_date, local_time)
+            try:
+                current = _tz.make_aware(naive, local_tz)
+            except Exception:
+                current = naive.replace(tzinfo=local_tz)
+
+            if current > range_end:
+                break
+            if count is not None and generated >= count:
+                break
+            if until_dt is not None and current > until_dt:
+                break
+            if byweekday and current.isoweekday() not in byweekday:
+                current_date = _advance(current_date)
+                continue
+
+            generated += 1
+            exc = exc_map.get(current.astimezone(_dt.timezone.utc))
+            if exc is not None:
+                if getattr(exc, 'is_canceled', False):
+                    current_date = _advance(current_date)
+                    continue
+                new_start = getattr(exc, 'new_start_dt', None)
+                if new_start is not None:
+                    new_end = getattr(exc, 'new_end_dt', None) or (new_start + duration)
+                    if range_start <= new_start <= range_end:
+                        occurrences.append((new_start, new_end))
+                    current_date = _advance(current_date)
+                    continue
+
+            if current >= range_start:
+                occurrences.append((current, current + duration))
+            current_date = _advance(current_date)
+
+        return occurrences
+
 
 class RecurrenceException(models.Model):
     """
@@ -349,11 +440,12 @@ class AvailabilityBlock(models.Model):
     AvailabilityBlock is NOT a Task, Event, or Routine: it answers "when is the
     user realistically available?" so any planner can reason about free time.
 
-    Recurrence uses the calendar-native engine (shared with RecurrenceRule via
-    services/recurrence_engine.py). Task recurrence stays in life.RecurrencePattern
-    and is not merged here. Per-occurrence edits (this/future/series) are supported
-    Outlook-style: single-occurrence moves/cancels via AvailabilityException; "this
-    and future" splits the series into a new block.
+    Recurrence reuses RecurrenceRule.expand() (the one calendar-native engine).
+    Task recurrence stays in life.RecurrencePattern and is not merged here.
+    Per-occurrence edits (this/future/series) are supported Outlook-style:
+    single-occurrence moves/cancels live in the JSON ``exceptions`` list (planning
+    constraints aren't reported on independently, so no separate table); "this and
+    future" splits the series into a new block.
     """
 
     KIND_AVAILABLE = 'available'
@@ -403,6 +495,13 @@ class AvailabilityBlock(models.Model):
     count = models.PositiveIntegerField(null=True, blank=True)
     timezone = models.CharField(max_length=50, default='America/Chicago')
 
+    # Single-occurrence overrides (this occurrence moved/canceled). Kept as JSON
+    # because availability exceptions only alter recurrence generation (PTO, a
+    # doctor appt) — they aren't reported on independently. Each item:
+    #   {"original_start_dt": ISO, "new_start_dt": ISO|null,
+    #    "new_end_dt": ISO|null, "is_canceled": bool}
+    exceptions = models.JSONField(default=list, blank=True)
+
     is_active = models.BooleanField(default=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
 
@@ -419,6 +518,13 @@ class AvailabilityBlock(models.Model):
     def __str__(self):
         return f"{self.label} ({self.get_kind_display()}) {self.start_dt:%Y-%m-%d %H:%M}"
 
+    # ---- read ----
+
+    @classmethod
+    def active(cls, user):
+        """Canonical accessor: active, non-deleted blocks for a user."""
+        return cls.objects.filter(user=user, is_active=True, deleted_at__isnull=True)
+
     @property
     def is_recurring(self):
         return bool(self.frequency)
@@ -427,55 +533,78 @@ class AvailabilityBlock(models.Model):
     def duration(self):
         return self.end_dt - self.start_dt
 
+    class _Exc:
+        """Duck-typed adapter so JSON exception dicts work with RecurrenceRule.expand."""
+        def __init__(self, d):
+            from django.utils.dateparse import parse_datetime
+            self.original_start_dt = parse_datetime(d.get('original_start_dt'))
+            self.new_start_dt = parse_datetime(d['new_start_dt']) if d.get('new_start_dt') else None
+            self.new_end_dt = parse_datetime(d['new_end_dt']) if d.get('new_end_dt') else None
+            self.is_canceled = bool(d.get('is_canceled'))
+
+    def get_occurrences(self, range_start, range_end):
+        """Return (start, end) tuples within the range. One-off blocks return their
+        single interval; recurring blocks use RecurrenceRule.expand (DST-safe,
+        exception-aware) with the JSON exceptions applied."""
+        if not self.is_recurring:
+            if self.start_dt < range_end and self.end_dt > range_start:
+                return [(self.start_dt, self.end_dt)]
+            return []
+        excs = [self._Exc(d) for d in (self.exceptions or []) if d.get('original_start_dt')]
+        return RecurrenceRule.expand(
+            self.start_dt, self.duration,
+            frequency=self.frequency, byweekday=self.byweekday,
+            interval=self.interval, until_dt=self.until_dt, count=self.count,
+            tz_name=self.timezone, range_start=range_start, range_end=range_end,
+            exceptions=excs,
+        )
+
+    # ---- write (Outlook-style recurring edits) ----
+
     def soft_delete(self):
         from apps.core.time.system_clock import get_current_time
         self.is_active = False
         self.deleted_at = get_current_time()
         self.save(update_fields=['is_active', 'deleted_at', 'updated_at'])
 
-    def get_occurrences(self, range_start, range_end):
-        """Return (start, end) tuples within the range using the calendar-native
-        recurrence engine (DST-safe, exception-aware). One-off blocks return their
-        single interval if it overlaps the range."""
-        if not self.is_recurring:
-            if self.start_dt < range_end and self.end_dt > range_start:
-                return [(self.start_dt, self.end_dt)]
-            return []
-        from apps.calendar_engine.services.recurrence_engine import expand_occurrences
-        return expand_occurrences(
-            self.start_dt,
-            self.duration,
-            frequency=self.frequency,
-            byweekday=self.byweekday,
-            interval=self.interval,
-            until_dt=self.until_dt,
-            count=self.count,
-            tz_name=self.timezone,
-            range_start=range_start,
-            range_end=range_end,
-            exceptions=self.exceptions.all(),
-        )
+    def _upsert_exception(self, original_start_dt, *, new_start_dt=None,
+                          new_end_dt=None, is_canceled=False):
+        key = original_start_dt.isoformat()
+        entry = {
+            'original_start_dt': key,
+            'new_start_dt': new_start_dt.isoformat() if new_start_dt else None,
+            'new_end_dt': new_end_dt.isoformat() if new_end_dt else None,
+            'is_canceled': is_canceled,
+        }
+        rest = [e for e in (self.exceptions or []) if e.get('original_start_dt') != key]
+        self.exceptions = rest + [entry]
+        self.save(update_fields=['exceptions', 'updated_at'])
 
+    def cancel_occurrence(self, original_start_dt):
+        """Delete a single occurrence (this occurrence only)."""
+        self._upsert_exception(original_start_dt, is_canceled=True)
 
-class AvailabilityException(models.Model):
-    """A single-occurrence edit to a recurring AvailabilityBlock (this occurrence
-    moved or canceled) — the calendar-native analogue of RecurrenceException."""
+    def move_occurrence(self, original_start_dt, new_start_dt, new_end_dt=None):
+        """Move a single occurrence (this occurrence only)."""
+        self._upsert_exception(original_start_dt, new_start_dt=new_start_dt,
+                               new_end_dt=new_end_dt)
 
-    block = models.ForeignKey(
-        AvailabilityBlock,
-        on_delete=models.CASCADE,
-        related_name='exceptions',
-    )
-    original_start_dt = models.DateTimeField(
-        help_text='The original occurrence start this exception replaces.',
-    )
-    new_start_dt = models.DateTimeField(null=True, blank=True)
-    new_end_dt = models.DateTimeField(null=True, blank=True)
-    is_canceled = models.BooleanField(default=False)
+    def split_future(self, boundary_start, **fields):
+        """"This and future": cap this series just before *boundary_start* and
+        create a new block from the boundary forward with *fields* applied.
+        Returns the new block."""
+        import datetime as _dt
+        editable = ('label', 'kind', 'start_dt', 'end_dt', 'frequency',
+                    'byweekday', 'interval', 'until_dt', 'count', 'timezone')
+        self.until_dt = boundary_start - _dt.timedelta(seconds=1)
+        self.save(update_fields=['until_dt', 'updated_at'])
 
-    class Meta:
-        unique_together = ['block', 'original_start_dt']
-
-    def __str__(self):
-        action = 'Canceled' if self.is_canceled else f'Moved to {self.new_start_dt}'
-        return f"Availability exception for {self.block_id}: {action}"
+        seed = {f: getattr(self, f) for f in editable}
+        seed['start_dt'] = boundary_start
+        seed['until_dt'] = None
+        for k, v in fields.items():
+            if k in editable:
+                seed[k] = v
+        if 'end_dt' not in fields:
+            seed['end_dt'] = seed['start_dt'] + (self.end_dt - self.start_dt)
+        return AvailabilityBlock.objects.create(user=self.user, **seed)

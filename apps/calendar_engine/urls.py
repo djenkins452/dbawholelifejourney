@@ -15,9 +15,6 @@ urlpatterns = [
     # Availability Blocks (calendar-native planning constraints)
     path('availability/', views.AvailabilityManageView.as_view(), name='availability'),
 
-    # API — projection contract ("what occupies my time?")
-    path('api/projection/', views.ProjectionView.as_view(), name='api_projection'),
-
     # API — event CRUD
     path('api/today/', views.TodayTimelineView.as_view(), name='api_today'),
     path('api/range/', views.RangeView.as_view(), name='api_range'),

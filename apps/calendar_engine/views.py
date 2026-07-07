@@ -125,6 +125,35 @@ def _get_events_in_range(user, range_start, range_end):
                 continue
             result.append(occ_dict)
 
+    # Availability blocks (calendar-native planning constraints). Projected into
+    # the same event stream, flagged event_kind='availability' so the client
+    # renders them as a constraints lane — never a task/commitment. They are NOT
+    # CalendarEvents, so the ~49 CalendarEvent consumers never see them.
+    from apps.calendar_engine.models import AvailabilityBlock
+    _AVAIL_COLOR = {'unavailable': '#94a3b8', 'available': '#34d399'}
+    for block in AvailabilityBlock.active(user):
+        for occ_start, occ_end in block.get_occurrences(range_start, range_end):
+            local_start = timezone.localtime(occ_start)
+            local_end = timezone.localtime(occ_end)
+            result.append({
+                'id': block.pk,
+                'title': block.label,
+                'description': '',
+                'start_dt': local_start.isoformat(),
+                'end_dt': local_end.isoformat(),
+                'is_all_day': False,
+                'event_kind': 'availability',
+                'source_type': 'availability',
+                'source_id': str(block.pk),
+                'is_protected': False,
+                'status': 'scheduled',
+                'domain': block.get_kind_display(),
+                'domain_color': _AVAIL_COLOR.get(block.kind, '#94a3b8'),
+                'duration_minutes': int((local_end - local_start).total_seconds() / 60),
+                'is_available': block.kind == AvailabilityBlock.KIND_AVAILABLE,
+                'is_occurrence': block.is_recurring,
+            })
+
     # Sort by start time
     result.sort(key=lambda e: e['start_dt'])
     return result
@@ -250,40 +279,6 @@ class TodayTimelineView(LoginRequiredMixin, View):
 
         events = _get_events_in_range(request.user, start, end)
         return JsonResponse({'events': events, 'date': today.isoformat()})
-
-
-class ProjectionView(LoginRequiredMixin, View):
-    """GET /calendar/api/projection/?start=YYYY-MM-DD&end=YYYY-MM-DD
-
-    The Calendar Projection Layer's read contract — "what occupies my time?".
-    Returns three lanes: committed (real execution times), due (due-dated, no time,
-    never fabricated), and constraints (availability blocks). Each block carries an
-    editor_route to its OWNING domain. See docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md.
-    """
-
-    def get(self, request):
-        tz = timezone.get_current_timezone()
-        start_str = request.GET.get('start')
-        end_str = request.GET.get('end')
-        if start_str and end_str:
-            try:
-                start_date = dt.date.fromisoformat(start_str)
-                end_date = dt.date.fromisoformat(end_str)
-            except ValueError:
-                return JsonResponse({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
-        else:
-            today = timezone.localdate()
-            start_date = end_date = today
-
-        start = timezone.make_aware(dt.datetime.combine(start_date, dt.time.min), tz)
-        end = timezone.make_aware(dt.datetime.combine(end_date, dt.time.max), tz)
-
-        from apps.calendar_engine.services.time_projection import TimeProjection
-        result = TimeProjection.for_range(request.user, start, end)
-        payload = result.to_dict()
-        payload['start'] = start_date.isoformat()
-        payload['end'] = end_date.isoformat()
-        return JsonResponse(payload)
 
 
 class RangeView(LoginRequiredMixin, View):
@@ -863,17 +858,21 @@ class AvailabilityManageView(HelpContextMixin, LoginRequiredMixin, TemplateView)
         return ctx
 
 
+# Edit scopes for recurring availability blocks (Outlook-style).
+_AV_EDITABLE = ('label', 'kind', 'frequency', 'byweekday', 'interval', 'count')
+
+
 class AvailabilityListCreateView(LoginRequiredMixin, View):
     """GET  /calendar/api/availability/       — list active blocks
        POST /calendar/api/availability/       — create a block"""
 
     def get(self, request):
-        from apps.calendar_engine.services.availability_queries import AvailabilityQueries
-        blocks = [_availability_to_dict(b) for b in AvailabilityQueries.active(request.user)]
+        from apps.calendar_engine.models import AvailabilityBlock
+        blocks = [_availability_to_dict(b) for b in AvailabilityBlock.active(request.user)]
         return JsonResponse({'blocks': blocks})
 
     def post(self, request):
-        from apps.calendar_engine.services.availability_service import create_block
+        from apps.calendar_engine.models import AvailabilityBlock
 
         data = _parse_body(request)
         if not data:
@@ -886,13 +885,12 @@ class AvailabilityListCreateView(LoginRequiredMixin, View):
         if end_dt <= start_dt:
             return JsonResponse({'error': 'end_dt must be after start_dt'}, status=400)
 
-        from apps.calendar_engine.models import AvailabilityBlock
         kind = data.get('kind', AvailabilityBlock.KIND_UNAVAILABLE)
         if kind not in (AvailabilityBlock.KIND_AVAILABLE, AvailabilityBlock.KIND_UNAVAILABLE):
             return JsonResponse({'error': 'Invalid kind'}, status=400)
 
-        block = create_block(
-            request.user,
+        block = AvailabilityBlock.objects.create(
+            user=request.user,
             label=(data.get('label') or 'Availability').strip()[:200],
             kind=kind,
             start_dt=start_dt,
@@ -919,8 +917,6 @@ class AvailabilityDetailView(LoginRequiredMixin, View):
             return None
 
     def patch(self, request, pk):
-        from apps.calendar_engine.services import availability_service as svc
-
         block = self._get_block(request, pk)
         if not block:
             return JsonResponse({'error': 'Not found'}, status=404)
@@ -929,13 +925,9 @@ class AvailabilityDetailView(LoginRequiredMixin, View):
         if not data:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-        scope = data.get('scope', svc.SCOPE_SERIES)
+        scope = data.get('scope', 'series')
 
-        # Build the field updates (parse datetimes where present).
-        fields = {}
-        for key in ('label', 'kind', 'frequency', 'byweekday', 'interval', 'count'):
-            if key in data:
-                fields[key] = data[key]
+        fields = {k: data[k] for k in _AV_EDITABLE if k in data}
         if 'start_dt' in data:
             fields['start_dt'] = _parse_iso_dt(data['start_dt'])
         if 'end_dt' in data:
@@ -943,34 +935,43 @@ class AvailabilityDetailView(LoginRequiredMixin, View):
         if 'until_dt' in data:
             fields['until_dt'] = _parse_iso_dt(data['until_dt'])
 
-        if scope == svc.SCOPE_OCCURRENCE:
+        if scope == 'occurrence':
             occ = _parse_iso_dt(data.get('occurrence_start'))
             if not occ:
                 return JsonResponse({'error': 'occurrence_start required for occurrence scope'}, status=400)
-            svc.edit_occurrence(block, occ, fields.get('start_dt'), fields.get('end_dt'))
+            block.move_occurrence(occ, fields.get('start_dt') or block.start_dt, fields.get('end_dt'))
             return JsonResponse({'block': _availability_to_dict(block)})
 
-        if scope == svc.SCOPE_FUTURE:
+        if scope == 'future':
             boundary = _parse_iso_dt(data.get('occurrence_start'))
             if not boundary:
                 return JsonResponse({'error': 'occurrence_start required for future scope'}, status=400)
-            new_block = svc.split_future(block, boundary, **fields)
+            new_block = block.split_future(boundary, **fields)
             return JsonResponse({'block': _availability_to_dict(new_block)})
 
-        svc.update_series(block, **fields)
+        # series — edit the base block in place
+        for k, v in fields.items():
+            setattr(block, k, v)
+        block.save()
         return JsonResponse({'block': _availability_to_dict(block)})
 
     def delete(self, request, pk):
-        from apps.calendar_engine.services import availability_service as svc
-
+        import datetime as _dt
         block = self._get_block(request, pk)
         if not block:
             return JsonResponse({'error': 'Not found'}, status=404)
 
         data = _parse_body(request) or {}
-        scope = data.get('scope', svc.SCOPE_SERIES)
+        scope = data.get('scope', 'series')
         occ = _parse_iso_dt(data.get('occurrence_start'))
-        svc.delete_block(block, scope=scope, occurrence_start=occ)
+
+        if scope == 'occurrence' and occ:
+            block.cancel_occurrence(occ)
+        elif scope == 'future' and occ:
+            block.until_dt = occ - _dt.timedelta(seconds=1)
+            block.save(update_fields=['until_dt', 'updated_at'])
+        else:
+            block.soft_delete()
         return JsonResponse({'status': 'deleted'})
 
 

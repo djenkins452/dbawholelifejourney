@@ -57,8 +57,14 @@ class ExecutiveSignals:
     # confirmed_low | negative_no_debt ──
     reconciliation: str = ""
     # ── Conversation-reported accomplishments TODAY (merged from the evidence store).
-    # The single place downstream consumers learn what the user has already done. ──
+    # The single place downstream consumers learn what the user has already done.
+    # EFFORT accomplishments ONLY (a completed workout) — physical work that earns
+    # recovery latitude. FOUNDATION (spiritual) work lives in `foundation`. ──
     accomplishments: list = field(default_factory=list)
+    # ── FOUNDATION work already completed today (prayer, Bible reading, devotions) —
+    # the spiritual foundation of the day. Acknowledged as a strong start; NEVER framed
+    # as "planned effort exceeded → recovery latitude" (that's for a physical workout). ──
+    foundation: list = field(default_factory=list)
     # ── Items the user has RECONCILED out of today (trustworthy evidence: already done /
     # wrong time of day / canceled / traveling / sick). Merged from the evidence store;
     # every consumer stops treating these as today's priority. [{item, reason, resume}] ──
@@ -539,7 +545,17 @@ def interpret(user, low_energy=False, subjective=None):
         _reported = _reported_today(user)
     except Exception:
         _reported = {"accomplishments": [], "subjective": None, "deferrals": []}
-    reported_accomplishments = _reported.get("accomplishments") or []
+    _all_accomplishments = _reported.get("accomplishments") or []
+    # Separate FOUNDATION (spiritual) work from EFFORT (physical) work: only physical
+    # effort earns recovery latitude / "planned effort exceeded". Foundation is a strong
+    # start acknowledged on its own terms — it must not flip the day into a recovery day.
+    try:
+        from apps.ai.chatgpt_cos.accomplishment import is_foundation_label
+        reported_foundation = [a for a in _all_accomplishments if is_foundation_label(a)]
+        reported_accomplishments = [a for a in _all_accomplishments
+                                    if not is_foundation_label(a)]
+    except Exception:
+        reported_foundation, reported_accomplishments = [], list(_all_accomplishments)
     reported_deferrals = _reported.get("deferrals") or []
     _deferred_labels = {(x.get("item") or "").strip().lower()
                         for x in reported_deferrals if x.get("item")}
@@ -755,7 +771,8 @@ def interpret(user, low_energy=False, subjective=None):
         deprioritized=deprioritized, tone=tone,
         directive_explanations=directive_explanations,
         reconciliation=reconciliation,
-        accomplishments=reported_accomplishments)
+        accomplishments=reported_accomplishments,
+        foundation=reported_foundation)
 
 
 def _behavior_adapt(user):

@@ -192,6 +192,41 @@ def _momentum_story(sig):
             "priorities.")
 
 
+def _foundation_story(sig):
+    """The LISTENING/leading beat when the user has already laid the day's FOUNDATION
+    (prayer, Bible reading). Acknowledged on its own terms — a strong start — never with
+    the workout-recovery framing reserved for physical effort."""
+    fnd = list(getattr(sig, "foundation", []) or [])
+    if not fnd:
+        return ""
+    joined = fnd[0] if len(fnd) == 1 else ", ".join(fnd[:-1]) + " and " + fnd[-1]
+    return (f"You've started the day the right way — you've already got your {joined} in, "
+            "so the foundation of your day is set before anything else asks for you.")
+
+
+def _next_move_story(sig, user):
+    """The single best NEXT move on a rested morning, using deterministic personal truth:
+    get protein in early (concrete options), tied to the day's ACTUAL planned workout so
+    the recommendation is prepared, not generic."""
+    try:
+        from apps.ai.chatgpt_cos.day_truth import todays_planned_workout, protein_options
+        planned = todays_planned_workout(user)
+        protein = protein_options(user)
+    except Exception:
+        logger.warning("executive_brief: next-move day-truth read failed", exc_info=True)
+        planned, protein = None, ""
+    if planned and planned.get("type") and not planned.get("completed"):
+        when = f" at {planned['time']}" if planned.get("time") else ""
+        lead = (f"Your best next move is getting protein in early so you're fuelled for "
+                f"your {planned['type']}{when} tonight")
+    else:
+        lead = ("Your best next move is getting protein in early so the rest of the day "
+                "has a strong base")
+    if protein:
+        lead += f" — something like {protein} would fit your goals well"
+    return lead + "."
+
+
 def _reconciliation_story(sig):
     """The LISTENING beat — narrate how the user's OWN report reconciled with the
     numbers. Fires only when the report meaningfully shaped the read, so Beth is
@@ -200,11 +235,15 @@ def _reconciliation_story(sig):
     sh = getattr(sig, "sleep_hours", None)
     num = f"{round(sh, 1)} hours" if isinstance(sh, (int, float)) and sh else "a short night"
     if r == "positive_over_debt":
+        # Hold BOTH truths: energy is fine (trust the lived report) AND the sleep debt is
+        # real (metabolic recovery still owed). That's the executive distinction — not an
+        # energy-management day, but still a recovery-management one.
         return (f"That's actually encouraging. {num[0].upper()}{num[1:]} is below your "
                 "long-term goal, but what matters more this morning is that you're telling "
-                "me you feel refreshed — and I trust your lived experience. So rather than "
-                "treating today as an energy-management day, I'll pay attention to how your "
-                "energy actually holds up. Good start; we'll adjust only if it fades.")
+                "me you feel refreshed — and I trust your lived experience. So today isn't "
+                "an energy-management day. It is still a recovery-management one, though: "
+                "your energy's there, but the sleep math hasn't gone away, so the move is "
+                "to use the good energy now and protect an earlier bedtime tonight.")
     if r == "confirmed_good":
         return ("Good to hear — and the numbers don't argue with you. Nothing about this "
                 "morning says slow down, so let's put that energy to work.")
@@ -355,6 +394,13 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
     for hc in (getattr(sig, "health_critical", None) or [])[:1]:
         story.append(f"Before anything else — {hc['text']}. That's the highest-priority "
                      f"action because {hc['why']}. Take care of that first.")
+    # FOUNDATION FIRST: if the user has already laid the day's spiritual foundation
+    # (prayer, Bible reading), lead the read by acknowledging it — a strong start that
+    # frames everything after it. Never a workout-recovery framing (interpret separates
+    # foundation from physical effort).
+    foundation = _foundation_story(sig)
+    if foundation:
+        story.append(foundation)
     # The brief reflects what the user has already done today — straight from the one
     # executive picture (interpret merged it), no consumer-specific cache read.
     momentum = _momentum_story(sig)
@@ -365,6 +411,9 @@ def compose_executive_brief(user, *, lead="", low_energy=False, subjective=None)
         # The user gave us evidence — reconcile it FIRST, then the day.
         story.append(recon)
         if sig.reconciliation in ("positive_over_debt", "confirmed_good"):
+            # A rested morning: the executive move is the concrete NEXT step (protein
+            # early, tied to tonight's actual workout), grounded in deterministic truth.
+            story.append(_next_move_story(sig, user))
             story.append(_priority_story(sig))          # not an energy day
         else:                                           # negative_no_debt / confirmed_low
             story.append(_energy_story(sig, True))

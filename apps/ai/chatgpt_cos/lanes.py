@@ -72,6 +72,52 @@ def _weight_history_lane(user, message, conversation=None):
     return weight_history.answer(user, message, conversation)
 
 
+def _self_report_lane(user, message, conversation=None):
+    """VOLUNTEERED SELF-REPORT: the user TELLS Beth their state — and often what they've
+    already done — without a greeting or a question ("Overall I feel rested. Six hours is
+    fine for my energy. I already finished my prayer and Bible reading."). A Chief of
+    Staff LISTENS and answers with ONE executive synthesis, not a single-domain intent.
+    Without this, such a statement fell to the health planner and came back as a lone
+    sleep recommendation. Records what the user said into the one executive picture so
+    interpret() incorporates it, then composes the whole-picture brief. Declines
+    questions and anything with no genuine self-report signal, so normal routing is
+    unaffected."""
+    from apps.ai.chatgpt_cos.conversation_planner import _looks_like_question
+    if _looks_like_question(message):
+        return None
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import classify_subjective_energy
+        subjective = classify_subjective_energy(message)
+    except Exception:
+        subjective = None
+    # Require a genuine subjective self-report (a feeling/state). A pure accomplishment
+    # with no feeling stays with the accomplishment lane (its tailored celebration).
+    if subjective is None:
+        return None
+    # Record what the user told us into the ONE executive picture, so interpret() reflects
+    # it: the subjective energy AND any completed foundation/effort in the same breath.
+    try:
+        from apps.ai.chatgpt_cos.executive_evidence import record_subjective
+        record_subjective(user, subjective)
+        from apps.ai.chatgpt_cos import accomplishment as _acc
+        _a = _acc.detect(message)
+        if _a is not None:
+            _acc.record(user, _a.label)
+    except Exception:
+        logger.warning("self_report: record failed", exc_info=True)
+    # LISTEN, then synthesize — one executive brief (foundation → energy/recovery → the
+    # next best move), never a single-domain answer.
+    try:
+        from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
+        answer = compose_executive_brief(user, lead="Got it — thanks for the rundown. ",
+                                         subjective=subjective)
+    except Exception:
+        logger.warning("self_report: compose failed", exc_info=True)
+        return None
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "self_report"}
+
+
 def _correction_lane(user, message, conversation=None):
     """USER-CORRECTION TRUST-REPAIR: when the user CORRECTS a fact/recommendation Beth
     just made ("today is not strength, it's cardio", "why didn't you know that?"), enter
@@ -1478,15 +1524,15 @@ def _post_checkin_brief(user, message, feeling):
             pass
     heavy = subjective == "negative" or any(w in f for w in _NEGATIVE_FEELING)
     lead = ("Thanks for telling me. " if heavy else "Got it. ")
-    # FOUNDATION ACKNOWLEDGMENT: a morning check-in reply often also REPORTS completed
-    # foundation work ("I already did my prayer and Bible reading"). Recognize it and
-    # acknowledge it up front — never silently discard the report (the production miss).
+    # FOUNDATION: a morning check-in reply often also REPORTS completed foundation work
+    # ("I already did my prayer and Bible reading"). RECORD it into the one executive
+    # picture so interpret() → the brief's foundation beat narrates it in the synthesis
+    # (one acknowledgment, whole-picture), rather than a separate lead sentence.
     try:
         from apps.ai.chatgpt_cos import accomplishment as _acc
         _a = _acc.detect(message)
-        if _a is not None and getattr(_a, "kind", "") == "foundation":
-            lead += (f"And you've already got {_a.label} behind you — that's your "
-                     "foundation set for the day, which is the right way to start. ")
+        if _a is not None:
+            _acc.record(user, _a.label)
     except Exception:
         logger.warning("post_checkin_brief: accomplishment detect failed", exc_info=True)
     try:
@@ -1887,6 +1933,12 @@ LANE_REGISTRY = (
     # Priority pushback ("you prioritized X over my medicine") → acknowledge + re-rank,
     # never a fact dump. Before the retrieval lanes so it isn't read as a med-list query.
     ("priority_correction", _priority_correction_lane),
+    # VOLUNTEERED SELF-REPORT: a morning state statement ("I feel rested, I already did
+    # my prayer and Bible reading") is a check-in, not a health query — LISTEN and answer
+    # with ONE executive synthesis. Runs before the accomplishment/retrieval/reasoning
+    # lanes so a whole-life self-report isn't answered as a single-domain intent. Fires
+    # only on a genuine subjective report (declines questions), so routing is unaffected.
+    ("self_report", _self_report_lane),
     # RECOGNIZE ACCOMPLISHMENTS: a report of what was done today ("I made up my
     # workouts") is celebrated + recorded as today's evidence — before the retrieval
     # lanes so it isn't mistaken for a query.

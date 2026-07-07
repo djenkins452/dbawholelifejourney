@@ -4070,5 +4070,21 @@
       "created_at": "2026-07-07T13:00:00Z",
       "updated_at": "2026-07-07T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 256,
+    "fields": {
+      "title": "Your Chief of Staff listens first — then gives one clear read of your day",
+      "description": "Tell your Chief of Staff how your morning is going — “I feel rested, six hours is fine for my energy, and I already did my prayer and Bible reading” — and you'll get one coherent executive read instead of a single reminder. It acknowledges what you actually said, recognizes that you've already laid the foundation of your day, and holds two things at once: you feel good today, and your body still owes itself an earlier night. Then it gives you the next best move — like getting protein in early to be ready for tonight's workout — using what it already knows about your schedule and goals. Less “here's one health tip,” more a trusted right hand who heard you and sees the whole picture.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T14:00:00Z",
+      "updated_at": "2026-07-07T14:00:00Z"
+    }
   }
 ]

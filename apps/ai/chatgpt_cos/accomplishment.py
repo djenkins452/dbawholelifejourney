@@ -32,6 +32,14 @@ _COMPLETED_CUES = ("i completed", "i finished", "i did my", "i got my", "got my 
                    "i got in", "i knocked out", "knocked out my", "crushed my", "i hit my",
                    "nailed my", "got it done", "i completed my", "just finished my",
                    "i just did", "i already did", "i worked out")
+# Foundation work is reported in gentler, more natural phrasing than a workout ("I got a
+# great start by finishing my prayer…", "started my day with devotions", "wrapped up my
+# Bible reading"). Recognize these completion forms so a real report is never dropped.
+_FOUNDATION_COMPLETED_CUES = _COMPLETED_CUES + (
+    "finishing my", "finishing", "finished", "by finishing", "wrapped up", "wrapped my",
+    "great start", "good start", "started my day", "start to my day", "start today",
+    "already done", "already got", "got through my", "i prayed", "i read my",
+    "read my bible", "did my devotion", "morning devotion", "spent time")
 
 
 def _norm(s):
@@ -87,7 +95,7 @@ def detect(message):
     padded = f" {n} "
     did_prayer = any(f" {w} " in padded or f" {w}." in padded for w in _FAITH_PRAYER)
     did_bible = any(w in n for w in _FAITH_BIBLE)
-    if (did_prayer or did_bible) and any(c in n for c in _COMPLETED_CUES):
+    if (did_prayer or did_bible) and any(c in n for c in _FOUNDATION_COMPLETED_CUES):
         done = []
         if did_prayer:
             done.append("prayer")
@@ -114,7 +122,25 @@ def todays(user):
     return today(user).get("accomplishments", [])
 
 
+_FOUNDATION_LABEL_WORDS = ("prayer", "bible", "scripture", "devotion", "quiet time",
+                           "word of god")
+
+
+def is_foundation_label(label):
+    """True when an accomplishment label is FOUNDATION (spiritual) work rather than
+    physical effort — so consumers frame it as 'the foundation of your day is set',
+    never as workout-style 'planned effort exceeded → recovery latitude'."""
+    l = (label or "").lower()
+    return any(w in l for w in _FOUNDATION_LABEL_WORDS)
+
+
 def _compose(sig):
+    # FOUNDATION work is not physical effort — acknowledge it as the day's foundation,
+    # never with the "you've earned recovery" framing reserved for a hard workout.
+    if getattr(sig, "kind", "") == "foundation" or is_foundation_label(sig.label):
+        return (f"That's a strong way to start — you've already got your {sig.label} in. "
+                "The foundation of your day is set; that's exactly the kind of thing that "
+                "makes the rest of the day easier to lead.")
     if sig.kind == "made_up" and ("2" in sig.label or "3" in sig.label
                                   or "4" in sig.label or "5" in sig.label):
         return (f"That's a genuine win — {sig.label} means you've banked more work than "

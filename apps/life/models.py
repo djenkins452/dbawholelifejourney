@@ -542,6 +542,49 @@ class Task(UserOwnedModel):
             # Due more than 7 days away
             return 'someday'
 
+    def _resolve_initial_recurring_due_date(self):
+        """Pick the first actionable due_date for a recurring task that has a
+        start_date but no explicit due_date.
+
+        Never returns a date in the past: if the series start is already behind
+        us, walk the recurrence pattern forward to the first occurrence on or
+        after today so the task is never born overdue. Falls back to today when
+        the pattern can't be resolved. See save() for the incident context.
+        """
+        from django.utils import timezone
+
+        start = self.start_date
+        try:
+            from apps.core.utils import get_user_today
+            today = get_user_today(self.user) if self.user_id else timezone.now().date()
+        except Exception:
+            today = timezone.now().date()
+
+        # Future or today's start is already valid.
+        if start >= today:
+            return start
+
+        # Start is in the past — find the next pattern-aligned occurrence >= today.
+        if self.recurrence_pattern:
+            try:
+                from apps.life.services.recurrence import RecurrencePattern
+                pattern = RecurrencePattern(self.recurrence_pattern)
+                if pattern.pattern_type:
+                    candidate = pattern.get_next_occurrence(start)
+                    guard = 0
+                    # get_next_occurrence returns the next date AFTER its argument,
+                    # so walk until we reach (or pass) today. Guard caps the walk.
+                    while candidate and candidate < today and guard < 500:
+                        candidate = pattern.get_next_occurrence(candidate)
+                        guard += 1
+                    if candidate and candidate >= today:
+                        return candidate
+            except Exception:
+                pass
+
+        # Safe default: never a past date.
+        return today
+
     def save(self, *args, **kwargs):
         """
         Override save to:
@@ -558,9 +601,15 @@ class Task(UserOwnedModel):
         if update_fields is None or 'scheduled_end_time' in update_fields:
             self.scheduled_end_time = normalize_to_quarter_hour(self.scheduled_end_time)
 
-        # For new recurring tasks, set due_date from start_date if not already set
+        # For recurring tasks with no explicit due_date, schedule the actionable
+        # occurrence for the next valid date ON OR AFTER today — NEVER a past date.
+        # Previously this backfilled blindly to start_date; when the series start
+        # was already in the past (e.g. an edit that dropped the due_date), the
+        # task was born overdue AND completion then regenerated the next occurrence
+        # off that stale anchor, so the series appeared to vanish. (Origin: the
+        # "Check on Von's House" recurrence incident, 2026-07-07.)
         if self.is_recurring and self.start_date and not self.due_date:
-            self.due_date = self.start_date
+            self.due_date = self._resolve_initial_recurring_due_date()
 
         # Auto-calculate priority unless we're only updating specific fields
         if update_fields is None or 'due_date' in update_fields:

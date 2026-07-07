@@ -53,19 +53,27 @@
 
             <!-- 3. Date Section - changes based on recurring status -->
             <div class="form-section">
-                <!-- Non-recurring: Due Date only -->
-                <div id="one-time-dates" style="{% if form.is_recurring.value %}display: none;{% endif %}">
-                    <div class="form-group">
-                        <label for="id_due_date" class="form-label">Due Date</label>
-                        <input type="date" name="due_date" id="id_due_date" class="form-input"
-                               value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
-                        <p class="form-help priority-help">
-                            Priority is set automatically based on due date:
-                            <span class="priority-indicator priority-now">Now</span> = due today/overdue,
-                            <span class="priority-indicator priority-soon">Soon</span> = within 7 days,
-                            <span class="priority-indicator priority-someday">Someday</span> = no date or 7+ days
-                        </p>
-                    </div>
+                <!-- Due Date is ALWAYS editable and always submitted. For a recurring
+                     task this is the date of the CURRENT occurrence; future occurrences
+                     are generated automatically on completion. Keeping it enabled in
+                     recurring mode is the fix for the occurrence-edit integrity bug. -->
+                <div class="form-group">
+                    <label for="id_due_date" class="form-label">Due Date</label>
+                    <input type="date" name="due_date" id="id_due_date" class="form-input"
+                           value="{{ form.due_date.value|date:'Y-m-d'|default:'' }}">
+                    <p class="form-help priority-help" id="due-date-help-onetime"
+                       style="{% if form.is_recurring.value %}display: none;{% endif %}">
+                        Priority is set automatically based on due date:
+                        <span class="priority-indicator priority-now">Now</span> = due today/overdue,
+                        <span class="priority-indicator priority-soon">Soon</span> = within 7 days,
+                        <span class="priority-indicator priority-someday">Someday</span> = no date or 7+ days
+                    </p>
+                    <p class="form-help" id="due-date-help-recurring"
+                       style="{% if not form.is_recurring.value %}display: none;{% endif %}">
+                        The date this occurrence is due. Editing it reschedules this
+                        occurrence only — the next occurrence is generated automatically
+                        when you complete it. Leave blank to schedule it for today.
+                    </p>
                 </div>
 
                 <!-- Recurring: Start Date, End Date, and Pattern Builder -->
@@ -283,22 +291,28 @@
     // =========================================================================
     function toggleTaskType() {
         var isRecurring = document.getElementById('id_is_recurring').checked;
-        var oneTimeDates = document.getElementById('one-time-dates');
         var recurringDates = document.getElementById('recurring-dates');
+        var helpOneTime = document.getElementById('due-date-help-onetime');
+        var helpRecurring = document.getElementById('due-date-help-recurring');
 
         if (isRecurring) {
-            oneTimeDates.style.display = 'none';
             recurringDates.style.display = 'block';
-            document.getElementById('id_due_date').disabled = true;
+            if (helpOneTime) helpOneTime.style.display = 'none';
+            if (helpRecurring) helpRecurring.style.display = 'block';
             document.getElementById('id_start_date').disabled = false;
             document.getElementById('id_end_date').disabled = false;
         } else {
-            oneTimeDates.style.display = 'block';
             recurringDates.style.display = 'none';
-            document.getElementById('id_due_date').disabled = false;
+            if (helpOneTime) helpOneTime.style.display = 'block';
+            if (helpRecurring) helpRecurring.style.display = 'none';
             document.getElementById('id_start_date').disabled = true;
             document.getElementById('id_end_date').disabled = true;
         }
+        // due_date is ALWAYS enabled so it is always submitted. Disabling it in
+        // recurring mode dropped it from the POST, which blanked the field and
+        // forced save() to backfill from start_date (a past date) → the task was
+        // born overdue and the series regenerated off a stale anchor. (2026-07-07)
+        document.getElementById('id_due_date').disabled = false;
     }
 
     document.getElementById('id_is_recurring').addEventListener('change', toggleTaskType);

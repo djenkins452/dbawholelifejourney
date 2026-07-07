@@ -41,6 +41,67 @@ changed. Validation matrix: scheduled task → timeline; calendar event → time
 due today without time → "Due Today (No Time Assigned)"; no fake 23:59 blocks on timeline;
 Chief of Staff still recommends windows via Smart Suggestions.
 
+## 2026-07-07 — fix(life): recurring occurrence edit — born-overdue + vanishing series
+
+**Incident:** Recurring task "Check on Von's House" (series began 7/5). User edited
+today's occurrence, assigned Today 5:00 PM, saved → it immediately became OVERDUE.
+User marked it complete → the whole recurring series disappeared (only historical
+completed occurrences remained; no active occurrence for today or the future).
+
+**Proven root cause (runtime-traced, not guessed — two defects, one chain):**
+1. **FORM** (`templates/life/task_form.html`): the edit form's `toggleTaskType()`
+   (called on load, line ~606) set `id_due_date.disabled = true` whenever
+   `is_recurring` was true. A **disabled `<input>` is not submitted**, so the POST
+   carried no `due_date`. `TaskUpdateView`'s ModelForm has `due_date` in `fields`,
+   so an absent value made the form set `instance.due_date = None` — silently
+   blanking the occurrence's date on *every* recurring-task edit. (Proven with a
+   `modelform_factory` repro: due_date 7/7 in → `None` out.)
+2. **MODEL** (`apps/life/models.py :: Task.save()`): the now-blank `due_date` was
+   backfilled from `start_date` (the series start, 7/5 — a PAST date) with no
+   guard. `classify_time_status` short-circuits to `overdue` when `due_date < today`
+   (ignoring the 5 PM time), so the task was born overdue. Completion then anchored
+   `process_completed_recurring_task` on `base_date = due_date` (the stale 7/5), so
+   no valid *future* occurrence surfaced → the series appeared to vanish. Same
+   underlying defect drove both symptoms.
+
+**Answers to the incident questions:** (1) object modified = the single recurring
+Task row (its `due_date` was reset). (2) overdue because `due_date` was reset to the
+past series start; the 5 PM time was never consulted. (3) today's date was NOT
+preserved. (4) YES — the system reused the original recurrence/start date (7/5) while
+applying the new time. (5) completion did not delete the series directly. (6) the next
+occurrence anchored on the stale 7/5 so no future actionable occurrence appeared.
+(7) YES — one defect (a stale/blanked due_date) caused both the overdue flip and the
+broken recurrence.
+
+**Fix (both layers, root-cause):**
+- `Task.save()` now resolves a blank recurring `due_date` via new
+  `_resolve_initial_recurring_due_date()`: if `start_date` is in the past, it walks
+  the recurrence pattern forward to the first occurrence **on/after today**
+  (pattern-aligned) instead of backfilling to a past date — a recurring task can no
+  longer be born overdue. Future/again-today starts are preserved unchanged.
+- `task_form.html`: `due_date` is now **always visible and always enabled** (never
+  disabled in recurring mode), so editing a recurring occurrence preserves/sets its
+  own date. Added context help: in recurring mode it reads "The date this occurrence
+  is due… the next occurrence is generated automatically when you complete it."
+  Removed the `#one-time-dates` wrapper; toggled the two help notes instead.
+
+**Files changed:**
+- `apps/life/models.py` — `Task.save()` guard + `_resolve_initial_recurring_due_date()`.
+- `templates/life/task_form.html` — due_date always-visible/enabled + `toggleTaskType()`.
+- `apps/life/tests/test_recurring_occurrence_edit.py` — new: 6 regression tests
+  (model backfill never-past incl. weekly alignment + future-start preserved; view
+  edit-without-due_date not overdue; edit-with-due_date round-trip; completion
+  generates a future occurrence and keeps the series).
+
+**Verification:** 6 new tests pass; existing `test_recurrence_patterns`, `test_models`,
+`test_recurring_delete`, `test_views` (162 tests) still pass; `makemigrations --check`
+= no changes; `manage.py check` clean; edit page renders 200 with an enabled `due_date`
+input and no hardcoded `disabled`. The disabled-input → blanked-field mechanism was
+proven empirically via `modelform_factory` before any code change.
+
+**Why:** Editing a recurring occurrence silently destroyed its date and poisoned
+series continuity — a data-integrity failure, not a cosmetic one.
+
 ## 2026-07-07 — fix(dashboard_v3): weather pill — data-contract key mismatch (dot-only pill)
 
 **Root cause (data-contract key mismatch, NOT caching/JS/lifecycle):** The dashboard_v3

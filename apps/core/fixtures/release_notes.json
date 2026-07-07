@@ -4230,5 +4230,21 @@
       "created_at": "2026-07-07T23:00:00Z",
       "updated_at": "2026-07-07T23:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 266,
+    "fields": {
+      "title": "Your Chief of Staff now works alongside you all day",
+      "description": "Open the chat a second or third time and your Chief of Staff no longer starts the day over. If it already oriented you this morning and nothing important has changed, it simply picks up where you left off — a quick “welcome back” and a check on how things are going, not another sleep-and-schedule recap. And when something real has changed since you last talked — you finished several tasks, your schedule shifted, a new risk appeared — it gives you a short, updated read on just what's different instead of repeating everything. It feels like one continuous working relationship through the day rather than a fresh start every time.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T23:30:00Z",
+      "updated_at": "2026-07-07T23:30:00Z"
+    }
   }
 ]

@@ -6,6 +6,48 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): day continuity — continue the day, don't wake up fresh
+
+**Capability gap:** Beth behaved as though every conversation was the first of the day —
+"Good morning" at 7am, 11am, 3pm, 5:30pm each replayed "You got about 6 hours of sleep…".
+A real Chief of Staff continues the day: she knows she already oriented Danny, already
+covered sleep/schedule/priorities, and only revisits them if something MATERIALLY changed.
+
+**Capability built (Phase 2 reasoning; no new engine, no learning/Phase 4, no migration):**
+- **`apps/ai/chatgpt_cos/day_continuity.py`** — a LIGHT, EPHEMERAL, per-user, per-LOCAL-DAY
+  ledger in cache (expires at local midnight) of what has been established today
+  (`oriented`, `topics`, `last_seen`, and a `fingerprint` of the day's key facts). Request-
+  path safe: it reads/writes a tiny dict and derives the fingerprint from the
+  ExecutiveSignals the orientation path ALREADY computes — no new heavy work.
+- **Material change is the primary determinant** (not the clock, not a new chat).
+  `compute_fingerprint(sig)` snapshots priority_action / health_critical / today+overdue
+  counts / accomplishments / foundation / biggest_risk / mission focus;
+  `material_changes(prev, cur)` yields human-readable deltas. `assess(user)` →
+  `orient_full` (first today) | `reorient_delta` (picture changed → concise UPDATED
+  orientation) | `continue` (nothing changed → light "welcome back", any time of day).
+- **Hooks (minimal):** `_morning_checkin` (greeting) and `compose_orientation` (self-report
+  opener) consult continuity and return `compose_continuation(...)` when returning; both
+  call `mark_established(...)` after delivering. The opening check-in→brief exchange passes
+  `skip_continuity=True` so the FIRST orientation is never collapsed mid-flow. Explicit
+  "brief me / what do I need to know" is unaffected — it never routes through these gated
+  openers, so intentional repetition still works (AC #5). Daypart/stance still drives
+  posture (morning/afternoon/evening) via the existing `apps/core/truth/daypart.py`.
+
+**Files:** apps/ai/chatgpt_cos/day_continuity.py (new), apps/ai/chatgpt_cos/lanes.py
+(_morning_checkin gate + mark; post_checkin_brief skip_continuity),
+apps/ai/chatgpt_cos/executive_brief.py (compose_orientation gate + mark + skip param),
+apps/ai/tests/test_day_continuity.py (new), apps/core/fixtures/release_notes.json (PK 266),
+apps/core/management/commands/load_initial_data.py (loader reset).
+
+**Verification:** new test_day_continuity (10) — fingerprint + material-change detection,
+continuation voice (light vs delta, no sleep recap), assess (first/continue/reorient), and
+routing (a second greeting continues instead of re-orienting; the opening check-in→brief is
+never collapsed). Regression on checkin/self-report/brief/posture/daypart/mission/intent
+suites green apart from 4 PRE-EXISTING failures (2 compose_orientation wording, 2 evidence-
+reconciliation) — all confirmed failing with these changes stashed; the reconciliation ones
+trace to foreign uncommitted edits in the working tree (apps/core/truth/render.py,
+apps/billing/services.py), not this change. No new engine; no migration.
+
 ## 2026-07-07 — feat(cos): conversational intent evolution — Status → Diagnosis
 
 **Capability gap:** a conversation's MISSION can stay the same while the KIND of reasoning

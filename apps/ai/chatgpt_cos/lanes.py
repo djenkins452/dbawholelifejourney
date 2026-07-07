@@ -1699,6 +1699,20 @@ def _overnight_facts(user):
 
 
 def _morning_checkin(user, message):
+    # DAY CONTINUITY: if Beth has already oriented Danny today, don't wake up fresh with
+    # the overnight recap. Continue the day — surface only what has MATERIALLY changed
+    # (else a light "welcome back"), reasoned from the executive picture, not the clock.
+    decision = None
+    try:
+        from apps.ai.chatgpt_cos import day_continuity as dc
+        decision = dc.assess(user)
+        if decision.mode != "orient_full":
+            text = dc.compose_continuation(user, decision.sig, decision)
+            dc.mark_established(user, decision.fingerprint, topics={"checkin"})
+            return {"answer": text, "tools_called": [], "tools_advertised": [],
+                    "lane": "day_continuity"}
+    except Exception:
+        logger.warning("morning_checkin: continuity gate failed", exc_info=True)
     greeting = _greeting_word(user, message)
     facts, strong, sleep_fact = _overnight_facts(user)
     parts = [f"{greeting}, Danny."]
@@ -1719,6 +1733,14 @@ def _morning_checkin(user, message):
         result["fact_key"] = "sleep_last_night"
         result["fact"] = sleep_fact
         result["active_subject"] = {"fact_key": "sleep_last_night", "fact": sleep_fact}
+    # Record that today's orientation (with the overnight recap) has now been delivered, so
+    # a later greeting continues the day instead of repeating it.
+    try:
+        if decision is not None:
+            from apps.ai.chatgpt_cos import day_continuity as dc
+            dc.mark_established(user, decision.fingerprint, topics={"checkin", "sleep"})
+    except Exception:
+        logger.warning("morning_checkin: mark_established failed", exc_info=True)
     return result
 
 
@@ -1757,8 +1779,10 @@ def _post_checkin_brief(user, message, feeling):
     # full read is reserved for an explicit request.
     try:
         from apps.ai.chatgpt_cos.executive_brief import compose_orientation
+        # The check-in→brief is ONE opening exchange — never collapse it to a continuation
+        # mid-flow; day-continuity gating applies to later unprompted openers, not this.
         answer = compose_orientation(user, lead=lead, low_energy=heavy,
-                                     subjective=subjective)
+                                     subjective=subjective, skip_continuity=True)
     except Exception:
         logger.warning("post_checkin_brief: compose failed", exc_info=True)
         answer = lead + "Here's where things stand."

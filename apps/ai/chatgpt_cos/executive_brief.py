@@ -470,14 +470,30 @@ def _orientation_next(user, sig):
     return ""
 
 
-def compose_orientation(user, *, lead="", low_energy=False, subjective=None):
+def compose_orientation(user, *, lead="", low_energy=False, subjective=None,
+                        skip_continuity=False):
     """ORIENTATION, not a briefing — executive conversational discipline. A Chief of
     Staff acknowledges the executive, orients them to where the day stands, names the
     SINGLE next thing worth keeping in front of them, hands the conversation back with a
     question, and then STOPS. She does not enumerate every domain she knows about; the
     full executive read is reserved for an explicit request ('what do I need to know?').
-    Health-critical, time-sensitive actions still lead. At night, defers to the close-out."""
+    Health-critical, time-sensitive actions still lead. At night, defers to the close-out.
+
+    DAY CONTINUITY: if Beth has already oriented Danny today and nothing MATERIAL has
+    changed, she continues the day instead of re-orienting (a lighter 'welcome back' or,
+    on a real change, a concise delta). `skip_continuity=True` is passed by the opening
+    check-in→brief exchange so that first orientation is never collapsed mid-exchange."""
     sig = _safe_interpret(user, low_energy=low_energy, subjective=subjective)
+    if not skip_continuity:
+        try:
+            from apps.ai.chatgpt_cos import day_continuity as dc
+            decision = dc.assess(user, sig=sig)
+            if decision.mode != "orient_full":
+                text = dc.compose_continuation(user, sig, decision)
+                dc.mark_established(user, decision.fingerprint, topics={"orientation"})
+                return _scrub(text) or text
+        except Exception:
+            logger.warning("compose_orientation: continuity gate failed", exc_info=True)
     if (getattr(sig, "stance", None) or {}).get("stance") == "close_out":
         return compose_executive_brief(user, lead=lead, low_energy=low_energy,
                                        subjective=subjective)
@@ -492,6 +508,12 @@ def compose_orientation(user, *, lead="", low_energy=False, subjective=None):
         parts.append(nxt)
     parts.append(f"What do you need from me {_orientation_when(user)}?")
     out = " ".join(p for p in parts if p).strip()
+    # Record today's orientation so a later unprompted opener continues the day.
+    try:
+        from apps.ai.chatgpt_cos import day_continuity as dc
+        dc.mark_established(user, dc.compute_fingerprint(sig), topics={"orientation"})
+    except Exception:
+        logger.warning("compose_orientation: mark_established failed", exc_info=True)
     return _scrub(out) or out
 
 

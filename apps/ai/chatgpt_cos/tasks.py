@@ -169,6 +169,17 @@ def run_chatgpt_cos_generation(self, user_id, conversation_id, message,
                        message_id=assistant_msg.id, user_id=user_id,
                        extra=f"content_len={len(answer or '')}")
 
+        # Phase 0A: post-response evidence-writing (learning extraction,
+        # correction RECORDING, patterns, life facts). Fire-and-forget off the
+        # protected generation path — safe_enqueue never blocks or raises, and
+        # the separate task never shares a failure mode with the answer.
+        from apps.core.celery_utils import safe_enqueue
+        from apps.ai.tasks import post_response_intelligence_task
+        safe_enqueue(
+            post_response_intelligence_task,
+            user_id, conversation_id, message, answer,
+        )
+
     except SoftTimeLimitExceeded:
         error = "timeout"
         snap["status"] = "failed"

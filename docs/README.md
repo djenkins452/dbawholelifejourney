@@ -61,6 +61,7 @@ wlj_<category>_<descriptor>.md
 | File | Description |
 |------|-------------|
 | `wlj_camera_scan_architecture.md` | Camera scan feature architecture and security design |
+| `WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` | **Phase 4 governing architecture** — Executive Reflection & Continuous Improvement. How Beth becomes more trustworthy, valuable, and effective without ever learning around deterministic truth. Lifecycle, Assessment stage, failure taxonomy, default-deny learning gate, Executive Improvement Opportunities, Executive Scorecard. |
 
 ## Root-Level Files
 

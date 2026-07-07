@@ -6,6 +6,58 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — RATIFIED architecture + Phase 0A reconnection
+
+**Part 1 — Governing architecture (design, ratified).**
+Added `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` as the governing document for
+Phase 4 (Executive Reflection & Continuous Improvement). It sits ABOVE the existing
+Truth → Reasoning → Execution phases and only OBSERVES them — it never modifies
+deterministic truth, bypasses UAIO/reasoning/execution, creates a second truth system,
+or learns around architectural defects. Charter: make Beth progressively more
+*trustworthy, valuable, and effective*. Key ratified elements: Reflection lifecycle
+(Trigger → Evidence → Reconstruction → **Assessment** → Classification → Decision);
+learning is **default-deny** (P2) and **never learns around deterministic defects** (P3);
+two-lens **Executive Improvement Opportunity** (functional locus × engineering category)
+surfaced to Danny, extending existing `ImprovementTaskModel`; **Executive Scorecard**
+(Trust headline + Executive Initiative + diagnostic sub-scores) as a composed background
+snapshot; Confidence/Insufficient-Evidence as the honest default. Preceded by an
+extensive read-only investigation proving ~70% of the substrate already exists and that
+the only genuinely new capability is the failure classifier + escalation routing.
+Registered in the CLAUDE.md Reference Docs table and `docs/README.md` index.
+
+**Part 2 — Phase 0A implementation (reconnect existing infrastructure; no new behavior).**
+Root cause: post-response evidence-writing was WORKING on the legacy non-streaming path
+(`apps/ai/views.py`), BROKEN on the legacy streaming path (`apps/ai/tasks.py` — two dead
+imports `apps.ai.learning_extraction` / `apps.ai.correction_detector` that never existed,
+plus a wrong-arity `detect_patterns` call, all silently swallowed), and ABSENT entirely
+from the production ChatGPT CoS path (`apps/ai/chatgpt_cos/tasks.py`).
+
+Fix (Modify Before Adding):
+- **New** `apps/ai/post_response_intelligence.py :: run_post_response_intelligence()` —
+  the single canonical, fail-open evidence-writer (user-preference learning, correction
+  RECORDING, pattern detection, life-fact extraction). Evidence WRITES only: NO prompt
+  injection, NO `behavior_guidance.learn()`, NO correction read-back — those are gated
+  learning surfaces reserved for Phase 0B behind the failure classifier (P2/P3).
+- `apps/ai/tasks.py::_run_chat_post_response` now delegates to the canonical writer with
+  the real response text (dead imports removed) → legacy streaming parity restored.
+- `apps/ai/views.py` post-response daemon thread now delegates to the canonical writer
+  (behavior unchanged; duplication removed).
+- `apps/ai/chatgpt_cos/tasks.py` now fire-and-forget enqueues a new
+  `post_response_intelligence_task` via `safe_enqueue` AFTER the terminal snapshot →
+  the CoS path finally writes evidence, off the protected answer path (no added latency,
+  no shared failure mode).
+
+Explicitly DEFERRED to Phase 0B (would violate P2/P3 without the classifier gate):
+`behavior_guidance.learn()` reconnection, and correction read-back into the CoS prompt.
+
+Files: `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` (new), `CLAUDE.md`, `docs/README.md`,
+`apps/ai/post_response_intelligence.py` (new), `apps/ai/tasks.py`, `apps/ai/views.py`,
+`apps/ai/chatgpt_cos/tasks.py`, `apps/ai/tests/test_post_response_intelligence.py` (new).
+Tests: 7 new (contract + fail-open + delegation + dead-import guard) pass;
+`test_chat_background` + `test_morning_correction_trust` (33) pass; `manage.py check` clean.
+
+---
+
 ## 2026-07-07 — fix(cos): executive voice + goal hierarchy — natural language, one mission thesis
 
 **Phase-2 reasoning gaps (truth already correct, the READ wasn't executive enough):**

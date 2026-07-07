@@ -1022,52 +1022,18 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
             _pr_conversation = conversation
 
             def _post_response_intelligence():
-                try:
-                    from apps.core.ai_learning.learning_extractor import (
-                        extract_learning, evolve_profile,
-                    )
-                    resp_text = _pr_result.get('response', '') if isinstance(_pr_result, dict) else str(_pr_result)
-                    extract_learning(_pr_user, _pr_message, resp_text)
-                    evolve_profile(_pr_user)
-                except Exception as e:
-                    logger.debug("Post-response learning extraction failed: %s", e)
-
-                try:
-                    from apps.ai.correction_service import detect_correction, store_correction
-                    if detect_correction(_pr_message):
-                        prev_msgs = _pr_conversation.messages.filter(
-                            role='assistant'
-                        ).order_by('-created_at')[:1]
-                        if prev_msgs:
-                            prev = prev_msgs[0]
-                            store_correction(
-                                user=_pr_user,
-                                user_message=_pr_message,
-                                original_response=prev.content,
-                                conversation=_pr_conversation,
-                                original_message_id=prev.id,
-                            )
-                except Exception as e:
-                    logger.debug("Post-response correction detection failed: %s", e)
-
-                try:
-                    from apps.ai.pattern_detector import detect_patterns
-                    detect_patterns(_pr_user)
-                except Exception as e:
-                    logger.debug("Post-response pattern detection failed: %s", e)
-
-                # Life fact extraction — captures biographical details
-                # (family, deaths, milestones) as permanent PersonalFact records
-                try:
-                    from apps.core.ai_memory.life_fact_extractor import (
-                        extract_life_facts_from_message,
-                    )
-                    resp_text_for_lf = _pr_result.get('response', '') if isinstance(_pr_result, dict) else str(_pr_result)
-                    extract_life_facts_from_message(
-                        _pr_user, _pr_message, resp_text_for_lf
-                    )
-                except Exception as e:
-                    logger.debug("Post-response life fact extraction failed: %s", e)
+                # Phase 0A: single canonical evidence-writer (shared by the CoS
+                # and legacy streaming paths). Behavior unchanged for this path.
+                from apps.ai.post_response_intelligence import (
+                    run_post_response_intelligence,
+                )
+                resp_text = (
+                    _pr_result.get('response', '')
+                    if isinstance(_pr_result, dict) else str(_pr_result)
+                )
+                run_post_response_intelligence(
+                    _pr_user, _pr_message, resp_text, _pr_conversation,
+                )
 
             threading.Thread(target=_post_response_intelligence, daemon=True).start()
 

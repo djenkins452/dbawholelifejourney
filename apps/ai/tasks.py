@@ -124,7 +124,7 @@ def run_chat_generation(self, user_id, conversation_id, message,
             round((time.monotonic() - started) * 1000), _token_count,
         )
 
-        _run_chat_post_response(user, message, conversation)
+        _run_chat_post_response(user, message, snap.get("text", ""), conversation)
 
     except SoftTimeLimitExceeded:
         snap["status"] = "failed"
@@ -146,35 +146,51 @@ def run_chat_generation(self, user_id, conversation_id, message,
         )
 
 
-def _run_chat_post_response(user, message, conversation):
+def _run_chat_post_response(user, message, response_text, conversation):
     """
-    Post-response intelligence, relocated from the streaming view's daemon
-    thread. Each extractor is independently guarded — a failure here must
-    never mark the chat turn as failed. (Mirrors prior view behaviour, which
-    passed an empty response string to these extractors.)
+    Post-response intelligence for the legacy streaming path.
+
+    Phase 0A: delegates to the single canonical evidence-writer. This replaces
+    two dead imports (`apps.ai.learning_extraction`, `apps.ai.correction_detector`
+    — modules that never existed, silently swallowed) and a wrong-arity
+    `detect_patterns` call, so this path now writes the same evidence the working
+    legacy non-streaming path (apps/ai/views.py) already writes. Never raises.
     """
+    from apps.ai.post_response_intelligence import run_post_response_intelligence
+    run_post_response_intelligence(user, message, response_text, conversation)
+
+
+@shared_task(
+    name="apps.ai.tasks.post_response_intelligence_task",
+    bind=True,
+    max_retries=0,
+    acks_late=False,
+    soft_time_limit=45,
+    time_limit=60,
+)
+def post_response_intelligence_task(self, user_id, conversation_id, message,
+                                    response_text):
+    """Off-path post-response evidence-writing for the ChatGPT CoS runtime.
+
+    Phase 0A: the CoS generation task publishes its terminal snapshot and then
+    fire-and-forget enqueues this (via safe_enqueue) so evidence-writing never
+    shares a failure mode with — or adds latency to — the user-visible answer.
+    Delegates to the single canonical evidence-writer. Never fails the turn.
+    """
+    from django.contrib.auth import get_user_model
+    from apps.ai.models import AssistantConversation
+    from apps.ai.post_response_intelligence import run_post_response_intelligence
     try:
-        from apps.ai.learning_extraction import extract_learning
-        extract_learning(user, message, "")
-    except Exception as e:
-        logger.debug("Chat post-response learning extraction failed: %s", e)
-    try:
-        from apps.ai.correction_detector import detect_correction
-        detect_correction(user, message, conversation)
-    except Exception as e:
-        logger.debug("Chat post-response correction detection failed: %s", e)
-    try:
-        from apps.ai.pattern_detector import detect_patterns
-        detect_patterns(user, message, "")
-    except Exception as e:
-        logger.debug("Chat post-response pattern detection failed: %s", e)
-    try:
-        from apps.core.ai_memory.life_fact_extractor import (
-            extract_life_facts_from_message,
+        user = get_user_model().objects.get(id=user_id)
+        conversation = AssistantConversation.objects.filter(
+            id=conversation_id
+        ).first()
+        run_post_response_intelligence(user, message, response_text, conversation)
+    except Exception:
+        logger.warning(
+            "post_response_intelligence_task failed user=%s conv=%s",
+            user_id, conversation_id, exc_info=True,
         )
-        extract_life_facts_from_message(user, message, "")
-    except Exception as e:
-        logger.debug("Chat post-response life fact extraction failed: %s", e)
 
 
 @shared_task(

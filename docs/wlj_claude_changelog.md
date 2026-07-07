@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — docs: Page-Aware Contextual Conversation — full documentation pass
+
+Documented the Current Context Contract / Page-Aware Contextual Conversation capability across ALL
+user-facing + reference docs: (1) What's New release note (release_notes.json PK 252) broadened to
+the full object-centered capability + is_major=true; (2) new Help topic (help_topics.json PK 159,
+context_id COS_PAGE_AWARE) "Ask about what you're viewing"; (3) one-time fixture reset
+`_reset_current_context_fixtures` in load_initial_data.py (reloads release_notes + help_topics on
+deploy); (4) Features doc — new section "Page-Aware Contextual Conversation (Current Context)" + ToC
+entry #65; (5) ENGINE_COS_REFERENCE.md — auto-maintain change-log entry (pipeline, planner-owned
+selection, choke point, Faith Journey, key files); (6) WLJ_CURRENT_CONTEXT_CONTRACT.md — resolution
+order + coverage + ownership finalized. No teaching destination added (the chat is a capability of
+the existing /assistant/ surface, not a new navigable page). Files: apps/core/fixtures/release_notes.json,
+apps/help/fixtures/help_topics.json, apps/core/management/commands/load_initial_data.py,
+docs/wlj_claude_features.md, docs/ENGINE_COS_REFERENCE.md, docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
+
 ## 2026-07-06 — fix(cos): Faith focused-object resolves the PRODUCTION Journey system (isolated)
 
 Isolated Faith bug: "Explain this." on the Faith reading page returned "…its details didn't come

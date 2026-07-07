@@ -1,6 +1,12 @@
 # WLJ Current Context Contract — Page Awareness as a Platform Capability
 
-**Status:** IMPLEMENTED (2026-07-06). Core contract + auto-declaration + object-centered conversation. Contract tests in `apps/core/tests/test_current_context.py`.
+**Status:** IMPLEMENTED (2026-07-06). Core contract + auto-declaration + object-centered conversation + planner-owned object selection. Contract tests in `apps/core/tests/test_current_context.py` and `apps/ai/tests/test_page_reference.py`.
+
+**Resolution order (`resolve_page_focus`):** (1) declared `focus_ref` (`<meta name="wlj-context">` — auto for any DetailView of a `UserOwnedModel`, or explicit via `CurrentContextMixin` on overview pages) → (2) deterministic URL-based `resolve_focused_object` (any detail/landing URL, no per-page code; **server truth over the client scrape**) → (3) legacy client content. Both `focus_ref` and the URL resolver return content via the model's `get_context_summary()`.
+
+**Coverage (2026-07-06):** Goals (`LifeGoal` detail + Purpose dashboard → active mission goal), Journal (`JournalEntry`), Faith (the **production Journey system** `apps.faith.journey.JourneyDay`, narrated from scripture refs + verse blocks + `context_before` + `key_insight` + `reflection_prompt`; legacy `UserReadingPlan` preserved). A new page becomes conversational by being a `UserOwnedModel` DetailView (auto) or adding `CurrentContextMixin` (overview) — never by editing the Chief of Staff.
+
+**Ownership (proven, 2026-07-06):** for the reasoning lane, the **PLANNER** owns object selection. `reasoning/engine.py` reads `get_current_focus()`; `reasoning/stages.py :: run_planner(user, message, focus)` receives the focus **identity only** (kind + title, never content) **before** planning and selects the domain. Retrieval/working-memory/reasoner are deterministic executors; the reasoner sets `skip_current_context=True` — it grounds through curated working memory, never a prompt-prepend. The shared choke point `services.py :: _ground_current_context` remains only for the planner-less tool-loop fallback.
 
 **Governing rule — Object-Centered Conversation, NOT phrase matching.** The contract answers exactly one question: *"What canonical object is the user currently talking about?"* It hands that object to the executive brain; Beth determines intent and handles ANY natural question about it ("am I making progress?", "what concerns you?", "how does this apply to my life?") — grounded, without the user restating what's on screen. The contract never interprets a phrase.
 

@@ -3995,13 +3995,13 @@
     "model": "core.releasenote",
     "pk": 252,
     "fields": {
-      "title": "Ask about whatever you're looking at — just say “Explain this”",
-      "description": "Your Chief of Staff now understands the page you're on and the exact item in focus. Open a goal, a journal entry, or today's Scripture reading and simply ask “Explain this,” “Summarize this,” “What do you think?” or “Should I still do this?” — no need to copy, paste, or re-describe what's on your screen. It works across the app and gets smarter as more pages come online.",
+      "title": "Talk to your Chief of Staff about whatever's on your screen",
+      "description": "Your Chief of Staff now understands the page you're on and the exact item in focus — a goal, a journal entry, today's Scripture reading. Ask naturally, in your own words: “Explain this,” “Am I making progress?”, “Is this still the right goal?”, “What patterns do you notice?” or “How does this apply to my life?” — with no copying, pasting, or re-describing. The right context is pulled in automatically, so the answer is about exactly what you're looking at.",
       "entry_type": "feature",
       "version": "",
       "release_date": "2026-07-06",
       "is_published": true,
-      "is_major": false,
+      "is_major": true,
       "learn_more_url": "",
       "created_at": "2026-07-06T12:00:00Z",
       "updated_at": "2026-07-06T12:00:00Z"

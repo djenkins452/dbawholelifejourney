@@ -81,6 +81,7 @@ For core project context, see `CLAUDE.md` (project root).
 62. [Calendar Engine (Technical Reference)](#calendar-engine-technical-reference)
 63. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
 64. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
+65. [Page-Aware Contextual Conversation (Current Context)](#page-aware-contextual-conversation-current-context) *(Jul 2026)*
 
 ---
 
@@ -4636,6 +4637,49 @@ Every Place detail has ONE interactive map (self-hosted **Leaflet** over **Esri*
 
 ### Testing
 `apps/legacy/tests/test_places_map.py` (map, geocoding, provenance, review), `test_connections.py::PlaceMapLinkTests` (Google Maps link).
+
+---
+
+## Page-Aware Contextual Conversation (Current Context)
+*(Jul 2026)*
+
+### Overview
+Your Chief of Staff understands **the page you're on and the exact object in focus**, so you can ask about it in plain language — no copy/paste, no re-describing. The current page naturally shapes whichever kind of question you ask:
+
+- **Deixis / summary** — "Explain this.", "Summarize this.", "What do you think?"
+- **Reasoning** — on a goal: "Am I making progress?", "Is this still the right goal?", "What am I missing?"; on a journal entry: "How was I feeling this day?", "What patterns do you notice?"; on Scripture: "How does this apply to my life?"
+
+### Architecture — the Current Context Contract
+A single platform capability, not per-page integrations. Ownership is strict:
+
+| Component | Owns |
+|---|---|
+| **Current Context Contract** | *What object is in focus?* Resolves the canonical object, server-side, user-scoped. |
+| **Planner** | *What is the user asking about?* Receives the focus **identity** (kind + title only — never content) **before** planning and selects the domain. |
+| **Retrieval / Working Memory** | Deterministically retrieve + curate truth for the plan (never decide focus). |
+| **Reasoner** | Explain the curated truth (grounds naturally; no prompt-prepend). |
+
+Resolution order in `resolve_page_focus`: **(1)** a declared `focus_ref` (`<meta name="wlj-context">`, emitted automatically for any DetailView of a `UserOwnedModel`, or explicitly by overview pages via `CurrentContextMixin`) → **(2)** deterministic URL-based `resolve_focused_object` (works on any detail/landing URL with no per-page code; server truth) → **(3)** legacy client content.
+
+### Making a new page conversational
+Nothing in the Chief of Staff needs to change. Either the page is a DetailView of a `UserOwnedModel` (auto-declares its `context_ref`), or an overview page adds `CurrentContextMixin` and returns its one deterministic focus object. Content comes from the model's `get_context_summary()` (the Narratable protocol; `CONTEXT_FIELDS` for simple cases).
+
+### Coverage
+- **Goals** — `LifeGoal` (detail + Purpose dashboard → active mission goal).
+- **Journal** — `JournalEntry`.
+- **Faith** — the production **Journey** system (`apps.faith.journey.JourneyDay`), narrated from scripture refs + verse blocks + context + key insight + reflection; legacy `UserReadingPlan` still supported.
+
+### Key files
+- `apps/core/current_context.py` — `resolve_current_context`, `NarratableMixin`, `CurrentContextMixin`, turn-scoped focus.
+- `apps/ai/chatgpt_cos/page_reference.py` — `resolve_page_focus`, `resolve_focused_object`, deixis lane.
+- `apps/ai/chatgpt_cos/reasoning/{engine,stages}.py` — planner receives focus identity.
+- `templates/base.html` (meta emission), `templates/components/chat_widget.html` (sends the reference).
+
+### Testing
+`apps/core/tests/test_current_context.py` (resolver, ownership, Narratable, auto-declaration render, planner-receives-focus, comment-leak guard); `apps/ai/tests/test_page_reference.py` (deixis lane, degradation, Faith Journey resolution + cross-user).
+
+### Reference
+Full design + rationale: `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
 
 ---
 

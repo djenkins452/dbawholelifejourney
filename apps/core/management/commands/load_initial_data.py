@@ -1094,6 +1094,10 @@ class Command(BaseCommand):
         # help topic PK 157, teaching destination PK 187)
         self._reset_routine_history_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload fixtures for Page-Aware Contextual Conversation / Current Context
+        # (release note PK 252, help topic PK 159 COS_PAGE_AWARE)
+        self._reset_current_context_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -1963,6 +1967,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Legacy Places fixtures FAILED: {e}'))
+
+    def _reset_current_context_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Page-Aware Contextual Conversation /
+        Current Context. Reloads release_notes (PK 252) and help_topics (PK 159
+        COS_PAGE_AWARE) so the What's New entry and help topic appear.
+        """
+        reset_tracker_name = 'reset_current_context_fixtures_2026_07_06'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Current Context')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Current Context (Jul 2026)',
+                'command', 'One-time reset to reload release notes and help topics for Page-Aware Contextual Conversation'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Current Context fixtures FAILED: {e}'))
 
     def _reset_routine_history_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """
@@ -4581,7 +4616,7 @@ Tasks are sorted by priority (ascending) then creation date.""",
                         from zoneinfo import ZoneInfo
                         _tz_cache[user.id] = ZoneInfo(user.preferences.timezone_iana)
                     except Exception:
-                        from django.utils import timezone as dj_tz
+                        from datetime import timezone as dj_tz
                         _tz_cache[user.id] = dj_tz.utc
                 return _tz_cache[user.id]
 

@@ -1,6 +1,23 @@
 [
   {
     "model": "help.teachingdestination",
+    "pk": 190,
+    "fields": {
+      "destination_id": "calendar-availability",
+      "name": "Availability",
+      "path_description": "Calendar - Availability",
+      "explanation": "Set your Availability Blocks — recurring work hours, PTO, and unavailable windows — so the Calendar (and every planner in WLJ) knows when you're realistically free. Planning constraints, not tasks or events. Supports Outlook-style recurring edits (this occurrence, this and future, entire series).",
+      "url": "/calendar/availability/",
+      "keywords": "availability,available,unavailable,work hours,work schedule,free time,pto,constraints,availability blocks,when am i free",
+      "module": "calendar_engine",
+      "sort_order": 207,
+      "is_active": true,
+      "created_at": "2026-07-07T00:00:00Z",
+      "updated_at": "2026-07-07T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
     "pk": 186,
     "fields": {
       "destination_id": "sports-hub",
@@ -3115,23 +3132,6 @@
       "keywords": "user guide,help,how to,documentation,guide,instructions,tutorial,getting started",
       "module": "admin_console",
       "sort_order": 231,
-      "is_active": true,
-      "created_at": "2026-03-07T00:00:00Z",
-      "updated_at": "2026-03-07T00:00:00Z"
-    }
-  },
-  {
-    "model": "help.teachingdestination",
-    "pk": 181,
-    "fields": {
-      "destination_id": "admin-guide",
-      "name": "Admin Guide",
-      "path_description": "Admin Console - Guides - Admin Guide",
-      "explanation": "System documentation and architecture reference for administrators.",
-      "url": "/admin-console/admin-guide/",
-      "keywords": "admin guide,system documentation,architecture,admin docs,configuration guide",
-      "module": "admin_console",
-      "sort_order": 232,
       "is_active": true,
       "created_at": "2026-03-07T00:00:00Z",
       "updated_at": "2026-03-07T00:00:00Z"

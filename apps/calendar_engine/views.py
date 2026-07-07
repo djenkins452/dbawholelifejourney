@@ -252,6 +252,40 @@ class TodayTimelineView(LoginRequiredMixin, View):
         return JsonResponse({'events': events, 'date': today.isoformat()})
 
 
+class ProjectionView(LoginRequiredMixin, View):
+    """GET /calendar/api/projection/?start=YYYY-MM-DD&end=YYYY-MM-DD
+
+    The Calendar Projection Layer's read contract — "what occupies my time?".
+    Returns three lanes: committed (real execution times), due (due-dated, no time,
+    never fabricated), and constraints (availability blocks). Each block carries an
+    editor_route to its OWNING domain. See docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md.
+    """
+
+    def get(self, request):
+        tz = timezone.get_current_timezone()
+        start_str = request.GET.get('start')
+        end_str = request.GET.get('end')
+        if start_str and end_str:
+            try:
+                start_date = dt.date.fromisoformat(start_str)
+                end_date = dt.date.fromisoformat(end_str)
+            except ValueError:
+                return JsonResponse({'error': 'Invalid date format. Use YYYY-MM-DD.'}, status=400)
+        else:
+            today = timezone.localdate()
+            start_date = end_date = today
+
+        start = timezone.make_aware(dt.datetime.combine(start_date, dt.time.min), tz)
+        end = timezone.make_aware(dt.datetime.combine(end_date, dt.time.max), tz)
+
+        from apps.calendar_engine.services.time_projection import TimeProjection
+        result = TimeProjection.for_range(request.user, start, end)
+        payload = result.to_dict()
+        payload['start'] = start_date.isoformat()
+        payload['end'] = end_date.isoformat()
+        return JsonResponse(payload)
+
+
 class RangeView(LoginRequiredMixin, View):
     """GET /calendar/api/range/?start=YYYY-MM-DD&end=YYYY-MM-DD"""
 
@@ -784,6 +818,161 @@ class NLPCreateView(LoginRequiredMixin, View):
 # ──────────────────────────────────────────────────────────
 # Month Data API
 # ──────────────────────────────────────────────────────────
+
+# ──────────────────────────────────────────────────────────
+# Availability Blocks (calendar-native planning constraints)
+# ──────────────────────────────────────────────────────────
+
+def _parse_iso_dt(value):
+    """Parse an ISO datetime, making it aware in the current tz. None on failure."""
+    if not value:
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if not timezone.is_aware(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+def _availability_to_dict(block):
+    return {
+        'id': block.pk,
+        'label': block.label,
+        'kind': block.kind,
+        'start_dt': timezone.localtime(block.start_dt).isoformat(),
+        'end_dt': timezone.localtime(block.end_dt).isoformat(),
+        'frequency': block.frequency,
+        'byweekday': block.byweekday,
+        'interval': block.interval,
+        'until_dt': timezone.localtime(block.until_dt).isoformat() if block.until_dt else None,
+        'count': block.count,
+        'is_recurring': block.is_recurring,
+    }
+
+
+class AvailabilityManageView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+    """Management page for Availability Blocks."""
+    template_name = 'calendar_engine/availability.html'
+    help_context_id = 'CALENDAR_AVAILABILITY'
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['app_name'] = 'calendar_engine'
+        return ctx
+
+
+class AvailabilityListCreateView(LoginRequiredMixin, View):
+    """GET  /calendar/api/availability/       — list active blocks
+       POST /calendar/api/availability/       — create a block"""
+
+    def get(self, request):
+        from apps.calendar_engine.services.availability_queries import AvailabilityQueries
+        blocks = [_availability_to_dict(b) for b in AvailabilityQueries.active(request.user)]
+        return JsonResponse({'blocks': blocks})
+
+    def post(self, request):
+        from apps.calendar_engine.services.availability_service import create_block
+
+        data = _parse_body(request)
+        if not data:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        start_dt = _parse_iso_dt(data.get('start_dt'))
+        end_dt = _parse_iso_dt(data.get('end_dt'))
+        if not start_dt or not end_dt:
+            return JsonResponse({'error': 'start_dt and end_dt required (ISO)'}, status=400)
+        if end_dt <= start_dt:
+            return JsonResponse({'error': 'end_dt must be after start_dt'}, status=400)
+
+        from apps.calendar_engine.models import AvailabilityBlock
+        kind = data.get('kind', AvailabilityBlock.KIND_UNAVAILABLE)
+        if kind not in (AvailabilityBlock.KIND_AVAILABLE, AvailabilityBlock.KIND_UNAVAILABLE):
+            return JsonResponse({'error': 'Invalid kind'}, status=400)
+
+        block = create_block(
+            request.user,
+            label=(data.get('label') or 'Availability').strip()[:200],
+            kind=kind,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            frequency=data.get('frequency', ''),
+            byweekday=data.get('byweekday', []),
+            interval=data.get('interval', 1),
+            until_dt=_parse_iso_dt(data.get('until_dt')),
+            count=data.get('count'),
+            timezone=request.user.preferences.timezone_iana,
+        )
+        return JsonResponse({'block': _availability_to_dict(block)}, status=201)
+
+
+class AvailabilityDetailView(LoginRequiredMixin, View):
+    """PATCH  /calendar/api/availability/<id>/  — update (scope: series|future|occurrence)
+       DELETE /calendar/api/availability/<id>/  — delete (scope: series|future|occurrence)"""
+
+    def _get_block(self, request, pk):
+        from apps.calendar_engine.models import AvailabilityBlock
+        try:
+            return AvailabilityBlock.objects.get(pk=pk, user=request.user, deleted_at__isnull=True)
+        except AvailabilityBlock.DoesNotExist:
+            return None
+
+    def patch(self, request, pk):
+        from apps.calendar_engine.services import availability_service as svc
+
+        block = self._get_block(request, pk)
+        if not block:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        data = _parse_body(request)
+        if not data:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+        scope = data.get('scope', svc.SCOPE_SERIES)
+
+        # Build the field updates (parse datetimes where present).
+        fields = {}
+        for key in ('label', 'kind', 'frequency', 'byweekday', 'interval', 'count'):
+            if key in data:
+                fields[key] = data[key]
+        if 'start_dt' in data:
+            fields['start_dt'] = _parse_iso_dt(data['start_dt'])
+        if 'end_dt' in data:
+            fields['end_dt'] = _parse_iso_dt(data['end_dt'])
+        if 'until_dt' in data:
+            fields['until_dt'] = _parse_iso_dt(data['until_dt'])
+
+        if scope == svc.SCOPE_OCCURRENCE:
+            occ = _parse_iso_dt(data.get('occurrence_start'))
+            if not occ:
+                return JsonResponse({'error': 'occurrence_start required for occurrence scope'}, status=400)
+            svc.edit_occurrence(block, occ, fields.get('start_dt'), fields.get('end_dt'))
+            return JsonResponse({'block': _availability_to_dict(block)})
+
+        if scope == svc.SCOPE_FUTURE:
+            boundary = _parse_iso_dt(data.get('occurrence_start'))
+            if not boundary:
+                return JsonResponse({'error': 'occurrence_start required for future scope'}, status=400)
+            new_block = svc.split_future(block, boundary, **fields)
+            return JsonResponse({'block': _availability_to_dict(new_block)})
+
+        svc.update_series(block, **fields)
+        return JsonResponse({'block': _availability_to_dict(block)})
+
+    def delete(self, request, pk):
+        from apps.calendar_engine.services import availability_service as svc
+
+        block = self._get_block(request, pk)
+        if not block:
+            return JsonResponse({'error': 'Not found'}, status=404)
+
+        data = _parse_body(request) or {}
+        scope = data.get('scope', svc.SCOPE_SERIES)
+        occ = _parse_iso_dt(data.get('occurrence_start'))
+        svc.delete_block(block, scope=scope, occurrence_start=occ)
+        return JsonResponse({'status': 'deleted'})
+
 
 class MonthDataView(LoginRequiredMixin, View):
     """

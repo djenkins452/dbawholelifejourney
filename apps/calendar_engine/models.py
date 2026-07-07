@@ -240,92 +240,27 @@ class RecurrenceRule(models.Model):
         Generate occurrence datetimes within the given range.
         Returns list of (start_dt, end_dt) tuples.
 
-        Uses the recurrence's timezone to preserve wall-clock time across
-        DST boundaries.  E.g. "6 PM every Wednesday" stays 6 PM even when
-        the UTC offset changes from -06:00 (CST) to -05:00 (CDT).
+        Delegates to the shared calendar-native recurrence engine, which is
+        DST-safe (preserves wall-clock time across CST↔CDT) AND applies this
+        event's RecurrenceException rows (moved/canceled single occurrences).
+        Before 2026-07-07 exceptions were silently ignored here.
         """
-        import datetime as dt
-        from zoneinfo import ZoneInfo
-        from django.utils import timezone as tz_utils
+        from apps.calendar_engine.services.recurrence_engine import expand_occurrences
 
-        occurrences = []
         event_duration = self.event.end_dt - self.event.start_dt
-
-        # Work in the recurrence's local timezone so timedelta advances
-        # preserve the wall-clock time across DST transitions.
-        try:
-            local_tz = ZoneInfo(self.timezone)
-        except (KeyError, Exception):
-            local_tz = tz_utils.get_current_timezone()
-
-        local_start = self.event.start_dt.astimezone(local_tz)
-        local_time = local_start.time()
-        current_date = local_start.date()
-
-        # Cap iterations for safety
-        max_iterations = 1000
-        iteration = 0
-        generated = 0
-
-        while iteration < max_iterations:
-            iteration += 1
-
-            # Build occurrence at the same wall-clock time on current_date
-            naive_dt = dt.datetime.combine(current_date, local_time)
-            try:
-                current = tz_utils.make_aware(naive_dt, local_tz)
-            except Exception:
-                current = naive_dt.replace(tzinfo=local_tz)
-
-            if current > range_end:
-                break
-
-            # Check count limit
-            if self.count is not None and generated >= self.count:
-                break
-            # Check until limit
-            if self.until_dt is not None and current > self.until_dt:
-                break
-
-            if current >= range_start:
-                # Check byweekday filter
-                if self.byweekday:
-                    iso_weekday = current.isoweekday()
-                    if iso_weekday not in self.byweekday:
-                        current_date = self._advance_date(current_date)
-                        continue
-
-                occurrences.append((current, current + event_duration))
-                generated += 1
-
-            current_date = self._advance_date(current_date)
-
-        return occurrences
-
-    def _advance_date(self, current_date):
-        """Advance a date by the recurrence interval. Used by get_occurrences."""
-        import datetime as dt
-
-        if self.frequency == self.FREQ_DAILY:
-            return current_date + dt.timedelta(days=self.interval)
-        elif self.frequency == self.FREQ_WEEKLY:
-            if self.byweekday:
-                next_date = current_date + dt.timedelta(days=1)
-                days_checked = 0
-                while days_checked < 7 * self.interval:
-                    if next_date.isoweekday() in self.byweekday:
-                        return next_date
-                    next_date += dt.timedelta(days=1)
-                    days_checked += 1
-                return current_date + dt.timedelta(weeks=self.interval)
-            return current_date + dt.timedelta(weeks=self.interval)
-        elif self.frequency == self.FREQ_MONTHLY:
-            month = current_date.month + self.interval
-            year = current_date.year + (month - 1) // 12
-            month = ((month - 1) % 12) + 1
-            day = min(current_date.day, 28)
-            return current_date.replace(year=year, month=month, day=day)
-        return current_date + dt.timedelta(days=1)
+        return expand_occurrences(
+            self.event.start_dt,
+            event_duration,
+            frequency=self.frequency,
+            byweekday=self.byweekday,
+            interval=self.interval,
+            until_dt=self.until_dt,
+            count=self.count,
+            tz_name=self.timezone,
+            range_start=range_start,
+            range_end=range_end,
+            exceptions=self.event.recurrence_exceptions.all(),
+        )
 
 class RecurrenceException(models.Model):
     """
@@ -404,3 +339,143 @@ class DeclinedSuggestion(models.Model):
 
     def __str__(self):
         return f"Declined {self.source_type}:{self.source_id} on {self.declined_date}"
+
+
+class AvailabilityBlock(models.Model):
+    """A calendar-native planning constraint — when the user is (un)available.
+
+    Availability is inherently time-shaped, so the Calendar legitimately OWNS it
+    (unlike Tasks/Medicine/Workouts, which the calendar only projects). An
+    AvailabilityBlock is NOT a Task, Event, or Routine: it answers "when is the
+    user realistically available?" so any planner can reason about free time.
+
+    Recurrence uses the calendar-native engine (shared with RecurrenceRule via
+    services/recurrence_engine.py). Task recurrence stays in life.RecurrencePattern
+    and is not merged here. Per-occurrence edits (this/future/series) are supported
+    Outlook-style: single-occurrence moves/cancels via AvailabilityException; "this
+    and future" splits the series into a new block.
+    """
+
+    KIND_AVAILABLE = 'available'
+    KIND_UNAVAILABLE = 'unavailable'
+    KIND_CHOICES = [
+        (KIND_AVAILABLE, 'Available'),
+        (KIND_UNAVAILABLE, 'Unavailable'),
+    ]
+
+    # Recurrence frequency ('' = one-off). Mirrors RecurrenceRule vocabulary.
+    FREQ_NONE = ''
+    FREQ_DAILY = 'daily'
+    FREQ_WEEKLY = 'weekly'
+    FREQ_MONTHLY = 'monthly'
+    FREQUENCY_CHOICES = [
+        (FREQ_NONE, 'Does not repeat'),
+        (FREQ_DAILY, 'Daily'),
+        (FREQ_WEEKLY, 'Weekly'),
+        (FREQ_MONTHLY, 'Monthly'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='availability_blocks',
+    )
+    label = models.CharField(max_length=200, default='Work')
+    kind = models.CharField(
+        max_length=12, choices=KIND_CHOICES, default=KIND_UNAVAILABLE,
+        help_text='Whether this block marks time as available or unavailable.',
+    )
+
+    # Anchor occurrence (aware). Recurrence expands from this wall-clock time.
+    start_dt = models.DateTimeField()
+    end_dt = models.DateTimeField()
+
+    # Recurrence (inline — calendar-native engine). Empty frequency = one-off.
+    frequency = models.CharField(
+        max_length=10, choices=FREQUENCY_CHOICES, default=FREQ_NONE, blank=True,
+    )
+    byweekday = models.JSONField(
+        default=list, blank=True,
+        help_text='ISO weekday numbers (1=Mon..7=Sun) for weekly recurrence.',
+    )
+    interval = models.PositiveIntegerField(default=1)
+    until_dt = models.DateTimeField(null=True, blank=True)
+    count = models.PositiveIntegerField(null=True, blank=True)
+    timezone = models.CharField(max_length=50, default='America/Chicago')
+
+    is_active = models.BooleanField(default=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['start_dt']
+        indexes = [
+            models.Index(fields=['user', 'start_dt']),
+            models.Index(fields=['user', 'is_active', 'deleted_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.label} ({self.get_kind_display()}) {self.start_dt:%Y-%m-%d %H:%M}"
+
+    @property
+    def is_recurring(self):
+        return bool(self.frequency)
+
+    @property
+    def duration(self):
+        return self.end_dt - self.start_dt
+
+    def soft_delete(self):
+        from apps.core.time.system_clock import get_current_time
+        self.is_active = False
+        self.deleted_at = get_current_time()
+        self.save(update_fields=['is_active', 'deleted_at', 'updated_at'])
+
+    def get_occurrences(self, range_start, range_end):
+        """Return (start, end) tuples within the range using the calendar-native
+        recurrence engine (DST-safe, exception-aware). One-off blocks return their
+        single interval if it overlaps the range."""
+        if not self.is_recurring:
+            if self.start_dt < range_end and self.end_dt > range_start:
+                return [(self.start_dt, self.end_dt)]
+            return []
+        from apps.calendar_engine.services.recurrence_engine import expand_occurrences
+        return expand_occurrences(
+            self.start_dt,
+            self.duration,
+            frequency=self.frequency,
+            byweekday=self.byweekday,
+            interval=self.interval,
+            until_dt=self.until_dt,
+            count=self.count,
+            tz_name=self.timezone,
+            range_start=range_start,
+            range_end=range_end,
+            exceptions=self.exceptions.all(),
+        )
+
+
+class AvailabilityException(models.Model):
+    """A single-occurrence edit to a recurring AvailabilityBlock (this occurrence
+    moved or canceled) — the calendar-native analogue of RecurrenceException."""
+
+    block = models.ForeignKey(
+        AvailabilityBlock,
+        on_delete=models.CASCADE,
+        related_name='exceptions',
+    )
+    original_start_dt = models.DateTimeField(
+        help_text='The original occurrence start this exception replaces.',
+    )
+    new_start_dt = models.DateTimeField(null=True, blank=True)
+    new_end_dt = models.DateTimeField(null=True, blank=True)
+    is_canceled = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ['block', 'original_start_dt']
+
+    def __str__(self):
+        action = 'Canceled' if self.is_canceled else f'Moved to {self.new_start_dt}'
+        return f"Availability exception for {self.block_id}: {action}"

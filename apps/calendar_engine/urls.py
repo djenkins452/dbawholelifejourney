@@ -12,10 +12,20 @@ urlpatterns = [
     # Month view
     path('month/', views.MonthView.as_view(), name='month'),
 
+    # Availability Blocks (calendar-native planning constraints)
+    path('availability/', views.AvailabilityManageView.as_view(), name='availability'),
+
+    # API — projection contract ("what occupies my time?")
+    path('api/projection/', views.ProjectionView.as_view(), name='api_projection'),
+
     # API — event CRUD
     path('api/today/', views.TodayTimelineView.as_view(), name='api_today'),
     path('api/range/', views.RangeView.as_view(), name='api_range'),
     path('api/month/', views.MonthDataView.as_view(), name='api_month'),
+
+    # API — availability blocks
+    path('api/availability/', views.AvailabilityListCreateView.as_view(), name='api_availability'),
+    path('api/availability/<int:pk>/', views.AvailabilityDetailView.as_view(), name='api_availability_detail'),
     path('api/events/all/', views.AllEventsView.as_view(), name='api_all_events'),
     path('api/events/', views.EventCreateView.as_view(), name='api_event_create'),
     path('api/events/<int:pk>/', views.EventDetailView.as_view(), name='api_event_detail'),

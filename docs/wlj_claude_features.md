@@ -82,6 +82,7 @@ For core project context, see `CLAUDE.md` (project root).
 63. [Owner Financial Command Center](#owner-financial-command-center) *(Feb 2026)*
 64. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
 65. [Page-Aware Contextual Conversation (Current Context)](#page-aware-contextual-conversation-current-context) *(Jul 2026)*
+66. [Calendar Projection Layer & Availability Blocks](#calendar-projection-layer--availability-blocks) *(Jul 2026)*
 
 ---
 
@@ -4683,4 +4684,56 @@ Full design + rationale: `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
 
 ---
 
-*Last updated: 2026-07-06*
+## Calendar Projection Layer & Availability Blocks
+
+*(Jul 2026)*
+
+The Calendar was rebuilt as a first-class module that complies with WLJ's Single Source
+of Truth architecture. **The Calendar owns TIME, not OBJECTS** — it answers one question,
+*"what occupies my time?"*, by projecting every domain's truth into a single view while
+each object stays owned and edited in its home domain.
+
+### Core principle
+
+- **Each domain owns its truth** — Tasks own tasks, Medicine owns medications, Workouts
+  own workouts, Goals own goals, Faith owns reading plans, Routines own routines. The
+  Calendar owns only calendar-native objects (manual events + Availability Blocks).
+- **Click an item, edit its owner** — clicking a task on the Calendar opens the Task
+  editor; a medication opens Medicine; a workout opens Workouts. The Calendar never keeps
+  a second, editable copy of another domain's object.
+- **The timeline tells the truth** — only items with a real execution time occupy the
+  timeline. Due-dated items with no time appear in a separate "Due Today" lane with **no
+  fabricated execution window**.
+
+### What's new for users
+
+- **Projection view** — the timeline splits into three lanes: **committed** (real times),
+  **due** (due today, no time), and **availability constraints**.
+- **Availability Blocks** (`/calendar/availability/`) — set work hours, PTO, or any
+  available/unavailable window. Recurring, with Outlook-style edits: **this occurrence**,
+  **this and future**, or the **entire series**. These are planning constraints (not tasks
+  or events) that any planner in WLJ can read to respect your real free time.
+
+### Technical
+
+- **Read contract:** `apps/calendar_engine/services/time_projection.py` —
+  `TimeProjection.for_range()` → `committed`/`due`/`constraints` lanes of `ProjectedBlock`
+  DTOs, each with an `editor_route` to its owning domain. Providers register against the
+  registry (`CalendarCacheProvider`, `AvailabilityProvider`); adding a domain is one
+  registration. API: `GET /calendar/api/projection/`.
+- **Editor routing:** `services/editor_route.py :: resolve_editor_route()`.
+- **Availability domain:** `AvailabilityBlock` + `AvailabilityException` models,
+  `availability_queries.py` (canonical truth), `availability_service.py` (this/future/
+  series). CRUD API under `/calendar/api/availability/`.
+- **Recurrence:** calendar-native objects use `RecurrenceRule` via the shared, DST-safe,
+  exception-aware `services/recurrence_engine.py` (which fixed the previously-dead
+  `RecurrenceException`). Task recurrence remains in `life.RecurrencePattern`.
+- **Cache posture:** the materialized `CalendarEvent` rows remain as a non-authoritative
+  projection cache (never edited as truth); ~49 consumers still read them, so full
+  de-materialization is a separate future initiative.
+
+Full design + rationale: `docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md`.
+
+---
+
+*Last updated: 2026-07-07 (Calendar Projection Layer & Availability Blocks)*

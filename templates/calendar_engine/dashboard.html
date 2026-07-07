@@ -42,6 +42,16 @@
 .cal-unscheduled-domain { font-size: 0.75rem; color: var(--color-text-muted); }
 .cal-unscheduled-hint { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 0.5rem; font-style: italic; }
 
+/* Availability constraints — a planning-constraint lane, muted, never a task.
+   Deliberately distinct from timeline blocks: no completion visuals. */
+.cal-availability-link { font-size: 0.75rem; color: var(--color-accent); text-decoration: none; }
+.cal-availability-link:hover { text-decoration: underline; }
+.cal-constraints { margin-bottom: 1rem; }
+.cal-constraints-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 0.5rem; }
+.cal-constraint-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: var(--color-text-muted); padding: 0.375rem 0.625rem; border-left: 3px solid #94a3b8; border-radius: 4px; cursor: pointer; background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(148,163,184,0.08) 6px, rgba(148,163,184,0.08) 12px); margin-bottom: 0.25rem; }
+.cal-constraint-item.available { border-left-color: #34d399; }
+.cal-constraint-time { font-weight: 600; }
+
 /* Timeline */
 .cal-timeline { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1rem; }
 .cal-timeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -167,7 +177,11 @@
         <div class="cal-timeline" id="cal-timeline">
             <div class="cal-timeline-header">
                 <span class="cal-timeline-date" id="cal-date-label"></span>
+                <a href="{% url 'calendar_engine:availability' %}" class="cal-availability-link">Availability &rarr;</a>
             </div>
+            <!-- Availability constraints (when the user is (un)available) — a
+                 planning constraint lane, never a task/commitment. -->
+            <div id="cal-constraints-container"></div>
             <!-- Facts due today with NO execution time — surfaced here, never
                  placed on the factual timeline as a fake 23:59 block. -->
             <div id="cal-unscheduled-container"></div>
@@ -400,24 +414,50 @@
         el.innerHTML = html;
     }
 
-    function renderEvents(events, label) {
-        var container = document.getElementById('cal-events-container');
-        document.getElementById('cal-date-label').textContent = label || 'Today';
-        eventsCache = events || [];
+    function renderConstraints(items) {
+        // Availability blocks — a planning-constraint lane. Muted, never a task.
+        var el = document.getElementById('cal-constraints-container');
+        if (!el) return;
+        if (!items || items.length === 0) { el.innerHTML = ''; return; }
 
-        // Truth split: deadline markers (due, no execution time) come off the
-        // factual timeline into the "Due — No Time Assigned" section above it.
-        var timed = [];
-        var unscheduled = [];
-        (events || []).forEach(function(evt) {
-            if (evt.event_kind === 'deadline_marker') { unscheduled.push(evt); }
-            else { timed.push(evt); }
+        var html = '<div class="cal-constraints">';
+        html += '<div class="cal-constraints-title">Availability</div>';
+        items.forEach(function(evt) {
+            var cls = (evt.domain === 'Available') ? ' available' : '';
+            html += '<div class="cal-constraint-item' + cls + '" data-event-id="' + evt.id + '" data-lane="constraint">';
+            html += '<span class="cal-constraint-time">' + formatTime(evt.start_dt) + ' — ' + formatTime(evt.end_dt) + '</span>';
+            html += '<span>' + escHtml(evt.title) + '</span>';
+            html += '</div>';
         });
+        html += '</div>';
+        el.innerHTML = html;
+    }
 
-        renderUnscheduled(unscheduled);
+    function renderProjection(result, label) {
+        // The projection contract splits time into lanes server-side:
+        //   committed   — real execution times (occupy the timeline)
+        //   due         — due-dated, NO execution time (never fabricated)
+        //   constraints — availability blocks
+        result = result || {};
+        var committed = result.committed || [];
+        var due = result.due || [];
+        var constraints = result.constraints || [];
 
-        if (timed.length === 0) {
-            container.innerHTML = unscheduled.length > 0
+        document.getElementById('cal-date-label').textContent = label || 'Today';
+        // Cache committed + due for native-event modal lookups (constraints route
+        // out to the availability page, never the event modal).
+        eventsCache = committed.concat(due);
+
+        renderConstraints(constraints);
+        renderUnscheduled(due);
+        renderTimeline(committed, due);
+    }
+
+    function renderTimeline(timed, due) {
+        var container = document.getElementById('cal-events-container');
+
+        if (!timed || timed.length === 0) {
+            container.innerHTML = (due && due.length > 0)
                 ? '<div class="cal-empty-state">Nothing scheduled at a set time.</div>'
                 : '<div class="cal-empty-state">No events scheduled. Use Quick Add to create one!</div>';
             return;
@@ -463,25 +503,17 @@
 
     function loadView(view) {
         currentView = view;
-        var url, label;
+        var start = todayISO(), end = todayISO(), label = 'Today';
 
-        if (view === 'today') {
-            url = '/calendar/api/today/';
-            label = 'Today';
-        } else if (view === '3day') {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(2);
-            label = 'Next 3 Days';
-        } else if (view === 'week') {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(6);
-            label = 'This Week';
-        } else {
-            url = '/calendar/api/range/?start=' + todayISO() + '&end=' + dateOffset(13);
-            label = 'Agenda (2 Weeks)';
-        }
+        if (view === '3day') { end = dateOffset(2); label = 'Next 3 Days'; }
+        else if (view === 'week') { end = dateOffset(6); label = 'This Week'; }
+        else if (view === 'agenda') { end = dateOffset(13); label = 'Agenda (2 Weeks)'; }
 
+        // The Calendar reads the projection contract — "what occupies my time?"
+        var url = '/calendar/api/projection/?start=' + start + '&end=' + end;
         api(url).then(function(resp) {
             if (resp.ok) {
-                renderEvents(resp.data.events, label);
+                renderProjection(resp.data, label);
             }
         });
     }
@@ -599,43 +631,43 @@
         }
     }
 
-    // ── Source URL Map ──
+    // ── Editor routing — edit the OWNING domain, never the projection/cache ──
+    // Every projected block carries editor_route from the server. Calendar-native
+    // blocks (manual events) edit in place (modal); every projected foreign object
+    // navigates to its owning domain's editor (Task → task editor, etc.).
+    // See docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md.
 
-    var SOURCE_URLS = {
-        'task': '/life/tasks/{id}/edit/',
-        'goal': '/purpose/goals/{id}/',
-        'goal_milestone': '/purpose/goals/{id}/',
-        'habit': '/purpose/habits/{id}/',
-    };
+    function findBlock(eventId) {
+        return eventsCache.find(function(x) { return x.id === eventId; });
+    }
 
-    // ── Event Click Handler ──
+    function routeEditor(evt, eventId) {
+        var route = evt && evt.editor_route ? evt.editor_route : null;
+        if (route && route.url) { window.location.href = route.url; return; }
+        if (route && route.edit_in_place) { openEventEdit(eventId); return; }
+        // No route resolved — degrade to the native modal ONLY for calendar-owned
+        // rows; never edit a projected foreign object as if the calendar owned it.
+        if (evt && (!evt.source_type || evt.source_type === 'none')) { openEventEdit(eventId); }
+    }
 
     document.getElementById('cal-events-container').addEventListener('click', function(e) {
         var item = e.target.closest('.cal-event-item');
         if (!item) return;
-
-        var sourceType = item.dataset.sourceType;
-        var sourceId = item.dataset.sourceId;
         var eventId = Number(item.dataset.eventId);
-        var eventKind = item.dataset.eventKind;
+        routeEditor(findBlock(eventId), eventId);
+    });
 
-        // Execution blocks → always open calendar edit modal.
-        // These are calendar-native events projected from tasks/routines.
-        // The source task may have been soft-deleted (routine tasks recycle
-        // daily), so navigating to /life/tasks/{id}/edit/ would 404.
-        if (eventKind === 'execution_block') {
-            openEventEdit(eventId);
-            return;
-        }
+    document.getElementById('cal-unscheduled-container').addEventListener('click', function(e) {
+        var li = e.target.closest('.cal-unscheduled-item');
+        if (!li) return;
+        var eventId = Number(li.dataset.eventId);
+        routeEditor(findBlock(eventId), eventId);
+    });
 
-        // Source-linked non-execution events → navigate to source page
-        if (sourceType && sourceType !== 'none' && sourceId && SOURCE_URLS[sourceType]) {
-            window.location.href = SOURCE_URLS[sourceType].replace('{id}', sourceId);
-            return;
-        }
-
-        // Manual/CoS events → open edit modal
-        openEventEdit(eventId);
+    document.getElementById('cal-constraints-container').addEventListener('click', function(e) {
+        var item = e.target.closest('.cal-constraint-item');
+        if (!item) return;
+        window.location.href = "{% url 'calendar_engine:availability' %}";
     });
 
     // ── Event Edit Modal ──
@@ -662,12 +694,13 @@
         document.getElementById('cal-event-edit-end').value = toLocalInput(evt.end_dt);
         document.getElementById('cal-event-edit-title').textContent = 'Edit: ' + evt.title;
 
-        // Show source link if linked (but NOT for execution blocks —
-        // the source task may have been recycled/deleted)
+        // The modal only opens for calendar-native events. If a route to an
+        // owning domain exists, offer it as a link (defensive — routeEditor
+        // normally navigates there directly).
         var sourceEl = document.getElementById('cal-event-edit-source-info');
-        if (evt.event_kind !== 'execution_block' && evt.source_type && evt.source_type !== 'none' && evt.source_id && SOURCE_URLS[evt.source_type]) {
-            var url = SOURCE_URLS[evt.source_type].replace('{id}', evt.source_id);
-            sourceEl.innerHTML = '<a href="' + url + '" class="cal-edit-source-link">View ' + escHtml(evt.source_type) + ' &#8599;</a>';
+        var route = evt.editor_route;
+        if (route && route.url && !route.edit_in_place) {
+            sourceEl.innerHTML = '<a href="' + route.url + '" class="cal-edit-source-link">' + escHtml(route.label || 'Open owner') + ' &#8599;</a>';
         } else {
             sourceEl.innerHTML = '';
         }

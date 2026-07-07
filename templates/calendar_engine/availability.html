@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Availability — Calendar{% endblock %}
+
+{% block extra_css %}
+<style nonce="{{ csp_nonce }}">
+.av-container { max-width: 820px; margin: 0 auto; padding: 1rem; }
+.av-header { margin-bottom: 1.5rem; }
+.av-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--color-text); margin: 0 0 0.25rem; }
+.av-header p { color: var(--color-text-muted); font-size: 0.9375rem; margin: 0; }
+.av-header a { color: var(--color-accent); text-decoration: none; font-size: 0.875rem; }
+.av-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1.25rem; }
+.av-card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted); margin-bottom: 1rem; }
+.av-form-group { margin-bottom: 1rem; }
+.av-label { display: block; font-size: 0.8125rem; color: var(--color-text-muted); margin-bottom: 0.375rem; }
+.av-input, .av-select { width: 100%; padding: 0.625rem; font-size: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); color: var(--color-text); box-sizing: border-box; }
+.av-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.av-row .av-form-group { flex: 1; min-width: 140px; }
+.av-kind { display: flex; gap: 0.75rem; }
+.av-kind label { display: flex; align-items: center; gap: 0.375rem; font-size: 0.9375rem; color: var(--color-text); cursor: pointer; }
+.av-weekdays { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+.av-weekday { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-md); font-size: 0.8125rem; cursor: pointer; user-select: none; color: var(--color-text-muted); }
+.av-weekday.on { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+.av-btn { padding: 0.625rem 1.25rem; font-size: 0.9375rem; border: none; border-radius: var(--radius-md); background: var(--color-accent); color: #fff; cursor: pointer; min-height: 44px; }
+.av-btn.secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+.av-btn.danger { background: #dc2626; }
+.av-list-item { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--color-border); border-left: 3px solid #94a3b8; border-radius: var(--radius-md); margin-bottom: 0.5rem; }
+.av-list-item.available { border-left-color: #34d399; }
+.av-list-main { flex: 1; }
+.av-list-title { font-weight: 600; color: var(--color-text); }
+.av-list-detail { font-size: 0.8125rem; color: var(--color-text-muted); }
+.av-list-actions { display: flex; gap: 0.375rem; }
+.av-list-actions button { font-size: 0.8125rem; padding: 0.375rem 0.625rem; min-height: 36px; }
+.av-empty { color: var(--color-text-muted); font-size: 0.9375rem; text-align: center; padding: 1rem; }
+.av-hidden { display: none; }
+.av-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--color-text); color: var(--color-bg); padding: 0.75rem 1.25rem; border-radius: var(--radius-md); font-size: 0.875rem; transition: opacity 0.3s; z-index: 1000; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="av-container">
+    <div class="av-header">
+        <a href="{% url 'calendar_engine:dashboard' %}">&larr; Back to Calendar</a>
+        <h1>Availability</h1>
+        <p>Planning constraints — when you're realistically available. Not tasks, not events. Every planner in WLJ can read these to respect your time.</p>
+    </div>
+
+    <div class="av-card">
+        <div class="av-card-title" id="av-form-title">Add Availability Block</div>
+        <input type="hidden" id="av-edit-id" value="" />
+
+        <div class="av-form-group">
+            <label class="av-label" for="av-label-input">Label</label>
+            <input type="text" class="av-input" id="av-label-input" placeholder="e.g. Work" value="Work" />
+        </div>
+
+        <div class="av-form-group">
+            <label class="av-label">Type</label>
+            <div class="av-kind">
+                <label><input type="radio" name="av-kind" value="unavailable" checked /> Unavailable</label>
+                <label><input type="radio" name="av-kind" value="available" /> Available</label>
+            </div>
+        </div>
+
+        <div class="av-row">
+            <div class="av-form-group">
+                <label class="av-label" for="av-start">Start</label>
+                <input type="datetime-local" class="av-input" id="av-start" />
+            </div>
+            <div class="av-form-group">
+                <label class="av-label" for="av-end">End</label>
+                <input type="datetime-local" class="av-input" id="av-end" />
+            </div>
+        </div>
+
+        <div class="av-form-group">
+            <label class="av-label" for="av-frequency">Repeat</label>
+            <select class="av-select" id="av-frequency">
+                <option value="">Does not repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly" selected>Weekly</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+
+        <div class="av-form-group" id="av-weekdays-group">
+            <label class="av-label">On days</label>
+            <div class="av-weekdays" id="av-weekdays">
+                <div class="av-weekday" data-iso="1">Mon</div>
+                <div class="av-weekday" data-iso="2">Tue</div>
+                <div class="av-weekday" data-iso="3">Wed</div>
+                <div class="av-weekday" data-iso="4">Thu</div>
+                <div class="av-weekday" data-iso="5">Fri</div>
+                <div class="av-weekday" data-iso="6">Sat</div>
+                <div class="av-weekday" data-iso="7">Sun</div>
+            </div>
+        </div>
+
+        <div class="av-form-group">
+            <label class="av-label" for="av-until">Until (optional)</label>
+            <input type="date" class="av-input" id="av-until" />
+        </div>
+
+        <div class="av-row">
+            <button class="av-btn" id="av-save">Save</button>
+            <button class="av-btn secondary av-hidden" id="av-cancel-edit">Cancel</button>
+        </div>
+    </div>
+
+    <div class="av-card">
+        <div class="av-card-title">Your Availability Blocks</div>
+        <div id="av-list"><div class="av-empty">Loading…</div></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+(function() {
+    'use strict';
+    const CSRF = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+    const DOW = {1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat',7:'Sun'};
+
+    function api(url, options) {
+        const defaults = { headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }, credentials: 'same-origin' };
+        return fetch(url, Object.assign(defaults, options)).then(function(r) {
+            return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; })
+                .catch(function() { return { ok: r.ok, status: r.status, data: {} }; });
+        });
+    }
+
+    function escHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+    function toast(msg) {
+        var el = document.createElement('div'); el.className = 'av-toast'; el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(function(){ el.style.opacity = '0'; }, 2200);
+        setTimeout(function(){ el.remove(); }, 2600);
+    }
+
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function localInput(iso) {
+        if (!iso) return '';
+        var m = iso.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+        return m ? m[1] : '';
+    }
+    function fmtTime(iso) {
+        var m = iso.match(/T(\d{2}):(\d{2})/); if (!m) return '';
+        var h = parseInt(m[1],10), am = h>=12?'PM':'AM'; h = h%12||12;
+        return h + ':' + m[2] + ' ' + am;
+    }
+
+    // ── Weekday selector ──
+    document.getElementById('av-weekdays').addEventListener('click', function(e) {
+        var d = e.target.closest('.av-weekday'); if (!d) return;
+        d.classList.toggle('on');
+    });
+    function selectedWeekdays() {
+        return Array.prototype.slice.call(document.querySelectorAll('.av-weekday.on'))
+            .map(function(d){ return parseInt(d.dataset.iso, 10); });
+    }
+    function setWeekdays(list) {
+        document.querySelectorAll('.av-weekday').forEach(function(d) {
+            d.classList.toggle('on', (list || []).indexOf(parseInt(d.dataset.iso,10)) !== -1);
+        });
+    }
+
+    function syncWeekdayVisibility() {
+        var freq = document.getElementById('av-frequency').value;
+        document.getElementById('av-weekdays-group').style.display = (freq === 'weekly') ? '' : 'none';
+    }
+    document.getElementById('av-frequency').addEventListener('change', syncWeekdayVisibility);
+
+    // ── Defaults: today 09:00–17:00 ──
+    function seedDefaults() {
+        var now = new Date();
+        var y = now.getFullYear(), mo = pad(now.getMonth()+1), da = pad(now.getDate());
+        document.getElementById('av-start').value = y+'-'+mo+'-'+da+'T09:00';
+        document.getElementById('av-end').value = y+'-'+mo+'-'+da+'T17:00';
+    }
+
+    function resetForm() {
+        document.getElementById('av-edit-id').value = '';
+        document.getElementById('av-form-title').textContent = 'Add Availability Block';
+        document.getElementById('av-label-input').value = 'Work';
+        document.querySelector('input[name=av-kind][value=unavailable]').checked = true;
+        document.getElementById('av-frequency').value = 'weekly';
+        setWeekdays([1,2,3,4,5]);
+        document.getElementById('av-until').value = '';
+        document.getElementById('av-cancel-edit').classList.add('av-hidden');
+        syncWeekdayVisibility();
+        seedDefaults();
+    }
+
+    // ── List ──
+    function describe(b) {
+        if (!b.is_recurring) return fmtTime(b.start_dt) + ' — ' + fmtTime(b.end_dt) + ' (one-off)';
+        var when = fmtTime(b.start_dt) + ' — ' + fmtTime(b.end_dt);
+        if (b.frequency === 'weekly' && b.byweekday && b.byweekday.length) {
+            return when + ' · ' + b.byweekday.map(function(d){ return DOW[d]; }).join(', ');
+        }
+        return when + ' · ' + b.frequency;
+    }
+
+    function renderList(blocks) {
+        var el = document.getElementById('av-list');
+        if (!blocks || blocks.length === 0) { el.innerHTML = '<div class="av-empty">No availability blocks yet. Add one above.</div>'; return; }
+        var html = '';
+        blocks.forEach(function(b) {
+            var cls = b.kind === 'available' ? ' available' : '';
+            html += '<div class="av-list-item'+cls+'" data-id="'+b.id+'">';
+            html += '<div class="av-list-main"><div class="av-list-title">'+escHtml(b.label)+' <span class="av-list-detail">('+escHtml(b.kind)+')</span></div>';
+            html += '<div class="av-list-detail">'+escHtml(describe(b))+'</div></div>';
+            html += '<div class="av-list-actions"><button class="av-btn secondary av-edit" data-id="'+b.id+'">Edit</button>';
+            html += '<button class="av-btn danger av-delete" data-id="'+b.id+'" data-recurring="'+(b.is_recurring?'1':'0')+'">Delete</button></div>';
+            html += '</div>';
+        });
+        el.innerHTML = html;
+    }
+
+    var cache = [];
+    function load() {
+        api('/calendar/api/availability/').then(function(resp) {
+            if (resp.ok) { cache = resp.data.blocks || []; renderList(cache); }
+        });
+    }
+
+    // ── Save (create or series-edit) ──
+    document.getElementById('av-save').addEventListener('click', function() {
+        var id = document.getElementById('av-edit-id').value;
+        var freq = document.getElementById('av-frequency').value;
+        var untilVal = document.getElementById('av-until').value;
+        var body = {
+            label: document.getElementById('av-label-input').value.trim() || 'Availability',
+            kind: document.querySelector('input[name=av-kind]:checked').value,
+            start_dt: document.getElementById('av-start').value,
+            end_dt: document.getElementById('av-end').value,
+            frequency: freq,
+            byweekday: freq === 'weekly' ? selectedWeekdays() : [],
+            until_dt: untilVal ? (untilVal + 'T23:59') : null,
+        };
+        if (!body.start_dt || !body.end_dt) { toast('Start and end are required.'); return; }
+
+        var url = id ? '/calendar/api/availability/' + id + '/' : '/calendar/api/availability/';
+        var method = id ? 'PATCH' : 'POST';
+        if (id) { body.scope = 'series'; }
+
+        api(url, { method: method, body: JSON.stringify(body) }).then(function(resp) {
+            if (resp.ok) { toast(id ? 'Availability updated.' : 'Availability added.'); resetForm(); load(); }
+            else { toast(resp.data.error || 'Save failed.'); }
+        });
+    });
+
+    document.getElementById('av-cancel-edit').addEventListener('click', resetForm);
+
+    // ── Edit / Delete (event delegation) ──
+    document.getElementById('av-list').addEventListener('click', function(e) {
+        var editBtn = e.target.closest('.av-edit');
+        var delBtn = e.target.closest('.av-delete');
+        if (editBtn) {
+            var b = cache.find(function(x){ return x.id === Number(editBtn.dataset.id); });
+            if (!b) return;
+            document.getElementById('av-edit-id').value = b.id;
+            document.getElementById('av-form-title').textContent = 'Edit Availability Block';
+            document.getElementById('av-label-input').value = b.label;
+            document.querySelector('input[name=av-kind][value='+b.kind+']').checked = true;
+            document.getElementById('av-frequency').value = b.frequency || '';
+            setWeekdays(b.byweekday || []);
+            document.getElementById('av-start').value = localInput(b.start_dt);
+            document.getElementById('av-end').value = localInput(b.end_dt);
+            document.getElementById('av-until').value = b.until_dt ? b.until_dt.slice(0,10) : '';
+            document.getElementById('av-cancel-edit').classList.remove('av-hidden');
+            syncWeekdayVisibility();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+        if (delBtn) {
+            var id = delBtn.dataset.id;
+            var recurring = delBtn.dataset.recurring === '1';
+            var body = {};
+            if (recurring) {
+                var choice = window.prompt('Delete which? Type: series (all), or future, or occurrence (this one). Leave blank to cancel.', 'series');
+                if (!choice) return;
+                choice = choice.trim().toLowerCase();
+                if (['series','future','occurrence'].indexOf(choice) === -1) { toast('Unknown option.'); return; }
+                body.scope = choice;
+                if (choice !== 'series') {
+                    var occ = window.prompt('Occurrence start (YYYY-MM-DDTHH:MM) to act from:', '');
+                    if (!occ) return;
+                    body.occurrence_start = occ;
+                }
+            } else if (!window.confirm('Delete this availability block?')) {
+                return;
+            }
+            api('/calendar/api/availability/' + id + '/', { method: 'DELETE', body: JSON.stringify(body) }).then(function(resp) {
+                if (resp.ok) { toast('Deleted.'); load(); } else { toast(resp.data.error || 'Delete failed.'); }
+            });
+        }
+    });
+
+    // ── Init ──
+    resetForm();
+    load();
+})();
+</script>
+{% endblock %}

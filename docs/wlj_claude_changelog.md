@@ -6,6 +6,65 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(calendar): Calendar Projection Layer + Availability Blocks (Phases 0–3)
+
+**Initiative:** Rebuild the Calendar as a first-class WLJ module that complies with the
+Single Source of Truth architecture (Law F4). Governing design record:
+`docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md`. **The Calendar owns TIME, not OBJECTS.**
+It answers one question — "what occupies my time?" — projecting each domain's truth into
+time while every object stays owned and edited in its home domain. Beth/CoS untouched.
+
+**Architecture (proven before implementation; ~49 files outside calendar_engine read
+`CalendarEvent` as truth, most of them Beth/CoS/drift systems that are out of scope, so
+full de-materialization was explicitly NOT undertaken — the materialized rows are re-cast
+as a non-authoritative cache):**
+
+- **Phase 0 — `TimeProjection` read contract + provider registry (framework-first).**
+  New `apps/calendar_engine/services/time_projection.py`: `TimeProjection.for_range()`
+  returns `committed` / `due` / `constraints` lanes of `ProjectedBlock` DTOs. Each block
+  carries an `editor_route` to its OWNING domain. `CalendarCacheProvider` wraps the
+  existing `CalendarEvent` cache (exact parity, the seam a future LIVE provider replaces
+  with zero UI change); `AvailabilityProvider` reads the new model live. Adding a domain =
+  one `register_provider()` call. New API `GET /calendar/api/projection/`.
+- **Phase 1 — edit the owner, never the cache.** New
+  `apps/calendar_engine/services/editor_route.py :: resolve_editor_route()` maps a block
+  to its owning-domain editor (Task→`life:task_update`, Goal→`purpose:goal_detail`, etc.);
+  calendar-native blocks edit in place. Dashboard click-through now routes projected
+  objects to their home editors. **Retired** `CalendarMutationService._auto_create_backing_task`
+  — a manual Calendar Event stays calendar-native (`source_type=none`) instead of
+  manufacturing a Task in the Life domain.
+- **Phase 2 — truth split completed server-side.** The projection classifies lanes
+  (deadline markers → `due`, never a fabricated time on the timeline). Dashboard renders
+  from lanes (`renderProjection`/`renderTimeline`/`renderConstraints`/`renderUnscheduled`).
+  Query-budget regression test guards F5 (profiles query COUNT; SQLite hides Postgres N+1).
+- **Phase 3 — Availability Blocks (new calendar-native Layer 1 domain).** New
+  `AvailabilityBlock` + `AvailabilityException` models (migration `0011`), canonical
+  `availability_queries.py` truth contract, `availability_service.py` with Outlook-style
+  recurring edits (this occurrence / this and future / entire series), management page at
+  `/calendar/availability/` + CRUD API. **Fixed the dead `RecurrenceException`**: extracted
+  a shared DST-safe, exception-aware engine `services/recurrence_engine.py`;
+  `RecurrenceRule.get_occurrences()` now applies exceptions (previously a silent no-op).
+  Calendar-native objects standardize on `RecurrenceRule`; Task recurrence stays in
+  `life.RecurrencePattern` (engines deliberately NOT merged).
+
+**Also fixed (pre-existing, blocked the fixture reload path):** duplicate `destination_id`
+"admin-guide" in `teaching_destinations.json` (pk 117 + pk 181, unique-constraint
+violation that made `loaddata teaching_destinations` abort) — removed the redundant pk 181.
+
+**Files:** `docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md` (new governing doc);
+`apps/calendar_engine/services/{time_projection,editor_route,recurrence_engine,availability_queries,availability_service}.py` (new);
+`apps/calendar_engine/models.py` (RecurrenceRule refactor + AvailabilityBlock/Exception);
+`apps/calendar_engine/migrations/0011_*`; `apps/calendar_engine/views.py` + `urls.py`
+(projection + availability endpoints); `apps/calendar_engine/services/calendar_mutation_service.py`
+(auto-task retired); `templates/calendar_engine/{dashboard.html,availability.html}`;
+`apps/calendar_engine/tests/test_projection_layer.py` (19 tests);
+release note (pk 254), help topic (pk 160), teaching destination (pk 190),
+`load_initial_data.py` reset; `docs/wlj_claude_features.md`.
+
+**Verification:** 19 new tests + 159 existing calendar_engine tests pass; real dashboard
++ availability templates rendered 200 via authenticated client; projection endpoint
+returns correct lane JSON; `makemigrations --check` clean; CSP-clean templates.
+
 ## 2026-07-07 — fix(cos): Morning check-in trust — deterministic day-truth grounding + user-correction repair
 
 **Root cause (production trust failure):** a morning check-in where Beth (a) recommended

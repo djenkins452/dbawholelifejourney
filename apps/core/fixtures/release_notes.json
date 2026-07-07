@@ -4214,5 +4214,21 @@
       "created_at": "2026-07-07T22:00:00Z",
       "updated_at": "2026-07-07T22:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 265,
+    "fields": {
+      "title": "When you hit a wall, your Chief of Staff digs in instead of repeating itself",
+      "description": "Conversations naturally change shape — you start by checking where you stand, then you hit something you want to understand. Now, when you say things like “I'm having a hard time breaking this number” or “my glucose has been weird lately,” your Chief of Staff recognizes you've shifted from a status check to a real question, and it changes gears: instead of repeating a progress summary, it looks at what has actually changed over time in your data and reasons through the likely why, then asks one focused question to dig in with you. It stays on the exact thing you raised — no drifting into unrelated areas — and grounds every read in your real numbers.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T23:00:00Z",
+      "updated_at": "2026-07-07T23:00:00Z"
+    }
   }
 ]

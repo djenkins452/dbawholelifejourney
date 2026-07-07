@@ -6,6 +6,55 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): conversational intent evolution — Status → Diagnosis
+
+**Capability gap:** a conversation's MISSION can stay the same while the KIND of reasoning
+the user needs evolves — Status → Diagnosis → Planning → Decision — and users never
+announce the transition. Production failure: "How's my France goal?" (status) → "I'm having
+a hard time breaking 289, it's not falling off like the beginning of my journey" was
+answered with another status summary that drifted to prayer/other goals. Proven producer:
+`_self_report_lane` reads any subjective statement as a mood → `compose_orientation` →
+whole-life read. The diagnostic problem-statement was misclassified as a feeling.
+
+**Capability built (Phase 2 reasoning; no new engine, no learning, no migration; ladder
+architecture with ONLY Status→Diagnosis wired live):**
+- **`apps/ai/chatgpt_cos/reasoning_mode.py`** — a thin, DETERMINISTIC, DOMAIN-AGNOSTIC
+  `classify_mode(message)` → STATUS / DIAGNOSIS / PLANNING / DECISION / None. The cues are
+  linguistic (struggle / plateau / slowdown / unexpected-change / confusion / lost
+  motivation), never domain words, so the same classifier serves goals, work,
+  relationships, faith, finances, projects, habits. DIAGNOSIS is consumed live;
+  PLANNING/DECISION are recognized but SCAFFOLDED (phase-tagged, not routed) to be
+  activated one at a time after Diagnosis is validated in production.
+- **`apps/ai/chatgpt_cos/reasoning/diagnosis.py :: answer_diagnostic`** — grounded
+  diagnostic reasoning: REUSES the reasoning lane's deterministic retrieval
+  (`synthesize_plan` → `retrieve_truth` → `build_working_memory`, borrowing the
+  `goal_concerns`/`health_concerns` truth SCOPE) but runs a dedicated DIAGNOSTIC prompt
+  (reason about what CHANGED over the trajectory + one investigative next step), leaving
+  the shared reasoning engine (REASONING_PROFILES/run_reasoning) untouched. No new OpenAI
+  planner intent. Deterministic fallback stays investigative and on-subject.
+- **`lanes._diagnostic_lane`** — placed BEFORE self_report/goals_checkin/cos_briefing so a
+  diagnostic shift pivots into investigation instead of replaying a whole-life summary.
+  `_resolve_diagnostic_subject` grounds the subject domain-agnostically (named goal →
+  health/weight context → goal framing → the prior turn's active topic); DECLINES when no
+  shift or no groundable subject, so all other routing is untouched and diagnosis stays
+  grounded only where real data exists. Mission persistence is unaffected — the mission
+  holds while only the reasoning mode evolves.
+
+**Files:** apps/ai/chatgpt_cos/reasoning_mode.py (new), apps/ai/chatgpt_cos/reasoning/
+diagnosis.py (new), apps/ai/chatgpt_cos/lanes.py (diagnostic lane + subject resolver;
+registered before self_report), apps/ai/tests/test_intent_evolution.py (new),
+apps/core/fixtures/release_notes.json (PK 265),
+apps/core/management/commands/load_initial_data.py (loader reset).
+
+**Verification:** new test_intent_evolution (6) — domain-agnostic mode classification
+(diagnosis across weight/glucose/project/motivation/savings), status NOT hijacked,
+planning/decision recognized-but-scaffolded, weight-plateau routes to diagnostic (not
+self_report) with the diagnostic posture, ungroundable diagnosis declines. ~150-test
+conversation/reasoning/mission/goal regression green (2 PRE-EXISTING `compose_orientation`
+wording failures, unrelated — confirmed failing with these changes stashed). No new engine;
+no migration. Preserves mission persistence, executive filtering, goal scope, plan-aware
+recovery, self-report/orientation.
+
 ## 2026-07-07 — feat(cos): conversational mission persistence + executive thinking partnership
 
 **Capability gap (production trust):** Beth reset her reasoning after almost every user

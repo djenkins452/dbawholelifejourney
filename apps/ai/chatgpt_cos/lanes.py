@@ -72,6 +72,110 @@ def _weight_history_lane(user, message, conversation=None):
     return weight_history.answer(user, message, conversation)
 
 
+# ── CONVERSATIONAL INTENT EVOLUTION: DIAGNOSIS ───────────────────────────────
+# The user has moved from checking status to wanting to UNDERSTAND WHY something changed
+# ("I'm having a hard time breaking 289, it's not falling off like the beginning"). That is
+# a reasoning-MODE transition, not a mood report — so it must be caught BEFORE the
+# self-report / status / briefing lanes (which would replay a whole-life summary and drift
+# to prayer/other goals). It routes into grounded diagnostic reasoning over the subject's
+# deterministic trajectory. The mission is untouched; only the reasoning mode evolves.
+
+# A weigh-in context — a bare scale number ("289 mark") or a weight-loss idiom — resolves a
+# diagnostic statement to the HEALTH subject even when no domain word is present.
+_WEIGHT_IDIOMS = (
+    "falling off", "fall off", "coming off", "come off", "the scale", "on the scale",
+    "weigh", "weight", "pounds", " lbs", "body fat", "the beginning of my journey",
+    "my journey", "losing weight", "lose weight", "dropping weight",
+)
+_HEALTH_DOMAIN_WORDS = (
+    "weight", "glucose", "blood sugar", "a1c", "insulin", "sleep", "blood pressure",
+    "steps", "energy", "fatigue", "cardio", "workout", "training", "protein", "nutrition",
+    "calorie", "macro", "cholesterol", "heart rate",
+)
+
+
+def _looks_like_weight_context(n):
+    if any(w in n for w in _WEIGHT_IDIOMS):
+        return True
+    # a standalone weigh-in number (100–499) — "289 mark", "stuck at 289"
+    return bool(re.search(r"\b([12]\d\d|[34]\d\d)\b", n))
+
+
+def _last_answer_domain(conversation):
+    """Best-effort domain of the ACTIVE topic (the prior turn), so a diagnostic follow-up
+    that names no subject ('why has it stalled?') still grounds on what we were discussing.
+    Only returns a domain that has deterministic diagnostic retrieval (goals / health)."""
+    try:
+        from apps.ai.chatgpt_cos.conversation_memory import get_last_answer
+        last = get_last_answer(conversation) or {}
+    except Exception:
+        return None
+    lane = last.get("lane") or ""
+    key = (last.get("fact_key") or last.get("intent") or "").lower()
+    if lane == "goals_checkin" or key.startswith("goal") or "mission" in key:
+        return "goals"
+    if any(w in key for w in _HEALTH_DOMAIN_WORDS):
+        return "health"
+    return None
+
+
+def _resolve_diagnostic_subject(user, message, conversation):
+    """Resolve the subject to diagnose → (domain, focal_goal, subject_label), or
+    (None, None, None) when nothing can be grounded (so the lane declines and normal
+    routing runs). Domain-agnostic order: named goal → health context → goal framing →
+    the active topic of the prior turn."""
+    n = re.sub(r"[’']", "", (message or "").strip().lower())
+    # 1) A named/deictic goal in the message → goals, with the focal goal.
+    try:
+        from apps.ai.chatgpt_cos.reasoning.plan import preroute_named_goal, _has_goal_framing
+        _gi, focal = preroute_named_goal(user, message)
+        if focal:
+            return "goals", focal, str(focal)
+    except Exception:
+        _has_goal_framing = None
+    # 2) An explicit health/weight subject in the message.
+    if any(w in n for w in _HEALTH_DOMAIN_WORDS) or _looks_like_weight_context(n):
+        label = "your weight" if _looks_like_weight_context(n) else "this"
+        return "health", None, label
+    # 3) Goal framing without a specific title ("this goal is stalling").
+    try:
+        if _has_goal_framing and _has_goal_framing(n):
+            return "goals", None, "your goal"
+    except Exception:
+        pass
+    # 4) Fall back to the subject of the prior turn (the active topic).
+    dom = _last_answer_domain(conversation)
+    if dom:
+        return dom, None, ("your weight" if dom == "health" else "your goal")
+    return None, None, None
+
+
+def _diagnostic_lane(user, message, conversation=None):
+    """CONVERSATIONAL INTENT EVOLUTION (Status → Diagnosis, wired live). When the user
+    introduces a problem to understand, pivot from status into grounded investigation over
+    the subject's deterministic truth — never another summary. Declines when the message
+    carries no diagnostic shift OR no subject can be grounded, so all other routing is
+    untouched (and diagnosis stays grounded only where real data exists)."""
+    from apps.ai.chatgpt_cos import reasoning_mode as rm
+    if not rm.is_diagnostic_shift(message):
+        return None
+    domain, focal_goal, subject_label = _resolve_diagnostic_subject(
+        user, message, conversation)
+    if domain is None:
+        return None
+    try:
+        from apps.ai.chatgpt_cos.reasoning.diagnosis import answer_diagnostic
+        res = answer_diagnostic(user, message, domain=domain, focal_goal=focal_goal,
+                                subject_label=subject_label)
+    except Exception:
+        logger.warning("diagnostic_lane failed", exc_info=True)
+        return None
+    if res and res.get("answer"):
+        res.setdefault("lane", "diagnostic")
+        return res
+    return None
+
+
 def _self_report_lane(user, message, conversation=None):
     """VOLUNTEERED SELF-REPORT: the user TELLS Beth their state — and often what they've
     already done — without a greeting or a question ("Overall I feel rested. Six hours is
@@ -2208,6 +2312,14 @@ LANE_REGISTRY = (
     # Priority pushback ("you prioritized X over my medicine") → acknowledge + re-rank,
     # never a fact dump. Before the retrieval lanes so it isn't read as a med-list query.
     ("priority_correction", _priority_correction_lane),
+    # CONVERSATIONAL INTENT EVOLUTION (Status → Diagnosis): a message that introduces a
+    # PROBLEM TO UNDERSTAND ("I'm having a hard time breaking 289, it's not falling off like
+    # the beginning") is a reasoning-MODE shift, not a mood report. Runs BEFORE self_report/
+    # briefing so it pivots into grounded diagnosis instead of replaying a whole-life status
+    # summary and drifting. Declines when there's no diagnostic shift or no groundable
+    # subject, so all other routing is untouched. Mission persistence is unaffected — the
+    # mission holds while only the reasoning mode evolves.
+    ("diagnostic", _diagnostic_lane),
     # VOLUNTEERED SELF-REPORT: a morning state statement ("I feel rested, I already did
     # my prayer and Bible reading") is a check-in, not a health query — LISTEN and answer
     # with ONE executive synthesis. Runs before the accomplishment/retrieval/reasoning

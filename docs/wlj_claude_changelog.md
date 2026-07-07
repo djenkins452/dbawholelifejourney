@@ -6,6 +6,51 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — fix(cos): executive filtering — no internal artifacts, filter routine, end with judgment, concrete actions
+
+**Phase-2 reasoning gaps (Beth briefed everything she knew instead of what's worth saying):**
+1. **Internal reasoning artifact leaked to the customer:** "Protein intake has been below
+   target for 3 days — range 49–55%, average 52%. Consolidated from 3 readings into one
+   concern." That sentence is an internal aggregation object. TRACE:
+   `cos_briefing/consolidation.py` built the "Consolidated from N readings" message →
+   `executive_summary._collect_biggest_risk` fallback put it in `biggest_risk["message"]`
+   → `interpret()` stored it on `ExecutiveSignals.biggest_risk` → `executive_brief._priority_story`
+   printed it verbatim ("Keep an eye on … that could quietly derail the day"). Purely
+   deterministic (never the LLM).
+2. **No executive filtering:** the agenda listed every rhythm item — Fish Oil, Log
+   Nutrition, THORNE Creatine (routine) got the same airtime as "Pick up motorcycle".
+3. **Endings read as optionality** ("Anything from earlier … is your call, not a fresh
+   start") instead of judgment.
+4. **Recommendations named a nutrient** ("get protein") instead of a concrete action.
+
+**Fix (existing architecture, no new engine, no redesign):**
+- Internal artifact killed at the SOURCE: `consolidation.py` — the customer-facing
+  `message` is now natural language only ("{subject} has been below target across the
+  last {span}"); the raw range/average stays in the `title` for internal/ops surfaces;
+  "Consolidated from N readings" is gone entirely. `_priority_story` narrates the risk
+  naturally ("One thing worth staying on top of today — …", no over-dramatized "derail
+  the day"). `naturalize.py` gains safety-net rules that strip any residual
+  "Consolidated from N readings" / raw "range X–Y%, average Z%" clause at the choke point.
+- Executive filtering: `_agenda_narrative` now runs each rhythm item through the
+  deterministic priority-tier classifier (`_pa_classify`) and DROPS routine items
+  (supplement doses, "log X" reminders) — a Chief of Staff doesn't read the whole list.
+  `_rhythm_split` refactored to preserve item dicts so the classifier can see them.
+- End with judgment: the leftover-item line is now "One thing still open from earlier is
+  X — worth closing that out today so it doesn't roll forward." (never "it's your call").
+- Concrete actions: `_next_move_story` and the health-focus `_concrete_today_action`
+  lead with a food ("Start with eggs this morning …"), not the nutrient.
+
+**Files:** apps/core/cos_briefing/consolidation.py, apps/ai/chatgpt_cos/executive_brief.py
+(agenda filter + rhythm_split + risk/next-move wording), apps/ai/chatgpt_cos/naturalize.py
+(artifact strip), apps/ai/chatgpt_cos/reasoning/stages.py (action-first protein),
+apps/ai/tests/test_executive_filtering.py (new) + updated wording assertions
+(p33_1, executive_summary_phase_a), apps/core/fixtures/release_notes.json (PK 258),
+apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_executive_filtering (6); ~200-test regression green (composer/
+interpretation/consolidation/reconciliation/mission/safety-contract). No new engine;
+streaming/non-streaming parity preserved; no migration.
+
 ## 2026-07-07 — feat(calendar): flagship executive redesign — "the operational view of time"
 
 **Product goal:** opening the Calendar should make you think *"I understand my day,"* not

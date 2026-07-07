@@ -30,6 +30,10 @@ _RULES = [
     (r"\ba recovery-management day\b", "a day to protect your recovery"),
     (r"\brecovery-management day\b", "a day to protect your recovery"),
     (r"\brecovery latitude\b", "room to ease off"),
+    # Internal AGGREGATION / diagnostic artifacts that must never reach a customer.
+    (r"[.,;]?\s*consolidated from \d+ readings into one concern\.?", "."),
+    (r"\s*[—–-]\s*range \d[\d.]*[–-]\d[\d.]*%,?\s*average \d[\d.]*%\.?", "."),
+    (r"\s*\bconsolidated from \d+ readings\b\.?", ""),
     # Operational / software terminology customers don't think in.
     (r"\bstrategic backlog\b", "longer-term list"),
     (r"\btask backlog\b", "list of open items"),

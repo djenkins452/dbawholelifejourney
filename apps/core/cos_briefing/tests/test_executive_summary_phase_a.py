@@ -357,8 +357,13 @@ class CalorieSynthesisTests(TestCase):
         self.assertTrue(syn["title"].lower().startswith("calories under target"))
         self.assertIn("27", syn["title"])   # low of range
         self.assertIn("35", syn["title"])   # high of range
+        self.assertIn("avg", syn["title"].lower())   # average captured (in the title)
+        # The customer-facing MESSAGE is natural language ONLY — no raw stats, and NEVER
+        # the internal aggregation artifact ("Consolidated from N readings into one concern").
         msg = (syn["message"] or "").lower()
-        self.assertIn("average", msg)
+        self.assertIn("across the last", msg)
+        self.assertNotIn("consolidated from", msg)
+        self.assertNotIn("average", msg)
         # No single raw daily title leaks into the executive row.
         self.assertNotIn("by 30%", syn["title"])
 

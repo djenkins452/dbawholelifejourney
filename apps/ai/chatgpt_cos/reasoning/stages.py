@@ -1379,8 +1379,11 @@ def _concrete_today_action(concern, phase, planned=None, protein=None):
     if "weight-loss pace" in c or "pace" in c:
         return "log everything you eat today and keep your portions steady"
     if "protein" in c:
-        base = "make your next meal protein-forward — aim for about 30g"
-        return f"{base} ({protein})" if protein else base
+        # Action-first: name a concrete food, not the nutrient.
+        if protein:
+            first = protein.split(",")[0].strip()
+            return f"start with {first} at your next meal — aim for about 30g of protein"
+        return "have a protein-forward meal next — aim for about 30g"
     if "calorie" in c:
         return "plan one balanced meal to close today's gap"
     # Movement concerns (plateau / muscle) MUST reference the scheduled workout, never a

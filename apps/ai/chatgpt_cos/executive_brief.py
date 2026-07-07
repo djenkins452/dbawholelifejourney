@@ -111,15 +111,30 @@ def _rhythm_split(user):
         if not title:
             continue
         mins = _to_minutes(it.get("scheduled_time"))
-        if mins is None or mins >= now_min - 5:        # unscheduled or future
-            if mins is not None:
-                from apps.core.cos_briefing.daily_agenda import _fmt_time
-                ahead.append(f"{title} at {_fmt_time(it.get('scheduled_time'))}")
-            else:
-                ahead.append(title)
+        row = dict(it)
+        if mins is not None:
+            from apps.core.cos_briefing.daily_agenda import _fmt_time
+            row["_label"] = f"{title} at {_fmt_time(it.get('scheduled_time'))}"
         else:
-            past.append(title)
+            row["_label"] = title
+        if mins is None or mins >= now_min - 5:        # unscheduled or future
+            ahead.append(row)
+        else:
+            past.append(row)
     return ahead, past, now.hour
+
+
+def _agenda_worth_surfacing(it):
+    """Executive filter: a Chief of Staff does not read the whole list. A ROUTINE item
+    (a supplement dose, a 'log X' reminder) rarely deserves airtime next to a real
+    commitment. Keep meaningful items (appointments, tasks, prescriptions, mission
+    work); drop routine. Deterministic — reuses the priority-tier classifier."""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import _pa_classify
+        tier, _ = _pa_classify(it)
+        return tier != "routine"
+    except Exception:
+        return True
 
 
 def _agenda_narrative(user, recovery, deprioritized=()):
@@ -128,24 +143,35 @@ def _agenda_narrative(user, recovery, deprioritized=()):
     de-prioritized items (P36) are NOT elevated into the agenda."""
     ahead, past, hour = _rhythm_split(user)
     dep = [d.lower() for d in (deprioritized or []) if d]
+
+    def _keep(it):
+        lbl = (it.get("_label") or "").lower()
+        return not any(t in lbl for t in dep)
     if dep:
-        ahead = [a for a in ahead if not any(t in a.lower() for t in dep)]
-        past = [p for p in past if not any(t in p.lower() for t in dep)]
+        ahead = [it for it in ahead if _keep(it)]
+        past = [it for it in past if _keep(it)]
     if hour >= 20:
         return _evening_or_empty(user)
     when = ("This morning" if hour < 12 else
             "This afternoon" if hour < 17 else "This evening")
+    # EXECUTIVE FILTER: surface only what genuinely deserves attention — a routine
+    # supplement or a "log X" reminder is not worth the same airtime as a real
+    # commitment, so it is not listed at all.
+    ahead_worth = [it["_label"] for it in ahead if _agenda_worth_surfacing(it)]
+    past_worth = [it["_label"] for it in past if _agenda_worth_surfacing(it)]
     parts = []
-    if ahead:
-        line = f"{when} you've still got {_fmt_titles(ahead[:3])}"
+    if ahead_worth:
+        line = f"{when} the thing to keep on your radar is {_fmt_titles(ahead_worth[:2])}"
         if recovery:
             line += " — keep it light, none of it has to be heavy"
         parts.append(line + ".")
     else:
-        parts.append("Your rhythm's clear for the rest of the day, so the time is yours.")
-    if past:
-        parts.append("Anything from earlier that's still open — like "
-                     + _fmt_titles(past[:2]) + " — is your call, not a fresh start.")
+        parts.append("Your rhythm's otherwise clear, so the rest of the day is yours to use.")
+    # END WITH JUDGMENT, not optionality: only raise a leftover if it's worth doing, and
+    # say so plainly — never "it's your call".
+    if past_worth:
+        parts.append("One thing still open from earlier is " + _fmt_titles(past_worth[:1])
+                     + " — worth closing that out today so it doesn't roll forward.")
     return " ".join(parts)
 
 
@@ -231,16 +257,15 @@ def _next_move_story(sig, user):
     except Exception:
         logger.warning("executive_brief: next-move day-truth read failed", exc_info=True)
         planned, protein = None, ""
+    # Lead with the ACTION (a concrete food), not the nutrient — a specific first move
+    # is far easier to execute than "get protein".
+    first = protein.split(",")[0].strip() if protein else "a protein-forward breakfast"
     if planned and planned.get("type") and not planned.get("completed"):
         when = f" at {planned['time']}" if planned.get("time") else ""
-        lead = (f"Your best next move is getting protein in early so you're fuelled for "
-                f"your {planned['type']}{when} tonight")
-    else:
-        lead = ("Your best next move is getting protein in early so the rest of the day "
-                "has a strong base")
-    if protein:
-        lead += f" — something like {protein} would fit your goals well"
-    return lead + "."
+        return (f"Start with {first} this morning to get your protein in early — that "
+                f"sets you up for your {planned['type']}{when} tonight.")
+    return (f"Start with {first} this morning to get your protein in early — a strong "
+            "base for the rest of the day.")
 
 
 def _reconciliation_story(sig):
@@ -350,8 +375,12 @@ def _priority_story(sig):
     out = [_cap(head) + "."]
     risk = _scrub(sig.biggest_risk)
     if risk:
-        out.append("Keep an eye on " + risk + " — that's the one thing that could "
-                   "quietly derail the day.")
+        # Natural, confident framing — an em-dash apposition reads cleanly whether `risk`
+        # is a short phrase ("sleep debt") or a full clause ("protein has been below
+        # target the last few days"), and never over-dramatizes a routine shortfall.
+        r = risk.rstrip(". ").strip()
+        r = r[0].upper() + r[1:] if r else r
+        out.append(f"One thing worth staying on top of today — {r}.")
     return " ".join(out)
 
 

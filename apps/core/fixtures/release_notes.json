@@ -4102,5 +4102,21 @@
       "created_at": "2026-07-07T15:00:00Z",
       "updated_at": "2026-07-07T15:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 258,
+    "fields": {
+      "title": "Your Chief of Staff tells you what matters — not everything it knows",
+      "description": "A great Chief of Staff filters. Your morning read now leaves out the small stuff — routine supplements and “log this” reminders no longer get the same airtime as a real commitment like an appointment or an errand. It ends with a clear call rather than a shrug (“worth closing that out today,” not “it's your call”), speaks in plain language with no behind-the-scenes wording, and gives you a concrete first step to act on — “start with eggs this morning” instead of “get some protein.” Less noise, more judgment.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T16:00:00Z",
+      "updated_at": "2026-07-07T16:00:00Z"
+    }
   }
 ]

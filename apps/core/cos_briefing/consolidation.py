@@ -109,21 +109,17 @@ def _synthesize_group(members: list) -> _SynthesizedFinding:
         lo, hi = min(pcts), max(pcts)
         avg = round(sum(pcts) / len(pcts))
         stat = f"~{lo:g}%" if lo == hi else f"{lo:g}–{hi:g}% (avg {avg:g}%)"
+        # TITLE keeps the numbers for internal/ops surfaces. The customer-facing MESSAGE
+        # is natural language ONLY — never the raw range/average stats and NEVER the
+        # internal aggregation note ("Consolidated from N readings"), which is an
+        # implementation artifact a Chief of Staff would never say aloud.
         title = f"{core} — {stat} over {span}"
         if has_direction:
-            # Subject already states the direction ("Calories under target") —
-            # don't repeat it.
-            message = (
-                f"{subject} — {span}, range {lo:g}–{hi:g}%, average {avg:g}%. "
-                f"Consolidated from {len(members)} readings into one concern."
-            )
+            # Subject already states the direction ("Calories under target").
+            message = f"{subject} across the last {span}."
         else:
             where = "below" if below else "above"
-            message = (
-                f"{subject} has been {where} target for {span} — "
-                f"range {lo:g}–{hi:g}%, average {avg:g}%. Consolidated from "
-                f"{len(members)} readings into one concern."
-            )
+            message = f"{subject} has been {where} target across the last {span}."
     else:
         # No parseable percentage — still collapse repeated same-subject rows.
         title = f"{core} — flagged {len(members)}× over {span}"

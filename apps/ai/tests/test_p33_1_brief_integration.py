@@ -90,7 +90,7 @@ class ComposerOwnsFinalStoryTests(TestCase):
         self.assertNotIn("coming up", brief)
         # the 6:45 AM (past) item is flagged as earlier, NOT upcoming
         self.assertIn("from earlier", brief)
-        self.assertIn("you've still got", brief)       # future items woven naturally
+        self.assertIn("keep on your radar", brief)     # future items woven naturally
         # the future 2 PM item IS still ahead
         self.assertIn("workout", brief)
 

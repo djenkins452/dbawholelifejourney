@@ -1413,6 +1413,117 @@ def _general_llm_answer(user, message, prior=None, lane="general_conversation"):
     }
 
 
+# ── EXECUTIVE THINKING PARTNERSHIP (external-work reframe) ────────────────────
+# When Beth recognizes the real pressure is OUTSIDE WLJ, her highest value shifts from
+# optimizing WLJ data to helping the executive THINK CLEARLY. These handlers run the
+# mission's thinking-partner posture: acknowledge the pivot, stop optimizing WLJ, ask one
+# good question, add NO unrelated WLJ context, and offer to CAPTURE work items only once
+# they actually emerge. The LLM call is the SAME sandbox as the general lane (no personal
+# data), so she can never drift back to France/protein/sleep or fabricate data she lacks.
+
+# Concrete work items surfacing in the user's own words — the ONLY trigger for the capture
+# offer (conversation first, thinking partner second, capture third; never the reverse).
+_WORK_ITEM_CUES = (
+    "i need to", "i have to", "ive got to", "i gotta", "i must", "i should",
+    "need to finish", "have to finish", "need to send", "have to send", "need to call",
+    "have to call", "need to prepare", "have to prepare", "working on", "finish the",
+    "send the", "follow up", "get back to", "respond to", "deadline", "its due",
+    "is due", "due by", "by friday", "by monday", "by tomorrow", "by end of",
+    "the report", "the deck", "the presentation", "the proposal", "the meeting",
+)
+
+
+def _emerged_work_items(message):
+    """True when the user has named concrete work items (not just described a feeling) —
+    the signal that it may help to capture them. Conservative by design."""
+    n = re.sub(r"[’']", "", (message or "").strip().lower())
+    return bool(n) and any(c in n for c in _WORK_ITEM_CUES)
+
+
+def _thinking_partner_answer(user, message, prior=None):
+    """Sandboxed thinking-partner LLM call. Same NO-personal-data sandbox as the general
+    lane, but in an executive-thinking-partner posture: reflect, structure, reduce
+    uncertainty, ask ONE good question. Never references or invents WLJ data. Always
+    returns a dict (graceful outage fallback)."""
+    system = (
+        f"You are {_cos_name(user)}, the user's Chief of Staff, acting as an EXECUTIVE "
+        "THINKING PARTNER. The user is overwhelmed by work that lives OUTSIDE this app, so "
+        "you have NO data on it — and must not pretend to. Do NOT reference, assume, or "
+        "invent any of the user's personal data, health, goals, faith, schedule, or WLJ "
+        "tasks. Your job is to help them think clearly: reflect back what you hear, help "
+        "structure the problem, reduce uncertainty, and create clarity. Ask ONE good, "
+        "focused question at a time — never a barrage. Be warm, concise, and grounded; if "
+        "you don't know something, ask rather than guess. Don't try to solve it all in one "
+        "message — think it through together, one step at a time."
+    )
+    if prior:
+        system += (
+            "\n\nThis is a CONTINUING conversation you're working through together. The "
+            "last thing you said was:\n\"" + (prior or "").strip()[:1000] + "\"\nContinue "
+            "naturally from there, still strictly on the work weighing on them; do NOT "
+            "pivot to their personal data, health, goals, faith practice, or schedule."
+        )
+    from django.core.cache import cache
+    breaker_before = bool(cache.get("openai_rate_limited"))
+    answer, call_outcome = None, "none"
+    try:
+        from django.conf import settings
+        from apps.ai.services import ai_service
+        raw = ai_service._call_api(
+            system, message, max_tokens=500, temperature=0.5,
+            endpoint="cos_chat", user=user,
+            model=getattr(settings, "COS_MODEL", None), bypass_breaker=True)
+        call_outcome = ("none" if raw is None
+                        else "empty" if not raw.strip() else "content")
+        answer = raw
+    except Exception:
+        call_outcome = "raised"
+        logger.warning("COS_THINKING_PARTNER_LLM_FAILED user=%s",
+                       getattr(user, "id", None), exc_info=True)
+        answer = None
+    answer = (answer or "").strip()
+    fallback_used = not answer
+    if not answer:
+        # Outage: stay in posture — do NOT pivot to personal domains. Keep helping them
+        # think by asking, not by fabricating.
+        answer = ("Let's keep working through it. What's the one piece of this that's "
+                  "weighing on you most right now?")
+    logger.info(
+        "BETH_GENERAL_CALL user=%s lane=thinking_partner breaker_before=%s "
+        "call_outcome=%s fallback_used=%s qlen=%d",
+        getattr(user, "id", None), breaker_before, call_outcome, fallback_used,
+        len(message or ""))
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "thinking_partner"}
+
+
+def _reframe_external_partner(user, message):
+    """ENTRY to the thinking-partner mission. The user revealed the real pressure is
+    OUTSIDE WLJ, so Beth (1) acknowledges the pivot, (2) stops optimizing WLJ, (3) asks
+    ONE good structuring question, (4) adds no WLJ context, (5) does NOT offer capture yet
+    (nothing concrete has emerged). Deterministic — grounded, no data, no drift."""
+    answer = (
+        "That actually helps. If most of the pressure is coming from work outside WLJ, "
+        "I shouldn't keep trying to optimize your WLJ tasks — let's work through what's "
+        "actually weighing on you. What's the biggest thing on your mind right now?")
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "thinking_partner"}
+
+
+def _thinking_partner_continue(user, message, prior=None):
+    """CONTINUE the thinking-partner mission. Help them think (sandboxed, no WLJ data),
+    and — only once concrete work items have actually emerged — offer to capture them so
+    they're not sitting in his head. Capture is offered LAST, never in place of thinking."""
+    result = _thinking_partner_answer(user, message, prior=prior)
+    if _emerged_work_items(message):
+        ans = (result.get("answer") or "").rstrip()
+        if ans and "capture" not in ans.lower():
+            result["answer"] = ans + (
+                " And if it'd help, I can capture those so they're not just sitting in "
+                "your head — want me to?")
+    return result
+
+
 def _general_lane(user, message, conversation=None):
     return general_answer(user, message)
 
@@ -1814,7 +1925,10 @@ def _why_explainer_lane(user, message, conversation=None):
     # A follow-up to a GENERAL / EXTERNAL answer belongs to general_continuity —
     # never explain general knowledge as "your tracked data". Yield so a
     # referential follow-up ("why is that term…?") continues the general thread.
-    if last.get("lane") in ("general_conversation", "general_continuity"):
+    # A follow-up inside a thinking-partner mission likewise has no stored WLJ fact to
+    # explain — yield so mission persistence keeps thinking it through.
+    if last.get("lane") in ("general_conversation", "general_continuity",
+                            "thinking_partner"):
         return None
     answer = handler(last, user, **kw)
     if not answer:
@@ -2009,7 +2123,65 @@ def _general_continuity_lane(user, message, conversation=None):
     return general_continuation(user, message, prior=last.get("answer") or "")
 
 
+def _mission_lane(user, message, conversation=None):
+    """MISSION PERSISTENCE — interpret this message INSIDE the standing conversational
+    mission before any stateless lane can re-classify it from the literal words. Claims
+    ONLY the CONTINUATION of an already-active mission (reduce-overwhelm or thinking-
+    partner); it declines (returns None) for a fresh subject, a greeting, an explicit turn
+    back to WLJ data, or feedback about Beth's own turn — so establishment, repair, and
+    normal routing are all untouched. This is the one rule that makes Beth carry the
+    objective forward instead of restarting after every message.
+
+    Placed FIRST in the registry so an active mission can never be hijacked by a retrieval
+    lane matching a stray word ('supplements' in 'anything I can move that isn't a
+    supplement?') — the mission, not the keyword, decides the interpretation."""
+    if conversation is None:
+        return None
+    try:
+        from apps.ai.chatgpt_cos import conversation_planner as cp
+        st = cp.read_state(conversation)
+        cur = st.get("state")
+        if cur not in ("problem_solving", "thinking_partner"):
+            return None
+        # Feedback about Beth's PRIOR turn is repair, not mission continuation — yield so
+        # the conversation_planner lane's repair path handles it (mission stays intact).
+        if cp.is_meta_conversational(message):
+            return None
+        if cur == "problem_solving":
+            delta = cp.mission_delta(conversation, message)
+            if delta == cp.MISSION_REFRAME_EXTERNAL:
+                # The real problem is OUTSIDE WLJ → transition to thinking partnership.
+                cp.write_state(conversation, state="thinking_partner",
+                               mission=cp.MISSION_THINK_THROUGH, mission_scope="external",
+                               objective="think_through", last_beth_act="reframed")
+                return _reframe_external_partner(user, message)
+            if delta == cp.MISSION_CONTINUE:
+                cp.write_state(conversation, state="problem_solving",
+                               mission=cp.MISSION_REDUCE_OVERWHELM, mission_scope="wlj",
+                               objective="ease_the_load", last_beth_act="eased")
+                return _problem_solving_refresh(user, message)
+            return None                       # REPLACE → normal routing (mission untouched)
+        # thinking_partner
+        delta = cp.thinking_partner_delta(message)
+        if delta == cp.MISSION_CONTINUE:
+            prior = cp.last_assistant_text(conversation)
+            cp.write_state(conversation, state="thinking_partner",
+                           mission=cp.MISSION_THINK_THROUGH, mission_scope="external",
+                           objective="think_through", last_beth_act="partnered")
+            return _thinking_partner_continue(user, message, prior)
+        cp.clear_state(conversation)          # REPLACE → mission handled/changed; route on
+        return None
+    except Exception:
+        logger.warning("mission_lane failed", exc_info=True)
+        return None
+
+
 LANE_REGISTRY = (
+    # MISSION PERSISTENCE runs FIRST: while a conversational mission is active, every
+    # message is interpreted inside it (continue / reframe-to-thinking-partner) before any
+    # stateless lane can re-classify it from a stray word. Declines for fresh subjects,
+    # greetings, explicit WLJ pivots, and repair, so all other routing is unchanged.
+    ("mission", _mission_lane),
     # Temporal Grounding runs FIRST: current date/time is always answerable, and
     # a freshness/temporal challenge to a grounded time-relative statement enters
     # deterministic trust-verification before any other lane (or coaching) can

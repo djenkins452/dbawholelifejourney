@@ -1136,6 +1136,9 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for Refresh Intent + Plan-Aware Recovery (PK 263)
         self._reset_refresh_recovery_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload release_notes for Mission Persistence (PK 264)
+        self._reset_mission_persistence_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2329,6 +2332,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Goal Scope release note FAILED: {e}'))
+
+    def _reset_mission_persistence_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 264) so the What's New entry for
+        Conversational Mission Persistence + Executive Thinking Partnership (the Chief
+        of Staff holds the conversation's objective and pivots to a thinking partner
+        when the real problem is outside WLJ) appears.
+        """
+        reset_tracker_name = 'reset_mission_persistence_release_note_2026_07_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Mission Persistence')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Mission Persistence (Jul 2026)',
+                'command', 'One-time reset to reload the release note for Mission Persistence'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Mission Persistence release note FAILED: {e}'))
 
     def _reset_refresh_recovery_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

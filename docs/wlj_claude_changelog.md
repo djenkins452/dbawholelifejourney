@@ -6,6 +6,53 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): conversational mission persistence + executive thinking partnership
+
+**Capability gap (production trust):** Beth reset her reasoning after almost every user
+message — a chatbot habit, not a Chief of Staff. Once she'd established a conversational
+mission ("let's make today lighter"), she failed to interpret the next messages inside it:
+"Is there anything I can move that aren't supplements or medicine?" was answered as a
+literal supplement search, and "mostly it's work stuff you don't know about" restarted the
+overwhelm script instead of recognizing the problem had moved OUTSIDE WLJ.
+
+**Capability built (Phase 2 reasoning; no new engine, no learning, no migration):** one
+rule applied to every turn — interpret the message inside the standing mission until it is
+completed, reframed, or replaced.
+- **Mission on the existing conversation_state** (`mission`, `mission_scope` alongside
+  `objective` — more keys in `conversation.metadata`, the proven pattern).
+- **`conversation_planner.mission_delta` / `thinking_partner_delta`** — deterministic
+  three-way classifier: CONTINUE (same mission), REFRAME_EXTERNAL (the real problem is
+  outside WLJ), REPLACE (explicit pivot / greeting / feedback about Beth's turn → route
+  normally). Load-easing follow-ups ("anything else I can move?", "yes please") are read as
+  "anything that reduces today's overwhelm", NOT a keyword search.
+- **New front-of-registry `lanes._mission_lane`** — claims ONLY the continuation of an
+  active mission, so a retrieval lane can never hijack it on a stray word. Declines for
+  everything else (establishment, repair, and all normal routing untouched).
+- **Executive Thinking Partnership (the external-work reframe):** `_reframe_external_partner`
+  acknowledges the pivot, STOPS optimizing WLJ, and asks one good structuring question —
+  deterministic, no WLJ context. Follow-ups run `_thinking_partner_continue` →
+  `_thinking_partner_answer`, the SAME no-personal-data sandbox as the general lane in a
+  thinking-partner posture (reflect, structure, reduce uncertainty, one question at a
+  time), so Beth can't drift back to France/protein/sleep or fabricate data she lacks.
+  Capture of concrete work items is offered LAST — only once real items emerge
+  (`_emerged_work_items`) — never in place of thinking. Order is conversation → partner →
+  capture, never reversed.
+
+**Files:** apps/ai/chatgpt_cos/conversation_planner.py (mission fields + delta classifiers),
+apps/ai/chatgpt_cos/lanes.py (`_mission_lane` first in LANE_REGISTRY; thinking-partner
+handlers; why-explainer yields to a thinking-partner thread),
+apps/ai/tests/test_mission_persistence.py (new),
+apps/core/fixtures/release_notes.json (PK 264),
+apps/core/management/commands/load_initial_data.py (loader reset).
+
+**Verification:** new test_mission_persistence (11) — delta classification (continue/
+reframe/replace), thinking-partner delta, work-item detection, and the full end-to-end
+flow (establish → load-easing follow-up stays in-mission → external reveal reframes to
+thinking partner with no WLJ context → concrete items trigger a capture offer → WLJ pivot
+ends the mission). ~135-test conversation/posture/repair/continuity/general/reasoning
+regression green. Preserves check-in, repair, refresh, self-report, executive filtering,
+goal scope, and plan-aware recovery.
+
 ## 2026-07-07 — fix(cos): refresh intent + plan-aware recovery guard on every path
 
 **Production trust failure (three linked defects):** in a problem-solving flow (user

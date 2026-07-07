@@ -237,6 +237,122 @@ def is_refresh_request(message):
     return any(c in n for c in _REFRESH_CUES)
 
 
+# ── CONVERSATIONAL MISSION PERSISTENCE ───────────────────────────────────────
+# A Chief of Staff establishes a MISSION for the conversation, then interprets every
+# subsequent message INSIDE that mission until it is completed, reframed, or replaced —
+# she does not restart reasoning from the literal words of each new sentence. The mission
+# rides on the existing conversation_state (no migration): `state` names the active
+# posture, `mission`/`mission_scope` describe WHAT we're solving and WHERE it lives. This
+# module owns the DELTA classification (does this message CONTINUE the mission, REFRAME it,
+# or REPLACE it); the lane layer owns the handlers. This is executive reasoning, not
+# memory or learning — it is one rule applied to every turn, not a script per scenario.
+MISSION_REDUCE_OVERWHELM = "reduce_overwhelm"   # ease today's WLJ load
+MISSION_THINK_THROUGH = "think_through"          # executive thinking partner (external)
+
+MISSION_CONTINUE = "continue"                     # same mission, more detail
+MISSION_REFRAME_EXTERNAL = "reframe_external"     # real problem is OUTSIDE WLJ → partner
+MISSION_REPLACE = "replace"                       # explicit pivot → drop mission, route
+
+# The real pressure is OUTSIDE WLJ — Beth has no data on it — said while she is trying to
+# ease the WLJ load ("mostly it's work stuff you don't know about", "it's not in here").
+# This is the signal to STOP optimizing WLJ and become an executive thinking partner.
+_EXTERNAL_REFRAME_CUES = (
+    "you dont know about", "you dont know", "dont know about", "you have no idea",
+    "you dont have", "you dont see", "not in here", "not in the app", "not in wlj",
+    "not in this app", "not on here", "not in the system", "not tracked here",
+    "not in there", "outside the app", "outside of this", "outside wlj", "outside of wlj",
+    "nothing in here", "nothing to do with this app", "not stuff in here", "not on the app",
+    "work stuff", "its work", "it is work", "mostly work", "mostly its work",
+    "for work", "at work", "my job", "job stuff", "work things", "work related",
+    "external stuff", "outside work",
+)
+# Continuation of the LOAD-EASING mission — move / drop / simplify / "what else can go".
+_LOAD_CONTINUE_CUES = (
+    "move", "drop", "let go", "take off", "come off", "clear", "clear off", "simplify",
+    "lighten", "reschedule", "push", "defer", "cut", "remove", "postpone", "what else",
+    "anything else", "something else", "get rid of", "off my plate", "off today",
+    "off my list", "less on", "trim",
+)
+# A bare affirmation of Beth's offer ("yes, please") — the whole message, exact match.
+_AFFIRM_EXACT = {
+    "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "please", "yes please",
+    "go ahead", "do it", "lets do it", "let's do it", "sounds good", "please do",
+    "yes do that", "go for it", "that would help", "ok do that", "okay do that",
+}
+# The user signals the mission is handled — end it gracefully (route normally next turn).
+_RESOLUTION_CUES = (
+    "thanks", "thank you", "that helps", "that helped", "im good", "all set",
+    "im all set", "thats all", "im done", "were good", "appreciate it", "perfect thanks",
+    "got it thanks", "that makes sense", "im clear", "much clearer", "feel better",
+)
+# An explicit turn BACK to the user's own WLJ data/life — the only personal pivot that
+# ends a mission (a greeting also ends it, handled separately).
+_WLJ_PIVOT_CUES = (
+    "whats my", "what is my", "hows my", "how is my", "how are my", "how am i doing",
+    "my weight", "my sleep", "my glucose", "my a1c", "my blood sugar", "my medication",
+    "my meds", "my mission", "my goal", "my calendar", "my schedule", "my next",
+    "whats next", "whats on my", "brief me", "plan my day", "where do i stand",
+    "how am i tracking",
+)
+
+
+def _is_wlj_pivot(message):
+    """True when the user explicitly turns back to their own WLJ data/life (or greets) —
+    an explicit subject change that REPLACES the active mission."""
+    if is_greeting(message):
+        return True
+    n = re.sub(r"[’']", "", _norm(message))
+    return bool(n) and any(c in n for c in _WLJ_PIVOT_CUES)
+
+
+def mission_delta(conversation, message):
+    """Classify a new message against an ACTIVE reduce-overwhelm mission:
+    REFRAME_EXTERNAL (the real problem is outside WLJ → thinking partner), CONTINUE
+    (keep easing the load), or REPLACE (explicit pivot → route normally). Deterministic
+    and conservative — the two named signals (external / load-easing) are recognized;
+    anything clearly a new self-contained subject falls to REPLACE."""
+    # Feedback about Beth's own turn is repair, never mission continuation.
+    if is_meta_conversational(message):
+        return MISSION_REPLACE
+    n = re.sub(r"[’']", "", _norm(message))
+    if not n:
+        return MISSION_REPLACE
+    # The source of the overwhelm is external to WLJ → pivot to thinking partner.
+    if any(c in n for c in _EXTERNAL_REFRAME_CUES):
+        return MISSION_REFRAME_EXTERNAL
+    # Explicit turn to WLJ data or a greeting → drop the mission.
+    if _is_wlj_pivot(message):
+        return MISSION_REPLACE
+    # Continued easing of the load, an affirmation of the offer, or a refresh → keep
+    # helping with the load (interpret "anything I can move?" as "anything that helps
+    # reduce today's overwhelm", not a literal word search).
+    if (n.rstrip("?.! ") in _AFFIRM_EXACT
+            or any(c in n for c in _LOAD_CONTINUE_CUES)
+            or is_refresh_request(message)):
+        return MISSION_CONTINUE
+    # A short, non-question reply that isn't a clear new subject stays in the mission
+    # (persistence — don't restart on every message); a longer self-contained new
+    # subject routes normally.
+    if len(n.split()) <= 6 and not _looks_like_question(n):
+        return MISSION_CONTINUE
+    return MISSION_REPLACE
+
+
+def thinking_partner_delta(message):
+    """Classify a new message against an ACTIVE thinking-partner mission: CONTINUE (keep
+    thinking it through together) or REPLACE (the user turned back to WLJ data or signaled
+    they're done). The default is CONTINUE — a thinking-partner conversation persists
+    until the user explicitly changes the subject."""
+    if is_meta_conversational(message):
+        return MISSION_REPLACE
+    if _is_wlj_pivot(message):
+        return MISSION_REPLACE
+    n = re.sub(r"[’']", "", _norm(message))
+    if any(c in n for c in _RESOLUTION_CUES) and len(n.split()) <= 8:
+        return MISSION_REPLACE
+    return MISSION_CONTINUE
+
+
 def is_greeting(message):
     n = _norm(message)
     if not n:
@@ -385,6 +501,7 @@ def plan(user, conversation, message):
     #      "look again [you got it wrong]" in any other context still routes to repair.
     if cur == "problem_solving" and is_refresh_request(message):
         write_state(conversation, state="problem_solving", objective="ease_the_load",
+                    mission=MISSION_REDUCE_OVERWHELM, mission_scope="wlj",
                     last_beth_act="refreshed")
         return {"handler": "problem_solving_refresh"}
 
@@ -406,6 +523,7 @@ def plan(user, conversation, message):
     need = classify_need(message)
     if need == NEED_PROBLEM_SOLVING:
         write_state(conversation, state="problem_solving", objective="ease_the_load",
+                    mission=MISSION_REDUCE_OVERWHELM, mission_scope="wlj",
                     last_beth_act="offered_help")
         return {"handler": "problem_solving"}
     if need == NEED_PERSONAL_CONCERN:

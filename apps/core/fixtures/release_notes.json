@@ -4198,5 +4198,21 @@
       "created_at": "2026-07-07T21:00:00Z",
       "updated_at": "2026-07-07T21:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 264,
+    "fields": {
+      "title": "Your Chief of Staff stays on the problem you're solving",
+      "description": "When you're working something out together, your Chief of Staff now holds onto the goal of the conversation instead of treating each message as a brand-new request. Ask it to lighten your day and every follow-up — “anything else I can move?” — is read as part of that, not as a literal search. And when you reveal the real pressure is coming from work outside the app, it stops trying to optimize your in-app tasks and shifts into a thinking partner: it acknowledges the change, asks one good question at a time, and helps you think it through. If concrete to-dos surface along the way, it offers to capture them so they're not left rattling around in your head.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T22:00:00Z",
+      "updated_at": "2026-07-07T22:00:00Z"
+    }
   }
 ]

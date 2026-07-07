@@ -62,17 +62,87 @@ def is_page_reference(message):
     return False
 
 
+def _narrate_journey_day(user, url):
+    """FAITH JOURNEY (the PRODUCTION reading system) — resolve + narrate the JourneyDay in
+    focus. `/faith/journey/today/` → the user's CURRENT day (user-scoped via their active
+    journey); `/faith/journey/<arc_slug>/day/<n>/` → that specific day. JourneyDay is shared
+    content (not a Narratable UserOwnedModel), so we narrate it here from its own fields:
+    scripture refs + verse text (scripture_content.blocks) + context_before + key_insight +
+    reflection_prompt. Nested JSON is coerced with str(...). Returns {title, content, kind,
+    ref} or None."""
+    if not user:
+        return None
+    u = (url or "").lower().rstrip("/")
+    try:
+        from apps.faith.journey.services import (
+            get_active_journey, get_current_day, get_day_in_arc,
+        )
+        day = None
+        m = re.search(r"/faith/journey/([^/]+)/day/(\d+)", u)
+        if m:
+            day = get_day_in_arc(m.group(1), int(m.group(2)))
+        else:
+            # 'today' (or any other journey URL) → the user's OWN current day.
+            uj = get_active_journey(user)
+            day = get_current_day(uj) if uj is not None else None
+    except Exception:
+        logger.warning("focused_object: journey resolve failed url=%s", url, exc_info=True)
+        return None
+    if day is None:
+        return None
+
+    head = "Today's reading"
+    arc = getattr(day, "arc", None)
+    if arc is not None:
+        head = (getattr(arc, "name", "") or "").strip() or head
+        jp = getattr(arc, "journey_path", None)
+        if jp is not None:
+            head = (getattr(jp, "name", "") or "").strip() or head
+    title = f"{head} — Day {day.day_number}"
+
+    parts = [title]
+    refs = day.scripture_refs or []
+    if isinstance(refs, list) and refs:
+        parts.append("Scripture: " + ", ".join(str(r) for r in refs))
+    sc = day.scripture_content if isinstance(day.scripture_content, dict) else {}
+    blocks = sc.get("blocks") or []
+    verses = []
+    if isinstance(blocks, list):
+        for b in blocks:
+            if isinstance(b, dict):
+                text = str(b.get("text") or "").strip()
+                if text:
+                    ref = str(b.get("ref") or "").strip()
+                    verses.append((f"{ref} " if ref else "") + text)
+    if verses:
+        parts.append("\n".join(verses)[:2500])
+    for label, attr in (("Context: ", "context_before"), ("Key insight: ", "key_insight"),
+                        ("Reflection: ", "reflection_prompt")):
+        val = str(getattr(day, attr, "") or "").strip()
+        if val:
+            parts.append(f"{label}{val[:800]}")
+    return {"title": title, "content": "\n\n".join(parts).strip(),
+            "kind": "scripture reading", "ref": None}
+
+
 def resolve_focused_object(user, url, module):
     """DETERMINISTIC URL-BASED resolution of the object in focus — the Current Context
     Contract's server-side fallback for when the page did not DECLARE a focus_ref and no
     client content came through. User-scoped; per-module URL patterns; the object's content
-    comes from the Narratable protocol (get_context_summary), so goal/journal/faith/task all
+    comes from the Narratable protocol (get_context_summary), so goal/journal/task all
     resolve consistently. Returns {title, content, kind, ref} or None."""
     if not user or not url:
         return None
     u = url.lower()
     m = re.search(r"/(\d+)(?:/|$)", u)
     pk = int(m.group(1)) if m else None
+
+    # FAITH JOURNEY (production reading system) — the focused object is a JourneyDay whose
+    # content lives on the day itself, served by function views at /faith/journey/*. Narrate
+    # it directly (JourneyDay is not a Narratable UserOwnedModel).
+    if "/faith/journey/" in u:
+        return _narrate_journey_day(user, url)
+
     obj = None
     try:
         # GOALS — a goal detail (/goals/<pk>/), or the active mission goal on the goals

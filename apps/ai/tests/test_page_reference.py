@@ -11,11 +11,68 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from apps.ai.chatgpt_cos.page_reference import (
-    answer_page_reference, is_page_reference, resolve_page_focus,
+    answer_page_reference, is_page_reference, resolve_focused_object, resolve_page_focus,
 )
 from apps.ai.chatgpt_cos.lanes import route_message
 
 User = get_user_model()
+
+
+class FaithJourneyFocusTests(TestCase):
+    """Isolated Faith fix: the PRODUCTION reading system is apps.faith.journey (JourneyDay,
+    not the legacy UserReadingPlan). The focused-object resolver must narrate the journey day
+    from its own fields. Touches only the Faith branch of resolve_focused_object."""
+
+    def setUp(self):
+        self.u = User.objects.create_user(email="fj@x.com", password="x")
+
+    def _day(self):
+        from apps.faith.journey.models import JourneyArc, JourneyDay, JourneyPath
+        jp = JourneyPath.objects.create(slug="wwg", name="Walking With God Through Scripture",
+                                        narrative_overview="", difficulty_default="")
+        arc = JourneyArc.objects.create(journey_path=jp, slug="creation", name="Creation",
+                                        order=1, opening_note="", closing_note="")
+        return JourneyDay.objects.create(
+            arc=arc, day_number=3, scripture_refs=["Genesis 1:1-5"],
+            scripture_content={"translation": "WEB", "blocks": [
+                {"ref": "Genesis 1:1", "text": "In the beginning God created the heavens and the earth."}]},
+            context_before="God begins creation.", plain_english_simple="s",
+            plain_english_standard="std", plain_english_deeper="d",
+            key_insight="God is the origin of all things.",
+            reflection_prompt="Where do you see God as your beginning?",
+            application_action="Pause and pray.")
+
+    def test_journey_review_day(self):
+        self._day()
+        f = resolve_focused_object(self.u, "/faith/journey/creation/day/3/", "faith")
+        self.assertIn("Day 3", f["title"])
+        self.assertIn("In the beginning God created", f["content"])   # scripture text
+        self.assertIn("origin of all things", f["content"])           # key insight
+        self.assertIn("your beginning", f["content"])                 # reflection
+        self.assertEqual(f["kind"], "scripture reading")
+
+    def test_journey_today(self):
+        from unittest import mock as _mock
+        day = self._day()
+        with _mock.patch("apps.faith.journey.services.get_active_journey", return_value=object()), \
+             _mock.patch("apps.faith.journey.services.get_current_day", return_value=day):
+            f = resolve_focused_object(self.u, "/faith/journey/today/", "faith")
+        self.assertIn("In the beginning", f["content"])
+
+    def test_cross_user_no_active_journey_returns_none(self):
+        # 'today' is user-scoped via the active journey; a user without one gets nothing.
+        self.assertIsNone(resolve_focused_object(self.u, "/faith/journey/today/", "faith"))
+
+    def test_legacy_reading_plan_still_resolves(self):
+        from apps.faith.models import ReadingPlanDay, ReadingPlanTemplate, UserReadingPlan
+        tpl = ReadingPlanTemplate.objects.create(
+            title="Legacy Plan", description="d", category="", difficulty="", source="",
+            source_abbreviation="", series="", duration_days=7)
+        ReadingPlanDay.objects.create(plan=tpl, day_number=1, title="",
+                                      scripture_references=["John 1:1"], scripture_content=[])
+        lp = UserReadingPlan.objects.create(user=self.u, template=tpl, current_day=1)
+        f = resolve_focused_object(self.u, f"/faith/reading-plans/progress/{lp.pk}/", "faith")
+        self.assertIn("John 1:1", f["content"])
 _CALL_API = "apps.ai.services.ai_service._call_api"
 
 _FAITH_PC = {"module": "faith", "page_title": "Isaiah 6:1-8, Isaiah 53:1-12",

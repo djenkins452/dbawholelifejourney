@@ -6,6 +6,29 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-06 — fix(cos): Faith focused-object resolves the PRODUCTION Journey system (isolated)
+
+Isolated Faith bug: "Explain this." on the Faith reading page returned "…its details didn't come
+through." Root cause (repository-proven): the live reading system is `apps.faith.journey`
+(`JourneyDay`, scripture in `scripture_content.blocks`), served by FUNCTION views at
+`/faith/journey/today/` and `/faith/journey/<arc_slug>/day/<n>/`. `JourneyDay` is a
+`TimeStampedModel` (NOT `UserOwnedModel`) → not Narratable → no `focus_ref` auto-declaration; and
+`resolve_focused_object`'s Faith branch only matched the retired `UserReadingPlan` +
+`/reading-plans/progress/`. So neither resolution path reached the day → fell to the empty client
+scrape → content-missing (title from the page <h1>). Goals/Journal were unaffected (their objects
+are Narratable UserOwnedModels).
+
+Fix (Faith branch ONLY): `resolve_focused_object` now, for any `/faith/journey/` URL, resolves the
+JourneyDay via the journey app's OWN services (`get_active_journey`+`get_current_day` for 'today',
+`get_day_in_arc` for review days) and narrates it from the day's fields — scripture refs, verse
+text (`scripture_content.blocks[*].text`, coerced with str()), `context_before`, `key_insight`,
+`reflection_prompt`. 'today' is user-scoped (a user with no active journey → None); review days are
+shared content. Legacy `UserReadingPlan` branch preserved. NOT touched: planner, Current Context
+contract, working memory, Goals, Journal. Tests (apps/ai/tests/test_page_reference.py ::
+FaithJourneyFocusTests): review day, today (mocked current day), cross-user no-journey → None,
+legacy plan still resolves — 4 green; 38 green across page_reference/current_context; check clean.
+Files: apps/ai/chatgpt_cos/page_reference.py.
+
 ## 2026-07-06 — fix(cos): restore focused-object resolver + feed focus IDENTITY to the planner
 
 Implements the proven Current Context architecture (owner = the planner) and fixes both proven

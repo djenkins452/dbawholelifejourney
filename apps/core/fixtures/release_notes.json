@@ -4134,5 +4134,21 @@
       "created_at": "2026-07-07T17:00:00Z",
       "updated_at": "2026-07-07T17:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 260,
+    "fields": {
+      "title": "Your Chief of Staff reads the moment, not just the calendar",
+      "description": "Not every morning needs a full rundown. Your Chief of Staff now senses what kind of conversation you're having and responds accordingly. Tell it you're behind or overwhelmed and it offers to help — looking at your day to move, simplify, or drop something — instead of reciting your schedule. Mention that someone you care about is on your mind and it sets the agenda aside to listen, rather than steering you back to protein or workouts. Say good morning and it keeps things light; say you're ready to go and it leans into the day. It brings up priorities when they help the conversation, not by default.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-07",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-07T18:00:00Z",
+      "updated_at": "2026-07-07T18:00:00Z"
+    }
   }
 ]

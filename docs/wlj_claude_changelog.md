@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): conversational-need classification — choose the conversation, not the script
+
+**Phase-2 gap:** Beth didn't understand what KIND of conversation she was in. Every
+feeling opener collapsed to the same full executive briefing — a problem statement
+("I'm tired and already behind"), a good day ("I feel great"), and a relational worry
+("I'm worried about Haley") were not distinguished by NEED. `classify_subjective_energy`
+is polarity-only (positive/negative) and funnels ANY feeling → `_self_report_lane` →
+`compose_executive_brief`; a worry about a person fell through to the generic
+health-reasoning LLM. There was NO classifier of conversational need / posture / depth.
+
+**Fix (existing architecture, no new engine, no scripts):** teach the existing
+conversation-strategy layer (`conversation_planner`) to first read the NEED, then choose
+posture — introducing executive priorities only when they serve the moment.
+- New `conversation_planner.classify_need(message)` → `problem_solving` (the user is
+  behind/overwhelmed) | `personal_concern` (a worry about a PERSON/life, NOT an executive
+  domain — health/goal/work worries stay on their normal path) | None (everything else →
+  UNCHANGED routing). Conservative and deterministic; a bare greeting still opens with the
+  check-in, a positive opener still gets the executive read, questions still route to
+  their lanes.
+- `plan()` consults `classify_need` right after repair, so a clear need OVERRIDES the
+  greeting/brief default ("good morning, I'm swamped" is problem-solving).
+- Two new posture handlers (`lanes.py`): `_problem_solving_offer` acknowledges the load
+  and OFFERS to help — look at the day, move/simplify/drop something (grounded in the real
+  due-today count) — instead of briefing; `_personal_concern_open` engages the person
+  (`concern_object` extracts "Haley") with a listening posture and NO protein/workout/
+  mission talk. Both abandon the planned briefing when the moment calls for something else.
+
+**Files:** apps/ai/chatgpt_cos/conversation_planner.py (classify_need / concern_object +
+plan wiring), apps/ai/chatgpt_cos/lanes.py (two posture handlers + dispatch),
+apps/ai/tests/test_conversation_posture.py (new), apps/core/fixtures/release_notes.json
+(PK 260), apps/core/management/commands/load_initial_data.py.
+
+**Verification:** new test_conversation_posture (9) — classifier precision (problem vs
+concern vs neutral vs health-worry), and routing (problem → offer not briefing; concern →
+engages the person, no priorities; greeting → check-in unchanged; positive → executive
+read unchanged). ~270-test regression green (conversation/checkin/brief/reasoning/trust
+suites — existing flows intact). No new engine; no migration.
+
 ## 2026-07-07 — docs(cos): Executive Reflection engineering-memory document (v1.0 seal)
 
 Added `docs/WLJ_EXECUTIVE_REFLECTION_DESIGN_ASSUMPTIONS.md` — the engineering-memory

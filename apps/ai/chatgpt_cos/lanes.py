@@ -1612,11 +1612,60 @@ def _conversation_planner_lane(user, message, conversation=None):
     handler = p.get("handler")
     if handler == "repair":
         return _repair_response(user, message, p.get("prior_answer"))
+    if handler == "problem_solving":
+        return _problem_solving_offer(user, message)
+    if handler == "personal_concern":
+        return _personal_concern_open(user, message)
     if handler == "checkin_open":
         return _morning_checkin(user, message)
     if handler == "brief_after_checkin":
         return _post_checkin_brief(user, message, p.get("feeling"))
     return None
+
+
+def _problem_solving_offer(user, message):
+    """POSTURE: problem-solving. The user is behind / overwhelmed — a Chief of Staff
+    first tries to help with the problem they actually raised, not deliver the planned
+    briefing. Acknowledge, then OFFER to lighten the load (look at the day, move or drop
+    something). She may conclude nothing can move — but she tries the user's problem
+    first. Deterministic; grounds the offer in today's real load when available."""
+    load = ""
+    try:
+        from apps.ai.chatgpt_cos.executive_interpretation import _task_horizons
+        tw = _task_horizons(user)
+        n = int(tw.get("today", 0) or 0)
+        if n:
+            load = (f" You've got {n} thing{'s' if n != 1 else ''} actually due today, "
+                    "so there's likely room to move the rest.")
+    except Exception:
+        logger.warning("problem_solving: task horizons failed", exc_info=True)
+    answer = ("Sorry — that's a heavy way to start the day. Let's see if we can make it "
+              "lighter." + load + " Want me to look at what's on your plate today and "
+              "find something we can move, simplify, or let go?")
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "problem_solving"}
+
+
+def _personal_concern_open(user, message):
+    """POSTURE: listening. The user raised a worry about a person / life situation — the
+    executive concern has CHANGED, so Beth engages THAT, not protein or the mission. She
+    acknowledges and invites them to talk it through — she does not pull the conversation
+    back to priorities. Deterministic opener; the follow-up continues on the normal
+    conversational path."""
+    obj = ""
+    try:
+        from apps.ai.chatgpt_cos.conversation_planner import concern_object
+        obj = concern_object(message)
+    except Exception:
+        obj = ""
+    if obj:
+        answer = (f"{obj} is clearly on your mind, and that matters more than anything "
+                  f"on today's list. Tell me what's going on with {obj} — I'm listening.")
+    else:
+        answer = ("That's clearly weighing on you, and it matters more than anything on "
+                  "today's list. Tell me what's going on — I'm listening.")
+    return {"answer": answer, "tools_called": [], "tools_advertised": [],
+            "lane": "personal_concern"}
 
 
 # Follow-up cue sets — all answered DETERMINISTICALLY from the active topic's stored

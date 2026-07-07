@@ -110,6 +110,92 @@ def _norm(s):
     return re.sub(r"\s+", " ", (s or "").strip().lower())
 
 
+# ── CONVERSATIONAL NEED (posture) ────────────────────────────────────────────
+# A Chief of Staff first works out WHAT KIND of conversation this is, then chooses how
+# much to say and what posture to take — she does not answer every opener with a full
+# briefing. This is a THIN classifier of the user's expressed NEED, not a script: it
+# only decides whether the moment calls for problem-solving or listening instead of the
+# default executive read; everything it doesn't recognize falls through UNCHANGED to the
+# existing routing (greeting → check-in, feeling → brief, questions → their lanes).
+NEED_PROBLEM_SOLVING = "problem_solving"     # the user is behind/overwhelmed → help, don't brief
+NEED_PERSONAL_CONCERN = "personal_concern"   # a worry about a person/life → listen, don't brief
+
+# Workload / capacity difficulty the user wants eased — the signal is being BEHIND or
+# OVERWHELMED, not merely tired.
+_PROBLEM_SOLVING_CUES = (
+    "feel behind", "feeling behind", "falling behind", "fallen behind", "so behind",
+    "way behind", "really behind", "already behind", "im behind", "i am behind",
+    "get behind", "getting behind", "overwhelmed", "swamped", "buried", "drowning",
+    "underwater", "slammed", "too much to do", "too much on", "so much to do",
+    "so much going on", "cant keep up", "cannot keep up", "cant catch up",
+    "cannot catch up", "no time", "not enough time", "stretched thin", "spread thin",
+    "a lot on my plate", "lot on my plate", "in over my head", "crazy busy", "swamped",
+    "drowning in", "snowed under",
+)
+# A worry ABOUT something — becomes a personal concern only when it is NOT about an
+# executive domain (health/goals/work/money); those stay on their normal reasoning path.
+_CONCERN_CUES = ("worried about", "worry about", "worrying about", "concerned about",
+                 "anxious about", "nervous about", "scared about", "afraid for",
+                 "upset about", "stressed about", "on my mind", "keeps me up about",
+                 "can't stop thinking about", "cant stop thinking about")
+_EXEC_DOMAIN_WORDS = (
+    "weight", "protein", "glucose", "blood sugar", "a1c", "insulin", "sleep", "workout",
+    "training", "cardio", "exercise", "nutrition", "calorie", "diet", "macro",
+    "medication", "meds", "health", "goal", "mission", "france", "task", "deadline",
+    "project", "money", "finance", "budget", "bill", "income", "work", "job",
+    "today", "this week", "the week", "everything", "my schedule", "the day", "all this",
+)
+
+
+def classify_need(message):
+    """Classify the conversational NEED behind an opener → NEED_PROBLEM_SOLVING /
+    NEED_PERSONAL_CONCERN / None. Deterministic and conservative: it fires only on a
+    clear problem-to-solve or a clear personal worry; everything else returns None so
+    the existing routing (orientation, execution, briefing) is untouched."""
+    n = _norm(message)
+    if not n or _looks_like_question(n):
+        # A direct question is a request for an answer, not an emotional opener.
+        pass
+    if any(c in n for c in _PROBLEM_SOLVING_CUES):
+        return NEED_PROBLEM_SOLVING
+    for cue in _CONCERN_CUES:
+        idx = n.find(cue)
+        if idx == -1:
+            continue
+        tail = n[idx + len(cue):]
+        # A worry about an executive domain stays on its normal path; a worry about a
+        # person / life situation is a listening moment.
+        if not any(w in tail or w in n for w in _EXEC_DOMAIN_WORDS):
+            return NEED_PERSONAL_CONCERN
+    return None
+
+
+def concern_object(message):
+    """Best-effort extraction of WHAT the user is worried about ("worried about Haley"
+    → "Haley"), for a natural acknowledgment. Returns "" when nothing clean is found."""
+    n = _norm(message)
+    for cue in ("worried about", "worry about", "worrying about", "concerned about",
+                "anxious about", "nervous about", "scared about", "upset about",
+                "stressed about", "thinking about"):
+        idx = n.find(cue)
+        if idx != -1:
+            tail = n[idx + len(cue):].strip()
+            # take up to a clause boundary
+            for stop in (".", ",", ";", " and ", " but ", " because ", " right now",
+                         " lately", " today"):
+                p = tail.find(stop)
+                if p != -1:
+                    tail = tail[:p]
+            tail = tail.strip(" .,!?")
+            # Preserve the original casing of the object (names like "Haley").
+            if tail and len(tail.split()) <= 5:
+                # map back to original-case slice
+                raw = re.sub(r"\s+", " ", (message or "").strip())
+                m = re.search(re.escape(tail), raw, re.IGNORECASE)
+                return m.group(0) if m else tail
+    return ""
+
+
 def is_greeting(message):
     n = _norm(message)
     if not n:
@@ -259,6 +345,22 @@ def plan(user, conversation, message):
         write_state(conversation, state="repair", objective="repair",
                     last_beth_act="repaired")
         return {"handler": "repair", "prior_answer": prior}
+
+    # 1.5) CONVERSATIONAL NEED — before defaulting to a check-in or a briefing, read what
+    #      kind of conversation this is. A user who is BEHIND/OVERWHELMED needs help, not a
+    #      briefing; a user WORRIED ABOUT A PERSON needs listening, not executive
+    #      priorities. This overrides the greeting/brief defaults (so "good morning, I'm
+    #      swamped" is problem-solving) but only fires on a clear need — otherwise routing
+    #      is unchanged. Introduce executive priorities only when they serve the moment.
+    need = classify_need(message)
+    if need == NEED_PROBLEM_SOLVING:
+        write_state(conversation, state="problem_solving", objective="ease_the_load",
+                    last_beth_act="offered_help")
+        return {"handler": "problem_solving"}
+    if need == NEED_PERSONAL_CONCERN:
+        write_state(conversation, state="listening", objective="engage_concern",
+                    last_beth_act="listened")
+        return {"handler": "personal_concern"}
 
     # 2) GREETING — open with a light CHECK-IN first; hold the agenda.
     if is_greeting(message):

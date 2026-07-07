@@ -105,3 +105,14 @@ def run_post_response_intelligence(user, message, response_text, conversation):
         extract_life_facts_from_message(user, message, resp)
     except Exception as e:
         logger.debug("post-response life fact extraction failed: %s", e)
+
+    # 5) Executive Reflection (Phase 4). Runs AFTER evidence is written (it
+    # consumes that evidence), off the request path, fail-open. It assesses the
+    # turn, classifies any failure deterministically, and routes to exactly one
+    # disposition (reinforce / learn [default-deny] / EIO / observe). It NEVER
+    # modifies deterministic truth. See docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md.
+    try:
+        from apps.ai.reflection.engine import reflect_on_turn
+        reflect_on_turn(user, message, resp, conversation)
+    except Exception as e:
+        logger.debug("post-response executive reflection failed: %s", e)

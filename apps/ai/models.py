@@ -1629,6 +1629,17 @@ class CorrectionRecord(models.Model):
         help_text="Confidence in the correction (0-1). Higher = more certain."
     )
 
+    # Executive Reflection (Phase 4) read-back gate. DEFAULT-DENY: a stored
+    # correction is EVIDENCE, but it may only be re-injected into the CoS prompt
+    # once the deterministic failure classifier has approved it as a
+    # preference/communication learning (never a truth/reasoning/execution
+    # correction — those become Executive Improvement Opportunities, and
+    # re-injecting them would be learning around a deterministic defect, P3).
+    readback_approved = models.BooleanField(
+        default=False,
+        help_text="Classifier-approved for CoS prompt read-back (Phase 4 gate)."
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1638,10 +1649,126 @@ class CorrectionRecord(models.Model):
         verbose_name_plural = "Correction Records"
         indexes = [
             models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['user', 'readback_approved']),
         ]
 
     def __str__(self):
         return f"Correction {self.pk}: {self.user_correction[:60]}..."
+
+
+class ReflectionEvent(models.Model):
+    """Executive Reflection log (Phase 4) — one append-only row per reflected turn.
+
+    This is the audit trail, the recurrence substrate, and the Executive Scorecard
+    input. It records what reflection CONCLUDED (assessment + classification +
+    disposition); it is observational and NEVER changes deterministic truth. See
+    docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md.
+    """
+
+    TRIGGER_CHOICES = [
+        ("correction", "User correction"),
+        ("positive", "Positive signal"),
+        ("ignored", "Advice ignored"),
+        ("other", "Other"),
+    ]
+    OUTCOME_CHOICES = [
+        ("success", "Success"),
+        ("partial", "Partial"),
+        ("failure", "Failure"),
+        ("neutral", "Neutral"),
+    ]
+    TRUST_CHOICES = [
+        ("increased", "Increased"),
+        ("maintained", "Maintained"),
+        ("decreased", "Decreased"),
+    ]
+    LOCUS_CHOICES = [
+        ("truth_retrieval", "Truth Retrieval"),
+        ("reasoning", "Reasoning"),
+        ("execution", "Execution"),
+        ("communication", "Communication"),
+        ("preference", "Preference"),
+        ("confidence_calibration", "Confidence Calibration"),
+        ("none", "None / Positive"),
+        ("indeterminate", "Indeterminate"),
+    ]
+    DISPOSITION_CHOICES = [
+        ("reinforce", "Reinforce"),
+        ("learn", "Learn"),
+        ("eio", "Executive Improvement Opportunity"),
+        ("insufficient_evidence", "Insufficient Evidence"),
+        ("observe", "Observe"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reflection_events",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    trigger = models.CharField(max_length=20, choices=TRIGGER_CHOICES,
+                               default="other")
+    outcome = models.CharField(max_length=12, choices=OUTCOME_CHOICES,
+                               default="neutral")
+    trust_delta = models.CharField(max_length=12, choices=TRUST_CHOICES,
+                                   default="maintained")
+    locus = models.CharField(max_length=32, choices=LOCUS_CHOICES,
+                             default="none", blank=True)
+    disposition = models.CharField(max_length=24, choices=DISPOSITION_CHOICES,
+                                   default="observe")
+    confidence = models.FloatField(default=0.0)
+    topic = models.CharField(max_length=64, blank=True)
+    user_message = models.TextField(blank=True)
+    response_excerpt = models.TextField(blank=True)
+    evidence = models.JSONField(default=dict, blank=True)
+    directive_key = models.CharField(max_length=128, blank=True)
+    eio = models.ForeignKey(
+        "assistant.ImprovementTaskModel",
+        on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="reflection_events",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Reflection Event"
+        verbose_name_plural = "Reflection Events"
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+            models.Index(fields=["user", "disposition"]),
+            models.Index(fields=["user", "locus"]),
+        ]
+
+    def __str__(self):
+        return f"Reflection {self.pk}: {self.disposition} ({self.locus})"
+
+
+class ExecutiveScorecardSnapshot(models.Model):
+    """Composed background snapshot of Beth's Executive Scorecard for a user
+    (Phase 4). Trust is the headline; other dimensions are diagnostic sub-scores.
+    Follows the existing IntelligenceMetricsSnapshot pattern — computed in the
+    background, read from the snapshot, never live-computed on the request path.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="executive_scorecards",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    window_days = models.PositiveIntegerField(default=30)
+    reflection_count = models.PositiveIntegerField(default=0)
+    dimensions = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Executive Scorecard Snapshot"
+        verbose_name_plural = "Executive Scorecard Snapshots"
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Scorecard u{self.user_id} @ {self.created_at:%Y-%m-%d}"
 
 
 # =============================================================================

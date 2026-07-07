@@ -56,6 +56,9 @@ class RunPostResponseIntelligenceTests(SimpleTestCase):
             "extract_life_facts": mock.patch(
                 "apps.core.ai_memory.life_fact_extractor."
                 "extract_life_facts_from_message"),
+            # Executive Reflection runs after evidence-writing; neutralize it here
+            # so these unit tests stay focused on the evidence-writer contract.
+            "reflect": mock.patch("apps.ai.reflection.engine.reflect_on_turn"),
         }
 
     def test_noop_without_message(self):
@@ -72,7 +75,8 @@ class RunPostResponseIntelligenceTests(SimpleTestCase):
                 ctx["detect_correction"] as m_detect, \
                 ctx["store_correction"] as m_store, \
                 ctx["detect_patterns"] as m_pat, \
-                ctx["extract_life_facts"] as m_lf:
+                ctx["extract_life_facts"] as m_lf, \
+                ctx["reflect"]:
             user = _fake_user()
             conv, _ = _fake_conversation()
             run_post_response_intelligence(user, "how am I doing?", "You're good.", conv)
@@ -89,7 +93,7 @@ class RunPostResponseIntelligenceTests(SimpleTestCase):
         ctx = self._patchers(detect_correction=True)
         with ctx["extract_learning"], ctx["evolve_profile"], \
                 ctx["detect_correction"], ctx["store_correction"] as m_store, \
-                ctx["detect_patterns"], ctx["extract_life_facts"]:
+                ctx["detect_patterns"], ctx["extract_life_facts"], ctx["reflect"]:
             user = _fake_user()
             conv, prev = _fake_conversation(prev_content="I recommended strength.")
             run_post_response_intelligence(
@@ -108,7 +112,8 @@ class RunPostResponseIntelligenceTests(SimpleTestCase):
         ctx = self._patchers(detect_correction=False)
         with ctx["extract_learning"] as m_learn, ctx["evolve_profile"], \
                 ctx["detect_correction"], ctx["store_correction"], \
-                ctx["detect_patterns"] as m_pat, ctx["extract_life_facts"] as m_lf:
+                ctx["detect_patterns"] as m_pat, ctx["extract_life_facts"] as m_lf, \
+                ctx["reflect"]:
             m_learn.side_effect = RuntimeError("boom")
             user = _fake_user()
             conv, _ = _fake_conversation()

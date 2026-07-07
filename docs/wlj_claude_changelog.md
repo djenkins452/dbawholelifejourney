@@ -6,6 +6,63 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-07 — feat(cos): Phase 4 Executive Reflection — Phase 0B (lifecycle, classifier, gate, EIOs, scorecard)
+
+Implemented the ratified Executive Reflection architecture on top of the Phase 0A
+evidence substrate. Reflection runs OFF the request path (in the canonical
+post-response writer, so streaming/non-streaming parity is automatic), fail-open
+for the user and fail-visible in logs. It NEVER modifies deterministic truth,
+bypasses UAIO/reasoning/execution, or learns around a defect.
+
+**New package `apps/ai/reflection/`:**
+- `classifier.py` — DETERMINISTIC assess (outcome + **Trust Delta**) then classify
+  the failure **locus**. Load-bearing rule: a correction touching a truth-backed
+  domain is checked FIRST and is NEVER learnable — it routes to an EIO regardless
+  of what the deterministic source says (missing→state, stale/wrong→serialization,
+  available-but-ignored→reasoning; negation-aware agreement check via
+  `day_truth.todays_planned_workout`). Only communication/preference signals, with
+  truth provably not implicated, are learn-eligible.
+- `engine.py` — `reflect_on_turn()` lifecycle (Trigger→Evidence→Reconstruction→
+  Assessment→Classification→Decision) + the **default-deny learning gate** (5
+  conditions, independent second guard) + disposition actions: **learn** (bounded
+  `behavior_guidance.learn`), **reinforce** (success; never fabricates a directive
+  or truth), **EIO** (dedupe by locus/topic → bump recurrence), **insufficient
+  evidence/observe**.
+- `scorecard.py` — **Executive Scorecard**: composed summary of ReflectionEvents
+  (Trust headline + initiative + diagnostic sub-scores + learning-rate guardrail);
+  `compute_and_store` snapshot (background pattern).
+- `readback.py` — **GATED correction read-back**: only classifier-approved
+  (preference/communication) corrections reach the CoS prompt; truth corrections
+  became EIOs and are never re-injected (P3).
+
+**Models (migrations `ai/0030`, `assistant/0005`):**
+- `ReflectionEvent` (append-only log; audit + recurrence + scorecard input),
+  `ExecutiveScorecardSnapshot` (composed snapshot), `CorrectionRecord.readback_approved`
+  (default-deny read-back gate).
+- Extended `ImprovementTaskModel` for EIOs (Modify Before Adding): `source`,
+  two-lens `functional_locus` × `engineering_category`, `evidence`,
+  `recurrence_count`, `create_from_reflection()`. Reuses the existing dashboard +
+  approval flow + `system_gap_awareness` prompt injection (Beth becomes honest
+  about her own limits, free).
+
+**Guarded wiring (deferred from Phase 0A, now behind the gate):**
+- `behavior_guidance.learn()` — called ONLY for classifier-approved
+  preference/communication learnings.
+- Correction read-back into the CoS `_system_prompt` — now the GATED variant.
+
+**Acceptance tests (8+2, all pass):** truth correction not learned when source
+missing/stale/wrong; preference → bounded guidance; communication → bounded
+guidance; truth/reasoning/execution → EIO (with dedupe); success reinforced with
+no truth override; Trust Delta recorded; scorecard summarizes; read-back only
+includes approved; truth correction never approved for read-back. Plus Phase 0A
+suite (7), `test_chat_background` + `test_morning_correction_trust` (33) still
+pass; `manage.py check` + `makemigrations --check` clean.
+
+Files: `apps/ai/reflection/` (new: `__init__`, `classifier`, `engine`, `scorecard`,
+`readback`), `apps/ai/models.py`, `assistant/models.py`, `apps/ai/post_response_intelligence.py`,
+`apps/ai/chatgpt_cos/service.py`, migrations `apps/ai/migrations/0030_*`,
+`assistant/migrations/0005_*`, `apps/ai/tests/test_executive_reflection.py` (new).
+
 ## 2026-07-07 — fix(cos): executive filtering — no internal artifacts, filter routine, end with judgment, concrete actions
 
 **Phase-2 reasoning gaps (Beth briefed everything she knew instead of what's worth saying):**

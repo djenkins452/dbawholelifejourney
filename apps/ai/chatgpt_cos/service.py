@@ -105,7 +105,7 @@ class ChatGPTCoSService:
             out.append({"role": role, "content": (m.content or "")[:_HISTORY_CHARS]})
         return out
 
-    def _system_prompt(self, standing):
+    def _system_prompt(self, standing, message=""):
         try:
             standing_json = json.dumps(standing, default=str)[:_STANDING_CHARS]
         except Exception:
@@ -113,11 +113,22 @@ class ChatGPTCoSService:
         # NOTE: the Current Context object is NOT injected here. It is injected ONCE, at the
         # shared LLM-call choke point (services.py :: _ground_current_context), so EVERY
         # reasoning lane's answer — not just this tool-loop — begins grounded in it.
-        return _SYSTEM_PROMPT.format(
+        prompt = _SYSTEM_PROMPT.format(
             cos_name=self._cos_name(),
             first_name=(getattr(self.user, "first_name", "") or "Danny"),
             standing=standing_json,
         )
+        # Phase 4: GATED correction read-back — ONLY classifier-approved
+        # preference/communication learnings. Truth/reasoning/execution
+        # corrections became EIOs and are never re-injected (P3). Fail-open.
+        try:
+            from apps.ai.reflection.readback import approved_correction_context_block
+            block = approved_correction_context_block(self.user, message)
+            if block:
+                prompt = f"{prompt}\n{block}"
+        except Exception:
+            logger.warning("chatgpt_cos: gated read-back failed", exc_info=True)
+        return prompt
 
     # ------------------------------------------------------------------
     def generate(self, conversation, message, page_context=None, request_id=None):
@@ -185,7 +196,7 @@ class ChatGPTCoSService:
         standing = get_standing_context(
             self.user, page_context=page_context, allow_build=True,
         )
-        system_prompt = self._system_prompt(standing)
+        system_prompt = self._system_prompt(standing, message=message)
         history = self._history(conversation, message)
         tools = get_tool_schemas(enabled_only=True)
         advertised = [t["function"]["name"] for t in tools]

@@ -74,11 +74,47 @@ class ImprovementTaskModel(models.Model):
     GAP_TYPE_NO_DATA_METHOD = 'no_data_method'
     GAP_TYPE_UNSUPPORTED_QUERY_PATTERN = 'unsupported_query_pattern'
 
+    # Reflection-sourced Executive Improvement Opportunities (Phase 4) reuse this
+    # ledger. Their real taxonomy lives in functional_locus + engineering_category;
+    # gap_type carries this sentinel so the required field is satisfied.
+    GAP_TYPE_REFLECTION_EIO = 'reflection_eio'
+
     GAP_TYPE_CHOICES = [
         (GAP_TYPE_UNKNOWN_DATA_TYPE, 'Unknown Data Type'),
         (GAP_TYPE_MISSING_KEYWORDS, 'Missing Keywords'),
         (GAP_TYPE_NO_DATA_METHOD, 'No Data Method'),
         (GAP_TYPE_UNSUPPORTED_QUERY_PATTERN, 'Unsupported Query Pattern'),
+        (GAP_TYPE_REFLECTION_EIO, 'Executive Improvement Opportunity'),
+    ]
+
+    # Source discriminator — who produced this ledger row.
+    SOURCE_GAP_DETECTOR = 'gap_detector'
+    SOURCE_REFLECTION = 'reflection'
+    SOURCE_CHOICES = [
+        (SOURCE_GAP_DETECTOR, 'Gap Detector'),
+        (SOURCE_REFLECTION, 'Executive Reflection'),
+    ]
+
+    # Two-lens EIO taxonomy (Phase 4). Functional locus = which of Beth's faculties
+    # is implicated (the symptom she experienced). Engineering category = what kind
+    # of work fixes it (the remedy). Architecture is ONE category, not the whole.
+    LOCUS_CHOICES = [
+        ('truth_retrieval', 'Truth Retrieval'),
+        ('reasoning', 'Reasoning'),
+        ('execution', 'Execution'),
+        ('confidence_calibration', 'Confidence Calibration'),
+        ('capability', 'Capability Gap'),
+    ]
+    ENGINEERING_CATEGORY_CHOICES = [
+        ('architecture', 'Architecture'),
+        ('retrieval', 'Retrieval'),
+        ('state', 'State'),
+        ('serialization', 'Serialization'),
+        ('pipeline', 'Pipeline'),
+        ('telemetry', 'Telemetry'),
+        ('ui', 'UI'),
+        ('dead_code', 'Dead Code'),
+        ('other', 'Other'),
     ]
 
     # Severity choices (matching GapSeverity enum values)
@@ -238,6 +274,36 @@ class ImprovementTaskModel(models.Model):
         help_text='Reason for rolling back the task'
     )
 
+    # --- Executive Reflection (Phase 4) EIO fields (additive; gap-detector rows
+    # keep the defaults). ---
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_GAP_DETECTOR,
+        help_text='Producer of this row: the gap detector or Executive Reflection.'
+    )
+    functional_locus = models.CharField(
+        max_length=32,
+        blank=True,
+        choices=LOCUS_CHOICES,
+        help_text='EIO: which of Beth\'s faculties is implicated (the symptom).'
+    )
+    engineering_category = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=ENGINEERING_CATEGORY_CHOICES,
+        help_text='EIO: what kind of work fixes it (the remedy).'
+    )
+    evidence = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='EIO: immutable reconstruction evidence bundle.'
+    )
+    recurrence_count = models.PositiveIntegerField(
+        default=1,
+        help_text='EIO: how many materially-similar opportunities were observed.'
+    )
+
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Improvement Task'
@@ -393,6 +459,49 @@ class ImprovementTaskModel(models.Model):
             test_template=test_template,
             requires_approval=improvement_task.requires_approval,
             status=initial_status,
+        )
+
+    # Severity by functional locus — a truth/execution failure is higher-stakes
+    # than a confidence-calibration miss.
+    _LOCUS_SEVERITY = {
+        'truth_retrieval': 'high',
+        'execution': 'high',
+        'reasoning': 'medium',
+        'confidence_calibration': 'medium',
+        'capability': 'low',
+    }
+
+    @classmethod
+    def create_from_reflection(cls, *, user, functional_locus, engineering_category,
+                               topic, evidence, reconstruction, hypothesis):
+        """Create an Executive Improvement Opportunity from a reflection.
+
+        Human-in-the-loop by construction (P7): status starts NEW and requires
+        approval; nothing here is ever auto-implemented, and Beth never modifies
+        Truth/Reasoning/Execution — she only surfaces the opportunity to Danny.
+        """
+        severity = cls._LOCUS_SEVERITY.get(functional_locus, 'medium')
+        locus_label = dict(cls.LOCUS_CHOICES).get(functional_locus, functional_locus)
+        title = f"EIO: {locus_label} — {topic or 'unclassified'}"[:255]
+        return cls.objects.create(
+            title=title,
+            description={
+                'objective': reconstruction,
+                'hypothesis': hypothesis,
+                'functional_locus': functional_locus,
+                'engineering_category': engineering_category,
+            },
+            gap_type=cls.GAP_TYPE_REFLECTION_EIO,
+            severity=severity,
+            original_query=(evidence or {}).get('user_message', '')[:2000],
+            suggested_fix=hypothesis or '',
+            requires_approval=True,
+            status=cls.STATUS_NEW,
+            source=cls.SOURCE_REFLECTION,
+            functional_locus=functional_locus,
+            engineering_category=engineering_category,
+            evidence=evidence or {},
+            triggered_by_user=user,
         )
 
     def generate_approval_token(self):

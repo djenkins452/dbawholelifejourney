@@ -6,6 +6,30 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — docs(cos): governing development model — the four-layer diagnostic
+
+**Not code — a governing design principle** capturing the methodology shift The Conductor
+introduced. Before: every production failure → "what capability is missing?" → build another
+lane/capability. Now: every production issue → "which architectural layer failed?" → fix
+that layer → only then decide whether a new capability is actually required.
+
+- New `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` — the four-layer diagnostic (diagnose
+  top-down, fix the first that failed): **Layer 1 Truth** (WLJ — did we know the right
+  deterministic truth?), **Layer 2 Conductor** (did the correct capability own the turn? —
+  diagnosed by `COS_CLASSIFY`/`COS_CLASSIFY_MATCH`), **Layer 3 Capability** (correct owner —
+  did it reason correctly? 3a improve it / 3b genuine gap → the ONLY case that adds a
+  capability), **Layer 4 Experience** (natural / executive-quality / human?). Plus the
+  Architectural Stability Principle: the Conductor is one of the least-frequently-modified
+  components — repeated changes to it are an architectural smell. Worked example: the
+  Executive-Accountability turn was a Layer 2 failure (wrong owner) before it could ever be
+  a Layer 3b missing-capability problem.
+- `CLAUDE.md` — new "Development model (REQUIRED)" behavior rule + a Reference Docs row, so
+  every future session classifies the failing layer before proposing a capability.
+
+**Why:** we are no longer simply building Beth — we are building the platform Beth runs on.
+This makes "add a new capability" the exception (proven Layer 3b only), not the default
+response to a failure. No code, no migration, no user-facing change.
+
 ## 2026-07-08 — feat(calendar): dense Calendar of Life — persistent Now/Next/vitals + inline free time
 
 **Why:** the first cut of the Calendar-of-Life Day view (2026-07-07) was too sparse to

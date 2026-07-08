@@ -2421,6 +2421,12 @@ def route_message(user, message, conversation=None, page_context=None):
                     record_last_answer(conversation, "page_reference", _pr)
                 except Exception:
                     pass
+            # THE CONDUCTOR — commit lifecycle: advance the one turn state (always).
+            try:
+                from apps.ai.chatgpt_cos.conductor import commit_turn
+                commit_turn(conversation, winner="page_reference", result=_pr, user=user)
+            except Exception:
+                pass
             logger.info("COS_LANE_TRACE user=%s tried=page_reference winner=page_reference", uid)
             return _pr
 
@@ -2455,6 +2461,15 @@ def route_message(user, message, conversation=None, page_context=None):
                     record_last_answer(conversation, name, result)
                 except Exception:
                     pass
+            # THE CONDUCTOR — commit lifecycle: advance the one turn state (always, for
+            # every winning lane), so conversation state can never silently fail to
+            # progress. Record-only in Step 1; no routing or answer is changed.
+            try:
+                from apps.ai.chatgpt_cos.conductor import commit_turn
+                commit_turn(conversation, winner=name,
+                            result=result if isinstance(result, dict) else None, user=user)
+            except Exception:
+                pass
             # 'planner_invoked' = the reasoning lane (which runs the planner) was
             # consulted before the winner. Pair with the adjacent COS_REASONING_PLAN
             # line for the planner RESULT, and BETH_GENERAL_CALL for breaker/outcome.

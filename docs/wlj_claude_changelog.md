@@ -6,6 +6,46 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(cos): The Conductor — Step 1, unified turn-commit lifecycle (foundation)
+
+**Context (architecture stabilization, approved design):** production conversations showed
+the ten Phase-2 capabilities behaving like several assistants taking turns — greetings
+restarting, stale sleep resurfacing, a water question answered with sleep. Investigation
+(see the approved design + governing contract) found the router is ONE ordered chain, but
+(a) selection is positional/keyword-broad and (b) conversation state is fragmented across
+three stores and NOT advanced on every turn — so stale state leaks into later turns. The
+approved fix is **The Conductor**: one component owns each turn, state advances every turn.
+Rollout is one foundational step at a time, production-tested between steps.
+
+**This change is STEP 1 ONLY — the commit lifecycle. Foundation, record-only, no behavior
+change:**
+- New `apps/ai/chatgpt_cos/conductor.py` — the seed of The Conductor. Owns ONLY state
+  progression for now: `commit_turn(conversation, winner, result, user)` runs at the
+  `route_message` choke point after EVERY winning lane (both the page-reference early
+  return and the main loop) and advances one unified `conductor_state` in
+  `conversation.metadata` (turn count, last act, active-subject key, last-seen, capped
+  history). Never raises. Emits `COS_TURN_COMMIT` per turn for observability.
+- **No classifier, no dispatch, no reordering, no answer change.** Existing lanes, routing,
+  and the three current state stores are untouched. This only establishes the single
+  always-runs commit point that later steps consolidate state into, and makes turn
+  progression observable in production before we proceed.
+- **Contract enforced by test:** `apps/ai/tests/test_conductor_contract.py` fails CI if
+  `conductor.py` imports any intelligence/domain/truth module (G1) or composes user-facing
+  text (G2), and keeps its dependency surface bounded (G5). This is what keeps The Conductor
+  orchestration-only — never "Beth 2".
+
+**Files:** apps/ai/chatgpt_cos/conductor.py (new), apps/ai/chatgpt_cos/lanes.py (commit_turn
+wired at both route_message choke points), apps/ai/tests/test_conductor.py (new),
+apps/ai/tests/test_conductor_contract.py (new).
+
+**Verification:** test_conductor (7) + test_conductor_contract (3) green — commit advances
+state every turn, runs for every winning lane through route_message, never raises, and the
+purity contract holds. ~80-test conversation/posture/continuity/mission/refresh/request-path
+regression green apart from 1 PRE-EXISTING failure (test_conversation_posture positive-opener
+wording), confirmed failing with this change's router edit stashed. No user-facing behavior
+change (no release note by design). No migration. **Step 2 (lift selection into the
+Classifier) is NOT started — awaiting production observation of Step 1.**
+
 ## 2026-07-07 — feat(cos): day continuity — continue the day, don't wake up fresh
 
 **Capability gap:** Beth behaved as though every conversation was the first of the day —

@@ -6,6 +6,31 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(infra): backfill_missing_projections must not abort the test/deploy migration transaction
+
+**Problem:** the local Postgres test database could not be built — `manage.py test`
+aborted during test-DB migration with `relation "health_intakeschedule" does not exist`,
+raised inside `calendar_engine.services.projection.backfill_missing_projections`. This
+blocked the ENTIRE test suite (any test needs the DB to migrate). Root cause: `_run()`
+guarded *iterator creation* (`qs.iterator()`) but a queryset is lazy — the query actually
+executes during iteration, so a missing/not-yet-migrated source table raised there. Under
+Postgres that error aborts the whole surrounding (migration) transaction, and the existing
+`try/except` cannot un-abort it — every subsequent statement (including `record_migration`)
+then failed with `current transaction is aborted`.
+
+**Fix (infrastructure hardening, not product logic):** `_run()` now probes the source
+inside a SAVEPOINT (`with transaction.atomic(): qs.exists()`), so a missing relation rolls
+back cleanly and the outer migration transaction survives to run the remaining sources.
+Each per-row projection also runs in its own savepoint so one bad row can't poison the
+rest. Streaming is preserved on the healthy path (`.exists()` probe, then `.iterator()`).
+
+**Files:** apps/calendar_engine/services/projection.py.
+
+**Verification:** the suite builds and runs again; `apps.ai.tests.test_routine_occurrence_single_writer`
+(3) + `apps.calendar_engine.tests.test_calendar_engine` (32) = 35 tests green. No behavior
+change on the healthy path; missing-table sources are skipped with a logged warning as
+before (now without aborting the transaction).
+
 ## 2026-07-08 — polish(calendar): craftsmanship pass — time, icons, now-line, availability, hover
 
 **Presentation-only polish — no architecture, projection, or concept changes.** Made the Day view

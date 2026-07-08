@@ -1022,25 +1022,40 @@ def backfill_missing_projections(stdout=None, dry_run=False):
     counts = {}
 
     def _run(label, qs, fn):
+        from django.db import transaction
         seen = projected = errors = 0
+        # PROBE the source inside a savepoint. A queryset is lazy, so a missing /
+        # not-yet-migrated source table (e.g. during a test-DB or deploy migration)
+        # raises when the query first executes — and under Postgres that error aborts
+        # the ENTIRE surrounding transaction, which a bare try/except cannot un-abort.
+        # A savepoint (transaction.atomic) rolls the failed probe back cleanly so the
+        # outer migration transaction survives and the remaining sources still run.
+        # .exists() keeps the healthy path STREAMING via .iterator() below (no
+        # materialization of large tables).
         try:
-            iterator = qs.iterator()
-        except Exception:  # noqa: BLE001 - source app/model unavailable
+            with transaction.atomic():
+                has_rows = qs.exists()
+        except Exception:  # noqa: BLE001 - source app/model/table unavailable
             logger.warning("Backfill %s: query failed", label, exc_info=True)
             counts[label] = {'seen': 0, 'projected': 0, 'errors': 0}
             return counts[label]
-        for obj in iterator:
-            seen += 1
-            if dry_run:
-                continue
-            try:
-                fn(obj)
-                projected += 1
-            except Exception as e:  # noqa: BLE001 - best-effort backfill
-                errors += 1
-                logger.warning(
-                    "Backfill %s pk=%s failed: %s", label, getattr(obj, 'pk', '?'), e,
-                )
+        if has_rows:
+            for obj in qs.iterator():
+                seen += 1
+                if dry_run:
+                    continue
+                try:
+                    # Per-row savepoint: one bad projection can't poison the transaction
+                    # (or the rows already projected) for the rest of the backfill.
+                    with transaction.atomic():
+                        fn(obj)
+                    projected += 1
+                except Exception as e:  # noqa: BLE001 - best-effort backfill
+                    errors += 1
+                    logger.warning(
+                        "Backfill %s pk=%s failed: %s",
+                        label, getattr(obj, 'pk', '?'), e,
+                    )
         counts[label] = {'seen': seen, 'projected': projected, 'errors': errors}
         if stdout:
             stdout.write(

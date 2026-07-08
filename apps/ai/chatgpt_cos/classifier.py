@@ -289,6 +289,9 @@ _LANE_FAMILY = {
     "conversation_planner": "orientation",
     "general_conversation": "general",
     "tool_loop_fallback": "fallback",
+    # The tool/action path when the Conductor authoritatively routes an `action` command
+    # to it (command/query separation). Distinct from tool_loop_fallback (a true fallback).
+    "tool_action_path": "action",
     # 'personal_reasoning' resolves to a reasoning/retrieval answer in practice.
     "personal_reasoning": "reasoning_mode",
 }

@@ -2509,6 +2509,23 @@ def route_message(user, message, conversation=None, page_context=None):
             return _owned
         # repair declined → fall through to the current router unchanged.
 
+    # THE CONDUCTOR — AUTHORITATIVE ACTION (command/query separation, promoted exactly like
+    # meta). An executive COMMAND (move / reschedule / cancel / add / delete / skip /
+    # complete / log / …) is the WRITE side of the taxonomy; its owner is the tool/action
+    # path, NEVER a retrieval or reasoning lane. When the Classifier returns speech_act=
+    # action, the Conductor DECLINES the lane loop entirely and hands the turn to the action
+    # path (the caller's tool loop) — so no subject/reasoning lane can hijack the command
+    # (the workout_history → personal_reasoning whack-a-mole). Scope: this ONE speech act;
+    # every other classification stays shadow. The tool loop selects and executes the
+    # mutation intent (unchanged) — this is strictly an ownership promotion, no new handler.
+    if _classification is not None and _classification.speech_act == "action":
+        logger.info("COS_CONDUCT user=%s authoritative=action conf=%s owner=tool_action_path",
+                    uid, _classification.confidence)
+        logger.info("COS_LANE_TRACE user=%s tried=conductor:action winner=tool_action_path "
+                    "planner_invoked=False", uid)
+        _log_classify_match(_classification, "tool_action_path", uid)
+        return None
+
     for name, fn in LANE_REGISTRY:
         tried.append(name)
         result = fn(user, message, conversation)

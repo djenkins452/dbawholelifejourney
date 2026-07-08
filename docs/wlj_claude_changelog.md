@@ -6,6 +6,35 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(cos): promote `action` to authoritative owner — Conductor routes commands to the action path
+
+**Why:** the `action` shadow classifier proved itself in production — "I want to move my
+workout to 5pm today only." → `speech_act=action, expected_owner=action, conf=medium`.
+Promotion approved (exactly like Meta's Step 2b). This completes command/query separation:
+executive commands now have a first-class WRITE owner instead of falling through to the
+legacy lane loop where a retrieval/reasoning lane hijacked them.
+
+**Change (strictly an ownership promotion — no handler, tool, truth, or reasoning change):**
+in `route_message`, when the Classifier returns `speech_act=action`, the Conductor
+**declines the lane loop entirely** and hands the turn to the tool/action path (the caller's
+tool loop, which selects and executes the mutation intent — unchanged). Placed right after
+the authoritative-meta block, before the lane loop, so no subject/reasoning lane can claim
+the command. Emits `COS_CONDUCT authoritative=action` + `COS_LANE_TRACE winner=tool_action_path`
++ `COS_CLASSIFY_MATCH` (now `agree=True`, via new `tool_action_path → action` family map).
+Scope: this ONE speech act; every other classification stays shadow.
+
+**Files:** apps/ai/chatgpt_cos/lanes.py (authoritative-action dispatch),
+apps/ai/chatgpt_cos/classifier.py (tool_action_path owner-family), apps/ai/tests/
+test_action_promotion.py (new).
+
+**Verification:** new test_action_promotion (5) — the production command reaches the action
+path (route declines the lanes → tool loop); workout_history and personal_reasoning no
+longer own it; a genuine retrieval ("did you see my workout?") still routes to
+workout_history; a reasoning message still classifies reasoning_mode (never action-promoted);
+framed + imperative commands all reach the action path. 108-test routing/conductor/reschedule/
+history regression green; the 5 pre-existing acceptance-snapshot failures are unchanged (no
+new failures). No model change.
+
 ## 2026-07-08 — feat(cos): `action` speech act — command/query separation in the Conductor (shadow)
 
 **Why (architectural, not a transcript):** the Classifier taxonomy first-classes reads

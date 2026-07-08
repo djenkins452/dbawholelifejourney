@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — refine(calendar): projection readability — activity names, columnar week, time grouping
+
+**Projection refinement (presentation only — no data/model/Beth change).** Three production
+observations on the now-populated calendar:
+
+1. **User-facing activity names, not template/implementation names.** The calendar surface now
+   shows the ACTIVITY ("Workout", "Bible Reading"), never the template/plan detail ("Workout:
+   Wednesday – Back + Biceps", "Bible Reading: Building a Godly Marriage") — the detail lives in
+   the owning module's detail view, reached on click. Done at serialization time: new
+   `_display_title(source_type, raw)` + `display_title` field in `_event_to_dict`/
+   `_occurrence_to_dict` (`views.py`); the STORED `title` (read by ~49 other consumers incl. CoS)
+   and dedup keying are untouched. Client renders `display_title || title` via `nameOf()`.
+
+2. **Reduced horizontal clutter in Week/Month.** Week was rebuilt from a cramped 7-column
+   time-grid into a **readability-first columnar list** — 7 vertical day columns, items stacked
+   and grouped by time, capped at 9/day with a "+N more" → Day affordance; self-contained
+   `overflow-x` (no body scroll on mobile, verified at 375px). Month keeps its grid with
+   full-width vertical chips + "+N more" and clean titles.
+
+3. **Grouped identical timestamps.** When multiple projected items share a time (e.g. 9:00 meds +
+   supplements + protein), the time is shown ONCE and the items list underneath — in Day (grouped
+   block within the time-grid), Week (per-column time groups), and Agenda (time label + stacked
+   items). New client helpers `groupByTime`, `dayNodes`, `layoutNodes`, `groupBlock`; removed the
+   now-dead `layout()`.
+
+Scope held: familiar Day/Week/Month/Agenda paradigm intact, no new Calendar concepts, no
+fabricated items, projection sources unchanged, Beth untouched.
+
+**Files:** apps/calendar_engine/views.py, templates/calendar_engine/dashboard.html,
+apps/calendar_engine/tests/test_projection_layer.py.
+
+**Verification:** `DisplayTitleTests` (2) — activity labels replace template names, raw title
+preserved; `test_projection_layer` module green. Rendered all four views against mock projected
+data (Day/Week/Month/Agenda, desktop + 375px mobile): 9:00 cluster groups under one label, Week
+is a clean columnar list, titles show activity names, no JS console errors, body never scrolls
+horizontally. No migration, no new static asset, no release note (presentation refinement).
+
 ## 2026-07-08 — fix(calendar): projection backfill — meds/supplements, workouts, faith plans, life events
 
 **Root cause (Projection Fix #1).** The familiar Day view reads `CalendarEvent` rows written by

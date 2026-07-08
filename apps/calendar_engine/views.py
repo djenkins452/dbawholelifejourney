@@ -28,6 +28,21 @@ from .services.projection import upsert_execution_block_for_task
 # Helpers
 # ──────────────────────────────────────────────────────────
 
+# The calendar shows the user-facing ACTIVITY name; the specific template/plan
+# is a detail that belongs in the owning module's detail view (reached on click).
+# We derive a clean display label at serialization time only — the stored title
+# (read by other consumers) and dedup keying are left untouched.
+_CALENDAR_ACTIVITY_LABELS = {
+    CalendarEvent.SOURCE_WORKOUT_SCHEDULE: 'Workout',
+    CalendarEvent.SOURCE_FAITH_ROUTINE: 'Bible Reading',
+}
+
+
+def _display_title(source_type, raw_title):
+    """Activity name for the calendar surface (never a template/implementation name)."""
+    return _CALENDAR_ACTIVITY_LABELS.get(source_type) or raw_title
+
+
 def _event_to_dict(event):
     """Serialize a CalendarEvent to a dict for JSON response."""
     # Convert to local time so ISO date portion matches the user's calendar day
@@ -36,6 +51,7 @@ def _event_to_dict(event):
     return {
         'id': event.pk,
         'title': event.title,
+        'display_title': _display_title(event.source_type, event.title),
         'description': event.description,
         'start_dt': local_start.isoformat(),
         'end_dt': local_end.isoformat(),
@@ -59,6 +75,7 @@ def _occurrence_to_dict(event, occ_start, occ_end):
     return {
         'id': event.pk,
         'title': event.title,
+        'display_title': _display_title(event.source_type, event.title),
         'description': event.description,
         'start_dt': local_start.isoformat(),
         'end_dt': local_end.isoformat(),

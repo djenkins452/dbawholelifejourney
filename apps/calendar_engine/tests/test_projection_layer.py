@@ -477,3 +477,34 @@ class BackfillMissingProjectionsTests(TestCase):
         self.assertEqual(CalendarEvent.objects.filter(user=self.user).count(), 0)
         self.assertGreaterEqual(counts['medicine_schedule']['seen'], 2)
         self.assertEqual(counts['medicine_schedule']['projected'], 0)
+
+
+# ── Calendar shows user-facing ACTIVITY names, never template/impl names ──
+
+class DisplayTitleTests(TestCase):
+    def test_activity_labels_hide_template_names(self):
+        from apps.calendar_engine.views import _display_title
+        self.assertEqual(
+            _display_title(CalendarEvent.SOURCE_WORKOUT_SCHEDULE, "Workout: Back + Biceps"),
+            "Workout")
+        self.assertEqual(
+            _display_title(CalendarEvent.SOURCE_FAITH_ROUTINE,
+                           "Bible Reading: Building a Godly Marriage"),
+            "Bible Reading")
+        # Non-mapped sources (task, life event, medicine) pass through unchanged.
+        self.assertEqual(_display_title(CalendarEvent.SOURCE_TASK, "Repair Fridge"), "Repair Fridge")
+        self.assertEqual(_display_title(CalendarEvent.SOURCE_LIFE_EVENT, "Jonathan Call"), "Jonathan Call")
+
+    def test_dict_carries_clean_display_title_but_preserves_raw(self):
+        """The calendar surface uses display_title; the stored title (read by other
+        consumers, incl. CoS) is left intact."""
+        from apps.calendar_engine.views import _event_to_dict
+        user = _user()
+        tz = timezone.get_current_timezone()
+        s = timezone.make_aware(dt.datetime.combine(timezone.localdate(), dt.time(17, 0)), tz)
+        ev = _ce(user=user, title="Workout: Back + Biceps",
+                 start_dt=s, end_dt=s + dt.timedelta(hours=1),
+                 source_type=CalendarEvent.SOURCE_WORKOUT_SCHEDULE, source_id="9")
+        d = _event_to_dict(ev)
+        self.assertEqual(d["display_title"], "Workout")
+        self.assertEqual(d["title"], "Workout: Back + Biceps")

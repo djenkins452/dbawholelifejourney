@@ -89,6 +89,37 @@
 .wcal-agrow .adot{ width:9px; height:9px; border-radius:50%; flex:none; align-self:center; }
 .wcal-agrow .an{ font-size:14.5px; color:var(--wink); }
 .wcal-empty{ padding:40px 16px; text-align:center; color:var(--wfaint); font-size:14px; }
+
+/* Same-time grouping in the Day grid: show the time once, stack items under it */
+.wcal-evgroup{ position:absolute; border-radius:7px; padding:3px 6px 4px; overflow:hidden; box-sizing:border-box;
+  border-left:3px solid var(--ec,#79839a); background:var(--eb,rgba(121,131,154,.10)); }
+.wcal-evgroup .wcal-gtime{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; margin-bottom:2px; }
+.wcal-gitem{ display:flex; align-items:center; gap:6px; line-height:1.35; cursor:pointer; }
+.wcal-gitem .gdot{ width:7px; height:7px; border-radius:50%; flex:none; }
+.wcal-gitem .gname{ font-size:12px; color:var(--wink); font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Agenda: group items that share a timestamp */
+.wcal-agtime{ display:flex; gap:14px; align-items:baseline; padding:10px 0 2px; border-top:1px solid var(--wl2); }
+.wcal-agtime .at{ width:120px; flex:none; font-size:13px; color:var(--wmut); font-variant-numeric:tabular-nums; }
+.wcal-agtime .agitems{ flex:1; display:flex; flex-direction:column; gap:6px; }
+.wcal-agtime .agi{ display:flex; gap:10px; align-items:center; cursor:pointer; }
+.wcal-agtime .agi .adot{ width:9px; height:9px; border-radius:50%; flex:none; }
+.wcal-agtime .agi .an{ font-size:14.5px; color:var(--wink); }
+
+/* Week: readability-first columnar list (no cramped time-grid) */
+.wcal-wk{ display:flex; overflow-x:auto; padding-bottom:10px; }
+.wcal-wkcol{ flex:1 0 130px; min-width:130px; border-left:1px solid var(--wl2); }
+.wcal-wkcol:first-child{ border-left:none; }
+.wcal-wkcol-head{ position:sticky; top:0; background:var(--wbg); text-align:center; padding:8px 4px 6px; border-bottom:1px solid var(--wl); font-size:12px; color:var(--wmut); }
+.wcal-wkcol-head b{ display:block; font-size:18px; color:var(--wink); font-weight:650; margin-top:1px; }
+.wcal-wkcol-head.today b{ color:#fff; background:var(--wtoday); width:28px; height:28px; line-height:28px; border-radius:50%; margin:2px auto 0; }
+.wcal-wkcol-body{ padding:6px 6px 14px; display:flex; flex-direction:column; gap:8px; }
+.wcal-wkcol-empty{ font-size:12px; color:var(--wfaint); text-align:center; padding:10px 0; }
+.wcal-wkgroup .wgtime{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; margin-bottom:3px; letter-spacing:.02em; }
+.wcal-wkitem{ display:flex; gap:6px; align-items:flex-start; padding:2px 0; cursor:pointer; }
+.wcal-wkitem .widot{ width:7px; height:7px; border-radius:50%; flex:none; margin-top:5px; }
+.wcal-wkitem .winame{ font-size:12.5px; color:var(--wink); line-height:1.3; }
+.wcal-wkmore{ font-size:11.5px; color:var(--wtoday); cursor:pointer; padding-top:2px; font-weight:600; }
 </style>
 {% endblock %}
 
@@ -150,58 +181,115 @@
   function isTimeless(e){ return e.is_all_day || e.event_kind==='deadline_marker'; }
   function isAvail(e){ return e.event_kind==='availability'; }
   function cleanTitle(t){ return (t||'').replace(/^Due:\s*/,''); }
+  // Show the user-facing activity name (server sends display_title); never a template name.
+  function nameOf(e){ return cleanTitle(e.display_title || e.title); }
+  function dot(c){ return '<span class="gdot" style="background:'+(c||'#79839a')+'"></span>'; }
+  function itemAttrs(e){ return 'data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'"'; }
 
-  // overlap layout for a single day's timed events → sets _s,_e,_col,_cols
-  function layout(evs){
-    evs.forEach(function(e){ e._s=mins(e.start_dt); e._e=Math.max(e._s+20, mins(e.end_dt)); });
-    evs.sort(function(a,b){ return a._s-b._s || a._e-b._e; });
+  // Group a day's timed events by identical timestamp → [{label, mins, items:[...]}]
+  function groupByTime(evs){
+    var buckets={}, order=[];
+    evs.slice().sort(function(a,b){ return mins(a.start_dt)-mins(b.start_dt); }).forEach(function(e){
+      var k=mins(e.start_dt); if(!(k in buckets)){ buckets[k]=[]; order.push(k); } buckets[k].push(e);
+    });
+    return order.map(function(k){ return { mins:k, label:fmtT(buckets[k][0].start_dt), items:buckets[k] }; });
+  }
+
+  // Column-packing layout for nodes that already carry _s/_e (single events OR groups)
+  function layoutNodes(nodes){
+    nodes.sort(function(a,b){ return a._s-b._s || a._e-b._e; });
     var cluster=[], clEnd=-1;
     function flush(){ if(!cluster.length) return; var cols=[];
       cluster.forEach(function(e){ var placed=false;
         for(var i=0;i<cols.length;i++){ if(cols[i]<=e._s){ e._col=i; cols[i]=e._e; placed=true; break; } }
         if(!placed){ e._col=cols.length; cols.push(e._e); } });
       cluster.forEach(function(e){ e._cols=cols.length; }); cluster=[]; clEnd=-1; }
-    evs.forEach(function(e){ if(cluster.length && e._s>=clEnd) flush(); cluster.push(e); clEnd=Math.max(clEnd,e._e); });
-    flush(); return evs;
+    nodes.forEach(function(e){ if(cluster.length && e._s>=clEnd) flush(); cluster.push(e); clEnd=Math.max(clEnd,e._e); });
+    flush(); return nodes;
   }
 
-  function eventBlock(e, dayIso){
-    var top=(e._s/60)*HH, h=Math.max(20,((e._e-e._s)/60)*HH);
-    var w=100/(e._cols||1), left=(e._col||0)*w;
-    return '<div class="wcal-ev" data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'" '+
-      'style="top:'+top+'px;height:'+(h-2)+'px;left:calc('+left+'% + 2px);width:calc('+w+'% - 4px);'+
+  // Collapse same-start events into group nodes; reserve visual height so packing
+  // accounts for the stacked list (readability over strict proportional height).
+  function dayNodes(evs){
+    evs.forEach(function(e){ e._s=mins(e.start_dt); e._e=Math.max(e._s+20, mins(e.end_dt)); });
+    var buckets={}, order=[];
+    evs.forEach(function(e){ var k=e._s; if(!(k in buckets)){ buckets[k]=[]; order.push(k); } buckets[k].push(e); });
+    var nodes = order.map(function(k){
+      var items=buckets[k]; var maxE=Math.max.apply(null, items.map(function(x){return x._e;}));
+      if(items.length===1) return { _s:k, _e:maxE, single:items[0] };
+      var needPx = 16 + items.length*18 + 6;            // time label + rows + pad
+      var needMin = needPx/HH*60;
+      return { _s:k, _e:Math.max(maxE, k+needMin), group:items };
+    });
+    return layoutNodes(nodes);
+  }
+
+  function posStyle(node){
+    var top=(node._s/60)*HH, h=Math.max(20,((node._e-node._s)/60)*HH);
+    var w=100/(node._cols||1), left=(node._col||0)*w;
+    return 'top:'+top+'px;height:'+(h-2)+'px;left:calc('+left+'% + 2px);width:calc('+w+'% - 4px);';
+  }
+  function singleBlock(node){
+    var e=node.single, h=Math.max(20,((node._e-node._s)/60)*HH);
+    return '<div class="wcal-ev" '+itemAttrs(e)+' style="'+posStyle(node)+
       '--ec:'+(e.domain_color||'#79839a')+';--eb:'+hexA(e.domain_color,0.13)+'">'+
-      '<div class="et">'+esc(e.title)+'</div>'+(h>34?'<div class="em">'+fmtT(e.start_dt)+'</div>':'')+'</div>';
+      '<div class="et">'+esc(nameOf(e))+'</div>'+(h>34?'<div class="em">'+fmtT(e.start_dt)+'</div>':'')+'</div>';
+  }
+  function groupBlock(node){
+    var first=node.group[0];
+    var rows=node.group.map(function(e){ return '<div class="wcal-gitem" '+itemAttrs(e)+'>'+
+      dot(e.domain_color)+'<span class="gname">'+esc(nameOf(e))+'</span></div>'; }).join('');
+    return '<div class="wcal-evgroup" style="'+posStyle(node)+
+      '--ec:'+(first.domain_color||'#79839a')+';--eb:rgba(120,120,120,.05)">'+
+      '<div class="wcal-gtime">'+fmtT(first.start_dt)+'</div>'+rows+'</div>';
   }
 
   function railHtml(){ var h=''; for(var i=0;i<24;i++){ var ap=i>=12?'PM':'AM',hr=i%12||12; h+='<div class="wcal-hr"><span>'+(i===0?'':hr+' '+ap)+'</span></div>'; } return h; }
   function availHtml(evs){ var h=''; evs.filter(isAvail).forEach(function(a){ if(a.is_available) return; var t=(mins(a.start_dt)/60)*HH, ht=((mins(a.end_dt)-mins(a.start_dt))/60)*HH; h+='<div class="wcal-avail" style="top:'+t+'px;height:'+ht+'px"><span class="al">'+esc(a.title)+'</span></div>'; }); return h; }
   function nowHtml(dayIso){ var n=new Date(); if(iso(n)!==dayIso) return ''; var t=(n.getHours()*60+n.getMinutes())/60*HH; return '<div class="wcal-now" style="top:'+t+'px"></div>'; }
-  function alldayChips(evs){ return evs.filter(isTimeless).map(function(e){ return '<div class="wcal-chip" data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'" style="background:'+(e.domain_color||'#79839a')+'">'+esc(cleanTitle(e.title))+'</div>'; }).join(''); }
+  function alldayChips(evs){ return evs.filter(isTimeless).map(function(e){ return '<div class="wcal-chip" '+itemAttrs(e)+' style="background:'+(e.domain_color||'#79839a')+'">'+esc(nameOf(e))+'</div>'; }).join(''); }
 
   // ── DAY ──
   function renderDay(evs){
     var d=iso(anchor); titleEl.textContent = anchor.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-    var timed=layout(evs.filter(function(e){ return !isTimeless(e) && !isAvail(e); }));
+    var nodes=dayNodes(evs.filter(function(e){ return !isTimeless(e) && !isAvail(e); }));
+    var blocks=nodes.map(function(n){ return n.single?singleBlock(n):groupBlock(n); }).join('');
     var h='<div class="wcal-allday"><div class="wcal-rail">All-day</div><div class="wcal-allday-cells"><div class="wcal-allday-cell">'+alldayChips(evs)+'</div></div></div>';
     h+='<div class="wcal-scroll" id="wcal-scroll"><div class="wcal-tg"><div class="wcal-rail">'+railHtml()+'</div>'+
-       '<div class="wcal-cols"><div class="wcal-col">'+availHtml(evs)+nowHtml(d)+timed.map(function(e){return eventBlock(e,d);}).join('')+'</div></div></div></div>';
+       '<div class="wcal-cols"><div class="wcal-col">'+availHtml(evs)+nowHtml(d)+blocks+'</div></div></div></div>';
     body.innerHTML=h; autoScroll();
   }
 
-  // ── WEEK ──
+  // ── WEEK ── readability-first: 7 vertical day-columns, items grouped by time.
+  var WEEK_CAP = 9;  // items shown per day before a "+N more" affordance
   function renderWeek(evs){
     var mon=new Date(anchor); mon.setDate(mon.getDate()-((mon.getDay()+6)%7));
     var days=[]; for(var i=0;i<7;i++){ var d=new Date(mon); d.setDate(mon.getDate()+i); days.push(d); }
     titleEl.textContent = days[0].toLocaleDateString(undefined,{month:'short',day:'numeric'})+' – '+days[6].toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
     var todayIso=iso(new Date());
-    var head=''; days.forEach(function(d){ var isT=iso(d)===todayIso; head+='<div class="wcal-dh'+(isT?' today':'')+'">'+d.toLocaleDateString(undefined,{weekday:'short'})+'<b>'+d.getDate()+'</b></div>'; });
-    var allday=''; days.forEach(function(d){ var de=evs.filter(function(e){return dstr(e.start_dt)===iso(d);}); allday+='<div class="wcal-allday-cell">'+alldayChips(de)+'</div>'; });
-    var cols=''; days.forEach(function(d){ var di=iso(d); var de=layout(evs.filter(function(e){return dstr(e.start_dt)===di && !isTimeless(e) && !isAvail(e);})); var av=evs.filter(function(e){return dstr(e.start_dt)===di;}); cols+='<div class="wcal-col">'+availHtml(av)+nowHtml(di)+de.map(function(e){return eventBlock(e,di);}).join('')+'</div>'; });
-    var h='<div class="wcal-weekhead"><div class="wcal-rail"></div><div class="wcal-weekhead-cells">'+head+'</div></div>'+
-      '<div class="wcal-allday"><div class="wcal-rail">All-day</div><div class="wcal-allday-cells">'+allday+'</div></div>'+
-      '<div class="wcal-scroll" id="wcal-scroll"><div class="wcal-tg"><div class="wcal-rail">'+railHtml()+'</div><div class="wcal-cols">'+cols+'</div></div></div>';
-    body.innerHTML=h; autoScroll();
+    var cols=days.map(function(d){
+      var di=iso(d), isT=di===todayIso;
+      var de=evs.filter(function(e){ return dstr(e.start_dt)===di && !isAvail(e); });
+      var timeless=de.filter(isTimeless), timed=de.filter(function(e){ return !isTimeless(e); });
+      var body='';
+      // all-day / due first
+      timeless.forEach(function(e){ body+='<div class="wcal-wkitem" '+itemAttrs(e)+'>'+dot(e.domain_color)+'<span class="winame">'+esc(nameOf(e))+'</span></div>'; });
+      // timed, grouped by identical timestamp (time shown once), capped
+      var groups=groupByTime(timed), shown=0, hidden=0;
+      groups.forEach(function(g){
+        if(shown>=WEEK_CAP){ hidden+=g.items.length; return; }
+        var rows='';
+        g.items.forEach(function(e){ if(shown>=WEEK_CAP){ hidden++; return; }
+          rows+='<div class="wcal-wkitem" '+itemAttrs(e)+'>'+dot(e.domain_color)+'<span class="winame">'+esc(nameOf(e))+'</span></div>'; shown++; });
+        if(rows) body+='<div class="wcal-wkgroup"><div class="wgtime">'+g.label+'</div>'+rows+'</div>';
+      });
+      if(hidden>0) body+='<div class="wcal-wkmore" data-st="none" data-day="'+di+'">+'+hidden+' more</div>';
+      if(!body) body='<div class="wcal-wkcol-empty">—</div>';
+      return '<div class="wcal-wkcol">'+
+        '<div class="wcal-wkcol-head'+(isT?' today':'')+'">'+d.toLocaleDateString(undefined,{weekday:'short'})+'<b>'+d.getDate()+'</b></div>'+
+        '<div class="wcal-wkcol-body">'+body+'</div></div>';
+    }).join('');
+    body.innerHTML='<div class="wcal-wk">'+cols+'</div>';
   }
 
   // ── MONTH ──
@@ -215,7 +303,7 @@
     var cells='';
     for(var i=0;i<42;i++){ var d=new Date(start); d.setDate(start.getDate()+i); var di=iso(d); var out=d.getMonth()!==mo;
       var evs=(byDay[di]||[]).slice().sort(function(a,b){return mins(a.start_dt)-mins(b.start_dt);});
-      var chips=''; evs.slice(0,3).forEach(function(e){ chips+='<div class="mchip" data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'" style="background:'+(e.domain_color||'#79839a')+'">'+(isTimeless(e)?'':fmtT(e.start_dt)+' ')+esc(cleanTitle(e.title))+'</div>'; });
+      var chips=''; evs.slice(0,3).forEach(function(e){ chips+='<div class="mchip" '+itemAttrs(e)+' style="background:'+(e.domain_color||'#79839a')+'">'+(isTimeless(e)?'':fmtT(e.start_dt)+' ')+esc(nameOf(e))+'</div>'; });
       if(evs.length>3) chips+='<div class="mmore">+'+(evs.length-3)+' more</div>';
       cells+='<div class="wcal-mc'+(out?' out':'')+(di===todayIso?' today':'')+'" data-st="none" data-day="'+di+'"><div class="md">'+d.getDate()+'</div>'+chips+'</div>';
     }
@@ -226,14 +314,21 @@
   function renderAgenda(evs){
     titleEl.textContent = 'Agenda';
     var byDay={}, order=[];
-    evs.filter(function(e){ return !isAvail(e); }).sort(function(a,b){ return a.start_dt<b.start_dt?-1:1; }).forEach(function(e){
+    evs.filter(function(e){ return !isAvail(e); }).forEach(function(e){
       var d=dstr(e.start_dt); if(!byDay[d]){byDay[d]=[];order.push(d);} byDay[d].push(e); });
+    order.sort();
     if(!order.length){ body.innerHTML='<div class="wcal-empty">Nothing scheduled.</div>'; return; }
     var todayIso=iso(new Date());
+    function timeRow(label, items){
+      var lis=items.map(function(e){ return '<div class="agi" '+itemAttrs(e)+'><span class="adot" style="background:'+(e.domain_color||'#79839a')+'"></span><span class="an">'+esc(nameOf(e))+'</span></div>'; }).join('');
+      return '<div class="wcal-agtime"><span class="at">'+label+'</span><div class="agitems">'+lis+'</div></div>';
+    }
     var h='<div class="wcal-ag">';
-    order.forEach(function(d){ var dt=new Date(d+'T12:00:00');
-      h+='<div class="wcal-agday"><span class="d1">'+(d===todayIso?'Today':dt.toLocaleDateString(undefined,{weekday:'long'}))+'</span><span class="d2">'+dt.toLocaleDateString(undefined,{month:'long',day:'numeric'})+'</span></div>';
-      byDay[d].forEach(function(e){ h+='<div class="wcal-agrow" data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'"><span class="at">'+(isTimeless(e)?'all-day':fmtT(e.start_dt))+'</span><span class="adot" style="background:'+(e.domain_color||'#79839a')+'"></span><span class="an">'+esc(cleanTitle(e.title))+'</span></div>'; });
+    order.forEach(function(d){ var dd=new Date(d+'T12:00:00');
+      h+='<div class="wcal-agday"><span class="d1">'+(d===todayIso?'Today':dd.toLocaleDateString(undefined,{weekday:'long'}))+'</span><span class="d2">'+dd.toLocaleDateString(undefined,{month:'long',day:'numeric'})+'</span></div>';
+      var de=byDay[d], timeless=de.filter(isTimeless), timed=de.filter(function(e){ return !isTimeless(e); });
+      groupByTime(timed).forEach(function(g){ h+=timeRow(g.label, g.items); });
+      if(timeless.length) h+=timeRow('all-day', timeless);
     });
     body.innerHTML=h+'</div>';
   }

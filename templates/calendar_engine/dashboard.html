@@ -50,14 +50,20 @@
   background:repeating-linear-gradient(to bottom, transparent, transparent 43px, var(--wl2) 43px, var(--wl2) 44px); }
 .wcal-col{ flex:1; min-width:0; position:relative; border-left:1px solid var(--wl2); }
 .wcal-col:first-child{ border-left:none; }
-.wcal-ev{ position:absolute; border-radius:6px; padding:2px 6px; overflow:hidden; cursor:pointer;
-  border-left:3px solid var(--ec,#79839a); background:var(--eb,rgba(121,131,154,.12)); box-sizing:border-box; }
-.wcal-ev .et{ font-size:12px; font-weight:600; color:var(--wink); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.wcal-ev .em{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; }
-.wcal-avail{ position:absolute; left:0; right:0; background:rgba(120,120,120,.06); border-top:1px dashed var(--wl); border-bottom:1px dashed var(--wl); z-index:0; }
-.wcal-avail .al{ position:absolute; left:6px; top:4px; font-size:10px; color:var(--wfaint); text-transform:uppercase; letter-spacing:.05em; }
+.wcal-ev{ position:absolute; border-radius:6px; padding:3px 8px; overflow:hidden; cursor:pointer;
+  border-left:3px solid var(--ec,#79839a); background:var(--eb,rgba(121,131,154,.12)); box-sizing:border-box;
+  transition:background .12s ease, box-shadow .12s ease; }
+.wcal-ev:hover{ box-shadow:0 1px 6px rgba(0,0,0,.10); filter:brightness(.98); }
+.wcal-ev .et{ font-size:12.5px; font-weight:600; color:var(--wink); line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wcal-ev .em{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; margin-top:1px; }
+/* Availability: quiet context ("you're inside Work") — soft fill + hairline left rule, never competes */
+.wcal-avail{ position:absolute; left:0; right:0; background:rgba(120,124,132,.05); box-shadow:inset 3px 0 0 rgba(120,124,132,.22); z-index:0; }
+.wcal-avail .al{ position:absolute; left:9px; top:5px; font-size:9.5px; font-weight:600; color:var(--wfaint); text-transform:uppercase; letter-spacing:.08em; }
+/* The present moment: red hairline + a time bubble anchored at the rail so "now" is never hunted for */
 .wcal-now{ position:absolute; left:0; right:0; height:2px; background:#e0342b; z-index:6; }
-.wcal-now::before{ content:""; position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#e0342b; }
+.wcal-now::before{ content:""; position:absolute; left:-4px; top:-3px; width:8px; height:8px; border-radius:50%; background:#e0342b; box-shadow:0 0 0 3px rgba(224,52,43,.15); }
+.wcal-now .nowt{ position:absolute; left:-56px; top:-8px; width:50px; text-align:center; font-size:10px; font-weight:700;
+  color:#fff; background:#e0342b; border-radius:8px; padding:1px 0; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
 
 /* Week headers */
 .wcal-weekhead{ display:flex; border-bottom:1px solid var(--wl); }
@@ -101,12 +107,24 @@
 /* Point-in-time activity (a dose, a reading, a workout) — a compact reminder,
    never stretched into an hour block. Visually distinct from a meeting block:
    light, hairline-bordered, colored left accent, one line. */
-.wcal-point{ position:absolute; z-index:3; display:flex; align-items:center; gap:6px; padding:0 8px;
+.wcal-point{ position:absolute; z-index:3; display:flex; align-items:center; gap:7px; padding:0 8px;
   border-radius:6px; box-sizing:border-box; cursor:pointer; overflow:hidden;
-  background:var(--wsurface); border:1px solid var(--wl); border-left:3px solid var(--ec,#79839a); }
-.wcal-point .pi{ font-size:12px; flex:none; }
-.wcal-point .pt{ font-size:12px; color:var(--wink); font-weight:550; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.wcal-point .pm{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; flex:none; }
+  background:var(--wsurface); border:1px solid var(--wl); border-left:3px solid var(--ec,#79839a);
+  transition:background .12s ease, box-shadow .12s ease; }
+.wcal-point:hover{ background:var(--wl2); box-shadow:0 1px 6px rgba(0,0,0,.08); }
+.wcal-point .pm{ font-size:10.5px; color:var(--wfaint); font-variant-numeric:tabular-nums; flex:none; width:50px; white-space:nowrap; }
+.wcal-point .pi{ font-size:10px; opacity:.55; flex:none; }             /* supports recognition, never competes */
+.wcal-point .pt{ font-size:12.5px; color:var(--wink); font-weight:550; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* Interaction: everything clickable answers to hover the same way */
+.wcal-chip, .wcal-gitem, .wcal-wkitem, .wcal-agrow, .agi, .mchip, .wcal-mc, .wcal-wkmore, .mmore{ transition:background .12s ease, opacity .12s ease; }
+.wcal-chip:hover, .mchip:hover{ filter:brightness(.94); }
+.wcal-gitem{ cursor:pointer; border-radius:4px; padding:0 3px; margin:0 -3px; }
+.wcal-gitem:hover, .wcal-wkitem:hover, .agi:hover{ background:var(--wl2); }
+.wcal-wkitem{ border-radius:5px; padding:2px 4px; margin:0 -4px; }
+.agi{ border-radius:5px; padding:2px 6px; margin:0 -6px; }
+.wcal-mc:hover{ background:rgba(0,0,0,.03); }
+.wcal-wkmore:hover, .mmore:hover{ text-decoration:underline; }
 
 /* Agenda: group items that share a timestamp */
 .wcal-agtime{ display:flex; gap:14px; align-items:baseline; padding:10px 0 2px; border-top:1px solid var(--wl2); }
@@ -282,8 +300,8 @@
   function pointBlock(node){
     var e=node.single;
     return '<div class="wcal-point" '+chipAttrs(e)+' style="'+posStyle(node)+'--ec:'+(e.domain_color||'#79839a')+'">'+
-      '<span class="pi">'+(e.icon||'•')+'</span><span class="pt">'+esc(pointLabel(e))+'</span>'+
-      '<span class="pm">'+fmtT(e.start_dt)+'</span></div>';
+      '<span class="pm">'+fmtT(e.start_dt)+'</span><span class="pi">'+(e.icon||'•')+'</span>'+
+      '<span class="pt">'+esc(pointLabel(e))+'</span></div>';
   }
   function singleBlock(node){
     if(node.single.point) return pointBlock(node);
@@ -303,7 +321,9 @@
 
   function railHtml(){ var h=''; for(var i=0;i<24;i++){ var ap=i>=12?'PM':'AM',hr=i%12||12; h+='<div class="wcal-hr"><span>'+(i===0?'':hr+' '+ap)+'</span></div>'; } return h; }
   function availHtml(evs){ var h=''; evs.filter(isAvail).forEach(function(a){ if(a.is_available) return; var t=(mins(a.start_dt)/60)*HH, ht=((mins(a.end_dt)-mins(a.start_dt))/60)*HH; h+='<div class="wcal-avail" style="top:'+t+'px;height:'+ht+'px"><span class="al">'+esc(a.title)+'</span></div>'; }); return h; }
-  function nowHtml(dayIso){ var n=new Date(); if(iso(n)!==dayIso) return ''; var t=(n.getHours()*60+n.getMinutes())/60*HH; return '<div class="wcal-now" style="top:'+t+'px"></div>'; }
+  function nowHtml(dayIso){ var n=new Date(); if(iso(n)!==dayIso) return ''; var t=(n.getHours()*60+n.getMinutes())/60*HH;
+    var h=n.getHours(), m=n.getMinutes(), ap=h>=12?'PM':'AM', hh=h%12||12, lbl=hh+':'+(m<10?'0':'')+m+' '+ap;
+    return '<div class="wcal-now" style="top:'+t+'px"><span class="nowt">'+lbl+'</span></div>'; }
   function alldayChips(evs){ return toActivities(evs.filter(isTimeless)).map(function(it){ return '<div class="wcal-chip" '+chipAttrs(it)+' style="background:'+(it.domain_color||'#79839a')+'">'+esc(chipText(it))+'</div>'; }).join(''); }
 
   // ── DAY ──

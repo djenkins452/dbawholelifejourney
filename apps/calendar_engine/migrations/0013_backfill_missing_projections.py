@@ -40,6 +40,13 @@ def backwards(apps, schema_editor):
 
 class Migration(migrations.Migration):
 
+    # Non-atomic: the backfill queries other apps' tables (health/faith/life). On a
+    # brand-new database those tables may not exist yet when this runs — the query
+    # is caught and skipped (a fresh DB has nothing to backfill anyway), but under a
+    # single enclosing transaction that caught error would still poison the migration.
+    # Autocommit avoids that. Idempotent, so a partial run is safe to re-apply.
+    atomic = False
+
     dependencies = [
         ('calendar_engine', '0012_availabilityblock_exceptions_and_more'),
     ]

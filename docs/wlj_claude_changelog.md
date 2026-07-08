@@ -6,6 +6,42 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — polish(calendar): craftsmanship pass — time, icons, now-line, availability, hover
+
+**Presentation-only polish — no architecture, projection, or concept changes.** Made the Day view
+effortless to scan (Apple/Fantastical conventions):
+
+- **Time readability** — point-in-time rows now lead with the time in a fixed left column
+  (`time · icon · title`), so the eye scans time → activity instead of jumping to a far-right time.
+- **Icon hierarchy** — activity emoji reduced to 10px @ 55% opacity: they support recognition, never
+  compete with the title (12.5px, primary weight).
+- **Consistent visual language** — all point-in-time activities (Bible Reading, Meds, Supplements,
+  Workout) share one reminder treatment; only real-duration events (meetings) are filled blocks.
+- **Availability** — Work shading softened to a quiet fill + hairline left rule (dropped the busy
+  dashed borders); reads as "you're inside Work" without competing.
+- **The present moment** — the Now line gains a red **current-time bubble anchored at the rail** plus a
+  soft halo on the dot, so "where am I now" is never hunted for.
+- **Interaction** — hover affordances on every clickable element (blocks, point rows, chips, week/agenda
+  rows, month cells, "+N more") so a first-time Outlook/Google user sees what's clickable.
+
+Five-second test passes: day (title) · now (red bubble) · next & remaining (below the line) · clickable
+(hover). Familiar to Outlook/Apple/Fantastical users. No projection/source/Beth change.
+
+**Also (bug fix surfaced during verification):** migration `calendar_engine/0013` (the projection
+backfill) queried health/faith/life tables with no dependency on those apps, so on a **fresh** database
+build it could run before those tables exist — the caught error still poisoned the single migration
+transaction and broke DB creation (prod was unaffected: tables already existed). Marked the migration
+`atomic = False` so the skip-on-missing-table path can't poison anything; a fresh build now succeeds
+(idempotent, safe to re-apply). Verified by a clean test-DB rebuild.
+
+**Files:** templates/calendar_engine/dashboard.html, apps/calendar_engine/migrations/0013_backfill_missing_projections.py.
+
+**Verification:** clean test-DB rebuild → `ActivityProjectionTests` + `DashboardShellTests` green (the
+rebuild itself proves the migration fix). Browser harness (full day): morning doses / Bible Reading read
+as aligned `time · icon · title` reminder rows, meetings as duration blocks, Work as quiet background,
+red "10:47 AM" now-bubble at the rail, due task in the all-day strip; zero JS console errors. No new
+migration, no static asset, Beth untouched.
+
 ## 2026-07-08 — refine(calendar): visual representation by activity TYPE (point-in-time vs block)
 
 **Visual-representation only — no architecture, no projection, no new concepts.** Every projected

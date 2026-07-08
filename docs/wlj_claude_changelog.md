@@ -6,6 +6,52 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(execution): one routine occurrence — one definition, one writer, one resolved reader
+
+**Product-trust failure:** "Move my workout to lunch today" → the calendar showed 12:00
+while Beth's brief still read 6:15. Root cause (proven): a routine could exist as TWO
+definitions — the canonical `life.RoutineSchedule` (+ its one-day `RoutineLog` override,
+which `build_today_execution` resolves and Beth/dashboard/overdue read) AND a
+`Task(is_routine=True, is_recurring=True)` (projected to a `CalendarEvent`, which the
+calendar reads). The move routed to `mutate_task` → wrote `Task.scheduled_time`/CalendarEvent,
+leaving the RoutineSchedule occurrence untouched. Two representations, two writers, two
+readers → surfaces disagree. Customers don't care which is right; they stop trusting all of
+them.
+
+**Fix — remove the architectural condition (commit 1 of the "single resolved occurrence"
+initiative; no new model, no data migration, deferred to commit 2):**
+- **One writer.** `handle_mutate_task` guard: a pure same-day time move whose target
+  resolves to an active `RoutineSchedule` for today (shared `_match_routine_schedule_today`,
+  used by the guard AND `handle_reschedule_routine_item` so they can't diverge) is
+  redirected to `reschedule_routine_item` → `RoutineLog` — never a divergent Task/Calendar
+  time.
+- **One definition (forward guard).** `handle_create_routine_task` now creates a canonical
+  `Routine` + `RoutineSchedule` — never `Task(is_routine, is_recurring)`. New routines can
+  no longer be born dual-defined.
+- **One resolved reader (dedup completion).** `today_execution._collect_task_items` now
+  excludes `is_routine` tasks in the OVERDUE loop too (the due-today loop already did), so a
+  legacy Task twin can't double-show alongside its RoutineSchedule occurrence.
+- **Calendar agreement.** `calendar_engine.views._get_events_in_range` now merges routine
+  occurrences from the SAME resolved source (`build_today_execution`) — not an independent
+  projection — deduped against direct events. The calendar therefore shows a rescheduled
+  routine at the SAME effective time Beth/dashboard read (today-scoped; the execution
+  contract resolves TODAY).
+- **CI contract.** Tests assert: create makes RoutineSchedule not Task; both task loops
+  exclude is_routine; a routine time change writes RoutineLog (not Task); and the full
+  end-to-end agreement.
+
+**Files:** apps/ai/action_handlers.py (write guard + shared matcher + create forward guard),
+apps/core/execution/today_execution.py (overdue dedup), apps/calendar_engine/views.py
+(routine-occurrence merge), apps/ai/tests/test_routine_occurrence_single_writer.py (new).
+
+**Verification:** new test_routine_occurrence_single_writer (6) incl. the end-to-end proof
+that after "move workout to lunch today" Beth (build_today_execution), dashboard, overdue,
+AND the calendar ALL resolve 12:00 from the one occurrence — the Task twin stays untouched;
+non-routine task reschedules unchanged. Regression: 190 tests across calendar_engine,
+execution, intent, recurring-mutation, task-matching suites green. No model change, no
+migration. Legacy dual-defined records + full multi-day calendar resolution deferred to
+commit 2 (data migration).
+
 ## 2026-07-08 — fix(infra): backfill_missing_projections must not abort the test/deploy migration transaction
 
 **Problem:** the local Postgres test database could not be built — `manage.py test`

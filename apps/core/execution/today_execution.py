@@ -154,6 +154,11 @@ def _collect_task_items(user, user_now, user_today, truth=None):
 
     # Overdue tasks (due_date < today)
     for t in TaskQueries.overdue(user, as_of=user_today)[:25]:
+        if t.is_routine:
+            continue  # Legacy routine tasks excluded — canonical routines are the
+            # single source (dedup dual-defined routine/task twins at read time; the
+            # due_today loop below does the same). Without this, an overdue is_routine
+            # Task double-shows alongside its RoutineSchedule occurrence.
         if is_task_blocked(t, truth):
             continue
         ts = classify_time_status(t.due_date, t.scheduled_time, user_now,

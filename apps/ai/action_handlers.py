@@ -3461,7 +3461,7 @@ class ActionHandler:
             recurrence_pattern: How often (daily, weekdays, weekly:mon,wed,fri)
             notes: Additional notes
         """
-        from apps.life.models import Task
+        from apps.life.models import Routine, RoutineSchedule
         from datetime import time as dt_time
 
         logger.info(
@@ -3503,26 +3503,40 @@ class ActionHandler:
                 if end_tmp > start_tmp:
                     duration_minutes = int((end_tmp - start_tmp).total_seconds() / 60)
 
-            task = Task.objects.create(
-                user=self.user,
-                title=title,
-                notes=notes or "",
-                due_date=today,
-                is_routine=True,
-                is_recurring=True,
-                recurrence_pattern=recurrence_pattern,
-                start_date=today,
-                scheduled_time=sched_time,
-                scheduled_end_time=sched_end_time,
-                estimated_duration_minutes=duration_minutes,
-                effort='small',
-            )
+            # SINGLE-SOURCE ROUTINE DEFINITION (forward guard): a routine is created as a
+            # canonical Routine + RoutineSchedule — NEVER as Task(is_routine=True,
+            # is_recurring=True). The Task representation was the SECOND definition that let
+            # the calendar (Task→CalendarEvent) and Beth/brief (RoutineSchedule) disagree.
+            # build_today_execution AND the calendar both resolve the occurrence from this
+            # one definition (+ its RoutineLog one-day overrides).
+            from apps.core.time_windows import get_window_for_hour
+            _window = get_window_for_hour(sched_time.hour)
+            time_of_day = _window if _window != 'other' else 'morning'
 
-            # Verify the task actually persisted
-            verify = Task.all_objects.filter(pk=task.pk).exists()
+            p = recurrence_pattern.lower().strip()
+            if p in ('every_weekday', 'weekdays'):
+                days_of_week = '0,1,2,3,4'
+            elif p.startswith('weekly:'):
+                _names = {'mon': '0', 'tue': '1', 'wed': '2', 'thu': '3',
+                          'fri': '4', 'sat': '5', 'sun': '6'}
+                _days = [_names[d.strip()[:3]] for d in p.split(':', 1)[1].split(',')
+                         if d.strip()[:3] in _names]
+                days_of_week = ','.join(_days) or '0,1,2,3,4,5,6'
+            else:
+                days_of_week = '0,1,2,3,4,5,6'  # daily / default
+
+            routine = Routine.objects.create(
+                user=self.user, name=title, description=notes or "",
+                time_of_day=time_of_day, is_active=True,
+            )
+            schedule = RoutineSchedule.objects.create(
+                routine=routine, name=title, scheduled_time=sched_time,
+                grace_period_minutes=30, days_of_week=days_of_week, is_active=True,
+            )
             logger.info(
-                "Routine task created: id=%s title='%s' due=%s persisted=%s",
-                task.pk, task.title, task.due_date, verify,
+                "Routine created (canonical Routine+RoutineSchedule): routine=%s "
+                "schedule=%s title='%s' days=%s", routine.pk, schedule.pk, title,
+                days_of_week,
             )
 
             time_str = sched_time.strftime('%I:%M %p').lstrip('0')
@@ -3531,29 +3545,27 @@ class ActionHandler:
                 time_display = f"{time_str} – {end_time_str}"
             else:
                 time_display = f"{time_str} ({duration_minutes} min)"
-            task_url = "/life/tasks/"
 
             return ActionResult(
                 success=True,
                 message=(
                     f"✓ Created routine: **{title}** {time_display} "
-                    f"({recurrence_pattern}). "
-                    f"I'll prompt you before and check in after. "
-                    f"[View in Tasks]({task_url})"
+                    f"({recurrence_pattern}). [View in Routines](/life/routines/)"
                 ),
                 created_object={
-                    'model': 'Task',
-                    'id': task.id,
-                    'title': task.title,
+                    'model': 'RoutineSchedule',
+                    'id': schedule.id,
+                    'routine_id': routine.id,
+                    'title': title,
                     'scheduled_time': str(sched_time),
-                    'duration_minutes': duration_minutes,
+                    'days_of_week': days_of_week,
                     'recurrence_pattern': recurrence_pattern,
                     'is_routine': True,
                 },
                 action_type='create_routine_task',
                 confirmation_detail=self._build_confirmation(
                     what=f"{title} at {time_str} ({recurrence_pattern})",
-                    where="Organize > Tasks + Calendar",
+                    where="Organize > Routines + Calendar",
                 )
             )
 
@@ -3790,6 +3802,24 @@ class ActionHandler:
         from datetime import datetime as dt
 
         from django.db import transaction
+
+        # ── SINGLE-SOURCE EXECUTION GUARD (routine occurrence) ────────────────
+        # A routine occurrence's time is owned by RoutineSchedule + its one-day
+        # RoutineLog override, which build_today_execution reads. A same-day time
+        # move to a routine target MUST write that override via
+        # reschedule_routine_item() — never a divergent Task.scheduled_time /
+        # CalendarEvent (the split that let the calendar show 12:00 while Beth's
+        # brief still read 6:15). Only a PURE same-day time change is redirected;
+        # a clarification-resolved task id, or a change that also touches other
+        # fields, falls through to normal task handling.
+        if (action == 'update' and new_scheduled_time
+                and not kwargs.get('_resolved_id')
+                and not any([new_due_date, new_end_time, new_title,
+                             new_notes, new_effort, new_commitment_level])):
+            _routine = self._match_routine_schedule_today(task_query)
+            if _routine is not None:
+                return self.handle_reschedule_routine_item(
+                    item_keyword=task_query, new_time=new_scheduled_time)
 
         try:
             # Check for pre-resolved task ID (from clarification flow)
@@ -5108,6 +5138,34 @@ class ActionHandler:
     # ROUTINE HANDLERS
     # =========================================================================
 
+    def _match_routine_schedule_today(self, item_keyword):
+        """Return the active RoutineSchedule matching ``item_keyword`` for TODAY, or None.
+
+        SINGLE SOURCE of routine-target resolution — used by BOTH the mutate_task
+        routine-occurrence guard and handle_reschedule_routine_item, so the guard's
+        "is this a routine?" test and the reschedule handler's match are guaranteed
+        identical (a redirect can never land on a target the reschedule then misses)."""
+        from apps.life.models import RoutineSchedule
+        keyword_lower = (item_keyword or "").lower().strip()
+        if not keyword_lower:
+            return None
+        today = self._get_user_today()
+        weekday = today.weekday()
+        active_schedules = RoutineSchedule.objects.filter(
+            routine__user=self.user,
+            routine__is_active=True,
+            is_active=True,
+        ).select_related('routine')
+        for sched in active_schedules:
+            if sched.specific_date:
+                if sched.specific_date != today:
+                    continue
+            elif not sched.applies_to_day(weekday):
+                continue
+            if keyword_lower in sched.name.lower():
+                return sched
+        return None
+
     def handle_reschedule_routine_item(self, item_keyword: str, new_time: str,
                                         **kwargs) -> ActionResult:
         """
@@ -5118,7 +5176,6 @@ class ActionHandler:
             new_time: New time in HH:MM 24-hour format
         """
         from datetime import datetime as _dt
-        from apps.life.models import RoutineSchedule
         from apps.life.services.routine_helpers import reschedule_routine_item
 
         try:
@@ -5135,25 +5192,9 @@ class ActionHandler:
                     action_type='reschedule_routine_item',
                 )
 
-            # Find matching routine schedule item for today
-            keyword_lower = item_keyword.lower().strip()
-            active_schedules = RoutineSchedule.objects.filter(
-                routine__user=self.user,
-                routine__is_active=True,
-                is_active=True,
-            ).select_related('routine')
-
-            weekday = today.weekday()
-            match = None
-            for sched in active_schedules:
-                if sched.specific_date:
-                    if sched.specific_date != today:
-                        continue
-                elif not sched.applies_to_day(weekday):
-                    continue
-                if keyword_lower in sched.name.lower():
-                    match = sched
-                    break
+            # Find matching routine schedule item for today (shared resolver — the
+            # mutate_task guard uses the exact same match).
+            match = self._match_routine_schedule_today(item_keyword)
 
             if not match:
                 return ActionResult(

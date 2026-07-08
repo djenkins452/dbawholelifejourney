@@ -27,7 +27,7 @@ class SpeechActTests(SimpleTestCase):
         c = self._act("I noticed you let me slide on Bike Ride/Pickleball, Empty "
                       "Dishwasher, Journal.", has_prior=True)
         self.assertEqual(c.speech_act, "meta")
-        self.assertEqual(c.expected_owner, "repair")
+        self.assertEqual(c.expected_owner, "meta")     # family vocab == speech act
         self.assertEqual(c.confidence, "high")
 
     def test_screen_question(self):

@@ -2463,6 +2463,52 @@ def route_message(user, message, conversation=None, page_context=None):
             _log_classify_match(_classification, _pr.get("lane", "page_reference"), uid)
             return _pr
 
+    # THE CONDUCTOR — Step 2b: AUTHORITATIVE for the ONE speech act Step 2a proved in
+    # production (META at HIGH confidence — a critique of Beth's guidance, e.g. "you let me
+    # slide on…"). The Conductor owns the selection and dispatches the repair handler AHEAD
+    # of the keyword lanes that were mis-owning it (routing it to a goals answer). Scope is
+    # deliberately one speech act; every other classification stays shadow. Placed AFTER the
+    # screen/page path (screen outranks meta) and BEFORE the lane loop. If repair yields
+    # nothing, fall through to the current router UNCHANGED — the Return Contract's DECLINED
+    # behavior (never leave the turn unanswered).
+    if (_classification is not None and _classification.speech_act == "meta"
+            and _classification.confidence == "high"):
+        _owned = None
+        try:
+            from apps.ai.chatgpt_cos.conversation_planner import last_assistant_text
+            _prior = last_assistant_text(conversation) if conversation is not None else None
+            _owned = _repair_response(user, message, _prior)
+        except Exception:
+            logger.warning("route: authoritative meta dispatch failed", exc_info=True)
+            _owned = None
+        if isinstance(_owned, dict) and _owned.get("answer"):
+            _owned.setdefault("lane", "conversation_repair")
+            try:
+                from apps.ai.chatgpt_cos.response_coherence import harmonize
+                _owned["answer"] = harmonize(_owned["answer"], user)
+                from apps.ai.chatgpt_cos.naturalize import naturalize, recovery_reframe
+                _owned["answer"] = naturalize(_owned["answer"])
+                _owned["answer"] = recovery_reframe(_owned["answer"], user)
+            except Exception:
+                logger.warning("route: coherence/voice pass failed", exc_info=True)
+            try:
+                from apps.ai.chatgpt_cos.conversation_memory import record_last_answer
+                record_last_answer(conversation, _owned["lane"], _owned)
+            except Exception:
+                pass
+            try:
+                from apps.ai.chatgpt_cos.conductor import commit_turn
+                commit_turn(conversation, winner=_owned["lane"], result=_owned, user=user)
+            except Exception:
+                pass
+            logger.info("COS_CONDUCT user=%s authoritative=meta conf=high owner=%s",
+                        uid, _owned["lane"])
+            logger.info("COS_LANE_TRACE user=%s tried=conductor:meta winner=%s "
+                        "planner_invoked=False", uid, _owned["lane"])
+            _log_classify_match(_classification, _owned["lane"], uid)
+            return _owned
+        # repair declined → fall through to the current router unchanged.
+
     for name, fn in LANE_REGISTRY:
         tried.append(name)
         result = fn(user, message, conversation)

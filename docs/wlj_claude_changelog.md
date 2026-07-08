@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(cos): The Conductor — Step 2b, promote META to authoritative
+
+**Step 2b of the roadmap — disciplined: promote ONLY the one speech act Step 2a proved in
+production.** Step 2a's shadow log showed the Executive-Accountability turn ("you let me
+slide on Bike Ride/Pickleball, Empty Dishwasher, Journal") classifies as `meta` (→ repair)
+at HIGH confidence, while the live router answered it as a goals question
+(`COS_CLASSIFY_MATCH … agree=False`). This was proven a Layer 2 (orchestration) failure per
+`WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`. 2b corrects the ownership — nothing else.
+
+- `route_message`: when the Classifier returns `speech_act=meta` at `high` confidence, the
+  Conductor now OWNS the selection and dispatches the repair handler AHEAD of the keyword
+  lanes (placed after the screen/page path, before the lane loop). If repair yields nothing
+  it FALLS THROUGH to the current router unchanged (the Return Contract's DECLINED
+  behavior — a turn is never left unanswered). Emits `COS_CONDUCT` + `COS_CLASSIFY_MATCH`.
+- **Scope is exactly one speech act.** Every other classification stays shadow (record-only).
+  Only `meta`/high is authoritative; medium-confidence meta (a bare "are you sure?") is NOT
+  promoted. The only behavior that actually changes is the guidance-critique case that
+  `plan()`'s cue set was missing — high-meta forms it already handled (`prior_turn_ref`,
+  `meta_correction`) already routed to repair, so those are unchanged.
+- **Fixed a family-vocabulary inconsistency:** the Classifier now labels a meta turn's
+  `expected_owner` as `meta` (the speech-act family), matching `owner_family(conversation_
+  repair)=meta`, so a correctly-owned repair turn logs `agree=True`.
+- No reasoning change, no truth change, no new capability, no UX change beyond ownership of
+  the turn. **Whether `repair` fully satisfies accountability is now a Layer 3 question,
+  answered by repair's own behavior — not by orchestration** (per the Return Contract).
+
+**Files:** apps/ai/chatgpt_cos/classifier.py (expected_owner meta), apps/ai/chatgpt_cos/
+lanes.py (authoritative meta dispatch), apps/ai/tests/test_conductor_2b.py (new),
+apps/ai/tests/test_classifier.py.
+
+**Verification:** test_conductor_2b (4) — accountability turn now owned by
+`conversation_repair` (not goals; "you're right", no "appear to be slipping"); high-meta
+emits `COS_CONDUCT` + `agree=True`; non-meta untouched; medium-meta not promoted. ~120-test
+conversation/posture/repair/mission/continuity/request-path regression green. No migration,
+no release note (ownership correctness, not a feature). **Step 2c (handler return states +
+no-repeat guard) and further promotions NOT started — awaiting production validation of this
+one.**
+
 ## 2026-07-08 — docs(cos): governing development model — the four-layer diagnostic
 
 **Not code — a governing design principle** capturing the methodology shift The Conductor

@@ -167,11 +167,11 @@ def classify(message, *, has_prior=False, page_context=None):
 
         # 2 · META / REPAIR — a move ABOUT Beth's own prior turn.
         if _has(n, _GUIDANCE_CRITIQUE):
-            return Classification("meta", "repair", "high", "guidance_critique")
+            return Classification("meta", "meta", "high", "guidance_critique")
         if has_prior and (_has(n, _PRIOR_TURN_REF) or _has(n, _META_CORRECTION)):
-            return Classification("meta", "repair", "high", "prior_turn_ref")
+            return Classification("meta", "meta", "high", "prior_turn_ref")
         if has_prior and _has(n, _FACT_CRITIQUE):
-            return Classification("meta", "repair", "medium", "fact_critique")
+            return Classification("meta", "meta", "medium", "fact_critique")
 
         # 3 · CONTINUATION — an elliptical/referential follow-up to the active thread.
         if has_prior:

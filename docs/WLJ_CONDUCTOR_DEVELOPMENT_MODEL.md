@@ -62,6 +62,29 @@ Check the layers **in order**. A failure at a lower layer cannot be correctly di
 
 ---
 
+## Eliminate the class, don't detect the symptom (the default before any trust-fix)
+
+Once the Product Review and the layer diagnosis have located a trust-breaking failure, one question comes **before** writing the fix:
+
+> **"Can the architectural condition that makes this class of failure possible be removed entirely?"**
+
+The goal is never to prevent *this one bug*. It is to make the *entire class* structurally impossible. So, in order:
+
+1. **Does this failure represent an entire class?** ("6:15 AM tonight" is not one bug — it's the class "a sentence assembled from two independent time sources.")
+2. **What architectural condition allows that class to exist?** (Composition glued an item's own time to a frame from a *different* clock; nothing read the sentence back.)
+3. **Can we REMOVE that condition** instead of detecting its symptoms? (Yes — one sentence, one time source. The class is now impossible, not merely caught.)
+
+**Removing the condition is almost always preferred** over adding a detector, validator, recovery path, or new capability. A customer does not care that a validator caught an error — they care that the error *never occurs*. The product becomes trustworthy not because it recovers from mistakes well, but because whole categories of mistakes become impossible.
+
+- **Right:** make contradictory time composition structurally impossible.
+  **Wrong:** add a check that flags "AM … tonight".
+- **Right:** remove the condition that lets multiple greeting authors contribute to one conversation.
+  **Wrong:** detect and suppress repeated greetings.
+- **Right:** remove the condition that lets one capability answer a question owned by another (the Conductor's ownership model).
+  **Wrong:** detect wrong-question answers after the fact.
+
+**Bound by blast radius (the escape valve).** Prefer elimination, but this is *not* a mandate to redesign Beth on every bug. When removing the condition would require a disproportionate rewrite or would destabilize working paths, **contain the class as narrowly as possible and LOG the residual** — then eliminate it later, product-first, one step at a time. Only when elimination is genuinely impractical do we fall back to a localized detector/capability. Elimination is the default; judgment sets the size.
+
 ## The governing rule for new capabilities
 
 > Do not create a new capability because production exposed a problem. First let The Conductor prove **which** of these is true:

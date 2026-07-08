@@ -237,6 +237,14 @@ class LifeDayTests(TestCase):
         titles = [m.get("title") for ch in c["chapters"] for m in ch["moments"]]
         self.assertNotIn("Due: Repair fridge", titles)
 
+    def test_operational_header_and_vitals(self):
+        c = _compose_life_day(self.user)
+        self.assertTrue(c["now_label"])            # Now is always answered
+        self.assertIn("next_label", c)             # Next present
+        self.assertEqual(c["vitals"]["to_place"], 1)  # the one deadline
+        self.assertIn("rhythms_left", c["vitals"])
+        self.assertIn("free_label", c["vitals"])
+
     def test_classify(self):
         self.assertEqual(_classify_moment({"title": "Dinner with Heather", "source_type": "none"})[0], "rel")
         self.assertEqual(_classify_moment({"title": "Take Vitamin D", "source_type": "medicine_schedule"})[0], "health")

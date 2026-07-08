@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(calendar): dense Calendar of Life — persistent Now/Next/vitals + inline free time
+
+**Why:** the first cut of the Calendar-of-Life Day view (2026-07-07) was too sparse to
+run a day from — Current/Next were buried in prose, free time was gone, obligations sat at
+the bottom, and chapters showed only a few moments. This restores information density while
+keeping the philosophy: *elegance is arranging information, not removing it* — no dashboard
+cards, no sparseness.
+
+**Composition (`views.py :: _compose_life_day`, still request-path-safe / F5, no new data
+model):** added the persistent operational header + inline free time:
+- **Now / Next** — `now_label` (the current context: "Work · until 6:00 PM", or the
+  in-progress moment, or the current chapter) + `next_label` (the next moment + time).
+- **Vitals** — `to_place` (due count), `rhythms_left` (upcoming faith/health/water moments),
+  `free_label` (the next open window).
+- **Free time where it occurs** — real open windows (≥30m) computed from the busy set
+  (moments + unavailable availability) via `_free_windows`, inserted into the chapter flow
+  as "Open time" moments (not only a summary metric).
+- **Rhythms stay visible** — moments in faith/health/water are flagged `is_rhythm` and shown
+  as lighter, small-node entries (medications, supplements, water, prayer, Bible — not
+  over-compressed).
+- Removed the prose opening line (replaced by the Now/Next cards) and the unused
+  `_opening_line` helper.
+
+**Front end (`templates/calendar_engine/dashboard.html`):** persistent Now/Next cards +
+vitals line under the date; chapters remain full containers (Work holds standup, calls,
+lunch, water, supplements, people, meetings, with the NOW line running through it); people
+distinct (avatars in Work; warm rows for family); inline "Open time" moments; due stays in
+"Still to place". Scoped `.cal10`, CSP-clean.
+
+**Files:** `apps/calendar_engine/views.py`, `templates/calendar_engine/dashboard.html`,
+`apps/calendar_engine/tests/test_projection_layer.py` (LifeDayTests + operational-header
+test).
+
+**Verification:** 168 calendar_engine + request-path-safety tests pass; `makemigrations
+--check` clean; CSP-clean; rendered + screenshotted live against the dev DB via an authed
+session with a full seeded day — Now/Next/vitals, dense chapters, Work container, people,
+rhythms, inline free windows, and Still-to-place all present; no console errors. No migrations.
+
 ## 2026-07-08 — feat(cos): The Conductor — Step 2a, shadow Classifier (record-only)
 
 **Context:** Step 2 of the approved Conductor roadmap lifts selection into a single

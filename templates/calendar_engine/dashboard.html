@@ -68,6 +68,23 @@
 .cal10 .nowrow .lbl{ font-size:10.5px; font-weight:800; letter-spacing:.09em; color:var(--c-now); }
 .cal10 .nowrow .ln{ flex:1; height:1.5px; background:linear-gradient(90deg,var(--c-now),rgba(192,135,43,.12)); }
 .cal10 .ambient{ margin-top:2px; font-size:12.5px; color:var(--c-faint); font-style:italic; padding-left:37px; }
+/* persistent operational header — Now / Next / vitals */
+.cal10 .status{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.cal10 .stat{ border:1px solid var(--c-line); border-radius:13px; padding:11px 14px; background:#fbfaf6; }
+.cal10 .stat .lab{ font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--c-faint); font-weight:700; }
+.cal10 .stat .val{ font-size:15px; font-weight:600; margin-top:4px; display:flex; align-items:center; gap:7px; letter-spacing:-.01em; color:var(--c-ink); }
+.cal10 .stat.now .val .live{ width:8px; height:8px; border-radius:50%; background:var(--c-now); box-shadow:0 0 0 3px rgba(192,135,43,.16); flex:none; }
+.cal10 .stat.next{ background:transparent; }
+.cal10 .vitals{ display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:12px; font-size:12.5px; color:var(--c-muted); }
+.cal10 .vitals b{ color:var(--c-ink); font-weight:600; }
+.cal10 .vitals .free{ color:#2f9e63; font-weight:600; }
+.cal10 .vitals span{ position:relative; }
+.cal10 .vitals span+span::before{ content:"·"; position:absolute; left:-10px; color:var(--c-faint); }
+/* rhythms (kept visible, lighter) + inline free time */
+.cal10 .node.sm{ width:8px; height:8px; margin-top:5px; }
+.cal10 .m.rhythm .ti{ font-weight:450; color:var(--c-ink2); }
+.cal10 .node.open{ border-style:dashed; border-color:#2f9e63; background:#eefaf1; }
+.cal10 .m.open .ti{ color:#1c7a48; font-weight:600; } .cal10 .m.open .de{ color:#2f9e63; }
 
 /* coda */
 .cal10 .coda{ margin-top:34px; padding-top:22px; border-top:1px solid var(--c-line); }
@@ -125,7 +142,17 @@
         <div><div class="kicker">Today</div><h1 class="day-date serif">{{ life.date_serif }}</h1></div>
         <div class="clock" id="cal-clock">{{ life.clock }}</div>
       </div>
-      {% if life.opening %}<p class="opening">{{ life.opening }}</p>{% endif %}
+      <div class="status">
+        <div class="stat now"><div class="lab">Now</div><div class="val">{% if life.now_live %}<span class="live"></span>{% endif %}{{ life.now_label }}</div></div>
+        {% if life.next_label %}<div class="stat next"><div class="lab">Next</div><div class="val">{{ life.next_label }}</div></div>{% endif %}
+      </div>
+      {% if life.vitals.to_place or life.vitals.rhythms_left or life.vitals.free_label %}
+      <div class="vitals">
+        {% if life.vitals.to_place %}<span><b>{{ life.vitals.to_place }}</b> to place</span>{% endif %}
+        {% if life.vitals.rhythms_left %}<span><b>{{ life.vitals.rhythms_left }}</b> rhythms left</span>{% endif %}
+        {% if life.vitals.free_label %}<span class="free">Next free {{ life.vitals.free_label }}</span>{% endif %}
+      </div>
+      {% endif %}
 
       {% for ch in life.chapters %}
       <div class="chapter{% if ch.is_work %} work{% endif %}">
@@ -138,14 +165,16 @@
           {% for m in ch.moments %}
             {% if m.is_now_marker %}
             <div class="nowrow"><span class="nd"></span><span class="lbl">NOW · {{ m.time_label }}</span><span class="ln"></span></div>
+            {% elif m.is_open %}
+            <div class="m open"><span class="lead-col"><span class="node open"></span></span><span class="tm">{{ m.time_label }}</span><div class="body"><div class="ti">Open time</div><div class="de">{{ m.detail }}</div></div></div>
             {% else %}
-            <div class="m {{ m.state }}{% if m.is_rel %} rel{% endif %}" data-source-type="{{ m.source_type }}" data-source-id="{{ m.source_id }}" data-event-id="{{ m.event_id }}">
+            <div class="m {{ m.state }}{% if m.is_rel %} rel{% elif m.is_rhythm %} rhythm{% endif %}" data-source-type="{{ m.source_type }}" data-source-id="{{ m.source_id }}" data-event-id="{{ m.event_id }}">
               <span class="lead-col">
                 {% if m.is_person %}<span class="avatar" style="background:{{ m.color }}">{{ m.person_initial }}</span>
-                {% else %}<span class="node" style="border-color:{{ m.color }}"></span>{% endif %}
+                {% else %}<span class="node{% if m.is_rhythm %} sm{% endif %}" style="border-color:{{ m.color }}"></span>{% endif %}
               </span>
               <span class="tm">{{ m.time_label }}</span>
-              <div class="body"><div class="ti">{{ m.title }}{% if m.is_next %} <span class="next">NEXT</span>{% endif %}</div></div>
+              <div class="body"><div class="ti">{{ m.title }}{% if m.is_next %} <span class="next">NEXT</span>{% endif %}</div>{% if m.detail %}<div class="de">{{ m.detail }}</div>{% endif %}</div>
             </div>
             {% endif %}
           {% endfor %}

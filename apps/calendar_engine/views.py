@@ -347,25 +347,18 @@ def _work_window(events):
     return None, None
 
 
-def _opening_line(current_name, next_moment):
-    phase = {
-        'Morning': 'Your morning is underway.',
-        'Work': "You're in the workday.",
-        'Day': "You're partway through the day.",
-        'Evening': 'Into the evening now.',
-        'Night': 'The day is winding down.',
-    }.get(current_name, "Here's your day.")
-    if next_moment and next_moment.get('time_label'):
-        return f"{phase} Next — {next_moment['title']} at {next_moment['time_label']}."
-    return phase
+# Rhythms — recurring life-habits kept visible (never over-compressed).
+_RHYTHM_DOMAINS = {'faith', 'health', 'water'}
 
 
 def _compose_life_day(user):
-    """Compose today as a life story in chapters (Morning · Work · Evening · Night).
+    """Compose today as a life story in chapters (Morning · Work · Evening · Night),
+    dense and useful: a persistent Now/Next/vitals header, full chapters as
+    containers, people distinct from tasks, rhythms visible, and free time shown
+    where it actually falls.
 
     Pure, bounded, request-path-safe (reads _get_events_in_range + arithmetic — no
-    LLM, no rebuild). Everything meaningful that happens in time becomes a moment on
-    the day's thread; due-with-no-time and availability stay off it.
+    LLM, no rebuild). Due-with-no-time and availability stay off the thread.
     """
     tz = timezone.get_current_timezone()
     today = timezone.localdate()
@@ -378,15 +371,18 @@ def _compose_life_day(user):
     has_work = work_start is not None
 
     due = []
-    moments = []  # timed life moments (not availability, not deadline markers)
+    moments = []
+    busy = []  # (start, end) intervals that consume time (moments + unavailable)
     for e in events:
         if e.get('event_kind') == CalendarEvent.KIND_DEADLINE_MARKER:
             due.append(e)
             continue
-        if e.get('event_kind') == 'availability':
-            continue  # availability is context (Work chapter), never a moment
         start = dt.datetime.fromisoformat(e['start_dt'])
         end = dt.datetime.fromisoformat(e['end_dt'])
+        if e.get('event_kind') == 'availability':
+            if not e.get('is_available'):
+                busy.append((start, end))  # Work/Sleep — context, not a moment
+            continue
         domain_key, person = _classify_moment(e)
         if end <= now:
             state = 'lived'
@@ -403,14 +399,28 @@ def _compose_life_day(user):
             'is_person': bool(person),
             'person_initial': person[0].upper() if person else '',
             'is_rel': domain_key == 'rel',
+            'is_rhythm': domain_key in _RHYTHM_DOMAINS,
+            'detail': '',
             'state': state,
             'source_type': e['source_type'],
             'source_id': e['source_id'],
             'event_id': e['id'],
         })
+        busy.append((start, end))
     moments.sort(key=lambda m: m['_start'])
 
-    # Assign each moment to a chapter.
+    # Free time — real open windows from now until sleep, shown WHERE they occur.
+    wake_dt, sleep_dt = _waking_window(user, today)
+    free_from = max(now, wake_dt)
+    free = _free_windows(busy, free_from, sleep_dt) if free_from < sleep_dt else []
+    free = [(s, e) for (s, e) in free if (e - s).total_seconds() >= 30 * 60]
+    open_items = [{
+        '_start': s, '_end': e2, 'is_open': True,
+        'time_label': _fmt_time(s),
+        'detail': _fmt_hm((e2 - s).total_seconds() / 60) + ' free',
+        'state': 'now' if s <= now < e2 else 'upcoming',
+    } for (s, e2) in free]
+
     def chapter_of(start):
         h = timezone.localtime(start).hour
         if has_work:
@@ -429,12 +439,14 @@ def _compose_life_day(user):
 
     order = ['Morning', 'Work', 'Day', 'Evening', 'Night']
     subs = {
-        'Morning': 'before the day begins', 'Work': 'the workday',
+        'Morning': 'before work', 'Work': 'the workday',
         'Day': 'midday', 'Evening': 'back home', 'Night': 'winding down',
     }
     buckets = {name: [] for name in order}
-    for m in moments:
+    for m in moments + open_items:
         buckets[chapter_of(m['_start'])].append(m)
+    for name in buckets:
+        buckets[name].sort(key=lambda x: x['_start'])
 
     current_chapter = chapter_of(now)
     next_moment = next((m for m in moments if m['state'] == 'upcoming'), None)
@@ -451,7 +463,6 @@ def _compose_life_day(user):
         sub = subs[name]
         if is_work_ch:
             sub = f"{_fmt_time(work_start)} – {_fmt_time(work_end)}"
-        # Insert the NOW marker into the current chapter (between lived & upcoming).
         rendered = []
         now_inserted = False
         for m in items:
@@ -464,14 +475,40 @@ def _compose_life_day(user):
             rendered.append({'is_now_marker': True, 'time_label': _fmt_time(now)})
         chapters.append({
             'name': name, 'sub': sub, 'is_work': is_work_ch, 'here': here,
-            'ambient': (f"Heads-down until {_fmt_time(work_end)}." if here else ''),
             'moments': rendered,
         })
+
+    # Persistent operational header — Now / Next / vitals.
+    inprog = next((m for m in moments if m['state'] == 'now'), None)
+    if has_work and work_start <= now < work_end:
+        now_label, now_live = f"Work · until {_fmt_time(work_end)}", True
+    elif inprog:
+        now_label, now_live = inprog['title'], True
+    elif open_items and open_items[0]['state'] == 'now':
+        now_label, now_live = 'Open time', True
+    else:
+        now_label, now_live = current_chapter, False
+
+    if next_moment:
+        next_label = (f"{next_moment['title']} · {next_moment['time_label']}"
+                      if next_moment.get('time_label') else next_moment['title'])
+    else:
+        next_label = ''
+
+    rhythms_left = sum(1 for m in moments if m.get('is_rhythm') and m['state'] == 'upcoming')
+    if open_items:
+        fo = open_items[0]
+        free_label = f"{fo['time_label']} · {_fmt_hm((fo['_end'] - fo['_start']).total_seconds() / 60)}"
+    else:
+        free_label = ''
 
     return {
         'date_serif': now.strftime('%A, %B %-d'),
         'clock': _fmt_time(now),
-        'opening': _opening_line(current_chapter, next_moment),
+        'now_label': now_label, 'now_live': now_live, 'next_label': next_label,
+        'vitals': {
+            'to_place': len(due), 'rhythms_left': rhythms_left, 'free_label': free_label,
+        },
         'chapters': chapters,
         'due': [{
             'title': (d['title'] or '').replace('Due: ', ''),

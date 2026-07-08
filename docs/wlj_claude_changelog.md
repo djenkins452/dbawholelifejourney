@@ -6,6 +6,37 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(cos): `action` speech act — command/query separation in the Conductor (shadow)
+
+**Why (architectural, not a transcript):** the Classifier taxonomy first-classes reads
+(`retrieval`) but had no first-class WRITE — an executive command ("move / reschedule /
+cancel / add / delete / skip / complete / log / remind …") fell through to `fallback` and
+then the legacy lane loop, where a subject/reasoning lane hijacked it (workout_history, then
+personal_reasoning — whack-a-mole). This completes command/query separation: `action` is the
+missing write side, owned by the tool/action path.
+
+**Change (Classifier only — SHADOW, exactly like Meta's Step 2a):** new `action` speech act
+at precedence 4.5 — AFTER meta/continuation/correction (a command inside an active thread
+stays with that thread) and BEFORE reasoning/retrieval (a command is never read as a query).
+**Conservative by mandate (precision ≫ recall):** a request FRAME immediately followed by an
+action verb ("can you reschedule my workout?") or a bare leading IMPERATIVE ("move my
+workout…", verb not followed by a copula) — and **never a question** ("should I cancel?",
+"did I complete my workout?", "the change was 2 lbs"). Uncertain ⇒ stays a question. It is
+LOGGED only (`COS_CLASSIFY`); nothing routes on `action` yet — only `meta` is promoted — so
+there is zero behavior change.
+
+**Files:** apps/ai/chatgpt_cos/classifier.py (action cue sets + level-4.5 detection),
+apps/ai/tests/test_action_speech_act_shadow.py (new).
+
+**Verification:** new test_action_speech_act_shadow (4) — 16 commands classify `action`
+(incl. framed "can you…"), **13 non-commands never do** (zero false positives — the rollout
+requirement), high/medium confidence split, and a shadow no-op proof (classified but not
+routed). Classifier/conductor regression green. Next: measure precision/recall in production
+shadow logs, then promote `action` → the tool/action path (Step 2b-style), then production
+test. (NOTE: 5 PRE-EXISTING routing-acceptance failures — test_cos_medication_hybrid,
+test_beth_acceptance GoalIntentRouting — confirmed failing with this change stashed; unrelated
+snapshot drift, flagged for a separate triage.)
+
 ## 2026-07-08 — fix(cos): keyword retrieval lanes must decline action commands (Layer 2)
 
 **Production (first validation after Routine Single Source):** "I want to move my workout

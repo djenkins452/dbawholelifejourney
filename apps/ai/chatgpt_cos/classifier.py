@@ -14,8 +14,10 @@
 #
 # Speech-act PRECEDENCE ladder (approved stabilization design) — first match wins,
 # from "about this exact exchange" outward to "about the world":
-#   1 screen · 2 meta/repair · 3 continuation · 4 correction · 5 reasoning_mode ·
-#   6 retrieval · 7 orientation · 8 general · 9 fallback
+#   1 screen · 2 meta/repair · 3 continuation · 4 correction · 4.5 action (write) ·
+#   5 reasoning_mode · 6 retrieval · 7 orientation · 8 general · 9 fallback
+# `action` is the WRITE side of command/query separation (retrieval is the read side): an
+# executive command that mutates state, owned by the tool/action path. Shadow only for now.
 # The classifier's cue sets are its OWN, shallow, form-level, domain-agnostic signals — it
 # does NOT import any capability (that is what keeps the Conductor a closed core).
 # ==============================================================================
@@ -93,6 +95,23 @@ _RECONCILE = (
     "i did that", "thats canceled", "is canceled", "not today", "did it this morning",
     "already done", "i finished that", "i took care of that", "handled that already",
 )
+
+# ── 4.5 · ACTION (an executive COMMAND that mutates state) ────────────────────
+# The WRITE side of command/query separation. Imperative mutation verbs; the message must
+# START with one, or with a request frame immediately followed by one. CONSERVATIVE BY
+# MANDATE (precision ≫ recall): a question is never an action; uncertain ⇒ stays a question.
+_ACTION_VERBS = frozenset((
+    "move", "reschedule", "change", "set", "cancel", "skip", "complete", "add", "delete",
+    "remove", "remind", "push", "shift", "defer", "postpone", "bump", "log", "rename",
+    "clear", "mark", "bring", "swap",
+))
+_ACTION_REQUEST_FRAMES = (
+    "i want to", "i would like to", "id like to", "i need to", "i want you to",
+    "can you", "could you", "would you", "will you", "please", "lets", "let us",
+    "go ahead and", "can we", "id like you to", "i would like you to",
+)
+_COPULA = frozenset(("is", "are", "was", "were", "be", "been", "being",
+                     "isnt", "arent", "wasnt", "werent"))
 
 # ── 5 · REASONING MODE (struggle / diagnosis / decision within a subject) ────
 # Domain-AGNOSTIC (no domain words) — the KIND of thinking, not the topic.
@@ -187,6 +206,34 @@ def classify(message, *, has_prior=False, page_context=None):
             return Classification("correction", "correction", "high", "reconcile")
         if _has(n, _CORRECTION):
             return Classification("correction", "correction", "medium", "correction")
+
+        # 4.5 · ACTION — an executive COMMAND that mutates state (move / reschedule /
+        # cancel / add / delete / skip / complete / log / remind …). The WRITE side of
+        # command/query separation: today the taxonomy first-classes reads (retrieval) and
+        # lets writes fall through to `fallback` → the lane loop, where a subject/reasoning
+        # lane hijacks them. Placed AFTER meta/continuation/correction (a command inside an
+        # active thread stays with that thread) and BEFORE reasoning/retrieval (so a command
+        # is never read as a query). CONSERVATIVE: require an imperative verb at the START,
+        # or a request frame immediately followed by one — and never for a question. Owner =
+        # the tool/action path. (Shadow only until promoted, exactly like meta.)
+        if words:
+            first = words[0]
+            second = words[1] if len(words) > 1 else ""
+            # A polite request FRAME immediately followed by an action verb is a command
+            # even when phrased as a question ("can you reschedule my workout?") — the
+            # trailing '?' is politeness, not a query. Requiring the verb right after the
+            # frame (first 3 tokens) keeps precision: "can you TELL me…" is not an action.
+            for fr in _ACTION_REQUEST_FRAMES:
+                if n.startswith(fr):
+                    rest = n[len(fr):].split()
+                    if any(tok in _ACTION_VERBS for tok in rest[:3]):
+                        return Classification("action", "action", "medium", "action_framed")
+                    break
+            # A bare IMPERATIVE ("move my workout…") — only when NOT a question, and the
+            # verb must be followed by an object, not a copula ("change is hard" is a
+            # statement, not a command) — precision guard.
+            if not is_question and first in _ACTION_VERBS and second not in _COPULA:
+                return Classification("action", "action", "high", "action_imperative")
 
         # 5 · REASONING MODE (struggle / diagnosis / decision)
         if _has(n, _STRUGGLE):

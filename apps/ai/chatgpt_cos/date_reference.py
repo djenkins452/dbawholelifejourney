@@ -40,6 +40,44 @@ def user_today(user):
     return get_user_today(user)
 
 
+# ── ACTION-COMMAND GUARD (Layer 2 orchestration) ─────────────────────────────
+# The subject-keyword RETRIEVAL lanes (sleep_history / weight_history / workout_history)
+# match on a bare domain word ("workout", "sleep", "weight"). A COMMAND that merely names
+# that subject — "move my workout to 5pm", "skip today", "log my weight" — is an ACTION,
+# not a history question, and must NOT be answered as a retrieval (it belongs to the
+# action/tool path). This guard lets those lanes decline commands so the turn falls
+# through to the reschedule/log/skip capabilities. It is deliberately conservative:
+# anything shaped like a QUESTION ("did I complete my workout?", "when did I move it?")
+# is NOT a command, even when it contains an action verb.
+_ACTION_VERBS = (
+    "move", "reschedule", "re-schedule", "change", "set", "shift", "defer",
+    "skip", "cancel", "complete", "push", "bump", "log",
+)
+_QUESTION_LEADS = (
+    "did ", "do ", "does ", "was ", "were ", "have i", "has ", "had ", "what ",
+    "when ", "how ", "is ", "are ", "which ", "who ", "why ", "where ", "can you tell",
+    "tell me", "show me", "remind me",
+)
+_ACTION_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(v) for v in _ACTION_VERBS) + r")\b")
+
+
+def is_action_command(message):
+    """True when `message` is an imperative/request to CHANGE state (move / reschedule /
+    skip / cancel / log / set …) rather than a history/retrieval question. Questions that
+    merely contain an action verb ('did I complete my workout?') return False."""
+    raw = message or ""
+    n = re.sub(r"[’']", "", raw.strip().lower())
+    if not n:
+        return False
+    # A question is never an action command — a trailing '?' or a question lead-in.
+    if "?" in raw:
+        return False
+    if any(n.startswith(q) for q in _QUESTION_LEADS) or "did i " in n or "have i " in n:
+        return False
+    return bool(_ACTION_RE.search(n))
+
+
 def _most_recent_past(month, day, today, year=None):
     """The date for month/day that is the most recent one NOT after today (this year,
     else last year — so '12/25' asked in July resolves to last December)."""

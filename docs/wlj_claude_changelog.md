@@ -6,6 +6,38 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(cos): keyword retrieval lanes must decline action commands (Layer 2)
+
+**Production (first validation after Routine Single Source):** "I want to move my workout
+to 5pm today only" → "I don't see a completed workout today." Four-Layer diagnosis: **Layer
+2 (orchestration)** — the `workout_history` retrieval lane matches the bare word "workout"
+with no command-vs-question check, so it hijacked a reschedule COMMAND and answered a
+history query; the reschedule capability (which exists and works) never ran. Classifier
+evidence: the message classifies as `fallback`/low (explicitly NOT `retrieval`), yet the
+legacy positional router let a retrieval lane win. Same class as "why did you start with my
+sleep" — subject-keyword lane vs. speech act.
+
+**Smallest Layer-2 fix (no new capability, no Conductor Step 2c, no Routine change):** a
+shared `date_reference.is_action_command(message)` — True for imperatives to CHANGE state
+(move / reschedule / change / set / shift / defer / skip / cancel / complete / log / push /
+bump), False for anything shaped like a question (trailing '?', or a `did/what/when/how/…`
+lead-in, so "did I complete my workout?" is still a question). The three subject-keyword
+retrieval lanes — `workout_history`, `sleep_history`, `weight_history` — now decline action
+commands up front, so the turn falls through to the existing action/tool path (reschedule /
+log / skip).
+
+**Files:** apps/ai/chatgpt_cos/date_reference.py (is_action_command), apps/ai/chatgpt_cos/
+workout_history.py, apps/ai/chatgpt_cos/sleep_history.py, apps/ai/chatgpt_cos/weight_history.py
+(decline guard), apps/ai/tests/test_action_command_guard.py (new).
+
+**Verification:** new test_action_command_guard (5) — command vs question detection;
+workout_history declines "move my workout to 5pm" but still answers "did you see my
+workout?"; sleep/weight decline commands; and route_message no longer lets a history lane
+own the reschedule command (falls through to the tool path). ~172 history-lane/retrieval
+regression tests green. (3 PRE-EXISTING failures in test_conversation_lanes registry-order
+snapshots — confirmed failing with this change stashed; they are stale since the earlier
+approved mission_lane was added to LANE_REGISTRY, unrelated to this fix.) No model change.
+
 ## 2026-07-08 — fix(execution): collapse legacy dual-defined routines (commit 2 — existing data obeys the invariant)
 
 **Why:** commit 1 stopped NEW routines from being born dual-defined and made new

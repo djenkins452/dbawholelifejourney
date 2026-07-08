@@ -41,6 +41,11 @@ def _aggregate(sessions):
 
 def answer(user, message, conversation=None):
     n = (message or "").lower()
+    # ACTION-COMMAND GUARD (Layer 2): "move/reschedule/skip/complete my workout" is an
+    # action, not a history question — decline so the reschedule/log path owns the turn.
+    from apps.ai.chatgpt_cos.date_reference import is_action_command
+    if is_action_command(message):
+        return None
     if not (any(c in n for c in _WORKOUT_CUES) or any(p in n for p in _VOLUME_PHRASES)):
         return None
     from apps.ai.chatgpt_cos.date_reference import (

@@ -114,6 +114,11 @@ def answer(user, message, conversation=None):
     that exact night deterministically. Declines (None) for non-sleep questions and for
     "last night"/current questions (handled by the existing path)."""
     n = (message or "").lower()
+    # ACTION-COMMAND GUARD (Layer 2): a command naming sleep (e.g. "skip"/"set") is not a
+    # history question — decline so the action/tool path owns the turn.
+    from apps.ai.chatgpt_cos.date_reference import is_action_command
+    if is_action_command(message):
+        return None
     if not any(c in n for c in _SLEEP_CUES):
         return None
     target = resolve_night_date(user, message)

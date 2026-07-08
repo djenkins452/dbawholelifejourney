@@ -508,3 +508,90 @@ class DisplayTitleTests(TestCase):
         d = _event_to_dict(ev)
         self.assertEqual(d["display_title"], "Workout")
         self.assertEqual(d["title"], "Workout: Back + Biceps")
+
+
+# ── Calendar projects ACTIVITIES (module-owned), not implementation details ──
+#
+# Health/Faith expose canonical activity names derived from source truth; the
+# Calendar attaches them and the client collapses events sharing an activity key
+# into one chip. These prove the module-owned naming; client grouping is verified
+# in the browser harness.
+
+class ActivityProjectionTests(TestCase):
+    def test_medicine_activity_names_from_source_truth(self):
+        from apps.health.services.calendar_activities import medicine_activities
+        from apps.health.models import Intake, IntakeSchedule
+        user = _user()
+        today = timezone.localdate()
+        med = Intake.objects.create(
+            user=user, name="Metformin", intake_status="active",
+            intake_type=Intake.INTAKE_TYPE_MEDICATION, start_date=today)
+        ms = IntakeSchedule.objects.create(
+            intake=med, scheduled_time=dt.time(9, 0), time_of_day="morning",
+            days_of_week="0,1,2,3,4,5,6")
+        supp = Intake.objects.create(
+            user=user, name="Vitamin D", intake_status="active",
+            intake_type=Intake.INTAKE_TYPE_SUPPLEMENT, start_date=today)
+        ss = IntakeSchedule.objects.create(
+            intake=supp, scheduled_time=dt.time(22, 0), time_of_day="nightly",
+            days_of_week="0,1,2,3,4,5,6")
+
+        m = medicine_activities([ms.pk, ss.pk])
+        self.assertEqual(m[str(ms.pk)]["label"], "Morning Medications")
+        self.assertEqual(m[str(ms.pk)]["key"], "morning_medications")
+        self.assertEqual(m[str(ms.pk)]["unit"], "medication")
+        self.assertEqual(m[str(ms.pk)]["icon"], "💊")
+        self.assertEqual(m[str(ss.pk)]["label"], "Nightly Supplements")
+        self.assertEqual(m[str(ss.pk)]["key"], "nightly_supplements")
+        self.assertEqual(m[str(ss.pk)]["unit"], "supplement")
+
+    def test_attach_activities_routes_by_source_type(self):
+        from apps.calendar_engine.views import _attach_activities
+        events = [
+            {"source_type": CalendarEvent.SOURCE_WORKOUT_SCHEDULE, "source_id": "3"},
+            {"source_type": CalendarEvent.SOURCE_FAITH_ROUTINE, "source_id": "18"},
+            {"source_type": CalendarEvent.SOURCE_TASK, "source_id": "5"},
+        ]
+        _attach_activities(events)
+        self.assertEqual(events[0]["activity"]["key"], "workout")
+        self.assertEqual(events[0]["activity"]["label"], "Workout")
+        self.assertEqual(events[0]["activity"]["unit"], "")  # no count for workout
+        self.assertEqual(events[1]["activity"]["key"], "bible_reading")
+        self.assertEqual(events[1]["activity"]["label"], "Bible Reading")
+        self.assertEqual(events[1]["activity"]["url"], "/faith/journey/today/")
+        # Tasks are individual activities — no descriptor, so no collapsing.
+        self.assertIsNone(events[2]["activity"])
+
+    def test_two_workout_plans_collapse_to_one_activity_key(self):
+        """Part 2: two active plans → two events → one 'workout' activity key so
+        the client renders a single Workout chip (not a duplicate)."""
+        from apps.calendar_engine.views import _attach_activities
+        events = [
+            {"source_type": CalendarEvent.SOURCE_WORKOUT_SCHEDULE, "source_id": "3"},
+            {"source_type": CalendarEvent.SOURCE_WORKOUT_SCHEDULE, "source_id": "9"},
+        ]
+        _attach_activities(events)
+        self.assertEqual(events[0]["activity"]["key"], events[1]["activity"]["key"])
+
+    def test_range_api_attaches_activity_to_faith_reading(self):
+        """End-to-end: a projected reading plan surfaces on the range API with the
+        unified Bible Reading activity that opens the canonical journey."""
+        from apps.faith.models import ReadingPlanTemplate, UserReadingPlan
+        user = _user()
+        self.client.force_login(user)
+        tpl = ReadingPlanTemplate.objects.create(
+            title="Building a Godly Marriage", description="d", category="",
+            difficulty="", source="", source_abbreviation="", series="", duration_days=7)
+        UserReadingPlan.objects.create(
+            user=user, template=tpl, current_day=1, plan_status="active")
+        today = timezone.localdate().isoformat()
+        resp = self.client.get(f"/calendar/api/range/?start={today}&end={today}")
+        self.assertEqual(resp.status_code, 200)
+        faith = [e for e in resp.json()["events"]
+                 if e["source_type"] == CalendarEvent.SOURCE_FAITH_ROUTINE]
+        self.assertTrue(faith, "expected a projected faith reading event")
+        act = faith[0]["activity"]
+        self.assertEqual(act["label"], "Bible Reading")
+        self.assertEqual(act["url"], "/faith/journey/today/")
+        # The calendar never exposes the underlying plan name.
+        self.assertNotIn("Godly Marriage", act["label"])

@@ -6,6 +6,50 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — refine(calendar): project ACTIVITIES, not implementation (module-owned activity descriptors)
+
+**Governing principle: the Calendar shows WHAT to do; the owning module explains HOW.** Multiple
+underlying source objects that are the same activity now collapse into ONE Calendar chip, with the
+name/icon/click-target owned by the source module (no Calendar-side naming, no fabrication).
+
+Root cause it resolves: the "duplicate Bible Reading / duplicate Workout" defects were multiple
+co-active source objects (2 reading plans; 2 active workout plans), each faithfully projected, made
+to look like duplicates once the activity-name collapse hid the distinguishing template name. And 15
+individual medicine/supplement doses rendered as separate slivers instead of a grouped activity.
+
+**Architecture (projection refinement, not a redesign; materialized per-object cache untouched — the
+~49 CalendarEvent consumers keep their per-item truth; only the Calendar *display* consolidates):**
+- **Module-owned activity descriptors** `{key,label,icon,unit,url}` derived from existing source truth:
+  - `apps/health/services/calendar_activities.py` — `medicine_activities()` maps each IntakeSchedule
+    to "{Window} {Medications|Supplements}" from `IntakeSchedule.time_of_day` + `Intake.intake_type`
+    (one bulk query, F5-safe); `WORKOUT_ACTIVITY` = one "Workout" for all schedules/plans.
+  - `apps/faith/services/calendar_activities.py` — `READING_ACTIVITY` = one "📖 Bible Reading" for ALL
+    reading systems (legacy UserReadingPlans AND the Walking With God Journey), opening the canonical
+    journey (`/faith/journey/today/`). The Calendar never exposes plan/system names.
+- **Calendar attaches, never names:** `views.py :: _attach_activities()` tags each event dict with its
+  module descriptor (medicine/workout/faith) or `None` (tasks/appointments/relationships stay
+  individual). Backward-compatible new `activity` field on `/api/range|today|month`.
+- **Client collapses by `activity.key` per day** into one chip: "💊 Morning Medications (5 medications)",
+  "💊 Morning Supplements (4 supplements)", "🏋️ Workout" (both plans → one), "📖 Bible Reading". Count
+  shown only when the activity has a `unit`. Clicking routes to the module-provided `url`.
+
+Scope: implemented for the sources that project today (medicine/supplement, workout, faith reading).
+Nutrition/Recovery/Prayer/Relationship *naming* are owning-module follow-ups (those modules must expose
+their canonical activity; nutrition/recovery don't project yet). No data migrated, no plan deleted or
+deactivated, no functionality lost, Beth untouched.
+
+**Files:** apps/health/services/calendar_activities.py (new), apps/faith/services/calendar_activities.py
+(new), apps/calendar_engine/views.py, templates/calendar_engine/dashboard.html,
+apps/calendar_engine/tests/test_projection_layer.py.
+
+**Verification:** `ActivityProjectionTests` (4) — medicine names from source truth (Morning Medications /
+Nightly Supplements), attach routes by source_type, two workout plans → one activity key, range API
+attaches unified Bible Reading → journey URL and never leaks the plan name. Full `test_projection_layer`
++ `test_calendar_engine` (59) green; query budget unchanged (< 12). Browser harness on real-shaped data
+(Danny's 15 intakes / 2 workout plans / reading plan): Day/Week/Agenda render "Morning Supplements (4)",
+"Morning Medications (5)", one "Workout", one "Bible Reading", individual "Jonathan Call"; click URLs
+module-owned; zero JS console errors. No migration, no new static asset.
+
 ## 2026-07-08 — refine(calendar): projection readability — activity names, columnar week, time grouping
 
 **Projection refinement (presentation only — no data/model/Beth change).** Three production

@@ -167,6 +167,8 @@
   body.addEventListener('click', function(e){
     var it = e.target.closest('[data-st]'); if(!it) return;
     if(it.dataset.day){ view='day'; anchor=new Date(it.dataset.day+'T12:00:00'); setTab(); render(); return; }
+    // A grouped activity carries the owning module's canonical URL.
+    if(it.dataset.url){ window.location.href = it.dataset.url; return; }
     openOwner(it.dataset.st, it.dataset.sid);
   });
 
@@ -185,6 +187,37 @@
   function nameOf(e){ return cleanTitle(e.display_title || e.title); }
   function dot(c){ return '<span class="gdot" style="background:'+(c||'#79839a')+'"></span>'; }
   function itemAttrs(e){ return 'data-st="'+esc(e.source_type)+'" data-sid="'+esc(e.source_id)+'"'; }
+
+  // ── activities: the Calendar shows WHAT to do, the module owns HOW ──
+  // The server tags projectable events with a module-owned `activity`
+  // {key,label,icon,unit,url}. Events sharing an activity key on a day collapse
+  // into ONE chip (Morning Medications ×5, Workout, Bible Reading). Items with no
+  // activity (tasks, appointments, relationships) stay individual.
+  function plural(u,n){ return n===1 ? u : u+'s'; }
+  function countSuffix(it){ return (it.unit && it.count>1) ? ' ('+it.count+' '+plural(it.unit,it.count)+')' : ''; }
+  function chipText(it){ return (it.icon? it.icon+' ' : '') + cleanTitle(it.display_title||it.title) + countSuffix(it); }
+  function chipMark(it){ return it.icon ? '' : dot(it.domain_color); }   // icon replaces the color dot
+  function chipAttrs(it){ return 'data-st="'+esc(it.source_type)+'" data-sid="'+esc(it.source_id)+'"'+(it.url? ' data-url="'+esc(it.url)+'"' : ''); }
+
+  function toActivities(evs){
+    var groups={}, order=[];
+    evs.forEach(function(e){
+      var a=e.activity;
+      var key = a ? ('act:'+a.key) : ('one:'+e.source_type+':'+e.source_id+':'+(e.start_dt||''));
+      if(!(key in groups)){ groups[key]={members:[]}; order.push(key); }
+      groups[key].members.push(e);
+    });
+    return order.map(function(k){
+      var m=groups[k].members.slice().sort(function(x,y){ return (x.start_dt<y.start_dt)?-1:((x.start_dt>y.start_dt)?1:0); });
+      var first=m[0], a=first.activity, maxEnd=first.end_dt;
+      m.forEach(function(e){ if(e.end_dt>maxEnd) maxEnd=e.end_dt; });
+      var label = a ? a.label : (first.display_title||first.title);
+      return { title:label, display_title:label, icon:(a?a.icon||'':''), unit:(a?a.unit||'':''),
+        count:m.length, url:(a?a.url||null:null), start_dt:first.start_dt, end_dt:maxEnd,
+        is_all_day:first.is_all_day, event_kind:first.event_kind,
+        source_type:first.source_type, source_id:first.source_id, domain_color:first.domain_color };
+    });
+  }
 
   // Group a day's timed events by identical timestamp → [{label, mins, items:[...]}]
   function groupByTime(evs){
@@ -231,14 +264,14 @@
   }
   function singleBlock(node){
     var e=node.single, h=Math.max(20,((node._e-node._s)/60)*HH);
-    return '<div class="wcal-ev" '+itemAttrs(e)+' style="'+posStyle(node)+
+    return '<div class="wcal-ev" '+chipAttrs(e)+' style="'+posStyle(node)+
       '--ec:'+(e.domain_color||'#79839a')+';--eb:'+hexA(e.domain_color,0.13)+'">'+
-      '<div class="et">'+esc(nameOf(e))+'</div>'+(h>34?'<div class="em">'+fmtT(e.start_dt)+'</div>':'')+'</div>';
+      '<div class="et">'+esc(chipText(e))+'</div>'+(h>34?'<div class="em">'+fmtT(e.start_dt)+'</div>':'')+'</div>';
   }
   function groupBlock(node){
     var first=node.group[0];
-    var rows=node.group.map(function(e){ return '<div class="wcal-gitem" '+itemAttrs(e)+'>'+
-      dot(e.domain_color)+'<span class="gname">'+esc(nameOf(e))+'</span></div>'; }).join('');
+    var rows=node.group.map(function(e){ return '<div class="wcal-gitem" '+chipAttrs(e)+'>'+
+      chipMark(e)+'<span class="gname">'+esc(chipText(e))+'</span></div>'; }).join('');
     return '<div class="wcal-evgroup" style="'+posStyle(node)+
       '--ec:'+(first.domain_color||'#79839a')+';--eb:rgba(120,120,120,.05)">'+
       '<div class="wcal-gtime">'+fmtT(first.start_dt)+'</div>'+rows+'</div>';
@@ -247,12 +280,12 @@
   function railHtml(){ var h=''; for(var i=0;i<24;i++){ var ap=i>=12?'PM':'AM',hr=i%12||12; h+='<div class="wcal-hr"><span>'+(i===0?'':hr+' '+ap)+'</span></div>'; } return h; }
   function availHtml(evs){ var h=''; evs.filter(isAvail).forEach(function(a){ if(a.is_available) return; var t=(mins(a.start_dt)/60)*HH, ht=((mins(a.end_dt)-mins(a.start_dt))/60)*HH; h+='<div class="wcal-avail" style="top:'+t+'px;height:'+ht+'px"><span class="al">'+esc(a.title)+'</span></div>'; }); return h; }
   function nowHtml(dayIso){ var n=new Date(); if(iso(n)!==dayIso) return ''; var t=(n.getHours()*60+n.getMinutes())/60*HH; return '<div class="wcal-now" style="top:'+t+'px"></div>'; }
-  function alldayChips(evs){ return evs.filter(isTimeless).map(function(e){ return '<div class="wcal-chip" '+itemAttrs(e)+' style="background:'+(e.domain_color||'#79839a')+'">'+esc(nameOf(e))+'</div>'; }).join(''); }
+  function alldayChips(evs){ return toActivities(evs.filter(isTimeless)).map(function(it){ return '<div class="wcal-chip" '+chipAttrs(it)+' style="background:'+(it.domain_color||'#79839a')+'">'+esc(chipText(it))+'</div>'; }).join(''); }
 
   // ── DAY ──
   function renderDay(evs){
     var d=iso(anchor); titleEl.textContent = anchor.toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
-    var nodes=dayNodes(evs.filter(function(e){ return !isTimeless(e) && !isAvail(e); }));
+    var nodes=dayNodes(toActivities(evs.filter(function(e){ return !isTimeless(e) && !isAvail(e); })));
     var blocks=nodes.map(function(n){ return n.single?singleBlock(n):groupBlock(n); }).join('');
     var h='<div class="wcal-allday"><div class="wcal-rail">All-day</div><div class="wcal-allday-cells"><div class="wcal-allday-cell">'+alldayChips(evs)+'</div></div></div>';
     h+='<div class="wcal-scroll" id="wcal-scroll"><div class="wcal-tg"><div class="wcal-rail">'+railHtml()+'</div>'+
@@ -269,18 +302,18 @@
     var todayIso=iso(new Date());
     var cols=days.map(function(d){
       var di=iso(d), isT=di===todayIso;
-      var de=evs.filter(function(e){ return dstr(e.start_dt)===di && !isAvail(e); });
+      var de=toActivities(evs.filter(function(e){ return dstr(e.start_dt)===di && !isAvail(e); }));
       var timeless=de.filter(isTimeless), timed=de.filter(function(e){ return !isTimeless(e); });
       var body='';
       // all-day / due first
-      timeless.forEach(function(e){ body+='<div class="wcal-wkitem" '+itemAttrs(e)+'>'+dot(e.domain_color)+'<span class="winame">'+esc(nameOf(e))+'</span></div>'; });
+      timeless.forEach(function(it){ body+='<div class="wcal-wkitem" '+chipAttrs(it)+'>'+chipMark(it)+'<span class="winame">'+esc(chipText(it))+'</span></div>'; });
       // timed, grouped by identical timestamp (time shown once), capped
       var groups=groupByTime(timed), shown=0, hidden=0;
       groups.forEach(function(g){
         if(shown>=WEEK_CAP){ hidden+=g.items.length; return; }
         var rows='';
-        g.items.forEach(function(e){ if(shown>=WEEK_CAP){ hidden++; return; }
-          rows+='<div class="wcal-wkitem" '+itemAttrs(e)+'>'+dot(e.domain_color)+'<span class="winame">'+esc(nameOf(e))+'</span></div>'; shown++; });
+        g.items.forEach(function(it){ if(shown>=WEEK_CAP){ hidden++; return; }
+          rows+='<div class="wcal-wkitem" '+chipAttrs(it)+'>'+chipMark(it)+'<span class="winame">'+esc(chipText(it))+'</span></div>'; shown++; });
         if(rows) body+='<div class="wcal-wkgroup"><div class="wgtime">'+g.label+'</div>'+rows+'</div>';
       });
       if(hidden>0) body+='<div class="wcal-wkmore" data-st="none" data-day="'+di+'">+'+hidden+' more</div>';
@@ -302,9 +335,9 @@
     var head='<div class="wcal-mhead">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(function(x){return '<div>'+x+'</div>';}).join('')+'</div>';
     var cells='';
     for(var i=0;i<42;i++){ var d=new Date(start); d.setDate(start.getDate()+i); var di=iso(d); var out=d.getMonth()!==mo;
-      var evs=(byDay[di]||[]).slice().sort(function(a,b){return mins(a.start_dt)-mins(b.start_dt);});
-      var chips=''; evs.slice(0,3).forEach(function(e){ chips+='<div class="mchip" '+itemAttrs(e)+' style="background:'+(e.domain_color||'#79839a')+'">'+(isTimeless(e)?'':fmtT(e.start_dt)+' ')+esc(nameOf(e))+'</div>'; });
-      if(evs.length>3) chips+='<div class="mmore">+'+(evs.length-3)+' more</div>';
+      var acts=toActivities(byDay[di]||[]).sort(function(a,b){return mins(a.start_dt)-mins(b.start_dt);});
+      var chips=''; acts.slice(0,3).forEach(function(it){ chips+='<div class="mchip" '+chipAttrs(it)+' style="background:'+(it.domain_color||'#79839a')+'">'+(isTimeless(it)?'':fmtT(it.start_dt)+' ')+esc(chipText(it))+'</div>'; });
+      if(acts.length>3) chips+='<div class="mmore">+'+(acts.length-3)+' more</div>';
       cells+='<div class="wcal-mc'+(out?' out':'')+(di===todayIso?' today':'')+'" data-st="none" data-day="'+di+'"><div class="md">'+d.getDate()+'</div>'+chips+'</div>';
     }
     body.innerHTML='<div class="wcal-month">'+head+'<div class="wcal-mgrid">'+cells+'</div></div>';
@@ -320,13 +353,13 @@
     if(!order.length){ body.innerHTML='<div class="wcal-empty">Nothing scheduled.</div>'; return; }
     var todayIso=iso(new Date());
     function timeRow(label, items){
-      var lis=items.map(function(e){ return '<div class="agi" '+itemAttrs(e)+'><span class="adot" style="background:'+(e.domain_color||'#79839a')+'"></span><span class="an">'+esc(nameOf(e))+'</span></div>'; }).join('');
+      var lis=items.map(function(it){ return '<div class="agi" '+chipAttrs(it)+'>'+(it.icon? '<span class="an" style="width:auto">'+it.icon+'</span>' : '<span class="adot" style="background:'+(it.domain_color||'#79839a')+'"></span>')+'<span class="an">'+esc(cleanTitle(it.display_title||it.title)+countSuffix(it))+'</span></div>'; }).join('');
       return '<div class="wcal-agtime"><span class="at">'+label+'</span><div class="agitems">'+lis+'</div></div>';
     }
     var h='<div class="wcal-ag">';
     order.forEach(function(d){ var dd=new Date(d+'T12:00:00');
       h+='<div class="wcal-agday"><span class="d1">'+(d===todayIso?'Today':dd.toLocaleDateString(undefined,{weekday:'long'}))+'</span><span class="d2">'+dd.toLocaleDateString(undefined,{month:'long',day:'numeric'})+'</span></div>';
-      var de=byDay[d], timeless=de.filter(isTimeless), timed=de.filter(function(e){ return !isTimeless(e); });
+      var de=toActivities(byDay[d]), timeless=de.filter(isTimeless), timed=de.filter(function(e){ return !isTimeless(e); });
       groupByTime(timed).forEach(function(g){ h+=timeRow(g.label, g.items); });
       if(timeless.length) h+=timeRow('all-day', timeless);
     });

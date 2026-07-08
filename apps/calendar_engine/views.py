@@ -171,9 +171,53 @@ def _get_events_in_range(user, range_start, range_end):
                 'is_occurrence': block.is_recurring,
             })
 
+    _attach_activities(result)
+
     # Sort by start time
     result.sort(key=lambda e: e['start_dt'])
     return result
+
+
+def _attach_activities(events):
+    """Attach a module-owned activity descriptor to each event dict.
+
+    The Calendar projects ACTIVITIES, not implementation details. Each owning
+    module exposes the canonical activity name (Health: Morning Medications /
+    Morning Supplements / Workout; Faith: Bible Reading); the Calendar client
+    groups events sharing an activity 'key' on a day into one chip. Events with
+    no descriptor (tasks, appointments, relationships, goals) stay individual —
+    they are already activities in their own right.
+
+    Request-path safe (F5): a single bulk query for medicine metadata; workout
+    and faith descriptors are constants. Never raises — a failure just leaves
+    events un-grouped.
+    """
+    try:
+        med_ids = [
+            e['source_id'] for e in events
+            if e.get('source_type') == CalendarEvent.SOURCE_MEDICINE_SCHEDULE and e.get('source_id')
+        ]
+        med_map = {}
+        if med_ids:
+            from apps.health.services.calendar_activities import medicine_activities
+            med_map = medicine_activities(med_ids)
+        from apps.health.services.calendar_activities import WORKOUT_ACTIVITY
+        from apps.faith.services.calendar_activities import READING_ACTIVITY
+        for e in events:
+            st = e.get('source_type')
+            if st == CalendarEvent.SOURCE_MEDICINE_SCHEDULE:
+                e['activity'] = med_map.get(str(e.get('source_id')))
+            elif st == CalendarEvent.SOURCE_WORKOUT_SCHEDULE:
+                e['activity'] = dict(WORKOUT_ACTIVITY)
+            elif st == CalendarEvent.SOURCE_FAITH_ROUTINE:
+                e['activity'] = dict(READING_ACTIVITY)
+            else:
+                e['activity'] = None
+    except Exception:  # noqa: BLE001 - grouping is presentation; never break the feed
+        import logging
+        logging.getLogger(__name__).warning("activity attach failed", exc_info=True)
+        for e in events:
+            e.setdefault('activity', None)
 
 
 def _parse_body(request):

@@ -117,9 +117,18 @@ def _rhythm_split(user):
             row["_label"] = f"{title} at {_fmt_time(it.get('scheduled_time'))}"
         else:
             row["_label"] = title
-        if mins is None or mins >= now_min - 5:        # unscheduled or future
+        # ONE SOURCE for an item's time: the SAME `mins` (parsed from scheduled_time) that
+        # builds the label also decides its relation to now. Composers frame the item from
+        # THIS relation — never from an independent clock — so "at 6:15 AM" can never sit
+        # under a "this evening / tonight" frame.
+        if mins is None:
+            row["_relation"] = "anytime"               # unscheduled
             ahead.append(row)
-        else:
+        elif mins >= now_min - 5:                       # still upcoming later today
+            row["_relation"] = "upcoming"
+            ahead.append(row)
+        else:                                            # already passed today → overdue
+            row["_relation"] = "overdue"
             past.append(row)
     return ahead, past, now.hour
 
@@ -172,8 +181,6 @@ def _agenda_narrative(user, recovery, deprioritized=()):
         past = [it for it in past if _keep(it)]
     if hour >= 20:
         return _evening_or_empty(user)
-    when = ("This morning" if hour < 12 else
-            "This afternoon" if hour < 17 else "This evening")
     # EXECUTIVE FILTER: surface only what genuinely deserves attention — a routine
     # supplement or a "log X" reminder is not worth the same airtime as a real
     # commitment, so it is not listed at all.
@@ -181,17 +188,22 @@ def _agenda_narrative(user, recovery, deprioritized=()):
     past_worth = [it["_label"] for it in past if _agenda_worth_surfacing(it)]
     parts = []
     if ahead_worth:
-        line = f"{when} the thing to keep on your radar is {_fmt_titles(ahead_worth[:2])}"
+        # ONE SENTENCE, ONE TIME SOURCE: frame ahead items by their own schedule relation
+        # (still upcoming today), NOT by the current clock's part-of-day. Each label already
+        # carries the item's own clock time, so a "this evening"/"tonight" frame can never
+        # contradict an "at 6:15 AM" item. That contradiction is now structurally impossible.
+        line = ("Still ahead today, the thing to keep on your radar is "
+                + _fmt_titles(ahead_worth[:2]))
         if recovery:
             line += " — keep it light, none of it has to be heavy"
         parts.append(line + ".")
     else:
         parts.append("Your rhythm's otherwise clear, so the rest of the day is yours to use.")
-    # END WITH JUDGMENT, not optionality: only raise a leftover if it's worth doing, and
-    # say so plainly — never "it's your call".
+    # PAST items are OVERDUE — never framed as upcoming. Say so plainly and offer the
+    # executive choice (close it out or let it go), never "it's your call".
     if past_worth:
-        parts.append("One thing still open from earlier is " + _fmt_titles(past_worth[:1])
-                     + " — worth closing that out today so it doesn't roll forward.")
+        parts.append("One thing's overdue from earlier — " + _fmt_titles(past_worth[:1])
+                     + ". Worth closing it out today, or does it still need to happen?")
     return " ".join(parts)
 
 

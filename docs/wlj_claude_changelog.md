@@ -6,6 +6,41 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(cos): Move 1 — one sentence, one time source (kills "6:15 AM tonight")
+
+**Layer 4 composition fix (product-first).** Investigation found Beth *assembles* many
+executive responses from independently-computed fragments instead of *authoring* them in one
+pass — and nothing reads the finished sentence for coherence. The clearest offender:
+`executive_brief._agenda_narrative` glued an item's own clock time (`_label` = "Workout at
+6:15 AM", from the item's `scheduled_time`) to a frame from the CURRENT clock (`This morning/
+afternoon/evening`, from `part_of_day(now)`) — two sources, one sentence — producing
+contradictions like "This evening … at 6:15 AM" / "This morning … at 2:00 PM".
+
+- **`_rhythm_split`** now attaches `_relation` (`upcoming`/`overdue`/`anytime`) derived from
+  the SAME `scheduled_time` parse (`_to_minutes`) that builds the label — one source for an
+  item's time.
+- **`_agenda_narrative`** frames items by that per-item relation, never the current clock's
+  part-of-day: ahead → "Still ahead today, …" (each label carries its own time); past →
+  "One thing's overdue from earlier — … Worth closing it out today, or does it still need to
+  happen?" (overdue, never "upcoming", and offers the executive choice). A current-clock
+  daypart frame is no longer wrapped around a timed item, so "AM under an evening frame" is
+  **structurally impossible.**
+- Scope held to the agenda/brief/orientation path. No runtime validator, no new engine, no
+  truth change, no Conductor Step 2c, no refactor of other composers. `_to_minutes` and
+  `_format_time_12h` were verified to agree on AM/PM (no same-item parse drift).
+- **Repair inherits it** (`_repair_response` → `compose_executive_brief` → `_agenda_narrative`).
+  Meds/supplements untouched (`_agenda_worth_surfacing` still filters them out of the agenda).
+
+**Files:** apps/ai/chatgpt_cos/executive_brief.py, apps/ai/tests/test_agenda_time_frame.py (new).
+
+**Verification:** test_agenda_time_frame (9) — future item not framed as morning; a 6:15 AM
+item at 6 PM is overdue, never "AM tonight"; past never upcoming; past offers the choice; no
+clock-daypart frame at any hour (7→19 sweep); relation derived from the item not the clock;
+repair inherits; filtering + supplement handling + recovery note unchanged. ~100-test brief/
+orientation/posture/daypart/repair regression green. No migration, no release note
+(coherence correctness). NOTE: `daily_agenda.build_daily_agenda` (the night/close-out path)
+is the same *class* of assembly and was intentionally left out of Move 1's scope.
+
 ## 2026-07-08 — feat(calendar): a familiar calendar (Day/Week/Month/Agenda) that projects all of WLJ
 
 **Why:** we'd been reinventing the calendar paradigm (chapters, journal voice, "rhythm"

@@ -29,9 +29,7 @@ from apps.calendar_engine.models import (
     RecurrenceException,
     RecurrenceRule,
 )
-from apps.calendar_engine.views import (
-    _get_events_in_range, _compose_life_day, _classify_moment,
-)
+from apps.calendar_engine.views import _get_events_in_range
 
 User = get_user_model()
 TZ = "America/Chicago"
@@ -183,79 +181,18 @@ class ProjectionStreamTests(TestCase):
         self.assertFalse(avail["is_available"])
 
 
-# ── The life-story composition (chapters · people · memory) ──
+# ── Familiar calendar shell renders (content is client-projected) ──
 
-class LifeDayTests(TestCase):
-    def setUp(self):
-        self.user = _user()
-        tz = timezone.get_current_timezone()
-        self.today = timezone.localdate()
-
-        def at(h, m=0):
-            return timezone.make_aware(dt.datetime.combine(self.today, dt.time(h, m)), tz)
-
-        _ce(user=self.user, title="Prayer", start_dt=at(6), end_dt=at(6, 20),
-            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
-            source_type=CalendarEvent.SOURCE_FAITH_ROUTINE, source_id="1")
-        _ce(user=self.user, title="Take Vitamin D", start_dt=at(8), end_dt=at(8, 5),
-            event_kind=CalendarEvent.KIND_EXECUTION_BLOCK,
-            source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE, source_id="1")
-        _ce(user=self.user, title="Lunch", start_dt=at(12), end_dt=at(12, 45))
-        _ce(user=self.user, title="Dinner with Heather", start_dt=at(18, 30), end_dt=at(19, 15))
-        _ce(user=self.user, title="Due: Repair fridge", start_dt=at(23, 59),
-            end_dt=at(23, 59) + dt.timedelta(minutes=1), is_all_day=True,
-            event_kind=CalendarEvent.KIND_DEADLINE_MARKER,
-            source_type=CalendarEvent.SOURCE_TASK, source_id="42")
-        AvailabilityBlock.objects.create(
-            user=self.user, label="Work", kind=AvailabilityBlock.KIND_UNAVAILABLE,
-            start_dt=at(9), end_dt=at(17), timezone=TZ)
-
-    def test_chapters_from_life(self):
-        c = _compose_life_day(self.user)
-        names = [ch["name"] for ch in c["chapters"]]
-        self.assertIn("Morning", names)   # prayer + vitamin (before work)
-        self.assertIn("Work", names)      # the work availability block
-        self.assertIn("Evening", names)   # dinner (after work)
-        # Work is a chapter you're inside, with lunch nested in it.
-        work = [ch for ch in c["chapters"] if ch["name"] == "Work"][0]
-        self.assertTrue(work["is_work"])
-        titles = [m.get("title") for m in work["moments"]]
-        self.assertIn("Lunch", titles)
-
-    def test_person_is_human_not_task(self):
-        c = _compose_life_day(self.user)
-        moments = [m for ch in c["chapters"] for m in ch["moments"]]
-        heather = [m for m in moments if m.get("title") == "Dinner with Heather"][0]
-        self.assertTrue(heather["is_person"])
-        self.assertEqual(heather["person_initial"], "H")
-        self.assertTrue(heather["is_rel"])
-
-    def test_due_stays_off_the_thread(self):
-        c = _compose_life_day(self.user)
-        self.assertEqual(len(c["due"]), 1)
-        self.assertEqual(c["due"][0]["title"], "Repair fridge")  # prefix stripped
-        titles = [m.get("title") for ch in c["chapters"] for m in ch["moments"]]
-        self.assertNotIn("Due: Repair fridge", titles)
-
-    def test_operational_header_and_vitals(self):
-        c = _compose_life_day(self.user)
-        self.assertTrue(c["now_label"])            # Now is always answered
-        self.assertIn("next_label", c)             # Next present
-        self.assertEqual(c["vitals"]["to_place"], 1)  # the one deadline
-        self.assertIn("rhythms_left", c["vitals"])
-        self.assertIn("free_label", c["vitals"])
-
-    def test_classify(self):
-        self.assertEqual(_classify_moment({"title": "Dinner with Heather", "source_type": "none"})[0], "rel")
-        self.assertEqual(_classify_moment({"title": "Take Vitamin D", "source_type": "medicine_schedule"})[0], "health")
-        self.assertEqual(_classify_moment({"title": "Team standup", "source_type": "none"})[0], "work")
-
-    def test_dashboard_renders(self):
-        self.client.force_login(self.user)
+class DashboardShellTests(TestCase):
+    def test_dashboard_renders_familiar_views(self):
+        user = _user()
+        self.client.force_login(user)
         resp = self.client.get("/calendar/")
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Agenda")          # perspective nav
-        self.assertContains(resp, "Dinner with Heather")
+        # The familiar Day/Week/Month/Agenda toolbar is present; content is
+        # client-rendered from the projection APIs.
+        for tab in ("Day", "Week", "Month", "Agenda"):
+            self.assertContains(resp, ">" + tab + "<")
 
 
 # ── Manual events stay calendar-native (auto-Task retired) ──

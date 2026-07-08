@@ -6,6 +6,45 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(calendar): a familiar calendar (Day/Week/Month/Agenda) that projects all of WLJ
+
+**Why:** we'd been reinventing the calendar paradigm (chapters, journal voice, "rhythm"
+category, vitals, invented classification). Direction reset: **build the best *familiar*
+calendar** — the layout every Outlook/Google/Apple/Fantastical user already knows — and let
+the magic be *what fills it*: every WLJ domain projected chronologically. Familiar within
+seconds; the innovation is the richness, not the layout.
+
+**Removed the invented Calendar-side layer** (the Calendar reveals, never invents): deleted
+`_compose_life_day` and its helpers `_classify_moment` (keyword domain-guessing),
+`_detect_person` (name regex), `_LIFE_COLORS` (Calendar palette), the `is_rhythm`/"rhythm"
+category, the vitals composition, the Now/Next/free composition, and the chapter/journal
+narrative. `CalendarDashboardView` is now a thin shell — no server composition.
+
+**Rebuilt `templates/calendar_engine/dashboard.html` as a standard calendar:**
+- **Day** — a vertical time-grid (hour rail, events positioned by time, overlap columns),
+  an all-day/Due strip, a red now-line, and availability shading (the Work/Sleep block shown
+  as background context).
+- **Week** — the familiar 7-day time-grid with day headers + shared rail.
+- **Month** — the standard month grid with per-day event chips ("+N more"); click a day →
+  Day view.
+- **Agenda** — a chronological list grouped by day.
+- Toolbar with ‹ Today › navigation and Day/Week/Month/Agenda tabs.
+
+Every item is **colored by its own domain** (`domain_color` from the projection) and a click
+**routes to its owning module** (Faith/Health/Organize/Purpose/…). All views render
+client-side from the existing projection APIs (`/api/range/`, `/api/month/`) — no new backend,
+no new data model, request-path-safe. Due-with-no-time stays off the grid (all-day strip).
+
+**Files:** `apps/calendar_engine/views.py` (deleted the invented composition; thin
+`CalendarDashboardView`), `templates/calendar_engine/dashboard.html` (full familiar-calendar
+rewrite), `apps/calendar_engine/tests/test_projection_layer.py` (removed the obsolete
+composition tests; added a familiar-shell render test), `docs/wlj_claude_features.md`.
+
+**Verification:** 163 calendar_engine + request-path-safety tests pass; `makemigrations
+--check` clean; CSP-clean; rendered + screenshotted live via an authed session with a seeded
+cross-domain day — Day (time-grid, domain colors, all-day/Due strip, now-line, availability
+shading), Week (7-day grid), and Month (chips) all correct; no console errors. No migrations.
+
 ## 2026-07-08 — docs(cos): PRODUCT is the North Star — Product Review before Architecture Review
 
 **Governing reset (Danny), not code.** The engineering methodology (Conductor, Four-Layer

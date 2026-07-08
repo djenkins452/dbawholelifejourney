@@ -4693,23 +4693,18 @@ of Truth architecture. **The Calendar owns TIME, not OBJECTS** — it answers on
 *"what occupies my time?"*, by projecting every domain's truth into a single view while
 each object stays owned and edited in its home domain.
 
-### A Calendar View of Life
+### A familiar calendar that projects your whole life
 
-Opening `/calendar/` is not a calendar of appointments — it's a **calendar of life**. The
-Day view reads like a journal that became a calendar: the day unfolds in **chapters**
-(Morning · Work · Evening · Night); everything meaningful is a **moment on one thread**
-(prayer, medication, meals, water, work, meetings, workout, journal); **Work is a chapter you
-live inside** (ambient context with "you're here" and meetings/lunch nested within — not an
-appointment); **people are first-class** (relationship moments carry a face + name and read
-warm, distinct from tasks); the past is faded like **memory**; and a warm gold **NOW** line
-marks the present edge. A **perspective nav** (Day / 3-Day / Week / Month / Agenda) sits at
-the top — one life, five zoom levels: Day (hours), 3-Day (near horizon), Week (this week's
-life texture), Month (the month's story of chapters), Agenda (pure order).
-
-Composed server-side by `views.py :: _compose_life_day()` — request-path-safe, no new data
-model, built from the existing projection (`_get_events_in_range`). Due-with-no-time and
-availability stay off the thread; every moment routes click-through to its owning object;
-the other four perspectives lazy-render from `/api/range/`.
+`/calendar/` is the standard calendar every Outlook / Google / Apple / Fantastical user
+already knows — **Day** (time-grid), **Week** (7-day grid), **Month** (grid), **Agenda**
+(list), with ‹ Today › navigation. Familiar within seconds. The innovation isn't the
+layout — it's **what fills it**: every WLJ domain projected chronologically (Faith, Health,
+Organize, Relationships, Journal, Travel, Purpose, Availability). Each item is **colored by
+its own domain** and a click **routes to its owning module**; due-with-no-time sits in the
+all-day strip (never a fabricated time); availability (work/sleep) shows as background
+context; a red line marks *now*. All views render client-side from the projection APIs
+(`/api/range/`, `/api/month/`) — no new data model. **The Calendar reveals; it never
+invents.**
 
 ### Core principle
 

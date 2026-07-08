@@ -6,6 +6,39 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — refine(calendar): visual representation by activity TYPE (point-in-time vs block)
+
+**Visual-representation only — no architecture, no projection, no new concepts.** Every projected
+activity was rendered as the same kind of calendar event; a meeting, a medication, and a workout are
+not the same. The concrete production bug: a grouped point-in-time activity collapsed to `start=first
+dose, end=last dose` and got drawn as a multi-hour block (Morning Supplements ≈ 2h; Morning
+Medications / Workout as appointment blocks).
+
+- **Point-in-time activities** (a dose, a reading, a workout from a preferred time) now render as a
+  **compact reminder** — a thin, hairline-bordered row with icon · name · time (~20px), never
+  stretched. The owning module declares this: activity descriptors carry `point: True`
+  (medicine/supplement, workout, faith reading). The Calendar client stops using the collapsed
+  span for height (`dayNodes` gives point items a fixed compact height; new `.wcal-point` style +
+  `pointBlock`).
+- **Calendar events** (meetings, appointments, "Lunch with Heather") keep their traditional filled
+  block with real duration — unchanged.
+- **Availability** stays contextual background shading (Work/Sleep/Vacation); **Due tasks** stay in
+  the all-day strip; **grouped activities** still collapse and click through to the owning module.
+  All pre-existing behavior — only point-in-time items changed.
+
+Governing: not every activity consumes a block of time; some simply happen at a point in time, and
+the visual should match the nature of the activity. Familiar to Outlook/Apple/Fantastical users.
+
+**Files:** apps/health/services/calendar_activities.py, apps/faith/services/calendar_activities.py,
+templates/calendar_engine/dashboard.html, apps/calendar_engine/tests/test_projection_layer.py.
+
+**Verification:** `ActivityProjectionTests` asserts `point:True` on medicine/workout/faith descriptors;
+`test_projection_layer` (27) green. Browser harness (a full day — morning doses, meeting, workout,
+availability, due task): Morning Supplements / Bible Reading / Morning Medications / Workout / Nightly
+Medications all render at a fixed compact 20px (were up to ~240px), Lunch with Heather and Jonathan
+Call stay as duration blocks, Work renders as background shading, Repair refrigerator sits in the
+all-day strip; zero JS console errors. No migration, no static asset, Beth untouched.
+
 ## 2026-07-08 — refine(calendar): project ACTIVITIES, not implementation (module-owned activity descriptors)
 
 **Governing principle: the Calendar shows WHAT to do; the owning module explains HOW.** Multiple

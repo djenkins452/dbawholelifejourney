@@ -98,6 +98,16 @@
 .wcal-gitem .gdot{ width:7px; height:7px; border-radius:50%; flex:none; }
 .wcal-gitem .gname{ font-size:12px; color:var(--wink); font-weight:550; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
+/* Point-in-time activity (a dose, a reading, a workout) — a compact reminder,
+   never stretched into an hour block. Visually distinct from a meeting block:
+   light, hairline-bordered, colored left accent, one line. */
+.wcal-point{ position:absolute; z-index:3; display:flex; align-items:center; gap:6px; padding:0 8px;
+  border-radius:6px; box-sizing:border-box; cursor:pointer; overflow:hidden;
+  background:var(--wsurface); border:1px solid var(--wl); border-left:3px solid var(--ec,#79839a); }
+.wcal-point .pi{ font-size:12px; flex:none; }
+.wcal-point .pt{ font-size:12px; color:var(--wink); font-weight:550; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wcal-point .pm{ font-size:10.5px; color:var(--wmut); font-variant-numeric:tabular-nums; flex:none; }
+
 /* Agenda: group items that share a timestamp */
 .wcal-agtime{ display:flex; gap:14px; align-items:baseline; padding:10px 0 2px; border-top:1px solid var(--wl2); }
 .wcal-agtime .at{ width:120px; flex:none; font-size:13px; color:var(--wmut); font-variant-numeric:tabular-nums; }
@@ -213,7 +223,8 @@
       m.forEach(function(e){ if(e.end_dt>maxEnd) maxEnd=e.end_dt; });
       var label = a ? a.label : (first.display_title||first.title);
       return { title:label, display_title:label, icon:(a?a.icon||'':''), unit:(a?a.unit||'':''),
-        count:m.length, url:(a?a.url||null:null), start_dt:first.start_dt, end_dt:maxEnd,
+        count:m.length, url:(a?a.url||null:null), point:(a?!!a.point:false),
+        start_dt:first.start_dt, end_dt:maxEnd,
         is_all_day:first.is_all_day, event_kind:first.event_kind,
         source_type:first.source_type, source_id:first.source_id, domain_color:first.domain_color };
     });
@@ -243,8 +254,12 @@
 
   // Collapse same-start events into group nodes; reserve visual height so packing
   // accounts for the stacked list (readability over strict proportional height).
+  var POINT_MIN = 30;  // compact visual height for a point-in-time activity (~22px)
   function dayNodes(evs){
-    evs.forEach(function(e){ e._s=mins(e.start_dt); e._e=Math.max(e._s+20, mins(e.end_dt)); });
+    // Point-in-time activities never stretch: a dose/reading is an instant, not a
+    // block. Duration events (meetings) keep their real height.
+    evs.forEach(function(e){ e._s=mins(e.start_dt);
+      e._e = e.point ? (e._s+POINT_MIN) : Math.max(e._s+20, mins(e.end_dt)); });
     var buckets={}, order=[];
     evs.forEach(function(e){ var k=e._s; if(!(k in buckets)){ buckets[k]=[]; order.push(k); } buckets[k].push(e); });
     var nodes = order.map(function(k){
@@ -262,7 +277,16 @@
     var w=100/(node._cols||1), left=(node._col||0)*w;
     return 'top:'+top+'px;height:'+(h-2)+'px;left:calc('+left+'% + 2px);width:calc('+w+'% - 4px);';
   }
+  function pointLabel(it){ return cleanTitle(it.display_title||it.title)+countSuffix(it); }
+  // A compact reminder-style entry — icon · name · time — never a stretched block.
+  function pointBlock(node){
+    var e=node.single;
+    return '<div class="wcal-point" '+chipAttrs(e)+' style="'+posStyle(node)+'--ec:'+(e.domain_color||'#79839a')+'">'+
+      '<span class="pi">'+(e.icon||'•')+'</span><span class="pt">'+esc(pointLabel(e))+'</span>'+
+      '<span class="pm">'+fmtT(e.start_dt)+'</span></div>';
+  }
   function singleBlock(node){
+    if(node.single.point) return pointBlock(node);
     var e=node.single, h=Math.max(20,((node._e-node._s)/60)*HH);
     return '<div class="wcal-ev" '+chipAttrs(e)+' style="'+posStyle(node)+
       '--ec:'+(e.domain_color||'#79839a')+';--eb:'+hexA(e.domain_color,0.13)+'">'+

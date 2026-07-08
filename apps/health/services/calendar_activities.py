@@ -20,6 +20,9 @@ An "activity descriptor" is a plain dict:
   - unit  : singular noun for the count parenthetical ("medication"); empty when
             the activity should not show a count (workout).
   - url   : where clicking the activity opens (the owning module's experience).
+  - point : True when the activity happens at a POINT IN TIME (a dose, a reading)
+            and should render as a compact reminder — never stretched into an
+            hour-long block. False/absent for activities that reserve real time.
 """
 
 # Landing pages inside Health (the owning module — "how I do it" lives here).
@@ -27,12 +30,14 @@ _INTAKE_URL = "/health/physical/intake/"
 _WORKOUT_URL = "/health/physical/fitness/workouts/"
 
 # One workout activity regardless of how many active plans/schedules contribute.
+# Projected from a preferred_time (no user-specified duration) → point-in-time.
 WORKOUT_ACTIVITY = {
     "key": "workout",
     "label": "Workout",
     "icon": "🏋️",
     "unit": "",  # never show a count — it's one activity
     "url": _WORKOUT_URL,
+    "point": True,
 }
 
 # Fallback window ordering for display when time_of_day is blank.
@@ -90,5 +95,6 @@ def medicine_activities(schedule_ids):
             "icon": "💊",
             "unit": "supplement" if is_supp else "medication",
             "url": _INTAKE_URL,
+            "point": True,  # a dose happens at a point in time, not over an hour
         }
     return out

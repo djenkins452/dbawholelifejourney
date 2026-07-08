@@ -24,4 +24,5 @@ READING_ACTIVITY = {
     "icon": "📖",
     "unit": "",               # one activity, never a count
     "url": _READING_URL,
+    "point": True,            # a reading happens at a point in time — a compact entry
 }

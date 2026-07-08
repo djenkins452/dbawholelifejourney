@@ -541,6 +541,7 @@ class ActivityProjectionTests(TestCase):
         self.assertEqual(m[str(ms.pk)]["key"], "morning_medications")
         self.assertEqual(m[str(ms.pk)]["unit"], "medication")
         self.assertEqual(m[str(ms.pk)]["icon"], "💊")
+        self.assertTrue(m[str(ms.pk)]["point"])  # a dose is point-in-time, not a block
         self.assertEqual(m[str(ss.pk)]["label"], "Nightly Supplements")
         self.assertEqual(m[str(ss.pk)]["key"], "nightly_supplements")
         self.assertEqual(m[str(ss.pk)]["unit"], "supplement")
@@ -556,9 +557,11 @@ class ActivityProjectionTests(TestCase):
         self.assertEqual(events[0]["activity"]["key"], "workout")
         self.assertEqual(events[0]["activity"]["label"], "Workout")
         self.assertEqual(events[0]["activity"]["unit"], "")  # no count for workout
+        self.assertTrue(events[0]["activity"]["point"])       # compact, not a block
         self.assertEqual(events[1]["activity"]["key"], "bible_reading")
         self.assertEqual(events[1]["activity"]["label"], "Bible Reading")
         self.assertEqual(events[1]["activity"]["url"], "/faith/journey/today/")
+        self.assertTrue(events[1]["activity"]["point"])
         # Tasks are individual activities — no descriptor, so no collapsing.
         self.assertIsNone(events[2]["activity"])
 

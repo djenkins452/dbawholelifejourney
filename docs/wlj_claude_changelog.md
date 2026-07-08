@@ -6,6 +6,24 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — docs(cos): PRODUCT is the North Star — Product Review before Architecture Review
+
+**Governing reset (Danny), not code.** The engineering methodology (Conductor, Four-Layer
+Diagnostic, Return Contract) stays — but it is NOT the product. The only success metric is:
+*"If this were the only conversation a paying customer ever had with Beth, would they
+immediately want to use her again tomorrow?"* The customer experiences TRUST, not layers.
+
+- Every production transcript is now judged **product-first**: (1) would a paying customer
+  trust this conversation? (2) if not, why in customer terms? (3) only THEN which layer
+  caused it. Never architecture-first. Trust-breakers are fixed one at a time wherever they
+  live — often Layer 1 (truth) or Layer 4 (experience), not orchestration — ranked by trust
+  impact. The Conductor is a tool, not the goal; do not advance its roadmap because it is
+  "next". Chief-Architect duty: call it out plainly when engineering improves but the
+  product experience does not.
+- `CLAUDE.md`: new "PRODUCT is the North Star (REQUIRED)" rule ahead of the development
+  model. `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`: Product Review section added above the
+  four layers.
+
 ## 2026-07-08 — feat(cos): The Conductor — Step 2b, promote META to authoritative
 
 **Step 2b of the roadmap — disciplined: promote ONLY the one speech act Step 2a proved in

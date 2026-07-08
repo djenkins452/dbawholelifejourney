@@ -24,6 +24,20 @@ Adding a capability is now the **exception**, reached only after the layer diagn
 
 ---
 
+## Product Review comes BEFORE the Architecture Review (the North Star)
+
+The four layers are the *engineering* diagnosis. They are **not** the success metric. The only success metric is:
+
+> **"If this were the only conversation a paying customer ever had with Beth, would they immediately want to use her again tomorrow?"**
+
+The customer never experiences layers — they experience **trust**. So every production transcript is judged **product-first**, then architecture-second:
+
+1. **Would a paying customer trust this conversation?** (Would they want to use her again tomorrow?)
+2. **If not, why — in customer terms?** (She contradicted herself · forgot what we discussed · answered a different question · made me fact-check her.) The moment trust breaks, the customer stops listening and starts fact-checking — she has already failed as a Chief of Staff.
+3. **Only then: which architectural layer caused that loss of trust?** — and fix it.
+
+**Never architecture-first.** A passing Layer 2, an elegant handler selection, a correct routing decision mean nothing if the customer left less confident. The Conductor / Four-Layer Diagnostic / Return Contract are the **engineering methodology**; the **product is the North Star**. Trust-breakers are fixed one at a time, wherever they live — often Layer 1 (truth) or Layer 4 (experience), not orchestration — ranked by trust impact. Do **not** advance the Conductor roadmap because it is "next"; advance it only when it is the highest-trust-impact fix. And as Chief Architect: **call it out plainly when the engineering is improving but the product experience is not.**
+
 ## The four layers (diagnose top-down; fix the first that failed)
 
 Check the layers **in order**. A failure at a lower layer cannot be correctly diagnosed until the layer above it is confirmed correct — a wrong answer built on wrong truth is a Layer 1 problem, not a reasoning problem.

@@ -730,7 +730,11 @@ def upsert_from_faith_routine(user_plan):
         source_id=str(user_plan.pk),
     ).first()
 
-    title = f"Bible Reading: {template.name}"
+    # ReadingPlanTemplate's display field is `title` (there is no `name`);
+    # the old `.name` reference raised AttributeError, which the signal's
+    # try/except swallowed — so faith plans never projected. Read the real field.
+    plan_name = getattr(template, 'title', None) or getattr(template, 'name', '') or 'Plan'
+    title = f"Bible Reading: {plan_name}"
     reminder_time = user_plan.reminder_time or dt.time(6, 30)
 
     from zoneinfo import ZoneInfo
@@ -989,3 +993,100 @@ def upsert_from_life_event(event):
         ),
     )
     return cal_event
+
+
+# ──────────────────────────────────────────────────────────
+# Backfill for source types with working projection code + wired
+# signals that were never populated. Objects created before the
+# signals existed (or via bulk paths that skip post_save) have no
+# CalendarEvent rows. This re-derives them from the SOURCE OBJECTS
+# ONLY, using the same upsert functions the signals use — it never
+# fabricates a calendar item. Idempotent: every upsert reuses any
+# existing row. Best-effort per record: a bad row logs and is skipped.
+# ──────────────────────────────────────────────────────────
+
+def backfill_missing_projections(stdout=None, dry_run=False):
+    """
+    Project existing medicine/supplement schedules, workout schedules, faith
+    reading plans, and life events onto the calendar.
+
+    These four source types have projection code + connected signals but were
+    never covered by the original `backfill_calendar_projections` command (which
+    only handled tasks/goals/milestones/habits), so their pre-existing objects
+    have no CalendarEvent rows.
+
+    Returns {source_type: {'seen': int, 'projected': int, 'errors': int}}.
+    Safe to run repeatedly. Never raises — each source group and each row is
+    guarded so one failure can't abort the rest or a deploy migration.
+    """
+    counts = {}
+
+    def _run(label, qs, fn):
+        seen = projected = errors = 0
+        try:
+            iterator = qs.iterator()
+        except Exception:  # noqa: BLE001 - source app/model unavailable
+            logger.warning("Backfill %s: query failed", label, exc_info=True)
+            counts[label] = {'seen': 0, 'projected': 0, 'errors': 0}
+            return counts[label]
+        for obj in iterator:
+            seen += 1
+            if dry_run:
+                continue
+            try:
+                fn(obj)
+                projected += 1
+            except Exception as e:  # noqa: BLE001 - best-effort backfill
+                errors += 1
+                logger.warning(
+                    "Backfill %s pk=%s failed: %s", label, getattr(obj, 'pk', '?'), e,
+                )
+        counts[label] = {'seen': seen, 'projected': projected, 'errors': errors}
+        if stdout:
+            stdout.write(
+                f"  {label}: {seen} seen, {projected} projected, {errors} errors"
+            )
+        return counts[label]
+
+    # Medications + supplements (both are IntakeSchedule) and workouts.
+    try:
+        from apps.health.models import IntakeSchedule, WorkoutSchedule
+        _run(
+            'medicine_schedule',
+            IntakeSchedule.objects.filter(is_active=True).select_related(
+                'intake', 'intake__user', 'intake__user__preferences'),
+            upsert_from_medicine_schedule,
+        )
+        _run(
+            'workout_schedule',
+            WorkoutSchedule.objects.filter(is_rest_day=False).select_related(
+                'plan', 'plan__user', 'plan__user__preferences', 'template'),
+            upsert_from_workout_schedule,
+        )
+    except Exception:  # noqa: BLE001 - health app unavailable
+        logger.warning("Backfill: health projections skipped", exc_info=True)
+
+    # Faith reading plans.
+    try:
+        from apps.faith.models import UserReadingPlan
+        _run(
+            'faith_routine',
+            UserReadingPlan.objects.filter(plan_status='active').select_related(
+                'user', 'user__preferences', 'template'),
+            upsert_from_faith_routine,
+        )
+    except Exception:  # noqa: BLE001 - faith app unavailable
+        logger.warning("Backfill: faith projections skipped", exc_info=True)
+
+    # Life events (appointments, calls, personal events).
+    try:
+        from apps.life.models import LifeEvent
+        _run(
+            'life_event',
+            LifeEvent.objects.select_related('user', 'user__preferences'),
+            upsert_from_life_event,
+        )
+    except Exception:  # noqa: BLE001 - life app unavailable
+        logger.warning("Backfill: life-event projections skipped", exc_info=True)
+
+    return counts

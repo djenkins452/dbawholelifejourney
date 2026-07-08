@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(calendar): projection backfill — meds/supplements, workouts, faith plans, life events
+
+**Root cause (Projection Fix #1).** The familiar Day view reads `CalendarEvent` rows written by
+`services/projection.py :: upsert_from_*` — created only when a source object is saved (signals)
+or by the backfill command. But the backfill command covered **only** tasks/goals/milestones/
+habits, so four source types with working projection code + wired signals were never populated:
+their pre-existing objects (created before the signals existed, or via bulk paths that skip
+`post_save`) had **zero** cache rows despite abundant data. On dev (proxy for prod): 24 medicine/
+supplement schedules, 12 workout schedules, 2 faith reading plans, 110 life events → **148 rows
+never projected** → the calendar showed almost nothing.
+
+Also found + fixed a latent bug: `upsert_from_faith_routine` read `template.name`, which does not
+exist on `ReadingPlanTemplate` (the field is `title`). The signal's `try/except` swallowed the
+`AttributeError`, so faith reading plans **never projected even on fresh saves**. Corrected to the
+real field (`title`), so Bible Reading now projects.
+
+- **`projection.py`**: new `backfill_missing_projections(stdout, dry_run)` — iterates the four
+  source types and calls the SAME upsert functions the signals use (rows derived from source
+  objects only, never fabricated). Idempotent; fully guarded (per-source + per-row) so one bad
+  row can't abort the rest or a deploy.
+- **`backfill_calendar_projections` command**: now also runs the four extra sources; help text +
+  dry-run summary updated.
+- **Data migration `calendar_engine/0013`**: production-safe backfill via `RunPython` (the Procfile
+  runs `migrate` on every deploy — the WLJ-sanctioned way to run a one-off against prod). Non-fatal
+  by construction (wrapped so it can never fail a deploy); reverse is a no-op (derived cache).
+
+Scope held: no Calendar redesign, no new Calendar concepts, no fabricated items, Beth untouched.
+Routines, Nutrition/Meals, Prayer-as-non-projected-source, and recurring-task daily expansion are
+**separate follow-ups** — deliberately not addressed here.
+
+**Files:** apps/calendar_engine/services/projection.py, apps/calendar_engine/management/commands/
+backfill_calendar_projections.py, apps/calendar_engine/migrations/0013_backfill_missing_projections.py,
+apps/calendar_engine/tests/test_projection_layer.py.
+
+**Verification:** `BackfillMissingProjectionsTests` (4) — all four sources project from source
+objects; med+supplement both via IntakeSchedule (2 rows); faith uses `template.title`; idempotent;
+dry-run creates nothing. Full `test_projection_layer` module (21) green. `makemigrations --check`
+clean; `manage.py check` OK (only pre-existing djstripe warnings). Real dev backfill: 148 extra
+rows projected, **0 errors** across the four new sources. No user-facing feature added (restores
+intended projection), so no release-note/help/features change.
+
 ## 2026-07-08 — fix(cos): Move 1 — one sentence, one time source (kills "6:15 AM tonight")
 
 **Layer 4 composition fix (product-first).** Investigation found Beth *assembles* many

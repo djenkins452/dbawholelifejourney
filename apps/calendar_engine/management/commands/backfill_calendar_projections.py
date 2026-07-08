@@ -1,9 +1,12 @@
 """
-One-time backfill: Project all existing tasks, goals, milestones, and habits
-to the calendar engine.
+One-time backfill: Project all existing tasks, goals, milestones, habits,
+medicine/supplement schedules, workout schedules, faith reading plans, and
+life events to the calendar engine.
 
-Items created before the signal wiring was added have no CalendarEvent records.
-This command creates them using the same projection functions the signals use.
+Items created before the signal wiring was added (or via bulk paths that skip
+post_save) have no CalendarEvent records. This command creates them using the
+same projection functions the signals use — rows are derived from the source
+objects only, never fabricated.
 
 Safe to run multiple times — all upsert functions check for existing records.
 
@@ -20,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Backfill CalendarEvent records for all existing tasks, goals, milestones, and habits"
+    help = (
+        "Backfill CalendarEvent records for all existing tasks, goals, milestones, "
+        "habits, medicine/supplement schedules, workout schedules, faith reading "
+        "plans, and life events"
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -40,6 +47,7 @@ class Command(BaseCommand):
             upsert_from_goal,
             _upsert_milestone_marker,
             upsert_from_habit,
+            backfill_missing_projections,
         )
 
         # --- Tasks ---
@@ -113,9 +121,22 @@ class Command(BaseCommand):
             f"{prefix}Habits: {habit_created} projected, {habit_errors} errors"
         ))
 
+        # --- Medicine/supplement schedules, workouts, faith plans, life events ---
+        self.stdout.write(
+            f"{prefix}Processing medicine/supplement schedules, workouts, "
+            f"faith reading plans, and life events..."
+        )
+        extra = backfill_missing_projections(stdout=self.stdout, dry_run=dry_run)
+        extra_created = sum(c['projected'] for c in extra.values())
+        extra_seen = sum(c['seen'] for c in extra.values())
+        extra_errors = sum(c['errors'] for c in extra.values())
+        self.stdout.write(self.style.SUCCESS(
+            f"{prefix}Extra sources: {extra_created} projected, {extra_errors} errors"
+        ))
+
         # --- Summary ---
-        total = task_created + goal_created + habit_created
-        total_errors = task_errors + goal_errors + habit_errors
+        total = task_created + goal_created + habit_created + extra_created
+        total_errors = task_errors + goal_errors + habit_errors + extra_errors
         self.stdout.write(self.style.SUCCESS(
             f"\n{prefix}TOTAL: {total} items projected to calendar, {total_errors} errors"
         ))
@@ -123,5 +144,6 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING(
                 f"\nDry run complete. Would project: {task_count} tasks, "
-                f"{goal_count} goals, {habit_count} habits"
+                f"{goal_count} goals, {habit_count} habits, {extra_seen} extra "
+                f"(medicine/workout/faith/life-event) source rows"
             ))

@@ -352,3 +352,128 @@ class EndpointTests(TestCase):
         # Postgres N+1). Generous ceiling that still catches per-occurrence blowups.
         self.assertLess(len(ctx.captured_queries), 12,
                         f"range read issued {len(ctx.captured_queries)} queries")
+
+
+# ── Backfill projects previously un-projected source objects (Fix #1) ──
+#
+# medicine/supplement schedules, workout schedules, faith reading plans, and
+# life events all have working projection code + wired signals, but their
+# pre-existing objects were never covered by the original backfill command.
+# These tests prove the extended backfill re-derives CalendarEvent rows from
+# the source objects (never fabricates them).
+
+class BackfillMissingProjectionsTests(TestCase):
+    def setUp(self):
+        self.user = _user()
+        self.today = timezone.localdate()
+        self._make_sources()
+
+    def _make_sources(self):
+        from apps.health.models import (
+            Intake, IntakeSchedule, WorkoutPlan, WorkoutTemplate, WorkoutSchedule,
+        )
+        from apps.faith.models import ReadingPlanTemplate, UserReadingPlan
+        from apps.life.models import LifeEvent
+
+        # Medication + supplement — both are IntakeSchedule (same projection path).
+        med = Intake.objects.create(
+            user=self.user, name="Metformin", intake_status="active",
+            intake_type=Intake.INTAKE_TYPE_MEDICATION, start_date=self.today)
+        IntakeSchedule.objects.create(
+            intake=med, scheduled_time=dt.time(8, 0), time_of_day="morning",
+            days_of_week="0,1,2,3,4,5,6")
+        supp = Intake.objects.create(
+            user=self.user, name="Vitamin D", intake_status="active",
+            intake_type=Intake.INTAKE_TYPE_SUPPLEMENT, start_date=self.today)
+        IntakeSchedule.objects.create(
+            intake=supp, scheduled_time=dt.time(9, 0), time_of_day="morning",
+            days_of_week="0,1,2,3,4,5,6")
+
+        # Workout schedule.
+        plan = WorkoutPlan.objects.create(
+            user=self.user, name="Split", is_active=True, days_per_week=3)
+        tpl = WorkoutTemplate.objects.create(user=self.user, name="Push Day")
+        WorkoutSchedule.objects.create(
+            plan=plan, day_of_week=2, template=tpl, preferred_time=dt.time(17, 0))
+
+        # Faith reading plan (exercises the template.title fix).
+        rtpl = ReadingPlanTemplate.objects.create(
+            title="Gospel of John", description="Read John", category="",
+            difficulty="", source="", source_abbreviation="", series="",
+            duration_days=7)
+        UserReadingPlan.objects.create(
+            user=self.user, template=rtpl, current_day=1, plan_status="active")
+
+        # Life event (appointment / call).
+        LifeEvent.objects.create(
+            user=self.user, title="Jonathan Call", event_type="personal",
+            start_date=self.today, start_time=dt.time(14, 0), end_time=dt.time(14, 30))
+
+    def _clear_projection_cache(self):
+        """Simulate the un-backfilled production state: source objects exist,
+        but their projected CalendarEvent rows do not."""
+        CalendarEvent.objects.filter(user=self.user).delete()
+
+    def test_backfill_projects_all_four_missing_sources(self):
+        from apps.calendar_engine.services.projection import backfill_missing_projections
+
+        self._clear_projection_cache()
+        for st in (CalendarEvent.SOURCE_MEDICINE_SCHEDULE,
+                   CalendarEvent.SOURCE_WORKOUT_SCHEDULE,
+                   CalendarEvent.SOURCE_FAITH_ROUTINE,
+                   CalendarEvent.SOURCE_LIFE_EVENT):
+            self.assertFalse(
+                CalendarEvent.objects.filter(user=self.user, source_type=st).exists(),
+                f"expected no {st} rows before backfill")
+
+        counts = backfill_missing_projections()
+
+        # Two intake schedules (med + supplement) → two medicine_schedule rows.
+        self.assertEqual(
+            CalendarEvent.objects.filter(
+                user=self.user,
+                source_type=CalendarEvent.SOURCE_MEDICINE_SCHEDULE).count(), 2)
+        self.assertTrue(CalendarEvent.objects.filter(
+            user=self.user,
+            source_type=CalendarEvent.SOURCE_WORKOUT_SCHEDULE).exists())
+        self.assertTrue(CalendarEvent.objects.filter(
+            user=self.user,
+            source_type=CalendarEvent.SOURCE_FAITH_ROUTINE).exists())
+        self.assertTrue(CalendarEvent.objects.filter(
+            user=self.user,
+            source_type=CalendarEvent.SOURCE_LIFE_EVENT).exists())
+
+        self.assertEqual(counts['medicine_schedule']['projected'], 2)
+        self.assertEqual(counts['workout_schedule']['projected'], 1)
+        self.assertEqual(counts['faith_routine']['projected'], 1)
+        self.assertEqual(counts['life_event']['projected'], 1)
+
+    def test_faith_projection_uses_template_title(self):
+        """Regression: the faith upsert previously read template.name (which does
+        not exist) and silently failed; it must project from template.title."""
+        from apps.calendar_engine.services.projection import backfill_missing_projections
+
+        self._clear_projection_cache()
+        backfill_missing_projections()
+        ev = CalendarEvent.objects.filter(
+            user=self.user, source_type=CalendarEvent.SOURCE_FAITH_ROUTINE).first()
+        self.assertIsNotNone(ev)
+        self.assertIn("Gospel of John", ev.title)
+
+    def test_backfill_is_idempotent(self):
+        from apps.calendar_engine.services.projection import backfill_missing_projections
+
+        self._clear_projection_cache()
+        backfill_missing_projections()
+        first = CalendarEvent.objects.filter(user=self.user).count()
+        backfill_missing_projections()  # run again
+        self.assertEqual(CalendarEvent.objects.filter(user=self.user).count(), first)
+
+    def test_dry_run_creates_nothing(self):
+        from apps.calendar_engine.services.projection import backfill_missing_projections
+
+        self._clear_projection_cache()
+        counts = backfill_missing_projections(dry_run=True)
+        self.assertEqual(CalendarEvent.objects.filter(user=self.user).count(), 0)
+        self.assertGreaterEqual(counts['medicine_schedule']['seen'], 2)
+        self.assertEqual(counts['medicine_schedule']['projected'], 0)

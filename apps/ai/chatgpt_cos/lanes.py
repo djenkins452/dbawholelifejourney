@@ -2388,11 +2388,43 @@ LANE_REGISTRY = (
 )
 
 
+def _log_classify_match(classification, winner, uid):
+    """Shadow telemetry: record whether the ACTUAL winning lane agreed with the
+    Classifier's expected owner. Record-only; never raises."""
+    if classification is None:
+        return
+    try:
+        from apps.ai.chatgpt_cos.classifier import owner_family
+        fam = owner_family(winner)
+        logger.info("COS_CLASSIFY_MATCH user=%s speech_act=%s expected=%s actual=%s "
+                    "actual_family=%s agree=%s conf=%s", uid, classification.speech_act,
+                    classification.expected_owner, winner, fam,
+                    fam == classification.expected_owner, classification.confidence)
+    except Exception:
+        pass
+
+
 def route_message(user, message, conversation=None, page_context=None):
     """Try each lane in order; return the first non-None result (tagged with its
     lane), or None if every lane declines (caller runs the tool-loop fallback)."""
     uid = getattr(user, "id", None)
     tried = []                      # Issue #1 trace: which lanes were consulted
+
+    # THE CONDUCTOR — Classifier (Step 2a, SHADOW/ADVISORY ONLY). Classify the turn's speech
+    # act and the capability that SHOULD own it, and LOG it. The current router below still
+    # answers — zero behavior change. This records "who should own this turn" on every turn
+    # so mis-ownership surfaces as production data (the orchestration-investigation instrument).
+    _classification = None
+    try:
+        from apps.ai.chatgpt_cos import classifier as _clf
+        from apps.ai.chatgpt_cos.conductor import read_turn_state
+        _has_prior = bool(read_turn_state(conversation).get("turn")) if conversation is not None else False
+        _classification = _clf.classify(message, has_prior=_has_prior, page_context=page_context)
+        logger.info("COS_CLASSIFY user=%s speech_act=%s expected=%s conf=%s signal=%s",
+                    uid, _classification.speech_act, _classification.expected_owner,
+                    _classification.confidence, _classification.signal)
+    except Exception:
+        logger.warning("route: shadow classifier failed", exc_info=True)
 
     # PAGE-AWARE CONTEXTUAL CONVERSATION (runs FIRST when the user is on a WLJ page): a
     # deictic request ("summarize this", "explain this", "what do you think?") binds to
@@ -2428,6 +2460,7 @@ def route_message(user, message, conversation=None, page_context=None):
             except Exception:
                 pass
             logger.info("COS_LANE_TRACE user=%s tried=page_reference winner=page_reference", uid)
+            _log_classify_match(_classification, _pr.get("lane", "page_reference"), uid)
             return _pr
 
     for name, fn in LANE_REGISTRY:
@@ -2475,8 +2508,11 @@ def route_message(user, message, conversation=None, page_context=None):
             # line for the planner RESULT, and BETH_GENERAL_CALL for breaker/outcome.
             logger.info("COS_LANE_TRACE user=%s tried=%s winner=%s planner_invoked=%s",
                         uid, ",".join(tried), name, "personal_reasoning" in tried)
+            _log_classify_match(_classification,
+                                result.get("lane", name) if isinstance(result, dict) else name, uid)
             return result
     logger.info("COS_LANE_TRACE user=%s tried=%s winner=tool_loop_fallback "
                 "planner_invoked=%s", uid, ",".join(tried),
                 "personal_reasoning" in tried)
+    _log_classify_match(_classification, "tool_loop_fallback", uid)
     return None

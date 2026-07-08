@@ -12,8 +12,12 @@ import os
 
 from django.test import SimpleTestCase
 
-_CONDUCTOR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                          "ai", "chatgpt_cos", "conductor.py")
+_COS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    "ai", "chatgpt_cos")
+_CONDUCTOR = os.path.join(_COS, "conductor.py")
+_CLASSIFIER = os.path.join(_COS, "classifier.py")
+# Every file that IS The Conductor must stay orchestration-only.
+_CONDUCTOR_FILES = (_CONDUCTOR, _CLASSIFIER)
 
 # Intelligence / capability / truth / voice modules the orchestration layer may NOT import.
 # If The Conductor needs any of these to make a decision, that decision belongs in a
@@ -43,29 +47,33 @@ def _imports(path):
 
 class ConductorPurityTests(SimpleTestCase):
     def test_conductor_imports_no_intelligence_or_domain_module(self):
-        imports = " ".join(_imports(_CONDUCTOR))
-        for banned in _FORBIDDEN:
-            self.assertNotIn(
-                banned, imports,
-                msg=(f"The Conductor must not import '{banned}'. Orchestration owns WHO "
-                     "answers, never WHAT is thought — move this into a capability."))
+        for path in _CONDUCTOR_FILES:
+            imports = " ".join(_imports(path))
+            for banned in _FORBIDDEN:
+                self.assertNotIn(
+                    banned, imports,
+                    msg=(f"The Conductor ({os.path.basename(path)}) must not import "
+                         f"'{banned}'. Orchestration owns WHO answers, never WHAT is "
+                         "thought — move this into a capability."))
 
     def test_conductor_composes_no_user_facing_text(self):
-        # G2: the Conductor selects and commits; it never authors an answer. No function in
-        # conductor.py may build a user-facing 'answer'. (Cheap structural check: the module
-        # never returns/writes an 'answer' field.)
-        with open(_CONDUCTOR, encoding="utf-8") as fh:
-            src = fh.read()
-        self.assertNotIn('"answer"', src)
-        self.assertNotIn("'answer'", src)
+        # G2: the Conductor selects and commits; it never authors an answer. No Conductor
+        # file may build a user-facing 'answer'. (Cheap structural check.)
+        for path in _CONDUCTOR_FILES:
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            self.assertNotIn('"answer"', src, msg=os.path.basename(path))
+            self.assertNotIn("'answer'", src, msg=os.path.basename(path))
 
     def test_conductor_only_imports_from_safe_surface(self):
         # G5: bounded & finite — the Conductor's dependency surface stays tiny. Only the
         # standard library and low-level, domain-free helpers are allowed.
-        allowed_prefixes = ("logging", "datetime", "apps.core.utils")
-        for mod in _imports(_CONDUCTOR):
-            if not mod:
-                continue
-            self.assertTrue(
-                any(mod == p or mod.startswith(p) for p in allowed_prefixes),
-                msg=f"Unexpected Conductor import '{mod}' — keep the surface bounded (G5).")
+        allowed_prefixes = ("logging", "datetime", "dataclasses", "re", "apps.core.utils")
+        for path in _CONDUCTOR_FILES:
+            for mod in _imports(path):
+                if not mod:
+                    continue
+                self.assertTrue(
+                    any(mod == p or mod.startswith(p) for p in allowed_prefixes),
+                    msg=f"Unexpected Conductor import '{mod}' in {os.path.basename(path)} "
+                        "— keep the surface bounded (G5).")

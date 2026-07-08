@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — feat(cos): The Conductor — Step 2a, shadow Classifier (record-only)
+
+**Context:** Step 2 of the approved Conductor roadmap lifts selection into a single
+Classifier so capabilities stop self-selecting. Per Danny's methodology (one change →
+deploy → observe) it ships as a strangler; this is the first, safest slice.
+
+**Step 2a — the full 9-level speech-act Classifier, SHADOW/ADVISORY ONLY:**
+- New `apps/ai/chatgpt_cos/classifier.py` — `classify(message, has_prior, page_context)` →
+  `Classification{speech_act, expected_owner, confidence, signal}` over the approved
+  precedence ladder (1 screen · 2 meta/repair · 3 continuation · 4 correction ·
+  5 reasoning_mode · 6 retrieval · 7 orientation · 8 general · 9 fallback). Shallow,
+  deterministic, DOMAIN-AGNOSTIC, its own form-level cue sets — imports NO capability
+  (keeps the Conductor a closed core). Never raises.
+- `route_message` runs it FIRST and LOGS `COS_CLASSIFY` (speech act + expected owner +
+  confidence); the current router then answers UNCHANGED. At each winner it logs
+  `COS_CLASSIFY_MATCH` (expected vs actual family + agree) via `owner_family(lane)`.
+  **Zero behavior change** — pure observation.
+- This is the orchestration-investigation instrument the new development process needs:
+  every turn now records "which capability SHOULD have owned this," so mis-ownership shows
+  up as data. E.g. the Executive-Accountability turn ("you let me slide on Bike Ride/
+  Pickleball, Empty Dishwasher, Journal") classifies as **meta → repair**, while the live
+  router answers it as a goals question — the shadow log will make that disagreement visible.
+- Contract enforced: `apps/ai/tests/test_conductor_contract.py` now checks BOTH
+  `conductor.py` and `classifier.py` — fails CI if either imports an intelligence/domain/
+  truth module (G1) or composes user-facing text (G2), keeping the surface bounded (G5).
+
+**Files:** apps/ai/chatgpt_cos/classifier.py (new), apps/ai/chatgpt_cos/lanes.py (shadow
+classify + match logging at the 3 return points), apps/ai/tests/test_classifier.py (new),
+apps/ai/tests/test_conductor_contract.py (cover classifier).
+
+**Verification:** test_classifier (18) + test_conductor + test_conductor_contract green —
+speech-act classification incl. the accountability case as meta, precedence (meta beats a
+retrieval keyword), owner_family mapping, never-raises, and shadow-is-record-only (routing
+unchanged, `COS_CLASSIFY`/`COS_CLASSIFY_MATCH` emitted). ~95-test conversation/posture/
+continuity/mission/request-path regression green. No user-facing change (no release note by
+design). No migration. **Step 2b (make the Classifier authoritative for unambiguous speech
+acts) NOT started — awaiting production observation of the shadow agreement data.**
+
 ## 2026-07-08 — feat(cos): The Conductor — Step 1, unified turn-commit lifecycle (foundation)
 
 **Context (architecture stabilization, approved design):** production conversations showed

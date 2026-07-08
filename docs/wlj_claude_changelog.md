@@ -6,6 +6,42 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-08 — fix(execution): collapse legacy dual-defined routines (commit 2 — existing data obeys the invariant)
+
+**Why:** commit 1 stopped NEW routines from being born dual-defined and made new
+reschedules single-source, but EXISTING users could still have a legacy
+`Task(is_routine=True, is_recurring=True)` (projected to a `CalendarEvent`) alongside the
+canonical `RoutineSchedule` Beth reads — so a stale twin calendar event could still
+disagree with Beth. This closes that for existing data.
+
+**Change (no model change; a data migration + a read resolver):**
+- **`life.services.routine_cleanup.collapse_dual_defined_routines`** — per legacy routine
+  (matched by user + title): ensure a canonical `RoutineSchedule` exists (create Routine +
+  RoutineSchedule from the Task when missing), stop recurrence + soft-delete the Task
+  series (`RecurrenceService.delete_task_series` / `Task.soft_delete`), then cancel the
+  series' projected `CalendarEvent`s (`source_type='task'`). Idempotent; never raises
+  per-routine. Run by data migration **life/0056** (depends on calendar_engine so
+  `CalendarEvent` exists at migrate time — cross-app rule).
+- **`life.services.routine_resolution.resolve_routine_occurrences(user, start, end)`** — the
+  multi-day sibling of `build_today_execution`'s today-only routine read: resolves every
+  occurrence in a date range from the ONE source (RoutineSchedule + RoutineLog effective
+  time). `calendar_engine.views._get_events_in_range` now uses it (replacing the today-only
+  merge), so routines show across the whole visible range at the SAME effective time Beth
+  reads — future days included (which the cancelled twins used to provide).
+
+**Files:** apps/life/services/routine_cleanup.py (new), apps/life/services/routine_resolution.py
+(new), apps/life/migrations/0056_collapse_dual_defined_routines.py (new),
+apps/calendar_engine/views.py (resolver swap), apps/life/tests/test_routine_legacy_collapse.py
+(new).
+
+**Verification:** new test_routine_legacy_collapse (5) — case A (dual-defined: twin
+CalendarEvent cancelled, Task soft-deleted, RoutineSchedule kept), case B (Task-only:
+canonical RoutineSchedule created), idempotency, multi-day RoutineLog override resolution,
+and the trust proof (BEFORE collapse a stale 6:15 twin wins the calendar; AFTER, the twin
+is cancelled and the calendar resolves the SAME 12:00 as Beth). 121 tests across
+calendar/execution/recurrence/routine suites green; migration applies cleanly; no model
+change. Existing AND new data now obey: one definition, one writer, one resolved reader.
+
 ## 2026-07-08 — fix(execution): one routine occurrence — one definition, one writer, one resolved reader
 
 **Product-trust failure:** "Move my workout to lunch today" → the calendar showed 12:00

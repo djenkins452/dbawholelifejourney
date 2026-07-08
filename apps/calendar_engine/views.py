@@ -171,51 +171,46 @@ def _get_events_in_range(user, range_start, range_end):
                 'is_occurrence': block.is_recurring,
             })
 
-    # Routine occurrences (SINGLE-SOURCE agreement). The calendar consumes the SAME
-    # resolved execution occurrence that Beth and the dashboard read
-    # (build_today_execution) — NOT an independent projection. So a one-day routine
-    # reschedule (written to RoutineLog) surfaces here at the SAME effective time, and
-    # the calendar can never disagree with Beth about a routine's time. Today-scoped
-    # (the execution contract resolves TODAY); deduped against any direct event for the
-    # same title+day. Never raises.
+    # Routine occurrences (SINGLE-SOURCE agreement). The calendar resolves routines from
+    # the ONE authoritative definition — RoutineSchedule + its RoutineLog one-day
+    # exceptions — via resolve_routine_occurrences, the SAME source build_today_execution
+    # reads for today. So a one-day reschedule (written to RoutineLog) surfaces here at
+    # the SAME effective time and the calendar can never disagree with Beth about a
+    # routine's time — across the whole visible range, not just today. Deduped against any
+    # direct event for the same title+day (a legacy twin CalendarEvent, until commit-2
+    # cleanup cancels it). Never raises.
     try:
         import datetime as _dt
-        from apps.core.utils import get_user_today
-        from apps.core.execution.today_execution import build_today_execution
-        user_today = get_user_today(user)
-        if range_start.date() <= user_today <= range_end.date():
-            for it in (build_today_execution(user) or {}).get('items', []):
-                if it.get('source_type') != 'routine_item':
-                    continue
-                hhmm = it.get('scheduled_time')
-                title = (it.get('title') or '').strip()
-                if not hhmm or not title:
-                    continue
-                if (title.lower(), user_today.isoformat()) in direct_title_dates:
-                    continue  # a direct event already covers this routine today
-                try:
-                    t = _dt.datetime.strptime(hhmm, '%H:%M').time()
-                except (ValueError, TypeError):
-                    continue
-                start_dt = timezone.make_aware(_dt.datetime.combine(user_today, t))
-                end_dt = start_dt + _dt.timedelta(minutes=30)
-                result.append({
-                    'id': f"routine-{it.get('source_id')}",
-                    'title': title,
-                    'description': '',
-                    'start_dt': timezone.localtime(start_dt).isoformat(),
-                    'end_dt': timezone.localtime(end_dt).isoformat(),
-                    'is_all_day': False,
-                    'event_kind': 'execution_block',
-                    'source_type': 'routine',
-                    'source_id': str(it.get('source_id')),
-                    'is_protected': False,
-                    'status': ('completed' if it.get('completed_today') else 'scheduled'),
-                    'domain': 'Life',
-                    'domain_color': '#6b7280',
-                    'duration_minutes': 30,
-                    'is_occurrence': True,
-                })
+        from apps.life.services.routine_resolution import resolve_routine_occurrences
+        for occ in resolve_routine_occurrences(
+                user, range_start.date(), range_end.date()):
+            title = (occ.get('name') or '').strip()
+            occ_date = occ.get('date')
+            occ_time = occ.get('time')
+            if not title or occ_date is None or occ_time is None:
+                continue
+            if (title.lower(), occ_date.isoformat()) in direct_title_dates:
+                continue  # a direct event already covers this routine that day
+            start_dt = timezone.make_aware(_dt.datetime.combine(occ_date, occ_time))
+            end_dt = start_dt + _dt.timedelta(minutes=30)
+            result.append({
+                'id': f"routine-{occ.get('schedule_id')}-{occ_date.isoformat()}",
+                'title': title,
+                'description': '',
+                'start_dt': timezone.localtime(start_dt).isoformat(),
+                'end_dt': timezone.localtime(end_dt).isoformat(),
+                'is_all_day': False,
+                'event_kind': 'execution_block',
+                'source_type': 'routine',
+                'source_id': str(occ.get('schedule_id')),
+                'is_protected': False,
+                'status': ('completed' if occ.get('status') == 'completed'
+                           else 'scheduled'),
+                'domain': 'Life',
+                'domain_color': '#6b7280',
+                'duration_minutes': 30,
+                'is_occurrence': True,
+            })
     except Exception:
         logger.warning("calendar: routine occurrence merge failed", exc_info=True)
 

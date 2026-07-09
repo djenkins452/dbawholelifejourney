@@ -6,6 +6,33 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 2 — AI Relationship persistence
+
+**Additive persistence for the AI Relationship (Pillar 3). No behavior change** (nothing
+is wired into the chat runtime yet); the projection now reads real stored fields instead of
+placeholders.
+
+**Files:**
+- `apps/users/models.py` — 3 new `UserPreferences` fields: `default_relationship` (choices:
+  Chief of Staff / Best Friend / Trusted Companion / Executive Coach / Mentor / Accountability
+  Partner / Trusted Advisor / Teacher / Parent Figure; **blank = Chief of Staff baseline**),
+  `personality_overlay` (tone only; blank = none), `preference_learning_enabled` (default
+  True — **distinct from Learning Mode**).
+- `apps/ai/models.py` — new `LearnedCommunicationPreference` (user, category, key, value,
+  source [explicit/inferred/system_default], confidence, evidence_count, last_evidence_at,
+  active, notes; unique per (user, category, key); indexed on (user, active)). Stores HOW the
+  user likes to be communicated with — not a reasoning engine, not a truth value.
+- Migrations `users/0087`, `ai/0031` — **additive only** (new fields with defaults + new
+  table); zero data risk, instant rollback (fields default to prior behavior).
+- `apps/ai/cos_services/ai_relationship.py` — projection now reads the persisted fields +
+  active learned preferences (blank default_relationship still falls back to baseline;
+  source tagging preserved).
+- Tests extended to 12 (persisted relationship/overlay, blank fallback, learning toggle read
+  from field, active-only learned prefs, empty default).
+
+**Verification:** `apps.ai.tests.test_ai_relationship_service` — 12/12 pass;
+`makemigrations --check` clean; migrations apply OK.
+
 ## 2026-07-09 — feat(interface): Phase II slice 1 — AIRelationshipService (Pillar 3 projection)
 
 **First implementation slice of the WLJ ↔ conversational-model interface.** Following the

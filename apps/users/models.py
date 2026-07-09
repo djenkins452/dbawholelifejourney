@@ -721,6 +721,48 @@ class UserPreferences(models.Model):
         default=True,
         help_text="Enable proactive check-in messages in assistant chat",
     )
+
+    # ===================
+    # AI RELATIONSHIP (Pillar 3 — how the user wants to work with their AI)
+    # ===================
+    # Owned deterministic configuration, projected by AIRelationshipService
+    # (docs/WLJ_MODEL_INTERFACE_DESIGN.md Pillar 3). User-facing: "Your AI Relationship".
+    DEFAULT_RELATIONSHIP_CHOICES = [
+        ('chief_of_staff', 'Chief of Staff'),
+        ('best_friend', 'Best Friend'),
+        ('trusted_companion', 'Trusted Companion'),
+        ('executive_coach', 'Executive Coach'),
+        ('mentor', 'Mentor'),
+        ('accountability_partner', 'Accountability Partner'),
+        ('trusted_advisor', 'Trusted Advisor'),
+        ('teacher', 'Teacher'),
+        ('parent_figure', 'Parent Figure'),
+    ]
+    # Blank = not chosen; the projection falls back to the Chief of Staff baseline.
+    default_relationship = models.CharField(
+        max_length=32,
+        choices=DEFAULT_RELATIONSHIP_CHOICES,
+        blank=True,
+        default='',
+        help_text="Default relationship baseline with the AI (blank = Chief of Staff default). "
+                  "A baseline, not a cage — the model still adapts expertise to the conversation.",
+    )
+    # Tone/flavor only; never limits capability. Blank = no overlay.
+    personality_overlay = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        help_text="Optional personality/tone overlay for the AI (e.g. 'calm_wise'); blank = none. "
+                  "Flavor only — never restricts what the AI can do.",
+    )
+    # Preference-learning toggle. DISTINCT from Learning Mode (cos_learning_mode_active,
+    # a UAIO action-suppression concept). Controls whether the AI learns the user's
+    # communication preferences from conversation.
+    preference_learning_enabled = models.BooleanField(
+        default=True,
+        help_text="Allow the AI to learn your communication preferences from conversation "
+                  "(distinct from Learning Mode).",
+    )
     assistant_medicine_checkins = models.BooleanField(
         default=True,
         help_text="Proactive medicine dose reminders in chat (requires proactive checkins)",

@@ -74,6 +74,35 @@ def _safe_get_blueprint(user):
         return None
 
 
+def _load_learned_preferences(user) -> list:
+    """Return the user's ACTIVE learned communication preferences (never raise)."""
+    try:
+        from apps.ai.models import LearnedCommunicationPreference
+        rows = LearnedCommunicationPreference.objects.filter(
+            user=user, active=True
+        ).order_by("category", "key")
+        return [
+            {
+                "category": r.category,
+                "key": r.key,
+                "value": r.value,
+                "source": r.source,
+                "confidence": r.confidence,
+                "evidence_count": r.evidence_count,
+                "last_evidence_at": (
+                    r.last_evidence_at.isoformat() if r.last_evidence_at else None
+                ),
+            }
+            for r in rows
+        ]
+    except Exception:  # pragma: no cover - defensive
+        logger.warning(
+            "AIRelationship: could not load learned prefs for user=%s",
+            getattr(user, "id", "?"),
+        )
+        return []
+
+
 def get_ai_relationship(user) -> dict:
     """
     Project the user's AI Relationship into one compact, JSON-safe object.
@@ -94,14 +123,16 @@ def get_ai_relationship(user) -> dict:
     # Display name: get_cos_name() resolves a blank name to 'Chief of Staff'.
     raw_name = (getattr(prefs, "cos_display_name", "") or "").strip() if prefs else ""
     display_name = raw_name or "Chief of Staff"
+    # default_relationship: blank stored value = not chosen → Chief of Staff baseline.
+    raw_rel = (getattr(prefs, "default_relationship", "") or "").strip() if prefs else ""
     assistant = {
         "display_name": _tag(
             "assistant.display_name", display_name,
             SOURCE_USER if raw_name else SOURCE_DEFAULT,
         ),
-        # Not yet a stored field — safe baseline. Promoted in a later slice.
         "default_relationship": _tag(
-            "assistant.default_relationship", DEFAULT_RELATIONSHIP, SOURCE_DEFAULT,
+            "assistant.default_relationship", raw_rel or DEFAULT_RELATIONSHIP,
+            SOURCE_USER if raw_rel else SOURCE_DEFAULT,
         ),
     }
 
@@ -119,9 +150,13 @@ def get_ai_relationship(user) -> dict:
         ),
     }
 
-    # --- Personality overlay (tone/flavor only; not yet stored) ----------------
+    # --- Personality overlay (tone/flavor only) --------------------------------
+    raw_overlay = (getattr(prefs, "personality_overlay", "") or "").strip() if prefs else ""
     personality_overlay = {
-        "name": _tag("personality_overlay.name", None, SOURCE_DEFAULT),
+        "name": _tag(
+            "personality_overlay.name", raw_overlay or None,
+            SOURCE_USER if raw_overlay else SOURCE_DEFAULT,
+        ),
     }
 
     # --- Accountability (firmness / question cadence) --------------------------
@@ -159,13 +194,18 @@ def get_ai_relationship(user) -> dict:
     }
 
     # --- Learning (preference-learning toggle; NOT Learning Mode) --------------
-    # Not yet a stored field — defaults on. Distinct from cos_learning_mode_active.
-    learning = {
-        "enabled": _tag("learning.enabled", True, SOURCE_DEFAULT),
-    }
+    # Distinct from cos_learning_mode_active (Learning Mode / UAIO suppression).
+    if prefs is not None and hasattr(prefs, "preference_learning_enabled"):
+        learning = {
+            "enabled": _tag(
+                "learning.enabled", bool(prefs.preference_learning_enabled), SOURCE_USER,
+            ),
+        }
+    else:
+        learning = {"enabled": _tag("learning.enabled", True, SOURCE_DEFAULT)}
 
-    # --- Learned communication preferences (persisted in a later slice) --------
-    learned_preferences: list = []
+    # --- Learned communication preferences (active rows only) ------------------
+    learned_preferences = _load_learned_preferences(user)
 
     return {
         "schema_version": AI_RELATIONSHIP_SCHEMA_VERSION,

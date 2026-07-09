@@ -113,6 +113,64 @@ class AIRelationshipProjectionTests(TestCase):
         json.dumps(a)           # must be JSON-serializable (raises if not)
         self.assertEqual(a["schema_version"], AI_RELATIONSHIP_SCHEMA_VERSION)
 
+    # --- persisted AI Relationship fields (slice 2) ---------------------------
+    def test_persisted_default_relationship_and_overlay_are_projected(self):
+        prefs = self.user.preferences
+        prefs.default_relationship = "best_friend"
+        prefs.personality_overlay = "calm_wise"
+        prefs.save()
+
+        rel = get_ai_relationship(self.user)
+        self.assertEqual(rel["assistant"]["default_relationship"], "best_friend")
+        self.assertEqual(rel["_sources"]["assistant.default_relationship"], "user")
+        self.assertEqual(rel["personality_overlay"]["name"], "calm_wise")
+        self.assertEqual(rel["_sources"]["personality_overlay.name"], "user")
+
+    def test_blank_default_relationship_falls_back_to_baseline(self):
+        prefs = self.user.preferences
+        prefs.default_relationship = ""
+        prefs.personality_overlay = ""
+        prefs.save()
+
+        rel = get_ai_relationship(self.user)
+        self.assertEqual(rel["assistant"]["default_relationship"], DEFAULT_RELATIONSHIP)
+        self.assertEqual(rel["_sources"]["assistant.default_relationship"], "default")
+        self.assertIsNone(rel["personality_overlay"]["name"])
+
+    def test_preference_learning_toggle_is_read_from_field(self):
+        prefs = self.user.preferences
+        prefs.preference_learning_enabled = False
+        prefs.save()
+
+        rel = get_ai_relationship(self.user)
+        self.assertFalse(rel["learning"]["enabled"])
+        self.assertEqual(rel["_sources"]["learning.enabled"], "user")
+
+    # --- learned communication preferences (slice 2) --------------------------
+    def test_active_learned_preferences_are_projected(self):
+        from apps.ai.models import LearnedCommunicationPreference
+        LearnedCommunicationPreference.objects.create(
+            user=self.user, category="communication", key="response_length",
+            value="short", source="explicit", confidence="high", evidence_count=2,
+        )
+        # An inactive row must NOT appear.
+        LearnedCommunicationPreference.objects.create(
+            user=self.user, category="formatting", key="tables",
+            value="preferred", source="inferred", confidence="low", active=False,
+        )
+
+        rel = get_ai_relationship(self.user)
+        learned = rel["learned_preferences"]
+        self.assertEqual(len(learned), 1)
+        self.assertEqual(learned[0]["key"], "response_length")
+        self.assertEqual(learned[0]["value"], "short")
+        self.assertEqual(learned[0]["source"], "explicit")
+        self.assertEqual(learned[0]["evidence_count"], 2)
+
+    def test_learned_preferences_empty_by_default(self):
+        rel = get_ai_relationship(self.user)
+        self.assertEqual(rel["learned_preferences"], [])
+
     # --- resilience ------------------------------------------------------------
     def test_does_not_raise_when_blueprint_absent(self):
         # get_ai_relationship uses get_blueprint (get-or-create); even a brand-new

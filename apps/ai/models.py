@@ -1977,3 +1977,70 @@ class ResponsePreference(models.Model):
 
         lines.append("--- END RESPONSE PREFERENCES ---")
         return "\n".join(lines)
+
+
+class LearnedCommunicationPreference(models.Model):
+    """
+    A single learned communication/formatting preference for a user (Pillar 3,
+    docs/WLJ_MODEL_INTERFACE_DESIGN.md §6 learning).
+
+    This stores HOW the user likes to be communicated with — it is NOT a second
+    reasoning engine and NOT a truth value. The conversational model DETECTS an
+    explicit preference ("be more direct") and WLJ PERSISTS it here; the projection
+    (AIRelationshipService) reads active rows. Explicit user requests outrank inferred
+    ones (`source`), and everything is visible/editable (user-facing: "What Your AI
+    Has Learned"). Distinct from Learning Mode.
+    """
+
+    SOURCE_EXPLICIT = 'explicit'
+    SOURCE_INFERRED = 'inferred'
+    SOURCE_SYSTEM_DEFAULT = 'system_default'
+    SOURCE_CHOICES = [
+        (SOURCE_EXPLICIT, 'Explicit (user asked)'),
+        (SOURCE_INFERRED, 'Inferred (learned from patterns)'),
+        (SOURCE_SYSTEM_DEFAULT, 'System default'),
+    ]
+
+    CONFIDENCE_CHOICES = [
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='learned_comm_prefs',
+    )
+    # e.g. 'communication', 'formatting'
+    category = models.CharField(max_length=32)
+    # e.g. 'response_length', 'directness', 'tables'
+    key = models.CharField(max_length=48)
+    # e.g. 'short', 'high', 'preferred'
+    value = models.CharField(max_length=64)
+
+    source = models.CharField(
+        max_length=16, choices=SOURCE_CHOICES, default=SOURCE_EXPLICIT,
+        help_text="Explicit user requests outrank inferred patterns.",
+    )
+    confidence = models.CharField(
+        max_length=8, choices=CONFIDENCE_CHOICES, default='high',
+    )
+    evidence_count = models.PositiveIntegerField(default=1)
+    last_evidence_at = models.DateTimeField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    notes = models.CharField(max_length=255, blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # One row per (user, category, key) — upsert on repeated evidence.
+        unique_together = ('user', 'category', 'key')
+        ordering = ['category', 'key']
+        indexes = [
+            models.Index(fields=['user', 'active']),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.category}.{self.key}={self.value} ({self.source})"

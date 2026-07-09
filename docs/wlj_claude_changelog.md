@@ -6,6 +6,28 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 3 — canonical truth envelope (Pillar 1)
+
+**The single shape every WLJ truth answer wears** for the model interface. No behavior
+change (not wired into any tool/runtime yet); establishes the shape + adapters.
+
+**Files:**
+- NEW `apps/core/truth/envelope.py` — `{value, freshness, confidence, source, as_of,
+  status}` (+ optional unit/detail/investigation/reason). **Reuse-only**: composes the
+  existing `freshness` (current/stale/pending/partial/missing), `confidence`
+  (none/low/medium/high), and `integrity` vocabulary. Status derived deterministically.
+  First-class honest-absence constructors (`pending`/`missing`/`insufficient_evidence`/
+  `empty`/`error` — Laws 0/1/4). `from_current_truth()` adapts the existing `CurrentTruth`
+  object. `apply_integrity(env, claim)` runs `validate_evidence` and folds the verdict in:
+  **impossible → value withheld, status=insufficient_evidence, confidence=none;** suspect →
+  confidence hedged to ≤ low; both carry the deterministic `investigation` text.
+- NEW `apps/core/tests/test_truth_envelope.py` — 13 tests (status/confidence derivation,
+  honest-absence constructors, CurrentTruth adapter, integrity gate impossible/suspect,
+  JSON-safety).
+
+**Verification:** `apps.core.tests.test_truth_envelope` — 13/13 pass. No model files → no
+migration.
+
 ## 2026-07-09 — feat(interface): Phase II slice 2 — AI Relationship persistence
 
 **Additive persistence for the AI Relationship (Pillar 3). No behavior change** (nothing

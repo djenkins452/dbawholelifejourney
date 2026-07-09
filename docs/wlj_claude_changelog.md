@@ -6,6 +6,27 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 4 — tool-call audit ledger (Audit pillar)
+
+**Append-only ledger that EXPLAINS, never judges** (docs/WLJ_MODEL_INTERFACE_DESIGN.md §8).
+No behavior change (nothing calls it yet); establishes the traceability substrate.
+
+**Files:**
+- `apps/ai/models.py` — new `ToolCallLog` (user, turn_id, surface, kind
+  [truth/action/preference/response], tool_name, args JSON, result_status, result_digest
+  JSON, created_at; indexed on (user, turn_id) and created_at). Records exactly enough to
+  answer the four audit questions: what truth was provided, what actions were requested,
+  what actually occurred, what response was returned. A ledger, not a critic — no reasoning.
+- Migration `ai/0032` — additive (new table only).
+- NEW `apps/ai/cos_services/audit.py` — `record_tool_call(...)`: **append-only** and
+  **request-path-safe** (NEVER raises — a failed audit write must not break a turn; it
+  swallows + logs). Payloads JSON-safe + size-bounded (reuses cos_services.serialization).
+- NEW `apps/ai/tests/test_tool_call_audit.py` — 4 tests (four-question coverage per turn,
+  never-raises-on-db-failure, JSON-safe+bounded payloads, append-only distinct rows).
+
+**Verification:** `apps.ai.tests.test_tool_call_audit` — 4/4 pass; `makemigrations --check`
+clean; migration applies OK.
+
 ## 2026-07-09 — feat(interface): Phase II slice 3 — canonical truth envelope (Pillar 1)
 
 **The single shape every WLJ truth answer wears** for the model interface. No behavior

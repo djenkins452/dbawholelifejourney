@@ -34,6 +34,7 @@ from apps.ai.cos_services.ai_relationship import (
     AI_RELATIONSHIP_SCHEMA_VERSION,
     get_ai_relationship,
 )
+from apps.ai.cos_services.audit import record_tool_call
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -86,4 +87,6 @@ __all__ = [
     # Interface Pillar 3 — AI Relationship (projection)
     "get_ai_relationship",
     "AI_RELATIONSHIP_SCHEMA_VERSION",
+    # Interface — Audit
+    "record_tool_call",
 ]

@@ -2044,3 +2044,58 @@ class LearnedCommunicationPreference(models.Model):
 
     def __str__(self):
         return f"{self.user_id}:{self.category}.{self.key}={self.value} ({self.source})"
+
+
+class ToolCallLog(models.Model):
+    """
+    Append-only ledger of the WLJ ↔ conversational-model interface (Pillar: Audit).
+
+    docs/WLJ_MODEL_INTERFACE_DESIGN.md §8 — the audit exists to EXPLAIN, not to reason.
+    It records, per turn, exactly enough to answer four questions after the fact:
+        1. What truth was provided?      (kind='truth')
+        2. What actions were requested?  (kind='action', args)
+        3. What actions actually occurred? (kind='action', result_status/result_digest)
+        4. What response was returned?   (kind='response')
+
+    This is a LEDGER, not a critic — it never judges the model and never reasons.
+    Fabrication *prevention* lives at the data layer; this provides detection,
+    forensics, and a golden-transcript test substrate. Writes are append-only and
+    request-path-safe (the recorder never raises).
+    """
+
+    KIND_TRUTH = 'truth'
+    KIND_ACTION = 'action'
+    KIND_PREFERENCE = 'preference'
+    KIND_RESPONSE = 'response'
+    KIND_CHOICES = [
+        (KIND_TRUTH, 'Truth provided'),
+        (KIND_ACTION, 'Action requested/executed'),
+        (KIND_PREFERENCE, 'Preference written'),
+        (KIND_RESPONSE, 'Response returned'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tool_call_logs',
+    )
+    turn_id = models.CharField(max_length=64, db_index=True, blank=True, default='')
+    surface = models.CharField(max_length=32, blank=True, default='')
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    tool_name = models.CharField(max_length=64, blank=True, default='')
+    # The request arguments (JSON-safe, capped by the recorder).
+    args = models.JSONField(default=dict, blank=True)
+    # The returned status + a digest of what was handed back to the model.
+    result_status = models.CharField(max_length=32, blank=True, default='')
+    result_digest = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'turn_id']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.turn_id}:{self.kind}:{self.tool_name}={self.result_status}"

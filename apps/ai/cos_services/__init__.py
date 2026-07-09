@@ -35,6 +35,10 @@ from apps.ai.cos_services.ai_relationship import (
     get_ai_relationship,
 )
 from apps.ai.cos_services.audit import record_tool_call
+from apps.ai.cos_services.current_context import (
+    CURRENT_CONTEXT_SCHEMA_VERSION,
+    get_current_context_baseline,
+)
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -89,4 +93,7 @@ __all__ = [
     "AI_RELATIONSHIP_SCHEMA_VERSION",
     # Interface — Audit
     "record_tool_call",
+    # Interface Pillar 4 — Current Context baseline
+    "get_current_context_baseline",
+    "CURRENT_CONTEXT_SCHEMA_VERSION",
 ]

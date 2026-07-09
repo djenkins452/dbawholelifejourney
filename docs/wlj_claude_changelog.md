@@ -6,6 +6,31 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 5 — Current Context baseline (Pillar 4)
+
+**The minimal always-on Current Context baseline.** No behavior change (not wired yet);
+a pure, request-path-safe ASSEMBLER.
+
+**Files:**
+- NEW `apps/ai/cos_services/current_context.py` — `get_current_context_baseline(user, *,
+  signals=None, continuity=None, now=None)`. Ships only what the model cannot know or must
+  be told regardless of topic: **clock** (user-local time + part-of-day via `daypart` +
+  `get_user_now`), **clinical-safety policy** (from `ExecutiveSignals.health_critical` /
+  `priority_action` — "honor this order; do not re-rank"), **day-continuity** (mode +
+  material changes), and a **capability index** (from the truth catalog). Everything else
+  is model-pulled (Pillar 4 = conversationally relevant, mostly pull).
+  - **Request-path-safe by construction:** pure assembly over pre-warmed `signals` /
+    `continuity`; NEVER live-computes the heavy executive picture — absent inputs → the
+    section is `pending`. Clock/capabilities are cheap/static.
+  - **No headline / narrative / diagnosis** — that is the model's to author (the sharpened
+    Pillar 4 decision).
+- NEW `apps/ai/tests/test_current_context_baseline.py` — 6 tests (clock+capabilities always;
+  no-headline-leak; pending when inputs absent; clinical-safety + day-continuity from
+  injected inputs; JSON-safe).
+
+**Verification:** `apps.ai.tests.test_current_context_baseline` — 6/6 pass. No model files →
+no migration.
+
 ## 2026-07-09 — feat(interface): Phase II slice 4 — tool-call audit ledger (Audit pillar)
 
 **Append-only ledger that EXPLAINS, never judges** (docs/WLJ_MODEL_INTERFACE_DESIGN.md §8).

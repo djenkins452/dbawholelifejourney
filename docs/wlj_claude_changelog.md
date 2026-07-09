@@ -6,6 +6,28 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 6 — action interface, stateful confirmation (Pillar 2)
+
+**The action interface with STATEFUL server-side confirmation** — the eliminate-the-class
+fix for "confirmed but nothing happened." No behavior change (not wired to the runtime yet).
+
+**Files:**
+- NEW `apps/ai/cos_services/action_interface.py` — `request_action(user, action, params)`
+  and `resolve_pending_action(user, confirm=)`. When an action needs confirmation, WLJ
+  **stores it server-side** (reusing the existing `store_pending_confirmation` cache) and a
+  later `resolve_pending_action(confirm=True)` executes the **stored** action — the model
+  never reconstructs the confirmed re-call. Reuses the single existing write path
+  (`execute_action` → `execute_intent` → UAIO); **no direct model writes**; result narrated
+  from the real `ActionResult.message`; every request/resolution audited (kind='action');
+  never raises. Interface envelope statuses: ok | confirmation_required | declined | error.
+- `apps/ai/cos_services/__init__.py` — export `request_action` / `resolve_pending_action`.
+- NEW `apps/ai/tests/test_action_interface.py` — 7 tests (confirmation stores pending;
+  confirm executes the STORED action with confirmed=true + stored params; decline cancels
+  without executing; nothing-pending is honest; non-confirm action executes immediately;
+  failure reports the real reason; actions audited).
+
+**Verification:** 42/42 across all six interface slices; `makemigrations --check` clean.
+
 ## 2026-07-09 — feat(interface): Phase II slice 5 — Current Context baseline (Pillar 4)
 
 **The minimal always-on Current Context baseline.** No behavior change (not wired yet);

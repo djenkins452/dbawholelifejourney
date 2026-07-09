@@ -166,15 +166,20 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             )
 
         # --- non-streaming: generate synchronously + persist (mirror the task) ---
-        from apps.ai.model_interface.service import ModelInterfaceService
+        from apps.ai.model_interface.service import (
+            ModelInterfaceService, load_conversation_history,
+        )
         from apps.ai.models import AssistantMessage
 
+        # Load PRIOR turns BEFORE persisting this one (conversation continuity).
+        history = load_conversation_history(conversation)
         AssistantMessage.objects.create(
             conversation=conversation, role="user", content=message or "",
             message_type="text",
         )
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface=surface,
+            conversation_history=history,
         )
         answer = result.get("answer") or (
             "I reached the model-interface path, but the model returned an empty "

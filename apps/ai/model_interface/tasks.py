@@ -20,20 +20,8 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger("apps.ai.model_interface")
 
-
-@shared_task(name="apps.ai.model_interface.warm_model_interface_context",
-             bind=False, max_retries=0, ignore_result=True)
-def warm_model_interface_context(user_id):
-    """Background warm of the Current Context policy cache (heavy interpret() +
-    day-continuity), so the request path only ever reads cache. Never raises."""
-    try:
-        from django.contrib.auth import get_user_model
-        from apps.ai.model_interface import context_warm
-        user = get_user_model().objects.get(id=user_id)
-        context_warm.warm(user)
-    except Exception:
-        logger.warning("warm_model_interface_context failed user=%s", user_id,
-                       exc_info=True)
+# NOTE: there is no separate warm task — Current Context reuses StandingContextService,
+# which the existing prod keep-alive worker already warms (Blocker 3 / reuse-before-rebuild).
 
 
 @shared_task(
@@ -62,6 +50,9 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
     try:
         user = User.objects.get(id=user_id)
         conversation = AssistantConversation.objects.get(id=conversation_id, user=user)
+        # Load PRIOR turns BEFORE persisting this one (conversation continuity).
+        from apps.ai.model_interface.service import load_conversation_history
+        history = load_conversation_history(conversation)
         AssistantMessage.objects.create(
             conversation=conversation, role="user", content=message or "",
             message_type="text",
@@ -74,7 +65,7 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
         )
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface="chat_stream",
-            request_id=job_id,
+            request_id=job_id, conversation_history=history,
         )
         answer = result.get("answer") or (
             "I reached the model-interface path, but the model returned an empty "

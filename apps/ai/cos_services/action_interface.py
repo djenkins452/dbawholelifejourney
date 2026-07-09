@@ -10,21 +10,18 @@ Action interface — Pillar 2 of the WLJ ↔ model interface.
 
 docs/WLJ_MODEL_INTERFACE_DESIGN.md §Pillar 2 / §4.
 
-The model REQUESTS an action; WLJ executes it safely and reports the REAL result. This
-layer adds the one thing the CoS action path was missing: **stateful, server-side
-confirmation.**
-
-Eliminate-the-class fix: the previous CoS confirmation was *stateless* — it told the
-model to "re-call with confirmed=true," and a bare user "yes" never reliably produced
-that confirmed re-call ("confirmed but nothing happened"). Here, when an action needs
-confirmation WLJ **stores the pending action server-side** (reusing the existing
-`store_pending_confirmation` cache) and a later `resolve_pending_action(confirm=True)`
-executes the STORED action. The model never has to reconstruct the confirmed call.
+The model REQUESTS an action; WLJ executes it safely and reports the REAL result.
+Confirmation is a **bound transaction** (Blocker 1 hardening): each confirmation has its
+own identity, and `resolve_pending_action(confirmation_id, confirm)` executes a SPECIFIC
+confirmation by id — never "whatever happens to be stored." A second request cannot be
+silently confirmed by a bare "yes"; a wrong/expired id fails honestly. See
+`apps/ai/model_interface/confirmation.py`.
 
 Guarantees:
 * NO direct model writes — everything goes through `execute_action` → `execute_intent`
   → UAIO (the single existing write path). Safety gates unchanged.
 * Result is narrated from the ACTUAL `ActionResult.message` — never an assumed outcome.
+* Confirmation is resolved by explicit `confirmation_id` (single-use, per-user, expiring).
 * Every request/resolution is audited (kind='action').
 * Never raises.
 """
@@ -33,6 +30,7 @@ import logging
 
 from apps.ai.cos_services.action_execution import execute_action
 from apps.ai.cos_services.audit import record_tool_call
+from apps.ai.model_interface import confirmation as _confirm
 
 logger = logging.getLogger(__name__)
 
@@ -59,32 +57,24 @@ def _map_result(env: dict) -> dict:
     }
 
 
-def _intent_service():
-    from apps.ai.intent_service import IntentService
-    return IntentService()
-
-
-def _store_pending(user, action, params):
-    """Persist the pending action server-side (so 'yes' resolves the STORED action)."""
-    from apps.ai.intent_service import IntentResult
-    svc = _intent_service()
-    clean = {k: v for k, v in (params or {}).items() if k != "confirmed"}
-    svc.store_pending_confirmation(
-        user, IntentResult(intent_type=action, parameters=clean, confidence=1.0)
-    )
-
-
 def request_action(user, action, params=None, *, turn_id="", surface="") -> dict:
-    """Request one action. If it needs confirmation, WLJ stores it server-side and
-    returns `confirmation_required`; otherwise it executes and returns the real result.
+    """Request one action. If it needs confirmation, WLJ mints a BOUND confirmation and
+    returns `confirmation_required` with its `confirmation_id` + summary; otherwise it
+    executes and returns the real result.
     """
     params = dict(params) if isinstance(params, dict) else {}
     try:
         env = execute_action(user, action, params)
         out = _map_result(env)
         if out["status"] == CONFIRMATION_REQUIRED:
-            _store_pending(user, action, params)
-            out["confirmation"] = {"pending": True}
+            summary = _confirm.summarize(action, params)
+            handle = _confirm.create(user, action, params, summary)
+            if handle:
+                out["result"] = f"Please confirm: {summary}"
+                out["confirmation"] = handle          # {confirmation_id, summary, expires_in}
+            else:
+                out = {"status": ERROR, "code": "confirmation_store_failed",
+                       "result": "I couldn't set up the confirmation. Please try again."}
     except Exception:  # never break a turn
         logger.warning("action_interface.request_action failed action=%s user=%s",
                        action, getattr(user, "id", "?"), exc_info=True)
@@ -94,44 +84,45 @@ def request_action(user, action, params=None, *, turn_id="", surface="") -> dict
     record_tool_call(
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},
-        result_status=out["status"], result_digest={"result": out.get("result", "")},
+        result_status=out["status"],
+        result_digest={"result": out.get("result", ""),
+                       "confirmation_id": (out.get("confirmation") or {}).get("confirmation_id")},
     )
     return out
 
 
-def resolve_pending_action(user, *, confirm=True, turn_id="", surface="") -> dict:
-    """Resolve a previously-requested action awaiting confirmation.
+def resolve_pending_action(user, confirmation_id=None, *, confirm=True,
+                           turn_id="", surface="") -> dict:
+    """Resolve a SPECIFIC bound confirmation by id.
 
-    confirm=True  → execute the STORED action (with confirmed=true) and clear it.
-    confirm=False → cancel it and clear it (declined). The model does not reconstruct
-    the action — WLJ held it.
+    confirm=True  → execute exactly that confirmation's action (confirmed=true), consume it.
+    confirm=False → cancel exactly that confirmation, consume it (declined).
+    A missing/expired/wrong id fails honestly — WLJ never executes "whatever is stored."
     """
-    svc = _intent_service()
-    try:
-        pending = svc.get_pending_confirmation(user)
-    except Exception:  # pragma: no cover - defensive
-        pending = None
-
-    if not pending:
-        out = {"status": ERROR, "result": "There's nothing awaiting confirmation.",
-               "code": "nothing_pending"}
+    rec = _confirm.get(user, confirmation_id)
+    if not rec:
+        out = {"status": ERROR, "code": "no_matching_confirmation",
+               "result": ("I don't have a pending action with that confirmation to act "
+                          "on — it may have expired. Ask me again and I'll re-confirm.")}
         record_tool_call(user, kind="action", tool_name="", turn_id=turn_id,
                          surface=surface, result_status=out["status"],
-                         result_digest={"code": "nothing_pending"})
+                         result_digest={"confirmation_id": confirmation_id,
+                                        "code": "no_matching_confirmation"})
         return out
 
-    action = pending.get("intent_type", "")
-    params = dict(pending.get("parameters", {}) or {})
+    action = rec.get("action", "")
+    params = dict(rec.get("params", {}) or {})
 
     if not confirm:
-        svc.clear_pending_confirmation(user)
+        _confirm.consume(user, confirmation_id)
         out = {"status": DECLINED, "result": "Okay — I won't do that."}
         record_tool_call(user, kind="action", tool_name=action, turn_id=turn_id,
                          surface=surface, result_status=out["status"],
-                         result_digest={"declined": True})
+                         result_digest={"confirmation_id": confirmation_id,
+                                        "declined": True})
         return out
 
-    # Execute the STORED action, authorized.
+    # Execute exactly this confirmation's action, authorized.
     params["confirmed"] = True
     try:
         env = execute_action(user, action, params)
@@ -142,11 +133,13 @@ def resolve_pending_action(user, *, confirm=True, turn_id="", surface="") -> dic
         out = {"status": ERROR, "result": "That action could not be completed.",
                "code": "interface_error"}
     finally:
-        svc.clear_pending_confirmation(user)
+        _confirm.consume(user, confirmation_id)  # single-use, always
 
     record_tool_call(
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},
-        result_status=out["status"], result_digest={"result": out.get("result", "")},
+        result_status=out["status"],
+        result_digest={"confirmation_id": confirmation_id,
+                       "result": out.get("result", "")},
     )
     return out

@@ -38,7 +38,11 @@ CONSTITUTION = (
     "\n"
     "ACTIONS: You never change the user's data directly. Request an action; WLJ executes "
     "it and returns the real result, which you then communicate. Destructive or ambiguous "
-    "actions require confirmation — after the user confirms, resolve the pending action."
+    "actions require confirmation: request_action returns a confirmation_id + summary — "
+    "show the summary and ask the user to confirm. If the context's `pending_confirmations` "
+    "lists an open confirmation and the user then confirms, call resolve_pending_action "
+    "with THAT confirmation_id (do NOT call request_action again). Never invent a "
+    "confirmation_id, and never re-request an action that is already pending confirmation."
 )
 
 
@@ -145,9 +149,11 @@ def action_tools():
             "name": "request_action",
             "description": (
                 "Request that WLJ perform an action on the user's data. WLJ executes it "
-                "safely and returns the real result. If it needs confirmation, WLJ HOLDS "
-                "it and returns confirmation_required — confirm with the user, then call "
-                "resolve_pending_action. Use ONLY an action name from the enum."
+                "safely and returns the real result. If it needs confirmation, WLJ returns "
+                "status=confirmation_required WITH a `confirmation.confirmation_id` and a "
+                "summary — show the summary to the user, and once they confirm call "
+                "resolve_pending_action with THAT confirmation_id. Use ONLY an action name "
+                "from the enum."
             ),
             "parameters": {"type": "object", "properties": {
                 "action": action_schema,
@@ -157,17 +163,23 @@ def action_tools():
         {"type": "function", "function": {
             "name": "resolve_pending_action",
             "description": (
-                "Resolve the action WLJ is holding for confirmation. confirm=true executes "
-                "the STORED action; confirm=false cancels it. WLJ held it — do not restate "
-                "the action."
+                "Resolve a SPECIFIC pending confirmation by its id. Pass the "
+                "confirmation_id that request_action returned. confirm=true executes that "
+                "exact action; confirm=false cancels it. Never guess a confirmation_id."
             ),
-            "parameters": {"type": "object",
-                           "properties": {"confirm": {"type": "boolean"}},
-                           "required": ["confirm"]}}},
+            "parameters": {"type": "object", "properties": {
+                "confirmation_id": {"type": "string",
+                                    "description": "The id returned by request_action."},
+                "confirm": {"type": "boolean"},
+            }, "required": ["confirmation_id", "confirm"]}}},
     ]
 
 
-def all_tools():
-    """The full minimal Slice-7 tool set (truth + action), with valid values advertised
-    as enums so the model does not guess arguments."""
-    return truth_tools() + action_tools()
+def all_tools(writes_enabled=True):
+    """The minimal tool set. Truth tools are always present; action tools are included
+    ONLY when writes are enabled (Blocker 4 — read-only rollout stage). Valid values are
+    advertised as enums so the model does not guess arguments."""
+    tools = truth_tools()
+    if writes_enabled:
+        tools += action_tools()
+    return tools

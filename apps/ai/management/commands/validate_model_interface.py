@@ -126,10 +126,11 @@ class Command(BaseCommand):
         return mock.patch.object(IntentService, "execute_intent",
                                  new=_fake_execute_intent)
 
-    def _run_scenario(self, svc, user, scenario, model):
+    def _run_scenario(self, svc, user, scenario, model, *, writes_enabled):
         """Run one scenario (possibly multi-turn) and return a structured record."""
         from apps.ai.model_interface.service import ModelInterfaceService
 
+        mode = "write" if writes_enabled else "read-only"
         mi = ModelInterfaceService(user, ai_service=svc)
         history = []
         tool_trace = []          # [{turn, name, args, result_status, freshness, ...}]
@@ -143,12 +144,13 @@ class Command(BaseCommand):
             def observer(name, args, result, _cap=captured):
                 _cap.append({"name": name, "args": args, "result": result})
 
-            request_id = f"validate-{scenario['key']}-{i}"
+            request_id = f"validate-{scenario['key']}-{mode}-{i}"
             turn_ids.append(request_id)
             result = mi.generate(
-                SimpleNamespace(id=f"validate-{scenario['key']}"),
+                SimpleNamespace(id=f"validate-{scenario['key']}-{mode}"),
                 message, request_id=request_id, surface="chat",
                 observer=observer, conversation_history=list(history),
+                writes_enabled=writes_enabled,
             )
             answer = result.get("answer", "")
             for c in captured:
@@ -168,9 +170,10 @@ class Command(BaseCommand):
             user=user, turn_id__in=turn_ids).order_by("created_at").values(
             "kind", "tool_name", "result_status", "args", "result_digest", "created_at"))
 
-        warnings = self._warnings(scenario, tool_trace, turns_out, audit)
+        warnings = self._warnings(scenario, tool_trace, turns_out, audit, writes_enabled)
         return {
             "scenario": scenario,
+            "mode": mode,
             "turns": turns_out,
             "tool_trace": tool_trace,
             "standing_context": standing,
@@ -180,11 +183,13 @@ class Command(BaseCommand):
             "turn_ids": turn_ids,
         }
 
-    def _warnings(self, scenario, tool_trace, turns_out, audit):
+    def _warnings(self, scenario, tool_trace, turns_out, audit, writes_enabled):
         w = []
         truth_tools_called = [t["name"] for t in tool_trace
                               if t["name"] in ("get_domain_state", "search_history",
                                                "get_foundational_health_facts")]
+        action_calls = [t["name"] for t in tool_trace
+                        if t["name"] in ("request_action", "resolve_pending_action")]
         if scenario.get("expect_no_truth_tools") and truth_tools_called:
             w.append(f"Expected NO personal truth pulls, but called: "
                      f"{truth_tools_called}")
@@ -193,8 +198,15 @@ class Command(BaseCommand):
                      f"none was called — check for fabrication in the answer.")
         if scenario.get("expect_action"):
             statuses = [a["result_status"] for a in audit if a["kind"] == "action"]
-            if "confirmation_required" not in statuses:
-                w.append("Expected a confirmation_required action; not observed.")
+            if writes_enabled:
+                if "confirmation_required" not in statuses:
+                    w.append("Expected a confirmation_required action; not observed.")
+                if "ok" not in statuses:
+                    w.append("Expected the confirmed action to execute (ok); not observed.")
+            else:
+                # READ-ONLY: action tools must be ABSENT — the model must not act.
+                if action_calls:
+                    w.append(f"READ-ONLY violated — action tools were callable: {action_calls}")
         # Cheap fabrication heuristic: a specific-looking numeric claim with no truth pull.
         if not truth_tools_called:
             for t in turns_out:
@@ -209,7 +221,8 @@ class Command(BaseCommand):
     def _print(self, rec):
         s = rec["scenario"]
         line = "═" * 78
-        self.stdout.write(f"\n{line}\nSCENARIO: {s['title']}  [{s['key']}]\n{line}")
+        self.stdout.write(f"\n{line}\nSCENARIO: {s['title']}  [{s['key']}] "
+                          f"[MODE: {rec.get('mode','?')}]\n{line}")
 
         self.stdout.write("\n▶ CONVERSATION")
         for t in rec["turns"]:
@@ -296,33 +309,36 @@ class Command(BaseCommand):
 
         svc = self._real_ai_service(model)
 
-        # Warm the Current Context cache the way the prod background worker would, so
-        # priority / clinical-safety / day-continuity are populated (never live-computed
-        # on the request path — the runtime only ever READS this cache).
+        # Warm StandingContextService the way the prod keep-alive worker would (Blocker 3:
+        # Current Context now reuses it, cache-first — the runtime only ever READS it).
+        from apps.ai.cos_services.standing_context import get_standing_context
         from apps.ai.model_interface import context_warm
-        warmed = context_warm.warm(user)
+        get_standing_context(user, allow_build=True)   # background/warming build
+        sig, _ = context_warm.read(user)
         self.stdout.write(
             f"  warmed Current Context: priority="
-            f"{(warmed or {}).get('priority_action')}\n")
+            f"{getattr(sig, 'priority_action', None)}\n")
 
-        # Clear any stale pending confirmation before we start.
-        from apps.ai.intent_service import IntentService
-        IntentService().clear_pending_confirmation(user)
+        # Two passes: READ-ONLY (all scenarios, no action tools, zero write risk), then
+        # a WRITE-ENABLED dry-run of the action scenario (confirmation binding).
+        passes = [(s, False) for s in scenarios]
+        action_scn = next((s for s in scenarios if s.get("expect_action")), None)
+        if action_scn is not None:
+            passes.append((action_scn, True))  # write-enabled (dry-run) pass
 
         records = []
         ctx = self._dry_run_patch() if dry else _nullcontext()
         with ctx:
-            for s in scenarios:
+            for s, writes in passes:
                 try:
-                    rec = self._run_scenario(svc, user, s, model)
+                    rec = self._run_scenario(svc, user, s, model, writes_enabled=writes)
                 except Exception as exc:
-                    rec = {"scenario": s, "turns": [], "tool_trace": [],
-                           "standing_context": {}, "audit": [],
-                           "warnings": [f"HARNESS ERROR: {exc!r}"],
+                    rec = {"scenario": s, "mode": "write" if writes else "read-only",
+                           "turns": [], "tool_trace": [], "standing_context": {},
+                           "audit": [], "warnings": [f"HARNESS ERROR: {exc!r}"],
                            "duration_ms": 0.0, "turn_ids": []}
                 records.append(rec)
                 self._print(rec)
-                IntentService().clear_pending_confirmation(user)  # isolate scenarios
 
         # Summary.
         self.stdout.write("\n" + "═" * 78 + "\nSUMMARY\n" + "═" * 78)
@@ -331,7 +347,7 @@ class Command(BaseCommand):
             n = len(rec["warnings"])
             total_warn += n
             flag = self.style.SUCCESS("✓") if n == 0 else self.style.WARNING(f"⚠ {n}")
-            self.stdout.write(f"  {flag}  {rec['scenario']['title']}")
+            self.stdout.write(f"  {flag}  [{rec.get('mode','?'):9s}] {rec['scenario']['title']}")
         verdict = (self.style.SUCCESS("No warnings — review transcript for judgment.")
                    if total_warn == 0 else
                    self.style.WARNING(f"{total_warn} warning(s) — review before enabling."))

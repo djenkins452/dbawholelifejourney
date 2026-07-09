@@ -722,6 +722,15 @@ class UserPreferences(models.Model):
                   "Takes precedence over use_chatgpt_cos. Toggle off for instant rollback.",
     )
 
+    # Staged rollout (Blocker 4): the model-interface runtime is READ-ONLY until this is
+    # True. Read-only exposes truth + context + AI Relationship (no action tools, no write
+    # risk); write-enabled adds the action tools. Requires use_model_interface=True.
+    use_model_interface_writes = models.BooleanField(
+        default=False,
+        help_text="Enable ACTION (write) tools on the model-interface runtime. Default "
+                  "False = read-only. Only meaningful when use_model_interface is True.",
+    )
+
     # ===================
     # PROACTIVE CHECK-INS
     # ===================

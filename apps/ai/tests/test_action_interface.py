@@ -1,15 +1,14 @@
 # ==============================================================================
 # File: apps/ai/tests/test_action_interface.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Action interface (Pillar 2) — STATEFUL server-side confirmation.
+# Description: Action interface (Pillar 2) — BOUND confirmation transactions.
 # ==============================================================================
 """
-Tests for apps/ai/cos_services/action_interface.py.
+Tests for the bound-confirmation action interface (Blocker 1 hardening).
 
-The eliminate-the-class guarantee: when an action needs confirmation, WLJ STORES it
-server-side; a later confirm executes the STORED action — the model never reconstructs
-the confirmed re-call. `execute_action` is mocked to drive the flow deterministically;
-the real cache-based pending store is exercised.
+Each confirmation has its own id; resolve executes a SPECIFIC confirmation, never
+"whatever is stored." `execute_action` is mocked to drive the flow; the real bound
+confirmation cache store is exercised.
 """
 
 from unittest import mock
@@ -27,79 +26,84 @@ _EXEC = "apps.ai.cos_services.action_interface.execute_action"
 
 
 def _fake_execute(user, action, params):
-    """Mirror real execute_action: needs confirmation unless confirmed=True."""
     if params.get("confirmed"):
         return {"status": "success", "action": action,
-                "message": "Moved 'Check on Melissa's Pillow' to 9:00 PM."}
+                "message": f"Executed {action}."}
     return {"status": "confirmation_required", "action": action,
-            "message": "This changes existing data and needs confirmation."}
+            "message": "needs confirmation"}
 
 
-class ActionInterfaceTests(TestCase):
+class BoundConfirmationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="act@example.com", password="x")
 
     def setUp(self):
-        cache.clear()  # pending store is cache-backed
+        cache.clear()
 
-    def _pending(self):
-        from apps.ai.intent_service import IntentService
-        return IntentService().get_pending_confirmation(self.user)
-
-    def test_confirmation_required_stores_pending_server_side(self):
+    def test_request_returns_a_bound_confirmation_id(self):
         with mock.patch(_EXEC, side_effect=_fake_execute):
             out = ai.request_action(self.user, "mutate_task",
                                     {"id": 5, "time": "21:00"}, turn_id="t1")
         self.assertEqual(out["status"], ai.CONFIRMATION_REQUIRED)
-        self.assertTrue(out["confirmation"]["pending"])
-        # The action is now held server-side (the model did NOT keep it).
-        pending = self._pending()
-        self.assertIsNotNone(pending)
-        self.assertEqual(pending["intent_type"], "mutate_task")
-        self.assertEqual(pending["parameters"]["id"], 5)
+        cid = out["confirmation"]["confirmation_id"]
+        self.assertTrue(cid)
+        self.assertIn("mutate_task", out["confirmation"]["summary"])
 
-    def test_confirm_executes_the_stored_action_and_clears(self):
+    def test_confirm_by_id_executes_that_action_and_consumes_it(self):
         with mock.patch(_EXEC, side_effect=_fake_execute) as m:
-            ai.request_action(self.user, "mutate_task", {"id": 5, "time": "21:00"},
-                              turn_id="t1")
-            out = ai.resolve_pending_action(self.user, confirm=True, turn_id="t1")
-
+            req = ai.request_action(self.user, "mutate_task", {"id": 5}, turn_id="t1")
+            cid = req["confirmation"]["confirmation_id"]
+            out = ai.resolve_pending_action(self.user, cid, confirm=True, turn_id="t1")
         self.assertEqual(out["status"], ai.OK)
-        self.assertIn("9:00 PM", out["result"])          # narrated from the REAL result
-        # The executing call carried confirmed=True + the STORED params — supplied by
-        # WLJ, never reconstructed by the model.
-        exec_call = m.call_args_list[-1]
-        _, exec_action, exec_params = exec_call.args
+        # executed with confirmed=true + the STORED params
+        _, exec_action, exec_params = m.call_args_list[-1].args
         self.assertEqual(exec_action, "mutate_task")
         self.assertTrue(exec_params["confirmed"])
         self.assertEqual(exec_params["id"], 5)
-        self.assertEqual(exec_params["time"], "21:00")
-        # Pending cleared after resolution.
-        self.assertIsNone(self._pending())
+        # single-use: the same id no longer resolves
+        again = ai.resolve_pending_action(self.user, cid, confirm=True)
+        self.assertEqual(again["code"], "no_matching_confirmation")
+
+    def test_confused_deputy_is_prevented(self):
+        # Two requests → two distinct ids. Resolving A executes A, never B.
+        with mock.patch(_EXEC, side_effect=_fake_execute) as m:
+            a = ai.request_action(self.user, "mutate_task", {"id": 1})["confirmation"]
+            b = ai.request_action(self.user, "create_task", {"title": "B"})["confirmation"]
+            self.assertNotEqual(a["confirmation_id"], b["confirmation_id"])
+            ai.resolve_pending_action(self.user, a["confirmation_id"], confirm=True)
+        _, exec_action, exec_params = m.call_args_list[-1].args
+        self.assertEqual(exec_action, "mutate_task")   # A, not B
+        self.assertEqual(exec_params["id"], 1)
+        # B is still pending and independently resolvable.
+        from apps.ai.model_interface import confirmation
+        self.assertIsNotNone(confirmation.get(self.user, b["confirmation_id"]))
+
+    def test_missing_or_wrong_id_fails_honestly(self):
+        self.assertEqual(
+            ai.resolve_pending_action(self.user, "does-not-exist", confirm=True)["code"],
+            "no_matching_confirmation")
+        self.assertEqual(
+            ai.resolve_pending_action(self.user, None, confirm=True)["code"],
+            "no_matching_confirmation")
 
     def test_decline_cancels_without_executing(self):
         with mock.patch(_EXEC, side_effect=_fake_execute) as m:
-            ai.request_action(self.user, "mutate_task", {"id": 5}, turn_id="t1")
+            cid = ai.request_action(self.user, "mutate_task", {"id": 5})[
+                "confirmation"]["confirmation_id"]
             calls_after_request = m.call_count
-            out = ai.resolve_pending_action(self.user, confirm=False, turn_id="t1")
-            # No execution happened on decline.
-            self.assertEqual(m.call_count, calls_after_request)
+            out = ai.resolve_pending_action(self.user, cid, confirm=False)
+            self.assertEqual(m.call_count, calls_after_request)  # no execution
         self.assertEqual(out["status"], ai.DECLINED)
-        self.assertIsNone(self._pending())
-
-    def test_resolve_with_nothing_pending_is_honest(self):
-        out = ai.resolve_pending_action(self.user, confirm=True)
-        self.assertEqual(out["status"], ai.ERROR)
-        self.assertEqual(out["code"], "nothing_pending")
+        from apps.ai.model_interface import confirmation
+        self.assertIsNone(confirmation.get(self.user, cid))  # consumed
 
     def test_non_confirmation_action_executes_immediately(self):
         with mock.patch(_EXEC, return_value={"status": "success",
                                              "message": "Logged.", "action": "log_x"}):
-            out = ai.request_action(self.user, "log_x", {"v": 1}, turn_id="t2")
+            out = ai.request_action(self.user, "log_x", {"v": 1})
         self.assertEqual(out["status"], ai.OK)
-        self.assertEqual(out["result"], "Logged.")
-        self.assertIsNone(self._pending())   # nothing stored for a non-confirm action
+        self.assertNotIn("confirmation", out)
 
     def test_failed_execution_reports_the_real_reason(self):
         with mock.patch(_EXEC, return_value={"status": "failed",
@@ -111,7 +115,8 @@ class ActionInterfaceTests(TestCase):
 
     def test_actions_are_audited(self):
         with mock.patch(_EXEC, side_effect=_fake_execute):
-            ai.request_action(self.user, "mutate_task", {"id": 5}, turn_id="taudit")
-            ai.resolve_pending_action(self.user, confirm=True, turn_id="taudit")
+            cid = ai.request_action(self.user, "mutate_task", {"id": 5},
+                                    turn_id="taudit")["confirmation"]["confirmation_id"]
+            ai.resolve_pending_action(self.user, cid, confirm=True, turn_id="taudit")
         rows = ToolCallLog.objects.filter(user=self.user, turn_id="taudit", kind="action")
         self.assertEqual(rows.count(), 2)

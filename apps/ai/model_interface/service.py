@@ -40,6 +40,36 @@ from apps.core.truth import envelope as _env
 
 logger = logging.getLogger(__name__)
 
+# How many prior turns of history to give the model (reuses AssistantMessage — no new
+# memory engine). Kept modest to bound tokens.
+_HISTORY_LIMIT = 12
+
+
+def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT):
+    """Load prior turns for `conversation` as [{role, content}] for the model, reusing
+    the existing AssistantMessage store (Blocker 2 — conversation continuity). Returns
+    the most recent `limit` user/assistant text messages, chronologically. Never raises.
+
+    Call this BEFORE persisting the current user message so the current turn is not
+    duplicated into the history.
+    """
+    if conversation is None or not getattr(conversation, "id", None):
+        return []
+    try:
+        from apps.ai.models import AssistantMessage
+        rows = list(
+            AssistantMessage.objects.filter(
+                conversation=conversation, role__in=("user", "assistant"),
+                message_type="text",
+            ).order_by("-created_at").values("role", "content")[:limit]
+        )
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("mi: history load failed", exc_info=True)
+        return []
+    rows.reverse()  # chronological
+    return [{"role": r["role"], "content": r["content"] or ""}
+            for r in rows if (r["content"] or "").strip()]
+
 
 def _wrap_truth(result, source):
     """Wrap an existing cos_services result in the canonical truth envelope, mapping
@@ -69,31 +99,36 @@ class ModelInterfaceService:
             ai_service = AIService()
         self.ai = ai_service
 
+    def _writes_enabled(self) -> bool:
+        """Read-only vs write-enabled rollout stage (Blocker 4). Fail-safe to READ-ONLY:
+        any error resolves to False, so writes are never accidentally exposed."""
+        try:
+            return bool(getattr(self.user.preferences, "use_model_interface_writes", False))
+        except Exception:
+            return False
+
     # -- standing context (structured DATA, not instructions) -----------------
-    def build_standing_context(self, *, signals=None, continuity=None) -> dict:
-        # Current Context policy (priority / clinical-safety / day-continuity) is
-        # CACHE-FIRST (never live-computed on the request path). On a cold miss we
-        # fire-and-forget a warm so the next turn is populated, and return pending now.
+    def build_standing_context(self, *, signals=None, continuity=None,
+                               writes_enabled=False) -> dict:
+        # Current Context policy (priority / critical-safety) is read CACHE-FIRST from
+        # StandingContextService (warmed by the existing prod worker) — never live-
+        # computed on the request path. Cold miss → (None, None) → baseline is pending,
+        # honestly (Blocker 3: reuse, no second warm pipeline).
         if signals is None and continuity is None:
             from apps.ai.model_interface import context_warm
             signals, continuity = context_warm.read(self.user)
-            if signals is None and continuity is None:
-                self._enqueue_warm()
-        return {
+        ctx = {
             "ai_relationship": get_ai_relationship(self.user),
             "current_context": get_current_context_baseline(
                 self.user, signals=signals, continuity=continuity,
             ),
         }
-
-    def _enqueue_warm(self):
-        """Non-blocking, never-raises warm of the Current Context cache."""
-        try:
-            from apps.core.celery_utils import safe_enqueue
-            from apps.ai.model_interface.tasks import warm_model_interface_context
-            safe_enqueue(warm_model_interface_context, self.user.id)
-        except Exception:
-            logger.debug("mi: warm enqueue skipped", exc_info=True)
+        # Surface OPEN confirmations so the model can resolve a SPECIFIC one on the
+        # user's next "yes" (the id lives in a prior tool result, not the transcript).
+        if writes_enabled:
+            from apps.ai.model_interface import confirmation
+            ctx["pending_confirmations"] = confirmation.list_open(self.user)
+        return ctx
 
     def _system_prompt(self, standing_context: dict) -> str:
         return (
@@ -146,7 +181,8 @@ class ModelInterfaceService:
                 )
             if name == "resolve_pending_action":
                 return action_interface.resolve_pending_action(
-                    user, confirm=bool(args.get("confirm", False)),
+                    user, args.get("confirmation_id"),
+                    confirm=bool(args.get("confirm", False)),
                     turn_id=turn_id, surface=surface,
                 )
 
@@ -168,12 +204,14 @@ class ModelInterfaceService:
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
                  request_id="", signals=None, continuity=None, observer=None,
-                 conversation_history=None) -> dict:
+                 conversation_history=None, writes_enabled=None) -> dict:
         turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
         tools_called = []
+        if writes_enabled is None:
+            writes_enabled = self._writes_enabled()
 
         standing_context = self.build_standing_context(
-            signals=signals, continuity=continuity,
+            signals=signals, continuity=continuity, writes_enabled=writes_enabled,
         )
         system_prompt = self._system_prompt(standing_context)
         dispatch = self._make_dispatch(
@@ -182,8 +220,8 @@ class ModelInterfaceService:
         )
 
         answer = self.ai._call_api_with_tools(
-            system_prompt, message or "", tools=all_tools(), dispatch=dispatch,
-            user=self.user, endpoint="model_interface",
+            system_prompt, message or "", tools=all_tools(writes_enabled=writes_enabled),
+            dispatch=dispatch, user=self.user, endpoint="model_interface",
             conversation_history=conversation_history,
         )
         answer = answer or ""

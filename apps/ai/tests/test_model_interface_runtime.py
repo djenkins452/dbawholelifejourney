@@ -104,25 +104,40 @@ class StandingContextTests(TestCase):
         self.assertTrue(all(isinstance(d, str)
                             for d in cc["capabilities"]["answerable_domains"]))
 
-    def test_current_context_priority_appears_when_warmed(self):
-        # Acceptance (Slice 7.1-B): when the warm cache holds the deterministic policy,
-        # the baseline surfaces it (populated, not pending) so the model receives it.
-        from apps.ai.model_interface import context_warm
-        from django.core.cache import cache
-        cache.set(
-            context_warm._key(self.user.id),
-            {"priority_action": {"text": "5 prescription doses are overdue",
-                                 "kind": "health_critical"},
-             "health_critical": [{"kind": "medication_overdue",
-                                  "text": "5 prescription doses are overdue"}],
-             "continuity": {"mode": "orient_full", "material_changes": []}},
-            60,
-        )
-        cc = ModelInterfaceService(self.user).build_standing_context()["current_context"]
+    def test_current_context_priority_from_standing_context(self):
+        # Acceptance (Blocker 3): Current Context REUSES StandingContextService. When it is
+        # warm, the baseline surfaces the deterministic priority (not pending).
+        ready = {
+            "status": "ready",
+            "executive_read": "Highest priority right now: 5 prescription doses are overdue.",
+            "recommended_focus": "Take the overdue doses first.",
+            "critical_signals": [{"domain": "health", "type": "past_due",
+                                  "title": "Metformin overdue"}],
+        }
+        with mock.patch(
+            "apps.ai.cos_services.standing_context.get_standing_context",
+            return_value=ready,
+        ):
+            cc = ModelInterfaceService(self.user).build_standing_context()["current_context"]
         self.assertEqual(cc["priority"]["status"], "ok")
-        self.assertEqual(len(cc["priority"]["clinical_safety"]), 1)
         self.assertIn("overdue", cc["priority"]["priority_action"]["text"])
-        self.assertEqual(cc["day_continuity"]["mode"], "orient_full")
+        self.assertEqual(len(cc["priority"]["clinical_safety"]), 1)
+
+    def test_read_only_omits_action_tools_write_includes_them(self):
+        from apps.ai.model_interface.constitution import all_tools
+        ro = {t["function"]["name"] for t in all_tools(writes_enabled=False)}
+        rw = {t["function"]["name"] for t in all_tools(writes_enabled=True)}
+        self.assertNotIn("request_action", ro)
+        self.assertNotIn("resolve_pending_action", ro)
+        self.assertIn("request_action", rw)
+        # truth tools present in both
+        self.assertIn("get_domain_state", ro)
+
+    def test_writes_enabled_reads_the_flag(self):
+        _prefs(self.user, use_model_interface_writes=True)
+        self.assertTrue(ModelInterfaceService(self.user)._writes_enabled())
+        _prefs(self.user, use_model_interface_writes=False)
+        self.assertFalse(ModelInterfaceService(self.user)._writes_enabled())
 
 
 class TruthToolTests(TestCase):
@@ -206,37 +221,49 @@ class StatefulActionTests(TestCase):
         return {"status": "confirmation_required", "action": action,
                 "message": "needs confirmation"}
 
-    def test_request_creates_pending_then_confirm_executes_stored_action(self):
-        exec_target = "apps.ai.cos_services.action_execution.execute_action"
+    def test_request_binds_confirmation_then_confirm_by_id_executes(self):
+        import json as _json
+        exec_target = "apps.ai.cos_services.action_interface.execute_action"
+        captured = []
+
+        def _obs(name, args, result):
+            captured.append((name, result))
+
         with mock.patch(exec_target, side_effect=self._fake_execute):
-            # Turn 1: model requests the action → confirmation_required, WLJ stores it.
+            # Turn 1: model requests the action (write mode) → bound confirmation.
             mi1 = ModelInterfaceService(self.user, ai_service=_ai_with([
                 _resp(tool_calls=[_toolcall(
                     "c1", "request_action",
                     '{"action": "mutate_task", "params": {"id": 5, "time": "21:00"}}')]),
                 _resp(content="Want me to move it to 9 PM?"),
             ]))
-            mi1.generate(SimpleNamespace(id=1), "move my task", request_id="t1")
+            mi1.generate(SimpleNamespace(id=1), "move my task", request_id="t1",
+                         observer=_obs, writes_enabled=True)
 
-            from apps.ai.intent_service import IntentService
-            pending = IntentService().get_pending_confirmation(self.user)
-            self.assertIsNotNone(pending)                 # held server-side
-            self.assertEqual(pending["intent_type"], "mutate_task")
+            # The model interface returned a bound confirmation id.
+            cid = None
+            for name, res in captured:
+                if name == "request_action":
+                    cid = (res.get("confirmation") or {}).get("confirmation_id")
+            self.assertTrue(cid)
 
-            # Turn 2: user says yes → model resolves; WLJ executes the STORED action.
+            # Turn 2: model resolves the SPECIFIC confirmation by id.
             mi2 = ModelInterfaceService(self.user, ai_service=_ai_with([
                 _resp(tool_calls=[_toolcall("c2", "resolve_pending_action",
-                                            '{"confirm": true}')]),
+                                            _json.dumps({"confirmation_id": cid,
+                                                         "confirm": True}))]),
                 _resp(content="Done — moved it to 9 PM."),
             ]))
-            mi2.generate(SimpleNamespace(id=1), "yes", request_id="t2")
+            mi2.generate(SimpleNamespace(id=1), "yes", request_id="t2",
+                         writes_enabled=True)
 
-        self.assertIsNone(IntentService().get_pending_confirmation(self.user))  # cleared
-        # Audit shows the action request and the executed action.
+        from apps.ai.model_interface import confirmation
+        self.assertIsNone(confirmation.get(self.user, cid))  # consumed
+        # Audit shows the action request (t1) and the executed action (t2, status ok).
         self.assertTrue(ToolCallLog.objects.filter(
             user=self.user, kind="action", turn_id="t1").exists())
         self.assertTrue(ToolCallLog.objects.filter(
-            user=self.user, kind="action", turn_id="t2").exists())
+            user=self.user, kind="action", turn_id="t2", result_status="ok").exists())
 
 
 class RuntimeResolutionTests(TestCase):
@@ -279,6 +306,30 @@ class RuntimeIOTests(TestCase):
             conversation_id=conv_id).values_list("role", flat=True))
         self.assertIn("user", roles)
         self.assertIn("assistant", roles)
+
+    def test_conversation_history_is_loaded_and_passed(self):
+        # Blocker 2: prior turns are loaded from the existing AssistantMessage store and
+        # passed to the model — and the CURRENT user message is not duplicated into it.
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.models import AssistantConversation, AssistantMessage
+        conv = AssistantConversation.get_or_create_active(self.user)
+        AssistantMessage.objects.create(conversation=conv, role="user",
+                                        content="earlier question", message_type="text")
+        AssistantMessage.objects.create(conversation=conv, role="assistant",
+                                        content="earlier answer", message_type="text")
+        seen = {}
+        def _capture(self_svc, conversation, message, **kw):
+            seen["history"] = kw.get("conversation_history")
+            return {"answer": "ok", "tools_called": []}
+        with mock.patch.object(ModelInterfaceService, "generate", new=_capture):
+            ModelInterfaceRuntime().respond(user=self.user, surface="chat",
+                                            conversation=conv, message="new question",
+                                            stream=False)
+        hist = seen["history"]
+        self.assertEqual(hist, [{"role": "user", "content": "earlier question"},
+                                {"role": "assistant", "content": "earlier answer"}])
+        # the current turn ("new question") must NOT be in the passed history
+        self.assertNotIn("new question", [h["content"] for h in hist])
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
     def test_streaming_parity_writes_terminal_answer_to_bus(self):

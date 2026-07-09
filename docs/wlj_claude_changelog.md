@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — fix(interface): Phase II slice 7.2 — pre-production hardening (4 blockers)
+
+Hardened the model-interface runtime from "it works" to "trust it in production." No new
+capabilities — risk removal only. Re-ran the real-model harness on the owner account: all
+scenarios pass in BOTH read-only and write (dry-run) modes, zero warnings.
+
+**Blocker 1 — Confirmation binding (confused-deputy removed).** NEW
+`apps/ai/model_interface/confirmation.py`: each confirmation is a bound transaction
+{id, action, params, summary}; `resolve_pending_action(confirmation_id, confirm)` executes
+a SPECIFIC confirmation by id (single-use, expiring), never "whatever is stored." A dedicated
+per-user store isolated from the legacy `pending_intent_*` key. Open confirmations are
+surfaced in the standing context (`pending_confirmations`) so the model can resolve the right
+one across turns (the id lives in a tool result, not the transcript — the harness caught this
+and it is now fixed). `action_interface` + tool schema updated (resolve requires an explicit
+`confirmation_id`).
+
+**Blocker 2 — Conversation history.** NEW `load_conversation_history()` reuses the existing
+`AssistantMessage` store (no new memory engine); `ModelInterfaceRuntime` (non-streaming) and
+the streaming task now load prior turns BEFORE persisting the current one and pass them to
+the model. The runtime is no longer stateless across turns.
+
+**Blocker 3 — Standing-context duplication removed.** `context_warm` collapsed from its own
+`interpret()` (~850ms) + warm task + cache into a THIN cache-first READER over
+`StandingContextService` (already warmed by the existing prod keep-alive worker). Deleted the
+warm Celery task + its registration + the fire-and-forget enqueue. Priority now flows from the
+existing pipeline (validated: "5 prescription doses are overdue").
+
+**Blocker 4 — Staged rollout (OFF → READ-ONLY → WRITE).** Additive
+`UserPreferences.use_model_interface_writes` (default False = read-only). Read-only exposes
+truth + context + AI Relationship only (NO action tools → zero write risk); write-enabled adds
+the action tools. `generate()`/`all_tools()` gate on the flag; fail-safe to read-only.
+
+**Harness:** now runs a read-only pass (all scenarios) + a write dry-run pass (action), reports
+per-mode. Warms StandingContextService (Blocker 3).
+
+**Files:** model_interface/{confirmation(new),context_warm,constitution,service,tasks}.py,
+cos_services/action_interface.py, cos_gateway/runtime.py, tasks.py, users/models.py +
+migration 0089, management/commands/validate_model_interface.py, tests.
+**Verification:** 77 interface+gateway tests + request-path-safety green; migration check
+clean; real-model harness zero warnings in both modes. Owner-enable still HELD.
+
 ## 2026-07-09 — fix(interface): Phase II slice 7.1 — hardening from the real-model harness
 
 Addressed the three findings from the pre-live harness run. Re-ran the real-model harness

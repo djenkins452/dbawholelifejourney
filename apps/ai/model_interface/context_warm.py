@@ -1,99 +1,71 @@
 # ==============================================================================
 # File: apps/ai/model_interface/context_warm.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Cache-first Current Context warming (Pillar 4 signals)
+# Description: Current Context source — a thin reader over StandingContextService
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-07-09
 # ==============================================================================
 """
-Current Context warming — the cache-first source of the deterministic policy the
-model interface feeds into Pillar 4 (priority / clinical-safety / day-continuity).
+Current Context source for the model interface (Pillar 4 deterministic policy).
 
-Request-path safety (CLAUDE.md): `interpret()` is ~850ms (heavy) and MUST NOT run on
-the request path. So:
-  * `warm(user)`   — computes `interpret()` + day-continuity and CACHES a compact,
-                     JSON-safe payload. Run by a background/warming caller (Celery
-                     task, or the validation harness) — never the request path.
-  * `read(user)`   — CACHE-FIRST read; returns `(signals, continuity)` lightweight
-                     objects for `get_current_context_baseline`, or `(None, None)`
-                     when cold (→ the baseline returns `pending`, honestly).
+HARDENING (Slice 7.2 — Blocker 3): this used to call `interpret()` (~850ms) and run its
+OWN warm pipeline + cache — duplicating the executive picture that `StandingContextService`
+already computes and that the EXISTING prod keep-alive worker already warms. That violated
+"reuse before rebuilding." It is now a THIN, cache-first READER over
+`StandingContextService`: it extracts the deterministic priority / critical-safety policy
+that service already projects. No second heavy compute, no second warm task, no second cache.
 
-We cache only what Current Context consumes (priority_action, health_critical, and the
-day-continuity mode + material_changes) — NOT the whole ExecutiveSignals, and never the
-`headline` (that is reasoning the model authors).
+Request-path-safe: `get_standing_context(..., allow_build=False)` is cache-first and
+returns a pending shell on a cold miss → we return `(None, None)` → the Current Context
+baseline reports `pending` honestly (the existing worker re-warms the shared cache).
+
+Day-continuity is intentionally NOT sourced here (it is not in the standing context);
+cross-turn continuity now comes from the conversation history wired into the runtime.
 """
 
 import logging
 from types import SimpleNamespace
 
-from django.core.cache import cache
-
+from apps.ai.cos_services.serialization import cap as _cap
 from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
 
 logger = logging.getLogger(__name__)
 
-_TTL = 150  # seconds; a background warm keeps this fresh in prod
+_MAX_CRITICAL = 5
 
 
-def _key(user_id):
-    return f"wlj:mi:current_context:{user_id}"
-
-
-def warm(user):
-    """Compute + cache the Current Context policy payload. Heavy — background only.
-    Returns the cached payload (or None on failure). Never raises."""
-    uid = getattr(user, "id", None)
+def read(user, *, allow_build=False):
+    """Cache-first. Return (signals, continuity) for get_current_context_baseline, or
+    (None, None) when the standing context is not yet warm. Never raises, never
+    live-computes on the request path (allow_build stays False on the request path)."""
     try:
-        from apps.ai.chatgpt_cos.executive_interpretation import interpret
-        signals = interpret(user)
-        payload = {
-            "priority_action": _jsonsafe(getattr(signals, "priority_action", None)),
-            "health_critical": _jsonsafe(getattr(signals, "health_critical", None) or []),
-        }
-    except Exception:
-        logger.warning("mi.context_warm: interpret failed user=%s", uid, exc_info=True)
-        payload = {"priority_action": None, "health_critical": []}
-
-    try:
-        from apps.ai.chatgpt_cos.day_continuity import assess
-        decision = assess(user)
-        payload["continuity"] = {
-            "mode": getattr(decision, "mode", None),
-            "material_changes": _jsonsafe(
-                getattr(decision, "material_changes", None) or []),
-        }
-    except Exception:
-        logger.warning("mi.context_warm: continuity failed user=%s", uid, exc_info=True)
-        payload["continuity"] = None
-
-    try:
-        cache.set(_key(uid), payload, _TTL)
+        from apps.ai.cos_services.standing_context import get_standing_context
+        ctx = get_standing_context(user, allow_build=allow_build)
     except Exception:  # pragma: no cover - defensive
-        logger.warning("mi.context_warm: cache set failed user=%s", uid, exc_info=True)
-    return payload
-
-
-def read(user):
-    """Cache-first. Return (signals, continuity) lightweight objects for
-    get_current_context_baseline, or (None, None) when cold. Never raises, never
-    live-computes."""
-    uid = getattr(user, "id", None)
-    try:
-        payload = cache.get(_key(uid))
-    except Exception:  # pragma: no cover - defensive
-        payload = None
-    if not payload:
+        logger.warning("mi.context: standing context read failed user=%s",
+                       getattr(user, "id", "?"), exc_info=True)
         return None, None
 
+    if not ctx or ctx.get("status") != "ready":
+        return None, None
+
+    exec_read = (ctx.get("executive_read") or "").strip()
+    recommended = (ctx.get("recommended_focus") or "").strip()
+    critical = ctx.get("critical_signals") or []
+
+    priority_action = None
+    if exec_read or recommended:
+        priority_action = {
+            "text": exec_read or recommended,
+            "recommended_focus": recommended,
+            "source": "standing_context",
+        }
+    health_critical = _jsonsafe(
+        _cap([c for c in critical if isinstance(c, dict)], _MAX_CRITICAL))
+
     signals = SimpleNamespace(
-        priority_action=payload.get("priority_action"),
-        health_critical=payload.get("health_critical") or [],
+        priority_action=priority_action,
+        health_critical=health_critical,
     )
-    cont = payload.get("continuity")
-    continuity = None
-    if cont:
-        continuity = SimpleNamespace(
-            mode=cont.get("mode"),
-            material_changes=cont.get("material_changes") or [],
-        )
-    return signals, continuity
+    # Continuity comes from conversation history now (not the standing context).
+    return signals, None

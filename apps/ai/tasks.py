@@ -307,4 +307,5 @@ from apps.ai.chatgpt_cos.tasks import (  # noqa: E402,F401
 # not an INSTALLED_APP): import it here so every worker registers it.
 from apps.ai.model_interface.tasks import (  # noqa: E402,F401
     run_model_interface_generation,
+    warm_model_interface_context,
 )

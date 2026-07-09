@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — fix(interface): Phase II slice 7.1 — hardening from the real-model harness
+
+Addressed the three findings from the pre-live harness run. Re-ran the real-model harness
+against the owner account: **all 7 scenarios pass with zero warnings.**
+
+**A — Tool schema hardening (stop the model guessing).** `apps/ai/model_interface/
+constitution.py` now builds tool schemas dynamically with JSON-Schema **enums** from the
+live registries: valid `get_domain_state` domains (`supported_domains`), valid
+`get_foundational_health_facts` keys (`SUPPORTED_FACTS`), valid `request_action` names
+(`DAY1_ACTION_ALLOWLIST`), and `search_history` domains. Descriptions also note that
+priority/clinical-safety/day-continuity are Current Context, not pullable domains. Result:
+the model now uses `mutate_task` (not `update_task`), `sleep_trend` (not `sleep`), and real
+domains.
+
+**B — Current Context warming (make it useful).** NEW `apps/ai/model_interface/
+context_warm.py` — `warm(user)` computes the heavy `interpret()` (~850ms) + day-continuity
+and caches a compact policy payload (priority_action, health_critical, continuity — never
+the headline); `read(user)` is a cache-first request-path-safe read. `build_standing_context`
+now reads it cache-first and fire-and-forgets a warm (`safe_enqueue`) on a cold miss (pending
+honestly this turn). NEW Celery task `warm_model_interface_context` (registered). The model
+now receives real deterministic policy (validated: **"5 prescription doses are overdue,"
+score 100, do-not-re-rank**).
+
+**C — search_history bug (real, narrow, fixed).** `apps/ai/search_service.py` —
+`_search_health_mobility` and 3 sibling methods called `reverse('health:health_home')`, a
+non-existent URL name → `NoReverseMatch` crashed the ENTIRE search (legacy + CoS paths).
+Fixed to `health:home` (the real name, urls.py:87). `search_history` now returns real
+results (verified: 12 for "family"/"workout"; the journal scenario now returns a clean
+`empty`).
+
+**D — Re-ran the harness (real model, owner account, dry-run, isolated).** Confirmed:
+action **confirmation flow reached** (`mutate_task` → confirmation_required → confirm →
+`resolve_pending_action` → `[DRY RUN] would execute`); **priority appears** (5 overdue
+doses); **search works** (empty, not error); **no fabrication** (sleep answer grounded in
+`sleep_trend`); audit captures the full truth/action/response trace.
+
+**Files:** `model_interface/{constitution,context_warm,service,tasks}.py`, `tasks.py`,
+`search_service.py`, `management/commands/validate_model_interface.py`, tests.
+**Verification:** 70 interface+gateway tests green; request-path-safety (3) green;
+`makemigrations --check` clean. **Owner-enable still HELD** pending owner review.
+
 ## 2026-07-09 — feat(interface): pre-live validation harness (real model, dry-run, isolated)
 
 **A manual integration harness** to answer "if we turned the model-interface runtime on for

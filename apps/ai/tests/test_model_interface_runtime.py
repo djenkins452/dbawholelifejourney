@@ -92,15 +92,37 @@ class StandingContextTests(TestCase):
         ctx = mi.build_standing_context()
         # Only two pillars are pushed; deep personal truth is pull-only.
         self.assertEqual(set(ctx.keys()), {"ai_relationship", "current_context"})
-        # No personal domain STATE is pushed: priority + day-continuity are pending
-        # (no health/other data), and Current Context carries no domain payloads.
+        # No personal DOMAIN state (journal/finance/etc.) is pushed — Current Context
+        # carries only the minimal baseline (clock, priority policy, continuity,
+        # capability index). Priority/clinical-safety IS the intentional safety baseline.
         cc = ctx["current_context"]
-        self.assertEqual(cc["priority"]["status"], "pending")
-        self.assertEqual(cc["day_continuity"]["status"], "pending")
-        self.assertNotIn("state", cc)          # no pushed domain state
+        self.assertEqual(set(cc.keys()),
+                         {"schema_version", "clock", "priority", "day_continuity",
+                          "capabilities"})
+        self.assertNotIn("state", cc)          # no pushed domain state payloads
         # The capability index lists domain NAMES only (what you can ask), not values.
         self.assertTrue(all(isinstance(d, str)
                             for d in cc["capabilities"]["answerable_domains"]))
+
+    def test_current_context_priority_appears_when_warmed(self):
+        # Acceptance (Slice 7.1-B): when the warm cache holds the deterministic policy,
+        # the baseline surfaces it (populated, not pending) so the model receives it.
+        from apps.ai.model_interface import context_warm
+        from django.core.cache import cache
+        cache.set(
+            context_warm._key(self.user.id),
+            {"priority_action": {"text": "5 prescription doses are overdue",
+                                 "kind": "health_critical"},
+             "health_critical": [{"kind": "medication_overdue",
+                                  "text": "5 prescription doses are overdue"}],
+             "continuity": {"mode": "orient_full", "material_changes": []}},
+            60,
+        )
+        cc = ModelInterfaceService(self.user).build_standing_context()["current_context"]
+        self.assertEqual(cc["priority"]["status"], "ok")
+        self.assertEqual(len(cc["priority"]["clinical_safety"]), 1)
+        self.assertIn("overdue", cc["priority"]["priority_action"]["text"])
+        self.assertEqual(cc["day_continuity"]["mode"], "orient_full")
 
 
 class TruthToolTests(TestCase):

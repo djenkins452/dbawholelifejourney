@@ -21,6 +21,21 @@ from celery.exceptions import SoftTimeLimitExceeded
 logger = logging.getLogger("apps.ai.model_interface")
 
 
+@shared_task(name="apps.ai.model_interface.warm_model_interface_context",
+             bind=False, max_retries=0, ignore_result=True)
+def warm_model_interface_context(user_id):
+    """Background warm of the Current Context policy cache (heavy interpret() +
+    day-continuity), so the request path only ever reads cache. Never raises."""
+    try:
+        from django.contrib.auth import get_user_model
+        from apps.ai.model_interface import context_warm
+        user = get_user_model().objects.get(id=user_id)
+        context_warm.warm(user)
+    except Exception:
+        logger.warning("warm_model_interface_context failed user=%s", user_id,
+                       exc_info=True)
+
+
 @shared_task(
     name="apps.ai.model_interface.run_model_interface_generation",
     bind=True,

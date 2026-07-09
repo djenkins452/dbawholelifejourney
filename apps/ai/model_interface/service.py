@@ -71,12 +71,29 @@ class ModelInterfaceService:
 
     # -- standing context (structured DATA, not instructions) -----------------
     def build_standing_context(self, *, signals=None, continuity=None) -> dict:
+        # Current Context policy (priority / clinical-safety / day-continuity) is
+        # CACHE-FIRST (never live-computed on the request path). On a cold miss we
+        # fire-and-forget a warm so the next turn is populated, and return pending now.
+        if signals is None and continuity is None:
+            from apps.ai.model_interface import context_warm
+            signals, continuity = context_warm.read(self.user)
+            if signals is None and continuity is None:
+                self._enqueue_warm()
         return {
             "ai_relationship": get_ai_relationship(self.user),
             "current_context": get_current_context_baseline(
                 self.user, signals=signals, continuity=continuity,
             ),
         }
+
+    def _enqueue_warm(self):
+        """Non-blocking, never-raises warm of the Current Context cache."""
+        try:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.ai.model_interface.tasks import warm_model_interface_context
+            safe_enqueue(warm_model_interface_context, self.user.id)
+        except Exception:
+            logger.debug("mi: warm enqueue skipped", exc_info=True)
 
     def _system_prompt(self, standing_context: dict) -> str:
         return (

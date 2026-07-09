@@ -296,6 +296,15 @@ class Command(BaseCommand):
 
         svc = self._real_ai_service(model)
 
+        # Warm the Current Context cache the way the prod background worker would, so
+        # priority / clinical-safety / day-continuity are populated (never live-computed
+        # on the request path — the runtime only ever READS this cache).
+        from apps.ai.model_interface import context_warm
+        warmed = context_warm.warm(user)
+        self.stdout.write(
+            f"  warmed Current Context: priority="
+            f"{(warmed or {}).get('priority_action')}\n")
+
         # Clear any stale pending confirmation before we start.
         from apps.ai.intent_service import IntentService
         IntentService().clear_pending_confirmation(user)

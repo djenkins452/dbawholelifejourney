@@ -737,7 +737,7 @@ class SearchService:
                 title=f"Mobility ({entry.metric_date})",
                 snippet=snippet,
                 date_value=entry.metric_date,
-                url=reverse('health:health_home'),
+                url=reverse('health:home'),
                 metadata={"metric_type": "mobility"}
             ))
         return results
@@ -771,7 +771,7 @@ class SearchService:
                 title=f"HR Event: {entry.event_type} ({entry.recorded_at.strftime('%Y-%m-%d')})",
                 snippet=snippet,
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:health_home'),
+                url=reverse('health:home'),
                 metadata={"metric_type": "heart_rate_events", "event_type": entry.event_type}
             ))
         return results
@@ -809,7 +809,7 @@ class SearchService:
                 title=f"Audio Exposure ({entry.metric_date})",
                 snippet=', '.join(parts) if parts else "Audio data",
                 date_value=entry.metric_date,
-                url=reverse('health:health_home'),
+                url=reverse('health:home'),
                 metadata={"metric_type": "audio_exposure"}
             ))
         return results
@@ -849,7 +849,7 @@ class SearchService:
                 title=f"Nutrients ({entry.metric_date})",
                 snippet=', '.join(parts) if parts else "Dietary data",
                 date_value=entry.metric_date,
-                url=reverse('health:health_home'),
+                url=reverse('health:home'),
                 metadata={"metric_type": "dietary_nutrients"}
             ))
         return results

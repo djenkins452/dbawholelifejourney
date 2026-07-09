@@ -6,6 +6,31 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — chore(interface): enable model-interface READ-ONLY for owner + live-write proof (FAILED)
+
+**Read-only enabled for the owner (validated).** Migration `users/0090` sets
+use_model_interface=True, use_model_interface_writes=False. Verified: owner resolves to the
+`model_interface` runtime; writes disabled (action tools absent); rollback is one flag flip
+(use_model_interface=False → chatgpt_cos).
+
+**One controlled live-write proof — FAILED at the real handler (writes NOT enabled).** On a
+throwaway task, real model, REAL execute (no dry-run): the confirmation binding worked
+perfectly (request_action → confirmation_required(cid) → resolve_pending_action(cid, confirm))
+and safety held (honest error, NO false success, DB unchanged 08:00→08:00, task + audit rows
+cleaned up). But the write did not land:
+`handle_mutate_task() missing 2 required positional arguments: 'action' and 'task_query'`.
+
+Root cause (the risk flagged in the pre-production review, now confirmed — dry-run had masked
+it): the model-interface's generic `request_action(action, params)` tool does not advertise
+per-action PARAM schemas, so the model guessed `{task_id, new_due_time}` while the handler
+needs `action='update', task_query=..., new_scheduled_time='HH:MM'`. execute_intent calls
+`handle_mutate_task(**parameters)` directly → TypeError. **Writes remain DISABLED.**
+
+Recommended fix before writes: expose the EXISTING per-domain intent tool schemas
+(`apps/ai/intents/` / ALL_INTENT_TOOLS) to the model instead of the generic request_action —
+reuse the battle-tested schemas so the model produces handler-valid params. Then re-run the
+live-write proof.
+
 ## 2026-07-09 — fix(interface): Phase II slice 7.2 — pre-production hardening (4 blockers)
 
 Hardened the model-interface runtime from "it works" to "trust it in production." No new

@@ -6,6 +6,41 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(arch): Phase I — LLM Truth/Action Contract realignment (WLJ owns truth; the model owns reasoning)
+
+**What changed & why:** Architecture pivot. WLJ stops building its own conversational
+reasoning layer (the Conductor / CoS lanes / classifiers). A provider-agnostic conversational
+model (currently OpenAI) now owns reasoning/conversation; WLJ owns deterministic truth,
+preferences, history, actions, and audit. Evidence for the pivot: the "Conductor is the
+least-modified layer" invariant was contradicted by the recent commit history (five straight
+Conductor changes) — the custom-brain approach was thrashing. This commit is **documentation
+only — no behavioral code, no legacy-world migration.**
+
+**Files:**
+- **NEW** `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` — the canonical, provider-agnostic contract.
+  Defines the truth boundary (composed briefings + freshness/confidence/source/insufficient-
+  evidence envelope; Answer Precondition Pipeline re-hosted inside truth tools), the action
+  boundary (safe deterministic path + audit), the preference boundary, learning boundary
+  (explicit-first, reuse the existing default-deny gate), the executive-context envelope
+  (delivery mechanism for deterministic policy that stays WLJ-owned), the external-work sandbox
+  (personal truth not sprayed into general conversation), and audit as the fabrication-
+  prevention mechanism.
+- `CLAUDE.md` — new "ARCHITECTURE (REQUIRED)" block; North Star reworded (no "Beth" as system
+  identity); "Development model" reframed to Truth(WLJ)→Reasoning(model)→Action(WLJ)→
+  Experience; Reference Docs table adds the new contract at top and updates the Conductor row.
+- `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` — reframed from the retired four-layer
+  (Truth→Conductor→Capability→Experience) model; product-first + eliminate-the-class retained.
+- `docs/WLJ_ARCHITECTURE_LAWS.md` — Amendment A: the orchestration inversion; Laws 0–5
+  re-hosted inside truth tools; F3 reframed (tool loop is now primary); F8 de-Beth'd.
+- `docs/archive/` — NEW; moved the point-in-time `CoSEvaluation.md`+v2–v8 and
+  `ARCHITECTURE_EVOLUTION_*` (12 files) with a README; broader BETH_*/COS_* corpus flagged for
+  a later link-checked pass (blast-radius bound).
+- Memory: NEW `project_llm_truth_action_pivot.md`; `MEMORY.md` pivot entry at top + CoS
+  sections marked retired-framing + compacted (19.6KB→15.5KB, under read limit).
+
+**Verification:** docs only; `manage.py check` unaffected (no code touched). No user config
+lost. Legacy world (`personal_assistant`/`deterministic_router`) untouched.
+
 ## 2026-07-09 — fix(cos): complete CRUD confirmations in the CoS pipeline (Layer-3 bridge)
 
 **Production (Layer-3, after Action promotion worked):** "Move 'Check on Melissa's Pillow' to

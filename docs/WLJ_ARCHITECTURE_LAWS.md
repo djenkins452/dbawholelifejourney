@@ -11,7 +11,8 @@
 > here, the Law wins. Changes require explicit owner approval.
 >
 > **Status:** Canonical. **Established:** 2026-06-28. **Amended:** 2026-06-28
-> (added **Law 0 — Intent Before Retrieval** as the first Law).
+> (added **Law 0 — Intent Before Retrieval** as the first Law); **2026-07-09**
+> (Amendment A — the orchestration inversion; Laws re-hosted inside truth tools).
 
 ---
 
@@ -61,6 +62,29 @@ Question
 
 **Questions determine retrieval. Retrieval never determines the answer.**
 
+### Amendment A (2026-07-09) — the orchestration inversion
+
+The governing architecture changed: **the conversational model now drives the turn and
+requests truth/actions from WLJ**, rather than WLJ classifying the turn and having the
+model narrate a pre-composed answer. (See `WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.) This does
+**not** relax these Laws — it re-hosts them:
+
+- The Answer Precondition Pipeline now runs **inside each WLJ truth tool.** When the
+  model calls a truth tool, that tool performs intent-scoped retrieval, freshness,
+  completeness, confidence, deterministic aggregation, and stability, and returns
+  validated, composed truth (or an honest `insufficient_evidence` / `missing`). Laws
+  0–5 hold **per tool call.**
+- **F3 is reframed:** the agentic tool loop is no longer the *demoted fallback* — it is
+  the *primary conversational drive.* F3's protection is preserved by the tool
+  contract: tools return deterministic composed truth (F8), and **the model may assert
+  a personal fact only if a tool returned it.**
+- **F2 (LLM-Last) still holds:** reasoning/narration happens only over validated,
+  composed truth — now delivered per tool call and via the always-on executive-context
+  envelope, not as a single pre-turn gate.
+
+Everything below remains in force as written; read "the answer boundary" as "each truth
+tool + the executive-context envelope."
+
 ---
 
 ## Part I — The Foundational Invariants (restated; this is their canonical home)
@@ -85,8 +109,9 @@ constitution. (F-series, to keep the numbered **Laws** below distinct.)
   `except: pass` on intent/execution/safety.
 - **F7 — Visual Truth Contract.** Only actual completion may visually resemble
   completion. (See `WLJ_VISUAL_TRUTH_CONTRACT.md`.)
-- **F8 — Beth Consumes Briefings, Not Signals.** Intelligence produces composed,
-  deterministic state objects (verdict already inside) for Beth to narrate over.
+- **F8 — The Model Consumes Briefings, Not Signals.** Intelligence produces composed,
+  deterministic state objects (verdict already inside) for the conversational model to
+  narrate over — never raw signals for it to recombine.
 
 ---
 
@@ -304,4 +329,5 @@ After adoption, verifiably:
 - **These are platform rules, not Beth behavior** — the constitutional foundation for
   every future WLJ capability.
 
-*Last updated: 2026-06-28 (added Law 0 — Intent Before Retrieval).*
+*Last updated: 2026-07-09 (Amendment A — the orchestration inversion; Laws re-hosted
+inside truth tools per `WLJ_LLM_TRUTH_ACTION_CONTRACT.md`).*

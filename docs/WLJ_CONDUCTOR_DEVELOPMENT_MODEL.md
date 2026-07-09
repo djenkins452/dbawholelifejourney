@@ -1,127 +1,173 @@
-# WLJ Conductor Development Model — the Four-Layer Diagnostic
+# WLJ Development Model — Truth, Reasoning, Action, Experience
 
-**Status:** Governing design principle (approved 2026-07-08).
-**Scope:** Every production issue in any Beth / Chief-of-Staff surface, and every decision about whether to add a capability.
-**Related:** `docs/WLJ_ARCHITECTURE_LAWS.md` (truth), the Conductor Contract + Return Contract (orchestration), `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` (observers).
+> **Reframed 2026-07-09.** This document previously described a four-layer model in
+> which WLJ owned **orchestration (the Conductor)** and **reasoning (capabilities)**.
+> That model is retired. A frontier conversational model now owns reasoning and
+> conversation; WLJ owns deterministic truth, preferences, history, actions, and
+> audit. The **product-first** and **eliminate-the-class** disciplines below are
+> unchanged and remain governing. The layer taxonomy is updated to match the new
+> architecture.
+>
+> **Governing contract:** `WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.
+> **Constitution:** `WLJ_ARCHITECTURE_LAWS.md` (Laws 0–5).
 
 ---
 
 ## The shift this document captures
 
-We are no longer simply building Beth. **We are building the platform Beth runs on.** That distinction changes how we develop.
+We are not building the assistant's mind. **We are building the deterministic platform
+the conversational model reasons over.**
 
-**Before The Conductor** — every production failure led to the same reflex:
+**The retired reflex** — every production failure asked "what capability is missing?"
+and grew another self-selecting lane/classifier until the pieces stopped behaving like
+one assistant. Repeated changes to the orchestration layer were the smell that told us
+the approach was thrashing.
 
-> Production issue → "What capability is missing?" → build another lane / classifier / capability.
+**The discipline now** — every production failure is diagnosed **product-first**, then
+placed at the **first layer that failed**, where the layers are:
 
-That reflex kept adding self-selecting lanes and grew the collision surface until the capabilities stopped behaving like one Chief of Staff.
+> **Truth (WLJ) → Reasoning (the conversational model) → Action (WLJ) →
+> Experience (the composed response).**
 
-**After The Conductor** — every production issue begins with one question instead:
-
-> Production issue → **"Which architectural layer failed?"** → fix that layer → *only then* decide whether a new capability is actually required.
-
-Adding a capability is now the **exception**, reached only after the layer diagnosis proves a genuine gap — never the default response to a failure.
+The middle layer is no longer WLJ's to build. When reasoning is wrong, the fix is
+almost never "write a WLJ reasoning capability" — it is **give the model better truth,
+better context, or a better tool**, or adjust the behavioral profile. Building
+bespoke WLJ reasoning is the retired path.
 
 ---
 
 ## Product Review comes BEFORE the Architecture Review (the North Star)
 
-The four layers are the *engineering* diagnosis. They are **not** the success metric. The only success metric is:
+The layers are the *engineering* diagnosis. They are **not** the success metric. The
+only success metric is:
 
-> **"If this were the only conversation a paying customer ever had with Beth, would they immediately want to use her again tomorrow?"**
+> **"If this were the only conversation a paying customer ever had with their
+> assistant, would they immediately want to use it again tomorrow?"**
 
-The customer never experiences layers — they experience **trust**. So every production transcript is judged **product-first**, then architecture-second:
+The customer never experiences layers — they experience **trust**. So every production
+transcript is judged **product-first**, then architecture-second:
 
-1. **Would a paying customer trust this conversation?** (Would they want to use her again tomorrow?)
-2. **If not, why — in customer terms?** (She contradicted herself · forgot what we discussed · answered a different question · made me fact-check her.) The moment trust breaks, the customer stops listening and starts fact-checking — she has already failed as a Chief of Staff.
-3. **Only then: which architectural layer caused that loss of trust?** — and fix it.
+1. **Would a paying customer trust this conversation?**
+2. **If not, why — in customer terms?** (It contradicted itself · forgot what we
+   discussed · answered a different question · made me fact-check it.) The moment trust
+   breaks, the customer stops listening and starts fact-checking — the assistant has
+   already failed.
+3. **Only then: which layer caused the loss of trust?** — and fix the first one that
+   failed.
 
-**Never architecture-first.** A passing Layer 2, an elegant handler selection, a correct routing decision mean nothing if the customer left less confident. The Conductor / Four-Layer Diagnostic / Return Contract are the **engineering methodology**; the **product is the North Star**. Trust-breakers are fixed one at a time, wherever they live — often Layer 1 (truth) or Layer 4 (experience), not orchestration — ranked by trust impact. Do **not** advance the Conductor roadmap because it is "next"; advance it only when it is the highest-trust-impact fix. And as Chief Architect: **call it out plainly when the engineering is improving but the product experience is not.**
+**Never architecture-first.** Trust-breakers are fixed one at a time, wherever they
+live — most often **Layer 1 (truth)** or **Layer 4 (experience)**. As Chief Architect:
+**call it out plainly when the engineering is improving but the product experience is
+not.**
+
+---
 
 ## The four layers (diagnose top-down; fix the first that failed)
 
-Check the layers **in order**. A failure at a lower layer cannot be correctly diagnosed until the layer above it is confirmed correct — a wrong answer built on wrong truth is a Layer 1 problem, not a reasoning problem.
+Check the layers **in order**. A failure at a lower layer cannot be correctly diagnosed
+until the layer above it is confirmed correct.
 
 ### Layer 1 — Truth (owned by WLJ)
-**Question:** Did WLJ know the correct deterministic truth?
-**If not → fix WLJ.** The data, the accessor, the calculation. No amount of orchestration or reasoning can fix a wrong fact. (See `WLJ_ARCHITECTURE_LAWS.md`, the Answer Precondition Pipeline.)
+**Did WLJ know, and return, the correct deterministic truth — with correct freshness
+and confidence?** If not → fix WLJ: the data, the accessor, the calculation, or the
+briefing envelope. No amount of model reasoning can fix a wrong or badly-composed fact.
+This is where most fixes land. (See `WLJ_ARCHITECTURE_LAWS.md`; the Answer Precondition
+Pipeline now runs inside the truth tools.)
 
-### Layer 2 — The Conductor (owned by orchestration)
-**Question:** Did the **correct capability own the turn**?
-**If not → fix orchestration.** The wrong capability answered. This is an ownership/routing failure, and it is diagnosed with the Conductor's own instrumentation (`COS_CLASSIFY` / `COS_CLASSIFY_MATCH`: expected owner vs actual owner vs `agree`). Fixing it means the Classifier/dispatch, **not** a new capability.
+### Layer 2 — Reasoning (owned by the conversational model)
+**Given correct truth, did the model reason correctly?** WLJ does **not** fix this by
+building a reasoning capability. The levers are:
+- **Truth/context** — did the model receive the right composed truth and executive
+  context? A reasoning miss is usually a Layer 1 delivery gap in disguise (the model
+  was never given the fact, the priority ranking, or the day-continuity state).
+- **Tools** — did the model have the right truth/action tool available and in scope?
+- **Behavioral profile** — did the profile tell it the right relationship, directness,
+  and truth contract?
+- **The model itself** — prompt/context assembly, or (rarely) the provider/model tier.
 
-### Layer 3 — Capability (owned by Beth's intelligence)
-**Question:** The correct capability owned the turn — did it **reason correctly**?
-**If not → improve the capability, or (only here) add a missing one.** This layer has two distinct sub-cases, and they must not be conflated:
-- **3a — the correct capability reasoned incorrectly** → improve that capability. Not a new capability.
-- **3b — no existing capability covers this situation at all** → *this is the only case that warrants building a new capability.*
+Only after truth, context, tools, and profile are confirmed correct is a reasoning miss
+genuinely the model's. **Building a WLJ reasoning engine is not a Layer 2 fix — it is
+the retired approach.**
+
+### Layer 3 — Action (owned by WLJ)
+**Did the requested action execute safely and truthfully?** Writes go through the
+deterministic action path with confirmation and audit; results are narrated from real
+execution output. A wrong write, a missing confirmation, or a narrated-but-unexecuted
+action is a Layer 3 fix.
 
 ### Layer 4 — Experience (owned by the composed response)
-**Question:** The reasoning was correct — was the conversation **natural**? Was the recommendation **executive quality**? Did it feel **human**?
-**If not → improve the user experience.** Voice, composition, filtering, tone (`naturalize`, `harmonize`, the composers). The right truth, the right owner, the right reasoning can still land as a robotic or low-value response — that is a Layer 4 fix, not a capability.
+**Right truth, right reasoning, right action — did it land naturally and at executive
+quality?** Voice, filtering (what was worth surfacing), formatting, tone. With the model
+authoring, most old Layer-4 machinery (post-hoc rewriting) is retired; what remains is
+**what WLJ feeds** (the filtered executive briefing) and the behavioral profile.
 
 ---
 
 ## Eliminate the class, don't detect the symptom (the default before any trust-fix)
 
-Once the Product Review and the layer diagnosis have located a trust-breaking failure, one question comes **before** writing the fix:
+Once the Product Review and the layer diagnosis have located a trust-breaking failure,
+one question comes **before** writing the fix:
 
-> **"Can the architectural condition that makes this class of failure possible be removed entirely?"**
+> **"Can the architectural condition that makes this class of failure possible be
+> removed entirely?"**
 
-The goal is never to prevent *this one bug*. It is to make the *entire class* structurally impossible. So, in order:
+The goal is never to prevent *this one bug*. It is to make the *entire class*
+structurally impossible.
 
-1. **Does this failure represent an entire class?** ("6:15 AM tonight" is not one bug — it's the class "a sentence assembled from two independent time sources.")
-2. **What architectural condition allows that class to exist?** (Composition glued an item's own time to a frame from a *different* clock; nothing read the sentence back.)
-3. **Can we REMOVE that condition** instead of detecting its symptoms? (Yes — one sentence, one time source. The class is now impossible, not merely caught.)
+1. **Does this failure represent an entire class?** ("6:15 AM tonight" is not one bug —
+   it is the class "a sentence assembled from two independent time sources.")
+2. **What architectural condition allows that class?** (Composition glued an item's own
+   time to a frame from a different clock; nothing read the sentence back.)
+3. **Can we REMOVE that condition** instead of detecting its symptoms?
 
-**Removing the condition is almost always preferred** over adding a detector, validator, recovery path, or new capability. A customer does not care that a validator caught an error — they care that the error *never occurs*. The product becomes trustworthy not because it recovers from mistakes well, but because whole categories of mistakes become impossible.
+**Removing the condition is almost always preferred** over adding a detector, validator,
+recovery path, or capability. Note the deepest example of this principle in action: the
+**retirement of the WLJ reasoning/composition layer itself.** The whole *class* of
+"WLJ assembles a sentence from fragments and contradicts itself" is eliminated by
+letting the model author coherently over composed truth, rather than by adding
+coherence detectors. That is condition-removal at the architectural scale.
 
-- **Right:** make contradictory time composition structurally impossible.
-  **Wrong:** add a check that flags "AM … tonight".
-- **Right:** remove the condition that lets multiple greeting authors contribute to one conversation.
-  **Wrong:** detect and suppress repeated greetings.
-- **Right:** remove the condition that lets one capability answer a question owned by another (the Conductor's ownership model).
-  **Wrong:** detect wrong-question answers after the fact.
+**Bound by blast radius (the escape valve).** Prefer elimination, but when removing the
+condition would require a disproportionate rewrite or destabilize working paths,
+**contain the class as narrowly as possible and LOG the residual** — then eliminate it
+later, product-first, one step at a time.
 
-**Bound by blast radius (the escape valve).** Prefer elimination, but this is *not* a mandate to redesign Beth on every bug. When removing the condition would require a disproportionate rewrite or would destabilize working paths, **contain the class as narrowly as possible and LOG the residual** — then eliminate it later, product-first, one step at a time. Only when elimination is genuinely impractical do we fall back to a localized detector/capability. Elimination is the default; judgment sets the size.
+---
 
-## The governing rule for new capabilities
+## The governing rule for new work
 
-> Do not create a new capability because production exposed a problem. First let The Conductor prove **which** of these is true:
-> 1. the **wrong** capability answered (Layer 2 → fix orchestration),
-> 2. the **correct** capability answered **incorrectly** (Layer 3a → improve the capability),
-> 3. a **genuine** capability is **missing** (Layer 3b → build it).
->
-> **Only case 3 results in a new capability.**
+> A production failure does **not** justify building WLJ reasoning. First place it at
+> the first failing layer:
+> 1. **Truth wrong or badly composed** (Layer 1 → fix WLJ truth/briefing). *Most fixes.*
+> 2. **Truth right, model reasoned poorly** (Layer 2 → better truth delivery, context,
+>    tool, or profile — **not** a WLJ reasoning engine).
+> 3. **Action unsafe/untruthful** (Layer 3 → fix the deterministic action path).
+> 4. **All correct but the response was poor** (Layer 4 → what WLJ feeds + profile).
 
-The Conductor's instrumentation is what makes this determinable rather than a guess. A turn is routed to its expected owner; the owner declares its own return outcome (see the Return Contract). Whether the owner was "good enough" is answered by the handler's return state — never by orchestration deciding it.
+Building a bespoke WLJ reasoning capability is no longer an outcome of this process. If
+a genuine truth or action *gap* exists, WLJ fills it as **truth or an action tool** —
+never as a mind.
 
 ---
 
 ## The Architectural Stability Principle
 
-**The Conductor is one of the least-frequently-modified components in WLJ.** It is the operating system beneath Beth. Future improvement should land, overwhelmingly, in:
+**The truth and action layers are the stable core; the reasoning layer is the model's.**
+Future improvement should land, overwhelmingly, in:
 
-- **deterministic truth** (WLJ / Layer 1),
-- **capabilities** (Layer 3),
-- **observers** (Executive Reflection, Continuous Learning — consumers of the commit stream, never turn-owners),
-- **experience** (Layer 4).
+- **deterministic truth** (Layer 1 — accessors, briefings, freshness/confidence),
+- **truth/action tools and the executive-context envelope** (what the model receives),
+- **the behavioral/preference profile** (how the model is asked to behave),
+- **audit and observers** (Executive Reflection — consumers of the tool-call/turn
+  stream, never turn-owners).
 
-If we repeatedly need to modify The Conductor itself, treat that as an **architectural smell** and investigate why — a capability is probably violating the advertisement model, or a responsibility is being pushed into orchestration that belongs in a layer around it. **Closed core, open space.**
-
----
-
-## Worked example — the Executive-Accountability turn
-
-Input: *"I noticed you let me slide on Bike Ride/Pickleball, Empty Dishwasher, and Journal."* → Beth answered *"None of your active goals appear to be slipping…"*
-
-- **Layer 1 (Truth):** the rhythm/execution truth exists (`get_remaining_rhythm_items`). ✅ Not a truth failure.
-- **Layer 2 (Conductor):** `COS_CLASSIFY` = `meta`, expected owner = `repair`, high confidence; actual owner = `personal_reasoning` → `goal_concerns`; `agree=False`. ❌ **The wrong capability owned the turn.** → Fix orchestration first (Step 2b routes `meta` → `repair`).
-- **Layer 3 (Capability):** *not yet answerable* — the correct owner has never received the turn. Once Step 2b delivers it to `repair`, `repair` declares its own outcome (ANSWERED / UNABLE / ESCALATED). Only then do we learn whether it's 3a (improve repair) or 3b (a genuine Accountability capability is missing).
-- **Layer 4 (Experience):** downstream of the above.
-
-This is the discipline in one example: **the failure was Layer 2 before it could ever be considered a missing-capability (Layer 3b) problem.** Without the Conductor we would have built an "Executive Accountability" capability immediately — and still had the orchestration bug.
+If we find ourselves wanting to build reasoning *inside* WLJ, treat that as an
+**architectural smell** and stop: the fix almost certainly belongs in truth delivery,
+context, a tool, or the profile. **Closed core, open space.**
 
 ---
 
-*Last updated: 2026-07-08 (initial — captures the four-layer diagnostic + Architectural Stability Principle as a governing development model).*
+*Last updated: 2026-07-09 (reframed from the retired Conductor four-layer model to
+Truth → Reasoning (the model) → Action → Experience; product-first and
+eliminate-the-class disciplines retained; anchored on
+`WLJ_LLM_TRUTH_ACTION_CONTRACT.md`).*

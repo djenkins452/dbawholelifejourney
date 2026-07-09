@@ -123,13 +123,25 @@ class StandingContextTests(TestCase):
         self.assertIn("overdue", cc["priority"]["priority_action"]["text"])
         self.assertEqual(len(cc["priority"]["clinical_safety"]), 1)
 
-    def test_read_only_omits_action_tools_write_includes_them(self):
+    def test_read_only_omits_action_tools_write_exposes_named_intents(self):
         from apps.ai.model_interface.constitution import all_tools
         ro = {t["function"]["name"] for t in all_tools(writes_enabled=False)}
         rw = {t["function"]["name"] for t in all_tools(writes_enabled=True)}
-        self.assertNotIn("request_action", ro)
-        self.assertNotIn("resolve_pending_action", ro)
-        self.assertIn("request_action", rw)
+        # read-only: NO action tools at all
+        for n in ("mutate_task", "create_task", "complete_task", "resolve_pending_action"):
+            self.assertNotIn(n, ro)
+        # write: the curated NAMED intent tools + the confirmation resolver
+        self.assertIn("mutate_task", rw)
+        self.assertIn("create_task", rw)
+        self.assertIn("complete_task", rw)
+        self.assertIn("resolve_pending_action", rw)
+        # the generic request_action tool is RETIRED (Option B)
+        self.assertNotIn("request_action", rw)
+        # mutate_task carries the REAL handler params (no invented interface)
+        mt = next(t for t in all_tools(writes_enabled=True)
+                  if t["function"]["name"] == "mutate_task")
+        self.assertEqual(set(mt["function"]["parameters"]["required"]),
+                         {"action", "task_query"})
         # truth tools present in both
         self.assertIn("get_domain_state", ro)
 
@@ -230,20 +242,21 @@ class StatefulActionTests(TestCase):
             captured.append((name, result))
 
         with mock.patch(exec_target, side_effect=self._fake_execute):
-            # Turn 1: model requests the action (write mode) → bound confirmation.
+            # Turn 1: model calls the NAMED tool with real handler params → bound confirm.
             mi1 = ModelInterfaceService(self.user, ai_service=_ai_with([
                 _resp(tool_calls=[_toolcall(
-                    "c1", "request_action",
-                    '{"action": "mutate_task", "params": {"id": 5, "time": "21:00"}}')]),
+                    "c1", "mutate_task",
+                    '{"action": "update", "task_query": "dishes", '
+                    '"new_scheduled_time": "21:00"}')]),
                 _resp(content="Want me to move it to 9 PM?"),
             ]))
             mi1.generate(SimpleNamespace(id=1), "move my task", request_id="t1",
                          observer=_obs, writes_enabled=True)
 
-            # The model interface returned a bound confirmation id.
+            # The named tool routed through the pipeline and returned a bound confirmation.
             cid = None
             for name, res in captured:
-                if name == "request_action":
+                if name == "mutate_task":
                     cid = (res.get("confirmation") or {}).get("confirmation_id")
             self.assertTrue(cid)
 

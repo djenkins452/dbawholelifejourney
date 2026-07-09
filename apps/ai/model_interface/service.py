@@ -35,7 +35,11 @@ from apps.ai.cos_services import (
     get_foundational_health_facts,
     search_history,
 )
-from apps.ai.model_interface.constitution import CONSTITUTION, all_tools
+from apps.ai.model_interface.constitution import (
+    ALLOWED_WRITE_INTENTS as _ALLOWED_WRITE_INTENTS,
+    CONSTITUTION,
+    all_tools,
+)
 from apps.core.truth import envelope as _env
 
 logger = logging.getLogger(__name__)
@@ -173,11 +177,13 @@ class ModelInterfaceService:
                 )
                 return out
 
-            # --- Actions: the action interface audits itself (kind='action') -
-            if name == "request_action":
+            # --- Actions: named deterministic intent tools route through the SAME
+            #     execute_action → execute_intent → UAIO → bound-confirmation → audit
+            #     pipeline. The tool NAME is the intent; args are its real handler params
+            #     (Option B — expose the deterministic interface; centralize the pipeline).
+            if name in _ALLOWED_WRITE_INTENTS:
                 return action_interface.request_action(
-                    user, args.get("action", ""), args.get("params") or {},
-                    turn_id=turn_id, surface=surface,
+                    user, name, args, turn_id=turn_id, surface=surface,
                 )
             if name == "resolve_pending_action":
                 return action_interface.resolve_pending_action(

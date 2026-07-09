@@ -36,13 +36,14 @@ CONSTITUTION = (
     "you; pull it with a truth tool when the conversation calls for it. For general or "
     "outside-work topics, simply do not pull personal truth.\n"
     "\n"
-    "ACTIONS: You never change the user's data directly. Request an action; WLJ executes "
-    "it and returns the real result, which you then communicate. Destructive or ambiguous "
-    "actions require confirmation: request_action returns a confirmation_id + summary — "
-    "show the summary and ask the user to confirm. If the context's `pending_confirmations` "
-    "lists an open confirmation and the user then confirms, call resolve_pending_action "
-    "with THAT confirmation_id (do NOT call request_action again). Never invent a "
-    "confirmation_id, and never re-request an action that is already pending confirmation."
+    "ACTIONS: You never change the user's data directly. Call the specific named action "
+    "tool for what the user wants (e.g. mutate_task, create_task, complete_task) with its "
+    "real parameters — WLJ executes it and returns the real result, which you communicate. "
+    "Destructive or ambiguous actions require confirmation: the action returns "
+    "status=confirmation_required with a confirmation_id + summary — show the summary and "
+    "ask the user to confirm. If the context's `pending_confirmations` lists an open "
+    "confirmation and the user confirms, call resolve_pending_action with THAT "
+    "confirmation_id (do NOT re-issue the original action). Never invent a confirmation_id."
 )
 
 
@@ -71,14 +72,6 @@ def _valid_history_domains():
     try:
         from apps.ai.cos_services.history_search import SUPPORTED_HISTORY_DOMAINS
         return sorted(SUPPORTED_HISTORY_DOMAINS)
-    except Exception:
-        return []
-
-
-def _valid_actions():
-    try:
-        from apps.ai.cos_services.action_execution import DAY1_ACTION_ALLOWLIST
-        return sorted(DAY1_ACTION_ALLOWLIST)
     except Exception:
         return []
 
@@ -138,47 +131,55 @@ def truth_tools():
     ]
 
 
+# Curated, write-enabled action set (Option B). These are EXISTING deterministic intent
+# schemas — sourced verbatim from apps/ai/intents (ALL_INTENT_TOOLS), NOT copied or
+# generalized. Start with the smallest safe task set; grow only by real need.
+ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task")
+
+
+def _named_action_tools():
+    """The curated write set, sourced from the existing intent registry (no copies, no
+    parameter-mapping layer, one source of truth). The model calls these by name with the
+    real handler params (e.g. mutate_task(action, task_query, new_scheduled_time))."""
+    try:
+        from apps.ai.intents import ALL_INTENT_TOOLS
+    except Exception:
+        return []
+    by_name = {t["function"]["name"]: t for t in ALL_INTENT_TOOLS
+               if t.get("type") == "function"}
+    return [by_name[n] for n in ALLOWED_WRITE_INTENTS if n in by_name]
+
+
+def _resolve_tool():
+    """The action-agnostic confirmation step (kept from Blocker 1). Named tools INITIATE
+    an action; this resolves a SPECIFIC bound confirmation."""
+    return {"type": "function", "function": {
+        "name": "resolve_pending_action",
+        "description": (
+            "Confirm or cancel a SPECIFIC pending action by its confirmation_id. When an "
+            "action returns status=confirmation_required with a confirmation_id, show the "
+            "user the summary; once they confirm, call this with THAT confirmation_id and "
+            "confirm=true (or confirm=false to cancel). Never guess a confirmation_id, and "
+            "do NOT re-issue the original action — resolve the pending one."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "confirmation_id": {"type": "string",
+                                "description": "The id the action returned."},
+            "confirm": {"type": "boolean"},
+        }, "required": ["confirmation_id", "confirm"]}}}
+
+
 def action_tools():
-    actions = _valid_actions()
-    action_schema = {"type": "string",
-                     "description": "The action to perform. Use ONLY a value from the enum."}
-    if actions:
-        action_schema["enum"] = actions
-    return [
-        {"type": "function", "function": {
-            "name": "request_action",
-            "description": (
-                "Request that WLJ perform an action on the user's data. WLJ executes it "
-                "safely and returns the real result. If it needs confirmation, WLJ returns "
-                "status=confirmation_required WITH a `confirmation.confirmation_id` and a "
-                "summary — show the summary to the user, and once they confirm call "
-                "resolve_pending_action with THAT confirmation_id. Use ONLY an action name "
-                "from the enum."
-            ),
-            "parameters": {"type": "object", "properties": {
-                "action": action_schema,
-                "params": {"type": "object",
-                           "description": "Parameters for the action."},
-            }, "required": ["action"]}}},
-        {"type": "function", "function": {
-            "name": "resolve_pending_action",
-            "description": (
-                "Resolve a SPECIFIC pending confirmation by its id. Pass the "
-                "confirmation_id that request_action returned. confirm=true executes that "
-                "exact action; confirm=false cancels it. Never guess a confirmation_id."
-            ),
-            "parameters": {"type": "object", "properties": {
-                "confirmation_id": {"type": "string",
-                                    "description": "The id returned by request_action."},
-                "confirm": {"type": "boolean"},
-            }, "required": ["confirmation_id", "confirm"]}}},
-    ]
+    """Named deterministic action tools (curated write set) + the bound-confirmation
+    resolver. No generic request_action; no invented interface."""
+    return _named_action_tools() + [_resolve_tool()]
 
 
 def all_tools(writes_enabled=True):
-    """The minimal tool set. Truth tools are always present; action tools are included
-    ONLY when writes are enabled (Blocker 4 — read-only rollout stage). Valid values are
-    advertised as enums so the model does not guess arguments."""
+    """The minimal tool set. Truth tools are always present; the curated named action
+    tools are included ONLY when writes are enabled (Blocker 4). Valid argument values are
+    advertised via the existing intent schemas (enums, required fields) — the model never
+    invents an interface WLJ already owns."""
     tools = truth_tools()
     if writes_enabled:
         tools += action_tools()

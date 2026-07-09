@@ -6,6 +6,42 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — refactor(interface): Option B — retire generic request_action; expose named deterministic action tools
+
+**Architectural correction — the Action pillar now obeys the same law as Truth: expose the
+deterministic interface WLJ already owns; never make the model invent it.** No new
+abstraction, no parameter-mapping layer, no second source of truth. The live-write proof now
+PASSES on a real model + real write.
+
+**Changes:**
+- `constitution.py`: RETIRED the generic `request_action(action, params)` model tool. The
+  curated, write-enabled action set is now sourced VERBATIM from the existing intent registry
+  (`apps/ai/intents` → `ALL_INTENT_TOOLS`): `mutate_task`, `create_task`, `complete_task`
+  (smallest safe task set; `create_event` intentionally held). Kept the action-agnostic bound
+  `resolve_pending_action(confirmation_id, confirm)`. Constitution ACTIONS guidance updated to
+  named tools.
+- `service.py`: dispatch rule — a tool name in `ALLOWED_WRITE_INTENTS` routes through the SAME
+  deterministic pipeline (`request_action()` FUNCTION → `execute_action` → `execute_intent` →
+  UAIO → bound confirmation → audit). The generic-tool dispatch branch is gone; the pipeline
+  is unchanged. The tool NAME is the intent; its args are the real handler params.
+- **What was retired vs kept:** the generic *tool surface* is deleted; the deterministic
+  *execution/safety pipeline* (bound confirmation, confirmation_id, audit, dry-run/live
+  handling, write-enabled gating) is fully preserved.
+
+**Principle added:** *Never generalize a deterministic interface (schema) that already exists —
+expose it. DO centralize the deterministic execution/safety pipeline behind it.*
+
+**Live-write proof (real model, owner account, throwaway task, REAL execute) — PASS:**
+model called `mutate_task(action=update, task_query=…, new_scheduled_time=21:15)` with
+handler-valid params → `confirmation_required` (cid) → user confirm → `resolve_pending_action`
+→ real `handle_mutate_task` → **DB scheduled_time 08:00 → 21:15**. No fabricated success; full
+audit trace; throwaway task + audit rows cleaned up.
+
+**Verification:** 77 interface+gateway tests + request-path-safety green. **Writes remain
+DISABLED** for the owner pending review (read-only stays enabled). Tool surface — read-only:
+truth tools only; write: + mutate_task/create_task/complete_task/resolve_pending_action (no
+generic request_action).
+
 ## 2026-07-09 — chore(interface): enable model-interface READ-ONLY for owner + live-write proof (FAILED)
 
 **Read-only enabled for the owner (validated).** Migration `users/0090` sets

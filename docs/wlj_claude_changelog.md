@@ -6,6 +6,32 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(design): Phase II — Executive Context Envelope design (draft for review)
+
+**What & why:** `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md` — the keystone Phase II
+design (NO code). Frames the architecture as **Four Pillars** (WLJ Truth / WLJ Actions /
+WLJ Behavioral Profile / Conversational Model). The Executive Context Envelope is the
+structured serialization of the three WLJ pillars handed to the model — a **structured
+contract, not a prompt** (constant constitution separated from the per-turn structured
+envelope; structured truth over instructional prose; simpler as models improve; push the
+compact picture, pull the detail; every value carries freshness/confidence/source).
+
+Covers all 10 requested sections: envelope architecture, Behavioral Profile (a composed
+**projection** over existing `UserPreferences`+`PersonalOperatingBlueprint` + one new
+`LearnedCommunicationPreference` table — NOT a consolidation migration), truth envelope
+(reuse `CurrentTruth.to_fact_dict`), action request/response (stateful server-side
+confirmation to kill the Layer-3 "confirmed-but-nothing-happened" class), tool-call audit
+(`ToolCallLog`; honest scope = detection + tests, NOT a real-time fabrication blocker),
+the external-work sandbox (mode gates tool availability — no content classifier),
+service mapping (StandingContextService→envelope builder, interpret()→executive_context,
+etc.), recommended data structures (1–2 new tables + 3 fields total), risks, and
+alternatives considered.
+
+**Open decisions flagged:** sandbox entry (explicit mode vs pull-only), profile storage
+(projection confirmed), whether to promote Four Pillars into the Vision.
+
+**Verification:** docs only; no code touched.
+
 ## 2026-07-09 — docs(vision): Phase I.5 — WLJ Product Vision (the governing "why")
 
 **What & why:** Created `docs/WLJ_PRODUCT_VISION.md` — the highest-level document in the

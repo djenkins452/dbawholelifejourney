@@ -6,6 +6,39 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(design): Phase II — complete WLJ ↔ conversational-model interface (draft)
+
+**What & why:** `docs/WLJ_MODEL_INTERFACE_DESIGN.md` — broadened Phase II from "the
+Executive Context Envelope" to the **complete interface** between WLJ and the conversational
+model (design only; no code). Organized on the four pillars — **Truth · Actions · AI
+Relationship · Current Context** — delivered two ways (always-loaded standing context vs.
+on-demand services) and wrapped by audit.
+
+**Governing test applied throughout — "information or reasoning?"** Default is EXCLUDE:
+if a field could be reasoning, it belongs to the model. This **sharpened one earlier
+decision**: the composed `headline` in Current Context is dropped (synthesis = reasoning;
+the model authors it from the ranked facts). Current Context now carries only facts the
+model cannot know/derive (clock, ranked clinical-safety policy, day-continuity + material
+changes, actionable-today state, plan facts, relevance-filtered agenda) and must SHRINK as
+models improve.
+
+**Covers all 9 deliverables + the 4 final questions:** interface architecture; truth
+interface (expose composed briefings, not raw signals; insufficient-evidence first-class);
+action interface (stateful server-side confirmation); AI Relationship (owns; interface
+projects); Current Context (sharpened, shrink principle); field-by-field boundary review;
+existing-service mapping (**total new infra = 2 tables + 3 fields**); audit (a ledger that
+explains, explicitly NOT a second AI that judges); and an **AI Relationship ownership
+challenge** — recommend "domain in concept, projection in implementation" (do NOT wrap it
+in Layer-1 certification ceremony). Final Q4 lists the custom-reasoning code deletable once
+the interface proves out (classifiers, lanes, reasoning_mode, diagnosis scaffold, mission/
+need deltas, naturalize/harmonize/compose) vs. the deterministic core kept.
+
+`WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md` marked **ABSORBED** into the new doc (retained
+for its detailed shapes). Open decisions unchanged: sandbox entry, AI Relationship
+implementation, Four-Pillars-in-Vision.
+
+**Verification:** docs only; no code touched.
+
 ## 2026-07-09 — docs(harmonize): Phase I.6 — reference-doc harmonization + AI Relationship domain
 
 **What & why:** Aligned the `@WLJ_SYSTEM_PROMPTS/` reference knowledge base with the new

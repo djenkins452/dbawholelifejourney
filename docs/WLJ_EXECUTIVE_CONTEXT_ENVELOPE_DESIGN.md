@@ -1,5 +1,14 @@
 # WLJ Executive Context Envelope — Phase II Design Review
 
+> **⚠ ABSORBED 2026-07-09 into `WLJ_MODEL_INTERFACE_DESIGN.md`.** Phase II broadened from
+> "the envelope" to the *complete WLJ ↔ conversational-model interface*; the envelope is
+> now **Pillar 4 (Current Context) + the standing-context mechanism** within that broader
+> design. One decision is **sharpened** there: the composed `headline` field is dropped
+> (it is reasoning, not information — the model authors it). Read
+> `WLJ_MODEL_INTERFACE_DESIGN.md` as authoritative; this doc is retained for its detailed
+> shapes (truth envelope, action contract, audit, service mapping), which that doc
+> references.
+
 > **Design document — no implementation code.** This is the keystone design for the
 > LLM/WLJ era: the structured contract by which WLJ hands the conversational model
 > everything it needs to reason — truth, behavioral context, execution state, and

@@ -6,6 +6,28 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): pre-live validation harness (real model, dry-run, isolated)
+
+**A manual integration harness** to answer "if we turned the model-interface runtime on for
+the owner right now, would we trust it?" — run against a real account with a REAL
+conversational model, WITHOUT creating a chat conversation and WITHOUT modifying data.
+
+**Files:**
+- NEW `apps/ai/management/commands/validate_model_interface.py` — `--email --scenario all
+  --dry-run-actions` (default) / `--live-actions` / `--model` / `--keep-audit`. Injects a
+  real OpenAI client from the environment key; runs 7 scenarios (general, planning,
+  health-trend, unavailable, action, history, relationship); dry-run stubs the single write
+  path (`IntentService.execute_intent`) so actions are simulated; prints per-scenario
+  Conversation · Tool Calls/Truth Returned · AI Relationship · Current Context · Audit
+  Entries · Warnings · Duration; cleans up its own validation audit rows.
+- `apps/ai/model_interface/service.py` — three small observability seams (default-None
+  `observer` callback for tool I/O; optional `conversation_history` pass-through for
+  multi-turn; `standing_context`/`turn_id` in the return). No prod behavior change.
+
+**Verification:** 13 model-interface tests still pass; `manage.py check` clean. Harness run
+against the owner account (real model) completed; findings reported to the owner for review.
+Owner-enable migration still HELD.
+
 ## 2026-07-09 — feat(interface): Phase II slice 7 — model-interface runtime behind a flag
 
 **The third, separate conversational runtime — the WLJ ↔ conversational-model interface —

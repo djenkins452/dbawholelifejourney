@@ -86,13 +86,10 @@ class ModelInterfaceService:
         )
 
     # -- tool dispatch --------------------------------------------------------
-    def _make_dispatch(self, *, turn_id, surface, tools_called):
+    def _make_dispatch(self, *, turn_id, surface, tools_called, observer=None):
         user = self.user
 
-        def dispatch(name, args):
-            args = args if isinstance(args, dict) else {}
-            tools_called.append(name)
-
+        def _do(name, args):
             # --- Truth reads: wrap in the envelope + audit (kind='truth') ----
             if name == "get_domain_state":
                 raw = get_domain_state(user, args.get("domain", ""))
@@ -138,11 +135,23 @@ class ModelInterfaceService:
 
             return {"status": "error", "error": f"unknown tool '{name}'"}
 
+        def dispatch(name, args):
+            args = args if isinstance(args, dict) else {}
+            tools_called.append(name)
+            result = _do(name, args)
+            if observer is not None:  # observability only (validation harness); no-op in prod
+                try:
+                    observer(name, args, result)
+                except Exception:
+                    pass
+            return result
+
         return dispatch
 
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
-                 request_id="", signals=None, continuity=None) -> dict:
+                 request_id="", signals=None, continuity=None, observer=None,
+                 conversation_history=None) -> dict:
         turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
         tools_called = []
 
@@ -152,11 +161,13 @@ class ModelInterfaceService:
         system_prompt = self._system_prompt(standing_context)
         dispatch = self._make_dispatch(
             turn_id=turn_id, surface=surface, tools_called=tools_called,
+            observer=observer,
         )
 
         answer = self.ai._call_api_with_tools(
             system_prompt, message or "", tools=all_tools(), dispatch=dispatch,
             user=self.user, endpoint="model_interface",
+            conversation_history=conversation_history,
         )
         answer = answer or ""
 
@@ -166,4 +177,5 @@ class ModelInterfaceService:
             result_digest={"answer_len": len(answer),
                            "tools_called": list(tools_called)},
         )
-        return {"answer": answer, "tools_called": tools_called}
+        return {"answer": answer, "tools_called": tools_called,
+                "standing_context": standing_context, "turn_id": turn_id}

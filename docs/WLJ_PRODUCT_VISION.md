@@ -71,7 +71,36 @@ verified, personal, deterministic truth of *this* human being's life.
 
 ---
 
-## 3. The Fundamental Separation
+## 3. Simplicity
+
+Every architectural decision begins with one question:
+
+> **"Can the conversational model already do this well?"**
+
+If the answer is yes, **do not build it inside WLJ.** Instead, improve the *truth*
+available to the conversational model.
+
+Build deterministic software only when something the model cannot be trusted to do
+demands it — **correctness, safety, permissions, auditability, calculations, history,
+deterministic policy, or action execution.** Those are WLJ's job precisely because they
+must be *guaranteed*, not merely *usually right*. Everything else — the reasoning, the
+phrasing, the adaptation — already lives in the model and improves without us.
+
+This inverts the usual instinct. As frontier conversational models get better, **WLJ
+should get simpler, not more complex.** The product evolves by exposing better truth, not
+by recreating capabilities that already exist inside the model. Every feature we are
+tempted to build should first be tested against the model's existing ability; most of the
+time, the real work is making the right truth available, cleanly, with confidence and
+provenance attached.
+
+So the measure of success is not the amount of AI *inside* WLJ. **The measure of success
+is how effectively WLJ enables the world's best conversational models to serve the user —
+through trustworthy, deterministic truth.** The best version of WLJ is the smallest one
+that makes an ever-smarter model completely trustworthy about a person's life.
+
+---
+
+## 4. The Fundamental Separation
 
 Two responsibilities, cleanly divided, forever.
 
@@ -94,7 +123,7 @@ the second.
 
 ---
 
-## 4. The Relationship Model
+## 5. The Relationship Model
 
 This is a genuinely new idea, and it is central to the product.
 
@@ -133,7 +162,7 @@ never a system identity. The *relationship* is the meaningful choice.
 
 ---
 
-## 5. Behavioral Profile
+## 6. Behavioral Profile
 
 Over time, every user develops an **AI Behavioral Profile** — the accumulated answer to
 "how do I want my AI to work with me?" It holds:
@@ -152,7 +181,7 @@ personal and consistent no matter which underlying model is answering.
 
 ---
 
-## 6. Continuous Learning
+## 7. Continuous Learning
 
 The system should get better at talking to *you*, specifically, the more you use it.
 
@@ -176,7 +205,7 @@ Two guardrails keep this honest:
 
 ---
 
-## 7. Truth — the most important rule in the system
+## 8. Truth — the most important rule in the system
 
 The conversational model is **encouraged to think.** It may reason, summarize, compare,
 calculate, synthesize, and draw conclusions from what WLJ knows. That is exactly what we
@@ -204,7 +233,7 @@ guessing.
 
 ---
 
-## 8. Actions
+## 9. Actions
 
 The conversational model **never acts directly.** It cannot reach into the user's data
 and change it.
@@ -221,7 +250,7 @@ provides the natural language around it.
 
 ---
 
-## 9. Future Proofing
+## 10. Future Proofing
 
 OpenAI is today's provider. Tomorrow it may be a different frontier model — or several,
 chosen per task. **The architecture does not care, and that is by design.**
@@ -240,7 +269,7 @@ improves for free as the entire field of AI improves.
 
 ---
 
-## 10. Product North Star
+## 11. Product North Star
 
 > **Whole Life Journey exists to become the world's most trusted personal operating
 > system.**

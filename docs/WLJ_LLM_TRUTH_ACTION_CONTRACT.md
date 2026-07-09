@@ -141,7 +141,7 @@ tool that lacks the data says so; it never substitutes a different domain's data
 > may never invent new WLJ facts.**
 
 Reasoning is encouraged; fabrication is forbidden — and they are different things
-(`WLJ_PRODUCT_VISION.md` §7):
+(`WLJ_PRODUCT_VISION.md` §8):
 
 - **Encouraged (derivation):** summarize, compare, calculate, synthesize, and draw
   conclusions *from* the facts WLJ returned ("sleep down four nights while training load

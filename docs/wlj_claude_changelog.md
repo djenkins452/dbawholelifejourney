@@ -32,6 +32,14 @@ and non-negotiable #7.
   vision as governing philosophy.
 - Memory: pivot file + `MEMORY.md` point to the vision.
 
+**Refinement (same day, per owner):** Added a new **§3 Simplicity** section (renumbering
+the rest to 11) — a core engineering principle: before building in WLJ, ask "can the
+conversational model already do this well?"; if yes, don't build it — improve the truth.
+Build deterministic code only where correctness/safety/permissions/audit/calc/history/
+policy/actions require it; as frontier models improve, WLJ gets SIMPLER. Surfaced in
+`CLAUDE.md`'s Product Vision block. The Relationship Model is kept as product truth (a
+vision describes the destination, not implementation status).
+
 **Verification:** docs only; no code touched.
 
 ## 2026-07-09 — docs(arch): Phase I — LLM Truth/Action Contract realignment (WLJ owns truth; the model owns reasoning)

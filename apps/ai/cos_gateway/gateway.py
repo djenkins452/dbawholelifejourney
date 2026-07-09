@@ -25,16 +25,38 @@ from apps.ai.cos_gateway.envelope import (
     RUNTIME_LEGACY,
     CoSResponse,
 )
-from apps.ai.cos_gateway.runtime import ChatGPTCoSRuntime, LegacyBethRuntime
+from apps.ai.cos_gateway.runtime import (
+    ChatGPTCoSRuntime,
+    LegacyBethRuntime,
+    ModelInterfaceRuntime,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _model_interface_enabled(user) -> bool:
+    """True when the new model-interface runtime owns this user's conversation.
+    Additive + fail-safe: any error resolves to False (existing behavior)."""
+    try:
+        return bool(getattr(user.preferences, "use_model_interface", False))
+    except Exception:
+        return False
 
 
 class CoSGateway:
 
     @staticmethod
     def resolve_runtime(user):
-        """Return the runtime instance that owns this user's conversation."""
+        """Return the runtime instance that owns this user's conversation.
+
+        Three separate, coexisting runtimes (checked in precedence order):
+          1. model-interface (use_model_interface)  — the Phase II boundary
+          2. ChatGPT CoS      (use_chatgpt_cos)      — unchanged
+          3. legacy Beth      (default)              — unchanged
+        The new branch is additive; flag OFF leaves resolution exactly as before.
+        """
+        if _model_interface_enabled(user):
+            return ModelInterfaceRuntime()
         from apps.ai.cos_services.tool_registry import evidence_tools_enabled
         if evidence_tools_enabled(user):
             return ChatGPTCoSRuntime()

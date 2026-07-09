@@ -26,6 +26,7 @@ from abc import ABC, abstractmethod
 from apps.ai.cos_gateway.envelope import (
     RUNTIME_CHATGPT,
     RUNTIME_LEGACY,
+    RUNTIME_MODEL_INTERFACE,
     SURFACE_CHAT_STREAM,
     CoSResponse,
 )
@@ -120,6 +121,73 @@ class ChatGPTCoSRuntime(ConversationalRuntime):
         )
         logger.info(
             "COS_GATEWAY runtime=chatgpt_cos surface=%s sync user=%s answer_len=%d",
+            surface, user.id, len(answer),
+        )
+        return CoSResponse(
+            text=answer, runtime=self.name, surface=surface,
+            meta={"conversation_id": conversation.id,
+                  "tools_called": result.get("tools_called", [])},
+        )
+
+
+class ModelInterfaceRuntime(ConversationalRuntime):
+    """The runtime for use_model_interface=True users — the WLJ ↔ conversational-model
+    interface (Phase II). A THIRD, separate runtime: it imports ONLY the clean
+    model-interface service/task + streaming/persistence infra, and never touches the
+    legacy or ChatGPT-CoS conversational generators. Mirrors ChatGPTCoSRuntime's shape
+    (Celery task for streaming, synchronous generate for non-streaming)."""
+
+    name = RUNTIME_MODEL_INTERFACE
+
+    def respond(self, *, user, surface, message=None, conversation=None,
+                page_context=None, stream=False, **kwargs):
+        from apps.ai import chat_stream_bus as bus
+        from apps.ai.models import AssistantConversation
+
+        if conversation is None:
+            conversation = AssistantConversation.get_or_create_active(user)
+
+        # --- streaming: dispatch the model-interface task ---
+        if stream or surface == SURFACE_CHAT_STREAM:
+            from apps.ai.model_interface.tasks import run_model_interface_generation
+            job_id = str(_uuid.uuid4())
+            bus.write(job_id, bus.new_snapshot(user.id, conversation.id))
+            run_model_interface_generation.delay(
+                user.id, conversation.id, message, page_context, job_id,
+            )
+            logger.info(
+                "COS_GATEWAY runtime=model_interface surface=%s stream job=%s user=%s",
+                surface, job_id, user.id,
+            )
+            return CoSResponse(
+                text="", runtime=self.name, surface=surface,
+                stream_job_id=job_id,
+                meta={"conversation_id": conversation.id},
+            )
+
+        # --- non-streaming: generate synchronously + persist (mirror the task) ---
+        from apps.ai.model_interface.service import ModelInterfaceService
+        from apps.ai.models import AssistantMessage
+
+        AssistantMessage.objects.create(
+            conversation=conversation, role="user", content=message or "",
+            message_type="text",
+        )
+        result = ModelInterfaceService(user).generate(
+            conversation, message, page_context=page_context, surface=surface,
+        )
+        answer = result.get("answer") or (
+            "I reached the model-interface path, but the model returned an empty "
+            "response after tool execution. Please try again."
+        )
+        AssistantMessage.objects.create(
+            conversation=conversation, role="assistant", content=answer,
+            message_type="text",
+            metadata={"cos_path": "model_interface", "status": "completed",
+                      "tools_called": result.get("tools_called", [])},
+        )
+        logger.info(
+            "COS_GATEWAY runtime=model_interface surface=%s sync user=%s answer_len=%d",
             surface, user.id, len(answer),
         )
         return CoSResponse(

@@ -6,6 +6,52 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 7 — model-interface runtime behind a flag
+
+**The third, separate conversational runtime — the WLJ ↔ conversational-model interface —
+wired behind `use_model_interface` (default OFF; affects no one).** Instant one-flag
+rollback; legacy and ChatGPT-CoS paths untouched.
+
+**Files (new package `apps/ai/model_interface/`):**
+- `constitution.py` — the fixed, provider-agnostic **constitution** (WLJ owns truth; derive,
+  never invent; honor the AI Relationship; pull deeper truth; actions via WLJ) + the minimal
+  Day-1 tool schemas (3 truth reads + 2 action calls).
+- `service.py` — `ModelInterfaceService.generate`: builds the standing context (constitution
+  + **AI Relationship** projection + **Current Context** baseline, as structured DATA), exposes
+  the tools, drives the model via the existing tool loop; every truth read is **wrapped in the
+  canonical truth envelope and audited** (kind='truth'); actions route to the stateful action
+  interface (self-auditing); the final response is audited (kind='response'). No reasoning of
+  its own; no direct writes.
+- `tasks.py` — `run_model_interface_generation` (streaming twin; always writes a terminal
+  snapshot so the SSE relay never hangs).
+- `apps/ai/cos_gateway/{envelope,runtime,gateway}.py` — `RUNTIME_MODEL_INTERFACE`,
+  `ModelInterfaceRuntime` (streaming task + synchronous non-streaming, mirroring
+  ChatGPTCoSRuntime), and a **third branch** in `resolve_runtime` (model-interface >
+  ChatGPT-CoS > legacy; additive + fail-safe — flag OFF resolves exactly as before).
+- `apps/ai/tasks.py` — register the streaming task with the Celery worker.
+- `apps/users/models.py` + migration `users/0088` — additive `use_model_interface` flag
+  (default False).
+- NEW `apps/ai/tests/test_model_interface_runtime.py` — 13 validation tests (below).
+
+**Validation (all required Slice-7 scenarios — 13 tests, 55 across all interface slices):**
+assistant name/default-relationship/communication in the standing context · constitution
+carries the derive-don't-invent rule · sandbox pushes only AI Relationship + baseline (deep
+personal truth pull-only) · `get_domain_state`/`search_history`/`get_foundational_health_facts`
+return truth-envelope data and are audited · unavailable data → `insufficient_evidence` (never
+fabricated) · action request creates server-side pending confirmation · confirming executes
+the STORED action · audit records truth request/result + action request/result + response ·
+flag ON selects model-interface (precedence) · flag OFF returns existing behavior · non-
+streaming persists + returns the answer · streaming parity writes the same answer as a
+terminal bus snapshot.
+
+**Held (deliberately, pending owner sign-off):** the data migration to enable
+`use_model_interface` for the owner account is NOT included — switching a live prod chat to a
+brand-new runtime should follow validation review, not precede it. It is a one-line migration
+(mirroring `users/0086`) to add on go.
+
+**Verification:** 55/55 interface tests; existing `test_cos_gateway` (14) + request-path-
+safety contract (3) green; `makemigrations --check` clean; `manage.py check` clean.
+
 ## 2026-07-09 — feat(interface): Phase II slice 6 — action interface, stateful confirmation (Pillar 2)
 
 **The action interface with STATEFUL server-side confirmation** — the eliminate-the-class

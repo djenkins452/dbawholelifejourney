@@ -712,6 +712,16 @@ class UserPreferences(models.Model):
                   "(default: legacy Beth). Toggle off for instant rollback.",
     )
 
+    # New model-interface runtime (WLJ ↔ conversational-model interface, Phase II).
+    # A THIRD, separate runtime — coexists with legacy and the ChatGPT CoS path.
+    # When True it takes precedence for this user. Default False; one-flag rollback.
+    use_model_interface = models.BooleanField(
+        default=False,
+        help_text="Use the new model-interface runtime (WLJ Truth/Actions/AI "
+                  "Relationship/Current Context exposed to the conversational model). "
+                  "Takes precedence over use_chatgpt_cos. Toggle off for instant rollback.",
+    )
+
     # ===================
     # PROACTIVE CHECK-INS
     # ===================

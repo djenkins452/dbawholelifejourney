@@ -24,6 +24,7 @@ ENVELOPE_VERSION = 1
 # Runtime identifiers
 RUNTIME_CHATGPT = "chatgpt_cos"
 RUNTIME_LEGACY = "legacy_beth"
+RUNTIME_MODEL_INTERFACE = "model_interface"
 
 # --- Phase 0A.1: full-conversation surfaces (text envelope, routed) ---
 SURFACE_CHAT = "chat"                 # non-streaming chat (/api/chat/)

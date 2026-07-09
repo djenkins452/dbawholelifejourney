@@ -302,3 +302,9 @@ def react_to_significant_event_task(self, user_id, event_type, data):
 from apps.ai.chatgpt_cos.tasks import (  # noqa: E402,F401
     run_chatgpt_cos_generation,
 )
+
+# Same rationale for the model-interface streaming task (apps.ai.model_interface is
+# not an INSTALLED_APP): import it here so every worker registers it.
+from apps.ai.model_interface.tasks import (  # noqa: E402,F401
+    run_model_interface_generation,
+)

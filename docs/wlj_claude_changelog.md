@@ -6,6 +6,34 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): Phase II slice 1 — AIRelationshipService (Pillar 3 projection)
+
+**First implementation slice of the WLJ ↔ conversational-model interface.** Following the
+ordered principles (Reuse → Expose → Information → Deterministic truth → Simplicity), the
+smallest, safest, most reversible starting point: expose the **AI Relationship (Pillar 3)**
+as a read-only projection over preference data that **already exists** — zero schema change,
+no new tables, no reasoning, no LLM, no coupling to the chat runtime.
+
+**Files:**
+- NEW `apps/ai/cos_services/ai_relationship.py` — `get_ai_relationship(user)` projects
+  `UserPreferences` (`cos_display_name`, `cos_response_style`, `ai_coaching_style`,
+  `assistant_confirm_actions`) + `PersonalOperatingBlueprint` (`accountability_style`,
+  `question_frequency`) into one compact JSON-safe object. Every field tagged with a source
+  (`user` = explicitly configured, `default` = safe fallback) for auditability. Not-yet-
+  stored concepts (`default_relationship`, `personality_overlay`, `preference_learning`,
+  `learned_preferences[]`) use safe defaults — a later slice adds the persisted fields + UI
+  + learning. Truth constants included (`may_invent_facts=False`, always). Explicitly does
+  NOT conflate preference-learning with `cos_learning_mode_active` (Learning Mode).
+- `apps/ai/cos_services/__init__.py` — export `get_ai_relationship` /
+  `AI_RELATIONSHIP_SCHEMA_VERSION`. (Not yet registered as a model tool — no runtime wiring.)
+- NEW `apps/ai/tests/test_ai_relationship_service.py` — 7 tests (projection + source
+  provenance, safe defaults, blank-name resolution, truth constants, learning≠Learning-Mode,
+  determinism + JSON-safety, resilience with no blueprint).
+
+**Verification:** `python3 manage.py test apps.ai.tests.test_ai_relationship_service` — 7/7
+pass. No model files touched → no migration. `manage.py check` clean (pre-existing djstripe
+INFO hints only).
+
 ## 2026-07-09 — docs(design): Phase II decisions incorporated — Four Pillars promoted; interface finalized for implementation
 
 Incorporated the owner's four decisions + clarifications into the Phase II interface design

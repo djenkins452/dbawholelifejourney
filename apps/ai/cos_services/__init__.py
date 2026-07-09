@@ -30,6 +30,10 @@ from apps.ai.cos_services.action_execution import (
     allowed_actions,
     execute_action,
 )
+from apps.ai.cos_services.ai_relationship import (
+    AI_RELATIONSHIP_SCHEMA_VERSION,
+    get_ai_relationship,
+)
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -79,4 +83,7 @@ __all__ = [
     "execute_action",
     "allowed_actions",
     "DAY1_ACTION_ALLOWLIST",
+    # Interface Pillar 3 — AI Relationship (projection)
+    "get_ai_relationship",
+    "AI_RELATIONSHIP_SCHEMA_VERSION",
 ]

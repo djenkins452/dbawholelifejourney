@@ -240,35 +240,69 @@ a **tool-availability rule**, not left to the model's discretion.
 
 ---
 
-## 5. The Preference Boundary — "how the model works with me"
+## 5. The AI Relationship — a first-class WLJ domain
 
-Preferences configure **how the conversational model interacts with this user**. They
-are stored by WLJ, versioned, per-user, and serialized into the model's context.
-Five separable concerns:
+**AI Relationship is a first-class deterministic domain of WLJ**, exactly like Health
+owns health, Faith owns faith, Calendar owns calendar. **AI Relationship owns AI
+interaction** — how this user wants to work with their AI. It is stored by WLJ,
+versioned, per-user, and auditable, and it is one of WLJ's core differentiators (the
+third WLJ pillar; see `WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`).
 
-1. **Assistant identity** — the user-selected display name (Beth, Steve, Coach,
-   Jarvis, or nothing). *"Beth" is one user's chosen name, never a system identity.*
-   A blank name resolves gracefully to a neutral default.
+**Ownership vs. assembly (important):** AI Relationship *owns* these settings. The
+Executive Context Envelope does **not** own them — it *assembles/projects* them
+alongside Truth and Actions for the model to consume. Just as the envelope projects
+health truth without owning it, it projects the AI Relationship without owning it.
+
+AI Relationship holds:
+
+1. **Assistant name** — the user-selected display name (Beth, Steve, Coach, Jarvis, or
+   nothing). *"Beth" is one user's chosen name, never a system identity.* Blank resolves
+   gracefully to a neutral default.
 2. **Default relationship** — the baseline the user wants the model to be (Chief of
    Staff, Best Friend, Trusted Companion, Executive Coach, Mentor, Accountability
-   Partner, Trusted Advisor, Teacher, Parent Figure, …). This is a **baseline, not a
-   cage** — the model still pivots to fit the request (emotional support → trusted
+   Partner, Trusted Advisor, Teacher, Parent Figure, …). A **baseline, not a cage** —
+   the model still pivots expertise to fit the request (emotional support → trusted
    listener; data question → analyst; health trend → health analyst; planning →
-   strategist), then returns to baseline.
-3. **Communication preferences** — directness, response length, detail level,
-   summary-first, bullets/tables/copy-boxes, ask-clarifying-questions, challenge
-   assumptions, recommendation-first, avoid generic encouragement, etc.
-4. **Personality overlay** — tone/flavor only (Drill Sergeant, Calm Wise Observer,
-   Texas Rancher, Southern Belle, Witty Commentator). **Overlay never limits
-   capability** — it flavors voice, it does not restrict what the model can do.
-5. **Truth & evidence contract** — configurable with strict safe defaults (§7).
+   strategist), then holds the relationship. The relationship is stable; the expertise
+   changes naturally.
+3. **Communication style** — directness, response length, detail level, summary-first,
+   bullets/tables/copy-boxes, ask-clarifying-questions, challenge assumptions,
+   recommendation-first, avoid generic encouragement, etc.
+4. **Personality** — tone/flavor only (Drill Sergeant, Calm Wise Observer, Texas
+   Rancher, Southern Belle, Witty Commentator). **Never limits capability** — it flavors
+   voice, it does not restrict what the model can do.
+5. **Truth & evidence preferences** — configurable with strict safe defaults (§7).
+6. **Learning preferences, formatting preferences, learned communication preferences,**
+   and future AI-interaction preferences (§6).
 
-Existing fields are **consolidated, not duplicated.** `UserPreferences.cos_display_name`,
-`ai_coaching_style`, `cos_response_style`, `assistant_confirm_actions`,
-`assistant_proactive_checkins`; and `PersonalOperatingBlueprint.operating_style`,
-`accountability_style`, `question_frequency`, `cos_learning_mode_active` already exist
-and are the migration source for a consolidated AI-interaction profile. No user loses
-current configuration.
+Existing fields are **consolidated by projection, not duplicated.**
+`UserPreferences.cos_display_name`, `ai_coaching_style`, `cos_response_style`,
+`assistant_confirm_actions`, `assistant_proactive_checkins`; and
+`PersonalOperatingBlueprint.operating_style`, `accountability_style`,
+`question_frequency` already exist and are the source the AI Relationship domain reads.
+No user loses current configuration. (Note: `cos_learning_mode_active` is the existing
+**Learning Mode** — a UAIO action-suppression concept — and is *not* the same as the
+preference-learning toggle in §6; do not conflate them.)
+
+### User-facing naming (internal architecture ≠ UX language)
+
+Internal names optimize for architecture; user-facing names optimize for humans. The UI
+must never expose architectural terms (`domain`, `envelope`, `projection`, `contract`,
+`behavioral profile`). Canonical mapping:
+
+| Internal | User-facing |
+|---|---|
+| AI Relationship | **Your AI Relationship** |
+| Assistant display name | **AI Name** ("What should your AI call itself?") |
+| Default relationship | **How should your AI relate to you?** |
+| Communication preferences | **Communication Style** |
+| Truth preferences | **Trust & Accuracy** |
+| Learned communication preferences | **What Your AI Has Learned** |
+
+The Preferences page keeps its name; inside it, a section — **"Your AI Relationship"** —
+replaces the scattered legacy Beth / Personal Assistant configuration. The user should
+never feel they are configuring "Beth"; they are configuring **how their AI works with
+them**.
 
 ---
 
@@ -355,7 +389,7 @@ requirement, not an afterthought.
 ## 10. How WLJ exposes truth and receives action requests (interface shape)
 
 - **Standing context** carries the always-on executive-context envelope (§3.6) and the
-  behavioral profile (§5) so the model starts every personal turn already grounded and
+  AI Relationship (§5) so the model starts every personal turn already grounded and
   in-voice, minimizing round-trips.
 - **Truth tools** (built on `cos_services`: `StandingContextService`,
   `DomainStateService`, `HistorySearchService`, and the `apps/core/truth/` composers)

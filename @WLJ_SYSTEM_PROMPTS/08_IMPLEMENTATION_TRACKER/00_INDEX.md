@@ -1,5 +1,16 @@
 # ChatGPT CoS — Implementation Tracking
 
+> **⚠ HARMONIZED 2026-07-09 — reading key (read first).** These trackers describe the
+> original "build ChatGPT CoS / retire legacy Beth" roadmap (Phases 0–9). **Governing
+> hierarchy, in order:** `docs/WLJ_PRODUCT_VISION.md` → `docs/WLJ_ARCHITECTURE_LAWS.md` →
+> `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` → `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`.
+> Reading key + phase mapping:
+> • **"ChatGPT" / naming a provider** = the provider-agnostic **conversational model** (config behind one seam).
+> • **"Legacy Beth retirement" / "Beth rebuild"** = retirement/rebuild of the **legacy conversational orchestration** — "Beth" is only a user display name, never a system layer.
+> • **"WLJ owns truth; ChatGPT owns understanding"** → "WLJ owns truth; the conversational model owns **reasoning**."
+> • **Phase mapping:** the current program is **Phase I / I.5 / I.6 (documentation) — DONE**; **Phase II = the Executive Context Envelope + Truth/Action tool contract** (this folder's "Phase 0/1 always-loaded context" + "Phase 3/6 integration & actions" are its ancestors). The old Phase 8/9 "legacy retirement" maps to the eventual, flag-gated legacy cutover — not started.
+> • The gate logic (UAIO write authority, safety gates, no-live-compute, one-flag rollback) remains **valid** and is preserved.
+
 ```text
 Version:      2.0
 Last updated: 2026-06-26

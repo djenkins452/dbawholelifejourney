@@ -1,5 +1,16 @@
 # WLJ — Day 1 ChatGPT CoS Tool Catalog Architecture
 
+> **⚠ HARMONIZED 2026-07-09 — reading key (read first).** This folder is the design
+> rationale for what are now **WLJ Truth Services** (read catalog) and **WLJ Action
+> Services** (action catalog). It is substantively aligned with the pivot; vocabulary is
+> dated. **Governing hierarchy, in order:** `docs/WLJ_PRODUCT_VISION.md` →
+> `docs/WLJ_ARCHITECTURE_LAWS.md` → `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` →
+> `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`. Reading key:
+> • **"ChatGPT"** = the provider-agnostic **conversational model**; **"understanding"** = **reasoning**; **"Beth"** = user display name only.
+> • **`02_Always_Loaded_Context_Specification` is the ancestor of the Executive Context Envelope** (Phase II); its Field 1 "Identity & personalization" is now the **AI Relationship** domain.
+> • **`03_Action_Capability_Catalog`** = WLJ Action Services; the dispatch here is **stateless**, but the authoritative Action contract is now **stateful** (server-side pending confirmation) — see the Truth/Action Contract §4. `set_cos_name` belongs to **AI Relationship**.
+> • **Phase 0–4/0–7 numbering** in this folder is the original Day-1 rollout, **distinct** from the current program phases (I/I.5/I.6 done; **Phase II = Executive Context Envelope**).
+
 > **AS BUILT (2026-06-26):** The Day-1 catalog described here is **implemented and
 > deployed** in `apps/ai/cos_services/` (Phases 0–7). The standing-context schema,
 > the six tools, the action allowlist, and the dispatch model are canonized in

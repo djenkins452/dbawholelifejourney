@@ -1,5 +1,18 @@
 # WLJ System Discovery — Architecture Knowledge Model
 
+> **⚠ HARMONIZED 2026-07-09 — reading key (read first).** This folder predates the
+> architecture pivot; its substance (a factual discovery catalog) remains accurate, only
+> its vocabulary is dated. **Governing hierarchy, authoritative in order:**
+> `docs/WLJ_PRODUCT_VISION.md` → `docs/WLJ_ARCHITECTURE_LAWS.md` →
+> `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` → `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`
+> → this reference. Reading key:
+> • **"ChatGPT"** = the provider-agnostic **conversational model** (no vendor is the architecture).
+> • **"understanding"** = **reasoning**.
+> • **"Beth"** = only a user's chosen display name, **never** a system identity (except real `beth_*.py` code filenames).
+> • Old **Law numbers** reference the retired scheme; the current constitution is **Laws 0–5**.
+> • **Personalization / assistant name / preferences** (esp. `06_Integrations_and_Personalization`; the Persona/Blueprint engines in `03_Engine_Catalog`) = the first-class **AI Relationship** domain.
+> The domain/engine/UI catalogs are still accurate and were left unchanged in substance.
+
 **Mission:** Build a complete architectural knowledge model of the existing Whole Life Journey (WLJ) platform so an external conversational layer (ChatGPT) can reason holistically over the user's life **while the existing WLJ platform is preserved unchanged.**
 
 **Method:** Read-only investigation across 30+ Django apps and ~28 `ai_*` intelligence packages, using a fan-out of subagents. Every detailed claim is proven with `file:line` references. Discrepancies between the existing reference docs and the actual code are recorded in each document's "gaps" section rather than silently reconciled.

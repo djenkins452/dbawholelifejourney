@@ -1,5 +1,23 @@
 # WLJ — ChatGPT CoS Reasoning Architecture
 
+> **⚠ SUPERSEDED-IN-FRAMING 2026-07-09 — read first.** This folder describes **how the
+> assistant should reason/diagnose/coach**. Under the architecture pivot, **the
+> conversational model owns reasoning, diagnosis, and coaching** — WLJ does not author
+> them. So the *reasoning-procedure* content here is **superseded** (kept as historical
+> rationale, not as a spec to build): `01_CoS_Reasoning_Architecture` (the 11-stage
+> loop), `03_Dynamic_Evidence_Retrieval` (the retrieval decision procedure),
+> `04_Holistic_Diagnostic_Framework` §1–7, and `05_Historical_and_Coaching` Part B
+> (coaching modes). **What REMAINS valid** is the deterministic TRUTH/POLICY WLJ must
+> supply *to* the model: `02` §3 (the tool catalog + BACKED/STRANDED/UNWIRED/ABSENT
+> truth-backing status), `04` §0 (the always-loaded standing package — an ancestor of the
+> Executive Context Envelope), `05` A1 (the memory/history hierarchy), and `06` §3/§5
+> (trust-tier metadata + source-precedence policy). **Governing hierarchy, in order:**
+> `docs/WLJ_PRODUCT_VISION.md` → `docs/WLJ_ARCHITECTURE_LAWS.md` →
+> `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` → `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`.
+> Reading key: **"ChatGPT"** = the provider-agnostic **conversational model**;
+> **"understanding"** = **reasoning**; old **Law numbers** (1/2/4/9/13/16) → current
+> **Laws 0–5**; the model **derives** conclusions but never **invents** WLJ facts.
+
 > **AS BUILT (2026-06-26):** This folder is the **design rationale** for the ChatGPT
 > CoS reasoning layer. That layer is now **built and deployed** (Phases 0–7, see
 > `../08_IMPLEMENTATION_TRACKER/`). For the production tool/standing-context surface,

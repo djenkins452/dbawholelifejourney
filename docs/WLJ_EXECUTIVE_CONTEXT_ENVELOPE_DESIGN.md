@@ -20,12 +20,14 @@ WLJ is built on four pillars, three of which are WLJ's and one the model's:
 |---|---|---|
 | **WLJ Truth** | "What is true?" | WLJ |
 | **WLJ Actions** | "What can be done safely?" | WLJ |
-| **WLJ Behavioral Profile** | "How should we work together?" | WLJ |
+| **WLJ AI Relationship** | "How should we work together?" | WLJ |
 | **Conversational Model** | "Given all of that — what should happen next?" | The model |
 
-The Behavioral Profile is newly first-class and is one of WLJ's core differentiators.
-The Executive Context Envelope is simply **the structured serialization of the three WLJ
-pillars, handed to the fourth.**
+**AI Relationship is a first-class deterministic domain** (it *owns* AI-interaction the
+way Health owns health), newly promoted and one of WLJ's core differentiators. The
+Executive Context Envelope is simply **the structured serialization of the three WLJ
+pillars, handed to the fourth. The envelope ASSEMBLES/PROJECTS the pillars; it does not
+OWN them** — ownership stays with Truth, Actions, and AI Relationship respectively.
 
 ---
 
@@ -36,7 +38,7 @@ pillars, handed to the fourth.**
    like coaching the model on how to reason, it is wrong; convert it to structured truth.
 2. **Separate the constant constitution from the variable envelope.** There is a small,
    fixed, provider-agnostic *constitution* (a stable system preamble: "you reason over
-   WLJ truth; derive, never invent; honor the behavioral profile; call tools for more")
+   WLJ truth; derive, never invent; honor the AI Relationship; call tools for more")
    and a *variable envelope* (the per-turn structured data). The constitution rarely
    changes; the envelope changes every turn. Do not smuggle per-turn data into the
    constitution or instructions into the envelope.
@@ -67,11 +69,11 @@ composed-truth objects; see §7–8):
   "as_of": "2026-07-09T14:07:00-05:00",
   "clock": { "local_time": "2:07 PM", "part_of_day": "afternoon" },
 
-  "assistant": {                          // Behavioral Profile — identity + relationship
+  "assistant": {                          // AI Relationship — identity + relationship
     "display_name": "Beth",
     "default_relationship": "chief_of_staff"
   },
-  "communication": {                      // Behavioral Profile — how to show up
+  "communication": {                      // AI Relationship — how to show up
     "directness": "high",
     "detail_level": "balanced",
     "executive_summary_first": true,
@@ -117,17 +119,20 @@ answers, no lane logic, no phrasing templates. The model already knows how to co
 `StandingContextService.get_standing_context` (already narration-ready and cache-first).
 On cache miss it returns a `pending` shell — never a live heavy computation (Request-Path
 Safety). `executive_context` is `interpret()` → `ExecutiveSignals`; `day_continuity` is
-`day_continuity.assess`; the behavioral sections come from the Behavioral Profile service
+`day_continuity.assess`; the AI-Relationship sections come from the AI Relationship service
 (§2). No new reasoning is introduced — this is assembly of existing deterministic outputs.
 
 ---
 
-## 2. Behavioral Profile — structure
+## 2. AI Relationship — structure (the third pillar)
 
-**Recommendation: the Behavioral Profile is a composed read-model (a projection), not a
-new consolidated table.** It is assembled per-user from existing stores plus one new
-table for learned communication preferences. This respects Simplicity, avoids a risky
-data migration, avoids dual-write drift, and gives exactly one serialization point.
+**AI Relationship is a first-class WLJ domain that OWNS these settings; the envelope only
+assembles them.** Recommendation: expose the domain as a **composed read-model (a
+projection), not a new consolidated table** — assembled per-user from existing stores
+plus one new table for learned communication preferences. This respects Simplicity,
+avoids a risky data migration, avoids dual-write drift, and gives exactly one
+serialization point. (User-facing, this domain is "Your AI Relationship"; see the
+naming map in `WLJ_LLM_TRUTH_ACTION_CONTRACT.md` §5.)
 
 Composed shape:
 
@@ -276,8 +281,8 @@ pre-turn "is this personal?" classifier is exactly the retired approach):
 
 - **Two modes on the envelope:** `personal` and `external_focus`.
 - In **`personal`** (default on the assistant surface): the full envelope is pushed
-  (executive_context + behavioral profile), and personal truth/action tools are in scope.
-- In **`external_focus`:** the envelope carries **only** the behavioral profile
+  (executive_context + AI Relationship), and personal truth/action tools are in scope.
+- In **`external_focus`:** the envelope carries **only** the AI Relationship
   (relationship + communication — these are *how to talk*, not personal data) and the
   fixed constitution. **`executive_context` is omitted and personal truth/action tools are
   removed from the tool set** — so the model *cannot* reach personal data even if it tried.
@@ -320,7 +325,7 @@ Nothing here is rebuilt; it is re-fronted. (From the Phase I capability triage.)
 | `DomainStateService`, `HistorySearchService` | Truth tools (pull) | Wrap output in the §3 envelope |
 | `ActionExecutionService` → `IntentService.execute_intent` → UAIO | Action tool (§4) | Reuse; add stateful confirmation |
 | `tool_registry` / `tool_dispatcher` | Tool exposure + **scope gating by mode** (§6) | Extend for mode-based scoping |
-| `UserPreferences` + `PersonalOperatingBlueprint` (+ new `LearnedCommunicationPreference`) | Behavioral Profile service (§2) | New projection service; no consolidation migration |
+| `UserPreferences` + `PersonalOperatingBlueprint` (+ new `LearnedCommunicationPreference`) | AI Relationship service (§2) | New projection service; no consolidation migration |
 | `apps/ai/reflection/` (learning gate, `ReflectionEvent`) | Preference-persist gate + audit observer (§5) | Reuse default-deny gate; add tool-call observation |
 | `CoSGateway.resolve_runtime()` | Feature-flag slot for the new "LLM-drives" runtime | Add a third runtime alongside ChatGPTCoS / Legacy |
 | `apps/ai/services.py :: AIService` (`COS_MODEL`) | The **provider seam** | The one config seam; no provider named in the contract |
@@ -357,7 +362,7 @@ That is one to two new tables and three fields for all of Phase II's foundation.
 2. **Envelope becomes the giant prompt we're avoiding.** Guard: structured-only, a hard
    size budget, no instructional prose, and a rule that every field justifies itself as
    non-derivable truth. Review the envelope's size each phase and prune.
-3. **Behavioral Profile source drift** (UserPreferences vs Blueprint vs Learned). Mitigate
+3. **AI Relationship source drift** (UserPreferences vs Blueprint vs Learned). Mitigate
    with one composition service and one write path per field; the projection is read-only.
 4. **Fabrication enforcement is detection, not prevention** (§5). Set expectations
    honestly; do not let a stakeholder believe there is a synchronous fabrication blocker.

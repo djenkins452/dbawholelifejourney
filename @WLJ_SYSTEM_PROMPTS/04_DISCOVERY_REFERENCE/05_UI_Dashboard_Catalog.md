@@ -138,7 +138,7 @@ Key fact: `/dashboard/` → `dashboard_v2:home` → `dashboard_home_dispatch()` 
   - **Streaming SSE** `POST /assistant/api/chat/stream/` (`ai/views.py:1058`) — dispatches Celery `run_chat_generation.delay()`, relays token/done/error events via `chat_stream_bus`. Background generation means navigation no longer abandons the response (recent commit 50fb57e5).
   - **Resume** `GET /assistant/api/chat/stream/resume/<job_id>/` (`ai/views.py:1160`) — replays cached snapshot.
 - **Supporting endpoints:** `/api/history/`, `/api/clear/`, `/api/feedback/`, `/api/priorities/`, `/api/opening/`, `/api/wake/` (pre-warm context), `/api/briefing/` (proactive), `/api/session-start/` (deterministic, no-LLM decision: briefing / lightweight_alignment / drift_intervention / none).
-- **Orchestrator pipeline:** intent detection → CoS deterministic router → action handlers → Claude generation → background post-response intelligence (learning/pattern/correction extraction). Per MEMORY: Beth consumes composed deterministic briefings, not raw signals.
+- **Orchestrator pipeline:** intent detection → CoS deterministic router → action handlers → conversational-model generation (OpenAI `gpt-4o` today via `COS_MODEL`; provider-agnostic) → background post-response intelligence (learning/pattern/correction extraction). Per the truth contract: the conversational model consumes composed deterministic briefings, not raw signals.
 - **CoS Settings** `/assistant/cos/settings/` (CosSettingsView): Learning Mode toggle, display name, accountability style — backed by `PersonalOperatingBlueprint`.
 
 ### Settings

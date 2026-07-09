@@ -119,7 +119,7 @@ the second.
 
 > **WLJ must never try to become another LLM.** Every time we are tempted to build
 > reasoning inside WLJ, the honest fix is almost always better truth, better context, a
-> better tool, or a better behavioral profile handed to the model.
+> better tool, or a better AI Relationship handed to the model.
 
 ---
 
@@ -162,22 +162,26 @@ never a system identity. The *relationship* is the meaningful choice.
 
 ---
 
-## 6. Behavioral Profile
+## 6. The AI Relationship
 
-Over time, every user develops an **AI Behavioral Profile** — the accumulated answer to
-"how do I want my AI to work with me?" It holds:
+Over time, every user shapes an **AI Relationship** — the accumulated answer to "how do I
+want to work with my AI?" It holds:
 
-- communication preferences (directness, length, formatting, executive-summary-first)
+- assistant name and default relationship
+- communication style (directness, length, formatting, executive-summary-first)
 - detail level
-- personality overlay (tone and flavor — never a limit on capability)
+- personality (tone and flavor — never a limit on capability)
 - accountability and challenge level
-- relationship defaults
 - truth and evidence preferences
+- learning preferences and learned communication preferences
 
-**The behavioral profile belongs to WLJ.** It is stored, versioned, per-user, and
-auditable. **The conversational model consumes it** — the profile shapes how the model
-shows up, but the model does not own or store it. This is why the experience feels
-personal and consistent no matter which underlying model is answering.
+**AI Relationship is a first-class deterministic domain of WLJ** — it *owns* AI
+interaction the way Health owns health, Faith owns faith, and Calendar owns calendar. It
+is stored, versioned, per-user, and auditable. **The conversational model consumes it**;
+it shapes how the model shows up, but the model does not own or store it. This is why the
+experience feels personal and consistent no matter which underlying model is answering —
+and it is one of WLJ's core differentiators. (In the UI this is simply "Your AI
+Relationship"; architectural terms stay out of the user's way.)
 
 ---
 
@@ -190,7 +194,7 @@ it," or "lead with the recommendation," that is a gift — a precise instruction
 to serve them better. The philosophy:
 
 - **The conversational model detects** the preference in natural conversation.
-- **WLJ stores it** in the behavioral profile.
+- **WLJ stores it** in the AI Relationship.
 - **Future conversations honor it** — the user should not have to visit a settings page.
 
 Two guardrails keep this honest:

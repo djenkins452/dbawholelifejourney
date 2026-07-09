@@ -1,12 +1,31 @@
 # WLJ Prompt Library — Load Manifest
 
 ```text
-Version:      1.0
-Last updated: 2026-06-26
+Version:      1.1
+Last updated: 2026-07-09 (harmonized to the LLM/WLJ governing hierarchy)
 Authority:    Danny Jenkins
-Applies to:   Every new ChatGPT / Claude WLJ session
+Applies to:   Every new WLJ session with any conversational model
 Load class:   Read this first (it tells you what else to load)
 ```
+
+> **⚠ AUTHORITATIVE GOVERNING HIERARCHY (2026-07-09) — load in this order, always:**
+> 1. `docs/WLJ_PRODUCT_VISION.md` — the product *why* (WLJ is a Personal Truth Platform,
+>    not an AI; the model reasons, WLJ knows; users choose a default **AI Relationship**).
+> 2. `docs/WLJ_ARCHITECTURE_LAWS.md` — the constitution, **Laws 0–5** (the `docs/` copy is
+>    authoritative; the `03_CANON_REFERENCE/` prompt-library copy points to it).
+> 3. `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` — the truth/action/AI-Relationship contract
+>    (fabrication = derive-don't-invent; actions are **stateful**; provider-agnostic).
+> 4. `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md` — Phase II design (the envelope).
+> 5. Reference architecture (folders `04`–`07`) → implementation (folder `08`).
+>
+> **This hierarchy supersedes the framing of the pre-pivot canon below.** Everything in
+> folders `06`–`08` (and the CoS tool/standing-context contract in `03_CANON_REFERENCE/`)
+> is *superseded in framing* and reads under the pivot: **"ChatGPT"** = the
+> provider-agnostic conversational model; **"understanding"** = reasoning; **"Beth"** =
+> a user display name only; **personalization/assistant name** = the first-class **AI
+> Relationship** domain; **"standing/always-loaded context"** = the **Executive Context
+> Envelope** (Phase II). A new first-class **AI Relationship** domain should be added to
+> the domain registry. Program phases: **I / I.5 / I.6 (docs) done; Phase II next.**
 
 **Purpose:** When you start a new WLJ chat, this file tells you — deterministically
 — which documents to load. Folder names encode *topic*; this manifest encodes

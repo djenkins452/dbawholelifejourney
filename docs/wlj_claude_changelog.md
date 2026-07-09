@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(harmonize): Phase I.6 — reference-doc harmonization + AI Relationship domain
+
+**What & why:** Aligned the `@WLJ_SYSTEM_PROMPTS/` reference knowledge base with the new
+governing hierarchy (Product Vision → Architecture Laws → LLM Truth/Action Contract →
+Reference → Implementation), and promoted the **AI Relationship** first-class domain
+(replacing the interim "Behavioral Profile" concept).
+
+**Architectural refinement — AI Relationship:** "Behavioral Profile" is retired in name.
+Going forward **AI Relationship is a first-class deterministic WLJ domain** — it *owns* AI
+interaction (assistant name, default relationship, communication style, personality,
+learning/truth/formatting preferences, learned communication preferences) the way Health
+owns health. **The Executive Context Envelope assembles/projects it; it does not own it.**
+Applied to `WLJ_PRODUCT_VISION.md` §6, `WLJ_LLM_TRUTH_ACTION_CONTRACT.md` §5 (with a
+new **user-facing-vs-internal naming** map — UI never exposes `domain`/`envelope`/
+`projection`/`contract`/`behavioral profile`; "Your AI Relationship", "AI Name", etc.),
+`WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md` (pillar + §2), and `CLAUDE.md`.
+
+**Harmonization method (anti-churn):** the reference docs are substantively aligned with
+the pivot but predate its vocabulary, so instead of dozens of inline find-replaces
+(risking `beth_*.py` filenames and `file:line` evidence), added a **governing-hierarchy +
+reading-key banner** to each folder index (`04`–`08`) and the load manifest. Each banner
+reframes the whole folder's dated vocabulary at once ("ChatGPT"→conversational model;
+"understanding"→reasoning; "Beth"→display name only; old Law numbers→Laws 0–5;
+personalization→AI Relationship; "always-loaded context"→Executive Context Envelope;
+old Phase 0–9→I/I.5/I.6/II). The `06_COS_DESIGN` banner is stronger (SUPERSEDED-IN-FRAMING:
+the reasoning/diagnostic/coaching procedures are model-owned; the truth cores remain).
+
+**Files updated:** governing — `WLJ_PRODUCT_VISION.md`, `WLJ_LLM_TRUTH_ACTION_CONTRACT.md`,
+`WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`, `CLAUDE.md`. Reference —
+`@WLJ_SYSTEM_PROMPTS/00_README_LOAD_MANIFEST.md`, `04/00_INDEX`, `05/00_INDEX`,
+`06/00_INDEX`, `07/00_INDEX`, `08/00_INDEX`, and one factual fix in
+`04/05_UI_Dashboard_Catalog.md` ("Claude generation" → conversational model / OpenAI
+`gpt-4o`, since the chat path uses OpenAI not Claude).
+
+**Intentionally left unchanged:** the factual catalogs (domains, engines, UI, readiness
+matrices, tool/backing status, `file:line` evidence) — accurate and preserved; the banners
+supply the reframing. Non-index body files were not churned. `beth_*.py` code filenames
+kept as-is.
+
+**Verification:** docs only; no code touched.
+
 ## 2026-07-09 — docs(design): Phase II — Executive Context Envelope design (draft for review)
 
 **What & why:** `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md` — the keystone Phase II

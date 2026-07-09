@@ -1,5 +1,18 @@
 # WLJ — Holistic Context Readiness Audit for ChatGPT CoS
 
+> **⚠ HARMONIZED 2026-07-09 — reading key (read first).** This readiness inventory is
+> *favorable to* and *aligned with* the pivot — it grades the deterministic truth WLJ
+> must expose (its thesis: "the truth exists; expose it," not "build reasoning"), which
+> is exactly WLJ's job now. **Governing hierarchy, authoritative in order:**
+> `docs/WLJ_PRODUCT_VISION.md` → `docs/WLJ_ARCHITECTURE_LAWS.md` →
+> `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` → `docs/WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`
+> → this reference. Reading key:
+> • **"ChatGPT" / "external CoS"** = the provider-agnostic **conversational model**.
+> • "not LLM guessing" → read as "from deterministic truth rather than model-**invented** facts" (the model *does* reason; it just never invents WLJ facts).
+> • Old **Law numbers** (e.g. "Law 1 LLM Last", "Law 16") reference the retired scheme; the current constitution is **Laws 0–5**; the relevant invariant is F1 Truth/Reasoning Separation.
+> • **`04_Recommended_Minimal_Context_Package` is the direct ancestor of the Executive Context Envelope** (Phase II); its "always-loaded context" is the envelope's standing-context payload.
+> • Cross-domain *explanation* is the model's reasoning; WLJ's job is to **expose the deterministic factors**. The truth inventories/matrices below are preserved verbatim.
+
 **Question:** Does WLJ already expose sufficient deterministic truth for ChatGPT to operate as Danny's primary holistic Chief of Staff — capable of answering questions like *"Why has my weight loss slowed down?"* from deterministic truth, not LLM guessing?
 
 **Method:** Read-only code verification (3 focused subagents over SAE state builders, the retrieval/search/screen layer, and the cross-domain reasoning path). Code is authoritative. Every claim carries `file:line` evidence. No code, data, or infrastructure was modified or proposed.

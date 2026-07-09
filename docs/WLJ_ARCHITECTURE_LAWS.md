@@ -10,6 +10,10 @@
 > `INTELLIGENCE_ARCHITECTURE.md`, a ticket, or a convenience) conflicts with a Law
 > here, the Law wins. Changes require explicit owner approval.
 >
+> **Governing philosophy:** this constitution serves `WLJ_PRODUCT_VISION.md` — the
+> product *why* (WLJ is a Personal Truth Platform; the model reasons, WLJ knows). These
+> Laws are how the platform keeps that promise deterministically.
+>
 > **Status:** Canonical. **Established:** 2026-06-28. **Amended:** 2026-06-28
 > (added **Law 0 — Intent Before Retrieval** as the first Law); **2026-07-09**
 > (Amendment A — the orchestration inversion; Laws re-hosted inside truth tools).

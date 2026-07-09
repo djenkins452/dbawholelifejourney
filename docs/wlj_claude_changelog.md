@@ -6,6 +6,34 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(vision): Phase I.5 — WLJ Product Vision (the governing "why")
+
+**What & why:** Created `docs/WLJ_PRODUCT_VISION.md` — the highest-level document in the
+repo. Product philosophy (WHY, not HOW): our story (honoring the retired Conductor work as
+the map that found the treasure — deterministic truth), the new vision (WLJ is a Personal
+Truth Platform, not an AI; "the model reasons, WLJ knows"), the fundamental separation, the
+relationship model (users choose a *default relationship*, not which AI), behavioral profile,
+continuous learning, truth, actions, future-proofing, and the product North Star. Every
+architecture decision is now measured against it.
+
+**Wording change adopted (per owner):** the truth rule is reframed from "the model may only
+assert facts returned verbatim" to **"the conversational model may derive conclusions from
+deterministic WLJ facts, but it may never invent new WLJ facts."** Reasoning encouraged;
+fabrication forbidden — they are different. Applied in `WLJ_LLM_TRUTH_ACTION_CONTRACT.md` §3.3
+and non-negotiable #7.
+
+**Files:**
+- **NEW** `docs/WLJ_PRODUCT_VISION.md` (governing product constitution).
+- `CLAUDE.md` — new "PRODUCT VISION (REQUIRED)" lead block; Reference Docs table adds the
+  vision as the top row.
+- `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` — "Governed by" the vision; §3.3 + #7 reworded
+  (derive-don't-invent).
+- `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`, `docs/WLJ_ARCHITECTURE_LAWS.md` — reference the
+  vision as governing philosophy.
+- Memory: pivot file + `MEMORY.md` point to the vision.
+
+**Verification:** docs only; no code touched.
+
 ## 2026-07-09 — docs(arch): Phase I — LLM Truth/Action Contract realignment (WLJ owns truth; the model owns reasoning)
 
 **What changed & why:** Architecture pivot. WLJ stops building its own conversational

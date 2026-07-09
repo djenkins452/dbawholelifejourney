@@ -6,6 +6,8 @@
 > planning, synthesis, communication).
 >
 > **Status:** Canonical. **Established:** 2026-07-09.
+> **Governed by:** `WLJ_PRODUCT_VISION.md` (the product philosophy — the *why* this
+> contract exists; when in doubt, that vision wins).
 > **Anchored on:** `WLJ_ARCHITECTURE_LAWS.md` (the Platform Constitution — Laws 0–5).
 > **Supersedes the framing of:** `WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` (the retired
 > "WLJ owns orchestration + reasoning" four-layer model), the `BETH_*` reasoning
@@ -133,15 +135,28 @@ Every WLJ truth tool returns a structured envelope carrying, at minimum:
 tool that lacks the data says so; it never substitutes a different domain's data
 (Law 0) and never fabricates a plausible number.
 
-### 3.3 What the model may only assert
+### 3.3 Reason freely; never fabricate a fact
 
-> **The model may state a WLJ personal fact only if that fact was returned by a truth
-> tool in this turn (or is present in the standing context).** Everything else is
-> reasoning, and must be labeled as hypothesis, not presented as WLJ truth.
+> **The conversational model may derive conclusions from deterministic WLJ facts, but it
+> may never invent new WLJ facts.**
 
-This is enforced structurally (§9 audit) and instructed behaviorally (§11), not by
-hope. If the model needs a fact it does not have, it calls a tool; if the tool cannot
-answer, the model tells the user WLJ cannot determine it.
+Reasoning is encouraged; fabrication is forbidden — and they are different things
+(`WLJ_PRODUCT_VISION.md` §7):
+
+- **Encouraged (derivation):** summarize, compare, calculate, synthesize, and draw
+  conclusions *from* the facts WLJ returned ("sleep down four nights while training load
+  rose — that pattern often precedes a crash"). This is the model earning its keep.
+- **Forbidden (fabrication):** manufacturing a WLJ *fact* WLJ did not record — a
+  measurement, event, history, preference, relationship, confidence, or action. Not a
+  plausible number to fill a gap the tool reported as missing; not a remembered event
+  that did not happen.
+
+The operational test: **every WLJ fact the model states must trace to a truth tool
+result or the standing context; every conclusion must be derivable from such facts.** A
+statement that is neither a returned fact nor a derivation from returned facts is
+fabrication. This is enforced structurally (§9 audit) and instructed behaviorally (§11),
+not by hope. If the model needs a fact it does not have, it calls a tool; if the tool
+cannot answer, the model tells the user WLJ cannot determine it.
 
 ### 3.4 Deterministic policy is truth, not reasoning
 
@@ -396,7 +411,8 @@ The honest-unknown path is a product feature, not an error:
 4. Do not treat Chief of Staff as the only possible relationship.
 5. Do not remove the safe deterministic action infrastructure.
 6. Do not bypass deterministic truth providers.
-7. Do not fabricate WLJ data — the model asserts only tool-returned truth.
+7. Do not fabricate WLJ data — the model may *derive conclusions from* returned truth,
+   but may never *invent* a WLJ fact WLJ did not record.
 8. Do not preserve old abstractions merely because they exist.
 9. Do not overengineer before shipping usable value.
 10. Do not change learned preferences without user visibility.

@@ -8,6 +8,8 @@
 > unchanged and remain governing. The layer taxonomy is updated to match the new
 > architecture.
 >
+> **Governing philosophy:** `WLJ_PRODUCT_VISION.md` (the *why* — WLJ is a Personal Truth
+> Platform; the model reasons, WLJ knows).
 > **Governing contract:** `WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.
 > **Constitution:** `WLJ_ARCHITECTURE_LAWS.md` (Laws 0–5).
 

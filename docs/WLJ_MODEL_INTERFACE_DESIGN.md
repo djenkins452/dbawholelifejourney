@@ -51,21 +51,23 @@ Four pillars, delivered two ways, wrapped by audit.
                         ┌─────────────────────────────────────────┐
                         │        Conversational Model (reasoning)  │
                         └───────────────▲───────────────▲──────────┘
-        standing context (always) ──────┘               │ on-demand
+        standing context (always) ──────┘               │ on-demand (model pulls)
    ┌───────────────────────────────────┐    ┌───────────┴───────────────┐
-   │  P4 Current Context (compact)     │    │  P1 Truth services (pull) │
+   │  P4 baseline: clock · continuity  │    │  P1 Truth services (pull) │
+   │      · safety policy · capability │    │  P4 relevant truth (pull) │
    │  P3 AI Relationship (projected)   │    │  P2 Action services       │
-   │  Capability index (what exists)   │    │      (execute + confirm)  │
-   │  + fixed constitution (small)     │    └───────────────────────────┘
-   └───────────────────────────────────┘
+   │  + fixed constitution (small)     │    │      (execute + confirm)  │
+   └───────────────────────────────────┘    └───────────────────────────┘
         every truth read + action + preference write ──► Audit (append-only, explains)
 ```
 
-- **Standing context (push, every turn):** a compact projection of **Current Context (P4)**
-  + **AI Relationship (P3)** + a **capability index** (what Truth/Actions exist) + the fixed
-  constitution. This is the Executive Context Envelope.
+- **Standing context (push, every turn):** a *small* baseline — the **Current Context
+  baseline (P4)** (clock, day-continuity, clinical-safety policy, capability index) + the
+  **AI Relationship projection (P3)** + the fixed constitution. Deliberately minimal.
 - **On-demand services (pull):** **Truth services (P1)** answer specific questions;
-  **Action services (P2)** execute writes. The model calls these when it needs more.
+  **Action services (P2)** execute writes; and **most of Current Context (P4) is
+  model-pulled** — the model reaches for the deterministic truth relevant to *this*
+  conversation (see Pillar 4). WLJ exposes; the model decides what it needs.
 - **Audit** records every truth read, action, and preference write — to *explain*, never to
   *reason* (§8).
 
@@ -136,7 +138,7 @@ Communication Preferences · future interaction preferences.
 **Ownership vs. projection (the key rule):** **AI Relationship owns these; the interface
 projects them.** The standing context carries a projection of the relationship every turn
 (it is *how to show up*, not personal data — safe in every mode). Ownership, storage,
-versioning, and audit stay with the AI Relationship domain.
+versioning, and audit stay with `AIRelationship` (the owned area).
 
 **User-facing naming** (UI never exposes architectural terms — see
 `WLJ_LLM_TRUTH_ACTION_CONTRACT.md` §5): "Your AI Relationship", "AI Name", "How should your
@@ -146,47 +148,62 @@ AI relate to you?", "Communication Style", "Trust & Accuracy", "What Your AI Has
 
 ---
 
-## Pillar 4 — Current Context (the sharpened pillar)
+## Pillar 4 — Current Context
 
-**Answers: "What is happening right now that is relevant?"** The time-sensitive executive
-"now," pushed every personal turn. This is the pillar most prone to scope creep, so the
-information/reasoning test is applied hardest here.
+**Answers: "What does the conversational model need to know *right now*?"**
 
-**INCLUDE (deterministic "now" facts the model cannot know):**
-- **Clock** — current local time + daypart. (Pure information; the model can't know it.)
-- **Actionable state today** — deterministic overdue / due / actionable items and their
-  status, from `build_today_execution` (wrapped, not raw). What exists, not what to do.
-- **Ranked priority (policy)** — the deterministic executive-value order, health-critical
-  first (`_rank_priority_actions` / `_health_critical_actions`). *Borderline* — see the
-  challenge below; included because it encodes clinical-safety policy the model must not
-  re-derive, not because it is a good guess.
-- **Day-continuity decision** — orient_full / reorient_delta / continue, and the list of
-  **material changes** since last turn (`day_continuity.assess`). Cross-turn state the
-  model cannot reconstruct.
-- **Plan facts** — e.g. today is a planned rest day (`has_recovery_day`). A fact, not advice.
-- **Relevance-filtered agenda** — routine/log clutter and reconciled items removed
-  (`_agenda_worth_surfacing`). This is a *what-data-to-include* policy (WLJ's job), not
-  reasoning about the data.
+**Current Context is conversationally-relevant context, not merely temporal context.** It
+is *not* "today's dashboard." Sometimes what's relevant right now is today's agenda —
+sometimes it is retirement planning, a conversation about the user's daughter, payroll
+analysis, a coding project, or a medical discussion. "Right now" means *this conversation*,
+not *this calendar day*.
 
-**EXCLUDE — now moved to the model (sharpened decisions):**
-- **~~Headline / executive summary~~** — a composed "Recovery is your priority" sentence is
-  **synthesis = reasoning.** *Change from the envelope draft:* drop the `headline` field;
-  ship the ranked facts and let the model author the headline. (This is the clearest win
-  from the sharper test.)
-- **Any narrative / prose framing** — the model writes.
-- **Coaching, diagnosis, mood read, "what you should do"** — reasoning.
-- **Insight/prediction *interpretations*** — expose the deterministic signal + confidence;
-  the model interprets.
+That reframing changes how the pillar is delivered:
 
-**The shrink principle:** Current Context must get **smaller** as models improve. Every
-field carries an implicit "still needed?" — when a model can reliably derive it, remove it.
-The only permanent residents are facts a model structurally cannot know (the clock,
-cross-turn continuity state, clinical-safety policy, and what data exists).
+- **Mostly model-pulled.** Because relevance depends on what is being discussed, the bulk
+  of Current Context is **the deterministic truth the model pulls** for the conversation at
+  hand (retirement numbers, the daughter's relationship facts, payroll figures) via the
+  Truth services (P1). WLJ does not *decide* what's relevant by reasoning or classifying —
+  **the model decides what it needs and pulls it; WLJ exposes the truth.** The pulled
+  truth, in the context of the current conversation, *is* the current context for that turn.
+- **A minimal always-on baseline** carries only what the model cannot know it needs, or
+  must be told regardless of topic:
+  - **Clock** — current local time + daypart (the model can't know it).
+  - **Day-continuity** — orient / reorient / continue + material changes since last turn
+    (`day_continuity.assess`); cross-turn state the model cannot reconstruct.
+  - **Clinical-safety / executive policy** — the deterministic priority the model must not
+    override (see the policy clarification below), e.g. an overdue medication dose.
+  - **Capability index** — what truth/actions exist to pull.
 
-**Sandbox:** in `external_focus` mode Current Context is omitted entirely and personal
-truth tools leave scope — only AI Relationship (how to talk) + the constitution remain
-(Contract §3.7). Mode is set by an explicit affordance, never a content classifier (§6
-open decision below).
+**Deterministic policy IS allowed here; conversational reasoning is NOT.** This is the
+crucial distinction, and it is *not* the same cut as the removed headline:
+
+- **Deterministic executive policy is information, and it belongs here.** "Highest
+  priority = overdue medication" is computed by fixed rules from canonical truth
+  (`_rank_priority_actions` / `_health_critical_actions`). **The model must not be asked to
+  re-rank deterministic executive policy** — clinical-safety ordering is WLJ's to compute
+  and the model's to honor, not to second-guess. Ranking of this kind is policy, not a guess.
+- **Conversational reasoning is not.** A composed *headline* ("Recovery is your priority
+  today"), a narrative, a diagnosis, a mood read, a coaching plan, or an *interpretation* of
+  a signal are **synthesis over the conversation** — the model authors those. The headline
+  was removed for this reason (it is conversational reasoning), **not** because ranking is
+  reasoning. Expose the deterministic signal + confidence + the policy order; let the model
+  narrate.
+
+**Sandbox — explicit, model-decides (Decision, 2026-07-09).** There is **no sandbox
+classifier and no inferred mode.** Personal truth is not sprayed into the standing context;
+it is **pulled by the model when the model determines it needs it.** In a general or
+external-work conversation the model simply does not pull personal truth, so none is
+exposed — the guarantee is structural (pull, not push), not a mode the model or WLJ has to
+detect. WLJ's job is only to **expose the appropriate interface**; the model decides
+whether to reach for personal context. (Deep/sensitive personal data is always
+pull-only and audited; see §6.)
+
+**The shrink principle → future-proofing.** Current Context must get **smaller** as models
+improve, never larger. Every baseline field carries an implicit "still needed?" — when a
+future model can reliably derive it from truth, **remove it.** The only permanent residents
+are facts a model structurally cannot know (the clock, cross-turn continuity, clinical-
+safety policy, what data exists). See the Future-Proofing principle below.
 
 ---
 
@@ -205,8 +222,8 @@ Applying "could the model already determine this itself?" → if yes, EXCLUDE.
 | Plan facts (rest day, next session type) | **ALWAYS** | Deterministic fact. |
 | Specific domain fact (sleep avg, med list, goal detail) | **ON-DEMAND** | Pull only when the turn needs it. |
 | History series / trends | **ON-DEMAND** | Large; pulled when relevant. |
-| Deep personal data (relationships, finance detail, journal) | **ON-DEMAND, sandbox-gated** | Sensitive; never pushed. |
-| External/general-knowledge context | **NEVER (personal); model-native** | Model already knows; sandbox forbids personal data. |
+| Deep personal data (relationships, finance detail, journal) | **ON-DEMAND, pull-only, audited** | Sensitive; never pushed — the model pulls it only when it decides it needs it. |
+| External/general-knowledge context | **NEVER pushed; model-native** | Model already knows; personal truth is pull-only, so general conversations expose none. |
 | Headline / narrative / summary | **NEVER (it's reasoning)** | The model authors it. |
 | Diagnosis / coaching / mood read | **NEVER (reasoning)** | Model owns. |
 | "Suggested response" / phrasing | **NEVER (reasoning)** | Model owns voice. |
@@ -253,28 +270,29 @@ a synchronous "is this fact real?" gate (which would be the forbidden second AI)
 
 ---
 
-## 9. AI Relationship ownership — reviewed and challenged
+## 9. AI Relationship ownership — resolved
 
-**Your framing:** AI Relationship is "another deterministic area of WLJ," like Health or
-Calendar. **My assessment: conceptually yes, implementationally no — and the distinction
-matters.**
+**Decision (2026-07-09):** AI Relationship is **another owned deterministic area of WLJ**
+— ownership stays with WLJ, projection happens at runtime — but we **do not call it a
+"domain."** "Domain" is an architectural term; users don't think in domains, and it isn't
+useful to label it one. Internally it is `AIRelationship` / `AIRelationshipService`;
+user-facing it is **"Your AI Relationship,"** and everything (AI Name, Default Relationship,
+Communication Style, Personality, Trust & Accuracy, Formatting, Learning) fits naturally
+underneath that.
 
-- **Conceptually, treat it as a first-class domain.** It gives clean ownership ("AI
-  Relationship owns AI interaction"), a natural UI home ("Your AI Relationship"), and the
-  right mental model (the envelope projects it, doesn't own it). Keep this framing.
-- **Implementationally, do NOT build a full Layer-1 certified domain.** A Layer-1 domain in
-  WLJ carries heavy ceremony (canonical entity, certification gates, completeness contract,
+- **Ownership is separate; projection is at runtime.** `AIRelationship` owns the settings;
+  the standing context *projects* them each turn. It does not own the projection.
+- **Do NOT build Layer-1 certification machinery for it.** A Layer-1 canonical domain
+  carries heavy ceremony (canonical entity, certification gates, completeness contract,
   freshness/confidence per dimension, maturity ladder). AI Relationship is **configuration +
-  a little learned data** — it has no external sync, no measurement freshness, no clinical
-  safety surface. Wrapping it in Layer-1 machinery would violate Simplicity (building
-  infrastructure the problem doesn't require).
-- **Recommendation: "domain in concept, projection in implementation."** A thin
-  `AIRelationshipService` that projects existing preference stores + one
-  `LearnedCommunicationPreference` table into the composed object. One service, one new
-  table, one serialization point. If it ever grows real domain complexity, promote it then
-  — not speculatively.
+  a little learned data** — no external sync, no measurement freshness, no clinical-safety
+  surface. Wrapping it in that machinery would violate Simplicity.
+- **Implementation:** a thin `AIRelationshipService` that projects existing preference
+  stores + one `LearnedCommunicationPreference` table into the composed object. One service,
+  one new table, one serialization point. If it ever grows real complexity, add it then —
+  not speculatively.
 
-**One genuine risk to flag:** three preference sources (`UserPreferences`,
+**One risk to flag:** three preference sources (`UserPreferences`,
 `PersonalOperatingBlueprint`, learned) mean drift risk. Mitigation: the projection is
 **read-only** and there is **one write path per field**; the service is the single reader.
 
@@ -327,15 +345,60 @@ Net: a large deletion of custom-reasoning code, a small addition of interface + 
 
 ---
 
-## Open decisions (unchanged from the envelope draft — still the gate)
+## Future-Proofing (a binding principle)
 
-1. **Sandbox entry:** explicit mode/affordance (recommended — keeps the proactive picture)
-   vs. pull-only (purest privacy). No content classifier either way.
-2. **AI Relationship implementation:** confirm "domain in concept, projection in
-   implementation" (§9).
-3. **Four Pillars in the Vision:** promote, or leave as design framing?
+**Do not optimize this interface for today's conversational models. Optimize it for
+whatever the world's best model is five years from now.** As frontier models improve:
+
+- The interface should become **smaller, not larger.**
+- WLJ keeps owning **information**; the model keeps owning **reasoning**.
+- If a future model no longer needs something because it can reason it from deterministic
+  truth, **remove it.** The interface should continuously simplify.
+
+A field that exists only to compensate for a *current* model's weakness is technical debt
+the moment the next model ships. The permanent surface is only what a model structurally
+cannot know: the clock, cross-turn continuity, clinical-safety policy, what data exists, and
+the deterministic facts themselves.
 
 ---
 
-*Last updated: 2026-07-09 (initial — the complete WLJ ↔ model interface; absorbs and
-sharpens the Executive Context Envelope draft).*
+## Implementation guidance — build around stable responsibilities
+
+Do **not** implement around today's implementation details (or today's provider). Implement
+around the four stable responsibilities — **Truth · Actions · AI Relationship · Current
+Context** — which remain constant regardless of the provider (OpenAI, Anthropic, Google,
+xAI, or any future model). **The provider is replaceable behind one seam; the interface
+remains.**
+
+Implementation order follows the Product Vision's principles, in priority order:
+
+1. **Reuse before rebuilding.**
+2. **Expose before inventing.**
+3. **Information before reasoning.**
+4. **Deterministic truth before conversational intelligence.**
+5. **Simplicity before sophistication.**
+
+Keep challenging assumptions whenever the codebase suggests a cleaner, simpler, or safer
+solution. Three heads remain better than one.
+
+---
+
+## Resolved decisions (2026-07-09)
+
+1. **Sandbox:** **explicit, model-decides.** No inferred mode, no classifier. Personal
+   truth is pull-only; the model decides when it needs personal context and pulls it; WLJ
+   exposes the appropriate interface. General conversations expose no personal data because
+   the model never pulls it (Pillar 4).
+2. **AI Relationship:** ownership separate, projection at runtime; **not called a
+   "domain"** — internally `AIRelationship` / `AIRelationshipService`, user-facing "Your AI
+   Relationship"; no Layer-1 certification machinery (§9).
+3. **Four Pillars:** **promoted into `WLJ_PRODUCT_VISION.md`** — they now describe the
+   architecture (Truth · Actions · AI Relationship · Current Context → the model), not just
+   design framing.
+
+---
+
+*Last updated: 2026-07-09 (incorporated the four decisions: Four Pillars promoted; AI
+Relationship not a "domain"; explicit model-decides sandbox; Current Context = conversation-
+ally relevant not merely temporal; deterministic policy stays, reasoning does not; Future-
+Proofing + stable-responsibility implementation guidance).*

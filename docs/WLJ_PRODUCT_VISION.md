@@ -100,9 +100,24 @@ that makes an ever-smarter model completely trustworthy about a person's life.
 
 ---
 
-## 4. The Fundamental Separation
+## 4. The Fundamental Separation — the Four Pillars
 
-Two responsibilities, cleanly divided, forever.
+Two responsibilities, cleanly divided, forever. On WLJ's side, everything it owns falls
+into **four pillars**, and the conversational model reasons on top of them:
+
+```
+   ┌──────────┬───────────┬──────────────────┬───────────────────┐
+   │  Truth   │  Actions  │  AI Relationship │  Current Context  │   ← WLJ owns
+   │ what is  │ what can  │ how this user    │ what the model    │
+   │  true?   │ be done?  │ wants to work    │ needs to know now │
+   │          │           │ with their AI    │                   │
+   └──────────┴───────────┴──────────────────┴───────────────────┘
+                              ↓
+                    Conversational Model            ← reasons over all four
+```
+
+The platform *is* these four pillars plus the model on top. Everything else — reasoning,
+conversation, coaching, planning, synthesis — belongs to the model.
 
 **WLJ owns:**
 truth · history · preferences · learned preferences · deterministic state · calculations ·
@@ -175,13 +190,14 @@ want to work with my AI?" It holds:
 - truth and evidence preferences
 - learning preferences and learned communication preferences
 
-**AI Relationship is a first-class deterministic domain of WLJ** — it *owns* AI
-interaction the way Health owns health, Faith owns faith, and Calendar owns calendar. It
-is stored, versioned, per-user, and auditable. **The conversational model consumes it**;
-it shapes how the model shows up, but the model does not own or store it. This is why the
-experience feels personal and consistent no matter which underlying model is answering —
-and it is one of WLJ's core differentiators. (In the UI this is simply "Your AI
-Relationship"; architectural terms stay out of the user's way.)
+**AI Relationship is an owned deterministic area of WLJ** — WLJ owns how this user wants to
+work with their AI, and it is stored, versioned, per-user, and auditable. **The
+conversational model consumes it**; it shapes how the model shows up, but the model does not
+own or store it. Ownership stays with WLJ; the interface only *projects* it at runtime. This
+is why the experience feels personal and consistent no matter which underlying model is
+answering — and it is one of WLJ's core differentiators. (In the UI this is simply "Your AI
+Relationship." We keep architectural terms — "domain," "projection," "envelope" — out of the
+user's way; users don't think in those terms.)
 
 ---
 

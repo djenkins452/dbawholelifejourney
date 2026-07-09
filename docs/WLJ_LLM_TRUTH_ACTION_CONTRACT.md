@@ -240,13 +240,15 @@ a **tool-availability rule**, not left to the model's discretion.
 
 ---
 
-## 5. The AI Relationship — a first-class WLJ domain
+## 5. The AI Relationship — an owned deterministic area of WLJ
 
-**AI Relationship is a first-class deterministic domain of WLJ**, exactly like Health
-owns health, Faith owns faith, Calendar owns calendar. **AI Relationship owns AI
-interaction** — how this user wants to work with their AI. It is stored by WLJ,
-versioned, per-user, and auditable, and it is one of WLJ's core differentiators (the
-third WLJ pillar; see `WLJ_EXECUTIVE_CONTEXT_ENVELOPE_DESIGN.md`).
+**AI Relationship is an owned deterministic area of WLJ** — WLJ owns *how this user wants to
+work with their AI*. It is stored by WLJ, versioned, per-user, and auditable, and it is one
+of WLJ's core differentiators (the third of the Four Pillars; see
+`WLJ_MODEL_INTERFACE_DESIGN.md`). We do **not** call it a "domain" — that is an
+architectural term users don't think in. Internally it is `AIRelationship` /
+`AIRelationshipService`; user-facing it is **"Your AI Relationship."** Ownership stays with
+WLJ; the interface only *projects* it at runtime (it does not own the projection).
 
 **Ownership vs. assembly (important):** AI Relationship *owns* these settings. The
 Executive Context Envelope does **not** own them — it *assembles/projects* them
@@ -279,7 +281,7 @@ Existing fields are **consolidated by projection, not duplicated.**
 `UserPreferences.cos_display_name`, `ai_coaching_style`, `cos_response_style`,
 `assistant_confirm_actions`, `assistant_proactive_checkins`; and
 `PersonalOperatingBlueprint.operating_style`, `accountability_style`,
-`question_frequency` already exist and are the source the AI Relationship domain reads.
+`question_frequency` already exist and are the source the `AIRelationshipService` reads.
 No user loses current configuration. (Note: `cos_learning_mode_active` is the existing
 **Learning Mode** — a UAIO action-suppression concept — and is *not* the same as the
 preference-learning toggle in §6; do not conflate them.)

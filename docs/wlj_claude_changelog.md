@@ -6,6 +6,37 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — docs(design): Phase II decisions incorporated — Four Pillars promoted; interface finalized for implementation
+
+Incorporated the owner's four decisions + clarifications into the Phase II interface design
+and the governing docs; this is the version implementation builds against.
+
+- **Four Pillars promoted into the Product Vision** (`WLJ_PRODUCT_VISION.md` §4): the
+  platform *is* Truth · Actions · AI Relationship · Current Context → the conversational
+  model. No longer just design framing.
+- **AI Relationship is no longer called a "domain."** It is "an owned deterministic area of
+  WLJ"; internally `AIRelationship` / `AIRelationshipService`, user-facing "Your AI
+  Relationship"; no Layer-1 certification machinery. Updated Vision §6, Contract §5,
+  interface §3/§9.
+- **Current Context reframed** (`WLJ_MODEL_INTERFACE_DESIGN.md` Pillar 4): it answers "what
+  does the model need to know *right now*?" — **conversationally-relevant context, not
+  merely temporal**. Mostly **model-pulled** (retirement planning, a daughter, payroll, a
+  coding project, a medical discussion — whatever the conversation is about) with a *minimal*
+  always-on baseline (clock, day-continuity, clinical-safety policy, capability index).
+- **Deterministic policy vs. reasoning clarified:** Current Context MAY contain deterministic
+  executive policy (e.g. highest priority = overdue medication) — the model must NOT re-rank
+  it. It must NOT contain conversational reasoning (the removed headline was reasoning, not
+  ranking).
+- **Sandbox: explicit, model-decides.** No inferred mode, no classifier. Personal truth is
+  pull-only; general conversations expose none because the model never pulls it.
+- **Future-Proofing principle added:** optimize for the best model five years out, not
+  today; the interface must shrink as models improve; remove what future models can derive.
+- **Implementation guidance added:** build around the four stable responsibilities (provider
+  replaceable behind one seam); order by Reuse → Expose → Information → Deterministic truth →
+  Simplicity.
+
+**Verification:** docs only; no code touched. Implementation begins next.
+
 ## 2026-07-09 — docs(design): Phase II — complete WLJ ↔ conversational-model interface (draft)
 
 **What & why:** `docs/WLJ_MODEL_INTERFACE_DESIGN.md` — broadened Phase II from "the

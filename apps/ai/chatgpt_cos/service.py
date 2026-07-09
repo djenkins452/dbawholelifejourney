@@ -143,6 +143,18 @@ class ChatGPTCoSService:
         )
         from apps.ai.services import ai_service
 
+        # CRUD CONFIRMATION COMPLETION (Layer-3 bridge). If a prior turn INITIATED a mutation
+        # confirmation (execute_action returned confirmation_required and we stored the
+        # pending action — see _dispatch below), resolve the user's reply HERE, before any
+        # routing: on "yes" the stored action executes ONCE and clears; on failure the real
+        # error is returned. Falls through unchanged when nothing is pending or the reply is
+        # not a clean confirm/cancel — so ordinary conversations are untouched.
+        from apps.ai.chatgpt_cos.crud_bridge import (
+            maybe_resolve_pending_crud, maybe_store_pending_crud)
+        _crud_resolved = maybe_resolve_pending_crud(self.user, message)
+        if _crud_resolved is not None:
+            return _crud_resolved
+
         # The clean path runs in a background Celery task, so synchronous warming
         # is allowed here (no request-path "never live-compute" constraint).
         # Warm the SAE snapshot ONCE and pin it on the user so standing context
@@ -204,7 +216,11 @@ class ChatGPTCoSService:
 
         def _dispatch(name, args):
             called.append(name)
-            return dispatch_tool_call(self.user, name, args)
+            res = dispatch_tool_call(self.user, name, args)
+            # If this was a mutation that needs confirmation, remember it so the NEXT turn's
+            # "yes" can complete it deterministically (the bridge at the top of generate()).
+            maybe_store_pending_crud(self.user, name, args, res, original_input=message)
+            return res
 
         logger.info(
             "COS_TOOL_LOOP_START user=%s advertised=%s standing=%s",

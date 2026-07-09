@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — fix(cos): complete CRUD confirmations in the CoS pipeline (Layer-3 bridge)
+
+**Production (Layer-3, after Action promotion worked):** "Move 'Check on Melissa's Pillow' to
+9:00 PM today only." → "I need to confirm…" → "Yes" → "I wasn't able to move the task."
+Four-Layer: Truth pass, Conductor pass (Action owned the turn), **Layer 3 = pipeline.**
+
+**Traced root cause (proven by reproduction):** the CoS tool loop's `execute_action` tool has
+a STATELESS confirmation — it returns `status=confirmation_required` and relies on the model
+to "re-call with confirmed=true". The mutation HANDLER is correct
+(`execute_action('mutate_task', …, confirmed=true)` → "Got it — … is now at 9:00 PM",
+`scheduled_time=21:00`, reproduced). But a bare "Yes" never produced a correct confirmed
+re-call — the CoS pipeline could INITIATE a confirmation but not COMPLETE it; that completion
+existed only in the legacy PersonalAssistant (`get_pending_crud_action`/
+`handle_crud_confirmation`). (Correction to the earlier diagnosis: the CoS stores NO pending
+CRUD today — the fix had to add both the store and the resolve, not just a resolve.)
+
+**Smallest fix — give the CoS confirmation server-side memory, reusing the legacy CRUD flow:**
+new `apps/ai/chatgpt_cos/crud_bridge.py`:
+- **store** — `maybe_store_pending_crud`: when a CoS `execute_action` returns
+  confirmation_required, remember the pending action via `intent_service.store_pending_crud_action`.
+  Wired into `service.generate()`'s tool-dispatch wrapper.
+- **resolve** — `maybe_resolve_pending_crud`: at the TOP of `service.generate()` (before any
+  routing), if a pending action exists, hand the reply to
+  `intent_service.handle_crud_confirmation`, which executes it ONCE (marks executed before
+  firing), clears it, and returns the real success/failure. Falls through unchanged when
+  nothing is pending or the reply isn't a clean confirm/cancel.
+
+**Files:** apps/ai/chatgpt_cos/crud_bridge.py (new), apps/ai/chatgpt_cos/service.py (wire
+store + resolve), apps/ai/tests/test_crud_confirmation_bridge.py (new).
+
+**Verification:** new test_crud_confirmation_bridge (5) — move asks for confirmation + stores
+pending (no side effect yet); "yes" executes and the task time actually changes to 21:00;
+the pending is cleared; a second "yes" does not re-execute; a failing target surfaces the
+real error (not a false success); non-confirmation conversations are untouched. 71-test CoS
+pipeline / conductor / action / routing regression green. No handler/Conductor/Action/Routine
+change; no migration.
+
 ## 2026-07-08 — feat(cos): promote `action` to authoritative owner — Conductor routes commands to the action path
 
 **Why:** the `action` shadow classifier proved itself in production — "I want to move my

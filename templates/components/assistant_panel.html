@@ -1000,6 +1000,7 @@
         console.log("STREAM USING ELEMENT:", msgEl);
         var fullText = '';
         var firstToken = true;
+        var gotDone = false;   // did the stream deliver a terminal 'done'? drives recovery
 
         // Abort controller with 60s timeout (covers CoS context build + OpenAI latency)
         var streamAbort = new AbortController();
@@ -1086,8 +1087,18 @@
                         msgEl.textContent = fullText;
                         container.scrollTop = container.scrollHeight;
                     } else if (eventType === 'done') {
+                        gotDone = true;
                         apClearPending();
                         apFinalizeStreamingMsg(msgEl, fullText);
+                    } else if (eventType === 'timeout') {
+                        // The relay hit its single-connection cap; generation CONTINUES in
+                        // the background and will persist. The widget reconnects by job_id;
+                        // the panel recovers via history polling. Without this handler the
+                        // event was ignored and the completed answer never rendered until a
+                        // manual refresh (the reported hang).
+                        if (!fullText && msgEl && msgEl.parentNode) msgEl.remove();
+                        apPollPendingReply(container);
+                        return;
                     } else if (eventType === 'expired') {
                         // LIFECYCLE signal (snapshot gone), NOT an error. The completed
                         // answer is persisted — recover it from history instead of ever
@@ -1109,11 +1120,19 @@
                 }
             }
 
-            // Ensure finalized with markdown formatting
-            if (fullText) {
+            // Stream closed. If we received a terminal 'done', it's already finalized.
+            // If NOT (proxy idle-timeout, dropped connection, relay cap with no timeout
+            // frame), the background task may still be completing/persisting — recover the
+            // answer from history rather than leaving the request hanging until a refresh.
+            if (gotDone) {
+                /* already finalized on the done event */
+            } else if (fullText) {
                 apFinalizeStreamingMsg(msgEl, fullText);
+                apPollPendingReply(container);   // reconcile against the persisted answer
             } else {
                 hideTyping();
+                if (msgEl && msgEl.parentNode) msgEl.remove();
+                apPollPendingReply(container);   // render the persisted answer when it lands
             }
             if (voiceConversationMode && fullText) speakResponse(fullText);
 
@@ -1122,10 +1141,12 @@
             // Remove pre-created element on failure, fallback will create its own
             if (msgEl && msgEl.parentNode) msgEl.remove();
             if (AP_IS_COS_USER) {
-                // CoS never falls back to the synchronous non-streaming path
-                // (it would re-submit → duplicate and isn't navigation-safe).
-                console.warn('CoS streaming failed; no non-streaming fallback:', error);
-                addMessage(container, "I couldn't reach that just now — please try again.", false);
+                // CoS never re-submits (that would duplicate and isn't navigation-safe).
+                // But the background task may still complete + persist — recover the answer
+                // from history via the pending-reply poll instead of declaring failure. The
+                // poll surfaces a friendly "taking longer than expected" only if it never lands.
+                console.warn('CoS streaming interrupted; recovering from history:', error);
+                apPollPendingReply(container);
             } else {
                 console.warn('Streaming failed, falling back:', error);
                 showTyping(container);

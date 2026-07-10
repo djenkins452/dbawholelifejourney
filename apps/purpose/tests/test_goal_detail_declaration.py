@@ -65,3 +65,15 @@ class ChatSurfaceTransportContractTests(TestCase):
                 "focus_ref", src,
                 msg=f"{name} never sets focus_ref from the declared reference.",
             )
+
+    def test_all_chat_surfaces_handle_the_relay_timeout_event(self):
+        # The relay emits `event: timeout` at its single-connection cap; generation
+        # continues in the background. A surface that ignores it abandons the request and
+        # the completed answer never renders until a manual refresh (the reported hang).
+        for name in _CHAT_SURFACES:
+            src = (_TEMPLATES / name).read_text()
+            self.assertIn(
+                "'timeout'", src,
+                msg=(f"{name} does not handle the relay 'timeout' event — a long "
+                     "generation will hang unrendered until the user refreshes."),
+            )

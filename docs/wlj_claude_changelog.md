@@ -6,6 +6,46 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — fix(chat): docked panel hangs on long generations — no `timeout` handler / completion safety net
+
+**NOT a Current Context issue — a chat rendering/synchronization bug in the docked panel** (proven).
+
+Trace (User Send → OpenAI → streaming → background generation → completion → persistence → UI):
+the background-generation relay (`_chat_relay_stream`) caps ONE HTTP connection at `MAX_WALL=90s`
+and, when generation is still running, emits `event: timeout {job_id}` and closes — the contract is
+"reconnect and keep observing; the task continues and will persist." `chat_widget.html` honors it
+(`eventType === 'timeout'` → `reconnectToJob`). **`assistant_panel.html` had NO `timeout` handler**,
+so it ignored the event; the reader loop then hit EOF and fell to `else { hideTyping() }` — the
+request was abandoned with the pending marker still set but NO recovery poll started. The Celery
+task completed and persisted the answer, so a refresh's `loadChatHistory` rendered it instantly with
+no reprocessing — exactly the reported symptom. Likely trigger: the scheduled check-in occupied the
+worker, delaying the goal generation past the 90s cap.
+
+Answers to the specific questions: response WAS completed and persisted before refresh; the browser
+was waiting for a `done` that never came (it got `timeout`, unhandled); the server closed the stream
+correctly, the client did not honor the close contract; completion was NOT acknowledged client-side;
+refresh works because the answer is already in history. Current Context not involved.
+
+**Fix — give the panel the completion safety nets the widget already has** (the panel is the weaker
+surface — same pattern as the earlier missing meta read):
+- Handle `event: timeout` → recover via the existing `apPollPendingReply` (history poll until the
+  persisted answer lands, then render). The panel uses history-based recovery, mirroring the widget's
+  job_id reconnect.
+- Track `gotDone`; on ANY non-`done` stream close (idle-timeout, dropped connection, relay cap),
+  start `apPollPendingReply` instead of silently hiding the typing indicator.
+- `catch` (abort/network) for CoS users now recovers from history instead of declaring failure (the
+  background task may still complete).
+
+Class eliminated: a completed+persisted answer can no longer be stranded by any non-`done` stream
+termination on the panel. Guard: `ChatSurfaceTransportContractTests.test_all_chat_surfaces_handle_the_relay_timeout_event`
+asserts EVERY chat surface handles `timeout`.
+
+**Files:** `templates/components/assistant_panel.html`, `apps/purpose/tests/test_goal_detail_declaration.py`.
+
+**Verification:** 3 surface-contract tests green (meta read + focus_ref + timeout handling). JS verified
+against real function names (`apPollPendingReply`, `loadChatHistory`); live streaming flow not driven
+(no SSE/worker harness).
+
 ## 2026-07-10 — fix(chat): "expired" bubble + feat(faith): deterministic Bible Current Context
 
 Two product-polish issues on the Current Context surface. No architecture change; no new intelligence.

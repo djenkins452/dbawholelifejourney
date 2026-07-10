@@ -82,6 +82,15 @@ def _render_day(request, user_journey, day, *, review_mode: bool, welcome_back: 
         "review_mode": review_mode,
         "is_complete": progress.is_completed,
         "welcome_back": welcome_back,
+        # CURRENT CONTEXT CONTRACT — declare the EXACT scripture day on screen so the
+        # conversational model knows the reading deterministically (never infers it from
+        # page text). The per-day progress row is user-owned → resolves cleanly, user-scoped;
+        # its get_context_summary() narrates this day's plan/day/refs/translation/verses.
+        "current_context_descriptor": {
+            "ref": progress.context_ref(),
+            "kind": "scripture reading",
+            "title": f"{day.arc.journey_path.name} — Day {day.day_number}",
+        },
     }
     return render(request, "faith/journey/day.html", context)
 

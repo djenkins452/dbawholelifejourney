@@ -1126,10 +1126,13 @@ def _chat_relay_stream(job_id, user_id):
         while True:
             snap = bus.read(job_id)
             if snap is None:
-                # Snapshot expired/unknown — nothing left to observe.
+                # Snapshot gone (TTL/unknown) — a LIFECYCLE signal, not an error. The
+                # completed answer (if any) is already persisted, so the client loads it
+                # from history. This MUST NOT be an `error` frame: clients render error
+                # payloads as message text, which surfaced a literal "expired" bubble.
                 yield (
-                    "event: error\n"
-                    f"data: {json.dumps({'error': 'expired'})}\n\n"
+                    "event: expired\n"
+                    f"data: {json.dumps({'job_id': job_id})}\n\n"
                 )
                 return
 

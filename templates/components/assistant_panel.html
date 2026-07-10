@@ -1088,8 +1088,23 @@
                     } else if (eventType === 'done') {
                         apClearPending();
                         apFinalizeStreamingMsg(msgEl, fullText);
+                    } else if (eventType === 'expired') {
+                        // LIFECYCLE signal (snapshot gone), NOT an error. The completed
+                        // answer is persisted — recover it from history instead of ever
+                        // rendering "expired" as a message. If tokens already streamed,
+                        // keep them; otherwise drop the placeholder and reload history.
+                        if (fullText) {
+                            apFinalizeStreamingMsg(msgEl, fullText);
+                        } else {
+                            if (msgEl && msgEl.parentNode) msgEl.remove();
+                            loadChatHistory(container, null);
+                        }
                     } else if (eventType === 'error') {
-                        apFinalizeStreamingMsg(msgEl, fullText || (evt.error || 'Stream error'));
+                        // Only REAL errors reach here. Never print a bare lifecycle token.
+                        var errText = fullText
+                            || (evt.error && evt.error !== 'expired' ? evt.error : '')
+                            || 'Sorry, something went wrong. Please try again.';
+                        apFinalizeStreamingMsg(msgEl, errText);
                     }
                 }
             }

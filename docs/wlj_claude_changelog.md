@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — fix(chat): "expired" bubble + feat(faith): deterministic Bible Current Context
+
+Two product-polish issues on the Current Context surface. No architecture change; no new intelligence.
+
+### Issue 1 — the literal "expired" message (root cause, not a workaround)
+The background-generation relay (`apps/ai/views.py :: _chat_relay_stream`) emitted
+`event: error {error:"expired"}` when the job snapshot was gone (`bus.read` → None; TTL 600s,
+or unknown job). That is a LIFECYCLE signal ("snapshot gone; the completed answer is in
+history"), but it was dressed as an `error` frame — and the clients render an error payload as
+message text (`assistant_panel.html` did `apFinalizeStreamingMsg(msgEl, evt.error)`), so a raw
+"expired" bubble appeared. A page refresh "fixed" it because the answer had completed and was
+persisted — reload showed it from history. **Fix:** the relay now emits a dedicated
+`event: expired {job_id}` (never an `error`), and BOTH chat surfaces handle `expired` by loading
+the completed message from history — never rendering the token. The generic `error` handler is
+also guarded so it can never print a bare lifecycle token. Class eliminated: a lifecycle signal
+can no longer reach the UI as message content.
+
+### Issue 2 — Bible Reading did not expose the scripture on screen
+On the Journey (Bible Reading) page the model knew the page + day (from the URL) but not the
+scripture, because the page declared NO focus (`<meta name="wlj-context">` absent) — so
+`focus_ref` never resolved and Beth had to infer "Malachi 3:1-7 / 4:1-6" from page text. **Fix
+(pure truth exposure):** `_render_day` injects `current_context_descriptor` pointing at the
+per-day `UserJourneyDayProgress` (user-owned → resolves user-scoped, the exact day viewed). Its
+new `get_context_summary()` → `apps/faith/journey/context.py :: narrate_journey_day(day)` composes
+the deterministic reading: reading plan, day number, scripture refs, translation, verse text, and
+the authored context/insight/reflection. The shared `JourneyDay` content is reached through the
+user-owned progress row, so ownership still holds — no resolver change. Now "Tell me more about the
+scripture I'm reading" resolves to exact scripture with no book/chapter/verse mentioned by the user.
+
+**Files:** `apps/ai/views.py` (relay `expired` event), `templates/components/assistant_panel.html`
++ `templates/components/chat_widget.html` (handle `expired` → history; guard `error`),
+`apps/faith/journey/context.py` (`narrate_journey_day`), `apps/faith/journey/models.py`
+(`UserJourneyDayProgress`/`UserJourney` `get_context_summary`), `apps/faith/journey/views.py`
+(declare focus), `apps/faith/journey/tests/test_journey_current_context.py` (new),
+`docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
+
+**Verification:** journey resolution proven (Malachi refs + WEB + Day 7 + plan + verse text;
+ownership enforced); 33 tests green (journey + current_context_baseline + model_interface_runtime);
+`manage.py check` clean; no migrations (methods only). JS handlers verified against the real
+function names; live browser SSE flow not driven (no auth/streaming harness).
+
 ## 2026-07-10 — fix(interface): Current Context "no focused object" on Goal Detail — the docked drawer never read the meta
 
 **End-to-end trace (each step proven, not guessed):** View → HTML → Meta → Browser → Request → Resolver.

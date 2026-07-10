@@ -271,6 +271,13 @@ class UserJourney(UserOwnedModel):
     def __str__(self):
         return f"{self.user.email}: {self.journey_path.name}"
 
+    def get_context_summary(self):
+        """Current Context Contract — the deterministic scripture on screen for this
+        journey's CURRENT day. User-scoped via UserOwnedModel."""
+        from apps.faith.journey.context import narrate_journey_day
+        from apps.faith.journey.services import get_current_day
+        return narrate_journey_day(get_current_day(self))
+
 
 class UserJourneyDayProgress(UserOwnedModel):
     """Per-day completion record for a UserJourney.
@@ -308,3 +315,10 @@ class UserJourneyDayProgress(UserOwnedModel):
 
     def __str__(self):
         return f"{self.user_journey} — Day {self.journey_day.day_number}"
+
+    def get_context_summary(self):
+        """Current Context Contract — the deterministic scripture on screen for THIS day
+        (the exact day the reading page is showing). User-scoped via UserOwnedModel; the
+        content is public scripture composed from the JourneyDay's authored fields."""
+        from apps.faith.journey.context import narrate_journey_day
+        return narrate_journey_day(self.journey_day)

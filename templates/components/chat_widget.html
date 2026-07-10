@@ -3098,6 +3098,17 @@
                                 stream_interrupted: false,
                             });
                         }
+                    } else if (eventType === 'expired') {
+                        // Lifecycle signal (snapshot gone), NOT an error — the completed
+                        // answer is persisted. Load it from history; never show "expired".
+                        clearPendingRequest();
+                        if (fullText) {
+                            finalizeStreamingMessage(msgEl, fullText);
+                        } else {
+                            if (msgEl && msgEl.parentNode) msgEl.remove();
+                            hideTyping();
+                            loadHistory();
+                        }
                     } else if (eventType === 'error') {
                         clearPendingRequest();
                         if (fullText) {
@@ -3235,8 +3246,10 @@
                             await reconnectToJob(evt.job_id, msgEl, fullText);
                         }
                         return;
-                    } else if (eventType === 'error') {
-                        // Snapshot expired mid-reconnect — fall back to history.
+                    } else if (eventType === 'expired' || eventType === 'error') {
+                        // Snapshot gone (expired) or a mid-reconnect error — the completed
+                        // answer, if any, is persisted. Fall back to history; never render
+                        // the lifecycle token as a message.
                         clearPendingRequest();
                         if (fullText) {
                             finalizeStreamingMessage(msgEl, fullText);

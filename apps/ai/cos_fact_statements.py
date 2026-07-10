@@ -542,21 +542,18 @@ def build_locked_next_action(user) -> str:
         "All items are complete — nothing pending."
     """
     try:
-        from apps.core.execution.execution_state import build_execution_state
-        from apps.core.execution.selectors import get_next_action
+        # SINGLE PRODUCER: consume the Execution Decision Authority — never build a
+        # competing selection here. This function is a thin STRING formatter over the
+        # one canonical decision.
+        from apps.core.execution.decision_authority import current_action
 
-        state = build_execution_state(user)
-        decision = get_next_action(state)
-
+        decision = current_action(user)
         primary = decision.get('primary_action') or {}
-        active_block = state.get('active_block') or {}
         logger.info(
-            "[CoS LOCKED NEXT ACTION] user=%s top=%s block=%s "
-            "total=%d",
+            "[CoS LOCKED NEXT ACTION] user=%s top=%s reason=%s",
             user.id,
             primary.get('title') or '<none>',
-            active_block.get('name'),
-            len(state.get('actions') or []),
+            decision.get('reason'),
         )
         return decision.get('message') or (
             "Unable to determine next action — check your routine "

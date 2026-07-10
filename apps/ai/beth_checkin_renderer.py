@@ -1335,216 +1335,32 @@ def _build_triage_structured(
         'text': '',
     }
 
-    # Collect actionable items: overdue + coming_up (not completed)
-    actionable = []
-    for item in overdue:
-        raw = item.get('item', {})
-        if not raw.get('completed'):
-            actionable.append(raw)
-    for item in coming_up:
-        raw = item.get('item', {})
-        if not raw.get('completed'):
-            actionable.append(raw)
+    # ── SINGLE PRODUCER CONSUMPTION ─────────────────────────────────────────
+    # The check-in NEVER selects or reorders its own next action. It CONSUMES the ONE
+    # deterministic decision from the Execution Decision Authority
+    # (apps/core/execution/decision_authority.current_action), surfaced on the Today
+    # Engine context as ctx['current_action'] (structured), with ctx['next'] (the
+    # canonical directive string) as the back-compat fallback. No local prioritization,
+    # no bucket re-derivation, no feasibility re-ordering — those are the authority's job.
+    # This is why the dashboard, check-in, OpenAI, and notifications can never disagree.
+    canonical = ctx.get('current_action')
+    primary = canonical.get('primary_action') if isinstance(canonical, dict) else None
 
-    if not actionable:
-        # Nothing actionable — check for later items
-        next_action = ctx.get('next', '')
-        if next_action and next_action != "Start with your next planned item.":
-            # next_action is the canonical directive ("Next: X. Do this now.")
-            # — render verbatim, never re-wrap (trust bug 2026-06-15).
-            result['text'] = next_action
-            result['sequence'] = [next_action]
-        return result
+    if primary:
+        name = (primary.get('title') or '').strip()
+        if name:
+            result['text'] = f"Start with {name}."
+            result['do_now'] = [{'name': name,
+                                 'duration_est': _estimate_duration(name)}]
+            result['sequence'] = [name]
+            return result
 
-    # Find next hard commitment (fixed-time item that acts as deadline)
-    hard_deadline = None
-    hard_deadline_name = None
-    for bucket in [coming_up, later]:
-        for entry in bucket:
-            raw = entry.get('item', {})
-            if raw.get('completed'):
-                continue
-            sched = raw.get('scheduled_time')
-            name = raw.get('name', '')
-            is_hard = any(
-                k in (name or '').lower()
-                for k in ('shower', 'meeting', 'appointment', 'call',
-                          'class', 'mounjaro', 'medication')
-            )
-            if is_hard and sched and sched > user_now:
-                hard_deadline = sched
-                hard_deadline_name = name
-                break
-        if hard_deadline:
-            break
-
-    result['next_commitment'] = hard_deadline_name
-
-    if not hard_deadline:
-        # No hard deadline found — just guide to start
-        next_name = actionable[0].get('name', '')
-        if len(actionable) == 1:
-            result['text'] = f"Start with {next_name}."
-            result['do_now'] = [{'name': next_name, 'duration_est': _estimate_duration(next_name)}]
-            result['sequence'] = [next_name]
-        else:
-            names = [i.get('name', '') for i in actionable[:3]]
-            result['text'] = f"Start with {names[0]}, then {', then '.join(names[1:])}."
-            result['do_now'] = [
-                {'name': n, 'duration_est': _estimate_duration(n)}
-                for n in names
-            ]
-            result['sequence'] = names
-        return result
-
-    # Feasibility split: what fits before the deadline?
-    available_minutes = max(
-        0,
-        int((hard_deadline - user_now).total_seconds() / 60),
-    )
-
-    do_now = []
-    move_later = []
-    trivial_before_anchor = []  # Trivial items squeezed in before anchor
-    time_used = 0
-
-    def _sort_key(item):
-        sched = item.get('scheduled_time')
-        priority = 0 if item.get('priority') == 'foundational' else 1
-        return (priority, sched or user_now)
-
-    actionable.sort(key=_sort_key)
-
-    for item in actionable:
-        name = item.get('name', '')
-        if name.lower() == (hard_deadline_name or '').lower():
-            continue
-        duration = _estimate_duration(name)
-        if time_used + duration <= available_minutes:
-            do_now.append(name)
-            time_used += duration
-        else:
-            move_later.append(name)
-
-    # ── Trivial Completion Rule ──
-    # Items that overflowed to move_later but are trivially short
-    # (≤ TRIVIAL_DURATION_THRESHOLD) can be rescued IF completing them
-    # all won't risk the anchor. This prevents premature deferral of
-    # 30-second supplement intake before a workout.
-    if move_later:
-        rescued = []
-        trivial_total = 0
-        for name in move_later:
-            dur = _estimate_duration(name)
-            if dur <= TRIVIAL_DURATION_THRESHOLD:
-                trivial_total += dur
-                rescued.append(name)
-        # Only rescue if combined trivial time + current usage still fits
-        # with a safety margin (keep at least 2 min before anchor)
-        safety_margin = 2
-        if rescued and (time_used + trivial_total + safety_margin) <= available_minutes:
-            for name in rescued:
-                move_later.remove(name)
-                trivial_before_anchor.append(name)
-                do_now.append(name)
-                time_used += _estimate_duration(name)
-
-    # Populate structured data
-    result['do_now'] = [
-        {'name': n, 'duration_est': _estimate_duration(n)} for n in do_now
-    ]
-    result['move_later'] = [
-        {'name': n, 'reason': f"won't fit before {hard_deadline_name}"}
-        for n in move_later
-    ]
-    result['trivial_before_anchor'] = [
-        {'name': n, 'duration_est': _estimate_duration(n)}
-        for n in trivial_before_anchor
-    ]
-    result['sequence'] = do_now + [hard_deadline_name] + move_later
-    if move_later:
-        result['adjustment_reason'] = (
-            f"Not enough time before {hard_deadline_name} at "
-            f"{hard_deadline.strftime('%I:%M %p').lstrip('0')}"
-        )
-        result['decision_required'] = True
-
-    # Build text output
-    parts = []
-    deadline_time_str = hard_deadline.strftime('%I:%M %p').lstrip('0')
-
-    if do_now:
-        # Lead with the first action, not a feasibility report
-        parts.append(f"Start with {do_now[0]}.")
-        if len(do_now) > 1:
-            rest = do_now[1:]
-            # Identify trivial-duration items in the rest list (whether
-            # rescued or normally packed). These get "take X quickly"
-            # language so the user knows they're fast actions, not blocks.
-            trivial_in_rest = [
-                n for n in rest
-                if _estimate_duration(n) <= TRIVIAL_DURATION_THRESHOLD
-            ]
-            if trivial_in_rest:
-                regular = [n for n in rest if n not in trivial_in_rest]
-                sub_parts = []
-                if regular:
-                    sub_parts.append(', then '.join(regular))
-                trivial_str = ' and '.join(trivial_in_rest) if len(trivial_in_rest) <= 2 else (
-                    ', '.join(trivial_in_rest[:-1]) + ', and ' + trivial_in_rest[-1]
-                )
-                sub_parts.append(f"take {trivial_str} quickly")
-                rest_str = ', then '.join(sub_parts)
-                parts.append(
-                    f"Then {rest_str} — all before "
-                    f"{hard_deadline_name} at {deadline_time_str}."
-                )
-            else:
-                rest_str = ', then '.join(rest)
-                parts.append(
-                    f"Then {rest_str} — all before "
-                    f"{hard_deadline_name} at {deadline_time_str}."
-                )
-        else:
-            parts.append(
-                f"{hard_deadline_name} is at {deadline_time_str}."
-            )
-    elif not move_later:
-        next_action = ctx.get('next', '')
-        if next_action:
-            parts.append(next_action)  # canonical directive, verbatim
-
-    # Only suggest rescheduling when clearly behind AND escalation warrants it.
-    #
-    # Gate logic:
-    #   - 'nudge' state: NEVER suggest rescheduling — preserve plan, increase pace
-    #   - 'behind' state + escalation PRESSING or higher: allow rescheduling
-    #   - 'behind' state + escalation NUDGE or ON_TRACK: still don't suggest
-    #     (escalation engine says recovery is possible)
-    #
-    # This prevents the premature "X can move to later today" when user is
-    # only slightly behind and recovery is still feasible.
-    should_suggest_reschedule = (
-        move_later
-        and situation_state == 'behind'
-        and escalation_level >= ESCALATION_PRESSING
-    )
-    if should_suggest_reschedule:
-        if len(move_later) == 1:
-            parts.append(
-                f"{move_later[0]} can move to later today."
-            )
-        else:
-            items_str = ' and '.join(
-                [', '.join(move_later[:-1]), move_later[-1]]
-                if len(move_later) > 2
-                else move_later
-            )
-            parts.append(
-                f"{items_str} can move to later today."
-            )
-
-    result['text'] = "\n".join(parts)
+    # Fallback: the canonical directive string (still the authority's decision, as text)
+    # — render verbatim, never re-wrap (trust bug 2026-06-15).
+    directive = (ctx.get('next') or '').strip()
+    if directive and directive != "Start with your next planned item.":
+        result['text'] = directive
+        result['sequence'] = [directive]
     return result
 
 

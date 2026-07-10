@@ -152,6 +152,14 @@ def get_today_context(user) -> dict:
     if not next_action or next_action == "Unable to determine.":
         next_action = "Start with your next planned item."
 
+    # The canonical decision as STRUCTURED TRUTH (not just the string) so consumers can
+    # render the primary action's title/urls without re-deriving. Same single producer.
+    try:
+        from apps.core.execution.decision_authority import current_action
+        current = current_action(user, now=user_now)
+    except Exception:  # pragma: no cover - defensive
+        current = None
+
     return {
         "all_items": all_items,
         "foundation": foundation,
@@ -159,7 +167,8 @@ def get_today_context(user) -> dict:
         "coming_up": coming_up,
         "later": later,
         "completed": completed,
-        "next": next_action,
+        "next": next_action,           # canonical directive STRING (back-compat)
+        "current_action": current,     # canonical decision DICT (Execution Authority)
     }
 
 

@@ -6,6 +6,52 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — refactor(execution): ONE Execution Decision Authority — eliminate duplicate "what should I do now?" engines
+
+**Architectural cleanup (removes a whole class of "the dashboard disagrees with the check-in" bugs).**
+
+There were TWO deterministic engines answering "what should Danny do right now?": the Execution
+Engine (`build_execution_state` → `selectors.get_next_action`, used by the dashboard) and a second
+path where consumers re-derived the decision — the check-in renderer's `_build_triage_structured`
+(picked its own `actionable[0]`), plus `cos_context.py` and `dashboard_v2` calling
+`prioritize_execution_items` directly and taking `[0]` (bypassing recovery + active-block gating).
+These could — and did — disagree (the LATE-workout vs "Protein Shake" report).
+
+**Now there is exactly ONE producer, and everything consumes it:**
+- **Phase 1 — the authority:** `apps/core/execution/decision_authority.py :: current_action(user)` is
+  THE single producer of the current recommended action (structured truth, over
+  `build_execution_state` + `get_next_action`). `current_action_directive(user)` for text-only consumers.
+- **Phase 2 — check-in consumes it:** `today_engine.get_today_context` now exposes the canonical
+  decision dict as `ctx['current_action']`; `beth_checkin_renderer._build_triage_structured` was
+  rewritten as a PURE CONSUMER — it renders `ctx['current_action'].primary_action` (fallback to the
+  canonical directive string `ctx['next']`) and no longer collects/sorts its own `actionable` list or
+  runs feasibility re-ordering. (This also fixes the Workout report and matches the CoS "one clear
+  action" voice.)
+- **Phase 3 — normalize consumers:** `cos_fact_statements.build_locked_next_action`,
+  `ai_orchestrator/cos_context.py`, and `dashboard_v2/services/dashboard_service.py` now consume
+  `current_action` / `build_execution_state` instead of calling the low-level prioritizer. No surface
+  re-selects or re-orders.
+- **Phase 4 — CI enforcement (permanent):** `apps/core/tests/test_execution_decision_authority_contract.py`
+  fails the build if (a) a decision primitive (`get_next_action` / `prioritize_execution_items` /
+  `classify_urgency` / `URGENCY_ORDER`) is defined outside the decision packages, (b) any consumer uses
+  a low-level decision primitive instead of the authority, or (c) the check-in renderer stops consuming
+  the authority. Display-only helpers (`group_actions`, `find_next_upcoming`, `build_grouped_action_center`)
+  remain allowed. A future voice assistant / notification / widget CANNOT grow its own prioritization.
+
+**Vision alignment:** WLJ owns the single deterministic execution decision; OpenAI (and every surface)
+consumes and communicates it. Net WLJ complexity went DOWN — a whole parallel selector (`_build_triage_structured`'s
+feasibility/ordering) was deleted; only a naming entrypoint + a guard test were added.
+
+**Files:** `apps/core/execution/decision_authority.py` (new), `apps/core/today/today_engine.py`,
+`apps/ai/beth_checkin_renderer.py`, `apps/ai/cos_fact_statements.py`,
+`apps/core/ai_orchestrator/cos_context.py`, `apps/dashboard_v2/services/dashboard_service.py`,
+`apps/core/tests/test_execution_decision_authority_contract.py` (new).
+
+**Verification:** 230 execution+today tests + 3 contract tests green; `manage.py check` clean; no
+migrations (no models touched). Pre-existing failures in `test_beth_checkin_renderer.TestCheckinOutput`
+(5) and `dashboard_v2` (2, missing `goal_momentum` key) confirmed present on HEAD before this change —
+not introduced here.
+
 ## 2026-07-10 — fix(chat): docked panel hangs on long generations — no `timeout` handler / completion safety net
 
 **NOT a Current Context issue — a chat rendering/synchronization bug in the docked panel** (proven).

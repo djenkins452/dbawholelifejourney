@@ -371,19 +371,20 @@ class DashboardV2Service:
             build_grouped_action_center,
             find_next_upcoming,
             group_actions,
-            prioritize_execution_items,
         )
+        from apps.core.execution.decision_authority import current_action
+        from apps.core.execution.execution_state import build_execution_state
         from apps.core.execution.today_execution import build_today_execution
 
         exec_contract = build_today_execution(self.user)
         context["execution_contract"] = exec_contract
 
-        # Legacy flat action list (still used by CoS context builder)
-        action_center = prioritize_execution_items(
-            exec_contract['items'],
-            self._get_user_now().time(),
-            summaries=exec_contract.get('summaries'),
-        )
+        # ONE producer: the prioritized action list comes from build_execution_state
+        # (recovery filtering + active-block gating applied — NOT a bare prioritizer call
+        # that would diverge from the check-in/OpenAI). group_actions/build_grouped/
+        # find_next_upcoming below only DISPLAY-group this already-decided list.
+        _state = build_execution_state(self.user)
+        action_center = _state.get("actions", [])
 
         groups = group_actions(action_center)
         context["action_center"] = action_center
@@ -392,7 +393,8 @@ class DashboardV2Service:
         context["action_later"] = groups["later"]
         context["action_foundational"] = [a for a in action_center if a["is_foundational"]]
         context["action_standard"] = [a for a in action_center if not a["is_foundational"]]
-        context["next_action"] = action_center[0] if action_center else None
+        # next_action = the ONE canonical decision (identical to check-in / dashboard_v3).
+        context["next_action"] = current_action(self.user, state=_state).get("primary_action")
 
         # ── NEW: Grouped action center (unified execution surface) ──
         # Includes ALL items (completed + pending), grouped by execution group.

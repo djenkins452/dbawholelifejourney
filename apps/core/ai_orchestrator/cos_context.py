@@ -4926,17 +4926,12 @@ def _build_data_state_snapshot(user) -> str:
         # Get the top action from priorities (if available) for next_action
         _top_action_title = ''
         try:
-            # _exec_contract is the fresh execution data built above
-            from apps.core.decision_engine.action_prioritizer import prioritize_execution_items
-            from apps.core.utils import get_user_now as _pgu
-            _p_now = _pgu(user).time()
-            _p_items = _exec_contract.get('items', [])
-            _p_summaries = _exec_contract.get('summaries', {})
-            _p_priorities = prioritize_execution_items(
-                _p_items, _p_now, summaries=_p_summaries,
-            )
-            if _p_priorities:
-                _top_action_title = _p_priorities[0]['title']
+            # Top action = the ONE canonical decision from the Execution Decision
+            # Authority. Never re-prioritize here — that would diverge from the
+            # dashboard and the check-in (the whole point of the single producer).
+            from apps.core.execution.decision_authority import current_action
+            _primary = (current_action(user) or {}).get('primary_action') or {}
+            _top_action_title = _primary.get('title', '')
         except Exception:
             pass
 

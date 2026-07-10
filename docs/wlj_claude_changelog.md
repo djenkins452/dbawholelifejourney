@@ -6,6 +6,37 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): "results not intentions" behavioral rule + enable owner task writes
+
+**First-class trust rule + owner write enablement, both validated on a real write.**
+
+- `constitution.py` — new **RESULTS, NOT INTENTIONS** rule (product behavior, not a read-only
+  workaround): the model must NEVER narrate a future action ("I'll do that", "let me…", "let's
+  proceed"); it CALLS the tool first, then reports the ACTUAL result / failure / limitation.
+  Never promise work whose outcome isn't known yet. Plus: when the user asserts a fact and asks
+  to act ("I finished it, mark it complete"), just do it — don't investigate/verify; and after a
+  success, report the result, name the top remaining thing, and let the user rest.
+- Migration `users/0091` — enable `use_model_interface_writes=True` for the owner. The write
+  path is validated (mutate_task DB change earlier; complete_task below); one-flip reversible.
+- Validated on a throwaway task (real model, REAL write): the model called `complete_task`
+  FIRST, then reported *"has been marked as complete"* (a result, no intention); DB
+  `completion_status: pending → completed`, `completed_at` set. Original trust-breaker (narrate
+  intention → nothing happens) is fixed: execute-then-report.
+
+**Honest correction:** an intermediate validation of mine reported "completed but not persisted"
+— that was a MEASUREMENT error (I checked `Task.status`, a separate lifecycle field, instead of
+`Task.completion_status`). The write DID persist. Re-verified against the correct field.
+
+**Known (separate, pre-existing):** `cos_intelligence._nearest_weight_milestone` throws
+`column purpose_goalmilestone.objective_metric does not exist` (purpose-app schema drift). It is
+CAUGHT (mark_complete guards its hooks — "must never break task completion") so it does not
+block completion, but it needs its own fix. Also a soft polish item: loop-closure reported the
+result cleanly but did not proactively name the next priority ("only Metformin left… you've
+earned rest") — a tone nudge (the understanding is available), not a trust issue.
+
+**Verification:** 18 runtime tests green; real-write loop-closure PASS (result-oriented +
+persisted). Owner: writes now ENABLED.
+
 ## 2026-07-09 — feat(interface): expose Deterministic Understanding (Truth tier 2) + structured page context
 
 Implements the locked architecture: Truth now has two tiers — Facts and **Deterministic

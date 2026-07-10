@@ -45,13 +45,54 @@ class CurrentContextBaselineTests(TestCase):
         self.assertIn("part_of_day", ctx["clock"])
         self.assertIn("answerable_domains", ctx["capabilities"])
 
-    def test_structured_page_context_is_exposed(self):
-        page = {"page": "faith_home", "focused": {"prayer_completed": True,
-                                                  "bible_reading_completed": True}}
+    def test_location_is_exposed_without_a_declared_focus(self):
+        # WHERE the user is (navigation facts) is always safe to pass; with no declared
+        # reference there is simply no focused object.
+        page = {"url": "/faith/journey/today/", "module": "Faith",
+                "page_title": "Today's Reading"}
         ctx = get_current_context_baseline(self.user, page_context=page)
-        self.assertEqual(ctx["current_screen"]["status"], "present")
-        self.assertEqual(ctx["current_screen"]["page"]["page"], "faith_home")
-        self.assertTrue(ctx["current_screen"]["page"]["focused"]["prayer_completed"])
+        screen = ctx["current_screen"]
+        self.assertEqual(screen["status"], "present")
+        self.assertEqual(screen["location"]["url"], "/faith/journey/today/")
+        self.assertEqual(screen["location"]["module"], "Faith")
+        self.assertIsNone(screen["focus"])
+
+    def test_declared_reference_resolves_to_canonical_truth(self):
+        # The CONTRACT: page sends a reference; WLJ resolves the deterministic truth
+        # server-side from the canonical model. Scraped DOM is never trusted.
+        from apps.purpose.models import LifeGoal
+        goal = LifeGoal.objects.create(
+            user=self.user, title="Run a half marathon",
+            description="Build to 13.1 miles by fall.",
+            why_it_matters="Prove I can commit to something hard.",
+        )
+        page = {"url": f"/goals/{goal.pk}/", "module": "Goals",
+                "focus_ref": f"purpose.lifegoal:{goal.pk}",
+                # A scraped-content blob that must NOT be trusted as truth:
+                "page_content": {"description": "SCRAPED-JUNK-SHOULD-BE-IGNORED"}}
+        ctx = get_current_context_baseline(self.user, page_context=page)
+        focus = ctx["current_screen"]["focus"]
+        self.assertIsNotNone(focus)
+        self.assertEqual(focus["source"], "canonical")
+        self.assertEqual(focus["ref"], f"purpose.lifegoal:{goal.pk}")
+        self.assertIn("Run a half marathon", focus["title"])
+        self.assertIn("Prove I can commit", focus["content"])
+        # Scraped junk never enters the truth WLJ hands the model.
+        self.assertNotIn("SCRAPED-JUNK", json.dumps(ctx))
+
+    def test_unowned_reference_is_reported_not_denied(self):
+        # A declared reference to another user's object must not leak, and must not read
+        # as "this does not exist" — it is a sync/ownership condition.
+        from apps.purpose.models import LifeGoal
+        other = User.objects.create_user(email="other@example.com", password="x")
+        goal = LifeGoal.objects.create(user=other, title="Not my goal")
+        page = {"url": f"/goals/{goal.pk}/", "module": "Goals",
+                "focus_ref": f"purpose.lifegoal:{goal.pk}"}
+        ctx = get_current_context_baseline(self.user, page_context=page)
+        screen = ctx["current_screen"]
+        self.assertIsNone(screen["focus"])
+        self.assertIn("did not resolve", screen["note"])
+        self.assertNotIn("Not my goal", json.dumps(ctx))
 
     def test_missing_page_is_benign_none_not_denial(self):
         ctx = get_current_context_baseline(self.user)  # no page_context

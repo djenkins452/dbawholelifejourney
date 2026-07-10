@@ -2,6 +2,19 @@
 
 **Status:** IMPLEMENTED (2026-07-06). Core contract + auto-declaration + object-centered conversation + planner-owned object selection. Contract tests in `apps/core/tests/test_current_context.py` and `apps/ai/tests/test_page_reference.py`.
 
+---
+
+## Model-Interface path (KEEPER — post-pivot, 2026-07-10)
+
+On the pivot-aligned runtime (`use_model_interface`), Current Context is **Pillar 4** of the Executive Context Envelope, not a lane. `apps/ai/cos_services/current_context.py :: get_current_context_baseline()` now RESOLVES the declared `focus_ref` server-side via `apps.core.current_context.resolve_current_context()` and emits `current_screen = {location, focus}`:
+
+- **`location`** (WHERE) — deterministic navigation facts (url/module/title) from the client. Location, not content.
+- **`focus`** (WHAT) — the canonical object the page declared, resolved from the source-of-truth model, user-scoped: `{ref, kind, title, content, source: "canonical"}`. **The client-scraped `page_content` blob is NOT forwarded as truth** on this path. A declared reference that fails to resolve → `focus: null` + a sync/ownership `note` (never "does not exist").
+
+The keeper does **no reasoning** over the object (no bespoke LLM call — that was the legacy `answer_page_reference`); it hands `focus` to the model, and the constitution (`apps/ai/model_interface/constitution.py`) tells the model `focus.content` is authoritative and answers deixis ("this/that/it"). Tests: `apps/ai/tests/test_current_context_baseline.py`.
+
+**Sequenced full-retire (blast-radius bound):** the DOM scraper (`extractPageContent` in `chat_widget.html`) and the legacy reasoning (`chatgpt_cos/page_reference.py :: answer_page_reference`) still feed the `chatgpt_cos` + `legacy` runtimes and are retired **when those runtimes are**, not before. Mixin rollout to Health/Calendar/Journal/Finance/Reports is the follow-up (proven on Goals first).
+
 **Resolution order (`resolve_page_focus`):** (1) declared `focus_ref` (`<meta name="wlj-context">` — auto for any DetailView of a `UserOwnedModel`, or explicit via `CurrentContextMixin` on overview pages) → (2) deterministic URL-based `resolve_focused_object` (any detail/landing URL, no per-page code; **server truth over the client scrape**) → (3) legacy client content. Both `focus_ref` and the URL resolver return content via the model's `get_context_summary()`.
 
 **Coverage (2026-07-06):** Goals (`LifeGoal` detail + Purpose dashboard → active mission goal), Journal (`JournalEntry`), Faith (the **production Journey system** `apps.faith.journey.JourneyDay`, narrated from scripture refs + verse blocks + `context_before` + `key_insight` + `reflection_prompt`; legacy `UserReadingPlan` preserved). A new page becomes conversational by being a `UserOwnedModel` DetailView (auto) or adding `CurrentContextMixin` (overview) — never by editing the Chief of Staff.

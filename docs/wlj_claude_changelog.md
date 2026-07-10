@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — feat(interface): Current Context resolves the declared reference into canonical truth (Pillar 4)
+
+**Page Awareness on the keeper (model-interface) path — WLJ supplies deterministic UI truth; OpenAI reasons.**
+
+The pivot-aligned runtime (`use_model_interface`) already received `page_context` but passed the
+RAW client blob through `jsonsafe` — the model saw a reference string + scraped DOM, never
+server-resolved truth. The *only* code that turned a reference into canonical content was the
+legacy `chatgpt_cos/page_reference.py` lane, which also made its OWN LLM call (a mini reasoning
+engine — the exact thing the pivot retired).
+
+**Change (keeper path, additive, owner-only flag):** `apps/ai/cos_services/current_context.py ::
+get_current_context_baseline()` now RESOLVES the declared `focus_ref` server-side via
+`apps.core.current_context.resolve_current_context()` and emits `current_screen = {location, focus}`:
+- `location` (WHERE) — url/module/title navigation facts (safe to pass).
+- `focus` (WHAT) — the canonical object the page declared, resolved user-scoped from the
+  source-of-truth model: `{ref, kind, title, content, source: "canonical"}`. **The scraped
+  `page_content` blob is no longer forwarded as truth.** Unresolved declared ref → `focus: null`
+  + sync/ownership `note` (never "does not exist").
+
+No reasoning added to WLJ (some deleted from the keeper path). Constitution updated so the model
+treats `focus.content` as authoritative and answers deixis ("this/that/it") against it.
+
+**Why:** the master-prompt Current Context requirement — OpenAI must never guess what's on screen;
+WLJ tells it, deterministically. Aligns with WLJ_PRODUCT_VISION (WLJ knows, the model reasons) and
+the Current Context Contract (`apps/core/current_context.py` — page declares a reference; WLJ
+resolves the truth).
+
+**Sequenced full-retire (blast-radius bound — NOT in this commit):** the DOM scraper
+(`extractPageContent` in `chat_widget.html`) and `page_reference.py :: answer_page_reference`
+still feed the `chatgpt_cos` + `legacy` runtimes; they are retired WHEN those runtimes are.
+`CurrentContextMixin` rollout to Health/Calendar/Journal/Finance/Reports is the follow-up
+(proven on Goals first, per the chosen scope).
+
+**Files:** `apps/ai/cos_services/current_context.py`, `apps/ai/model_interface/constitution.py`,
+`apps/ai/tests/test_current_context_baseline.py` (canonical-resolution + unowned-not-denied +
+location tests), `apps/ai/tests/test_model_interface_runtime.py` (updated to new shape),
+`docs/WLJ_CURRENT_CONTEXT_CONTRACT.md` (keeper-path section).
+
+**Verification:** `apps.ai.tests.test_current_context_baseline` (7), `test_model_interface_runtime`
+(18), `test_understanding` (4) — 29 green. `manage.py check` clean.
+
 ## 2026-07-09 — fix(purpose): apply stuck weight-milestone migrations (restore milestone intelligence)
 
 **Production defect repair — NOT a code change (the migrations already existed); the runtime

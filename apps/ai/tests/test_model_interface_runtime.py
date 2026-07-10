@@ -118,11 +118,15 @@ class StandingContextTests(TestCase):
         self.assertEqual(du["patterns"][0]["text"], "Overtraining Risk")
 
     def test_current_screen_is_exposed_in_context(self):
-        page = {"page": "faith_home", "focused": {"prayer_completed": True}}
+        # Location (WHERE) flows through the standing context; a declared reference (WHAT)
+        # resolves to canonical truth server-side (proven in test_current_context_baseline).
+        page = {"url": "/faith/journey/today/", "module": "Faith",
+                "page_title": "Today's Reading"}
         cc = ModelInterfaceService(self.user).build_standing_context(
             page_context=page)["current_context"]
         self.assertEqual(cc["current_screen"]["status"], "present")
-        self.assertTrue(cc["current_screen"]["page"]["focused"]["prayer_completed"])
+        self.assertEqual(cc["current_screen"]["location"]["module"], "Faith")
+        self.assertIsNone(cc["current_screen"]["focus"])
 
     def test_read_only_omits_action_tools_write_exposes_named_intents(self):
         from apps.ai.model_interface.constitution import all_tools

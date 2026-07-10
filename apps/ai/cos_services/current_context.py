@@ -21,15 +21,23 @@ owner with its own (medium) cadence. Refresh cadence is an ownership boundary
 REQUEST-PATH-SAFE: everything here is cheap/deterministic (clock, static catalog,
 client-supplied structured page context). No heavy compute, no warm needed.
 
-`page_context` is the STRUCTURED WLJ page state the app already has (which page/entity the
-user is viewing) — NOT a screenshot, NOT OCR. If the app provides it, the model sees it.
+`page_context` carries a REFERENCE, not scraped content: the page declares the canonical
+object in focus via <meta name="wlj-context"> ('app_label.model:pk'), and WLJ resolves the
+deterministic truth SERVER-SIDE, user-scoped, from the source-of-truth model
+(apps.core.current_context.resolve_current_context). NOT a screenshot, NOT OCR, NOT DOM
+scraping — client-scraped DOM is never treated as truth. The Current Context Contract is:
+the page says WHERE it is + WHAT object it's showing; WLJ says what that object actually is.
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-CURRENT_CONTEXT_SCHEMA_VERSION = "2.0"
+CURRENT_CONTEXT_SCHEMA_VERSION = "2.1"
+
+# Max chars of resolved canonical content to hand the model (bounds tokens; the model
+# can always call a truth tool for the full record).
+_FOCUS_CONTENT_CAP = 3500
 
 
 def _clock(user, now=None) -> dict:
@@ -64,18 +72,68 @@ def _capabilities() -> dict:
     }
 
 
-def _current_screen(page_context) -> dict:
-    """The structured WLJ page the user is currently viewing (client-supplied). This is
-    WLJ state the app already has — treat a missing field as a possible sync issue, never
-    as 'this information does not exist'."""
+def _location(page_context) -> dict:
+    """The WHERE — navigation facts (url/module/page_title) the client reports. These are
+    location, not content: safe to pass as 'where the user is'. Never scraped truth."""
+    loc = {}
+    for src, dst in (("url", "url"), ("module", "module"), ("page_title", "title")):
+        v = (page_context.get(src) or "").strip() if isinstance(page_context, dict) else ""
+        if v:
+            loc[dst] = v
+    return loc
+
+
+def _resolve_focus(user, page_context):
+    """The WHAT — the canonical object the page DECLARED via <meta name="wlj-context">,
+    resolved SERVER-SIDE from the source-of-truth model (user-scoped). This is the
+    Current Context Contract: the page sends a REFERENCE ('app.model:pk'); WLJ resolves
+    the deterministic truth. We never treat client-scraped DOM as truth.
+
+    Returns {ref, kind, title, content, source} or None (no ref, or it didn't resolve to
+    an owned object). No reasoning, no summary, no LLM — pure canonical read."""
+    if not user or not isinstance(page_context, dict):
+        return None
+    ref = (page_context.get("focus_ref") or "").strip()
+    if not ref:
+        return None
+    try:
+        from apps.core.current_context import resolve_current_context
+        resolved = resolve_current_context(user, ref=ref)
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("CurrentContext: focus resolve failed ref=%s", ref, exc_info=True)
+        return None
+    if not resolved or not (resolved.get("title") or resolved.get("content")):
+        return None
+    return {
+        "ref": resolved.get("ref") or ref,
+        "kind": (resolved.get("kind") or "").strip(),
+        "title": (resolved.get("title") or "").strip(),
+        "content": (resolved.get("content") or "").strip()[:_FOCUS_CONTENT_CAP],
+        "source": "canonical",
+    }
+
+
+def _current_screen(user, page_context) -> dict:
+    """The structured WLJ page the user is currently viewing. Two deterministic parts:
+    WHERE (location: url/module/title) and WHAT (focus: the canonical object the page
+    declared, resolved server-side). A declared reference that failed to resolve is a
+    possible sync/ownership issue — reported as focus=None with the ref preserved, never
+    as 'this does not exist'."""
     if not page_context:
         return {"status": "none",
                 "note": "no current page reported for this turn"}
-    try:
-        from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
-        return {"status": "present", "page": _jsonsafe(page_context)}
-    except Exception:  # pragma: no cover - defensive
-        return {"status": "none"}
+    location = _location(page_context)
+    focus = _resolve_focus(user, page_context)
+    declared_ref = (page_context.get("focus_ref") or "").strip() \
+        if isinstance(page_context, dict) else ""
+    screen = {"status": "present", "location": location, "focus": focus}
+    if focus is None and declared_ref:
+        # The page declared a focus but WLJ could not resolve it to an owned object.
+        screen["note"] = (f"page declared focus '{declared_ref}' but it did not resolve "
+                          "(sync/ownership) — do not assume the object is absent")
+    elif focus is None:
+        screen["note"] = "page did not declare a focused object (Current Context Contract)"
+    return screen
 
 
 def get_current_context_baseline(user, *, page_context=None, now=None) -> dict:
@@ -85,6 +143,6 @@ def get_current_context_baseline(user, *, page_context=None, now=None) -> dict:
     return {
         "schema_version": CURRENT_CONTEXT_SCHEMA_VERSION,
         "clock": _clock(user, now=now),
-        "current_screen": _current_screen(page_context),
+        "current_screen": _current_screen(user, page_context),
         "capabilities": _capabilities(),
     }

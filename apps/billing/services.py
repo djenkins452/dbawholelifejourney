@@ -5,7 +5,7 @@ This module provides the core Stripe integration and billing logic.
 """
 
 import logging
-from datetime import date, datetime, timedelta, timezone as dt_timezone
+from datetime import date, timedelta
 
 import stripe
 from django.conf import settings
@@ -428,14 +428,14 @@ class StripeService:
 
         # Update billing period
         if subscription.current_period_start:
-            profile.current_period_start = datetime.fromtimestamp(
+            profile.current_period_start = timezone.datetime.fromtimestamp(
                 subscription.current_period_start,
-                tz=dt_timezone.utc
+                tz=timezone.utc
             )
         if subscription.current_period_end:
-            profile.current_period_end = datetime.fromtimestamp(
+            profile.current_period_end = timezone.datetime.fromtimestamp(
                 subscription.current_period_end,
-                tz=dt_timezone.utc
+                tz=timezone.utc
             )
 
         profile.save()

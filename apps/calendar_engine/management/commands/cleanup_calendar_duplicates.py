@@ -26,7 +26,7 @@ Usage:
 
 import logging
 from collections import defaultdict
-from datetime import timedelta, timezone as dt_timezone
+from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -128,7 +128,7 @@ class Command(BaseCommand):
             from zoneinfo import ZoneInfo
             user_tz = ZoneInfo(user.preferences.timezone_iana)
         except Exception:
-            user_tz = dt_timezone.utc
+            user_tz = timezone.utc
         self.stdout.write(f'User timezone: {user_tz}\n')
 
         # Group by (title_lower, local_date) — must use user's local date,

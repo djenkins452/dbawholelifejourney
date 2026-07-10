@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — feat(purpose): Mission Link — deterministic action↔mission relationship truth
+
+**Mission Link is deterministic TRUTH (a join + a rank), NOT an intelligence engine, NOT a
+check-in feature.** It answers, for any action: what mission does this support, is it the Primary
+Mission, why does that mission matter, how much does this contribute — as FACTS. OpenAI draws every
+judgment ("on track", "important", "at risk") from them; WLJ never labels.
+
+- **Provider (new):** `apps/purpose/mission_link.py`. The join (no new taxonomy):
+  `action --(production registry)--> signal_type --(GoalSignalSource)--> active goals`, reusing
+  `LifeGoal` (`is_primary_mission`/`why_it_matters`/`success_looks_like`/`target_date`/`status`),
+  `GoalSignalSource` (weight), and the nightly `GoalMomentumSnapshot`.
+- **Cached per-user mission map** (`get_mission_map`) — computed once; invalidated on
+  goal/status/primary/`GoalSignalSource`/weight change (`apps/purpose/signals.py`).
+- **Declarative production registry** (entity/action → `signal_type`): source-type override →
+  title keyword → domain fallback; unmapped → `None` (never fabricates).
+- **Ranking:** Primary Mission first, then contribution weight desc. Multiple missions →
+  `contributes_to:[…]`.
+- **Adjacent to Execution Truth, not owned by it** — domain-agnostic (workout/prayer/journal/
+  medication resolve through the same signal_type).
+- **Executive Context Envelope:** added a single `missions` FACTS section (facts once) + enriched
+  `current_action.primary_action` with lightweight `signal_type` + `mission_link` REFERENCES (no
+  duplicated mission prose). `apps/ai/model_interface/service.py`.
+- **Facts only:** references/strings/numbers/booleans/dates/weights/calculated progress. No
+  judgment, coaching, motivational, or pace-label vocabulary (guard test enforces this).
+
+**Boundaries held:** reused existing models (no new mission taxonomy, no competing engine); pace is
+exposed as NUMBERS (`milestone_percent`/`momentum_score`/`progress_score`/`momentum_7d_avg`), never
+"On Track"; contribution as `weight`, never "important". Check-in renderer NOT migrated (this
+completes the truth needed before the later one-step renderer→OpenAI transition).
+
+**Files:** `apps/purpose/mission_link.py` (new), `apps/purpose/signals.py` (invalidation),
+`apps/ai/model_interface/service.py` (envelope), `apps/purpose/tests/test_mission_link.py` (new),
+`apps/ai/tests/test_model_interface_runtime.py` (envelope keys), `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.
+
+**Verification:** 11 mission-link tests + 18 model-interface runtime green; `manage.py check` clean;
+no migrations (reused models). Data gap: an action resolves to a mission only if the user has an
+ACTIVE goal whose `GoalSignalSource` includes the action's signal_type — see report below.
+
 ## 2026-07-10 — feat(execution): enrich Execution Truth with deterministic TIMING facts (calculation ≠ judgment)
 
 **Architectural boundary established: WLJ owns CALCULATIONS; OpenAI owns JUDGMENT.** We did NOT

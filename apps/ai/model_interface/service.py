@@ -131,6 +131,26 @@ class ModelInterfaceService:
                 self.user, page_context=page_context, conversation=conversation,
             ),
         }
+
+        # Mission Link — deterministic relationship truth. The full mission FACTS live
+        # ONCE in `missions`; the current execution action carries lightweight
+        # signal_type + mission_link REFERENCES into them (no duplicated mission prose).
+        # WLJ exposes the relationship + numbers; the model decides what they mean.
+        try:
+            from apps.core.execution.decision_authority import current_action
+            from apps.purpose.mission_link import enrich_action, get_mission_map
+            mission_map = get_mission_map(self.user)
+            ctx["missions"] = mission_map.get("missions", {})
+            decision = current_action(self.user)
+            primary = decision.get("primary_action")
+            ctx["current_action"] = {
+                "reason": decision.get("reason"),
+                "message": decision.get("message"),
+                "primary_action": (enrich_action(self.user, primary, mission_map)
+                                   if primary else None),
+            }
+        except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
+            logger.warning("mi: mission/current_action assembly skipped", exc_info=True)
         # Surface OPEN confirmations so the model can resolve a SPECIFIC one on the
         # user's next "yes" (the id lives in a prior tool result, not the transcript).
         if writes_enabled:

@@ -422,6 +422,39 @@ The honest-unknown path is a product feature, not an error:
 
 ---
 
+## 11a. Mission Link — deterministic action↔mission relationship (2026-07-10)
+
+Mission Link is deterministic TRUTH (a join + a rank), not an intelligence engine and not a
+check-in feature. It answers, for any action: *what mission does this support, is it the
+Primary Mission, why does that mission matter, how much does this contribute?* The model
+draws every conclusion ("on track", "at risk", "important") from these facts — WLJ never labels.
+
+- **Boundary:** WLJ owns the deterministic RELATIONSHIP; OpenAI owns what it MEANS. Mission
+  Link returns ONLY references, strings, numbers, booleans, dates, weights, and calculated
+  progress — never a judgment, pace label, or motivational word.
+- **The join (no new taxonomy):** `action --(production registry)--> signal_type
+  --(GoalSignalSource)--> active goals`. Reuses `LifeGoal` (`is_primary_mission`,
+  `why_it_matters`, `success_looks_like`, `target_date`, `status='active'`), `GoalSignalSource`
+  (goal↔signal_type↔weight), and the nightly `GoalMomentumSnapshot`. Provider:
+  `apps/purpose/mission_link.py`.
+- **Adjacent, not owned by Execution Truth:** domain-agnostic (workout / prayer / journal /
+  medication all resolve through the same `signal_type`), consumed by every surface.
+- **Ranking:** Primary Mission first, then contribution weight descending. Deterministic.
+- **Multiple missions:** `contributes_to: [mission_id, …]` (ranked). Unmapped entity or no
+  active consumer → `None` (a real absence, never a fabricated relationship).
+- **Compute once:** the per-user mission MAP is cached and invalidated on goal/status/primary/
+  `GoalSignalSource`/weight change (`apps/purpose/signals.py`).
+- **Envelope shape:** the full mission FACTS appear ONCE in the envelope's `missions` section;
+  each execution action carries lightweight `signal_type` + `mission_link` REFERENCES into
+  them (`{mission_id, weight, is_primary, contributes_to}`) — no duplicated mission prose.
+
+Data contract (per action): `mission_link = {signal_type, mission_id, weight, is_primary,
+contributes_to:[…]}`; per mission (in `missions`): `{id, title, is_primary, why_it_matters,
+success_looks_like, target_date, days_to_target, progress:{milestone_percent, momentum_score,
+progress_score, momentum_7d_avg}}`. Tests: `apps/purpose/tests/test_mission_link.py`.
+
+---
+
 ## 12. Relationship to existing docs
 
 - **`WLJ_ARCHITECTURE_LAWS.md`** — the constitution this contract anchors on; Laws 0–5

@@ -105,3 +105,34 @@ def handle_habit_deleted(sender, instance, **kwargs):
             "Failed to clean up calendar events for habit %s: %s",
             instance.pk, e
         )
+
+
+# ── Mission Link cache invalidation ─────────────────────────────────────────
+# The per-user mission map (apps/purpose/mission_link.py) is user-stable and cached.
+# Drop it whenever the active-goal set, Primary Mission, status, or a GoalSignalSource
+# (signal_type / contribution weight) changes.
+
+@receiver([post_save, post_delete], sender='purpose.LifeGoal')
+def invalidate_mission_map_on_goal_change(sender, instance, **kwargs):
+    """Goal created/deleted, status changed, or Primary Mission changed → drop the map."""
+    try:
+        from apps.purpose.mission_link import invalidate_mission_map
+        invalidate_mission_map(getattr(instance, 'user_id', None))
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("mission_map invalidation (goal %s) failed: %s",
+                       getattr(instance, 'pk', '?'), e)
+
+
+@receiver([post_save, post_delete], sender='purpose.GoalSignalSource')
+def invalidate_mission_map_on_signal_change(sender, instance, **kwargs):
+    """GoalSignalSource added/removed or its weight/signal_type changed → drop the map."""
+    try:
+        from apps.purpose.mission_link import invalidate_mission_map
+        user_id = None
+        try:
+            user_id = instance.goal.user_id
+        except Exception:
+            user_id = None
+        invalidate_mission_map(user_id)
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("mission_map invalidation (signal source) failed: %s", e)

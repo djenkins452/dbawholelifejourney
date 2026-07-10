@@ -6,6 +6,21 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — fix(interface): Current Context "no focused object" on Goal Detail — the docked drawer never read the meta
+
+**End-to-end trace (each step proven, not guessed):** View → HTML → Meta → Browser → Request → Resolver.
+- **Steps 1–3 HEALTHY:** `GoalDetailView` lacks `CurrentContextMixin` but `base.html`'s `{% elif object.context_ref %}` fallback fires (DetailView `object` is Narratable). Rendered the real page via the test client — `<meta name="wlj-context" content="purpose.lifegoal:<pk>">` **is** emitted (HTTP 200). Proven by `apps/purpose/tests/test_goal_detail_declaration.py`.
+- **Step 4 = FIRST DISAPPEARANCE:** WLJ ships TWO Beth surfaces (`chat_widget.html` bubble + `assistant_panel.html` docked drawer), both in `base.html`. The active surface in the report is the drawer (identified by "Powered by ChatGPT" + the "Message Beth…" placeholder). `assistant_panel.html :: getFullPageContext()` returned only `url/module/page_title/help_context_id/page_content` — it **never read `<meta name="wlj-context">`** and never set `focus_ref`. Only `chat_widget.html` implemented the contract's transport.
+- **Steps 5–7:** `focus_ref` therefore never left the browser, the server never received it, and Current Context correctly reported "no focused object". Not intermittent, not the resolver — a surface structurally blind to the meta.
+
+**Fix:** mirror the contract read into `assistant_panel.html :: getFullPageContext()` (`meta[name="wlj-context"]` → `focus_ref`/`focus_kind`/`focus_title`), so BOTH surfaces are Current-Context-aware.
+
+**Class eliminated:** added `ChatSurfaceTransportContractTests` — asserts EVERY chat surface reads the meta + sets `focus_ref` (would have failed on `assistant_panel.html` before this fix). Residual logged: the read is duplicated inline per surface; follow-up is a shared `wlj-current-context.js` so a third surface can't drift.
+
+**Files:** `templates/components/assistant_panel.html`, `apps/purpose/tests/test_goal_detail_declaration.py` (new — render proof + transport-contract guard), `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
+
+**Verification:** 2 new tests green (real-page meta render + both-surfaces transport guard). Declaration render + server resolver were already proven green; the fixed link is a line-for-line mirror of the production `chat_widget.html` read. Live browser flow not driven (no auth harness).
+
 ## 2026-07-10 — fix(interface): Current Context intermittency — current-request-wins ownership + conversation safety net
 
 **Lifecycle root cause (proven, not patched):** Current Context was request-scoped only, and its

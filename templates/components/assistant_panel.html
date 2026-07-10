@@ -881,13 +881,27 @@
         var helpContextEl = document.querySelector('[data-help-context]');
         var helpContextId = helpContextEl ? (helpContextEl.getAttribute('data-help-context') || '') : '';
 
-        return {
+        var ctx = {
             url: url,
             module: module,
             page_title: pageTitle,
             help_context_id: helpContextId,
             page_content: extractPageContent(url)
         };
+
+        // CURRENT CONTEXT CONTRACT — the page declares its focused canonical object via
+        // <meta name="wlj-context">. Send the REFERENCE (server resolves the truth). This
+        // MUST mirror chat_widget.html so BOTH Beth surfaces are Current-Context-aware —
+        // the docked panel was previously blind to the meta, so focus_ref never reached the
+        // server and every request read as "no focused object". See
+        // docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
+        var ctxMeta = document.querySelector('meta[name="wlj-context"]');
+        if (ctxMeta) {
+            ctx.focus_ref = ctxMeta.getAttribute('content') || '';
+            ctx.focus_kind = ctxMeta.getAttribute('data-kind') || '';
+            ctx.focus_title = ctxMeta.getAttribute('data-title') || '';
+        }
+        return ctx;
     }
 
     /* ================================================================

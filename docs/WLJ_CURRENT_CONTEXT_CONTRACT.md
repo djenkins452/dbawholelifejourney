@@ -13,6 +13,10 @@ On the pivot-aligned runtime (`use_model_interface`), Current Context is **Pilla
 
 The keeper does **no reasoning** over the object (no bespoke LLM call — that was the legacy `answer_page_reference`); it hands `focus` to the model, and the constitution (`apps/ai/model_interface/constitution.py`) tells the model `focus.content` is authoritative and answers deixis ("this/that/it"). Tests: `apps/ai/tests/test_current_context_baseline.py`.
 
+### Transport must exist on EVERY chat surface (2026-07-10)
+
+WLJ ships two Beth surfaces — `chat_widget.html` (bubble) and `assistant_panel.html` (docked drawer) — both included in `base.html`. **Both MUST read `<meta name="wlj-context">` and send `focus_ref`.** `assistant_panel.html` originally did not, so Goal Detail (and every declaring page) read as "no focused object" *on the drawer* even though the meta rendered correctly upstream — the reference never left the browser. The declaration (View→HTML→Meta) was healthy; the transport layer was implemented on only one surface. Guarded by `apps/purpose/tests/test_goal_detail_declaration.py :: ChatSurfaceTransportContractTests`. Residual/follow-up: the meta read is duplicated inline per surface — extract a shared `wlj-current-context.js` so a future third surface can't drift.
+
 ### Ownership model — current request wins; conversation is a safety net (2026-07-10)
 
 Current Context answers *"what is the user looking at RIGHT NOW?"*, so the **current request is always authoritative**; conversation state is a fallback that only fills a gap and **never becomes the authoritative source** (it would risk stale truth — e.g. returning Goal A after the user moved to Goal B). `get_current_context_baseline(user, page_context, conversation, now)` applies:

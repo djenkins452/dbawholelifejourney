@@ -6,6 +6,41 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — feat(interface): expose Deterministic Understanding (Truth tier 2) + structured page context
+
+Implements the locked architecture: Truth now has two tiers — Facts and **Deterministic
+Understanding** — and Current Context becomes the fast tier ("what's happening right now")
+including the structured current page. Pure EXPOSURE of existing deterministic computation;
+no new engine, no new assessments, no synthesis.
+
+- NEW `apps/ai/model_interface/understanding.py` — the Deterministic Understanding interface
+  (whole-life scope), its OWN owner/cache/warm/tests (Architecture Law F10: refresh cadence
+  is an ownership boundary). Composes EXISTING deterministic output — `interpret()`/
+  `ExecutiveSignals` (primary_challenge, biggest_risk, workload, cognitive_load, executive &
+  clinical priority, patterns, predictions, wins, opportunity), `cos_intelligence` goal pace/
+  momentum, `day_continuity` material changes. Exposes ASSESSMENTS only; deliberately DROPS
+  prescriptions/prose (disposition, recommendation_levers, headline, executive_picture) —
+  those are Reasoning (the model's). `read()` cache-first (pending when cold); `warm()`
+  background only; warm task `warm_understanding` registered.
+- `current_context.py` REFACTORED to the FAST tier: clock + **current_screen** (structured
+  page, not OCR) + capabilities. Priority/day-continuity MOVED to Understanding. Retired
+  `context_warm.py`.
+- `service.build_standing_context` now ASSEMBLES three owned interfaces (AI Relationship /
+  Deterministic Understanding / Current Context) at their own freshness; owns none. Cold
+  Understanding → fire-and-forget warm, pending now. `generate` forwards `page_context`.
+- `constitution.py` — model told to REASON FROM deterministic_understanding (not recompute /
+  not re-rank / not reduce to per-domain metrics) and to USE the current page; a missing/
+  inconsistent page is a sync issue, never "I cannot see the screen".
+- `WLJ_ARCHITECTURE_LAWS.md` — new F9 (Truth's two tiers) + F10 (refresh cadence = ownership
+  boundary; prevents another Conductor). `WLJ_PRODUCT_VISION.md` §4 — Truth's two tiers.
+- Tests: NEW `test_understanding.py` (cache-first pending, structured assessment, NO
+  prescriptions); `test_current_context_baseline` rewritten (fast tier + structured page);
+  `test_model_interface_runtime` updated (envelope assembles 3 owned interfaces; understanding
+  projected when warm; current_screen exposed). 81 interface+gateway+request-path-safety green.
+
+**Verification:** 81 tests green; `makemigrations --check` clean; real-model product validation
+in progress. Owner: read-only enabled; writes still disabled.
+
 ## 2026-07-09 — refactor(interface): Option B — retire generic request_action; expose named deterministic action tools
 
 **Architectural correction — the Action pillar now obeys the same law as Truth: expose the

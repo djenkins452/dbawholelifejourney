@@ -10,7 +10,7 @@ Covers:
 All deterministic — no LLM, no DB, no network.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase
@@ -35,7 +35,7 @@ def _make_user_now(hour=5, minute=23):
     """Create a timezone-aware datetime at the given hour:minute."""
     return timezone.make_aware(
         datetime(2026, 4, 15, hour, minute, 0),
-        timezone=timezone.utc,
+        timezone=dt_timezone.utc,
     )
 
 

@@ -116,6 +116,22 @@ constitution. (F-series, to keep the numbered **Laws** below distinct.)
 - **F8 — The Model Consumes Briefings, Not Signals.** Intelligence produces composed,
   deterministic state objects (verdict already inside) for the conversational model to
   narrate over — never raw signals for it to recombine.
+- **F9 — Truth Has Two Tiers: Facts and Deterministic Understanding.** WLJ owns not only
+  *facts* (measured/recorded values) but *deterministic understanding* — the assessments
+  it has already computed from those facts (primary challenge, biggest risk, workload,
+  executive/clinical priority, cross-domain patterns, momentum, goal pace, material
+  changes). Both are deterministic, testable, and WLJ's. The model reasons **from**
+  Understanding; it never recomputes it, and WLJ never reasons. Understanding stops
+  exactly where determinism stops — a prescription/recommendation is Reasoning (the
+  model's), not Understanding.
+- **F10 — Refresh Cadence Is an Ownership Boundary.** Each deterministic interface
+  (Facts, Deterministic Understanding, AI Relationship, Current Context, Actions) owns its
+  own computation, lifecycle, cache, freshness, tests, and serialization. The standing-
+  context envelope only **assembles** their projections, each at its own freshness — it
+  never becomes an owner. **Never combine interfaces with different refresh rates into one
+  owner** (fast page/screen must not share a cache with a medium-cadence assessment). This
+  law exists specifically to prevent another Conductor: one concept accreting
+  responsibilities until nothing has a clean owner.
 
 ---
 

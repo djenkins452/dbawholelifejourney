@@ -1,47 +1,35 @@
 # ==============================================================================
 # File: apps/ai/cos_services/current_context.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Current Context baseline (Pillar 4) — the minimal always-on projection
+# Description: Current Context baseline (Pillar 4) — the FAST tier: "what's happening now"
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2026-07-09
 # ==============================================================================
 """
-Current Context baseline — Pillar 4 of the WLJ ↔ model interface.
+Current Context — Pillar 4 of the WLJ ↔ model interface.
 
-docs/WLJ_MODEL_INTERFACE_DESIGN.md §Pillar 4.
+Current Context answers ONE question: "What is happening right now?" — the FAST-refresh
+tier (seconds): the clock, the current WLJ page/screen the user is viewing, the active
+task/selection, and a capability index. It changes constantly.
 
-Current Context answers "what does the model need to know RIGHT NOW?" — and that is
-mostly CONVERSATIONALLY relevant, so most of it is MODEL-PULLED via truth tools. This
-module builds only the *minimal always-on baseline* — the few things the model cannot
-know it needs, or must be told regardless of topic:
+Current Context does NOT own deterministic understanding. Executive/clinical priority,
+momentum, workload, patterns, material changes, etc. are DETERMINISTIC UNDERSTANDING —
+the assessment tier of Truth (`apps/ai/model_interface/understanding.py`), a separate
+owner with its own (medium) cadence. Refresh cadence is an ownership boundary
+(Architecture Law) — we do not combine fast and medium concerns into one owner.
 
-    * clock            — current local time + part of day  (the model can't know it)
-    * day_continuity   — orient / reorient / continue + material changes since last turn
-    * clinical_safety  — deterministic executive POLICY (e.g. an overdue medication);
-                         the model must HONOR this order, never re-rank it
-    * capabilities     — what truth WLJ can answer (so the model knows what to pull)
+REQUEST-PATH-SAFE: everything here is cheap/deterministic (clock, static catalog,
+client-supplied structured page context). No heavy compute, no warm needed.
 
-Deliberately EXCLUDED (this is reasoning, the model authors it): headline, narrative,
-diagnosis, coaching, mood read. The baseline ships facts + deterministic policy only.
-
-REQUEST-PATH-SAFE BY CONSTRUCTION: this is a pure ASSEMBLER. It never live-computes the
-heavy executive picture — the caller passes an already-warmed `signals`
-(ExecutiveSignals) and `continuity` (day-continuity Decision); when they are absent the
-corresponding section is returned as `pending` (never a live rebuild). Clock and
-capabilities are cheap/static.
+`page_context` is the STRUCTURED WLJ page state the app already has (which page/entity the
+user is viewing) — NOT a screenshot, NOT OCR. If the app provides it, the model sees it.
 """
 
 import logging
 
-from apps.ai.cos_services.serialization import cap as _cap
-from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
-
 logger = logging.getLogger(__name__)
 
-CURRENT_CONTEXT_SCHEMA_VERSION = "1.0"
-
-_MAX_SAFETY = 5
-_MAX_CHANGES = 6
+CURRENT_CONTEXT_SCHEMA_VERSION = "2.0"
 
 
 def _clock(user, now=None) -> dict:
@@ -51,9 +39,8 @@ def _clock(user, now=None) -> dict:
         if now is None:
             from apps.core.utils import get_user_now
             now = get_user_now(user)
-        local_time = now.strftime("%I:%M %p").lstrip("0")
         return {
-            "local_time": local_time,
+            "local_time": now.strftime("%I:%M %p").lstrip("0"),
             "part_of_day": daypart.phase_of_day(user, now),
             "as_of": now.isoformat(),
         }
@@ -77,48 +64,27 @@ def _capabilities() -> dict:
     }
 
 
-def _clinical_safety(signals) -> dict:
-    """Deterministic executive POLICY the model must honor (not re-rank).
-
-    Populated from an already-computed ExecutiveSignals; `pending` if not supplied.
-    """
-    if signals is None:
-        return {"status": "pending"}
-    health_critical = getattr(signals, "health_critical", None) or []
-    priority_action = getattr(signals, "priority_action", None)
-    return {
-        "status": "ok",
-        "clinical_safety": _jsonsafe(_cap(list(health_critical), _MAX_SAFETY)),
-        "priority_action": _jsonsafe(priority_action),
-        "note": "deterministic executive policy — honor this order; do not re-rank it",
-    }
+def _current_screen(page_context) -> dict:
+    """The structured WLJ page the user is currently viewing (client-supplied). This is
+    WLJ state the app already has — treat a missing field as a possible sync issue, never
+    as 'this information does not exist'."""
+    if not page_context:
+        return {"status": "none",
+                "note": "no current page reported for this turn"}
+    try:
+        from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
+        return {"status": "present", "page": _jsonsafe(page_context)}
+    except Exception:  # pragma: no cover - defensive
+        return {"status": "none"}
 
 
-def _day_continuity(continuity) -> dict:
-    """Orient / reorient / continue + material changes; `pending` if not supplied."""
-    if continuity is None:
-        return {"status": "pending"}
-    return {
-        "status": "ok",
-        "mode": getattr(continuity, "mode", None),
-        "material_changes": _jsonsafe(
-            _cap(list(getattr(continuity, "material_changes", []) or []), _MAX_CHANGES)
-        ),
-    }
-
-
-def get_current_context_baseline(user, *, signals=None, continuity=None, now=None) -> dict:
-    """Assemble the minimal always-on Current Context baseline (Pillar 4).
-
-    Pure assembly over pre-warmed inputs — no live heavy compute, no reasoning, no
-    headline. `signals` / `continuity` are supplied by the warm caller; when absent the
-    corresponding section is `pending`.
-    """
+def get_current_context_baseline(user, *, page_context=None, now=None) -> dict:
+    """Assemble the fast-tier Current Context: clock, current screen, capability index.
+    Pure, cheap, request-path-safe. No deterministic understanding here (that is a
+    separate owned interface)."""
     return {
         "schema_version": CURRENT_CONTEXT_SCHEMA_VERSION,
         "clock": _clock(user, now=now),
-        "priority": _clinical_safety(signals),
-        "day_continuity": _day_continuity(continuity),
+        "current_screen": _current_screen(page_context),
         "capabilities": _capabilities(),
-        # NOTE: intentionally NO 'headline'/'narrative' — that is the model's to author.
     }

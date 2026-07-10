@@ -20,8 +20,21 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger("apps.ai.model_interface")
 
-# NOTE: there is no separate warm task — Current Context reuses StandingContextService,
-# which the existing prod keep-alive worker already warms (Blocker 3 / reuse-before-rebuild).
+
+@shared_task(name="apps.ai.model_interface.warm_understanding",
+             bind=False, max_retries=0, ignore_result=True)
+def warm_understanding(user_id):
+    """Background warm of the Deterministic Understanding cache (heavy interpret() +
+    day-continuity), so the request path only ever reads cache. Understanding owns its
+    own cache/cadence (Architecture Law — refresh cadence is an ownership boundary).
+    Never raises."""
+    try:
+        from django.contrib.auth import get_user_model
+        from apps.ai.model_interface import understanding
+        user = get_user_model().objects.get(id=user_id)
+        understanding.warm(user)
+    except Exception:
+        logger.warning("warm_understanding failed user=%s", user_id, exc_info=True)
 
 
 @shared_task(

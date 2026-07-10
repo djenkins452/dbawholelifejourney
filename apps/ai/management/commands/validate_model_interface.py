@@ -253,11 +253,19 @@ class Command(BaseCommand):
         self.stdout.write(f"  truth_preferences={rel.get('truth_preferences')}")
         self.stdout.write(f"  learned_preferences={rel.get('learned_preferences')}")
 
+        du = rec["standing_context"].get("deterministic_understanding", {})
+        self.stdout.write("\n▶ DETERMINISTIC UNDERSTANDING (Truth's assessment tier)")
+        self.stdout.write(f"  status={du.get('status')}")
+        self.stdout.write(f"  executive={json.dumps(du.get('executive'), default=str)[:300]}")
+        self.stdout.write(f"  priority={json.dumps(du.get('priority'), default=str)[:220]}")
+        self.stdout.write(f"  patterns={json.dumps(du.get('patterns'), default=str)[:220]}")
+        self.stdout.write(f"  wins={json.dumps(du.get('wins'), default=str)[:160]}")
+        self.stdout.write(f"  direction={json.dumps(du.get('direction'), default=str)[:220]}")
+
         cc = rec["standing_context"].get("current_context", {})
-        self.stdout.write("\n▶ CURRENT CONTEXT (baseline)")
+        self.stdout.write("\n▶ CURRENT CONTEXT (fast tier)")
         self.stdout.write(f"  clock={cc.get('clock')}")
-        self.stdout.write(f"  priority={cc.get('priority')}")
-        self.stdout.write(f"  day_continuity={cc.get('day_continuity')}")
+        self.stdout.write(f"  current_screen={json.dumps(cc.get('current_screen'), default=str)[:220]}")
         self.stdout.write(f"  capabilities={cc.get('capabilities', {}).get('answerable_domains')}")
 
         self.stdout.write("\n▶ AUDIT ENTRIES")
@@ -309,15 +317,18 @@ class Command(BaseCommand):
 
         svc = self._real_ai_service(model)
 
-        # Warm StandingContextService the way the prod keep-alive worker would (Blocker 3:
-        # Current Context now reuses it, cache-first — the runtime only ever READS it).
+        # Warm the owned caches the prod keep-alive worker would: StandingContextService
+        # (used by Understanding's direction/momentum) + the Deterministic Understanding
+        # cache. The runtime only ever READS these.
         from apps.ai.cos_services.standing_context import get_standing_context
-        from apps.ai.model_interface import context_warm
+        from apps.ai.model_interface import understanding
         get_standing_context(user, allow_build=True)   # background/warming build
-        sig, _ = context_warm.read(user)
+        u = understanding.warm(user)                    # warm the Understanding tier
+        ex = (u or {}).get("executive", {}) if isinstance(u, dict) else {}
         self.stdout.write(
-            f"  warmed Current Context: priority="
-            f"{getattr(sig, 'priority_action', None)}\n")
+            f"  warmed Deterministic Understanding: primary_challenge="
+            f"{ex.get('primary_challenge')} biggest_risk={ex.get('biggest_risk')} "
+            f"workload={ex.get('workload')}\n")
 
         # Two passes: READ-ONLY (all scenarios, no action tools, zero write risk), then
         # a WRITE-ENABLED dry-run of the action scenario (confirmation binding).

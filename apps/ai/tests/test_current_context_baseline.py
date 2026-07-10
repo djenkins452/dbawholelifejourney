@@ -1,18 +1,18 @@
 # ==============================================================================
 # File: apps/ai/tests/test_current_context_baseline.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Current Context baseline (Pillar 4) — minimal always-on projection.
+# Description: Current Context baseline (Pillar 4) — the FAST tier ("what's happening now").
 # ==============================================================================
 """
 Tests for apps/ai/cos_services/current_context.py.
 
-Locks in: the baseline ships clock + capabilities always; clinical-safety policy and
-day-continuity come from injected pre-warmed inputs (pending when absent — never live-
-computed); NO headline/narrative is ever emitted; output is JSON-safe.
+Current Context is the FAST tier: clock, current screen (structured page), capability
+index. It does NOT own deterministic understanding (priority/patterns/etc. moved to the
+Understanding tier). Structured page context is exposed; a missing page is a benign
+'none', never "I can't see the screen".
 """
 
 import json
-from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -30,54 +30,35 @@ class CurrentContextBaselineTests(TestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="cc@example.com", password="x")
 
-    def test_clock_and_capabilities_always_present(self):
+    def test_shape_is_fast_tier_only(self):
         ctx = get_current_context_baseline(self.user)
         self.assertEqual(ctx["schema_version"], CURRENT_CONTEXT_SCHEMA_VERSION)
+        self.assertEqual(set(ctx.keys()),
+                         {"schema_version", "clock", "current_screen", "capabilities"})
+        # No deterministic understanding leaks into Current Context.
+        for banned in ("priority", "day_continuity", "patterns", "biggest_risk"):
+            self.assertNotIn(banned, ctx)
+
+    def test_clock_and_capabilities_present(self):
+        ctx = get_current_context_baseline(self.user)
         self.assertIn("local_time", ctx["clock"])
         self.assertIn("part_of_day", ctx["clock"])
         self.assertIn("answerable_domains", ctx["capabilities"])
 
-    def test_never_emits_a_headline_or_narrative(self):
-        # The baseline is facts + policy only. Reasoning artifacts must be absent.
-        signals = SimpleNamespace(
-            health_critical=[{"text": "Take Metformin — overdue", "kind": "health_critical"}],
-            priority_action={"text": "Take Metformin", "kind": "health_critical"},
-            headline="Recovery is your priority today",  # must NOT leak through
-        )
-        ctx = get_current_context_baseline(self.user, signals=signals)
-        flat = json.dumps(ctx).lower()
-        self.assertNotIn("headline", flat)
-        self.assertNotIn("recovery is your priority", flat)
+    def test_structured_page_context_is_exposed(self):
+        page = {"page": "faith_home", "focused": {"prayer_completed": True,
+                                                  "bible_reading_completed": True}}
+        ctx = get_current_context_baseline(self.user, page_context=page)
+        self.assertEqual(ctx["current_screen"]["status"], "present")
+        self.assertEqual(ctx["current_screen"]["page"]["page"], "faith_home")
+        self.assertTrue(ctx["current_screen"]["page"]["focused"]["prayer_completed"])
 
-    def test_pending_when_signals_and_continuity_absent(self):
-        ctx = get_current_context_baseline(self.user)
-        self.assertEqual(ctx["priority"]["status"], "pending")
-        self.assertEqual(ctx["day_continuity"]["status"], "pending")
-
-    def test_clinical_safety_policy_from_injected_signals(self):
-        signals = SimpleNamespace(
-            health_critical=[{"text": "Take Metformin — overdue since 8:00 AM",
-                              "kind": "health_critical"}],
-            priority_action={"text": "Take Metformin", "kind": "health_critical"},
-        )
-        ctx = get_current_context_baseline(self.user, signals=signals)
-        self.assertEqual(ctx["priority"]["status"], "ok")
-        self.assertEqual(len(ctx["priority"]["clinical_safety"]), 1)
-        self.assertIn("do not re-rank", ctx["priority"]["note"])
-        self.assertEqual(ctx["priority"]["priority_action"]["kind"], "health_critical")
-
-    def test_day_continuity_from_injected_decision(self):
-        continuity = SimpleNamespace(
-            mode="reorient_delta",
-            material_changes=[{"what": "sleep dropped to 5h"}],
-        )
-        ctx = get_current_context_baseline(self.user, continuity=continuity)
-        self.assertEqual(ctx["day_continuity"]["status"], "ok")
-        self.assertEqual(ctx["day_continuity"]["mode"], "reorient_delta")
-        self.assertEqual(len(ctx["day_continuity"]["material_changes"]), 1)
+    def test_missing_page_is_benign_none_not_denial(self):
+        ctx = get_current_context_baseline(self.user)  # no page_context
+        self.assertEqual(ctx["current_screen"]["status"], "none")
+        # never phrased as "cannot see"
+        self.assertNotIn("cannot", json.dumps(ctx).lower())
 
     def test_output_is_json_safe(self):
-        signals = SimpleNamespace(health_critical=[], priority_action=None)
-        continuity = SimpleNamespace(mode="continue", material_changes=[])
-        ctx = get_current_context_baseline(self.user, signals=signals, continuity=continuity)
-        json.dumps(ctx)  # raises if not serializable
+        json.dumps(get_current_context_baseline(
+            self.user, page_context={"page": "dashboard"}))

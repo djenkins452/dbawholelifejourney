@@ -123,6 +123,16 @@ conversation, coaching, planning, synthesis — belongs to the model.
 truth · history · preferences · learned preferences · deterministic state · calculations ·
 executive policy · business rules · permissions · actions · audit · confidence · evidence.
 
+**Truth has two tiers.** WLJ owns not only *Facts* (what it measures — weight, sleep,
+tasks) but *Deterministic Understanding* (what it has already deterministically *assessed
+those facts to mean* — primary challenge, biggest risk, workload, executive & clinical
+priority, cross-domain patterns, momentum, goal pace, material changes). Both are
+deterministic and both are WLJ's. The model **reasons from** Understanding; it never
+recomputes it. The line stops precisely at determinism: a *recommendation* is Reasoning
+(the model's), not Understanding. The hospital analogy: vitals are Facts; *"stable, primary
+concern is dehydration"* is Deterministic Understanding; the treatment plan is the
+physician's Reasoning.
+
 **The conversational model owns:**
 reasoning · conversation · coaching · planning · synthesis · analysis · communication ·
 teaching · adapting to the moment · and deciding what truth it needs next.

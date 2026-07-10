@@ -84,44 +84,45 @@ class StandingContextTests(TestCase):
         self.assertIn("fabrication is forbidden", sp.lower())
         self.assertIn("derive conclusions", sp.lower())
 
-    def test_sandbox_does_not_push_broad_personal_truth(self):
-        # Only AI Relationship + Current Context baseline are pushed; deep personal
-        # truth is pull-only. With no signals, the safety/priority section is pending
-        # (no health data pushed), and there is no journal/finance/relationship payload.
+    def test_standing_context_assembles_the_owned_interfaces(self):
+        # The envelope assembles owned interfaces; it owns none. Read-only: three sections.
         mi = ModelInterfaceService(self.user)
         ctx = mi.build_standing_context()
-        # Only two pillars are pushed; deep personal truth is pull-only.
-        self.assertEqual(set(ctx.keys()), {"ai_relationship", "current_context"})
-        # No personal DOMAIN state (journal/finance/etc.) is pushed — Current Context
-        # carries only the minimal baseline (clock, priority policy, continuity,
-        # capability index). Priority/clinical-safety IS the intentional safety baseline.
+        self.assertEqual(set(ctx.keys()),
+                         {"ai_relationship", "deterministic_understanding", "current_context"})
+        # Current Context is the FAST tier only — no understanding leaks into it.
         cc = ctx["current_context"]
         self.assertEqual(set(cc.keys()),
-                         {"schema_version", "clock", "priority", "day_continuity",
-                          "capabilities"})
-        self.assertNotIn("state", cc)          # no pushed domain state payloads
-        # The capability index lists domain NAMES only (what you can ask), not values.
-        self.assertTrue(all(isinstance(d, str)
-                            for d in cc["capabilities"]["answerable_domains"]))
+                         {"schema_version", "clock", "current_screen", "capabilities"})
+        for banned in ("priority", "day_continuity", "state", "patterns"):
+            self.assertNotIn(banned, cc)
 
-    def test_current_context_priority_from_standing_context(self):
-        # Acceptance (Blocker 3): Current Context REUSES StandingContextService. When it is
-        # warm, the baseline surfaces the deterministic priority (not pending).
-        ready = {
-            "status": "ready",
-            "executive_read": "Highest priority right now: 5 prescription doses are overdue.",
-            "recommended_focus": "Take the overdue doses first.",
-            "critical_signals": [{"domain": "health", "type": "past_due",
-                                  "title": "Metformin overdue"}],
-        }
-        with mock.patch(
-            "apps.ai.cos_services.standing_context.get_standing_context",
-            return_value=ready,
-        ):
-            cc = ModelInterfaceService(self.user).build_standing_context()["current_context"]
-        self.assertEqual(cc["priority"]["status"], "ok")
-        self.assertIn("overdue", cc["priority"]["priority_action"]["text"])
-        self.assertEqual(len(cc["priority"]["clinical_safety"]), 1)
+    def test_deterministic_understanding_is_projected_when_warm(self):
+        # Understanding is CACHE-FIRST from its own owner. Cold → pending; warm → the
+        # already-computed assessment is surfaced for the model to reason FROM.
+        from apps.ai.model_interface import understanding
+        from django.core.cache import cache
+        cache.delete(understanding._key(self.user.id))
+        ctx = ModelInterfaceService(self.user).build_standing_context()
+        self.assertEqual(ctx["deterministic_understanding"]["status"], "pending")
+
+        cache.set(understanding._key(self.user.id), {
+            "schema_version": "1.0", "status": "ok",
+            "executive": {"primary_challenge": "workload", "biggest_risk": "overdue",
+                          "workload": "overloaded"},
+            "patterns": [{"text": "Overtraining Risk"}],
+        }, 60)
+        du = ModelInterfaceService(self.user).build_standing_context()["deterministic_understanding"]
+        self.assertEqual(du["status"], "ok")
+        self.assertEqual(du["executive"]["primary_challenge"], "workload")
+        self.assertEqual(du["patterns"][0]["text"], "Overtraining Risk")
+
+    def test_current_screen_is_exposed_in_context(self):
+        page = {"page": "faith_home", "focused": {"prayer_completed": True}}
+        cc = ModelInterfaceService(self.user).build_standing_context(
+            page_context=page)["current_context"]
+        self.assertEqual(cc["current_screen"]["status"], "present")
+        self.assertTrue(cc["current_screen"]["page"]["focused"]["prayer_completed"])
 
     def test_read_only_omits_action_tools_write_exposes_named_intents(self):
         from apps.ai.model_interface.constitution import all_tools

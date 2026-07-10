@@ -7,7 +7,7 @@
 #   nights ago, arbitrary dates) and reads the canonical record for THAT night — never
 #   inferring or substituting another night.
 # ==============================================================================
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -114,7 +114,7 @@ class SleepHistoryRoutingTests(TestCase):
         from apps.ai.chatgpt_cos.lanes import route_message
         with mock.patch(_TZ, return_value=TODAY), \
                 mock.patch("apps.core.utils.get_user_now",
-                           return_value=datetime(2026, 7, 4, 9, 0, tzinfo=timezone.utc)):
+                           return_value=datetime(2026, 7, 4, 9, 0, tzinfo=dt_timezone.utc)):
             out = route_message(self.user, "What did I sleep on 7/1?", self.conv)
         self.assertEqual(out["lane"], "sleep_history")
         self.assertEqual(out["sleep_date"], "2026-07-01")

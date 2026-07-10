@@ -111,20 +111,23 @@ class ModelInterfaceService:
         except Exception:
             return False
 
-    # -- standing context (structured DATA, not instructions) -----------------
-    def build_standing_context(self, *, signals=None, continuity=None,
-                               writes_enabled=False) -> dict:
-        # Current Context policy (priority / critical-safety) is read CACHE-FIRST from
-        # StandingContextService (warmed by the existing prod worker) — never live-
-        # computed on the request path. Cold miss → (None, None) → baseline is pending,
-        # honestly (Blocker 3: reuse, no second warm pipeline).
-        if signals is None and continuity is None:
-            from apps.ai.model_interface import context_warm
-            signals, continuity = context_warm.read(self.user)
+    # -- standing context: assemble the owned interfaces (assembler owns NOTHING) -----
+    def build_standing_context(self, *, page_context=None, writes_enabled=False) -> dict:
+        # Four owned interfaces, each at its OWN freshness (Architecture Law — refresh
+        # cadence is an ownership boundary). The envelope only ASSEMBLES; it owns none.
+        #   AI Relationship          — slow  (projection)
+        #   Deterministic Understanding — medium (cache-first; own warm; pending on cold)
+        #   Current Context          — fast  (clock, current screen, capabilities)
+        from apps.ai.model_interface import understanding
+        understanding_read = understanding.read(self.user)
+        if isinstance(understanding_read, dict) and understanding_read.get("status") == "pending":
+            self._enqueue_understanding_warm()
+
         ctx = {
             "ai_relationship": get_ai_relationship(self.user),
+            "deterministic_understanding": understanding_read,
             "current_context": get_current_context_baseline(
-                self.user, signals=signals, continuity=continuity,
+                self.user, page_context=page_context,
             ),
         }
         # Surface OPEN confirmations so the model can resolve a SPECIFIC one on the
@@ -133,6 +136,15 @@ class ModelInterfaceService:
             from apps.ai.model_interface import confirmation
             ctx["pending_confirmations"] = confirmation.list_open(self.user)
         return ctx
+
+    def _enqueue_understanding_warm(self):
+        """Non-blocking, never-raises warm of the Understanding cache on a cold miss."""
+        try:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.ai.model_interface.tasks import warm_understanding
+            safe_enqueue(warm_understanding, self.user.id)
+        except Exception:
+            logger.debug("mi: understanding warm enqueue skipped", exc_info=True)
 
     def _system_prompt(self, standing_context: dict) -> str:
         return (
@@ -209,15 +221,15 @@ class ModelInterfaceService:
 
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
-                 request_id="", signals=None, continuity=None, observer=None,
-                 conversation_history=None, writes_enabled=None) -> dict:
+                 request_id="", observer=None, conversation_history=None,
+                 writes_enabled=None) -> dict:
         turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
         tools_called = []
         if writes_enabled is None:
             writes_enabled = self._writes_enabled()
 
         standing_context = self.build_standing_context(
-            signals=signals, continuity=continuity, writes_enabled=writes_enabled,
+            page_context=page_context, writes_enabled=writes_enabled,
         )
         system_prompt = self._system_prompt(standing_context)
         dispatch = self._make_dispatch(

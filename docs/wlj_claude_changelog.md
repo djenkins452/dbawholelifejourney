@@ -6,6 +6,38 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-09 — fix(purpose): apply stuck weight-milestone migrations (restore milestone intelligence)
+
+**Production defect repair — NOT a code change (the migrations already existed); the runtime
+DB was BEHIND.**
+
+Root cause (proven, not assumed): `purpose` migrations `0017_objective_weight_milestone` (adds
+`objective_metric`/`objective_target_value`/`objective_operator`), `0018_wire_france_289_9_
+milestone`, `0019_converge_title_form_weight_milestones` — committed 2026-06-06 — were UNAPPLIED
+on the runtime DB (django_migrations stopped at 0016; the table was the pre-0017 schema). The
+model + code expect the post-0017 schema, so `GoalMilestone` queries referencing
+`objective_metric` threw `column ... does not exist`. The exception is caught (mark_complete
+guards its hooks), so it silently degraded milestone/goal-pace intelligence rather than breaking.
+
+Why testing never caught it: the test DB is built FRESH from ALL migrations, so `objective_metric`
+always exists under test. Unit tests structurally cannot detect a *runtime-DB migration drift* —
+only the behind live/connected DB exhibits it.
+
+Fix: applied the three migrations (they apply cleanly — they were never failing, just un-run —
+so no hack, no suppression, no fallback). Since they are already committed, a normal deploy
+(`Procfile: migrate`) applies them to any behind environment.
+
+Validation: `objective_*` columns present; `cos_intelligence._nearest_weight_milestone` → OK
+(next milestone: 250 lbs); `goal_pace` → OK (298.3→295, milestone reached, 0.88 lb/wk);
+Deterministic Understanding `direction.goal_pace` now populated when warm; 228 tests (cos_
+intelligence + understanding + purpose) green; `makemigrations --check` clean.
+
+BROADER DRIFT DISCOVERED (reported, NOT fixed — needs owner decision): the connected DB is
+behind on 10 more migrations across 6 apps — admin_console 0037-0039, calendar_engine 0013,
+faith 0021, health 0097/0098, life 0056, mobile 0002/0003 — including project-critical ones
+(life/0056 execution-single-source, health/0098 healthkit timestamp). This indicates the DB is
+broadly un-migrated (likely a stale dev/validation DB with prod data, or a prod that is behind).
+
 ## 2026-07-09 — feat(interface): "results not intentions" behavioral rule + enable owner task writes
 
 **First-class trust rule + owner write enablement, both validated on a real write.**

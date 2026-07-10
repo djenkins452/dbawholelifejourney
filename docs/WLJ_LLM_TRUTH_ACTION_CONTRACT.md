@@ -422,6 +422,21 @@ The honest-unknown path is a product feature, not an error:
 
 ---
 
+## 11b. Proactive Check-ins are OpenAI-authored (renderer retired, 2026-07-10)
+
+The WLJ-authored check-in renderer (`beth_checkin_renderer`'s prose/situation/escalation
+engine) is RETIRED. WLJ assembles the complete Executive Context Envelope — AI Relationship ·
+Deterministic Understanding · Current Context (clock, day_significance, current screen) ·
+Execution State (bucketed day facts + timing calculations) · Current Action (with mission_link
+references) · Missions (facts once) — and OpenAI authors the ENTIRE proactive check-in from it
+(`apps/ai/checkin_author.py :: author_checkin`). WLJ contributes NO motivational or coaching
+prose and NO judgment; it supplies facts and calculations, the model recognizes the moment,
+judges the situation, connects to the mission, and speaks. Triggering logic and execution policy
+are unchanged (`proactive_checkins`); only the AUTHORING of the message moved to the model. The
+public renderer entrypoints now delegate to `author_checkin`; if the model is unavailable the
+check-in degrades to the canonical next-action directive (a fact, never the retired prose). Every
+deterministic fact the renderer used is now in the envelope — removing it lost only prose.
+
 ## 11a. Mission Link — deterministic action↔mission relationship (2026-07-10)
 
 Mission Link is deterministic TRUTH (a join + a rank), not an intelligence engine and not a

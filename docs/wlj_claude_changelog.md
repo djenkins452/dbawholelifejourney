@@ -6,6 +6,50 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — feat(cos): retire the WLJ check-in renderer — OpenAI authors the entire proactive Check-in
+
+**Product milestone. WLJ assembles deterministic truth; OpenAI authors the words. The renderer's
+prose/situation/escalation engine is DELETED, not flagged — one implementation.**
+
+**Audit first (the gate):** enumerated everything `beth_checkin_renderer` contributed and confirmed
+every deterministic FACT is now in the Executive Context Envelope — removing the renderer loses only
+PROSE, no truth. Facts kept (in the envelope): AI Relationship · Deterministic Understanding · Current
+Context (clock, current screen, **`day_significance`** — the biblical-calendar fact the renderer used,
+newly exposed) · **`execution_state`** (bucketed day facts: overdue/due_now/coming_up/later/**completed**
++ timing calculations) · **`current_action`** (with mission_link) · **`missions`**. Prose/judgment
+deleted: `_render_morning/midday/evening`, triage, `_assess_situation`, `_morning_closing`, day-sig
+openings, and the JUDGMENT layer `compute_escalation_level`/`build_schedule_signals` (calculations
+already relocated to `timing.py`).
+
+- **New author:** `apps/ai/checkin_author.py :: author_checkin(user, phase)` — OpenAI writes the check-in
+  from the envelope + a proactive-voice constitution (recognize the moment; lead with a due/late
+  high-priority action; connect to the mission via `why_it_matters`; ONE next action; judge the
+  situation from timing FACTS; stop). Degrades to the canonical next-action directive (a fact, never
+  the retired prose) when the model is unavailable.
+- **Envelope completeness:** `apps/core/execution/decision_authority.py :: execution_facts()` (facts-only
+  day projection) + `current_context.day_significance` added and wired into `build_standing_context`.
+- **Renderer retired to a thin seam:** the public entrypoints (`render_checkin_for_time`,
+  `render_morning_checkin`, `render_daily_briefing`, `build_cos_structured_output`) now delegate to
+  `author_checkin` / `current_action` — so every consumer (proactive_checkins, deterministic_router,
+  personal_assistant, greeting_service, views) is OpenAI-authored with NO rewiring. Kept: the
+  `guard_llm_output`/`contains_state_language` safety utility. Triggering/policy unchanged.
+- **Tests:** retired the 4 prose-engine test files (`test_beth_checkin_renderer`, `test_beth_briefing`,
+  `test_escalation_engine`, `test_escalation_directive`, `test_beth_significance_rendering`); added
+  `test_checkin_authoring.py` (author from envelope · degrade to fact · entrypoints delegate · no prose
+  remains · envelope completeness · structured-output contract). Updated proactive-scheduler tests to
+  verify DISPATCH (mocked author), not obsolete deterministic counts.
+
+**Files:** `apps/ai/checkin_author.py` (new), `apps/ai/beth_checkin_renderer.py` (thin seam),
+`apps/core/execution/decision_authority.py` (execution_facts), `apps/ai/cos_services/current_context.py`
+(day_significance), `apps/ai/model_interface/service.py` (envelope), `apps/ai/proactive_checkins.py`
+(stale comments), tests, `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.
+
+**Verification:** 456 tests green across the affected surface (authoring, envelope, mission link,
+execution, proactive scheduler, router, truth enforcement); `manage.py check` clean; startup imports
+clean; no migrations. **NOT runtime-verifiable here:** the actual OpenAI-authored message quality (no
+API key in this environment) — assembly, delegation, degrade path, and no-prose-remains ARE verified;
+message quality will be iterated through real usage as intended.
+
 ## 2026-07-10 — feat(purpose): Mission Link — deterministic action↔mission relationship truth
 
 **Mission Link is deterministic TRUTH (a join + a rank), NOT an intelligence engine, NOT a

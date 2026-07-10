@@ -52,6 +52,26 @@ _FOCUS_CONTENT_CAP = 3500
 _FALLBACK_STALE_AFTER_SECONDS = 15 * 60
 
 
+def _day_significance(user) -> dict:
+    """Deterministic 'is today a significant day?' FACT (name/theme/scripture) — e.g. Good
+    Friday, Easter. Faith-gated. Facts only: the model decides how much to emphasize it (the
+    old renderer's defining/highlighted tone-level was judgment and is NOT exposed). Returns
+    {} when there is nothing significant or faith is disabled."""
+    try:
+        prefs = getattr(user, "preferences", None)
+        if prefs is not None and not getattr(prefs, "faith_enabled", True):
+            return {}
+        from apps.core.utils import get_user_today
+        from apps.faith.biblical_calendar import get_biblical_day
+        sig = get_biblical_day(get_user_today(user)) or {}
+        if not sig or not sig.get("name"):
+            return {}
+        return {k: sig.get(k) for k in ("name", "theme", "scripture_reference")
+                if sig.get(k)}
+    except Exception:  # pragma: no cover - defensive
+        return {}
+
+
 def _clock(user, now=None) -> dict:
     """User-local time + part of day. Cheap + deterministic; never raises."""
     try:
@@ -269,6 +289,7 @@ def get_current_context_baseline(user, *, page_context=None, conversation=None,
     return {
         "schema_version": CURRENT_CONTEXT_SCHEMA_VERSION,
         "clock": _clock(user, now=now),
+        "day_significance": _day_significance(user),
         "current_screen": _current_screen(user, page_context, conversation=conversation,
                                           now=now),
         "capabilities": _capabilities(),

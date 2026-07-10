@@ -6,7 +6,7 @@ database datetime strings. Every user-facing date/time flows through here and is
 rendered in the user's timezone and preferred formats (MM/DD/YYYY, 12-hour AM/PM).
 Centralized so all Beth-facing facts render identically.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timezone as dt_timezone
 
 from django.utils import timezone
 
@@ -37,7 +37,7 @@ def _to_user_dt(user, value):
     if not isinstance(dt, datetime):
         return None
     if timezone.is_naive(dt):
-        dt = timezone.make_aware(dt, timezone.utc)
+        dt = timezone.make_aware(dt, dt_timezone.utc)
     return dt.astimezone(_user_tz(user))
 
 

@@ -40,7 +40,8 @@ class CurrentContextBaselineTests(TestCase):
         ctx = get_current_context_baseline(self.user)
         self.assertEqual(ctx["schema_version"], CURRENT_CONTEXT_SCHEMA_VERSION)
         self.assertEqual(set(ctx.keys()),
-                         {"schema_version", "clock", "current_screen", "capabilities"})
+                         {"schema_version", "clock", "day_significance",
+                          "current_screen", "capabilities"})
         # No deterministic understanding leaks into Current Context.
         for banned in ("priority", "day_continuity", "patterns", "biggest_risk"):
             self.assertNotIn(banned, ctx)

@@ -2551,7 +2551,7 @@ def generate_midday_alignment_for_user(user):
     Midday alignment check-in (10–12, weekdays only).
 
     Uses the canonical CoS renderer (render_checkin_for_time) which
-    auto-routes to _render_midday() during this time window.
+    is authored by OpenAI (midday context).
     No custom formatting — same CoS voice as every other path.
     """
     prefs = user.preferences
@@ -2564,7 +2564,7 @@ def generate_midday_alignment_for_user(user):
         return
 
     # Use the canonical CoS renderer — same path as briefing/check-in.
-    # render_checkin_for_time auto-routes to _render_midday() at 10-12.
+    # render_checkin_for_time -> OpenAI authors from truth (midday).
     try:
         from apps.ai.beth_checkin_renderer import render_checkin_for_time
         message = render_checkin_for_time(user)
@@ -2653,7 +2653,7 @@ def generate_evening_wrap_for_user(user):
     Evening wrap-up check-in (17–21, every day).
 
     Uses the canonical CoS renderer (render_checkin_for_time) which
-    auto-routes to _render_evening() during this time window.
+    is authored by OpenAI (evening context).
     No custom formatting — same CoS voice as every other path.
     """
     prefs = user.preferences
@@ -2666,7 +2666,7 @@ def generate_evening_wrap_for_user(user):
         return
 
     # Use the canonical CoS renderer — same path as briefing/check-in.
-    # render_checkin_for_time auto-routes to _render_evening() at 17-21.
+    # render_checkin_for_time -> OpenAI authors from truth (evening).
     try:
         from apps.ai.beth_checkin_renderer import render_checkin_for_time
         message = render_checkin_for_time(user)

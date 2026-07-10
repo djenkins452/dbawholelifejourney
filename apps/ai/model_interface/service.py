@@ -137,11 +137,17 @@ class ModelInterfaceService:
         # signal_type + mission_link REFERENCES into them (no duplicated mission prose).
         # WLJ exposes the relationship + numbers; the model decides what they mean.
         try:
-            from apps.core.execution.decision_authority import current_action
+            from apps.core.execution.decision_authority import (
+                current_action, execution_facts,
+            )
+            from apps.core.execution.execution_state import build_execution_state
             from apps.purpose.mission_link import enrich_action, get_mission_map
+            # Build execution truth ONCE; derive the decision + the day's facts from it.
+            state = build_execution_state(self.user)
             mission_map = get_mission_map(self.user)
             ctx["missions"] = mission_map.get("missions", {})
-            decision = current_action(self.user)
+            ctx["execution_state"] = execution_facts(self.user, state=state)
+            decision = current_action(self.user, state=state)
             primary = decision.get("primary_action")
             ctx["current_action"] = {
                 "reason": decision.get("reason"),
@@ -150,7 +156,7 @@ class ModelInterfaceService:
                                    if primary else None),
             }
         except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
-            logger.warning("mi: mission/current_action assembly skipped", exc_info=True)
+            logger.warning("mi: execution/mission assembly skipped", exc_info=True)
         # Surface OPEN confirmations so the model can resolve a SPECIFIC one on the
         # user's next "yes" (the id lives in a prior tool result, not the transcript).
         if writes_enabled:

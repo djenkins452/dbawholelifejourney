@@ -92,11 +92,13 @@ class StandingContextTests(TestCase):
         ctx = mi.build_standing_context()
         self.assertEqual(set(ctx.keys()),
                          {"ai_relationship", "deterministic_understanding",
-                          "current_context", "missions", "current_action"})
+                          "current_context", "missions", "execution_state",
+                          "current_action"})
         # Current Context is the FAST tier only — no understanding leaks into it.
         cc = ctx["current_context"]
         self.assertEqual(set(cc.keys()),
-                         {"schema_version", "clock", "current_screen", "capabilities"})
+                         {"schema_version", "clock", "day_significance",
+                          "current_screen", "capabilities"})
         for banned in ("priority", "day_continuity", "state", "patterns"):
             self.assertNotIn(banned, cc)
 

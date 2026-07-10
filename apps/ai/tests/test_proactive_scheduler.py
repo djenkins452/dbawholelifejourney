@@ -293,9 +293,11 @@ class TestNewGenerators(PGSTestMixin, TestCase):
         self.user = self.create_user()
         self.conv = AssistantConversation.objects.create(user=self.user)
 
+    @patch('apps.ai.beth_checkin_renderer.render_checkin_for_time',
+           return_value='Midday: your afternoon plan — one clear next step to take now.')
     @patch('apps.core.utils.get_user_now')
     @patch('apps.core.utils.get_user_today')
-    def test_midday_alignment_creates_message(self, mock_today, mock_now):
+    def test_midday_alignment_creates_message(self, mock_today, mock_now, mock_render):
         """Midday alignment creates a proactive message with task counts."""
         from apps.ai.proactive_checkins import generate_midday_alignment_for_user
         from apps.life.models import Task
@@ -326,9 +328,9 @@ class TestNewGenerators(PGSTestMixin, TestCase):
             metadata__check_in_type='midday_alignment',
         ).first()
 
+        # Triggering/dispatch preserved; the message is now OpenAI-authored (mocked).
         self.assertIsNotNone(msg)
-        self.assertIn('1 done', msg.content)
-        self.assertIn('1 remaining', msg.content)
+        self.assertTrue(msg.content)
 
     @patch('apps.core.utils.get_user_today')
     def test_midday_alignment_dedup(self, mock_today):
@@ -359,9 +361,10 @@ class TestNewGenerators(PGSTestMixin, TestCase):
         ).count()
         self.assertEqual(count, 1)
 
+    @patch('apps.ai.beth_checkin_renderer.render_checkin_for_time', return_value='')
     @patch('apps.core.utils.get_user_today')
-    def test_midday_alignment_empty_data_skips(self, mock_today):
-        """No tasks today → no message created."""
+    def test_midday_alignment_empty_data_skips(self, mock_today, mock_render):
+        """Nothing to author (empty message) → the generator's guard skips (no message)."""
         from apps.ai.proactive_checkins import generate_midday_alignment_for_user
 
         mock_today.return_value = date.today()
@@ -409,9 +412,11 @@ class TestNewGenerators(PGSTestMixin, TestCase):
         self.assertIsNotNone(msg)
         self.assertIn('Bible Study', msg.content)
 
+    @patch('apps.ai.beth_checkin_renderer.render_checkin_for_time',
+           return_value='Evening wrap — here is where the day landed and one thing for tomorrow.')
     @patch('apps.core.utils.get_user_today')
-    def test_evening_wrap_shows_counts(self, mock_today):
-        """Evening wrap shows completed, missed, and tomorrow counts."""
+    def test_evening_wrap_creates_message(self, mock_today, mock_render):
+        """Evening wrap dispatches an (OpenAI-authored) proactive message."""
         from apps.ai.proactive_checkins import generate_evening_wrap_for_user
         from apps.life.models import Task
 
@@ -448,10 +453,9 @@ class TestNewGenerators(PGSTestMixin, TestCase):
             metadata__check_in_type='evening_wrap',
         ).first()
 
+        # Triggering/dispatch preserved; the message is now OpenAI-authored (mocked).
         self.assertIsNotNone(msg)
-        self.assertIn('2 tasks completed', msg.content)
-        self.assertIn('1 still open', msg.content)
-        self.assertIn('1 item tomorrow', msg.content)
+        self.assertTrue(msg.content)
 
 
 class TestRegistration(TestCase):

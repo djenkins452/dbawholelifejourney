@@ -74,6 +74,50 @@ def current_action(user, now=None, state=None) -> dict:
         }
 
 
+def _facts(action) -> dict:
+    """Project an action to envelope-safe FACTS (no heavy objects, no judgment)."""
+    return {
+        "title": action.get("title"),
+        "time": action.get("time_display"),
+        "time_status": action.get("time_status"),
+        "urgency": action.get("urgency"),
+        "importance": action.get("importance"),
+        "source_type": action.get("source_type") or action.get("source"),
+    }
+
+
+def execution_facts(user, now=None, state=None) -> dict:
+    """The full day's execution as deterministic FACTS for the envelope — the bucketed
+    truth the retired renderer used to show as prose (what's done, overdue, coming up,
+    later) plus the timing calculations and the active block. Facts only: titles, times,
+    statuses, numbers. NO judgment ('behind'/'at risk') and NO prose — the model authors.
+
+    Reuses `build_execution_state` (the single producer); pass `state` to avoid rebuilding.
+    """
+    try:
+        if state is None:
+            from apps.core.execution.execution_state import build_execution_state
+            state = build_execution_state(user, now=now)
+        items = state.get("items", []) or []
+        completed = [
+            {"title": (i.get("title") or ""), "time": i.get("scheduled_time")}
+            for i in items if i.get("completed_today")
+        ]
+        return {
+            "active_block": (state.get("active_block") or {}).get("name"),
+            "timing": state.get("timing"),
+            "overdue": [_facts(a) for a in (state.get("overdue_actions") or [])],
+            "due_now": [_facts(a) for a in (state.get("now_actions") or [])],
+            "coming_up": [_facts(a) for a in (state.get("next_actions") or [])],
+            "later": [_facts(a) for a in (state.get("upcoming_actions") or [])],
+            "completed": completed,
+        }
+    except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
+        logger.warning("execution_facts failed user=%s",
+                       getattr(user, "id", None), exc_info=True)
+        return {"status": "pending"}
+
+
 def current_action_directive(user, now=None, state=None) -> str:
     """The canonical one-line directive string ("Next: X. Do this now."), for consumers
     that only need text. Thin formatter over `current_action` — no independent logic."""

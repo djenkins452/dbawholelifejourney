@@ -6,6 +6,45 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — fix(interface): Current Context intermittency — current-request-wins ownership + conversation safety net
+
+**Lifecycle root cause (proven, not patched):** Current Context was request-scoped only, and its
+sole input — the client's `focus_ref` — is captured on `input.focus`, not at send (`chat_widget.html`
+guards `getPageContext()` behind `if (!currentPageContext)` and refreshes only `.url` per send).
+HTMX swaps leave the `<head>` `<meta>` stale; most pages don't yet declare a focus. So a follow-up
+turn frequently arrived with no `focus_ref`, and the server kept **no** memory of the focused object
+(`load_conversation_history` replays only role+content text) → `focus: null`. First message worked,
+subsequent ones lost it — the reported "intermittent" signature.
+
+**Fix (ownership model — the current request ALWAYS wins; conversation is a safety net, never truth):**
+- **Priority 1 (authoritative):** the request's declared `focus_ref` resolves → `authority:
+  "current_request"`, and the ref is remembered for the conversation.
+- **Declared-but-unresolved:** report the sync/ownership issue; NEVER fall back (don't mask it).
+- **Priority 2 (safety net, gap-fill only):** no ref this turn → re-resolve the conversation's
+  last-seen ref to FRESH canonical content, marked `authority: "conversation_fallback"`,
+  `source: "fallback"`, `freshness` (`current`/`stale` via `classify_sync_freshness`, 15-min),
+  `age_seconds`, `as_of`. Content always fresh; only identity can be stale, and it's flagged. A
+  fallback turn does NOT refresh the timestamp (age grows from the last authoritative sighting).
+
+Guarantees: current request wins (Goal A→Goal B never returns A); conversation state never
+authoritative; no stale truth becomes authoritative; no new reasoning in WLJ; architecture unchanged
+(Pillar 4 reads/writes a conversation-scoped store instead of a per-request variable). New store
+`current_focus_store.py` is cache-backed, **reference only** (never content/PII), 1h TTL — a net, not
+history. Constitution updated so the model confirms a fallback rather than asserting it as current.
+
+**Why:** the current request is the answer to "what is the user looking at RIGHT NOW?"; conversation
+history is not. The safety net exists solely to survive intermittent client omissions, transparently.
+
+**Files:** `apps/ai/cos_services/current_focus_store.py` (new), `apps/ai/cos_services/current_context.py`
+(priority model + fallback + remember), `apps/ai/model_interface/service.py` (thread `conversation`),
+`apps/ai/model_interface/constitution.py` (authority/freshness guidance),
+`apps/ai/tests/test_current_context_baseline.py` (6 ownership-model tests: current-wins, gap-fill,
+stale-marking, age-not-refreshed, unresolved-never-falls-back, no-conversation-no-net),
+`docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
+
+**Verification:** `test_current_context_baseline` (13) + `test_model_interface_runtime` (18) +
+`test_understanding` (4) — 35 green. `manage.py check` clean.
+
 ## 2026-07-10 — feat(interface): Current Context resolves the declared reference into canonical truth (Pillar 4)
 
 **Page Awareness on the keeper (model-interface) path — WLJ supplies deterministic UI truth; OpenAI reasons.**

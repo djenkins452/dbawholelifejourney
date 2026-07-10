@@ -112,7 +112,8 @@ class ModelInterfaceService:
             return False
 
     # -- standing context: assemble the owned interfaces (assembler owns NOTHING) -----
-    def build_standing_context(self, *, page_context=None, writes_enabled=False) -> dict:
+    def build_standing_context(self, *, page_context=None, conversation=None,
+                               writes_enabled=False) -> dict:
         # Four owned interfaces, each at its OWN freshness (Architecture Law — refresh
         # cadence is an ownership boundary). The envelope only ASSEMBLES; it owns none.
         #   AI Relationship          — slow  (projection)
@@ -127,7 +128,7 @@ class ModelInterfaceService:
             "ai_relationship": get_ai_relationship(self.user),
             "deterministic_understanding": understanding_read,
             "current_context": get_current_context_baseline(
-                self.user, page_context=page_context,
+                self.user, page_context=page_context, conversation=conversation,
             ),
         }
         # Surface OPEN confirmations so the model can resolve a SPECIFIC one on the
@@ -229,7 +230,8 @@ class ModelInterfaceService:
             writes_enabled = self._writes_enabled()
 
         standing_context = self.build_standing_context(
-            page_context=page_context, writes_enabled=writes_enabled,
+            page_context=page_context, conversation=conversation,
+            writes_enabled=writes_enabled,
         )
         system_prompt = self._system_prompt(standing_context)
         dispatch = self._make_dispatch(

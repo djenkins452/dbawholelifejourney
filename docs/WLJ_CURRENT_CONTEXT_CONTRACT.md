@@ -13,6 +13,14 @@ On the pivot-aligned runtime (`use_model_interface`), Current Context is **Pilla
 
 The keeper does **no reasoning** over the object (no bespoke LLM call — that was the legacy `answer_page_reference`); it hands `focus` to the model, and the constitution (`apps/ai/model_interface/constitution.py`) tells the model `focus.content` is authoritative and answers deixis ("this/that/it"). Tests: `apps/ai/tests/test_current_context_baseline.py`.
 
+### Ownership model — current request wins; conversation is a safety net (2026-07-10)
+
+Current Context answers *"what is the user looking at RIGHT NOW?"*, so the **current request is always authoritative**; conversation state is a fallback that only fills a gap and **never becomes the authoritative source** (it would risk stale truth — e.g. returning Goal A after the user moved to Goal B). `get_current_context_baseline(user, page_context, conversation, now)` applies:
+
+1. **Priority 1 (authoritative):** the current request's declared `focus_ref` resolves → `focus.authority = "current_request"`, and the ref is remembered against the conversation (`apps/ai/cos_services/current_focus_store.py` — cache-backed, **reference only**, 1h TTL, not history).
+2. **Declared-but-unresolved:** the client sent a ref that failed (sync/ownership) → report it, **never** fall back (don't mask it with a different object).
+3. **Priority 2 (safety net):** the client sent **no** ref this turn (intermittent omission) → re-resolve the conversation's last-seen ref to **fresh** canonical content, marked `authority = "conversation_fallback"`, `source = "fallback"`, with `freshness` (`current`/`stale` via `classify_sync_freshness`, 15-min threshold), `age_seconds`, `as_of`. Content is always fresh; only the identity can be stale, and it's flagged. A fallback turn does **not** refresh the remembered timestamp — age grows from the last authoritative sighting. The constitution tells the model to confirm a fallback (esp. `stale`) rather than assert it as current.
+
 **Sequenced full-retire (blast-radius bound):** the DOM scraper (`extractPageContent` in `chat_widget.html`) and the legacy reasoning (`chatgpt_cos/page_reference.py :: answer_page_reference`) still feed the `chatgpt_cos` + `legacy` runtimes and are retired **when those runtimes are**, not before. Mixin rollout to Health/Calendar/Journal/Finance/Reports is the follow-up (proven on Goals first).
 
 **Resolution order (`resolve_page_focus`):** (1) declared `focus_ref` (`<meta name="wlj-context">` — auto for any DetailView of a `UserOwnedModel`, or explicit via `CurrentContextMixin` on overview pages) → (2) deterministic URL-based `resolve_focused_object` (any detail/landing URL, no per-page code; **server truth over the client scrape**) → (3) legacy client content. Both `focus_ref` and the URL resolver return content via the model's `get_context_summary()`.

@@ -166,8 +166,17 @@ def build_execution_state(user, now=None, execution_contract=None) -> dict:
     next_a = [a for a in actions if a.get('urgency') == 'next']
     upcoming = [a for a in actions if a.get('urgency') == 'upcoming']
 
+    # Deterministic timing CALCULATIONS (facts only — minutes late / buffer / earliest
+    # completion / latest safe start / fits-before-anchor / required pace). The
+    # conversational model reads these and JUDGES the situation; WLJ never labels it.
+    from apps.core.execution.timing import compute_execution_timing
+    timing = compute_execution_timing(
+        {"items": items}, now if isinstance(now, _dt.datetime) else now_time,
+    )
+
     return {
         "now": now_time,
+        "timing": timing,
         "active_block": active_block,
         "items": items,
         "summaries": summaries,

@@ -6,6 +6,41 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — feat(execution): enrich Execution Truth with deterministic TIMING facts (calculation ≠ judgment)
+
+**Architectural boundary established: WLJ owns CALCULATIONS; OpenAI owns JUDGMENT.** We did NOT
+build a "Situation" assessment provider — "you're behind", "at serious risk", "you can still
+recover", "act now" are conclusions (reasoning) that belong to the conversational model. Instead we
+enrich Execution Truth with the deterministic timing CALCULATIONS the model needs so it never does
+date/duration arithmetic itself (the "6:15 AM tonight" fabrication class).
+
+New `apps/core/execution/timing.py :: compute_execution_timing(state, now)` — pure, request-path-safe,
+FACTS ONLY (numbers/times/booleans, never a label/verdict/level/directive):
+- `now`, `next_anchor {title,time,minutes_until}`, `buffer_minutes` (now → next anchor)
+- per remaining task: `minutes_late`, `duration_estimate_min`, `earliest_start`,
+  `earliest_completion`, `latest_safe_start`, `fits_before_next_anchor`
+- `remaining_total_min`, `required_pace {work_min, window_min, slack_min}` (slack < 0 = over-committed)
+
+Wired into `build_execution_state` as `state["timing"]`, so the calculations ride with the single
+execution truth (alongside the existing `blocked_dependents` dependency facts, `recovery_state`,
+`at_risk_actions`). From these facts the model can naturally conclude the situation — e.g. a 45-min
+workout with `fits_before_next_anchor=false` and `slack_min=-8` → "you can't fit everything before
+your 7:00 shower" — WITHOUT WLJ authoring that judgment.
+
+The escalation VERDICT (`compute_escalation_level` level/state/directive) is deliberately NOT part of
+the exposed truth — it stays renderer-internal only until the renderer is replaced by OpenAI (no
+partial migration; current experience unchanged). The renderer's own duration/buffer helpers are left
+in place transitionally; `timing.py` becomes the sole source when the renderer is retired.
+
+Guard: `test_timing.py :: test_no_judgment_vocabulary_in_the_facts` fails if any judgment word
+("behind"/"at risk"/"recover"/"act now"/…) appears in the deterministic facts.
+
+**Files:** `apps/core/execution/timing.py` (new), `apps/core/execution/execution_state.py`,
+`apps/core/execution/tests/test_timing.py` (new).
+
+**Verification:** 4 timing tests + 189 execution tests + decision-authority contract green;
+`manage.py check` clean; no migrations. Renderer untouched (experience unchanged).
+
 ## 2026-07-10 — fix(checkin): urgency directive rendered twice (opening + closing) + retire orphaned feasibility tests
 
 **Product polish — the duplicate "plan is at serious risk" line.**

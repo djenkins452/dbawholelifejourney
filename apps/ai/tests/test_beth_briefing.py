@@ -195,9 +195,14 @@ class TestMorningBriefingOutput(TestCase):
         for word in _BANNED_WORDS:
             self.assertNotIn(word, output.lower())
 
-    def test_tight_morning_behind_shows_reschedule(self):
+    def test_tight_morning_behind_consumes_canonical_no_reschedule(self):
         """Scenario: 8:30 AM, shower at 9:00 AM, 2h+ overdue items.
-        Behind tier → reschedule suggestion appears.
+
+        The check-in states the canonical next action and names what's outstanding — it
+        does NOT compute its own reschedule/time-boxing ('later today'). That feasibility
+        logic was retired when the check-in became a pure consumer of the single Execution
+        Decision Authority (a consumer must not re-order/plan). See
+        apps/core/tests/test_execution_decision_authority_contract.py.
         """
         user_now = timezone.now().replace(hour=8, minute=30, second=0)
         bible = _make_item('Bible Reading', '5:00 AM', 5, 0, priority='foundational')
@@ -219,10 +224,9 @@ class TestMorningBriefingOutput(TestCase):
 
         output = _render_morning(ctx, self.user, user_now)
 
-        # Behind: should mention items and reschedule
-        self.assertIn('Bible Reading', output)
-        self.assertIn('Workout', output)
-        self.assertIn("later today", output)
+        # States the canonical next action; NO self-computed reschedule/time-boxing.
+        self.assertIn('Bible Reading', output)           # canonical next action (ctx['next'])
+        self.assertNotIn("later today", output)          # feasibility/reschedule retired
         # Should NOT contain domain labels
         for word in _BANNED_WORDS:
             self.assertNotIn(word, output.lower())

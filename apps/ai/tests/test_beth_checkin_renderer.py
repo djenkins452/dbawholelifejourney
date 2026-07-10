@@ -742,3 +742,44 @@ class TestScheduleSignals(SimpleTestCase):
         self.assertFalse(items[0]['completed'])
         self.assertFalse(items[1]['completed'])
         self.assertFalse(items[2]['completed'])
+
+
+class TestUrgencyDirectiveNotDuplicated(SimpleTestCase):
+    """Regression (2026-07-10): the escalation urgency directive must appear EXACTLY
+    ONCE. At CRITICAL it opens the check-in (the situation line); it must never be
+    repeated as the closing (the reported duplicate 'plan is at serious risk')."""
+
+    @patch("apps.ai.beth_checkin_renderer._get_day_significance", return_value=None)
+    @patch("apps.ai.beth_checkin_renderer.compute_escalation_level")
+    def test_critical_directive_appears_exactly_once(self, mock_escalation, _mock_sig):
+        from apps.ai.beth_checkin_renderer import ESCALATION_CRITICAL, _render_morning
+
+        sentinel = "ACT-NOW-PLAN-AT-SERIOUS-RISK-SENTINEL"
+        mock_escalation.return_value = {"level": ESCALATION_CRITICAL,
+                                        "directive": sentinel}
+
+        now = timezone.now().replace(hour=6, minute=18, second=0, microsecond=0)
+        overdue_item = {
+            "id": "routine:Workout", "name": "Workout",
+            "scheduled_time": now.replace(hour=6, minute=15),
+            "time_str": "6:15 AM", "completed": False,
+            "priority": "foundational", "source": "routine",
+        }
+        ctx = {
+            "all_items": [overdue_item],
+            "foundation": [],
+            "overdue": [{"sort_time": overdue_item["scheduled_time"],
+                         "label": "Workout (6:15 AM)", "item": overdue_item}],
+            "coming_up": [], "later": [], "completed": [],
+            "next": "Start with Workout.",
+            "current_action": {"primary_action": {"title": "Workout"}},
+        }
+        user = MagicMock(); user.id = 1; user.first_name = "Danny"
+
+        output = _render_morning(ctx, user, now)
+
+        self.assertIn(sentinel, output)  # urgency IS stated (at the top)
+        self.assertEqual(
+            output.count(sentinel), 1,
+            f"Urgency directive must appear exactly once, not repeated as a closing:\n{output}",
+        )

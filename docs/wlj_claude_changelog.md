@@ -6,6 +6,38 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-10 — fix(checkin): urgency directive rendered twice (opening + closing) + retire orphaned feasibility tests
+
+**Product polish — the duplicate "plan is at serious risk" line.**
+
+Root cause (`beth_checkin_renderer._render_morning`): the escalation `directive` was emitted
+TWICE at CRITICAL escalation — once as the opening **situation** line (it becomes `situation_text`
+whenever `escalation['level'] >= PRESSING`) and again as the **closing** (`if level == CRITICAL:
+append directive`). Since `CRITICAL >= PRESSING`, the identical sentence rendered top AND bottom.
+Fix: the CRITICAL closing no longer re-emits the directive — the urgency is stated exactly ONCE (at
+the top); the plan carries the rest, no repeated line, no filler. Regression guard:
+`test_beth_checkin_renderer.TestUrgencyDirectiveNotDuplicated` (asserts the directive appears exactly
+once).
+
+**Honesty — test fallout from the prior single-authority commit.** The 2026-07-10 Execution Decision
+Authority refactor rewrote `_build_triage_structured` into a pure consumer, which removed the
+check-in's self-computed feasibility/time-boxing (`move_later` / trivial-rescue / "later today"
+reschedule). Four tests asserting that (now-retired) behavior were not in that commit's verification
+scope. Corrected here: `TestTrivialCompletion` retired (with a provenance note), and
+`test_tight_morning_behind_...` updated to lock the new behavior (states the canonical action; no
+self-computed reschedule). NOTE: deadline-aware time-boxing, if wanted, belongs IN the authority
+(not the renderer) — logged as a follow-up, not silently dropped.
+
+Pre-existing and NOT addressed here (fail on the pre-refactor renderer too):
+`test_escalation_engine.test_at_risk_item_only_at_pressing_or_above` (tests `compute_escalation_level`,
+untouched) and `test_beth_checkin_renderer.TestCheckinOutput` (5, stale format).
+
+**Files:** `apps/ai/beth_checkin_renderer.py`, `apps/ai/tests/test_beth_checkin_renderer.py`,
+`apps/ai/tests/test_escalation_engine.py`, `apps/ai/tests/test_beth_briefing.py`.
+
+**Verification:** escalation + briefing suites green except the one pre-existing `test_at_risk` failure;
+dedup regression + decision-authority contract + locked-next-action green; `manage.py check` clean.
+
 ## 2026-07-10 — refactor(execution): ONE Execution Decision Authority — eliminate duplicate "what should I do now?" engines
 
 **Architectural cleanup (removes a whole class of "the dashboard disagrees with the check-in" bugs).**

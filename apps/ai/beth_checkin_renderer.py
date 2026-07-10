@@ -893,11 +893,13 @@ def _render_morning(ctx, user, user_now) -> str:
         lines.append(day_view)
 
     # ── D. Closing: directional ──
-    # At CRITICAL escalation, the directive IS the closing — no filler.
+    # At CRITICAL the urgency directive ALREADY opened the check-in (it became the
+    # situation line above). Do NOT emit it a second time as the closing — that is the
+    # duplicate "plan is at serious risk" sentence. The urgency is stated exactly once,
+    # up top; the plan carries the rest. No repeated line, no filler.
     # defining → theme-connected directive replaces rotating closer
     if escalation['level'] == ESCALATION_CRITICAL and escalation['directive']:
-        lines.append("")
-        lines.append(escalation['directive'])
+        pass  # already stated once at the top — end on the plan, not a repeat
     elif day_sig and day_sig['level'] == 'defining':
         lines.append("")
         lines.append(_build_defining_day_closing(day_sig))

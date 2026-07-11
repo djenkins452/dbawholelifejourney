@@ -173,9 +173,41 @@ class ModelInterfaceService:
         except Exception:
             logger.debug("mi: understanding warm enqueue skipped", exc_info=True)
 
+    @staticmethod
+    def _focus_lead(standing_context: dict) -> str:
+        """A prominent leading pointer to the object the user is viewing RIGHT NOW, so
+        Current Context is the model's FIRST-checked source instead of a low-salience field
+        buried deep in the structured JSON. The content itself stays in the structured
+        context (single source of truth); this only raises its salience + names it up top.
+        Empty when nothing is in focus. Never raises."""
+        try:
+            screen = (standing_context.get("current_context") or {}).get("current_screen") or {}
+            focus = screen.get("focus") or {}
+        except Exception:
+            return ""
+        if not isinstance(focus, dict) or not (focus.get("title") or focus.get("content")):
+            return ""
+        title = (focus.get("title") or "").strip()
+        kind = (focus.get("kind") or "").strip()
+        label = (f'"{title}"' + (f" ({kind})" if kind else "")) or "the object on screen"
+        if focus.get("authority") == "current_request":
+            return (
+                "\n\n=== ON SCREEN RIGHT NOW (your FIRST source of truth) ===\n"
+                f"The user is currently viewing {label}. If their question is about what "
+                "they are looking at, answer from `current_context.current_screen.focus` "
+                "below and do NOT retrieve — the answer is already here."
+            )
+        # conversation_fallback — last-seen, not confirmed current; name it but stay cautious.
+        return (
+            "\n\n=== LAST SEEN (unconfirmed — client reported no focus this turn) ===\n"
+            f"The last object seen in this conversation was {label}. Check its freshness in "
+            "`current_context.current_screen.focus` before treating it as what they mean now."
+        )
+
     def _system_prompt(self, standing_context: dict) -> str:
         return (
             CONSTITUTION
+            + self._focus_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
             + json.dumps(standing_context, ensure_ascii=False)
         )

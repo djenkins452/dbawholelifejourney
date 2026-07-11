@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(cos): Retrieval precedence — Current Context is authoritative; answer from what's on screen before retrieving
+
+**Trust bug:** viewing a journal entry, the user asked "What did I journal about today?" and Beth
+answered from Apple Health metrics (mobility, audio exposure) instead of the entry on screen.
+
+**Forensic root cause (proven by runtime reproduction, not guessed):** the journal entry IS delivered
+into the model-interface envelope correctly — the detail page emits `<meta name="wlj-context">`, the
+frontend sends `focus_ref`, and `build_standing_context` resolves the full body into
+`current_context.current_screen.focus.content` (verified: body present in the system prompt). The
+failure was **retrieval precedence**: the CONSTITUTION told the model to "answer about focus" but never
+told it to check Current Context BEFORE reaching for a truth tool, and `focus` sat as a low-salience
+nested field ranked below `deterministic_understanding`. The model called `search_history` with no
+domain — which defaults to `"all"` and sweeps every module including health — and narrated the health
+hits. (mobility/audio-exposure are reachable by NO other tool, which fingerprints an unscoped
+`search_history` call.) This is a CLASS: any question answerable from Current Context could be lost to
+broader retrieval.
+
+**Fix (truth-delivery + prompt only — no WLJ reasoning engine, retrieval tools left generic):**
+- **`apps/ai/model_interface/constitution.py`** — added a **RETRIEVAL PRECEDENCE** clause establishing
+  the hierarchy (1) Current Context → (2) this conversation → (3) truth already in context → (4) a truth
+  tool → (5) general reasoning, "STOP as soon as one answers." Current Context is declared AUTHORITATIVE
+  for "this / this page / what I'm looking at / what did I journal / this goal / workout / report /
+  scripture / document": answer from `focus` and do NOT call a tool when the on-screen object answers.
+- **`apps/ai/model_interface/service.py :: _system_prompt`** — added `_focus_lead()`, a prominent
+  leading "=== ON SCREEN RIGHT NOW (your FIRST source of truth) ===" pointer above the structured JSON,
+  so Current Context is the first-checked source instead of a buried field. Content stays single-sourced
+  in the structured context; the lead only raises salience. A cautious "LAST SEEN (unconfirmed)" variant
+  is emitted for the `conversation_fallback` authority.
+
+Per the owner's direction, `search_history` and all retrieval tools remain **general-purpose** — the
+model becomes smarter about precedence; the tool is not taught question categories.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`.
+**Verification:** scoped tests green — `test_current_context_baseline`, `test_model_interface_runtime`
+(31), `test_standing_context` (9); runtime reproduction confirms the on-screen journal body reaches the
+system prompt when `focus_ref` is present, and the new focus lead renders for `current_request` authority.
+
 ## 2026-07-11 — feat(multimodal): Multimodal Truth slice 1 — scale photo → log_weight ("arrival path, not a pipeline")
 
 **OpenAI perceives; WLJ receives structured candidates and runs them through the EXISTING truth/

@@ -68,7 +68,7 @@ Nothing else.
 ## 3. Architectural Principles (Governing)
 
 These are the non-negotiable laws of the subsystem. Any change to one is an architectural decision
-that must be recorded in §10 (ADR Log).
+that must be recorded in §16 (ADR Log).
 
 1. **WLJ Operations is a Layer 1 Truth Domain** — a peer of Health, Finance, Meals, Journal, Relationships.
 2. **WLJ Operations never performs reasoning.** Every statement is a deterministic reduction over evidence.
@@ -249,12 +249,244 @@ deterministic ledger — never a mind.
 
 ---
 
-## 8. Phased Roadmap
+## 8. Internal Architecture
+
+WLJ Operations is organized into **six subsystem responsibilities**. These are *responsibilities, not
+implementation packages* — they describe what the subsystem must do and who owns each concern, so that
+no responsibility is orphaned and none bleeds into another. The physical package layout that realizes
+them is §10; the permanent dependency rules between them are §11.
+
+| Responsibility | Owns | Consumes | Never does |
+|---|---|---|---|
+| **Operations Truth** | Monitors, telemetry, operational facts, health state, incidents, operational history. The deterministic answer to *"what is true about the platform right now?"* | Engine registry, settings, the DBs/Redis it observes. | Recovery, escalation, reasoning, conversation. |
+| **Recovery** | The recovery engine, recovery execution, recovery policies, recovery verification. Acts on incidents Operations Truth has already detected. | Operations Truth (incidents + evidence), the audit trail. | Detection (never re-derives truth), reasoning, direct user contact. |
+| **Escalation** | Engineering escalation, context assembly, Claude prompt generation, escalation audit. Begins where safe recovery ends. | Operations Truth + Recovery history (attempts, diagnoses). | Auto-remediation, conversation, deciding to interrupt the user. |
+| **Experience** | The Operations Command Center, dashboards, executive summaries, timelines, reports. The read-only human surface. | Pre-computed Operations Truth + Recovery/Escalation records. | Live computation on the request path; any write to truth. |
+| **Memory** *(future)* | Operational history, recurring incidents, permanent fixes, engineering knowledge — the institutional ledger (§7). | Recovery + Escalation history, ADRs, commits. | Reasoning or learning *over* the history (that stays deterministic — never a mind). |
+| **Future Intelligence** *(future)* | Predictive operations, operational-maturity scoring, optimization recommendations. | Memory + historical snapshots. | Conversation; any non-deterministic verdict presented as fact. |
+
+**Flow between responsibilities:** *Operations Truth* detects → *Recovery* attempts + verifies →
+(on exhaustion) *Escalation* assembles context → *Experience* renders all of it read-only → *Memory*
+records what happened → *Future Intelligence* forecasts from the record. Each stage consumes only the
+stage(s) to its left; nothing reaches back into detection.
+
+---
+
+## 9. Canonical Operations Objects
+
+The canonical object model. Every implementation must use these names and these ownership/lifecycle
+rules. Objects marked *(planned)* / *(future)* do not yet exist in code; the existing model backing an
+object is named where one exists.
+
+### Monitor
+- **Purpose:** Observes one component and produces its operational facts; optionally declares a recovery.
+- **Owner:** Operations Truth.
+- **Lifecycle:** Registered at startup → runs each SAME cycle (60s) → emits a telemetry section (+ anomalies).
+- **Persistence:** The monitor is code; its output is a telemetry section (cache) + any snapshots it writes.
+- **Relationships:** Produces **Incidents**; may own a **Recovery Policy**; feeds an **Operational Snapshot**.
+- **As-built:** `scheduled_task_monitor`, `storage_monitor`, `chat_queue_monitor`, `upstream_health`, engine heartbeats.
+
+### Incident
+- **Purpose:** A detected operational problem with a lifecycle (active → recovering → resolved/escalated).
+- **Owner:** Operations Truth (created by detection, never by Recovery).
+- **Lifecycle:** Detected → (Recovery may set `recovering`) → resolved by a passing verify **or** escalated.
+- **Persistence:** DB — **`OpsAnomaly`** (`core_ops_anomaly`).
+- **Relationships:** Has many **Recovery Attempts**; may produce an **Escalation**; surfaced in the **Operations Summary**.
+
+### Recovery Policy *(planned — Phase II/III)*
+- **Purpose:** The declarative rules governing a recovery: classification (R0–R4), max attempts, cooldown, verification, escalation, audit.
+- **Owner:** Recovery.
+- **Lifecycle:** Declared on a monitor (Phase II) → promoted to configuration (Phase III); consulted by the gate before every action.
+- **Persistence:** Phase II = code (frozen dataclass on the handler); Phase III = configuration.
+- **Relationships:** Governs the **Recovery Attempts** for a given **Incident** type; classification recorded in the ADR log.
+
+### Recovery Attempt *(planned — Phase II)*
+- **Purpose:** One execution of the recovery lifecycle for an incident — the atomic audit unit.
+- **Owner:** Recovery.
+- **Lifecycle:** Created per attempt: diagnosed → recover-attempted → verified → closed/retry/escalated (every path writes a row).
+- **Persistence:** DB — **`RecoveryAttempt`** *(planned, `apps/core/ai_observability/models.py`)*.
+- **Relationships:** Belongs to an **Incident**; produces a **Verification Result**; may trigger an **Escalation**; aggregated by **Memory**.
+
+### Verification Result *(planned — Phase II)*
+- **Purpose:** The deterministic proof that a recovery restored health — reusing the detector's own predicate.
+- **Owner:** Recovery (verification framework).
+- **Lifecycle:** Produced immediately after each recover step (sync or next-cycle); its outcome alone may close an incident.
+- **Persistence:** Embedded in the **Recovery Attempt** (`evidence_before`/`evidence_after`/`outcome`).
+- **Relationships:** Belongs to a **Recovery Attempt**; gates **Incident** closure.
+
+### Escalation *(planned — Phase IV; stub in Phase II)*
+- **Purpose:** The structured hand-off to engineering when safe recovery is exhausted or unavailable (R0/R3/R4).
+- **Owner:** Escalation.
+- **Lifecycle:** Raised on gate-unsafe or retry-exhausted → context assembled (Phase IV) → resolved by a human.
+- **Persistence:** DB — *(planned)* an escalation record; Phase II = a flag + audit rows on the incident.
+- **Relationships:** Belongs to an **Incident**; references its **Recovery Attempts**; Phase IV attaches logs/metrics/commits + a Claude prompt.
+
+### Operational Snapshot
+- **Purpose:** A point-in-time persisted fact set for history/trends (score, storage, maturity).
+- **Owner:** Operations Truth.
+- **Lifecycle:** Written on a cadence by the SAME cycle; read for trends + forecasting.
+- **Persistence:** DB — **`SystemIntegritySnapshot`**, **`StorageSnapshot`**, **`SystemMaturitySnapshot`**, etc.
+- **Relationships:** Summarized by the **Operations Summary**; consumed by **Future Intelligence**.
+
+### Operational Narrative
+- **Purpose:** Deterministic plain-language operator commentary on current posture (facts, never a verdict).
+- **Owner:** Operations Truth (synthesis).
+- **Lifecycle:** Regenerated each SAME cycle from the assembled sections.
+- **Persistence:** DB — **`OpsNarrativeSnapshot`** (+ live in the payload).
+- **Relationships:** Part of the **Operations Summary**; renders in **Experience**.
+
+### Operations Summary
+- **Purpose:** The executive reduction answering the five operator questions (Am I okay? / What's wrong? / Why? / Who's affected? / What next?) — and, for the CoS, the deterministic-urgency envelope (`operational_status`/`priority`/`urgency`/`attention_required`/`recommended_action`).
+- **Owner:** Operations Truth (synthesis) → consumed by Experience and (Phase V) the CoS.
+- **Lifecycle:** Built last in the SAME cycle by `build_executive_summary()`; read-only downstream.
+- **Persistence:** The `executive` payload section (cache); KPI history persisted for trends.
+- **Relationships:** Reduces **Incidents** + **Snapshots** + **Narrative**; is the Phase V truth the CoS consumes.
+
+### Operations Memory Entry *(future)*
+- **Purpose:** The per-incident-class institutional record (§7): times observed, MTTR, typical/permanent fix, related ADRs/commits, regression history.
+- **Owner:** Memory.
+- **Lifecycle:** Accreted from **Recovery Attempts** + **Escalations** over time; never reasoned over (deterministic only).
+- **Persistence:** DB — *(future)* a memory table keyed by incident class.
+- **Relationships:** Aggregates **Recovery Attempts**; informs **Future Intelligence** and "eliminate-the-class" decisions.
+
+---
+
+## 10. Package Layout (Architectural Guidance — do NOT move code yet)
+
+The recommended physical structure. **This is guidance for implementation, not a migration to perform
+now** — no code is moved in any documentation milestone. The governing principle is **separate
+observation from action**: what *watches* the platform (safe, read-only, already shipped) must be
+physically separable from what *changes* the platform (recovery/escalation — new, higher-risk, gated).
+
+```
+apps/core/
+    ai_observability/          # OBSERVATION — exists today; read-only truth
+        telemetry/             #   payload builder + per-section _get_* readers
+        monitors/              #   scheduled_task / storage / chat_queue / upstream / …
+        synthesis/            #   SAME engine, executive summary, narrative, integrity
+
+    operations/                # ACTION — new; created in Phase II
+        recovery/              #   recovery engine + execution pipeline
+        policies/              #   recovery policies (R0–R4, retry, cooldown)
+        verification/          #   verification framework (reuses detection predicates)
+        escalation/            #   engineering escalation + context assembly (Phase IV)
+        audit/                 #   RecoveryAttempt + escalation audit records
+```
+
+**Why this separation:**
+1. **Blast-radius isolation.** Observation cannot take down the site; action can. A hard package seam makes it structurally obvious (and CI-enforceable) that a read-only surface never imports action code.
+2. **Independent evolution.** Observation is mature (O1); action is greenfield. Separating them lets Phase II move fast without destabilizing the shipped Phase I surface.
+3. **Request-path safety is easier to prove.** A contract test can assert that no view/api imports `operations/` at all — the whole action tree is worker-only by construction.
+4. **The dependency arrow is one-way.** `operations/` may import from `ai_observability/` (it consumes truth); `ai_observability/` must **never** import from `operations/` (§11). A directory seam makes that rule mechanically checkable.
+
+**Note on the existing tree:** today Phase I lives flat in `apps/core/ai_observability/` (no `telemetry/`
+`monitors/` `synthesis/` subfolders). The internal reorganization of `ai_observability/` is **optional
+and deferred** — the *required* new seam is the separate `operations/` package for all Phase II action
+code. Reorganizing the observation tree can happen later without architectural consequence.
+
+---
+
+## 11. Import Boundaries (Permanent Architectural Rules)
+
+These dependency rules are **permanent** and should be enforced by a contract test (like the existing
+request-path-safety gate), not left to discipline. They are the mechanical expression of Principles
+1–5 and 13–14.
+
+**Operations (`operations/` + `ai_observability/`) MAY import:**
+- Observability + telemetry (its own truth)
+- The engine registry
+- The audit models
+- Django settings, ORM, cache, Celery utils (`safe_enqueue`)
+
+**Operations MAY NOT import:**
+- Chief-of-Staff reasoning (`apps/ai` orchestration / personal assistant)
+- Conversation logic
+- Current Context reasoning
+- LLM orchestration
+- Prompt composition
+- *(Exception, tightly bounded: the Escalation subsystem's Phase IV **prompt generation** produces a deterministic text artifact for a human/Claude to run later — it does **not** call an LLM, drive a turn, or import CoS orchestration. It emits a string; it never reasons.)*
+
+**Chief of Staff MAY consume:**
+- **Operations Truth** — the composed Operations Summary / briefing (Phase V), exactly like any other truth domain.
+
+**Chief of Staff MAY NOT import:**
+- The Recovery Engine
+- Recovery Policies
+- Recovery Execution
+- Escalation execution
+
+**The two one-way arrows (permanent):**
+1. `ai_observability/` (truth) **←** `operations/` (action). Action consumes truth; truth never imports action.
+2. Chief of Staff **←** Operations Truth only. The CoS consumes the *summary*; it never reaches into recovery/escalation. Operations never imports the CoS at all.
+
+Together these guarantee the independence requirement (Principles 13/14): remove `operations/` and the
+CoS + observability still run; remove the CoS and all of Operations still runs.
+
+---
+
+## 12. Operations Truth — Definition (Standard Terminology)
+
+**"Operations Truth"** is the standard term for the deterministic operational fact set this subsystem
+owns and publishes. Use it consistently everywhere (code, docs, UI-internal). It is the operational
+peer of "health truth" or "finance truth" — same contract, different domain.
+
+**Belongs inside Operations Truth (deterministic, evidence-backed facts):**
+- Current Operational Status
+- Customer Impact
+- Operational Health (scores + posture)
+- Active Incidents
+- Recovery State (of an incident)
+- Recovery History
+- Operational Narrative (facts, plain-language)
+- Recommended Action (the single deterministic next step)
+- Attention Required (deterministic boolean/urgency)
+- Operational Maturity (O-level)
+
+**Does NOT belong inside Operations Truth:**
+- Conversation
+- Reasoning / interpretation of the person's life
+- Speculation or probabilistic verdicts presented as fact
+- Engineering opinion
+- Architectural recommendations
+
+The line is the same one that governs every WLJ truth domain: **Operations states facts; it never
+reasons, converses, or opines.** Anything requiring judgment about *what to do about the person* is the
+Chief of Staff's; anything requiring engineering judgment is a human's (reached via Escalation). Operations
+supplies the facts both depend on.
+
+---
+
+## 13. Operations Success Metrics (Long-Term KPIs)
+
+How the Operations subsystem measures **itself** (formally realized in Phase VIII; listed here so the
+data model is designed to capture them from Phase II onward). All are deterministic, computed from the
+audit trail and snapshots — never estimated.
+
+| KPI | Definition | Source |
+|---|---|---|
+| **Incident detection time** | Elapsed time from condition onset to `OpsAnomaly` creation. | Incident timestamps vs. evidence onset. |
+| **Mean Time To Recovery (MTTR)** | Mean time from detection to verified resolution. | Incident + Recovery Attempt records. |
+| **Recovery success rate** | Verified recoveries ÷ recovery attempts. | Recovery Attempts. |
+| **Automatic recovery rate** | Incidents resolved with zero human action ÷ all incidents. | Incidents + attempts. |
+| **Engineering escalations** | Count of incidents that reached engineering (safe recovery exhausted/unavailable). | Escalations. |
+| **False alarms** | Incidents that resolved with no real condition (self-cleared / mis-detected). | Incident post-hoc classification. |
+| **Customer impact avoided** | Impact-weighted incidents recovered before customer-visible failure. | Incident customer-impact + recovery timing. |
+| **Operational maturity** | The subsystem's O-level (min across critical monitors). | §6 model. |
+| **Engineering hours saved** | Estimated human time displaced by automatic recovery (attempts × typical manual cost). | Recovery Attempts + a per-class manual-cost constant. |
+
+These KPIs are the yardstick for whether Operations is fulfilling its mission — *human intervention as
+the exception.* A rising automatic-recovery rate and falling MTTR with a low false-alarm rate is the
+definition of success; a recurring incident class with a high attempt count and no permanent fix is the
+signal to *eliminate the class* rather than keep recovering it.
+
+---
+
+## 14. Phased Roadmap
 
 Nine phases carry WLJ Operations from *"know everything"* to a world-class autonomous operations
 platform. Each phase below records **Purpose · Goals · Capabilities · Deliverables · Success Criteria ·
 Dependencies · Future Expansion · Completion Status**. The authoritative checklist with dates, SHAs,
-and test references is the **Living Status Section (§9)** — this section is the narrative; §9 is the ledger.
+and test references is the **Living Status Section (§15)** — this section is the narrative; §15 is the ledger.
 
 ---
 
@@ -295,7 +527,7 @@ detection, confirmation-queue/attachment/audit-lag health, build-runner/deploy o
 measured Beat). Owner dimension is currently absent system-wide (OPS-6).
 
 **Completion Status:** **Mostly Complete** — visibility surface and OPS-1…4 shipped; OPS-5…10 remain as
-tracked backlog. See §9 for the exact ledger.
+tracked backlog. See §15 for the exact ledger.
 
 ---
 
@@ -537,7 +769,7 @@ recovery happen, reviews history, and only rarely intervenes.
 
 ---
 
-## 9. Living Status Section (The Ledger)
+## 15. Living Status Section (The Ledger)
 
 > **This section is ALWAYS maintained.** Every completed item records **Completion Date · Git SHA ·
 > Deployment Date · Docs Updated · Tests Added**. Checkbox legend: `[x]` Completed · `[~]` In Progress ·
@@ -602,7 +834,7 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 
 ---
 
-## 10. Architectural Decisions (ADR Log)
+## 16. Architectural Decisions (ADR Log)
 
 Every material Operations decision is recorded here with its rationale, so the *why* is never lost.
 
@@ -619,20 +851,24 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-9 | 2026-07-11 | **One mandatory Standard Recovery Lifecycle for every monitor (§5): Detect→Diagnose→Safe?→Recover→Verify→Healthy?→Audit/Retry→Escalate.** | Uniformity is the precondition for Phase III (recovery-as-config) and an identical audit trail; every path — including no-recovery escalation and every failed attempt — is audited. |
 | ADR-10 | 2026-07-11 | **Operations expresses deterministic urgency (`operational_status`/`priority`/`urgency`/`attention_required`/`recommended_action`); the CoS owns whether/when/how to interrupt (§ Phase V).** | Lets Operations state a *fact* about platform urgency without ever owning the interruption decision — all reasoning stays in the CoS; Operations never reaches the user directly. Refines ADR-4. |
 | ADR-11 | 2026-07-11 | **Operations Memory (§7) is deterministic history only — never a mind; O5 self-optimization depends on it but reasoning over it is out of scope until Phase VII/VIII.** | Preserves "WLJ owns truth, not reasoning" at the operations layer; the institutional record operationalizes "eliminate the class" with evidence, not intuition. |
+| ADR-12 | 2026-07-11 | **Six subsystem responsibilities + the canonical object model (§8, §9) are frozen** as the internal architecture. | Removes internal ambiguity before construction: every concern has one owner, every entity one name/lifecycle/persistence. Implementation follows the model; it does not redesign it. |
+| ADR-13 | 2026-07-11 | **Separate observation from action: all Phase II action code lives in a new `apps/core/operations/` package, distinct from `apps/core/ai_observability/` (§10).** | Blast-radius isolation + one-way dependency + mechanically-provable request-path safety. The observation tree's internal reorg is optional/deferred; the `operations/` seam is required. |
+| ADR-14 | 2026-07-11 | **Permanent import boundaries (§11), CI-enforced: truth never imports action; the CoS consumes only Operations Truth, never recovery/escalation; Operations never imports the CoS.** | Makes the independence requirement (Principles 13/14) structural rather than disciplinary; the Escalation prompt-generation exception emits a deterministic string and never calls an LLM. |
+| ADR-15 | 2026-07-11 | **Architecture frozen at this milestone.** Subsequent Operations work is implementation, not subsystem redesign; changes to a frozen section require an ADR (and, if it touches a Constitution Article, a Constitutional Review). | Closes the architecture phase; protects against drift/re-litigation once Phase II construction begins. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 
 ---
 
-## 11. Claude Responsibilities (Maintenance Contract)
+## 17. Claude Responsibilities (Maintenance Contract)
 
 **From this point forward, whenever ANY Operations work is completed, Claude MUST — automatically,
 without being asked:**
 
 1. **Update this document** (`docs/WLJ_OPERATIONS_VISION.md`).
-2. **Mark completed work** in the Living Status ledger (§9) with Date · SHA · Deploy date · Docs · Tests.
+2. **Mark completed work** in the Living Status ledger (§15) with Date · SHA · Deploy date · Docs · Tests.
 3. **Adjust future phases** if the work changed the roadmap.
-4. **Record architectural decisions** in the ADR log (§10).
+4. **Record architectural decisions** in the ADR log (§16).
 5. **Record deferred work** (with a phase number + promotion trigger — never "someday").
 6. **Update implementation status** so every checkbox reflects reality.
 7. **Keep the roadmap accurate** — this document must never go stale; it always represents reality.
@@ -642,7 +878,50 @@ commit + push main). Operations work updates *this* document as a required extra
 
 ---
 
-## 12. Cross-References
+## 18. Implementation Readiness Review
+
+A final readiness assessment performed at the close of the architecture phase.
+
+**Is the architecture complete?** **Yes** for Phases I–II and structurally for III–IX. The subsystem now
+defines its mission (§2), governing principles (§3), recovery safety model (§4), recovery lifecycle (§5),
+maturity model (§6), memory (§7), internal responsibilities (§8), canonical objects (§9), package layout
+(§10), permanent import boundaries (§11), the Operations Truth definition (§12), success KPIs (§13), a
+nine-phase roadmap (§14) with a live ledger (§15), and 15 recorded decisions (§16). A detailed Phase II
+engineering plan with a risk register exists (`WLJ_OPERATIONS_PHASE2_PLAN.md`).
+
+**Final architecture review (duplication / contradiction / terminology / ordering):**
+- **No contradictions found.** The recovery classification (§4), lifecycle (§5), objects (§9), package
+  seam (§10), and import rules (§11) are mutually consistent; each cross-references rather than restates.
+- **Terminology standardized** on "Operations Truth" (§12); "Ops Wall" is retained only as the historical
+  name of the Phase I surface (now the Operations Command Center).
+- **Intentional, non-redundant overlap:** Operations Memory appears in §7 (deep-dive), §8 (responsibility),
+  §9 (object), and §13 (KPI source) — each at a different altitude, cross-linked, not duplicated.
+- **Phase ordering verified:** the maturity ladder (O1→O2 at Phase II/III, O3 at VI, O4 at VII) is
+  consistent with the roadmap; no phase depends on a later one.
+
+**Are any governing decisions still missing?** No *blocking* decisions. Three items are **intentionally
+deferred to their implementing phase** and would be premature to freeze now (recording them here so they
+are not forgotten):
+1. **Recovery-policy persistence format** (code dataclass vs. DB vs. settings) — decided in Phase III when the framework is built; Phase II uses code, by plan.
+2. **Escalation record schema + Claude prompt templates** — decided in Phase IV; Phase II ships only the stub.
+3. **Operations Memory table shape** — decided when Memory is built (post-Phase VIII); §7/§9 fix its *content*, not its storage.
+
+**Would beginning Phase II today create architectural debt?** **No.** The Phase II plan conforms to every
+frozen decision (worker-only `operations/` package, R1/R2-only auto-execution, verification-reuses-detection,
+CI-enforced boundaries, ship-dark kill switch). The three deferred items above are correctly scoped to
+*later* phases and do not block Phase II.
+
+**Conclusion:**
+
+> **The WLJ Operations architecture is considered stable. Future work should primarily consist of
+> implementation rather than architectural redesign.**
+
+Changes to a frozen section (§§1–16) now require an ADR entry; a change touching a Constitution Article
+additionally requires a Constitutional Review. The next chat begins **Phase II implementation**.
+
+---
+
+## 19. Cross-References
 
 - `docs/WLJ_OPERATIONS_PHASE2_PLAN.md` — the detailed Phase II (Deterministic Recovery) engineering implementation plan + risk register. Read before writing any recovery code.
 - `docs/WLJ_OPS_WALL_COVERAGE.md` — the operational coverage matrix + the authoritative OPS-1…10 backlog (Phase I as-built detail).
@@ -654,7 +933,8 @@ commit + push main). Operations work updates *this* document as a required extra
 
 ---
 
-*Last updated: 2026-07-11 — architecture refinement pass: added Recovery Safety Classification (§4),
-Standard Recovery Lifecycle (§5), Operational Maturity Model (§6), Operations Memory (§7); expanded
-Phase V urgency contract; ADR-8…11 recorded. Companion Phase II engineering plan authored
-(`WLJ_OPERATIONS_PHASE2_PLAN.md`). Still documentation-only — no recovery code written.*
+*Last updated: 2026-07-11 — **ARCHITECTURE FREEZE.** Added Internal Architecture (§8), Canonical
+Operations Objects (§9), Package Layout (§10), Import Boundaries (§11), Operations Truth definition (§12),
+Success Metrics (§13), and the Implementation Readiness Review (§18); ADR-12…15 recorded (incl. the freeze).
+Trailing sections renumbered. Architecture is stable; the next milestone is Phase II implementation. Still
+documentation-only — no recovery code written.*

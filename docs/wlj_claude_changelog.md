@@ -6,6 +6,49 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): ARCHITECTURE FREEZE — internal architecture, object model, boundaries (docs-only)
+
+**Why:** Final architecture/documentation milestone for the WLJ Operations subsystem before Phase II
+implementation begins. Objective: freeze the architecture — no remaining ambiguity about how Operations
+is structured internally (objects, boundaries, responsibilities, package layout). No recovery logic, no
+CoS change, no production behavior touched.
+
+**What (added to `docs/WLJ_OPERATIONS_VISION.md`):**
+- **§8 Internal Architecture:** six subsystem *responsibilities* (Operations Truth · Recovery · Escalation ·
+  Experience · Memory (future) · Future Intelligence) with owns/consumes/never tables — responsibilities,
+  not packages.
+- **§9 Canonical Operations Objects:** the object model (Monitor · Incident · Recovery Policy · Recovery
+  Attempt · Verification Result · Escalation · Operational Snapshot · Operational Narrative · Operations
+  Summary · Operations Memory Entry) each with Purpose/Owner/Lifecycle/Persistence/Relationships, mapped to
+  the as-built models where they exist (`OpsAnomaly`, `OpsNarrativeSnapshot`, `SystemIntegritySnapshot`, …).
+- **§10 Package Layout (guidance only, no code moved):** separate observation (`ai_observability/`) from
+  action (new `apps/core/operations/`: recovery/policies/verification/escalation/audit); why the seam exists.
+- **§11 Import Boundaries (permanent, CI-enforceable):** truth never imports action; the CoS consumes only
+  Operations Truth, never recovery/escalation; Operations never imports the CoS — the mechanical form of
+  Principles 13/14.
+- **§12 Operations Truth — Definition:** standardized terminology; what belongs (status, impact, health,
+  incidents, recovery state/history, narrative, recommended action, attention-required, maturity) vs. what
+  does not (conversation, reasoning, speculation, opinion, architectural recommendations).
+- **§13 Operations Success Metrics:** long-term KPIs (detection time, MTTR, recovery/automatic-recovery
+  rate, escalations, false alarms, customer impact avoided, maturity, engineering hours saved).
+- **§18 Implementation Readiness Review:** final architecture review (no contradictions; terminology
+  standardized; phase ordering verified), three intentionally-deferred decisions scoped to their phases,
+  and the explicit conclusion: *"The WLJ Operations architecture is considered stable. Future work should
+  primarily consist of implementation rather than architectural redesign."*
+- **ADR-12…15** recorded (object model frozen · observation/action package seam · permanent import
+  boundaries · architecture freeze). Trailing sections renumbered (Roadmap→§14 … Cross-Refs→§19); all
+  internal §-references reconciled and verified sequential 1–19.
+
+**Cross-references:** startup `99_REFERENCE_INDEX.md` (vision row → "architecture FROZEN");
+`WLJ_DOCUMENTATION_INVENTORY.md` (§11→§17 responsibilities ref).
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md`,
+`docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+**Verification:** Documentation-only — no code/models/migrations/tests changed; no runtime behavior
+changed. Section headers verified sequential 1–19; all internal §-references audited and consistent.
+
 ## 2026-07-11 — docs(operations): architecture refinement pass + Phase II implementation plan (still docs-only)
 
 **Why:** Final documentation milestone before Phase II recovery code is written — the governing document

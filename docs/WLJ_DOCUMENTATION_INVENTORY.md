@@ -54,7 +54,7 @@ The 95 current docs are the governing + reference set. The apex is `WLJ_CONSTITU
 
 **Added 2026-07-11:** `WLJ_OPERATIONS_VISION` — the governing (living) design document for the new
 **WLJ Operations** subsystem (a Layer 1 truth domain; 9-phase roadmap + maintained status ledger).
-CURRENT and self-maintaining per its own §11 Claude-responsibilities contract. Companion engineering
+CURRENT and self-maintaining per its own §17 Claude-responsibilities contract. Companion engineering
 plan `WLJ_OPERATIONS_PHASE2_PLAN.md` (Phase II Deterministic Recovery blueprint + risk register) —
 CURRENT PLAN, not yet implemented.
 

@@ -6,6 +6,11 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): fill pilot-proven ledger SHA (b6b20ea5)
+
+Living-doc maintenance: record the Git SHA for the "pilot selected + controlled E2E proven" ledger row in
+`WLJ_OPERATIONS_VISION.md §15` now that the commit exists. Docs-only.
+
 ## 2026-07-11 — test+docs(operations): Phase III controlled-enablement prep (pilot proven; prod gate is operator)
 
 **Why:** Move Operations toward O2 (Recoverable) by proving the one recovery pilot safely performs the full

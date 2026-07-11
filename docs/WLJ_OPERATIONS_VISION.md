@@ -822,7 +822,7 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 | [x] | Read-only "Recovery Activity" Ops Wall card (cache-published) | 2026-07-11 | b3e6c40a | ship-dark | §9 | payload-builder test |
 | [x] | Import-boundary + request-path CI contract tests | 2026-07-11 | b3e6c40a | ship-dark | §11 | `test_import_boundaries.py`, `test_request_path_safety_contract.py` |
 | [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | b3e6c40a | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
-| [x] | Pilot selected + controlled E2E recovery lifecycle proven (real handler/engine/MISSED_RUN) | 2026-07-11 | _this commit_ | ship-dark | PHASE2_PLAN §11.1 | `BeatTaskRetryPilotE2ETests` (4) |
+| [x] | Pilot selected + controlled E2E recovery lifecycle proven (real handler/engine/MISSED_RUN) | 2026-07-11 | `b6b20ea5` | ship-dark | PHASE2_PLAN §11.1 | `BeatTaskRetryPilotE2ETests` (4) |
 | [ ] | **Enable in PRODUCTION** (OPERATOR-GATED — the O1→O2 gate): allowlist `apps.core.health_briefing.tasks.recompute_all_health_briefings_task` + set the 3 Railway env vars + observe ≥3 SAME cycles. Runbook: PHASE2_PLAN §11.1 | — | — | — | — | — |
 | [-] | Snapshot-refresh pilot | **Deferred** (ADR-16) — its condition is already covered by the Beat-retry pilot; a separate handler would double-cover one condition (III.1). | | | | |
 | [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |

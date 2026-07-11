@@ -144,7 +144,7 @@ The permanent acceptance baseline (`docs/WLJ_ACCEPTANCE_BASELINE.md`) runs these
 
 ## 6. Related documents
 
-- Sibling startup docs: `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` (what/why), `02_ENGINEERING_OPERATING_GUIDE.md` (how to evolve safely), `03_DANNY_WORKING_PREFERENCES.md`, `99_REFERENCE_INDEX.md` (master TOC).
+- Sibling startup docs: `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` (what/why), `02_ENGINEERING_OPERATING_GUIDE.md` (how to evolve safely), `03_DANNY_WORKING_PREFERENCES.md` (how to work with Danny), `98_SESSION_TRANSITION_PROTOCOL.md` (how to close a chat), `99_REFERENCE_INDEX.md` (master TOC). The transient bootloader `99_NEXT_CHAT_STARTUP.md` lives at the `@WLJ_SYSTEM_PROMPTS/` root, not in this evergreen package.
 - Authoritative detail (supporting library): `docs/WLJ_PRODUCT_VISION.md`, `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`, `docs/WLJ_ARCHITECTURE_LAWS.md`, `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`, `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`, `docs/WLJ_VISUAL_TRUTH_CONTRACT.md`, `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md`, `docs/LAYER1_DOMAIN_FRAMEWORK.md`.
 
 ---

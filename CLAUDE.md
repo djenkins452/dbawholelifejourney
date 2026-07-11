@@ -4,11 +4,15 @@
 **Repo:** GitHub: djenkins452/dbawholelifejourney
 
 > **⭐ START HERE — the permanent onboarding package:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/`
-> is the self-contained startup package for every session (architecture, Constitution, engineering
-> guide, Danny's preferences, current priorities, reference index). The **WLJ Constitution** (canonical:
-> `01_WLJ_CONSTITUTION.md`; `docs/WLJ_CONSTITUTION.md` is a pointer) is now the apex architecture doc —
-> any change to a constitutional Article requires a **Constitutional Review** (default NO; Danny's explicit
-> written approval). Read `99_NEXT_CHAT_STARTUP.md` for current priorities.
+> is the evergreen startup package for every session — six files, one responsibility each: `00` architecture
+> (WHAT), `01` Constitution (WHAT MUST NOT CHANGE), `02` engineering guide (HOW TO BUILD SAFELY), `03` Danny
+> preferences (HOW TO WORK WITH DANNY), `98` session transition (HOW TO CLOSE A CHAT), `99_REFERENCE_INDEX`
+> (WHERE EVERYTHING IS). The **WLJ Constitution** (canonical: `01_WLJ_CONSTITUTION.md`; `docs/WLJ_CONSTITUTION.md`
+> is a pointer) is the apex architecture doc — any change to a constitutional Article requires a
+> **Constitutional Review** (default NO; Danny's explicit written approval).
+> Current sprint/priorities live in the transient bootloader `@WLJ_SYSTEM_PROMPTS/99_NEXT_CHAT_STARTUP.md`
+> (root). At the **end** of a chat, run `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` to fold durable
+> knowledge up into the package and regenerate the bootloader.
 
 ---
 

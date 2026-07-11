@@ -58,7 +58,7 @@ Supersedes `00_CORE_STARTUP/WLJ MASTER PROMPT — DANNY'S PREFERENCES.md` (v2.0)
 ## Prompts & deliverables (ChatGPT → Claude)
 
 - Prompts handed to Claude must be **complete and paste-ready** — no manual cleanup by Danny. Use white copy boxes for prompts. Don't ask Danny to rewrite prompts himself.
-- **Continuation/handoff = a bootloader, not a summary** (see the Session Transition Protocol in `02`): improve the governing docs, then keep `99_NEXT_CHAT_STARTUP.md` lean.
+- **Continuation/handoff = a bootloader, not a summary** (doctrine: `98_SESSION_TRANSITION_PROTOCOL.md`; executed via `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`): improve the governing docs, then keep the root `99_NEXT_CHAT_STARTUP.md` lean.
 
 ## Naming boundary (also constitutional — see `01` §1)
 

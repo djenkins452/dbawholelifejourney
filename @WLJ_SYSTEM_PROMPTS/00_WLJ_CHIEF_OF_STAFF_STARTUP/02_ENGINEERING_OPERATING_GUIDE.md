@@ -97,15 +97,11 @@ A fix would touch a protected area's behavior; root cause can't be proven and th
 - Running the full suite unprompted; skipping scoped tests / migration check / changelog before deploy.
 - Destructive git/DB ops (force-push, `reset --hard`, drop tables); deploying on an unproven root cause.
 
-## 15. Session Transition Protocol (permanent)
+## 15. Closing a chat (Session Transition)
 
-**Purpose:** when Danny decides a chat is getting too large, hand off cleanly by **improving the startup package**, not by growing a transition prompt. The transition should make `99_NEXT_CHAT_STARTUP.md` *shorter* over time.
+When Danny signals a chat is getting large or a body of work is done, close it by **improving the permanent startup package**, not by growing a handoff prompt — so the package gets more complete over time and the bootloader gets smaller.
 
-When Danny signals a transition:
-1. **Review the completed work** of the session.
-2. **Update the four governing startup documents** (`00`, `01`, `02`, `03`) if a durable fact, principle, rule, or preference was established. Fold knowledge *up* into the right governing doc.
-3. **Update affected supporting documentation** in `docs/` (coverage docs, runbooks, changelog).
-4. **Rewrite `99_NEXT_CHAT_STARTUP.md`** as a lean bootloader: current priorities, current sprint, open issues, immediate next work — **nothing constitutional, architectural, or duplicated.** Before writing an item, ask whether it belongs in a governing doc instead; if so, put it there and leave `99` pointing to it.
-5. **Report exactly what changed** — which governing docs were updated and why, and what `99` now contains.
+- The **doctrine** (why/what a good transition achieves, where each kind of knowledge belongs) is `98_SESSION_TRANSITION_PROTOCOL.md` in this package.
+- The **runnable procedure + Transition Audit checklist** is `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` — Danny drops that at the end of a chat.
 
-The bootloader tells the next AI: *read the four governing docs, assume they contain every stable architectural decision, and continue from the remaining work.* Nothing else should need to be pasted.
+Do not duplicate either here. Follow the protocol; produce the audit.

@@ -6,6 +6,30 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — startup(finalize): permanent startup + session-transition workflow (drag one folder + one bootloader)
+
+Finalized the milestone into a permanent, evergreen onboarding package plus a repeatable
+session-transition workflow. No feature work, no redesign.
+
+**Evergreen package `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/` — now exactly six files, one responsibility each:**
+- `00_READ_FIRST…ARCHITECTURE.md` — WHAT WLJ is
+- `01_WLJ_CONSTITUTION.md` — WHAT MUST NOT CHANGE
+- `02_ENGINEERING_OPERATING_GUIDE.md` — HOW TO BUILD SAFELY
+- `03_DANNY_WORKING_PREFERENCES.md` — HOW TO WORK WITH DANNY
+- `98_SESSION_TRANSITION_PROTOCOL.md` — **NEW** — HOW TO CLOSE A CHAT (doctrine, extracted from the Engineering Guide so it isn't duplicated)
+- `99_REFERENCE_INDEX.md` — WHERE EVERYTHING IS
+
+**Operational files moved OUT of the evergreen folder to the `@WLJ_SYSTEM_PROMPTS/` root:**
+- `99_NEXT_CHAT_STARTUP.md` — the transient **bootloader** (live sprint state only; regenerated each transition; gets shorter over time). Moved out because it is not evergreen.
+- `99_PREPARE_NEXT_CHAT.md` — **NEW** — the runnable **end-of-chat** procedure that folds durable knowledge up into the package, updates supporting docs, rewrites the bootloader, and emits a **Transition Audit** checklist.
+
+**Workflow (also drawn in the load manifest):** working chat → drop `99_PREPARE_NEXT_CHAT.md` → Claude updates the package + supporting docs + changelog and rewrites the bootloader → new chat: drag in `00_WLJ_CHIEF_OF_STAFF_STARTUP/` + `99_NEXT_CHAT_STARTUP.md` → immediate continuity.
+
+- Updated cross-references in `00`, `01`, `02` (§15 now points to `98`), `03`, `99_REFERENCE_INDEX`, the load manifest, the archive README, and `CLAUDE.md`. Removed the now-empty `00_CORE_STARTUP/` dir.
+- Verified: package = 6 files; root = the 2 operational docs; no broken links; `test_constitution_contract.py` 9/9; `manage.py check` clean.
+
+---
+
 ## 2026-07-11 — startup(package): permanent WLJ Chief of Staff onboarding package (startup becomes the primary deliverable)
 
 Restructured the milestone effort around a single permanent onboarding package so a brand-new

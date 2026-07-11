@@ -1,6 +1,6 @@
 # 00 · READ FIRST — WLJ Chief of Staff Architecture
 
-**Read this first. Then read `01_WLJ_CONSTITUTION.md`, `02_ENGINEERING_OPERATING_GUIDE.md`, `03_DANNY_WORKING_PREFERENCES.md`. Then `99_NEXT_CHAT_STARTUP.md` for what to work on now.**
+**Read this first. Then read `01_WLJ_CONSTITUTION.md`, `02_ENGINEERING_OPERATING_GUIDE.md`, `03_DANNY_WORKING_PREFERENCES.md`, `98_SESSION_TRANSITION_PROTOCOL.md`, and `99_REFERENCE_INDEX.md`. For what to work on *now*, read the `99_NEXT_CHAT_STARTUP.md` bootloader Danny dragged in alongside this folder (it lives at the `@WLJ_SYSTEM_PROMPTS/` root, not in this package).**
 **Responsibility of this document:** what WLJ is, why it exists, how the architecture got here, where it stands today, and where to find the authoritative detail. It does **not** restate the Constitution, the engineering rules, or Danny's preferences — those are their own documents.
 
 ---

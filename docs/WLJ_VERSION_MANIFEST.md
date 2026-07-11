@@ -11,7 +11,7 @@
 | Field | Value |
 |---|---|
 | **Annotated tag** | `milestone-cos-architecture-v1` |
-| **Milestone commit SHA** | `__MILESTONE_SHA__` |
+| **Milestone commit SHA** | `c22dd336bbab44182dddcae50577fbc007dac4e8` |
 | **Recovery-point commit (tag target)** | the SHA-stamp commit immediately following the milestone commit (run `git rev-parse milestone-cos-architecture-v1`) |
 | **Branch** | `main` |
 | **Deploy remote** | `git@ssh.github.com:djenkins452/dbawholelifejourney.git` (port 443) |

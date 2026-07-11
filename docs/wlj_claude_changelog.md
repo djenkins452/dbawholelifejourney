@@ -39,7 +39,7 @@ Danny-confirmed; its temporary glass-box was already removed in that same commit
   which Django's `test*` discovery never collected — 26 regression tests were dormant since
   2026-05-31; now back in CI).
 
-**Recovery point:** annotated tag `milestone-cos-architecture-v1` at `__MILESTONE_SHA__` + GitHub Release.
+**Recovery point:** annotated tag `milestone-cos-architecture-v1` at `c22dd336bbab44182dddcae50577fbc007dac4e8` + GitHub Release.
 **Verification:** constitutional contract suite 53/53 passing; `manage.py check` clean; no pending migrations.
 
 ---

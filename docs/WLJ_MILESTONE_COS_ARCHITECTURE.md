@@ -35,7 +35,7 @@ Gate: the "Check on Von's House" occurrence-scoped completion correction (`2f368
 
 ## Final Milestone Report (the required summary)
 
-- **Git SHA (milestone commit):** `__MILESTONE_SHA__`
+- **Git SHA (milestone commit):** `c22dd336bbab44182dddcae50577fbc007dac4e8`
 - **Tag:** `milestone-cos-architecture-v1` (annotated; run `git rev-parse milestone-cos-architecture-v1` for the recovery-point commit)
 - **Release:** GitHub Release from the tag (see repo Releases)
 - **Deployment:** pushed to the deploy remote `main`; Railway auto-deploy triggered on push. *Live Railway build/health confirmation is the operator step (`/_health/` + Ops Wall).*

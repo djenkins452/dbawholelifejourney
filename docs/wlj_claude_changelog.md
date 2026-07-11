@@ -6,6 +6,56 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): reconcile Phase II plan against the frozen architecture (docs-only)
+
+**Why:** Final documentation-only reconciliation before Phase II implementation begins in a fresh session.
+Make `docs/WLJ_OPERATIONS_PHASE2_PLAN.md` fully consistent with the now-authoritative frozen architecture
+in `docs/WLJ_OPERATIONS_VISION.md`. No code, models, migrations, tests, settings, flags, handlers, or UI —
+no production behavior, no CoS touch.
+
+**What (all in `docs/WLJ_OPERATIONS_PHASE2_PLAN.md`):**
+- **Package home corrected** to the frozen observation/action seam: all Phase II action code moves from the
+  (now-wrong) `apps/core/ai_observability/recovery/` to **`apps/core/operations/`** (recovery/audit; policies/
+  verification/escalation begin as modules, graduating to sub-packages — no premature empty dirs). One-way
+  dependency restated: `operations/` consumes Operations Truth from `ai_observability/`; `ai_observability/`
+  never imports `operations/`. `RecoveryAttempt` model relocated to `operations/audit/` (app_label `core`).
+- **Recovery Handlers, not monitor methods:** recover/verify action code lives in `operations/recovery/`,
+  registered by monitor key, *consuming* the observability detector predicate — resolves the contradiction
+  where the old plan bolted action onto observability monitor classes (would have violated the §11 seam).
+- **Execution isolation:** recovery no longer runs inline in the SAME telemetry build. Telemetry builds +
+  **caches** Operations Truth first; a **separate** `run_recovery_cycle_task` is then handed off via
+  non-blocking `safe_enqueue`. Guarantees: a recovery fault can't block/lengthen/destabilize the telemetry
+  path; Phase I works when recovery is disabled/absent/broken/removed; recovery consumes completed truth and
+  is never load-bearing for detection; `OPS_RECOVERY_ENABLED=False` is a true no-op.
+- **Section references corrected** to the frozen numbering: ledger §9→**§15**, ADR §16, Operations Truth
+  §12, lifecycle §5, package §10, import boundaries §11, eliminate-the-class §3.2; fixed an internal
+  self-reference (risks §11→**§12**).
+- **Terminology standardized** (vision §12): Operations Truth / Operations / Recovery / Verification /
+  Escalation; removed wording implying observability owns recovery, recovery is part of the CoS, Operations
+  reasons, or an LLM/Claude executes operational actions.
+- **Import-boundary CI contract tests specified** (not preferences): no request-path import of `operations/**`;
+  `ai_observability/` never imports `operations/`; `operations/` never imports CoS reasoning/conversation/
+  Current-Context/LLM-orchestration/model-interface; CoS never imports recovery/policies/verification/
+  escalation/audit internals; any CoS integration consumes only composed Operations Truth.
+- **Pilot set reconciled to two R1 actions** with full specs (§1.1): (1) snapshot refresh, (2) allowlisted
+  idempotent Beat-task re-enqueue (user-facing send/digest tasks excluded). **Chat-queue requeue removed
+  from the first cut** — can't prove idempotency/dedup/ownership and the original task may still be running;
+  deferred with an explicit promotion trigger. Each pilot records class, justification, exact action, reused
+  detector predicate, blast radius, retry bound, cooldown, escalation condition, flag, and rollback.
+- **"R1 unlimited retries" resolved:** vision §4's "unlimited" is a safety *property*, not a code licence;
+  every production policy (R1 included) is finite (`max_attempts`/`cooldown`/`escalate_after_attempts`), and
+  a `recurrence_limit` raises a **permanent-fix escalation** when the same class keeps recovering.
+
+**Cross-doc consistency verified across** `WLJ_OPERATIONS_VISION.md`, `WLJ_OPERATIONS_PHASE2_PLAN.md`,
+`WLJ_OPS_WALL_COVERAGE.md`, the startup reference index, and `CLAUDE.md`: one package boundary, one object
+model, one recovery lifecycle, one safety classification, no stale section refs, no CoS dependency, no
+production behavior. Phase II NOT marked started/in-progress.
+
+**Files:** `docs/WLJ_OPERATIONS_PHASE2_PLAN.md`, `docs/wlj_claude_changelog.md`.
+
+**Verification:** Documentation-only — no code/models/migrations/tests/settings changed. Grep-verified: no
+doc places recovery under `ai_observability/`; all vision cross-refs resolve to existing headers.
+
 ## 2026-07-11 — docs(operations): ARCHITECTURE FREEZE — internal architecture, object model, boundaries (docs-only)
 
 **Why:** Final architecture/documentation milestone for the WLJ Operations subsystem before Phase II

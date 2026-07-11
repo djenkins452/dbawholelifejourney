@@ -6,6 +6,11 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): fill Phase II-B ledger SHA (655fb94a)
+
+Living-doc maintenance: record the Git SHA for the Phase II-B expanded-R1 ledger row in
+`WLJ_OPERATIONS_VISION.md §15`. Docs-only.
+
 ## 2026-07-11 — feat(operations): Phase II-B expanded R1 recoveries (ships dark) + Phase III readiness finding
 
 **Why:** Build several more concrete R1 recoveries to discover the true framework abstraction through

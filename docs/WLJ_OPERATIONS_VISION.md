@@ -826,7 +826,7 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 | [ ] | **Enable in PRODUCTION** (OPERATOR-GATED — the O1→O2 gate): allowlist `apps.core.health_briefing.tasks.recompute_all_health_briefings_task` + set the 3 Railway env vars + observe ≥3 SAME cycles. Runbook: PHASE2_PLAN §11.1 | — | — | — | — | — |
 | [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |
 
-**Phase II-B — Expanded R1 recoveries (shipped dark, `_this commit_`):**
+**Phase II-B — Expanded R1 recoveries (shipped dark, `655fb94a`):**
 
 | ✔ | Sub-feature | Shape | Docs | Tests |
 |---|---|---|---|---|

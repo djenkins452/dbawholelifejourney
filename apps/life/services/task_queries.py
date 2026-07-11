@@ -67,11 +67,28 @@ class TaskQueries:
 
     @classmethod
     def completed_on(cls, user, on_date):
-        """Tasks completed on a specific date."""
+        """Tasks whose COMPLETION TIMESTAMP falls on `on_date` (a HISTORY/momentum concept —
+        "what did I finish on this calendar day"). NOT occurrence-scoped: for a recurring
+        task this includes a PRIOR occurrence finished within this day's clock window (e.g.
+        yesterday's occurrence completed after midnight). Use `completed_due_on` for today's
+        EXECUTION state; use this only for history/momentum."""
         return Task.objects.filter(
             user=user,
             completion_status='completed',
             completed_at__date=on_date,
+        )
+
+    @classmethod
+    def completed_due_on(cls, user, on_date):
+        """Today's-execution completion: the OCCURRENCE DUE on `on_date` that is completed —
+        i.e. "is today's occurrence done?". Occurrence-scoped by `due_date`, NOT by the
+        completion timestamp, so a prior occurrence completed late (in today's clock window)
+        is NEVER attributed to today's execution nor allowed to mask today's own occurrence.
+        Historical recurring completions belong to their own due-day, not today's."""
+        return Task.objects.filter(
+            user=user,
+            completion_status='completed',
+            due_date=on_date,
         )
 
     @classmethod

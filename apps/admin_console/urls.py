@@ -14,7 +14,6 @@ from django.urls import path
 
 from . import views
 from . import ai_views
-from .temp_diag_von import TempVonDiagnosticView  # TEMPORARY — remove with the incident
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
 
@@ -23,11 +22,6 @@ app_name = "admin_console"
 urlpatterns = [
     # Dashboard
     path("", views.AdminDashboardView.as_view(), name="dashboard"),
-
-    # TEMPORARY, READ-ONLY diagnostic — "Check on Von's House" completion incident.
-    # Remove this line + apps/admin_console/temp_diag_von.py once evidence is captured.
-    path("temp-diag/von-current-context/", TempVonDiagnosticView.as_view(),
-         name="temp_diag_von"),
 
     # AI Operations — Beth Acceptance Center
     path("ai/beth-acceptance/", ai_views.BethAcceptanceCenterView.as_view(),

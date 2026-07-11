@@ -83,6 +83,38 @@ class CompletionReconciliationTests(TestCase):
         st = build_execution_state(self.user)
         self.assertEqual(len(st.get("completed_today", [])), 2)  # A, B — not 3
 
+    # 9 — HISTORICAL recurring completion must NOT enter today's execution nor mask today's
+    #     occurrence. Yesterday's occurrence (due yesterday) completed after midnight (its
+    #     completed_at lands in today's clock window) is history — today's own occurrence is
+    #     still pending and must be visible. (The "Check on Von's House" incident, 2026-07-11.)
+    def test_historical_recurring_completion_does_not_mask_todays_occurrence(self):
+        # Yesterday's occurrence — completed just after midnight (completed_at = now/today).
+        yday = self._task("Check on Von's House", status="completed",
+                          due=self.today - timedelta(days=1), completed=True)
+        yday.is_recurring = True
+        yday.save(update_fields=["is_recurring"])
+        # Today's occurrence — still pending.
+        self._task("Check on Von's House", status="pending", due=self.today)
+
+        st = build_execution_state(self.user)
+        completed = [c.get("title") for c in st.get("completed_today", [])]
+        visible = [a.get("title") for a in (
+            st.get("overdue_actions", []) + st.get("now_actions", [])
+            + st.get("next_actions", []) + st.get("upcoming_actions", []))]
+
+        # History is NOT reported as today's execution completion …
+        self.assertNotIn("Check on Von's House", completed)
+        # … and today's pending occurrence is NOT masked — it stays visible.
+        self.assertIn("Check on Von's House", visible)
+
+    # 10 — a genuine TODAY occurrence completion IS still reported (no over-correction).
+    def test_todays_occurrence_completion_still_reported(self):
+        self._task("Check on Von's House", status="completed",
+                   due=self.today, completed=True)
+        completed = [c.get("title") for c in
+                     build_execution_state(self.user).get("completed_today", [])]
+        self.assertIn("Check on Von's House", completed)
+
     # 8 — all consumers derive the same buckets (execution_facts == execution_state).
     def test_consumers_receive_the_same_bucket(self):
         self._task("Shared truth", status="completed", due=self.today, completed=True)

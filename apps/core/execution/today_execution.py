@@ -159,11 +159,15 @@ def _collect_task_items(user, user_now, user_today, truth=None):
         # which also collapses duplicate titles.
         return (title or '').strip().lower()
 
-    # ── Completed TODAY — completion is now part of Execution Truth (single producer).
-    #    Keyed on completion actually occurring today (TaskQueries.completed_on →
-    #    completed_at date == today), NOT merely a 'completed' status. Marked
+    # ── Completed TODAY'S OCCURRENCE — Execution Truth answers "what is true about TODAY",
+    #    so completion is OCCURRENCE-scoped: the task DUE today that is completed
+    #    (TaskQueries.completed_due_on → completion_status='completed' AND due_date==today),
+    #    NOT "any task whose completion timestamp lands today". A recurring task's PRIOR
+    #    occurrence (due yesterday) finished after midnight is HISTORY — yesterday's
+    #    execution completed late — and must never enter today's execution truth nor mask
+    #    today's own (possibly pending) occurrence of the same title. Marked
     #    is_actionable=False so the prioritizer excludes it (next-action unchanged).
-    for t in TaskQueries.completed_on(user, user_today):
+    for t in TaskQueries.completed_due_on(user, user_today):
         if t.is_routine:
             continue
         items.append(_task_to_item(t, None, 'completed', completed_today=True))

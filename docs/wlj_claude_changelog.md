@@ -6,6 +6,51 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(execution): today's execution completion is OCCURRENCE-scoped — history no longer read as today
+
+**Trust incident:** the assistant said "You've completed Check on Von's house" while today's
+occurrence was still pending. Glass-box evidence (now removed) proved **Branch 1 — deterministic
+truth, not a hallucination**: "Check on Von's House" is a recurring task; yesterday's occurrence
+(due 2026-07-10) was completed just after midnight, so its `completed_at` timestamp landed in
+today's clock window, while today's occurrence (due 2026-07-11) was a separate, still-pending row.
+
+**Root cause (deterministic truth, not the prompt):** `execution_state.completed` was fed by
+`TaskQueries.completed_on(user, today)` = `completed_at::date == today` — a **timestamp-based**
+"what did I finish today" (a HISTORY/momentum concept). For a recurring task it attributed a PRIOR
+occurrence's late completion to TODAY's execution, and the title-based reconciliation in
+`_collect_task_items` then **masked today's own pending occurrence** of the same title. Execution
+Truth ("what is true about today?") and history ("what happened previously?") were blended.
+
+**Fix (producer only — no prompt/guard changes):**
+- **`apps/life/services/task_queries.py`** — added `completed_due_on(user, on_date)` = completed AND
+  `due_date == on_date` (the occurrence DUE that day is done). `completed_on` (timestamp-based) is
+  kept and re-documented as a HISTORY/momentum query, not today's execution.
+- **`apps/core/execution/today_execution.py :: _collect_task_items`** — today's completed bucket now
+  uses `completed_due_on(user, user_today)`. A recurring task's prior occurrence completed after
+  midnight is history (yesterday's execution completed late); it no longer enters today's execution
+  truth nor masks today's occurrence. A genuine TODAY-occurrence completion still reports.
+
+Answers to the incident questions: (1)/(2) the completed recurring occurrence entered via
+`execution_state.completed` (timestamp-based `completed_on`) + title reconciliation; (3)/(4) yes —
+today's execution is now occurrence-scoped and no longer blends historical recurring completions;
+(5) OpenAI no longer receives yesterday's recurring completion as today's execution (history remains
+available via history search on demand). Confirmed carrier was `execution_state` only
+(`deterministic_understanding.wins` was null); `execution_truth_engine.completed_today_all` is a bare
+count (no titles), so it cannot name a false completion.
+
+**Files:** `apps/life/services/task_queries.py`, `apps/core/execution/today_execution.py`,
+`apps/core/execution/tests/test_completion_reconciliation.py` (2 new cases: historical completion
+must not mask today's occurrence; today's-occurrence completion still reported).
+**Verification:** reproduction confirms the blend before the fix and its absence after; the full
+`apps/core/execution` suite (195) + reconciliation (9) green; `check` + `makemigrations --check` clean.
+
+## 2026-07-11 — diag(execution): REMOVE the temporary "Check on Von's House" glass-box (evidence captured)
+
+Removed the temporary read-only diagnostic from the prior commit now that it settled the incident
+(Branch 1). Deleted `apps/admin_console/temp_diag_von.py` and its one URL/import in
+`apps/admin_console/urls.py` — complete removal in a single change (temporary-infra lifecycle);
+`manage.py check` clean, no dangling references.
+
 ## 2026-07-11 — fix(multimodal): same-image duplicate write + wrong provenance in follow-up
 
 Two product issues from live multimodal use.

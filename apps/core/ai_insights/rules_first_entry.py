@@ -31,7 +31,13 @@ class FirstWeightEntryRule(BaseInsightRule):
             return []
 
         entry = WeightEntry.objects.filter(user=user, status="active").first()
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -76,7 +82,13 @@ class FirstJournalEntryRule(BaseInsightRule):
         if count != 1:
             return []
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -123,7 +135,13 @@ class FirstHabitLogRule(BaseInsightRule):
             goal__user=user, completed=True
         ).select_related("goal").first()
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -168,7 +186,13 @@ class FirstScriptureReadingRule(BaseInsightRule):
         if count != 1:
             return []
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -215,7 +239,13 @@ class FirstBodyCompEntryRule(BaseInsightRule):
             user=user, status="active"
         ).first()
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -264,7 +294,13 @@ class FirstWorkoutRule(BaseInsightRule):
             user=user, status="active"
         ).first()
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {
@@ -309,7 +345,13 @@ class FirstGoalCreatedRule(BaseInsightRule):
 
         goal = LifeGoal.objects.filter(user=user, status="active").first()
 
-        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first")
+        # A "first-ever" insight is NOT windowed — it fires exactly once. Use a STABLE
+        # sentinel for both window bounds so the dedupe key is constant per (user, type):
+        # the same key forever means the engine emits this insight once and dedupes every
+        # later trigger (e.g. if the entry is deleted and re-added). build_dedupe_key
+        # requires window_start AND window_end (4 positional args) — passing only 3 raised
+        # TypeError on every weight/journal/habit/etc. write.
+        dedupe_key = build_dedupe_key(user.id, self.insight_type, "first", "first")
 
         return [
             {

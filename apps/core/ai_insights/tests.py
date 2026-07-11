@@ -646,3 +646,77 @@ class InsightsInboxViewTests(PIETestMixin, TestCase):
         response = self.client.get("/insights/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Insights")
+
+
+# ── Regression: first-entry insight rules called build_dedupe_key with 3 args (needs 4:
+#    window_start AND window_end) → TypeError on every weight/journal/etc. write. A
+#    first-ever insight is not windowed; a STABLE sentinel key fires it exactly once. ──
+class FirstEntryInsightDedupeRegressionTests(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        self.User = get_user_model()
+        self.user = self.User.objects.create_user(email="fi@example.com", password="x")
+        self.event = {"module": "health", "action": "log_weight"}
+
+    def _weight(self, value):
+        from apps.health.models import WeightEntry
+        return WeightEntry.objects.create(
+            user=self.user, value=Decimal(str(value)), unit="lb",
+            recorded_at=timezone.now(),
+        )
+
+    def test_evaluate_no_longer_crashes(self):
+        from apps.core.ai_insights.rules_first_entry import FirstWeightEntryRule
+        self._weight(182.4)  # count == 1
+        result = FirstWeightEntryRule().evaluate(self.user, self.event)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(
+            result[0]["dedupe_key"],
+            build_dedupe_key(self.user.id, "first_weight_entry", "first", "first"),
+        )
+
+    def test_first_weight_insight_fires_once(self):
+        from apps.core.ai_insights.insight_engine import run_insights
+        self._weight(182.4)
+        run_insights(self.user, self.event)
+        self.assertEqual(Insight.objects.filter(
+            user=self.user, insight_type="first_weight_entry").count(), 1)
+
+    def test_no_duplicate_first_entry_insight(self):
+        from apps.core.ai_insights.insight_engine import run_insights
+        self._weight(182.4)
+        run_insights(self.user, self.event)   # creates
+        run_insights(self.user, self.event)   # same state → stable key dedupes (update)
+        self._weight(180.0)                    # count == 2 → rule's count guard returns []
+        run_insights(self.user, self.event)
+        self.assertEqual(Insight.objects.filter(
+            user=self.user, insight_type="first_weight_entry").count(), 1)
+
+    def test_dedupe_key_is_stable(self):
+        self.assertEqual(
+            build_dedupe_key(self.user.id, "first_weight_entry", "first", "first"),
+            build_dedupe_key(self.user.id, "first_weight_entry", "first", "first"),
+        )
+
+    def test_typed_weight_write_succeeds(self):
+        from apps.ai.action_handlers import ActionHandler
+        from apps.health.models import WeightEntry
+        res = ActionHandler(self.user).handle_log_weight(value=181.0, unit="lb")
+        self.assertTrue(res.success)
+        self.assertTrue(WeightEntry.objects.filter(user=self.user).exists())
+
+    def test_image_weight_write_succeeds(self):
+        from apps.ai import multimodal
+        from apps.ai.action_handlers import ActionHandler
+        art, _ = multimodal.store_artifact(
+            self.user, data=b"scale", content_type="image/jpeg", kind="scale_photo")
+        res = ActionHandler(self.user).handle_log_weight(
+            value=181.5, unit="lb", source_artifact_id=art.id, confidence=0.97)
+        self.assertTrue(res.success)
+        art.refresh_from_db()
+        self.assertEqual(art.status, "resolved")
+
+    def test_all_first_entry_types_build_a_stable_key(self):
+        for itype in ("first_weight_entry", "first_journal_entry", "first_habit_log",
+                      "first_scripture_reading", "first_body_comp_entry", "first_workout"):
+            self.assertEqual(len(build_dedupe_key(1, itype, "first", "first")), 64)

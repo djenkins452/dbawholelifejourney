@@ -6,6 +6,28 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(insights): first-entry rules crashed on every write — build_dedupe_key contract mismatch
+
+**Root cause (traced):** `build_dedupe_key(user_id, insight_type, window_start, window_end, key_record_ids=None)`
+requires 4 positional args, but all SIX first-entry rules in `apps/core/ai_insights/rules_first_entry.py`
+called it with 3 — `build_dedupe_key(user.id, self.insight_type, "first")` — so `"first"` landed in
+`window_start` and `window_end` was missing → `TypeError` on every weight / journal / habit / scripture /
+body-comp / workout write. Caught (non-fatal, so the entry still saved) but the insight never fired and it
+logged an error on every write.
+
+**Fix (root cause, no weakened dedup):** a "first-ever" insight is NOT windowed — it fires exactly once.
+Pass a STABLE sentinel for both bounds: `build_dedupe_key(user.id, self.insight_type, "first", "first")`.
+The key is now constant per (user, insight_type), so the engine's create-or-update-by-dedupe_key emits the
+insight ONCE and dedupes every later trigger (even if the entry is deleted and re-added). Applied to all 6
+rules. Integrity strengthened, not weakened.
+
+**Verification:** typed weight write ✓, image-derived weight write ✓ (provenance intact), first-weight
+insight fires exactly once ✓, later entries create no duplicate ✓, all 6 first-entry types build a valid
+key ✓. 7 regression tests in `apps/core/ai_insights/tests.py`. 150 insight tests green except 1 pre-existing
+cross-domain failure (confirmed identical on HEAD). `check` clean; no migrations.
+
+**Files:** `apps/core/ai_insights/rules_first_entry.py`, `apps/core/ai_insights/tests.py`.
+
 ## 2026-07-11 — fix(cos): Retrieval precedence — Current Context is authoritative; answer from what's on screen before retrieving
 
 **Trust bug:** viewing a journal entry, the user asked "What did I journal about today?" and Beth

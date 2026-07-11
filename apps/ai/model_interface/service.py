@@ -113,7 +113,7 @@ class ModelInterfaceService:
 
     # -- standing context: assemble the owned interfaces (assembler owns NOTHING) -----
     def build_standing_context(self, *, page_context=None, conversation=None,
-                               writes_enabled=False) -> dict:
+                               writes_enabled=False, attachments=None) -> dict:
         # Four owned interfaces, each at its OWN freshness (Architecture Law — refresh
         # cadence is an ownership boundary). The envelope only ASSEMBLES; it owns none.
         #   AI Relationship          — slow  (projection)
@@ -129,6 +129,7 @@ class ModelInterfaceService:
             "deterministic_understanding": understanding_read,
             "current_context": get_current_context_baseline(
                 self.user, page_context=page_context, conversation=conversation,
+                attachments=attachments,
             ),
         }
 
@@ -281,7 +282,7 @@ class ModelInterfaceService:
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
                  request_id="", observer=None, conversation_history=None,
-                 writes_enabled=None, images=None) -> dict:
+                 writes_enabled=None, images=None, attachments=None) -> dict:
         turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
         tools_called = []
         if writes_enabled is None:
@@ -289,7 +290,7 @@ class ModelInterfaceService:
 
         standing_context = self.build_standing_context(
             page_context=page_context, conversation=conversation,
-            writes_enabled=writes_enabled,
+            writes_enabled=writes_enabled, attachments=attachments,
         )
         system_prompt = self._system_prompt(standing_context)
         dispatch = self._make_dispatch(

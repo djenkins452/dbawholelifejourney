@@ -46,7 +46,8 @@ def warm_understanding(user_id):
     time_limit=110,
 )
 def run_model_interface_generation(self, user_id, conversation_id, message,
-                                   page_context, job_id):
+                                   page_context, job_id, images=None,
+                                   attachments=None):
     from django.contrib.auth import get_user_model
     from django.utils import timezone
 
@@ -79,6 +80,7 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface="chat_stream",
             request_id=job_id, conversation_history=history,
+            images=images, attachments=attachments,
         )
         answer = result.get("answer") or (
             "I reached the model-interface path, but the model returned an empty "

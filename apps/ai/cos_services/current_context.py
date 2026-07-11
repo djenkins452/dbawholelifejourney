@@ -41,7 +41,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-CURRENT_CONTEXT_SCHEMA_VERSION = "2.2"
+CURRENT_CONTEXT_SCHEMA_VERSION = "2.3"
 
 # Max chars of resolved canonical content to hand the model (bounds tokens; the model
 # can always call a truth tool for the full record).
@@ -271,7 +271,7 @@ def _current_screen(user, page_context, conversation=None, now=None) -> dict:
 
 
 def get_current_context_baseline(user, *, page_context=None, conversation=None,
-                                 now=None) -> dict:
+                                 now=None, attachments=None) -> dict:
     """Assemble the fast-tier Current Context: clock, current screen, capability index.
     Pure, cheap, request-path-safe. No deterministic understanding here (that is a
     separate owned interface).
@@ -286,7 +286,7 @@ def get_current_context_baseline(user, *, page_context=None, conversation=None,
             now = get_user_now(user)
         except Exception:  # pragma: no cover - defensive
             now = None
-    return {
+    baseline = {
         "schema_version": CURRENT_CONTEXT_SCHEMA_VERSION,
         "clock": _clock(user, now=now),
         "day_significance": _day_significance(user),
@@ -294,3 +294,10 @@ def get_current_context_baseline(user, *, page_context=None, conversation=None,
                                           now=now),
         "capabilities": _capabilities(),
     }
+    # Attachments the user uploaded THIS turn (images/docs). They are the current FOCUS of
+    # the turn — WLJ has already stored each as an artifact (provenance). The model perceives
+    # the image directly; this tells it the `source_artifact_id` to tag on any candidate it
+    # extracts (e.g. log_weight from a scale photo). WLJ never interprets the pixels.
+    if attachments:
+        baseline["attachments"] = list(attachments)
+    return baseline

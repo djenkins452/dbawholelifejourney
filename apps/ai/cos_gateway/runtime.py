@@ -147,6 +147,17 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         if conversation is None:
             conversation = AssistantConversation.get_or_create_active(user)
 
+        # Multimodal arrival path — store each uploaded image as an artifact (provenance +
+        # hash dedup) BEFORE generation, and produce the perception payload the model reads.
+        # Runs for BOTH sync and streaming so the artifact_id exists regardless of path.
+        from apps.ai.multimodal import ingest_uploads
+        images, attachments = ingest_uploads(
+            user,
+            image_data=kwargs.get("image_data"),
+            image_mime_type=kwargs.get("image_mime_type"),
+            images_list=kwargs.get("images_list"),
+        )
+
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:
             from apps.ai.model_interface.tasks import run_model_interface_generation
@@ -154,6 +165,7 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             bus.write(job_id, bus.new_snapshot(user.id, conversation.id))
             run_model_interface_generation.delay(
                 user.id, conversation.id, message, page_context, job_id,
+                images=images or None, attachments=attachments or None,
             )
             logger.info(
                 "COS_GATEWAY runtime=model_interface surface=%s stream job=%s user=%s",
@@ -180,6 +192,7 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface=surface,
             conversation_history=history,
+            images=images or None, attachments=attachments or None,
         )
         answer = result.get("answer") or (
             "I reached the model-interface path, but the model returned an empty "

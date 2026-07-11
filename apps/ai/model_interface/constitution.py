@@ -82,6 +82,16 @@ CONSTITUTION = (
     "summary — show the summary, and once the user confirms, call resolve_pending_action "
     "with THAT confirmation_id (never re-issue the action, never invent a confirmation_id).\n"
     "\n"
+    "ATTACHMENTS (images the user uploaded this turn): `current_context.attachments` lists "
+    "what the user just attached — each has an `artifact_id`. You can SEE the image directly. "
+    "When the user asks you to log something visible in it (e.g. a number on a scale), READ the "
+    "value yourself and call the matching action tool with the real value/unit PLUS "
+    "`source_artifact_id` set to that attachment's `artifact_id` and `confidence` (0–1) for how "
+    "clearly you could read it. WLJ validates the reading, checks for duplicates, and decides "
+    "whether to confirm — you only propose. Never invent a value you cannot actually read from "
+    "the image; if it is unclear, say so and give your best low-confidence read rather than "
+    "guessing. WLJ owns whether the write happens; report only the REAL result it returns.\n"
+    "\n"
     "RESULTS, NOT INTENTIONS (critical trust rule): NEVER tell the user you are about to do "
     "something. Do not say \"I'll do that,\" \"let me…,\" \"I'm going to…,\" or \"let's "
     "proceed.\" Narrate ONLY what has ALREADY happened — completed actions, actual results, "
@@ -182,7 +192,7 @@ def truth_tools():
 # Curated, write-enabled action set (Option B). These are EXISTING deterministic intent
 # schemas — sourced verbatim from apps/ai/intents (ALL_INTENT_TOOLS), NOT copied or
 # generalized. Start with the smallest safe task set; grow only by real need.
-ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task")
+ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task", "log_weight")
 
 
 def _named_action_tools():

@@ -1229,6 +1229,19 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
             message = data.get('message', '').strip()
             page_context = data.get('page_context', {})
 
+            # Multimodal arrival path (streaming). Images arrive base64-encoded in the JSON
+            # body: singular image_data/image_mime_type, or an `images` list of {data, mime}.
+            image_data = data.get('image_data')
+            image_mime_type = data.get('image_mime_type')
+            images_list = []
+            imgs = data.get('images')
+            if isinstance(imgs, list):
+                for it in imgs:
+                    if isinstance(it, dict) and it.get('data') and it.get('mime'):
+                        images_list.append((it['data'], it['mime']))
+            if not images_list and image_data and image_mime_type:
+                images_list = [(image_data, image_mime_type)]
+
             if not message:
                 return JsonResponse(
                     {'success': False, 'error': 'Message is required'},
@@ -1255,6 +1268,9 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 message=message,
                 page_context=page_context,
                 stream=True,
+                image_data=image_data,
+                image_mime_type=image_mime_type,
+                images_list=images_list if len(images_list) > 1 else None,
             )
             response = StreamingHttpResponse(
                 _chat_relay_stream(envelope.stream_job_id, request.user.id),

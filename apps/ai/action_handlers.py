@@ -763,6 +763,10 @@ class ActionHandler:
 
         source_artifact_id = kwargs.get('source_artifact_id')
         confidence = kwargs.get('confidence')
+        # `confirmed` arrives on a re-execution AFTER the user approved a bound confirmation —
+        # it BYPASSES the data-dependent confirmation gate below (never the validation gate:
+        # an implausible value is rejected even when confirmed).
+        confirmed = bool(kwargs.get('confirmed'))
 
         # ── Deterministic validation — reject an implausible extraction (never store it) ──
         if not multimodal.validate_weight(value, unit):
@@ -776,7 +780,7 @@ class ActionHandler:
         duplicate = multimodal.find_duplicate_weight(self.user, value, unit)
 
         # ── Confirmation POLICY (WLJ decides; the model only proposed) ──
-        if multimodal.requires_confirmation(
+        if not confirmed and multimodal.requires_confirmation(
             'log_weight', confidence=confidence,
             duplicate=bool(duplicate), source_artifact_id=source_artifact_id,
         ):

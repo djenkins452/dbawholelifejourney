@@ -25,12 +25,47 @@ NO OCR, NO image parsing, NO new intelligence. Everything downstream (execute_in
 audit) is reused. This module is pure and deterministic.
 """
 
+import base64
 import hashlib
 import logging
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 logger = logging.getLogger(__name__)
+
+
+# ── Upload ingestion (chat → artifact + perception payload) ──────────────────
+def ingest_uploads(user, *, image_data=None, image_mime_type=None, images_list=None):
+    """Normalize a chat turn's image uploads into (images, attachments).
+
+    `images`      — list of (base64, mime) tuples the model PERCEIVES this turn.
+    `attachments` — list of {artifact_id, content_type, kind} for every stored artifact
+                    (provenance-ready). WLJ stores each artifact by content hash BEFORE the
+                    model runs, so the artifact_id exists regardless of sync/streaming and can
+                    be surfaced into Current Context so the model can cite `source_artifact_id`.
+
+    WLJ never inspects pixels — it only hashes bytes for identity/dedup. Never raises."""
+    raw = []
+    if images_list:
+        raw = [(b64, mime) for (b64, mime) in images_list if b64 and mime]
+    elif image_data and image_mime_type:
+        raw = [(image_data, image_mime_type)]
+
+    images, attachments = [], []
+    for b64, mime in raw:
+        images.append((b64, mime))
+        try:
+            data = base64.b64decode(b64)
+        except Exception:  # pragma: no cover - defensive; still surface the image to the model
+            data = None
+        artifact, _created = store_artifact(user, data=data, content_type=mime, kind="image")
+        if artifact is not None:
+            attachments.append({
+                "artifact_id": artifact.id,
+                "content_type": mime,
+                "kind": "image",
+            })
+    return images, attachments
 
 
 # ── Artifact store (provenance + artifact-level dedup) ───────────────────────

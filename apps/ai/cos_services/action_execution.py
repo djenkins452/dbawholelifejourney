@@ -64,7 +64,14 @@ DAY1_ACTION_ALLOWLIST = {
     "add_reminder",
     "log_habit",
     "log_workout",
+    "log_weight",
 }
+
+# Intents that decide confirmation from the CANDIDATE DATA (not a static per-action policy) —
+# e.g. multimodal writes confirm on low perception confidence / suspected duplicate. For these,
+# `confirmed=true` must reach the handler so a confirmed re-execution BYPASSES the data gate
+# (otherwise it would loop). See apps/ai/multimodal.py :: requires_confirmation.
+_DATA_CONFIRM_INTENTS = {"log_weight"}
 
 
 def allowed_actions():
@@ -168,7 +175,10 @@ def execute_action(user, action, params):
             code="confirmation_required",
         )
 
-    # 3. execute through the SINGLE existing write path (UAIO).
+    # 3. execute through the SINGLE existing write path (UAIO). For data-confirm intents,
+    #    forward `confirmed` so a confirmed re-execution skips the handler's own data gate.
+    if confirmed and action_norm in _DATA_CONFIRM_INTENTS:
+        params["confirmed"] = True
     try:
         from apps.ai.intent_service import IntentResult, IntentService
         intent = IntentResult(intent_type=action_norm, parameters=params,
@@ -185,14 +195,29 @@ def execute_action(user, action, params):
 
     # 4. ActionResult -> JSON-safe envelope
     success = bool(getattr(result, "success", False))
+    err = getattr(result, "error", None)
     ms = (time.monotonic() - t0) * 1000
+
+    # A handler may compute confirmation from the CANDIDATE DATA (e.g. a low-confidence or
+    # duplicate multimodal write). That is deterministic WLJ policy, not a failure — surface
+    # it as confirmation_required so the interface mints a BOUND confirmation and the user is
+    # asked first. On the confirmed re-run, `confirmed=true` (step 3) bypasses this gate.
+    if not success and err == "confirmation_required":
+        _emit(uid, action_norm, "confirmation_required", ms=ms)
+        return _envelope(
+            action_norm, "confirmation_required",
+            message=getattr(result, "message", "") or (
+                "This needs your confirmation before I log it."),
+            code="confirmation_required",
+        )
+
     _emit(uid, action_norm, "executed" if success else "failed",
-          code=getattr(result, "error", None), ms=ms)
+          code=err, ms=ms)
     return _envelope(
         action_norm,
         "success" if success else "failed",
         message=getattr(result, "message", ""),
         result=_jsonsafe(getattr(result, "created_object", None)),
-        error=getattr(result, "error", None),
+        error=err,
         _meta={"duration_ms": round(ms, 1)},
     )

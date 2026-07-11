@@ -6,6 +6,58 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(multimodal): slice 1b — scale photo → log_weight LIVE end-to-end on the model interface
+
+**What shipped:** the multimodal spine (slice 1) is now wired into the live model-interface chat runtime,
+so a real uploaded scale photo produces a `log_weight` write in production. Scope is deliberately ONLY the
+scale photo — no glucose/receipts/contacts/PDFs yet.
+
+**The live flow (sync AND streaming):**
+`AssistantChatView`/`AssistantChatStreamView` → `CoSGateway.respond` → `ModelInterfaceRuntime.respond` →
+`multimodal.ingest_uploads` (stores each image as a `MultimodalArtifact` with hash dedup + provenance-ready
+`artifact_id`, BEFORE generation, so it exists on either path) → `generate(images=…, attachments=…)` (sync)
+or `run_model_interface_generation.delay(…, images=…, attachments=…)` (streaming). `generate` passes the
+image to the tool loop (perception) and threads the attachment into `current_context.attachments`
+(schema 2.2 → 2.3). The model reads the value and calls `log_weight(value, unit, source_artifact_id,
+confidence)`, which routes through the EXISTING deterministic path:
+`action_interface.request_action → execute_action → handle_log_weight` → validate → dedup → confirmation
+POLICY → UAIO → provenance link + audit.
+
+**Two real gaps found + fixed (not patched around):**
+- `execute_action` mapped a handler-returned `error='confirmation_required'` to `"failed"`, so the
+  DATA-dependent (confidence/duplicate) confirmation from `handle_log_weight` never minted a bound
+  confirmation. Now it surfaces `confirmation_required` as a proper env status → interface mints a BOUND
+  confirmation → the user is asked first.
+- `confirmed` was popped before the handler saw it, so a confirmed re-execution would loop. Added
+  `_DATA_CONFIRM_INTENTS = {"log_weight"}`; on a confirmed re-run `execute_action` forwards `confirmed`
+  so the handler bypasses its own data gate and writes (provenance still links — `source_artifact_id` is
+  preserved in the bound confirmation's params). `handle_log_weight` honors `confirmed` (never bypasses the
+  plausibility gate — an implausible value is rejected even when confirmed).
+
+**Enablement:** `log_weight` added to the model-interface write set (`ALLOWED_WRITE_INTENTS`) and the action
+allowlist (`DAY1_ACTION_ALLOWLIST`); its static ACTION_POLICY (LOG/LOW) keeps the static gate OFF so the
+DATA-dependent policy in the handler is the sole confirmation authority. Constitution gained an ATTACHMENTS
+clause (read the value, tag `source_artifact_id` + `confidence`; propose only — WLJ owns whether the write
+happens; report only the REAL result — Results-Not-Intentions preserved).
+
+**Files:** `apps/ai/multimodal.py` (+`ingest_uploads`), `apps/ai/cos_gateway/runtime.py`
+(`ModelInterfaceRuntime.respond` ingests + passes images/attachments both paths),
+`apps/ai/model_interface/tasks.py` (streaming task images/attachments), `apps/ai/model_interface/service.py`
+(`generate`/`build_standing_context` attachments), `apps/ai/cos_services/current_context.py`
+(`attachments` in baseline, schema 2.3), `apps/ai/model_interface/constitution.py` (log_weight write set +
+ATTACHMENTS clause), `apps/ai/cos_services/action_execution.py` (allowlist + handler-confirmation mapping +
+`_DATA_CONFIRM_INTENTS` confirmed forwarding), `apps/ai/action_handlers.py` (`handle_log_weight` honors
+`confirmed`), `apps/ai/views.py` (streaming view extracts images), `docs/WLJ_MULTIMODAL_TRUTH.md`.
+
+**Verification:** `apps/ai/tests/test_multimodal_wiring.py` (17, all pass) + `test_multimodal.py` (14) +
+`test_action_execution`/`test_action_interface`/`test_current_context_baseline`/`test_model_interface_runtime`/
+`test_intent_registration`/`test_request_path_safety_contract` (83 + 3, all pass). Covers: image reaches
+generate, artifact created, artifact_id in Current Context, high-confidence write, low-confidence + duplicate
+confirmation with approval/rejection round-trip, implausible rejection, artifact- & fact-level dedup,
+provenance link, streaming passthrough, legacy bypass, typed logging unchanged. **Not runtime-verifiable
+without an OpenAI key:** the perception half (the model actually reading the pixels) — the deterministic
+spine is fully tested.
+
 ## 2026-07-11 — fix(insights): first-entry rules crashed on every write — build_dedupe_key contract mismatch
 
 **Root cause (traced):** `build_dedupe_key(user_id, insight_type, window_start, window_end, key_record_ids=None)`

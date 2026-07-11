@@ -322,12 +322,40 @@ Scoped tests only (never the full suite). New tests under `apps/core/operations/
 
 ## 11. Deployment Strategy
 
-1. **Ship dark.** Merge with `OPS_RECOVERY_ENABLED=False`; the `apps/core/operations/` package + additive `RecoveryAttempt` migration deploy with zero behavior change. Verify `manage.py check` + `makemigrations --check` clean.
-2. **Enable Pilot 1** (snapshot refresh — zero external blast radius) via `OPS_RECOVERY_SNAPSHOT_REFRESH`; watch the audit trail + Command Center for a full cycle.
-3. **Enable Pilot 2** (allowlisted Beat-task re-enqueue) via `OPS_RECOVERY_BEAT_RETRY`, once Pilot 1 is proven; grow `IDEMPOTENT_RECOMPUTE_ALLOWLIST` one task at a time.
-4. **Only then** consider deferred/higher-blast-radius candidates (chat requeue *after its idempotency/dedup design ships and is tested*; worker/scheduler restart), each behind its own flag.
-5. Every enablement updates the **vision doc ledger** (vision §15) + changelog (Claude maintenance contract).
-6. Rollback = flip `OPS_RECOVERY_ENABLED` (or a per-handler flag) off — instant, no redeploy; recovery is additive and reversible by flag.
+1. **Ship dark. — DONE (`b3e6c40a`).** `apps/core/operations/` + additive `RecoveryAttempt` migration `0130` deployed with `OPS_RECOVERY_ENABLED=False` → zero behavior change. `manage.py check` + `makemigrations --check` clean.
+2. **Enable the one R1 pilot** (allowlisted Beat-task re-enqueue) — the operator runbook is **§11.1** below. One task at a time; the snapshot pilot is deferred (ADR-17).
+3. **Only then** consider deferred/higher-blast-radius candidates (chat requeue *after its idempotency/dedup design ships and is tested*; worker/scheduler restart), each behind its own flag.
+4. Every enablement updates the **vision doc ledger** (vision §15) + changelog (Claude maintenance contract).
+5. Rollback = flip `OPS_RECOVERY_ENABLED` (or `OPS_RECOVERY_BEAT_RETRY`) off — instant, no redeploy; recovery is additive and reversible by flag.
+
+### 11.1 Production enablement runbook (OPERATOR — the O1→O2 gate)
+
+Enablement is a Railway **env-var** change (there is no code path — `settings.py` defaults stay `False`/empty
+so the framework never enables itself; flipping the code default would enable recovery in *every*
+environment and is forbidden). Claude cannot perform this step (no prod access); it is the operator's.
+
+**Recommended first (and only) allowlist entry — the safest available task:**
+`apps.core.health_briefing.tasks.recompute_all_health_briefings_task`
+— a pure recompute, documented read-only against SAE with **zero post_save/post_delete cascade**
+(`apps/core/health_briefing/tasks.py`), no user-facing output, no deletion, 30-min cadence, OPS-1 monitored.
+Re-running it is idempotent and externally harmless.
+
+**Steps (Railway service env vars → redeploy picks them up):**
+1. `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST = apps.core.health_briefing.tasks.recompute_all_health_briefings_task`
+2. `OPS_RECOVERY_BEAT_RETRY = true`
+3. `OPS_RECOVERY_ENABLED = true`
+
+**Observe (≥3 SAME cycles / ~3–5 min):**
+- Ops Wall **Recovery Activity** card shows `enabled`, 0 escalations, and (in steady state) no attempts — a healthy system rarely misses a Beat task.
+- `/_health/` stays green; telemetry cadence unchanged (recovery runs in a separate downstream task).
+- **Optional controlled demonstration:** briefly pause the `worker` so the recompute misses its window → OPS-1 raises `MISSED_RUN` → next recovery cycle re-enqueues it → verification flips it back to OK → a `RecoveryAttempt` VERIFIED/SUCCESS row appears on the card. Restore the worker.
+
+**Rollback (instant, no redeploy risk):** set `OPS_RECOVERY_ENABLED = false` (or `OPS_RECOVERY_BEAT_RETRY = false`).
+Verify: card shows `disabled`, no new attempts, telemetry continues, no orphaned incidents (recovery never
+owns incident state — SAME resolves incidents regardless).
+
+**O2 is reached** when a real production `MISSED_RUN` for the allowlisted task is recovered and verified with
+a `RecoveryAttempt` audit trail — then update the vision ledger (§15) + maturity (§6) + changelog.
 
 ---
 

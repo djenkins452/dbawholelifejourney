@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — test+docs(operations): Phase III controlled-enablement prep (pilot proven; prod gate is operator)
+
+**Why:** Move Operations toward O2 (Recoverable) by proving the one recovery pilot safely performs the full
+lifecycle under controlled conditions, and hand the operator a precise production-enablement runbook. No new
+recovery capability; no architecture change. **Production enablement itself is operator-only** (Railway env
+vars) — Claude has no prod access and must never flip the `settings.py` defaults (that would enable recovery
+in every environment and break ship-dark).
+
+**Phase A — pilot selected:** the only registered handler is `BeatTaskRetryHandler` (confirmed). Safest
+allowlist task = `apps.core.health_briefing.tasks.recompute_all_health_briefings_task` — documented read-only
+against SAE, zero post_save/post_delete cascade, idempotent recompute, no user-facing output, no deletion,
+OPS-1 monitored.
+
+**Phase B — readiness verified (evidence):** flags default off (`settings.py:1501-1508`); allowlist empty;
+recovery task registered + resolvable (proven by the e2e enqueue assertion); routes to the default worker
+queue; cooldown 120s / max_attempts 2 enforced from the audit trail; `RecoveryAttempt` model + migration
+0130; verification reuses `compute_scheduled_task_states`; rollback = flag off; Recovery Activity card +
+Ops Wall render (85 v2 tests); `/_health/` present.
+
+**Phase D/E — controlled runtime + rollback proven (new tests, `test_recovery.py::BeatTaskRetryPilotE2ETests`,
+4):** the REAL handler through the REAL engine against a REAL MISSED_RUN incident — recover (real task
+resolves + `safe_enqueue` called once, mocked at the boundary) → deferred verification → `VERIFIED/SUCCESS`
+audit; incident `is_active` untouched (SAME owns lifecycle); no duplicate execution under cooldown;
+non-allowlisted task → R0 observe-only; `OPS_RECOVERY_ENABLED=False` → zero execution, zero audit rows.
+
+**Phase F — O2 determination: NOT YET REACHED (honest).** Deterministic recovery exists and is verified in a
+controlled environment, but the governing standard requires proof in PRODUCTION. That needs the operator to
+set the 3 Railway env vars (runbook: `WLJ_OPERATIONS_PHASE2_PLAN.md §11.1`) and observe a real recovery.
+Maturity stays **O1 (O2-ready, not production-demonstrated)** — deliberately NOT declaring O2 from code.
+
+**Docs:** vision §6 maturity note + §15 ledger (pilot proven; enable-in-prod row is operator-gated with the
+task named) + footer; PHASE2_PLAN §11 reconciled to as-built (one pilot; correct setting names) + new §11.1
+operator runbook; bootloader priority #3 updated with the concrete task + runbook pointer.
+
+**Files:** `apps/core/operations/tests/test_recovery.py`, `docs/WLJ_OPERATIONS_VISION.md`,
+`docs/WLJ_OPERATIONS_PHASE2_PLAN.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-11 — docs(operations): Phase II post-implementation verification + milestone closeout
 
 **Why:** Independent verification and milestone-closeout pass after the Phase II Deterministic Recovery

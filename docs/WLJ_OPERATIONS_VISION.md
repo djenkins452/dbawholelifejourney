@@ -208,10 +208,15 @@ different maturity level than the subsystem as a whole.
 | **O4** | **Predictive** | Operations predicts incidents before they occur. | Phase VII |
 | **O5** | **Self-Optimizing** | Operations continuously improves itself using deterministic operational history. | Beyond Phase VIII/IX |
 
-**Current subsystem maturity: O1 (Observable).** The whole platform is visible; nothing yet
-self-heals. Individual monitors advance up this ladder as recovery, autonomy, and prediction are added
-to them — the subsystem's overall level is the *minimum* meaningful level across its critical monitors,
-not the maximum any one has reached. **O5** is deliberately the summit: it depends on Operations Memory
+**Current subsystem maturity: O1 (Observable) — O2-READY, pending production proof.** The whole platform
+is visible. The Phase II recovery framework + the first R1 pilot are shipped and the full recovery
+lifecycle is **verified in a controlled environment** (real handler → real engine → real MISSED_RUN →
+recover → verify → audit, `test_recovery.py::BeatTaskRetryPilotE2ETests`). Per the governing standard,
+**O2 (Recoverable) is only reached when the framework recovers a real condition in PRODUCTION** — which
+requires the operator-gated enablement (three Railway env vars; runbook in `WLJ_OPERATIONS_PHASE2_PLAN.md
+§11.1`) and observation over live SAME cycles. Until then the subsystem remains **O1 with O2 proven-ready
+but not production-demonstrated.** The subsystem's overall level is the *minimum* meaningful level across
+its critical monitors, not the maximum any one has reached. **O5** is deliberately the summit: it depends on Operations Memory
 (§7) — deterministic operational history rich enough to tell the subsystem which recoveries work and
 which permanent fixes ended a recurring class.
 
@@ -817,7 +822,8 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 | [x] | Read-only "Recovery Activity" Ops Wall card (cache-published) | 2026-07-11 | b3e6c40a | ship-dark | §9 | payload-builder test |
 | [x] | Import-boundary + request-path CI contract tests | 2026-07-11 | b3e6c40a | ship-dark | §11 | `test_import_boundaries.py`, `test_request_path_safety_contract.py` |
 | [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | b3e6c40a | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
-| [ ] | **Enable** Pilot (add a task to `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST` + flip flags) | — | — | — | — | — |
+| [x] | Pilot selected + controlled E2E recovery lifecycle proven (real handler/engine/MISSED_RUN) | 2026-07-11 | _this commit_ | ship-dark | PHASE2_PLAN §11.1 | `BeatTaskRetryPilotE2ETests` (4) |
+| [ ] | **Enable in PRODUCTION** (OPERATOR-GATED — the O1→O2 gate): allowlist `apps.core.health_briefing.tasks.recompute_all_health_briefings_task` + set the 3 Railway env vars + observe ≥3 SAME cycles. Runbook: PHASE2_PLAN §11.1 | — | — | — | — | — |
 | [-] | Snapshot-refresh pilot | **Deferred** (ADR-16) — its condition is already covered by the Beat-retry pilot; a separate handler would double-cover one condition (III.1). | | | | |
 | [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |
 
@@ -955,7 +961,14 @@ additionally requires a Constitutional Review. The next chat begins **Phase II i
 
 ---
 
-*Last updated: 2026-07-11 — **PHASE II FRAMEWORK SHIPPED (dark).** Built `apps/core/operations/`
+*Last updated: 2026-07-11 — **PHASE III controlled-enablement prep.** Pilot selected (safest task:
+`recompute_all_health_briefings_task`); the full recovery lifecycle proven in a controlled environment with
+the REAL handler/engine/MISSED_RUN (`BeatTaskRetryPilotE2ETests`); operator production-enablement runbook
+authored (`WLJ_OPERATIONS_PHASE2_PLAN.md §11.1`). **O2 is O2-READY but NOT yet reached** — it requires the
+operator-gated production enablement + observation (no prod access from here). Ledger §15 + maturity §6
+updated. Prior line ↓.*
+
+*2026-07-11 — **PHASE II FRAMEWORK SHIPPED (dark).** Built `apps/core/operations/`
 (RecoveryEngine, RecoveryPolicy, RecoveryHandler+registry, RecoveryAttempt audit model + migration 0130,
 verification framework, separate downstream recovery task, kill switch, read-only Ops Wall card,
 import-boundary + request-path CI contracts) and the one first-cut R1 pilot (Beat-task re-enqueue,

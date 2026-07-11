@@ -21,7 +21,7 @@ Architecture is stable and constitutionally protected. WLJ is in **product refin
 ## Current priorities (ranked)
 1. **CC-1** — `@register_page_summary` providers for the 8 core dashboards (pattern: `health.weight`). `docs/WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md §4`.
 2. **CC-2 / CC-4** — `CurrentContextMixin` on the ~8 non-DetailView detail pages; spot-check the ~45 auto-declared DetailViews inherit `UserOwnedModel`.
-3. **Operations pilot enablement (OPERATOR-GATED — the O1→O2 gate)** — enable the first Beat-retry recovery pilot in production: add an idempotent recompute/cleanup task to `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST`, set `OPS_RECOVERY_ENABLED=true` + `OPS_RECOVERY_BEAT_RETRY=true`, then verify via the Ops Wall "Recovery Activity" card. Deliberate, one task at a time. `docs/WLJ_OPERATIONS_VISION.md §15`.
+3. **Operations pilot enablement (OPERATOR-GATED — the O1→O2 gate)** — pilot selected + lifecycle proven in a controlled env; **remaining step is the operator's** (Claude has no prod access). Set 3 Railway env vars: `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST=apps.core.health_briefing.tasks.recompute_all_health_briefings_task`, `OPS_RECOVERY_BEAT_RETRY=true`, `OPS_RECOVERY_ENABLED=true`; observe ≥3 SAME cycles via the Ops Wall "Recovery Activity" card. **Full runbook: `docs/WLJ_OPERATIONS_PHASE2_PLAN.md §11.1`.** O2 is reached only after a real prod MISSED_RUN is recovered+verified.
 4. **Acceptance gaps** — end-to-end scheduled-check-in test; standalone conversation-integrity contract. `docs/WLJ_ACCEPTANCE_BASELINE.md §5`.
 5. **Help gaps** — per-page finance help; add `SECURITY_DASHBOARD`, `SPORTS_HUB`, `CALENDAR_EVENT_DETAIL` topics.
 

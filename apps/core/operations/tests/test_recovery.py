@@ -211,3 +211,93 @@ class BeatTaskRetryHandlerTests(TestCase):
             return_value=[{"task_name": "apps.core.tasks.x", "status": "MISSED"}],
         ):
             self.assertFalse(h.verify(diag).healthy)
+
+
+# The Phase III controlled pilot task — the safest available (read-only recompute,
+# zero post_save cascade, no user-facing output, OPS-1 monitored). This is exactly
+# the task recommended for the first production allowlist entry.
+PILOT_TASK = "apps.core.health_briefing.tasks.recompute_all_health_briefings_task"
+
+
+@override_settings(
+    OPS_RECOVERY_ENABLED=True,
+    OPS_RECOVERY_BEAT_RETRY=True,
+    OPS_RECOVERY_BEAT_RETRY_ALLOWLIST=[PILOT_TASK],
+)
+class BeatTaskRetryPilotE2ETests(TestCase):
+    """Controlled end-to-end simulation of the REAL pilot handler through the REAL
+    RecoveryEngine against a REAL MISSED_RUN incident — the 'smallest, safest
+    scenario' for Phase III runtime verification. Only the enqueue boundary
+    (safe_enqueue) and the post-recovery scheduled-state are mocked; gating,
+    auditing, verification-reuse, lifecycle, and cooldown are all real."""
+
+    def setUp(self):
+        engine_mod._HANDLERS_READY = False  # force real default-handler registration
+
+    def _backdate(self, row, seconds):
+        # created_at is auto_now_add; .update() bypasses it to simulate elapsed time.
+        RecoveryAttempt.objects.filter(pk=row.pk).update(
+            created_at=timezone.now() - __import__("datetime").timedelta(seconds=seconds)
+        )
+
+    def test_full_recovery_lifecycle_success(self):
+        anomaly = _mk_anomaly(engine=PILOT_TASK, atype="MISSED_RUN")
+        # Cycle 1 — recover: real handler resolves the real registered task and calls
+        # safe_enqueue (mocked so no real task fires). Verification is deferred.
+        with mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            run_recovery_cycle()
+        self.assertEqual(m_enq.call_count, 1, "real pilot task must resolve + enqueue")
+        row = RecoveryAttempt.objects.get()
+        self.assertEqual(row.classification, "R1")
+        self.assertEqual(row.phase, RecoveryAttempt.PHASE_RECOVER_ATTEMPTED)
+        self.assertEqual(row.outcome, RecoveryAttempt.OUTCOME_PENDING)
+
+        # Simulate the re-enqueued task having run: predicate now reports OK.
+        self._backdate(row, 200)  # past the 120s cooldown
+        with mock.patch(
+            "apps.core.ai_observability.scheduled_task_monitor.compute_scheduled_task_states",
+            return_value=[{"task_name": PILOT_TASK, "status": "OK"}],
+        ):
+            run_recovery_cycle()  # Cycle 2 — resolve deferred verification
+        row.refresh_from_db()
+        self.assertEqual(row.phase, RecoveryAttempt.PHASE_VERIFIED)
+        self.assertEqual(row.outcome, RecoveryAttempt.OUTCOME_SUCCESS)
+        # Incident lifecycle untouched by recovery (SAME owns it).
+        anomaly.refresh_from_db()
+        self.assertTrue(anomaly.is_active)
+
+    def test_no_duplicate_execution_within_cooldown(self):
+        _mk_anomaly(engine=PILOT_TASK, atype="MISSED_RUN")
+        with mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            run_recovery_cycle()
+            run_recovery_cycle()  # immediate re-run: pending + cooldown → no 2nd action
+        self.assertEqual(m_enq.call_count, 1)
+
+    @override_settings(OPS_RECOVERY_BEAT_RETRY_ALLOWLIST=[])
+    def test_non_allowlisted_task_is_observe_only(self):
+        _mk_anomaly(engine=PILOT_TASK, atype="MISSED_RUN")
+        with mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            run_recovery_cycle()
+        self.assertEqual(m_enq.call_count, 0, "no enqueue for a non-allowlisted task")
+        self.assertEqual(
+            RecoveryAttempt.objects.filter(
+                phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE, classification="R0"
+            ).count(), 1
+        )
+
+    @override_settings(OPS_RECOVERY_ENABLED=False)
+    def test_rollback_disabled_performs_no_execution(self):
+        _mk_anomaly(engine=PILOT_TASK, atype="MISSED_RUN")
+        with mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            summary = run_recovery_cycle()
+        self.assertFalse(summary["enabled"])
+        self.assertEqual(m_enq.call_count, 0)
+        self.assertEqual(RecoveryAttempt.objects.count(), 0)

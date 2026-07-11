@@ -8,12 +8,15 @@
 
 ## 1. What the Ops Wall is
 
-A single read-only monitoring surface at **`/admin-console/ops/`**, polled every 2s, driven by a background-computed telemetry payload (`build_ops_stream_payload()`, 23 sections). A component is observable **only if** it is either (a) a registered engine with a heartbeat cadence, (b) has a dedicated `_get_*` telemetry section, or (c) is a scheduled Beat task tracked by the scheduled-task monitor (OPS-1, below). Anything else running in prod is invisible.
+A single read-only monitoring surface at **`/admin-console/ops/`**, polled every 2s, driven by a background-computed telemetry payload (`build_ops_stream_payload()`, 26 sections). A component is observable **only if** it is either (a) a registered engine with a heartbeat cadence, (b) has a dedicated `_get_*` telemetry section, or (c) is a scheduled Beat task tracked by the scheduled-task monitor (OPS-1, below). Anything else running in prod is invisible.
 
 **Key code:**
 - Telemetry: `apps/core/ai_observability/ops_telemetry.py`
 - Anomaly engine (SAME, 11 detectors, 60s): `apps/core/ai_observability/same_engine.py`
 - Scheduled Beat-task monitor (OPS-1): `apps/core/ai_observability/scheduled_task_monitor.py` — generic Beat-schedule-vs-actual-run reconciler; cadence derived from `CELERY_BEAT_SCHEDULE`, runs recorded via Celery `task_postrun`, MISSED_RUN emitted through the SAME pipeline.
+- Storage / volume monitor (OPS-2): `apps/core/ai_observability/storage_monitor.py` — Postgres size + growth, Redis memory/eviction, disk/volume utilization; daily `StorageSnapshot` for trend.
+- Chat queue monitor (OPS-3): `apps/core/ai_observability/chat_queue_monitor.py` — passive Celery-signal lifecycle (publish/prerun/postrun) over the chat tasks; Redis-backed depth/wait/throughput/stuck/starvation.
+- OpenAI upstream monitor (OPS-4): `apps/core/ai_observability/upstream_health.py` — passive per-call recorder at `AIService._log_usage`; availability, latency, consecutive failures, degradation state (distinguishes "WLJ healthy" from "OpenAI degraded").
 - Celery/infra health: `apps/core/ai_observability/celery_health.py`, `apps/core/scheduler_health.py`
 - Engine registry (~46 engines): `apps/core/engine_registry.py`
 - Separate infra liveness (NOT on the wall): `/_health/` (`HealthCheckView` — DB `SELECT 1`, Redis probe, scheduler)
@@ -30,13 +33,14 @@ A single read-only monitoring surface at **`/admin-console/ops/`**, polled every
 | Celery Worker(s) | ✅ Yes | Mostly | HEALTHY/DEGRADED/CRITICAL/DOWN via `inspect().ping()`; worker count, concurrency, failed_1h |
 | Celery Beat | Partial | Partial | Liveness **inferred** from ISE+SAME heartbeats; no direct beat-process heartbeat |
 | Build Runner | ❌ No | No | Railway build/deploy runner unmonitored |
-| PostgreSQL | Partial | Liveness only | `SELECT 1` only; no connections/disk/bloat/slow-query |
-| Redis | Partial | Partial | Broker connectivity + cache probe + circuit breaker; no memory/eviction/latency card |
-| Database Administration | ❌ No | No | No migration status, backup verification, pool, vacuum |
-| Volumes | ❌ No | No | No disk/volume/media/S3 usage — capacity exhaustion is blind |
-| Queues | Partial | Partial | `LLEN "celery"` only; **`chat` queue not measured** |
+| PostgreSQL | ✅ Yes | Size + growth | `storage` section: `pg_database_size` + 30-day growth trend (OPS-2). Connections/bloat/slow-query still pending (OPS-5) |
+| Redis | ✅ Yes | Memory + eviction | `storage` section: used/max memory, utilization %, `maxmemory_policy`, `evicted_keys` (OPS-2); plus broker connectivity + circuit breaker |
+| Database Administration | ❌ No | No | No migration status, backup verification, pool, vacuum (OPS-5) |
+| Volumes | ✅ Yes | Disk utilization | `storage` section: `shutil.disk_usage` on the Railway volume / MEDIA_ROOT with warn/critical thresholds (OPS-2). S3 audio bucket still unmonitored (OPS-8) |
+| Queues | ✅ Yes | Depth + backlog | `chat_queue` section: chat depth, oldest-queued age, throughput, queue wait, stuck, worker starvation (OPS-3); `celery` default queue via `LLEN` |
 | Scheduler health | ✅ Yes | ✅ Yes | status, drift_seconds, cadence, MISSED_RUN/ENGINE_STARVATION |
 | API health | ✅ Yes | Mostly | 24h volume, avg/P95, error rate, per-endpoint, channel split |
+| OpenAI upstream | ✅ Yes | Availability + latency | `upstream_health` section: availability %, avg latency, consecutive failures, breaker state, last success; OUTAGE/DEGRADED/HEALTHY/IDLE (OPS-4) |
 
 ## 3. Coverage matrix — logical WLJ services
 
@@ -49,8 +53,8 @@ A single read-only monitoring surface at **`/admin-console/ops/`**, polled every
 | Timing Calculations | Partial | HTIE engine heartbeat; correctness not surfaced |
 | AI Relationship | Partial | PERSONA + RELDRIFT engines; no relationship-quality card |
 | Executive Context Envelope | ✅ Yes | `_get_eae_ops_telemetry()` — decisions, arbitration, escalation, freshness |
-| Model Interface | Partial | No adapter health/error card; inferred via latency |
-| OpenAI connectivity | ❌ No | No upstream ping/health/error-rate — outage inferred downstream |
+| Model Interface | Partial | Upstream availability/latency/error now on the wall (OPS-4); adapter-internal errors still inferred |
+| OpenAI connectivity | ✅ Yes | `upstream_health` section (OPS-4) — availability %, latency, consecutive failures, degradation state, last success; attributes outages to the provider, not WLJ |
 | Streaming generation | Partial | TTFT tracked; no stream dropout/abort card |
 | Scheduled Check-ins | ✅ Yes | COSSCHED, COSDELIV, CDCE_CI heartbeats |
 | Notifications | ✅ Yes | DNE heartbeat + DELIVERY_RETRY_SPIKE |
@@ -66,7 +70,7 @@ A single read-only monitoring surface at **`/admin-console/ops/`**, polled every
 | Duplicate detection | ❌ No | No dedup rate/failure metric |
 | Background cleanup jobs | ✅ Yes | Covered by scheduled-task monitor (OPS-1) → MISSED_RUN fires |
 | Image retention jobs | ✅ Yes | Capture expiry/retention Beat tasks covered by scheduled-task monitor (OPS-1) |
-| Queue backlog | Partial | `celery` queue thresholds; `chat` invisible |
+| Queue backlog | ✅ Yes | `celery` queue thresholds + `chat` queue depth/wait/throughput/stuck/starvation (OPS-3) |
 | Failure monitoring | ✅ Yes | ERROR_SPIKE + aafr + failed_1h |
 | Retry monitoring | Partial | Only DNE delivery retries; general Celery retries not aggregated |
 | Dead-job detection | ❌ No | No dead-letter/stuck/orphaned-job alarm |
@@ -83,10 +87,10 @@ The observability gaps below run in production but have no operational health. E
 | ID | Gap | Impact | Phase |
 |---|---|---|---|
 | ~~**OPS-1**~~ | ~~non-engine Beat tasks are structurally invisible~~ → **DONE (2026-07-11).** All 23 non-engine Beat tasks (Goal momentum, `cleanup_soft_deletes`, capture retention/reminders, celebrations, digests, `cos_keepalive`, …) are now covered by the generic scheduled-task monitor. MISSED_RUN fires for every scheduled job. | ~~Highest~~ | ✅ Done |
-| **OPS-2** | Volumes / Artifact storage / DB storage capacity unmonitored | High — classic outage cause is blind | Next |
-| **OPS-3** | `chat` queue + chatworker backlog not measured (`LLEN "celery"` only) | High — the exact P0 the chatworker exists for | Next |
-| **OPS-4** | OpenAI connectivity / Model Interface health not surfaced | High — LLM outage seen only after downstream damage | Next |
-| **OPS-5** | PostgreSQL depth + DB administration (connections, migrations, bloat, backup verification) | Medium | Following |
+| ~~**OPS-2**~~ | ~~Volumes / DB / Redis storage capacity unmonitored~~ → **DONE (2026-07-11).** `storage` section: Postgres size + 30-day growth, Redis used/max memory + eviction, disk/volume utilization, warn/critical thresholds, daily `StorageSnapshot`, graceful UNAVAILABLE per resource. (S3 audio bucket deferred to OPS-8.) | ~~High~~ | ✅ Done |
+| ~~**OPS-3**~~ | ~~`chat` queue + chatworker backlog not measured~~ → **DONE (2026-07-11).** `chat_queue` section: passive Celery-signal lifecycle over the chat tasks → depth, oldest-queued age, throughput, queue wait, stuck detection, worker starvation. | ~~High~~ | ✅ Done |
+| ~~**OPS-4**~~ | ~~OpenAI connectivity / Model Interface health not surfaced~~ → **DONE (2026-07-11).** `upstream_health` section: passive per-call recorder → availability %, latency, consecutive failures, breaker state, degradation (OUTAGE/DEGRADED/HEALTHY/IDLE), last success. Distinguishes "WLJ healthy" from "OpenAI degraded". | ~~High~~ | ✅ Done |
+| **OPS-5** | PostgreSQL depth + DB administration (connections, migrations, bloat, backup verification) | Medium | Next |
 | **OPS-6** | No `owner` field on any component (cross-cutting; add via engine registry) | Medium | Following |
 | **OPS-7** | Dead-job / stuck-task / general Celery-retry aggregation | Medium | Following |
 | **OPS-8** | Confirmation queue, attachment persistence, duplicate detection, audit-pipeline lag health | Medium | Following |
@@ -101,6 +105,14 @@ The observability gaps below run in production but have no operational health. E
 - Kept deliberately separate from `EngineRun`/engine heartbeats so it does not pollute engine-health/integrity/narrative or the error-spike/starvation detectors.
 
 Tests: `apps/core/tests/test_scheduled_task_monitor.py` (13 tests, incl. an end-to-end SAME-cycle proof that a stale Beat task becomes an active `OpsAnomaly`).
+
+**OPS-2 / OPS-3 / OPS-4 as-built (2026-07-11):** three new telemetry sections, all following the OPS-1 / `api_health` architecture — probing/collection runs ONLY inside `build_ops_stream_payload()` (SAME background cycle, every 60s); the HTTP request path reads the cached payload and never computes.
+
+- **OPS-2 storage (`storage_monitor.py`, `storage` section):** three independent probes — Postgres `pg_database_size(current_database())` + a 30-day growth trend from the daily `StorageSnapshot` table; Redis `INFO memory` → `used_memory`/`maxmemory`/`maxmemory_policy`/`evicted_keys`; disk via `shutil.disk_usage` on `RAILWAY_VOLUME_MOUNT_PATH` (→ `MEDIA_ROOT` → `BASE_DIR`). Utilization thresholds WARNING 75% / CRITICAL 90%; `noeviction` Redis under pressure → CRITICAL. Any unmeasurable resource → UNAVAILABLE with a reason (never a fabricated zero); the roll-up takes the worst *measured* state. Reader cache-guarded 5 min.
+- **OPS-3 chat queue (`chat_queue_monitor.py`, `chat_queue` section):** passive Celery-signal lifecycle — `before_task_publish` (enqueue, web process) / `task_prerun` (start) / `task_postrun` (complete), filtered to `run_chat_generation` + `run_chatgpt_cos_generation`, connected in `apps/core/apps.py::ready()` alongside the OPS-1 signals. Cross-process Redis structures (pending/active sorted sets + wait/completion lists, self-expiring in 1h) yield queue depth, oldest-queued age, throughput/min, avg queue wait, stuck (active past the 120s time-limit), and worker starvation (backlog with nothing active/draining). No Redis (dev) → recorders no-op, reader UNAVAILABLE.
+- **OPS-4 upstream (`upstream_health.py`, `upstream_health` section):** a single fire-and-forget recorder at `AIService._log_usage` (both streaming and non-streaming, before the no-user guard) records every OpenAI outcome into per-minute cache buckets — no synthetic pings, zero added request-path latency. Reader computes windowed availability %, avg latency, error rate, consecutive failures, and consults the existing `openai_rate_limited` breaker flag. Degradation state machine: OUTAGE (≥3 consecutive failures or recent-failure-with-no-success) / DEGRADED (>25% window error rate or breaker active) / HEALTHY / IDLE — the attribution that separates "WLJ down" from "OpenAI down".
+
+Tests: `apps/core/tests/test_storage_monitor.py`, `apps/core/tests/test_chat_queue_monitor.py`, `apps/core/tests/test_upstream_health.py` (28 tests total).
 
 ---
 

@@ -48,3 +48,9 @@ class CoreConfig(AppConfig):
             connect_signals as _connect_beat_task_signals,
         )
         _connect_beat_task_signals()
+        # OPS-3 — connect chat-queue lifecycle signals (enqueue/start/complete)
+        # so the Ops Wall can see chat backlog, stalls, and worker starvation.
+        from apps.core.ai_observability.chat_queue_monitor import (
+            connect_signals as _connect_chat_queue_signals,
+        )
+        _connect_chat_queue_signals()

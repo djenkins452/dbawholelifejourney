@@ -4030,6 +4030,46 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Infrastructure Monitors: Storage / Chat Queue / Upstream (OPS-2/3/4) -->
+            <div class="ops-diagnostics-grid" style="grid-template-columns: 1fr 1fr 1fr">
+                <!-- OPS-2 — Storage / Volume -->
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Storage &amp; Volume</span>
+                        <span class="ops-sched-status-label" id="storageSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsStorage">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- OPS-3 — Chat Queue -->
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Chat Queue</span>
+                        <span class="ops-sched-status-label" id="chatQueueSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsChatQueue">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- OPS-4 — OpenAI Upstream -->
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">OpenAI Upstream</span>
+                        <span class="ops-sched-status-label" id="upstreamSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsUpstream">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -4728,6 +4768,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         renderScheduledTasks(data.scheduled_tasks);
+        // OPS-2/3/4 — infrastructure monitors
+        renderStorage(data.storage);
+        renderChatQueue(data.chat_queue);
+        renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
         renderCosPerformance(data.cos_performance);
         renderValidatorGate(data.validator_health);
@@ -6016,6 +6060,175 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 '<span class="ops-feed-action" style="color:var(--ops-text-dim)">last run: ' + escapeHtml(last) + '</span>';
             container.appendChild(line);
         });
+    }
+
+    /* =====================================================================
+       OPS-2/3/4 — Infrastructure Monitor Render Functions
+       ===================================================================== */
+
+    // Shared status → colour used by the OPS-2/3/4 feed cards.
+    function opsInfraColor(s) {
+        switch (s) {
+            case 'CRITICAL':
+            case 'OUTAGE':
+                return '#ff5a5a';
+            case 'WARNING':
+            case 'DEGRADED':
+                return '#ffb020';
+            case 'UNAVAILABLE':
+            case 'UNKNOWN':
+            case 'IDLE':
+                return 'var(--ops-text-dim)';
+            default:
+                return '#3fd07a';  // HEALTHY
+        }
+    }
+
+    function opsSummaryClass(s) {
+        switch (s) {
+            case 'CRITICAL':
+            case 'OUTAGE':
+                return 'OFFLINE';
+            case 'WARNING':
+            case 'DEGRADED':
+                return 'DELAYED';
+            case 'UNAVAILABLE':
+            case 'IDLE':
+                return '';
+            default:
+                return 'ALIVE';
+        }
+    }
+
+    function fmtBytes(n) {
+        if (n === null || n === undefined) return '—';
+        var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        var i = 0, v = n;
+        while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+        return v.toFixed(v >= 100 || i === 0 ? 0 : 1) + ' ' + units[i];
+    }
+
+    function fmtAge(s) {
+        if (s === null || s === undefined) return '—';
+        if (s < 60) return s + 's';
+        if (s < 3600) return Math.floor(s / 60) + 'm';
+        if (s < 86400) return Math.floor(s / 3600) + 'h';
+        return Math.floor(s / 86400) + 'd';
+    }
+
+    function opsFeedLine(container, status, label, detail) {
+        var line = document.createElement('div');
+        line.className = 'ops-feed-line';
+        line.innerHTML =
+            '<span class="ops-feed-time" style="color:' + opsInfraColor(status) + '">' + escapeHtml(status || '—') + '</span>' +
+            '<span class="ops-feed-engine">' + escapeHtml(label) + '</span>' +
+            '<span class="ops-feed-action" style="color:var(--ops-text-dim)">' + escapeHtml(detail) + '</span>';
+        container.appendChild(line);
+    }
+
+    function setInfraSummary(elId, status, text) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'ops-sched-status-label ' + opsSummaryClass(status);
+    }
+
+    function renderStorage(st) {
+        var container = document.getElementById('opsStorage');
+        if (!container) return;
+        if (!st) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('storageSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('storageSummary', st.status, st.status || '—');
+        container.innerHTML = '';
+
+        var pg = st.postgres || {};
+        if (pg.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'PostgreSQL', pg.reason || 'unavailable');
+        } else {
+            var pgDetail = fmtBytes(pg.bytes);
+            if (st.db_growth && st.db_growth.per_day_bytes) {
+                pgDetail += ' · +' + fmtBytes(st.db_growth.per_day_bytes) + '/day';
+            }
+            opsFeedLine(container, pg.status, 'PostgreSQL', pgDetail);
+        }
+
+        var rd = st.redis || {};
+        if (rd.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Redis', rd.reason || 'unavailable');
+        } else {
+            var rdDetail = fmtBytes(rd.used_bytes) +
+                (rd.max_bytes ? ' / ' + fmtBytes(rd.max_bytes) : ' (no limit)') +
+                (rd.util_pct !== null && rd.util_pct !== undefined ? ' · ' + rd.util_pct + '%' : '') +
+                ' · evicted ' + (rd.evicted_keys || 0);
+            opsFeedLine(container, rd.status, 'Redis', rdDetail);
+        }
+
+        var dk = st.disk || {};
+        if (dk.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Disk / Volume', dk.reason || 'unavailable');
+        } else {
+            var dkDetail = fmtBytes(dk.used_bytes) + ' / ' + fmtBytes(dk.total_bytes) +
+                (dk.util_pct !== null && dk.util_pct !== undefined ? ' · ' + dk.util_pct + '%' : '');
+            opsFeedLine(container, dk.status, 'Disk / Volume', dkDetail);
+        }
+    }
+
+    function renderChatQueue(cq) {
+        var container = document.getElementById('opsChatQueue');
+        if (!container) return;
+        if (!cq) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('chatQueueSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('chatQueueSummary', cq.status, cq.status || '—');
+        container.innerHTML = '';
+
+        if (cq.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Chat queue', cq.reason || 'unavailable');
+            return;
+        }
+
+        opsFeedLine(container, cq.queue_depth > 0 ? cq.status : 'HEALTHY',
+            'Queue depth', (cq.queue_depth || 0) + ' waiting · oldest ' + fmtAge(cq.oldest_age_s));
+        opsFeedLine(container, cq.stuck_count > 0 ? 'CRITICAL' : 'HEALTHY',
+            'Active', (cq.active_count || 0) + ' running' + (cq.stuck_count ? ' · ' + cq.stuck_count + ' STUCK' : ''));
+        opsFeedLine(container, 'HEALTHY', 'Throughput',
+            (cq.throughput_per_min || 0) + '/min · wait ' + (cq.avg_wait_ms !== null && cq.avg_wait_ms !== undefined ? cq.avg_wait_ms + 'ms' : '—'));
+        if (cq.worker_starved) {
+            opsFeedLine(container, 'CRITICAL', 'Worker', 'STARVED — backlog with no worker draining it');
+        }
+    }
+
+    function renderUpstreamHealth(up) {
+        var container = document.getElementById('opsUpstream');
+        if (!container) return;
+        if (!up) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('upstreamSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('upstreamSummary', up.status, up.status || '—');
+        container.innerHTML = '';
+
+        var availDetail = (up.availability_pct !== null && up.availability_pct !== undefined ? up.availability_pct + '%' : '—') +
+            ' · ' + (up.total_calls || 0) + ' calls/' + (up.window_minutes || 30) + 'm';
+        opsFeedLine(container, up.status, 'Availability', availDetail);
+
+        opsFeedLine(container, up.avg_latency_ms > 5000 ? 'WARNING' : 'HEALTHY',
+            'Latency', (up.avg_latency_ms !== null && up.avg_latency_ms !== undefined ? up.avg_latency_ms + 'ms avg' : '—'));
+
+        var failStatus = up.consecutive_failures >= 3 ? 'OUTAGE' : (up.error_count > 0 ? 'DEGRADED' : 'HEALTHY');
+        opsFeedLine(container, failStatus, 'Failures',
+            (up.error_count || 0) + ' in window · ' + (up.consecutive_failures || 0) + ' consecutive' +
+            (up.breaker_active ? ' · BREAKER ON' : ''));
+
+        var lastOk = up.last_success_at ? new Date(up.last_success_at).toLocaleTimeString() : 'never';
+        opsFeedLine(container, up.minutes_since_success !== null && up.minutes_since_success >= 10 ? 'WARNING' : 'HEALTHY',
+            'Last success', lastOk + (up.last_error ? ' · last err: ' + up.last_error : ''));
     }
 
     /* =====================================================================

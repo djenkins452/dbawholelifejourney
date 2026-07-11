@@ -6,6 +6,53 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — ops(OPS-2/3/4): Ops Wall storage, chat-queue, and OpenAI-upstream monitors
+
+**Why:** OPS-1 made every scheduled Beat task observable; three "if it runs in production, it must be
+observable" gaps remained at the top of the backlog (`docs/WLJ_OPS_WALL_COVERAGE.md` §4): persistent
+storage capacity (Postgres/Redis/disk), the interactive `chat` queue/chatworker backlog, and OpenAI
+upstream availability. All three could degrade the product silently — a full DB, an evicting Redis, a
+stalled chat worker, or a provider outage would only be seen after downstream damage.
+
+**What (three new telemetry sections, all following the OPS-1 / `api_health` architecture —
+probing runs ONLY in `build_ops_stream_payload()` on the SAME 60s background cycle; the HTTP request
+path reads the cached payload and never computes):**
+
+- **OPS-2 Storage / Volume** (`apps/core/ai_observability/storage_monitor.py`, `storage` section):
+  Postgres `pg_database_size` + 30-day growth trend (new daily `StorageSnapshot` model); Redis `INFO
+  memory` → used/max/util%/`maxmemory_policy`/`evicted_keys`; disk `shutil.disk_usage` on the Railway
+  volume / `MEDIA_ROOT`. Thresholds WARNING 75% / CRITICAL 90%; `noeviction` under pressure → CRITICAL.
+  Every probe independently degrades to UNAVAILABLE (with a reason) — never a fabricated zero.
+- **OPS-3 Chat Queue** (`apps/core/ai_observability/chat_queue_monitor.py`, `chat_queue` section):
+  passive Celery-signal lifecycle (`before_task_publish`/`task_prerun`/`task_postrun`, filtered to
+  `run_chat_generation` + `run_chatgpt_cos_generation`) over cross-process Redis structures → queue
+  depth, oldest-queued age, throughput/min, avg queue wait, stuck detection (active past the 120s
+  time-limit), and worker starvation. No dispatch-site or task-body edits.
+- **OPS-4 OpenAI Upstream** (`apps/core/ai_observability/upstream_health.py`, `upstream_health`
+  section): one fire-and-forget recorder at `AIService._log_usage` (both chat paths, before the
+  no-user guard) records every OpenAI outcome into per-minute cache buckets — no synthetic pings, zero
+  added request-path latency. State machine OUTAGE / DEGRADED / HEALTHY / IDLE (consecutive failures,
+  window error rate, and the existing `openai_rate_limited` breaker) — the attribution that separates
+  **"WLJ healthy" from "OpenAI degraded"**.
+
+Ops Wall UI: three new full-width-row cards (Storage & Volume / Chat Queue / OpenAI Upstream) reusing
+the OPS-1 `ops-feed` + status-label pattern; CSP-compliant (no inline handlers), JS syntax-validated.
+
+**Files:** `apps/core/ai_observability/{storage_monitor,chat_queue_monitor,upstream_health}.py` (new),
+`apps/core/ai_observability/models.py` (+`StorageSnapshot`), `apps/core/models.py` (registration),
+`apps/core/migrations/0129_storagesnapshot_and_more.py`, `apps/core/ai_observability/ops_telemetry.py`
+(+3 `_get_*` readers, +3 `_section` calls), `apps/core/apps.py` (+OPS-3 signal connect),
+`apps/ai/services.py` (+OPS-4 recorder hook in `_log_usage`),
+`templates/admin_console/operations_wall.html` (+3 cards, +3 render fns, +3 render calls),
+`apps/core/tests/test_{storage_monitor,chat_queue_monitor,upstream_health}.py` (28 tests),
+`apps/core/ai_observability/tests_payload_builder.py` (section count 23→26),
+`docs/WLJ_OPS_WALL_COVERAGE.md`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification:** 28 new tests pass; OPS-1 monitor + request-path-safety contract + payload-builder
+tests pass; `makemigrations --check` clean; real payload confirmed to carry all three sections
+(storage HEALTHY w/ live 210MB Postgres size, chat_queue UNAVAILABLE without local Redis, upstream
+IDLE→HEALTHY on a recorded call); inline JS `node --check` clean.
+
 ## 2026-07-11 — startup(transition): OPS-1 close-out + milestone-session cadence folded into the package
 
 Session Transition Protocol close-out after OPS-1 shipped and was independently verified (25/25

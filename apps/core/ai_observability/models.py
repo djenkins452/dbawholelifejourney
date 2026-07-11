@@ -1582,3 +1582,76 @@ class ScheduledTaskRun(models.Model):
 
     def __str__(self):
         return f"{self.task_name} [{self.status}] at {self.ran_at}"
+
+
+class StorageSnapshot(models.Model):
+    """
+    Daily persistent-storage utilization snapshot (OPS-2).
+
+    Storage resources (Postgres data volume, Redis memory, the mounted disk /
+    Railway volume) fill silently: nothing on the Ops Wall showed how close any
+    of them was to its ceiling, and a full database or evicting Redis degrades
+    the whole product with no warning. This model is the history half of the
+    OPS-2 storage monitor.
+
+    One row per day (``snapshot_date`` unique) keeps storage bounded while still
+    giving a growth trend (compare today's ``db_bytes`` to N days ago). The
+    live/real-time values are also cached for the Ops Wall; this table exists so
+    growth-over-time survives a cache flush and a deploy.
+
+    Written by ``storage_monitor.collect_storage_metrics`` from the SAME
+    background cycle (never the request path). Any resource that cannot be
+    measured is stored as NULL — the reader renders it as UNAVAILABLE rather
+    than inventing a zero.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_storage_snapshot"
+        ordering = ["-snapshot_date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot_date"],
+                name="unique_storage_snapshot_per_day",
+            ),
+        ]
+
+    snapshot_date = models.DateField(
+        help_text="Date this snapshot covers (one row per day).",
+    )
+    measured_at = models.DateTimeField(
+        help_text="When these values were last measured (updated intra-day).",
+    )
+
+    # --- PostgreSQL ---
+    db_bytes = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="pg_database_size(current_database()) in bytes; NULL if unmeasurable.",
+    )
+
+    # --- Redis ---
+    redis_used_bytes = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Redis used_memory in bytes; NULL if unmeasurable.",
+    )
+    redis_max_bytes = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Redis maxmemory in bytes (0/NULL = no limit configured).",
+    )
+    redis_evicted_keys = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Cumulative Redis evicted_keys counter; NULL if unmeasurable.",
+    )
+
+    # --- Disk / mounted volume ---
+    disk_used_bytes = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Used bytes on the monitored mount; NULL if unmeasurable.",
+    )
+    disk_total_bytes = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Total bytes on the monitored mount; NULL if unmeasurable.",
+    )
+
+    def __str__(self):
+        return f"StorageSnapshot {self.snapshot_date}"

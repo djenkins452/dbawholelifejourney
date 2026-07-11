@@ -1018,6 +1018,20 @@ class AIService:
     def _log_usage(self, *, user, endpoint, prompt_tokens, completion_tokens,
                    total_tokens, success, error_message='', elapsed=0):
         """Persist an AIUsageLog entry. Best-effort — never raises."""
+        # OPS-4 — passively record every upstream (OpenAI) call outcome so the
+        # Ops Wall can distinguish "WLJ healthy" from "OpenAI degraded". Runs
+        # BEFORE the no-user guard so user-less calls (briefings, background
+        # jobs) are counted too. Fire-and-forget; never raises.
+        try:
+            from apps.core.ai_observability.upstream_health import record_llm_outcome
+            record_llm_outcome(
+                success=success,
+                latency_ms=int((elapsed or 0) * 1000),
+                error_class=(error_message.split(":")[0][:60] if error_message else None),
+            )
+        except Exception:
+            pass
+
         if not user:
             return
         try:

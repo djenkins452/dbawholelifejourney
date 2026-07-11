@@ -2500,6 +2500,55 @@ def _get_email_intelligence_telemetry():
     }
 
 
+def _get_storage_telemetry(now):
+    """
+    OPS-2 — Storage / volume utilization (Postgres, Redis, disk).
+
+    Runs live probes but ONLY here in the SAME background cycle; the reader is
+    cache-guarded (5 min). Never called on the request path.
+    """
+    try:
+        from apps.core.ai_observability.storage_monitor import get_storage_telemetry
+        return get_storage_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: storage telemetry unavailable: %s", e)
+        return None
+
+
+def _get_chat_queue_telemetry(now):
+    """
+    OPS-3 — Chat generation queue health (depth, wait, stuck, starvation).
+
+    Pure Redis reads maintained by chat lifecycle signals. UNAVAILABLE when
+    Redis is not reachable (dev in-memory broker).
+    """
+    try:
+        from apps.core.ai_observability.chat_queue_monitor import (
+            get_chat_queue_telemetry,
+        )
+        return get_chat_queue_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: chat queue telemetry unavailable: %s", e)
+        return None
+
+
+def _get_upstream_health_telemetry(now):
+    """
+    OPS-4 — OpenAI upstream availability, latency, and degradation state.
+
+    Pure cache reads over the passively-recorded per-minute buckets. Lets the
+    wall attribute a problem to the external model rather than to WLJ.
+    """
+    try:
+        from apps.core.ai_observability.upstream_health import (
+            get_upstream_health_telemetry,
+        )
+        return get_upstream_health_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: upstream health telemetry unavailable: %s", e)
+        return None
+
+
 # =========================================================================
 # OPS STREAM PAYLOAD BUILDER
 # =========================================================================
@@ -2587,6 +2636,10 @@ def build_ops_stream_payload():
     _section("cos_performance", _get_cos_performance)
     _section("api_health", _get_api_health_telemetry, now)
     _section("email_intelligence", _get_email_intelligence_telemetry)
+    # OPS-2/3/4 — storage, chat queue, and OpenAI upstream monitors.
+    _section("storage", _get_storage_telemetry, now)
+    _section("chat_queue", _get_chat_queue_telemetry, now)
+    _section("upstream_health", _get_upstream_health_telemetry, now)
 
     # ── Derive posture from narrative ──────────────────────────────
     narrative = sections.get("narrative")

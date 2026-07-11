@@ -6,6 +6,25 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — chore(compat): retire deprecated `django.utils.timezone.utc` / `timezone.datetime`
+
+Milestone pre-hygiene ahead of the WLJ Chief of Staff Architecture Milestone recovery point.
+Replaced the deprecated `django.utils.timezone.utc` alias and `timezone.datetime` with the
+standard-library `datetime.timezone.utc` / `datetime` (RemovedInDjango50Warning). Behavior is
+unchanged — same UTC instants, same conversions — this only removes the deprecation warnings so
+the recovery-point tree is clean.
+
+- **`apps/billing/services.py`** — `timezone.datetime.fromtimestamp(..., tz=timezone.utc)` → `datetime.fromtimestamp(..., tz=dt_timezone.utc)` for Stripe billing-period start/end.
+- **`apps/core/truth/render.py`** — `timezone.make_aware(dt, timezone.utc)` → `timezone.make_aware(dt, dt_timezone.utc)` in the canonical user-facing datetime renderer.
+- **`apps/calendar_engine/management/commands/cleanup_calendar_duplicates.py`** — same alias retirement.
+- **`.gitignore`** — ignore local scratch `sigtest_settings.py`.
+
+Why: `git rev-parse` confirmed the deploy remote (`ssh.github.com:443`) main is at the Von's House
+occurrence-scoping fix; this hygiene commit clears the only remaining working-tree noise before the
+architecture milestone tag is cut.
+
+---
+
 ## 2026-07-11 — fix(execution): today's execution completion is OCCURRENCE-scoped — history no longer read as today
 
 **Trust incident:** the assistant said "You've completed Check on Von's house" while today's

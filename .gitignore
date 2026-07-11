@@ -98,6 +98,9 @@ test_output.txt
 # Import files (personal data)
 chatgpt_journal_import.json
 
+# Local scratch settings (per-developer experiment configs — never deploy)
+sigtest_settings.py
+
 # Xcode / iOS — per-developer IDE state (window positions, open tabs,
 # breakpoints, etc.). Project + workspace files stay tracked; user-state
 # files do not.

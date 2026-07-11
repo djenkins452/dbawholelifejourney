@@ -249,7 +249,7 @@ class ModelInterfaceService:
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
                  request_id="", observer=None, conversation_history=None,
-                 writes_enabled=None) -> dict:
+                 writes_enabled=None, images=None) -> dict:
         turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
         tools_called = []
         if writes_enabled is None:
@@ -268,7 +268,7 @@ class ModelInterfaceService:
         answer = self.ai._call_api_with_tools(
             system_prompt, message or "", tools=all_tools(writes_enabled=writes_enabled),
             dispatch=dispatch, user=self.user, endpoint="model_interface",
-            conversation_history=conversation_history,
+            conversation_history=conversation_history, images=images,
         )
         answer = answer or ""
 

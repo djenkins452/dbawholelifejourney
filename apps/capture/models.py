@@ -8,6 +8,57 @@ from django.db import models
 from apps.core.models import TimeStampedModel
 
 
+class MultimodalArtifact(TimeStampedModel):
+    """A user-uploaded artifact (image/PDF/scan/receipt/screenshot) that OpenAI PERCEIVES.
+
+    WLJ stores it ONLY for provenance + deduplication + audit — it never interprets pixels.
+    The model extracts candidate facts/actions and references this by id; the resolved
+    deterministic record (e.g. a WeightEntry) links back, so every image-derived fact is
+    traceable to its source (WLJ stays the system of record). This is the ONE new storage
+    seam for Multimodal Truth; the candidate → validate → confirm → execute → audit spine
+    is entirely reused.
+    """
+
+    STATUS_CHOICES = [
+        ('received', 'Received'),
+        ('resolved', 'Resolved'),      # produced a deterministic record
+        ('duplicate', 'Duplicate'),    # same content hash already seen
+        ('rejected', 'Rejected'),      # failed validation / user declined
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='multimodal_artifacts',
+    )
+    sha256 = models.CharField(
+        max_length=64, db_index=True,
+        help_text="Content hash — artifact-level dedup + integrity. WLJ hashes; never parses.",
+    )
+    content_type = models.CharField(max_length=100)          # image/jpeg, application/pdf, …
+    storage_ref = models.CharField(max_length=500, blank=True)  # cloudinary url / path
+    kind = models.CharField(
+        max_length=50, blank=True,
+        help_text="Model-declared kind (scale_photo, dexcom, receipt, …) — a label, not truth.",
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='received')
+    # Provenance: the deterministic record this artifact produced.
+    resolved_intent = models.CharField(max_length=80, blank=True)
+    resolved_object_type = models.CharField(max_length=80, blank=True)
+    resolved_object_id = models.IntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'sha256'], name='uniq_user_artifact_hash',
+            ),
+        ]
+        verbose_name = "Multimodal Artifact"
+
+    def __str__(self):
+        return f"{self.content_type} ({self.sha256[:10]}) — {self.status}"
+
+
 class CaptureEntry(TimeStampedModel):
     """
     Model for storing audio recordings, transcripts, and AI-generated summaries.

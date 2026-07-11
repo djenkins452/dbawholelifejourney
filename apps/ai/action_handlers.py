@@ -752,8 +752,43 @@ class ActionHandler:
             value: Weight value
             unit: Unit (lb or kg)
             notes: Optional notes
+
+        Multimodal: when `source_artifact_id` (+ `confidence`) is present, this value was
+        EXTRACTED by OpenAI from an uploaded image. WLJ then validates the extraction,
+        detects duplicates, and applies the confirmation POLICY before writing — the model
+        perceives, WLJ owns the deterministic truth. The write path is otherwise identical.
         """
         from apps.health.models import WeightEntry
+        from apps.ai import multimodal
+
+        source_artifact_id = kwargs.get('source_artifact_id')
+        confidence = kwargs.get('confidence')
+
+        # ── Deterministic validation — reject an implausible extraction (never store it) ──
+        if not multimodal.validate_weight(value, unit):
+            return ActionResult(
+                success=False, error='validation_failed',
+                message=(f"{value} {unit} doesn't look like a plausible weight — "
+                         "mind double-checking the reading?"),
+            )
+
+        # ── Duplicate detection (fact-level) ──
+        duplicate = multimodal.find_duplicate_weight(self.user, value, unit)
+
+        # ── Confirmation POLICY (WLJ decides; the model only proposed) ──
+        if multimodal.requires_confirmation(
+            'log_weight', confidence=confidence,
+            duplicate=bool(duplicate), source_artifact_id=source_artifact_id,
+        ):
+            reason = ("you already logged this a moment ago"
+                      if duplicate else f"I read {value} {unit} from your photo")
+            return ActionResult(
+                success=False, error='confirmation_required',
+                message=f"{reason} — want me to log it?",
+                confirmation_detail=self._build_confirmation(
+                    what=f"{value} {unit}", where="Health > Weight",
+                ),
+            )
 
         try:
             entry = WeightEntry.objects.create(
@@ -763,6 +798,13 @@ class ActionHandler:
                 notes=notes or "",
                 recorded_at=self._get_recorded_at(kwargs)
             )
+
+            # Provenance: link the image artifact to the record it produced (system of record).
+            if source_artifact_id:
+                multimodal.link_artifact(
+                    source_artifact_id, intent='log_weight',
+                    object_type='WeightEntry', object_id=entry.id,
+                )
 
             _emit_domain_event("health.weight.logged", self.user, {
                 "entry_id": entry.id, "value": float(value), "unit": unit,

@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(multimodal): Multimodal Truth slice 1 — scale photo → log_weight ("arrival path, not a pipeline")
+
+**OpenAI perceives; WLJ receives structured candidates and runs them through the EXISTING truth/
+action spine. No OCR, no image parser, no new intelligence layer.** An uploaded image is a new way
+the model ARRIVES at the same intents it already emits.
+
+- **`apps/capture/models.py :: MultimodalArtifact`** (new model, migration `capture/0006`) — the ONE
+  new storage seam: `{user, sha256, content_type, storage_ref, kind, status, resolved_*}`, unique
+  `(user, sha256)` for artifact-level dedup, links to the deterministic record it produced (provenance).
+- **`apps/ai/multimodal.py`** (new) — deterministic helpers: `store_artifact` (hash dedup),
+  `validate_weight` (plausibility), `find_duplicate_weight` (fact dedup), `requires_confirmation`
+  (POLICY — clinical/financial/identity always confirm; confidence < 0.85 confirms; duplicate
+  confirms), `link_artifact` (provenance). Pure; WLJ never interprets pixels.
+- **`log_weight` intent + handler** extended with `source_artifact_id` + `confidence`. The handler now
+  runs validation → dedup → confirmation policy → execute (WeightEntry) → artifact provenance link.
+  Typed (non-image) path is unaffected.
+- **Perception seam:** `services._call_api_with_tools(images=…)` attaches images to the user turn so
+  the model can PERCEIVE and call tools in the SAME turn (was vision-XOR-tools); threaded through
+  `model_interface.generate(images=…)`.
+
+**The invariant:** a candidate is untrusted until deterministically validated; sensitive/low-confidence
+candidates are untrusted until confirmed. A misread label is a validation/confirmation event, never a
+reason to build a parser in WLJ. Scales to audio/video/docs/wearables via per-modality ingestion only.
+
+**Files:** `apps/capture/models.py` + migration, `apps/ai/multimodal.py` (new),
+`apps/ai/action_handlers.py`, `apps/ai/intents/health_intents.py`, `apps/ai/services.py`,
+`apps/ai/model_interface/service.py`, `apps/ai/tests/test_multimodal.py` (new),
+`docs/WLJ_MULTIMODAL_TRUTH.md` (new).
+
+**Verification:** 14 multimodal tests + 437 (model-interface / intents / capture) green; intent
+registration green; `check` clean; migration applied. **Not runtime-verifiable here:** the perception
+half (OpenAI reading the actual image) — no API key; the deterministic spine IS fully verified.
+
+**Noted pre-existing bug (not fixed here):** logging a weight fires health insight rule
+`first_weight_entry` which crashes — `build_dedupe_key() missing 'window_end'`
+(`apps/core/ai_insights/rules_first_entry.py:34`). Caught (non-fatal) but should be fixed.
+
 ## 2026-07-11 — fix(execution): Execution Truth is the single producer of daily task state (kills "completed AND overdue")
 
 **Root cause confirmed (forensic):** Beth asserted two tasks completed that weren't, and named one

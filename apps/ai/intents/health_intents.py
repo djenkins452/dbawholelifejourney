@@ -108,6 +108,14 @@ HEALTH_INTENT_TOOLS = [
                     "notes": {
                         "type": "string",
                         "description": "Any additional notes about the measurement"
+                    },
+                    "source_artifact_id": {
+                        "type": "integer",
+                        "description": "If this reading was extracted from an uploaded image/photo (e.g. a scale), the id of that artifact. Provides provenance and enables duplicate detection."
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Your confidence (0.0-1.0) in the value when read from an image. Provide it whenever source_artifact_id is set so WLJ can decide whether to confirm."
                     }
                 },
                 "required": ["value"]

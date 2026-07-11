@@ -648,6 +648,7 @@ class AIService:
         model: str = None,
         max_tool_rounds: int = 3,
         skip_current_context: bool = False,
+        images: list = None,
     ):
         """
         Bounded agentic completion (ChatGPT CoS — Phase 3).
@@ -673,7 +674,19 @@ class AIService:
         messages = [{"role": "system", "content": system_prompt}]
         if conversation_history:
             messages.extend(conversation_history)
-        messages.append({"role": "user", "content": user_prompt})
+        # Multimodal: attach uploaded images to the user turn so the model can PERCEIVE them
+        # AND call tools in the same turn (image → extract → candidate intent). `images` is a
+        # list of (base64, mime) tuples. WLJ passes pixels to the model; it never reads them.
+        if images:
+            _content = [{"type": "text", "text": user_prompt}]
+            for _b64, _mime in images:
+                _content.append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{_mime};base64,{_b64}"},
+                })
+            messages.append({"role": "user", "content": _content})
+        else:
+            messages.append({"role": "user", "content": user_prompt})
 
         # Reuse the same global token governor as _call_api.
         try:

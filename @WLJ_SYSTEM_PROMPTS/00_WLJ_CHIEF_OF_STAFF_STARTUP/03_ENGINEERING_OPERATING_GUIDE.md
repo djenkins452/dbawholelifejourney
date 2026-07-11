@@ -1,6 +1,6 @@
 # 02 · Engineering Operating Guide
 
-**Responsibility of this document:** how to safely evolve WLJ inside the Constitution. Runtime tracing, root-cause proof, deployment discipline, documentation discipline, product-first engineering, results-not-intentions, and the Session Transition Protocol. It does **not** restate the Articles (that's `01_WLJ_CONSTITUTION.md`) or Danny's collaboration preferences (that's `03`).
+**Responsibility of this document:** how to safely evolve WLJ inside the Constitution. Runtime tracing, root-cause proof, deployment discipline, documentation discipline, product-first engineering, results-not-intentions, and the Session Transition Protocol. It does **not** restate the Articles (that's `02_WLJ_CONSTITUTION.md`) or Danny's collaboration preferences (that's `03`).
 
 Supersedes and merges the retired `00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md`.
 
@@ -26,6 +26,12 @@ Never the reverse. Fix trust-breakers one at a time, ranked by trust impact, whe
 ## 3. The layered development model (top-down)
 
 Classify which layer failed and fix the **first** one that did: **Truth (WLJ) → Reasoning (model) → Action (WLJ) → Experience.** Most fixes are Layer 1 truth. **Do not build WLJ reasoning** — fix a reasoning miss with better truth delivery, executive context, a truth/action tool, or a corrected AI Relationship. A genuine gap is filled as *truth or an action tool*, never as a mind.
+
+### 3a. Truth before reasoning
+The model reasons; it never invents a WLJ fact. When the model answers wrong, the first question is "was the **truth** WLJ handed it correct and well-composed?" — not "how do we make the model smarter?" Give it better truth (composed briefings with a freshness/confidence/source envelope), better delivery, or a truth tool. Improving truth is almost always the fix (constitutional: I.1–I.4, IV.2).
+
+### 3b. Current Context precedence
+Answer from the authoritative Current Context **before** retrieving anything. The precedence order is: **Current Context → the conversation → truth already in context → a truth tool → general reasoning.** If Current Context already answers the question, answer from it — don't retrieve further. Never let scraped DOM or related truth override the page's declared, server-resolved Current Context (constitutional: II.1–II.4).
 
 ## 4. Prove root cause before changing code (runtime tracing)
 

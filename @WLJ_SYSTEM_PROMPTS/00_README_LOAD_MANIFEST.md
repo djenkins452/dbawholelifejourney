@@ -8,23 +8,21 @@ Applies to:   Every new WLJ session with any conversational model
 Load class:   Read this first (it tells you what else to load)
 ```
 
-> ## ⭐ START HERE: drag in the folder + the bootloader
+> ## ⭐ START HERE: drag in ONE folder
 >
-> For a brand-new ChatGPT or Claude session, drag in **two things**:
+> For a brand-new ChatGPT or Claude session, drag in the single folder
+> **`00_WLJ_CHIEF_OF_STAFF_STARTUP/`** — nothing else. It is self-contained. Read `00_NEXT_CHAT_STARTUP.md`
+> first; it points you at the rest in order:
+> - `00_NEXT_CHAT_STARTUP.md` — **START HERE** · the bootloader (current sprint/priorities only; the one temporary file; regenerated each transition; shrinks over time)
+> - `01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` — **WHAT** WLJ is
+> - `02_WLJ_CONSTITUTION.md` — **WHAT MUST NOT CHANGE** (+ Constitutional Review)
+> - `03_ENGINEERING_OPERATING_GUIDE.md` — **HOW TO BUILD SAFELY**
+> - `04_DANNY_WORKING_PREFERENCES.md` — **HOW TO WORK WITH DANNY**
+> - `98_SESSION_TRANSITION_PROTOCOL.md` — **HOW TO CLOSE A CHAT**
+> - `99_REFERENCE_INDEX.md` — **WHERE EVERYTHING IS**
 >
-> **(A) the evergreen package `00_WLJ_CHIEF_OF_STAFF_STARTUP/`** — six files, six responsibilities:
-> 1. `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` — **WHAT** WLJ is
-> 2. `01_WLJ_CONSTITUTION.md` — **WHAT MUST NOT CHANGE** (+ Constitutional Review)
-> 3. `02_ENGINEERING_OPERATING_GUIDE.md` — **HOW TO BUILD SAFELY**
-> 4. `03_DANNY_WORKING_PREFERENCES.md` — **HOW TO WORK WITH DANNY**
-> 5. `98_SESSION_TRANSITION_PROTOCOL.md` — **HOW TO CLOSE A CHAT**
-> 6. `99_REFERENCE_INDEX.md` — **WHERE EVERYTHING IS**
->
-> **(B) the bootloader `99_NEXT_CHAT_STARTUP.md`** (at this `@WLJ_SYSTEM_PROMPTS/` root) — current
-> sprint state, regenerated each transition. It is deliberately **not** in the evergreen folder.
->
-> At the **end** of a chat, drop **`99_PREPARE_NEXT_CHAT.md`** (this root) — it updates the package +
-> supporting docs and rewrites the bootloader (see the workflow below).
+> At the **end** of a chat, drop **`99_PREPARE_NEXT_CHAT.md`** (kept at this `@WLJ_SYSTEM_PROMPTS/` root,
+> never loaded into a new chat) — it updates the package + supporting docs and rewrites the bootloader.
 >
 > Everything else here is **legacy load-guidance** for the specialized reference folders
 > (`01_`–`08_`), kept for on-demand use. The three old `00_CORE_STARTUP/` files were migrated +
@@ -37,11 +35,11 @@ Load class:   Read this first (it tells you what else to load)
 >    ▼
 > Claude updates: startup package · supporting docs · changelog
 >    ▼
-> Claude rewrites: 99_NEXT_CHAT_STARTUP.md   (+ Transition Audit)
+> Claude rewrites: 00_NEXT_CHAT_STARTUP.md   (+ Transition Audit)
 >    ▼
-> New chat  ──drag in──►  00_WLJ_CHIEF_OF_STAFF_STARTUP/  +  99_NEXT_CHAT_STARTUP.md
+> New chat  ──drag in ONE folder──►  00_WLJ_CHIEF_OF_STAFF_STARTUP/
 >    ▼
-> Immediate continuity.
+> ChatGPT reads 00_NEXT_CHAT_STARTUP.md, then the rest in order → immediate continuity.
 > ```
 
 > **⚠ AUTHORITATIVE GOVERNING HIERARCHY (2026-07-09) — load in this order, always:**
@@ -88,7 +86,7 @@ prompt that matches your work.
 
 ## ALWAYS LOAD (every session)
 
-**The always-load set is the startup package** — `00_WLJ_CHIEF_OF_STAFF_STARTUP/` (all six files above). That folder is self-contained: architecture, Constitution, engineering guide, Danny's preferences, current priorities, and the reference index.
+**The always-load set is the startup package** — the single folder `00_WLJ_CHIEF_OF_STAFF_STARTUP/` (read `00_NEXT_CHAT_STARTUP.md` first, then the six evergreen docs). That folder is self-contained: current priorities, architecture, Constitution, engineering guide, Danny's preferences, session-transition doctrine, and the reference index.
 
 | File | Folder | Notes |
 |------|--------|-------|

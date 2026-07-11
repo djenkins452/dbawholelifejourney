@@ -3,16 +3,16 @@
 **Project:** Django 5.x personal wellness/journaling app
 **Repo:** GitHub: djenkins452/dbawholelifejourney
 
-> **⭐ START HERE — the permanent onboarding package:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/`
-> is the evergreen startup package for every session — six files, one responsibility each: `00` architecture
-> (WHAT), `01` Constitution (WHAT MUST NOT CHANGE), `02` engineering guide (HOW TO BUILD SAFELY), `03` Danny
-> preferences (HOW TO WORK WITH DANNY), `98` session transition (HOW TO CLOSE A CHAT), `99_REFERENCE_INDEX`
-> (WHERE EVERYTHING IS). The **WLJ Constitution** (canonical: `01_WLJ_CONSTITUTION.md`; `docs/WLJ_CONSTITUTION.md`
-> is a pointer) is the apex architecture doc — any change to a constitutional Article requires a
-> **Constitutional Review** (default NO; Danny's explicit written approval).
-> Current sprint/priorities live in the transient bootloader `@WLJ_SYSTEM_PROMPTS/99_NEXT_CHAT_STARTUP.md`
-> (root). At the **end** of a chat, run `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` to fold durable
-> knowledge up into the package and regenerate the bootloader.
+> **⭐ START HERE — drag in ONE folder:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/` is the
+> self-contained onboarding package for every session. Read `00_NEXT_CHAT_STARTUP.md` first (the transient
+> bootloader: current sprint/priorities; the one temporary file), then the six evergreen docs it points to:
+> `01` architecture (WHAT), `02` Constitution (WHAT MUST NOT CHANGE), `03` engineering guide (HOW TO BUILD
+> SAFELY), `04` Danny preferences (HOW TO WORK WITH DANNY), `98` session transition (HOW TO CLOSE A CHAT),
+> `99_REFERENCE_INDEX` (WHERE EVERYTHING IS). The **WLJ Constitution** (canonical: `02_WLJ_CONSTITUTION.md`;
+> `docs/WLJ_CONSTITUTION.md` is a pointer) is the apex architecture doc — any change to a constitutional
+> Article requires a **Constitutional Review** (default NO; Danny's explicit written approval).
+> At the **end** of a chat, run `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` (kept outside the folder) to
+> fold durable knowledge up into the package and regenerate the bootloader.
 
 ---
 

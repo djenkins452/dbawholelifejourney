@@ -6,6 +6,29 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — startup(lock): final startup structure — ONE folder, bootloader inside, renumbered
+
+Final, permanent structure for the WLJ Chief of Staff startup/transition system. A new chat now
+drags in **one folder only** (`00_WLJ_CHIEF_OF_STAFF_STARTUP/`). No new documents, no workflow redesign.
+
+**Final package `00_WLJ_CHIEF_OF_STAFF_STARTUP/` (7 files — the bootloader moved INSIDE so one folder is enough):**
+- `00_NEXT_CHAT_STARTUP.md` — the one temporary file (bootloader; read first; tells the AI to read the rest, treat them as authoritative, not summarize, not revisit constitutional decisions; carries only sprint state)
+- `01_READ_FIRST…ARCHITECTURE.md` (was `00_`) — WHAT
+- `02_WLJ_CONSTITUTION.md` (was `01_`; **canonical** — contract test + `docs/WLJ_CONSTITUTION.md` pointer updated) — WHAT MUST NOT CHANGE
+- `03_ENGINEERING_OPERATING_GUIDE.md` (was `02_`) — HOW TO BUILD SAFELY (added §3a Truth-before-reasoning, §3b Current Context precedence)
+- `04_DANNY_WORKING_PREFERENCES.md` (was `03_`) — HOW TO WORK WITH DANNY (added a **Chief of Staff philosophy** section: optimize my life not my day; tie to long-term missions; one high-impact recommendation; tell me when I'm fooling myself; detect drift; don't become a dashboard)
+- `98_SESSION_TRANSITION_PROTOCOL.md` — HOW TO CLOSE A CHAT (explicit "improve the package / shrink the bootloader" philosophy)
+- `99_REFERENCE_INDEX.md` — WHERE EVERYTHING IS
+
+**Root (never loaded into a new chat):** `99_PREPARE_NEXT_CHAT.md` — the end-of-chat executor (produces the Transition Audit, rewrites the bootloader).
+
+- Renumbered every cross-reference; fixed all location language (bootloader is now inside the folder, read first); updated the load manifest START-HERE to "drag ONE folder", `CLAUDE.md`, archive README.
+- Verified: package = 7 files, root = PREPARE only, no stale refs, `test_constitution_contract` 9/9, `manage.py check` clean.
+
+This is the permanent workflow. Future sessions improve these documents rather than replacing them.
+
+---
+
 ## 2026-07-11 — startup(finalize): permanent startup + session-transition workflow (drag one folder + one bootloader)
 
 Finalized the milestone into a permanent, evergreen onboarding package plus a repeatable

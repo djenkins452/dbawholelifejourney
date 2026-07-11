@@ -3,7 +3,7 @@
 **Status:** RATIFIED — Stable and constitutionally protected.
 **Constitution Version:** 1.0
 **Established:** 2026-07-11 (WLJ Chief of Staff Architecture Milestone)
-**Canonical location:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/01_WLJ_CONSTITUTION.md` (this file). `docs/WLJ_CONSTITUTION.md` is a pointer to here.
+**Canonical location:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/02_WLJ_CONSTITUTION.md` (this file). `docs/WLJ_CONSTITUTION.md` is a pointer to here.
 **Responsibility of this document:** what must not change casually, the Constitutional Review process, and the protected architectural boundaries. It does not summarize the other startup documents.
 
 ---
@@ -144,7 +144,7 @@ The permanent acceptance baseline (`docs/WLJ_ACCEPTANCE_BASELINE.md`) runs these
 
 ## 6. Related documents
 
-- Sibling startup docs: `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` (what/why), `02_ENGINEERING_OPERATING_GUIDE.md` (how to evolve safely), `03_DANNY_WORKING_PREFERENCES.md` (how to work with Danny), `98_SESSION_TRANSITION_PROTOCOL.md` (how to close a chat), `99_REFERENCE_INDEX.md` (master TOC). The transient bootloader `99_NEXT_CHAT_STARTUP.md` lives at the `@WLJ_SYSTEM_PROMPTS/` root, not in this evergreen package.
+- Sibling startup docs: `00_NEXT_CHAT_STARTUP.md` (the bootloader — read first; the one temporary file), `01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` (what/why), `03_ENGINEERING_OPERATING_GUIDE.md` (how to evolve safely), `04_DANNY_WORKING_PREFERENCES.md` (how to work with Danny), `98_SESSION_TRANSITION_PROTOCOL.md` (how to close a chat), `99_REFERENCE_INDEX.md` (master TOC). The end-of-chat executor `99_PREPARE_NEXT_CHAT.md` lives at the `@WLJ_SYSTEM_PROMPTS/` root and is never loaded into a new chat.
 - Authoritative detail (supporting library): `docs/WLJ_PRODUCT_VISION.md`, `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`, `docs/WLJ_ARCHITECTURE_LAWS.md`, `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`, `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`, `docs/WLJ_VISUAL_TRUTH_CONTRACT.md`, `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md`, `docs/LAYER1_DOMAIN_FRAMEWORK.md`.
 
 ---

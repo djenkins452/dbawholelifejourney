@@ -13,10 +13,10 @@ Summarize everything accomplished in this conversation: what shipped, what was d
 
 ### 2. Update the governing startup documents (only where a durable truth was established)
 Fold knowledge **up** into the one document that owns it — do not duplicate:
-- **`00_READ_FIRST…ARCHITECTURE.md`** — new fact about what WLJ is / architecture / maturity / a lesson.
-- **`01_WLJ_CONSTITUTION.md`** — a protected principle changed. ⚠️ This is a **Constitutional Review** (default NO; requires Danny's explicit written approval). Never fold a constitutional change in silently.
-- **`02_ENGINEERING_OPERATING_GUIDE.md`** — a durable engineering rule, gate, or discipline.
-- **`03_DANNY_WORKING_PREFERENCES.md`** — a durable preference about working with Danny.
+- **`01_READ_FIRST…ARCHITECTURE.md`** — new fact about what WLJ is / architecture / maturity / a lesson.
+- **`02_WLJ_CONSTITUTION.md`** — a protected principle changed. ⚠️ This is a **Constitutional Review** (default NO; requires Danny's explicit written approval). Never fold a constitutional change in silently.
+- **`03_ENGINEERING_OPERATING_GUIDE.md`** — a durable engineering rule, gate, or discipline.
+- **`04_DANNY_WORKING_PREFERENCES.md`** — a durable preference about working with Danny.
 
 If nothing durable was established, change nothing — say so.
 
@@ -34,7 +34,7 @@ Only what actually changed (results, not intentions):
 If any governing/supporting doc was added, moved, or reclassified, update `00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md` in the same pass.
 
 ### 5. Rewrite the bootloader
-Rewrite `@WLJ_SYSTEM_PROMPTS/99_NEXT_CHAT_STARTUP.md` from scratch. For **each** item, first ask: *"Has this now been incorporated into a permanent startup document?"* If yes → **remove it** from the bootloader. Keep only live sprint state (see that file's own contract). The bootloader should be **shorter** than last time whenever possible.
+Rewrite `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md` from scratch (the bootloader lives inside the package as `00`, read first). For **each** item, first ask: *"Has this now been incorporated into a permanent startup document?"* If yes → **remove it** from the bootloader. Keep only live sprint state (see that file's own contract). The bootloader should be **shorter** than last time whenever possible.
 
 ### 6. Commit & deploy
 Commit the doc/code updates with a changelog entry and push `main` (Railway auto-deploys). No unrelated feature work.
@@ -91,12 +91,13 @@ Working chat
 Claude updates:  startup package · supporting docs · changelog
    │
    ▼
-Claude rewrites:  99_NEXT_CHAT_STARTUP.md   (+ Transition Audit)
+Claude rewrites:  00_NEXT_CHAT_STARTUP.md   (+ Transition Audit)
    │
    ▼
 Open a brand-new chat
    │
-   ▼  drag in:  00_WLJ_CHIEF_OF_STAFF_STARTUP/   +   99_NEXT_CHAT_STARTUP.md
+   ▼  drag in ONE folder:  00_WLJ_CHIEF_OF_STAFF_STARTUP/
+   │  (ChatGPT reads 00_NEXT_CHAT_STARTUP.md first, then the rest in order)
    │
    ▼
 Immediate continuity.

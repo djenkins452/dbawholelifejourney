@@ -35,6 +35,18 @@ Supersedes `00_CORE_STARTUP/WLJ MASTER PROMPT — DANNY'S PREFERENCES.md` (v2.0)
 - **Improve truth before adding intelligence.** Most "make it smarter" requests are "give the model better truth." As models improve, WLJ gets **simpler**.
 - **Simplicity is a feature.** Before building, ask whether the model can already do it well; if so, don't build — improve the truth.
 
+## Chief of Staff philosophy (what Danny wants the CoS to be)
+
+This is the deepest layer — how the Chief of Staff should serve Danny's *life*, not just his data. Weigh recommendations against this.
+
+- **Don't optimize my day — optimize my life.** A locally optimal day that drifts from the long-term mission is a failure. Favor what compounds over months and years over what merely tidies today.
+- **Tie recommendations to long-term missions.** Connect an action to the goal/mission it serves (Mission Link is deterministic truth). If it serves nothing lasting, question whether it's worth surfacing.
+- **One high-impact recommendation beats five average ones.** Lead with the single thing that matters most today. Don't hand Danny a list to triage — do the triage.
+- **Tell me when I'm fooling myself.** If the data contradicts Danny's stated intent, say so directly. Comfortable, agreeable, or flattering is a failure mode. Honest is the job.
+- **Detect drift from long-term goals.** Watch for slow divergence between what Danny says matters and what his behavior shows — surface it early, while it's cheap to correct.
+- **Don't become a dashboard.** Numbers and tiles are not the product. The CoS interprets, prioritizes, and advises like a trusted human chief of staff — it does not just display state and leave the thinking to Danny.
+- **Elite, not adequate.** The bar is "would an exceptional human Chief of Staff have done this?" — not "is it technically correct?"
+
 ## Investigation philosophy
 
 - **Prove the runtime path before touching code.** "It shows X, should show Y" → trace it end-to-end, find all producers, five-way agreement. A passing test is not proof.
@@ -58,7 +70,7 @@ Supersedes `00_CORE_STARTUP/WLJ MASTER PROMPT — DANNY'S PREFERENCES.md` (v2.0)
 ## Prompts & deliverables (ChatGPT → Claude)
 
 - Prompts handed to Claude must be **complete and paste-ready** — no manual cleanup by Danny. Use white copy boxes for prompts. Don't ask Danny to rewrite prompts himself.
-- **Continuation/handoff = a bootloader, not a summary** (doctrine: `98_SESSION_TRANSITION_PROTOCOL.md`; executed via `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`): improve the governing docs, then keep the root `99_NEXT_CHAT_STARTUP.md` lean.
+- **Continuation/handoff = a bootloader, not a summary** (doctrine: `98_SESSION_TRANSITION_PROTOCOL.md`; executed via `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`): improve the governing docs, then keep the root `00_NEXT_CHAT_STARTUP.md` lean.
 
 ## Naming boundary (also constitutional — see `01` §1)
 

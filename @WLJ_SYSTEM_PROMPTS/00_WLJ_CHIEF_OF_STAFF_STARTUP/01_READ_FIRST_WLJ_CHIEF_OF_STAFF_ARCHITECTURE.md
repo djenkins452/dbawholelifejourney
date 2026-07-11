@@ -39,20 +39,24 @@ Four layers, diagnosed **top-down**; fix the first that failed:
 4. **Experience** — the pages, Current Context, and conversation the customer actually feels.
 
 Load-bearing pillars:
-- **Current Context** — every page declares what the user is looking at (detail→object; overview→deterministic summary), resolved server-side; the model answers from it before retrieving.
-- **Execution Decision Authority** — one deterministic producer of "what to do now"; every surface consumes it.
-- **Mission Link** — action→mission connection as deterministic facts.
+- **Current Context** — every page declares what the user is looking at (detail→object; overview→deterministic summary), resolved server-side; the model answers from it before retrieving. Related truth may *enrich* it but never *replace* it.
+- **Execution Truth / Execution Decision Authority** — one deterministic producer of execution truth. It owns the buckets **current action · completed today · overdue · due now · coming up · later**; every surface consumes it, none re-derives. Recurring execution is **occurrence-based**: "today's execution" (the occurrence due today) and "history" (what happened previously) are **separate deterministic truths** and are never blended.
+- **Mission Link** — action→mission connection as deterministic relationship facts (WLJ computes it; the model reasons *from* it). Production-complete.
+- **Multimodal** — perception is the model's; the deterministic spine is WLJ's. Pattern: **the model perceives → WLJ validates truth → WLJ executes the action → the model communicates the real results.** Production-complete (see maturity).
 - **Model Interface + Executive Context Envelope** — the single seam and the structured per-turn context (AI Relationship + Current Context + deterministic understanding) handed to the model.
+- **Conversation integrity** — the transcript stays a faithful record of what the user actually submitted; artifacts derived from an upload become deterministic truth with provenance, but the transcript still preserves the original submission.
 - **Reflection** — sits *above* the four layers and only observes; learning is default-deny and never learns around a deterministic defect.
 
 Stack: Django 4.2.27 (note: CLAUDE.md says "5.x"; runtime is 4.2), PostgreSQL/Redis, Celery worker+beat, Gunicorn, Railway (Nixpacks), OpenAI. iOS SwiftUI wrapper. ~4,400 tests. Soft deletes, not hard deletes.
 
 ## 5. Current maturity (honest)
 
+- **Phase:** WLJ has moved from **architecture discovery → product refinement.** Daily use of the Chief of Staff now drives the roadmap; architectural change is proposed only after investigation proves it necessary (see the engineering guide's investigation order).
 - **Architecture:** considered **stable and constitutionally protected** (Milestone, 2026-07-11) — expected to evolve slowly through Constitutional Review, not frozen.
 - **Layer 1 truth:** Medication is the **certified reference** domain; others follow `LAYER1_DOMAIN_FRAMEWORK.md` up the maturity ladder.
 - **Current Context:** mechanism complete; **adoption early** (page-summary pattern live on ~1 page). Help coverage broad (135/135 ids).
-- **Observability (Ops Wall):** strong for engines/signals; **gaps** in non-engine Beat tasks, storage/volumes, OpenAI upstream, chat-queue backlog (OPS-1…10 backlog).
+- **Multimodal:** **first production capability complete** — image transport, artifact persistence, conversation integrity, provenance, validation, confirmation, idempotent duplicate prevention, deterministic execution, results-not-intentions.
+- **Observability (Ops Wall):** audit **complete**; implementation **intentionally deferred** and carried as an explicit next-session priority. Governing principle: *"if it runs in production, it must be observable."* Strong for engines/signals; gaps in non-engine Beat tasks, storage/volumes, OpenAI upstream, chat-queue backlog (OPS-1…10 backlog).
 - **Product:** not finished. UX and daily usage drive the roadmap. See `docs/WLJ_KNOWN_LIMITATIONS.md`.
 
 ## 6. Major lessons learned

@@ -42,6 +42,10 @@ Before writing any item into the bootloader, ask: **"Has this become a permanent
 
 Whenever Danny signals a chat is getting large, or a body of work is complete. Danny runs the executor (`99_PREPARE_NEXT_CHAT.md`) at the **end** of the working chat. The next chat starts by dragging in the startup folder **plus** the regenerated `00_NEXT_CHAT_STARTUP.md`.
 
+## 4a. The close-out improves itself
+
+The transition is not a fixed checklist — it is **self-improving**. Every close-out (via `99_PREPARE_NEXT_CHAT.md`) runs a **Workflow Improvement Review**: *"what did we learn about the startup/transition workflow itself?"* Any lasting improvement is written back into this doctrine (`98`) or the executor (`99_PREPARE_NEXT_CHAT.md`) so Danny never has to remember it again. The executor also runs a **Deferred Work Review** (nothing postponed is silently lost) and a **Startup Package Integrity Review** (a fresh session using only the package would be missing nothing) before regenerating the bootloader.
+
 ## 5. Constitutional guardrail
 
 A transition **may not** quietly change the architecture. If the session's work would alter a constitutional Article, that is a **Constitutional Review** (`02_WLJ_CONSTITUTION.md §3`, default NO, explicit written approval) — it is surfaced in the Transition Audit as a constitutional change, never folded in silently.

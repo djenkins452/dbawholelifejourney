@@ -27,6 +27,15 @@ Never the reverse. Fix trust-breakers one at a time, ranked by trust impact, whe
 
 Classify which layer failed and fix the **first** one that did: **Truth (WLJ) → Reasoning (model) → Action (WLJ) → Experience.** Most fixes are Layer 1 truth. **Do not build WLJ reasoning** — fix a reasoning miss with better truth delivery, executive context, a truth/action tool, or a corrected AI Relationship. A genuine gap is filled as *truth or an action tool*, never as a mind.
 
+**Investigation order (WLJ is in product-refinement, not architecture-discovery).** For any reported issue, investigate in this order and stop at the first layer that explains it:
+1. **Deterministic Truth** — did WLJ produce correct, well-composed truth?
+2. **Current Context** — was the authoritative page context right, and did the model get it?
+3. **OpenAI Reasoning** — given correct truth, did the model reason well?
+4. **Deterministic Actions** — did the safe action path validate/confirm/execute/audit correctly?
+5. **Product Experience** — is the surface/experience the real gap?
+
+**Propose an architectural change only after investigation proves it necessary** — never as the opening move. Architecture changes go through Constitutional Review (default NO).
+
 ### 3a. Truth before reasoning
 The model reasons; it never invents a WLJ fact. When the model answers wrong, the first question is "was the **truth** WLJ handed it correct and well-composed?" — not "how do we make the model smarter?" Give it better truth (composed briefings with a freshness/confidence/source envelope), better delivery, or a truth tool. Improving truth is almost always the fix (constitutional: I.1–I.4, IV.2).
 

@@ -6,6 +6,32 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — startup(memory): institutional-memory finalization + self-improving close-out
+
+Final finalization pass. No feature work, no redesign. Folded this milestone's permanent lessons
+into the governing startup docs and made the close-out process self-improving.
+
+**Permanent knowledge folded UP into the package (each in its one owning doc, no duplication):**
+- `01_READ_FIRST…ARCHITECTURE.md` — Execution Truth pillar now names its buckets (current action · completed today · overdue · due now · coming up · later), occurrence-based, history≠today; added Multimodal + Conversation-integrity pillars; maturity now records the **architecture-discovery → product-refinement** phase, multimodal **first production capability complete**, and Ops Wall **audit complete / implementation deferred**.
+- `03_ENGINEERING_OPERATING_GUIDE.md` — added the **investigation order** (1 Deterministic Truth → 2 Current Context → 3 OpenAI Reasoning → 4 Deterministic Actions → 5 Product Experience); architectural change proposed only after investigation proves it necessary.
+- (Constitution, Danny Preferences already carried their items from prior passes.)
+
+**Self-improving close-out (`99_PREPARE_NEXT_CHAT.md`):** permanently added four review steps —
+**Deferred Work Review** (nothing postponed is lost → carried into the bootloader), **Permanent
+Knowledge Review** (fold durable knowledge up), **Startup Package Integrity Review** ("would a fresh
+session be missing anything?"; is the package better than at session start?), and **Workflow
+Improvement Review** (write workflow lessons back into `98`/`99_PREPARE`). Added **Deferred work
+transferred** and **Startup package integrity verified** to the Transition Audit. Recorded the
+self-improving doctrine in `98_SESSION_TRANSITION_PROTOCOL.md §4a`.
+
+**Bootloader regenerated shorter** (51→45 lines): lessons that became permanent were removed;
+Ops Wall implementation is now the explicit deferred priority.
+
+Verified: package = 7 files, one responsibility each; investigation order not duplicated;
+`test_constitution_contract` 9/9; `manage.py check` clean. This is the permanent workflow.
+
+---
+
 ## 2026-07-11 — startup(lock): final startup structure — ONE folder, bootloader inside, renumbered
 
 Final, permanent structure for the WLJ Chief of Staff startup/transition system. A new chat now

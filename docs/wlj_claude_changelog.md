@@ -6,6 +6,23 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(cos): Current Context two-pattern standard — the DEFAULT for every page
+
+Standardized the two Current Context patterns as the required default for all future page work
+(no code change): **detail page → focused OBJECT (`app.model:pk`)**, **overview/dashboard page →
+deterministic PAGE SUMMARY (`summary:<key>` via `PageSummaryMixin` + `@register_page_summary`)**.
+Declare proactively on any new page; ship the summary provider in the same change. The page and the
+model consume ONE deterministic source → eliminates the page-vs-assistant drift class. Overview
+providers must be user-scoped, request-path-safe, and facts-only.
+
+- **`CLAUDE.md`** — new REQUIRED section "Current Context — every page is Beth-aware" + reference-docs
+  table row pointing to the contract.
+- **`docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`** — new "THE STANDARD" section (decision table, single-source
+  rationale, overview-provider rules) + an adoption backlog (Dashboard, Glucose, Health Overview,
+  Calendar Overview, Finance/Goals/Task Dashboards, Reports, Analytics; Weight ✅ reference impl).
+
+**Files:** `CLAUDE.md`, `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
+
 ## 2026-07-11 — feat(cos): Current Context for OVERVIEW pages — the page-summary pattern (Weight adopts it)
 
 **Ask:** the Weight page is an overview/dashboard page (no focused object), so Beth correctly said

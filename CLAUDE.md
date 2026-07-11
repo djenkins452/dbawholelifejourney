@@ -105,6 +105,24 @@ Enforced by `apps/core/tests/test_visual_truth_contract.py`. Full rule and ratio
 
 ---
 
+## Current Context — every page is Beth-aware (REQUIRED)
+
+> **Every WLJ page declares its Current Context. There are exactly two patterns — pick by page kind.**
+
+When you build or touch ANY page, ask **"what is the user looking at here, deterministically?"** and declare it. Two — and only two — patterns:
+
+1. **Detail page → a focused OBJECT.** The page is about one canonical record. Any `UserOwnedModel` `DetailView` is auto-declared by `base.html` (`object.context_ref` → `<meta name="wlj-context" content="app.model:pk">`); a non-`DetailView` (TemplateView/FBV) detail page adds `CurrentContextMixin` + `get_current_context_object()`.
+2. **Overview / dashboard page → a deterministic PAGE SUMMARY.** The page has no single object (Dashboard, Weight, Glucose, Health Overview, Calendar Overview, Finance/Goals/Task Dashboards, Reports, Analytics, …). It declares `summary:<key>` via **`PageSummaryMixin`** (`page_summary_key` + `page_summary_title`), resolved by a provider registered with `@register_page_summary("<key>")`.
+
+**Rules for overview summaries (non-negotiable):**
+- The provider is **user-scoped** (its own query is the ownership boundary) and **request-path-safe** (aggregate/pre-computed truth only — no heavy compute).
+- **Facts only** — expose numbers/dates; never a verdict ("on track"). The model interprets.
+- **ONE deterministic source** feeds BOTH the page render AND the provider (e.g. `build_weight_summary` → `WeightListView` + the `health.weight` provider). Never re-derive the summary independently — that reintroduces the exact page-vs-assistant drift class this pattern eliminates.
+
+Do NOT wait to discover a blind page through testing: a new overview page ships its summary provider in the same change. Full contract + rollout backlog: `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`.
+
+---
+
 ## Quick Reference
 
 | Item | Value |
@@ -281,6 +299,7 @@ Every operational feature review must end by answering these five. If any obviou
 | `docs/WLJ_LEGACY_PLACES.md` | **Places domain (as-built) — canonical Place model + coordinate provenance, the interactive Esri map, geocoding pipeline, and the location-review tool. Read before any map/coordinate/geocoding work.** |
 | `docs/WLJ_LEGACY_MAP_TILES.md` | **Map/geocoder provider decision record (why Esri; OSM + Nominatim retired).** |
 | `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` | **Any homepage/Action Center CSS or template change** |
+| `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md` | **ANY new/changed page — declare its Current Context (detail→object `app.model:pk`; overview→`summary:<key>` via `PageSummaryMixin`). The two-pattern standard + rollout backlog.** |
 | `docs/ENGINE_COS_REFERENCE.md` | **Engine/CoS changes — AUTO-MAINTAIN (see below)** |
 | `docs/INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |
 | `docs/DOMAIN_INTELLIGENCE_ARCHITECTURE.md` | AI/intelligence feature work |

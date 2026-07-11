@@ -4,6 +4,42 @@
 
 ---
 
+## THE STANDARD (default for every page — 2026-07-11)
+
+> **Every WLJ page declares its Current Context. Exactly two patterns; pick by page kind.**
+
+When building or changing ANY page, ask **"what is the user looking at here, deterministically?"** and declare it — do not wait for a blind page to surface through testing.
+
+| Page kind | Exposes | Ref grammar | How to declare | Resolved by |
+|-----------|---------|-------------|----------------|-------------|
+| **Detail** | a focused **object** | `app_label.model:pk` | auto for any `UserOwnedModel` `DetailView`; else `CurrentContextMixin` + `get_current_context_object()` | the object's `get_context_summary()` (Narratable) |
+| **Overview / dashboard** | a deterministic **page summary** | `summary:<key>[;k=v…]` | `PageSummaryMixin` (`page_summary_key` + `page_summary_title`) | a provider registered with `@register_page_summary("<key>")` |
+
+**Why this is the standard:** the page and the model consume the **exact same deterministic source**, so the assistant can never describe something different from what the UI shows — it eliminates a whole class of page-vs-assistant drift bugs. That single-source rule is mandatory: never re-derive a summary independently of what the page renders.
+
+**Overview-summary rules (non-negotiable):** provider is **user-scoped** (its own query is the ownership boundary) + **request-path-safe** (aggregate/pre-computed truth only); **facts only** (numbers/dates, never a verdict — the model interprets); **ONE deterministic utility** feeds both the page render and the provider.
+
+**Adoption backlog (every overview page should expose a summary; ✅ = shipped):**
+
+| Overview page | `summary:<key>` | Status |
+|---------------|-----------------|--------|
+| Weight | `health.weight` | ✅ 2026-07-11 (reference impl) |
+| Home / Dashboard | `core.dashboard` | ☐ |
+| Glucose | `health.glucose` | ☐ |
+| Health Overview | `health.overview` | ☐ |
+| Calendar Overview | `calendar.overview` | ☐ |
+| Finance Dashboard | `finance.dashboard` | ☐ |
+| Goals Dashboard | `purpose.goals` | ☐ |
+| Task Dashboard | `life.tasks` | ☐ |
+| Reports | `reports.overview` | ☐ |
+| Analytics | `analytics.overview` | ☐ |
+
+(Keys are the suggested convention `<app>.<page>`; confirm at build time. New overview pages ship their provider in the same change.)
+
+The mechanics of the two patterns are detailed below (see **Overview/dashboard pages — the PAGE-SUMMARY pattern**).
+
+---
+
 ## Model-Interface path (KEEPER — post-pivot, 2026-07-10)
 
 On the pivot-aligned runtime (`use_model_interface`), Current Context is **Pillar 4** of the Executive Context Envelope, not a lane. `apps/ai/cos_services/current_context.py :: get_current_context_baseline()` now RESOLVES the declared `focus_ref` server-side via `apps.core.current_context.resolve_current_context()` and emits `current_screen = {location, focus}`:

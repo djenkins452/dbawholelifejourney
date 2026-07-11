@@ -422,6 +422,32 @@ The honest-unknown path is a product feature, not an error:
 
 ---
 
+## 11c. Execution Truth is the single producer of ALL daily task state (2026-07-11)
+
+Completed-today / overdue / due-now / pending / due-later / blocked / at-risk / current-action
+are produced by ONE deterministic authority — Execution Truth (`build_today_execution` →
+`build_execution_state`). There is no separate "task-day ledger" (that would be a second
+authority over the same facts). The forensic bug ("completed AND overdue for the same task")
+was caused precisely by a SECOND completion pipeline (`TaskQueries.completed_on` → SAE
+`state_builder` → `cos_context`) that was unreconciled with overdue.
+
+- **Completed-today is now inside Execution Truth**, keyed on completion occurring TODAY
+  (`completed_at` date == today), not merely a 'completed' status (the old `completed_today`
+  misnomer). Marked `is_actionable=False`, so the prioritizer excludes it and next-action is
+  unchanged.
+- **Reconciliation before bucketing:** a recurring task's completion stamps `completed_at=today`
+  AND generates a lagging next occurrence (same title) that can read as overdue. A completed-today
+  title SUPPRESSES its non-completed same-title twins, so one logical task lands in exactly one
+  bucket and a not-completed task can never be reported complete.
+- **Consumers derive, never recompute:** the model-interface envelope (`execution_state`), SAE
+  `state_builder` (`completed_today*` + momentum + overdue reconciled against the completed set),
+  and dashboard surfaces all read Execution Truth's buckets. `TaskQueries.completed_on` is retired
+  as an independent source — it survives only as an internal helper Execution Truth calls.
+- **Momentum** is recalculated only from the reconciled completed count.
+- **CI contract:** `apps/core/tests/test_completion_single_source_contract.py` fails the build if
+  any surface calls `TaskQueries.completed_on` outside the execution package — no second producer
+  can be introduced.
+
 ## 11b. Proactive Check-ins are OpenAI-authored (renderer retired, 2026-07-10)
 
 The WLJ-authored check-in renderer (`beth_checkin_renderer`'s prose/situation/escalation

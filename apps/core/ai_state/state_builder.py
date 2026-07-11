@@ -3536,13 +3536,20 @@ def build_task_state(user):
             due_date=tomorrow,
         ).count()
 
-        # ── Completed today (structured with momentum signal) ──
-        _completed_qs = TaskQueries.completed_on(user, user_today)
-        _completed_count = _completed_qs.count()
-        _completed_titles = list(
-            _completed_qs.values_list('title', flat=True)[:10]
-        )
-        # Momentum signal: high(>=5), medium(2-4), low(0-1)
+        # ── Completed today — SINGLE SOURCE: Execution Truth's reconciled completed
+        #    bucket. NEVER an independent completion query here (that second source is
+        #    exactly what produced "completed AND overdue" for the same task). Momentum
+        #    is recalculated ONLY from this reconciled count.
+        try:
+            from apps.core.execution.execution_state import build_execution_state
+            _completed_items = build_execution_state(user).get('completed_today') or []
+        except Exception:
+            _completed_items = []
+        _completed_titles = [
+            (c.get('title') or '') for c in _completed_items if c.get('title')
+        ][:10]
+        _completed_count = len(_completed_items)
+        # Momentum signal: high(>=5), medium(2-4), low(0-1) — reconciled truth only.
         if _completed_count >= 5:
             _momentum = 'high'
         elif _completed_count >= 2:
@@ -3636,6 +3643,19 @@ def build_task_state(user):
         ] + [
             _serialize_task(t, overdue_reason='missed_scheduled_time') for t in time_overdue_today
         ]
+        # Reconcile against the SINGLE completed-today source (Execution Truth's reconciled
+        # bucket, above): a task completed today can never ALSO be overdue. This drops the
+        # recurrence/duplicate twin (a completed occurrence + a lagging regenerated
+        # occurrence share a title) so the model can never receive "completed AND overdue"
+        # for the same task on this path.
+        _completed_set = {
+            (t or '').strip().lower() for t in (state.get('completed_today_titles') or [])
+        }
+        if _completed_set:
+            all_overdue = [
+                o for o in all_overdue
+                if (o.get('title') or '').strip().lower() not in _completed_set
+            ]
         state['overdue_tasks'] = all_overdue
         state['overdue_count'] = len(all_overdue)
 

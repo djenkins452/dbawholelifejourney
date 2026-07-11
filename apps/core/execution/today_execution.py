@@ -69,13 +69,13 @@ def build_today_execution(user):
     except Exception:
         logger.warning("Execution contract: task collection failed", exc_info=True)
 
-    # ── Task completion count ──
+    # ── Task completion count — from the RECONCILED completed items (single source),
+    #    not an independent query, so the count can never disagree with the bucket. ──
     try:
-        from apps.life.models import Task
-        summaries['tasks_completed_today'] = Task.objects.filter(
-            user=user, completion_status='completed',
-            completed_at__date=user_today,
-        ).count()
+        summaries['tasks_completed_today'] = sum(
+            1 for i in items
+            if i.get('source_type') == 'task' and i.get('completed_today')
+        )
     except Exception:
         pass
 
@@ -151,21 +151,36 @@ def _collect_task_items(user, user_now, user_today, truth=None):
     from apps.life.services.task_queries import TaskQueries
 
     items = []
+    completed_titles = set()
 
-    # Overdue tasks (due_date < today)
+    def _ident(title):
+        # A recurring series is identified by (user, title) across the codebase
+        # (see recurrence.delete_task_series), so title is the reconciliation key —
+        # which also collapses duplicate titles.
+        return (title or '').strip().lower()
+
+    # ── Completed TODAY — completion is now part of Execution Truth (single producer).
+    #    Keyed on completion actually occurring today (TaskQueries.completed_on →
+    #    completed_at date == today), NOT merely a 'completed' status. Marked
+    #    is_actionable=False so the prioritizer excludes it (next-action unchanged).
+    for t in TaskQueries.completed_on(user, user_today):
+        if t.is_routine:
+            continue
+        items.append(_task_to_item(t, None, 'completed', completed_today=True))
+        completed_titles.add(_ident(t.title))
+
+    # Overdue tasks (pending, due_date < today)
     for t in TaskQueries.overdue(user, as_of=user_today)[:25]:
         if t.is_routine:
             continue  # Legacy routine tasks excluded — canonical routines are the
-            # single source (dedup dual-defined routine/task twins at read time; the
-            # due_today loop below does the same). Without this, an overdue is_routine
-            # Task double-shows alongside its RoutineSchedule occurrence.
+            # single source (dedup dual-defined routine/task twins at read time).
         if is_task_blocked(t, truth):
             continue
         ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
                                   grace_minutes=getattr(t, 'grace_minutes', 0))
-        items.append(_task_to_item(t, ts, 'overdue'))
+        items.append(_task_to_item(t, ts, 'overdue', completed_today=False))
 
-    # Today tasks (due_date == today)
+    # Today tasks (pending, due_date == today)
     for t in TaskQueries.due_today(user, as_of=user_today)[:25]:
         if t.is_routine:
             continue  # Legacy routine tasks excluded — use canonical routines
@@ -173,14 +188,30 @@ def _collect_task_items(user, user_now, user_today, truth=None):
             continue
         ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
                                   grace_minutes=getattr(t, 'grace_minutes', 0))
-        items.append(_task_to_item(t, ts, ts['status']))
+        items.append(_task_to_item(t, ts, ts['status'], completed_today=False))
+
+    # ── Reconcile occurrences/duplicates BEFORE bucketing ────────────────────────
+    # A recurring task's completion stamps completed_at=today AND generates a lagging
+    # next occurrence (same title) that can read as overdue — the "completed AND overdue"
+    # contradiction. A completed-today title therefore SUPPRESSES its non-completed
+    # same-title twins, so one logical task never lands in two daily execution buckets
+    # and a not-completed task can never be reported as completed.
+    if completed_titles:
+        items = [
+            it for it in items
+            if it.get('completed_today') or _ident(it.get('title')) not in completed_titles
+        ]
 
     return items
 
 
-def _task_to_item(task, time_result, time_status):
-    """Convert a Task model instance to an ExecutionItem dict."""
-    completed = task.completion_status == 'completed'
+def _task_to_item(task, time_result, time_status, completed_today=False):
+    """Convert a Task model instance to an ExecutionItem dict.
+
+    `completed_today` is the CALLER's reconciled verdict — a task is completed today only
+    when its completion actually occurred today (sourced from `TaskQueries.completed_on`),
+    NOT merely because its status is 'completed'. Pending items pass False.
+    """
     try:
         detail_url = task.get_absolute_url()
     except Exception:
@@ -204,7 +235,7 @@ def _task_to_item(task, time_result, time_status):
         ),
         'grace_minutes': getattr(task, 'grace_minutes', 0),
         'completion_status': task.completion_status,
-        'completed_today': completed,
+        'completed_today': completed_today,
         'is_actionable': task.completion_status == 'pending',
         'is_foundational': (
             getattr(task, '_domain_foundational', False)

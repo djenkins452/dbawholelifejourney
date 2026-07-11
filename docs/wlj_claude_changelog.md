@@ -6,6 +6,56 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(execution): Execution Truth is the single producer of daily task state (kills "completed AND overdue")
+
+**Root cause confirmed (forensic):** Beth asserted two tasks completed that weren't, and named one
+as BOTH completed and overdue. Not a hallucination — she was handed contradictory deterministic
+truth. `completed today` was produced by a SECOND pipeline (`TaskQueries.completed_on` [keyed on
+`completed_at`] → SAE `state_builder.completed_today*` → `cos_context` "COMPLETED TODAY (2 — good
+progress)"), while overdue came from a DIFFERENT query (`pending`+`due<today`), with NO
+reconciliation. A recurring task's completion stamps `completed_at=today` AND generates a lagging
+overdue occurrence (same title) → the same title in both buckets.
+
+**Fix (architectural, per the approved direction — ONE authority, not a new ledger):** Execution
+Truth (`build_today_execution` → `build_execution_state`) now owns ALL daily task state.
+- `build_today_execution` fetches completed-today tasks and reconciles occurrences/duplicates BEFORE
+  bucketing: a completed-today title suppresses its non-completed same-title twins, so one task
+  lands in exactly one bucket and a not-completed task can never be reported complete.
+- `completed_today` corrected to mean completion occurring TODAY (was `completion_status=='completed'`,
+  a misnomer). Completed items are `is_actionable=False` → prioritizer already skips them →
+  next-action unchanged.
+- `build_execution_state` exposes the reconciled `completed_today` bucket.
+- Consumers routed through Execution Truth: `state_builder.completed_today*` + momentum (recomputed
+  from the reconciled count) + overdue (reconciled against the completed set); model-interface
+  `execution_facts`; dashboard `completed_today`. `TaskQueries.completed_on` retired as an
+  independent source (internal helper only).
+- CI contract `test_completion_single_source_contract.py` blocks any second completion producer.
+
+**Files:** `apps/core/execution/today_execution.py`, `apps/core/execution/execution_state.py`,
+`apps/core/execution/decision_authority.py`, `apps/core/ai_state/state_builder.py`,
+`apps/dashboard/views.py`, `apps/core/tests/test_completion_single_source_contract.py` (new),
+`apps/core/execution/tests/test_completion_reconciliation.py` (new),
+`docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`.
+
+**Final bucket contract:** `build_execution_state(user)` → mutually-exclusive
+`completed_today` / `overdue_actions` / `now_actions` / `next_actions` / `upcoming_actions`
+(+ `blocked_dependents`, `at_risk_actions`, `timing`, `current_action` via the authority). A task
+appears in exactly one.
+
+**Tests run:** 9 new (twin never-both, no-false-completion, reconciled count, overdue-only,
+completed-only, next-action-unchanged, consumers-same-bucket, CI contract) + 236 across execution /
+decision-authority / model-interface / check-in / current-context — all green. `check` clean; no
+migrations. Pre-existing `ai_state`/`dashboard_v2` failures (11+2) confirmed identical with and
+without this change — not introduced here.
+
+**Remaining production data anomalies to clean up:** the contradiction surfaces when a task TITLE has
+both a completed-today row and a lagging overdue/duplicate row. Recommend auditing recurring tasks
+whose regenerated occurrence lands in the PAST (due < today) at generation — that lagging occurrence
+is what read as "overdue" beside the completion. Also two lower-level completion counts remain
+(documented exceptions, NOT the narrated path): `execution_truth_engine._check_tasks.completed_today_all`
+and `state_builder.build_daily_execution_status` (currently no callers) — route to Execution Truth in
+a follow-up for full unification.
+
 ## 2026-07-10 — feat(cos): retire the WLJ check-in renderer — OpenAI authors the entire proactive Check-in
 
 **Product milestone. WLJ assembles deterministic truth; OpenAI authors the words. The renderer's

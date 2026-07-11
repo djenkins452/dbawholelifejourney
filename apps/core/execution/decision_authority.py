@@ -98,10 +98,11 @@ def execution_facts(user, now=None, state=None) -> dict:
         if state is None:
             from apps.core.execution.execution_state import build_execution_state
             state = build_execution_state(user, now=now)
-        items = state.get("items", []) or []
+        # Completed reads the SINGLE reconciled bucket from build_execution_state — never
+        # an independent completion query — so it can never disagree with overdue/pending.
         completed = [
             {"title": (i.get("title") or ""), "time": i.get("scheduled_time")}
-            for i in items if i.get("completed_today")
+            for i in (state.get("completed_today") or [])
         ]
         return {
             "active_block": (state.get("active_block") or {}).get("name"),

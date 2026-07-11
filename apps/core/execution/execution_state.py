@@ -166,6 +166,11 @@ def build_execution_state(user, now=None, execution_contract=None) -> dict:
     next_a = [a for a in actions if a.get('urgency') == 'next']
     upcoming = [a for a in actions if a.get('urgency') == 'upcoming']
 
+    # Completed-today bucket — reconciled in build_today_execution (single producer),
+    # so a task here can never also be in overdue/now/next/upcoming. Non-actionable by
+    # construction, so it never entered the prioritized `actions` above.
+    completed = [i for i in items if i.get('completed_today')]
+
     # Deterministic timing CALCULATIONS (facts only — minutes late / buffer / earliest
     # completion / latest safe start / fits-before-anchor / required pace). The
     # conversational model reads these and JUDGES the situation; WLJ never labels it.
@@ -186,6 +191,7 @@ def build_execution_state(user, now=None, execution_contract=None) -> dict:
         "now_actions": now_a,
         "next_actions": next_a,
         "upcoming_actions": upcoming,
+        "completed_today": completed,
         "expired_items": expired_items,
         "deferred_items": deferred_items,
         "collapsed_blocks": collapsed_blocks,

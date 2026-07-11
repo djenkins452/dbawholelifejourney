@@ -1286,8 +1286,13 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         overdue_tasks = TaskQueries.overdue(user, today)
         due_soon = tasks.filter(due_date__gte=today, due_date__lte=week_ahead)
 
-        # Tasks completed today
-        completed_today = TaskQueries.completed_on(user, today).count()
+        # Tasks completed today — single source: Execution Truth's reconciled bucket
+        # (never an independent completion query, so it can't disagree with overdue).
+        try:
+            from apps.core.execution.execution_state import build_execution_state
+            completed_today = len(build_execution_state(user).get('completed_today') or [])
+        except Exception:
+            completed_today = 0
 
         # Upcoming events (excludes today - those are current, not upcoming)
         upcoming_events = LifeEvent.objects.filter(

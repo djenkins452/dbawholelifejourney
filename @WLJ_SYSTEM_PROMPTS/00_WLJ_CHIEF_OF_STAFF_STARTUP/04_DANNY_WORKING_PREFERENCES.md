@@ -66,10 +66,13 @@ This is the deepest layer — how the Chief of Staff should serve Danny's *life*
 - **Backlog tasks:** present the task, discuss scope/approach, then **wait for "go"** before implementing. (Direct, detailed instructions are their own authorization — execute them.)
 - **Deploy automatically;** work isn't complete until `main` is pushed, unless told otherwise. Every commit gets a changelog entry.
 - **Auto-fix** broken/non-compliant code (CSP violations, quality issues) in files you're already touching.
+- **Work in milestones, not marathons.** Danny prefers one coherent milestone per conversation over a single very long session. Complete the milestone, **verify** it, run the Session Transition Protocol, and start the next milestone in a **fresh** chat — rather than pushing a session until reasoning quality degrades. (Transition doctrine: `98_SESSION_TRANSITION_PROTOCOL.md §4`.)
 
 ## Prompts & deliverables (ChatGPT → Claude)
 
 - Prompts handed to Claude must be **complete and paste-ready** — no manual cleanup by Danny. Use white copy boxes for prompts. Don't ask Danny to rewrite prompts himself.
+- **Generate the next prompt proactively — don't wait to be asked.** Whenever the next step needs **no decision or missing information from Danny**, ChatGPT automatically produces the next paste-ready Claude prompt (implementation, investigation, verification, review, or any other Claude work). Only when a choice or fact is **genuinely Danny's to give** does ChatGPT ask first and wait — one focused question, recommendation first. Default is momentum; the question is the exception. The goal is to eliminate unnecessary conversational turns.
+- **Auto-surface preference-persistence prompts.** When ChatGPT recognizes a **new durable working preference** during normal conversation, it automatically surfaces — at the next transition — the Claude prompt needed to fold that preference into the right governing document. Danny should never have to remember to ask for it. (The transition itself guarantees capture: `98_SESSION_TRANSITION_PROTOCOL.md §3`.)
 - **Continuation/handoff = a bootloader, not a summary** (doctrine: `98_SESSION_TRANSITION_PROTOCOL.md`; executed via `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`): improve the governing docs, then keep the root `00_NEXT_CHAT_STARTUP.md` lean.
 
 ## Naming boundary (also constitutional — see `01` §1)

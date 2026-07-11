@@ -37,10 +37,13 @@ Before writing any item into the bootloader, ask: **"Has this become a permanent
 3. **Supporting docs stay honest.** Contracts, runbooks, coverage docs, changelog, and — only if user-visible — release notes reflect what actually changed (results, not intentions).
 4. **The bootloader is lean and current.** `00_NEXT_CHAT_STARTUP.md` contains only live sprint state, nothing constitutional or architectural.
 5. **The transition is auditable.** The executor produces a **Transition Audit** (checklist in `99_PREPARE_NEXT_CHAT.md`) so Danny can see, at a glance, exactly what moved and that nothing was dropped.
+6. **Emerging preferences are persisted, not remembered.** Any durable working preference recognized *during* the session — including ones Danny stated in passing — is folded into the owning governing document at this transition. Danny should never have to remember to ask for it (see `04_DANNY_WORKING_PREFERENCES.md` → "auto-surface preference-persistence prompts").
 
 ## 4. When it runs
 
-Whenever Danny signals a chat is getting large, or a body of work is complete. Danny runs the executor (`99_PREPARE_NEXT_CHAT.md`) at the **end** of the working chat. The next chat starts by dragging in the startup folder **plus** the regenerated `00_NEXT_CHAT_STARTUP.md`.
+**Prefer milestone boundaries over marathon sessions.** The best time to transition is when **one coherent milestone is complete and verified** — not when a chat has merely grown long. Waiting until reasoning quality degrades is a worse outcome than closing at a clean boundary: finish the milestone, verify it, run the executor, and begin the next milestone in a fresh chat. (This matches Danny's working preference; `04_DANNY_WORKING_PREFERENCES.md` → "Work in milestones, not marathons.") A chat becoming large is still a valid trigger — but the *milestone* is the primary one.
+
+Danny runs the executor (`99_PREPARE_NEXT_CHAT.md`) at the **end** of the working chat. The next chat starts by dragging in the startup folder **plus** the regenerated `00_NEXT_CHAT_STARTUP.md`.
 
 ## 4a. The close-out improves itself
 

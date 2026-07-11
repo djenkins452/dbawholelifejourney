@@ -6,6 +6,33 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — startup(transition): OPS-1 close-out + milestone-session cadence folded into the package
+
+Session Transition Protocol close-out after OPS-1 shipped and was independently verified (25/25
+`CELERY_BEAT_SCHEDULE` entries observable; no gaps). No code changes — governing-doc + bootloader
+updates only.
+
+**Permanent knowledge folded UP (each into its one owning doc, no duplication):**
+- `04_DANNY_WORKING_PREFERENCES.md` — added three durable working preferences: **(1) Work in
+  milestones, not marathons** — one coherent, verified milestone per conversation, then transition to
+  a fresh chat rather than pushing until reasoning degrades; **(2) ChatGPT generates the next Claude
+  prompt proactively** (implementation/investigation/verification/review) whenever no decision or
+  missing info is needed from Danny — asks first only when the choice is genuinely Danny's; **(3)
+  ChatGPT auto-surfaces the preference-persistence prompt** when it recognizes a new durable preference,
+  so Danny never has to remember to ask.
+- `98_SESSION_TRANSITION_PROTOCOL.md` — **§4** now makes the **milestone boundary the primary transition
+  trigger** (a long chat is still valid, but "milestone complete + verified" is preferred over waiting
+  for degradation); **§3** adds a guarantee that preferences recognized *during* a session are persisted
+  at the transition.
+
+**Bootloader** (`00_NEXT_CHAT_STARTUP.md`) regenerated: OPS-1 moved to Recently completed (shipped +
+verified); roadmap advances to **CC-1**; ranked priorities CC-1 → CC-2/CC-4 → Acceptance gaps →
+OPS-2/3/4 → Help; remaining OPS-5..10 kept under Deferred. Milestone-cadence lesson intentionally NOT
+left in the bootloader (now permanent in `04`/`98`).
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,04_DANNY_WORKING_PREFERENCES,98_SESSION_TRANSITION_PROTOCOL}.md`,
+`docs/wlj_claude_changelog.md`.
+
 ## 2026-07-11 — ops(OPS-1): Ops Wall coverage for all scheduled Celery Beat tasks (generic Beat-run reconciler)
 
 **Why:** The Ops Wall heartbeat/MISSED_RUN machinery is engine-centric — it only sees work that

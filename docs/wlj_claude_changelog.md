@@ -6,6 +6,61 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(operations): Phase II Deterministic Recovery framework (SHIPS DARK)
+
+**Why:** Execute the approved, frozen Phase II plan — turn WLJ Operations from Observable (O1) toward
+Recoverable (O2) with a deterministic recovery framework. Ships dark: `OPS_RECOVERY_ENABLED=False` and an
+empty allowlist mean ZERO production behavior change until an operator deliberately enables a pilot. No CoS
+touch; no change to any protected architecture.
+
+**What (new `apps/core/operations/` action package — the frozen §10 observation/action seam):**
+- `recovery/policy.py` — `RecoveryPolicy` (R0–R4; **finite `max_attempts` for every class incl. R1** — no
+  unbounded loop; cooldown; `recurrence_limit` → permanent-fix escalation).
+- `recovery/base.py` — `RecoveryHandler` contract + `RecoveryRegistry` (unregistered anomaly type = R0/
+  observe-only, the safe default) + diagnosis/outcome/verification dataclasses.
+- `recovery/engine.py` — `run_recovery_cycle()`: the Standard Recovery Lifecycle (diagnose→gate→recover→
+  verify→audit→retry/escalate) with deferred verification, bounded retries, recurrence escalation, and
+  per-incident failure isolation (never swallows — logs `exc_info=True` + audits).
+- `recovery/handlers.py` — first-cut R1 pilot `BeatTaskRetryHandler`: re-enqueues an **allowlisted,
+  idempotent** missed Beat task; verification **reuses the exact OPS-1 predicate**
+  (`compute_scheduled_task_states`). Allowlist empty by default.
+- `recovery/telemetry.py` — publishes a read-only recovery section to cache key `wlj:ops:recovery`.
+- `models.py` — `RecoveryAttempt` audit model (migration `0130`, `app_label=core`, additive).
+- `tasks.py` — `run_recovery_cycle_task` (separate downstream worker task).
+
+**Key implementation findings (recorded as vision ADR-16…18):**
+- **Recovery NEVER writes incident state.** The SAME `_reconcile_anomalies` pipeline is the single authority
+  for `OpsAnomaly.is_active` (III.1/III.2). Recovery acts, proves health via the detector's own predicate,
+  and audits; the reconcile pipeline resolves the incident. Recovery structurally CANNOT manufacture a
+  healthy state (V.1) — stronger than "verify before closing".
+- **Snapshot-refresh pilot deferred** (ADR-17): a stale snapshot is already a downstream symptom of a missed
+  Beat task (covered by the Beat-retry pilot); a second handler would double-cover one condition (III.1).
+- **Truth→action hand-off is by task NAME + cache KEY, not import** (ADR-18): `ai_observability` (truth)
+  never imports `operations` (action). The SAME cycle enqueues the recovery task via the Celery registry
+  string after Operations Truth is built+cached; the Ops Wall reads the recovery cache key.
+
+**Wiring:** `same_engine.run_same` enqueues the recovery task (gated, non-blocking, after cache write);
+`apps/core/apps.py` ready() registers the task; `apps/core/models.py` registers the model;
+`config/settings.py` adds `OPS_RECOVERY_ENABLED` / `OPS_RECOVERY_BEAT_RETRY` /
+`OPS_RECOVERY_BEAT_RETRY_ALLOWLIST` (all default off/empty); `ops_telemetry.py` adds a read-only `recovery`
+section; `operations_wall.html` adds a read-only "Recovery Activity" card (CSP-safe, Visual-Truth-safe).
+
+**Contracts/tests:** `operations/tests/test_import_boundaries.py` (truth↛action, action↛CoS-reasoning,
+CoS↛recovery-internals — CI-enforced §11); extended `test_request_path_safety_contract.py` (no request-path
+import of `operations`); `operations/tests/test_recovery.py` (kill-switch no-op, classification gate,
+verification-reuses-detection, finite bounds, cooldown/idempotency, recurrence escalation, recovery-never-
+writes-incident-state, Beat handler predicate reuse). **All scoped tests green:** operations 23,
+constitution contract, payload builder (section count 27→28), OPS-1 monitor, Ops Wall v2 (85). `check` +
+`makemigrations --check` clean.
+
+**Files:** `apps/core/operations/**` (new), `apps/core/migrations/0130_recoveryattempt.py` (new),
+`apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/ops_telemetry.py`,
+`apps/core/apps.py`, `apps/core/models.py`, `config/settings.py`,
+`apps/core/tests/test_request_path_safety_contract.py`,
+`apps/core/ai_observability/tests_payload_builder.py`,
+`templates/admin_console/operations_wall.html`, `docs/WLJ_OPERATIONS_VISION.md`,
+`docs/WLJ_OPERATIONS_PHASE2_PLAN.md`.
+
 ## 2026-07-11 — docs(operations): reconcile Phase II plan against the frozen architecture (docs-only)
 
 **Why:** Final documentation-only reconciliation before Phase II implementation begins in a fresh session.

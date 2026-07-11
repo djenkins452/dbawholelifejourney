@@ -54,3 +54,7 @@ class CoreConfig(AppConfig):
             connect_signals as _connect_chat_queue_signals,
         )
         _connect_chat_queue_signals()
+        # WLJ Operations Phase II — register the recovery Celery task so Celery
+        # discovers it (nested-subpackage tasks are not auto-discovered). Ships
+        # dark: gated by OPS_RECOVERY_ENABLED (default False).
+        import apps.core.operations.tasks  # noqa: F401

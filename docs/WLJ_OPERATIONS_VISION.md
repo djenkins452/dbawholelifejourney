@@ -802,9 +802,28 @@ recovery happen, reviews history, and only rarely intervenes.
 *OPS-1…4 detail and the ranked remediation backlog live in `WLJ_OPS_WALL_COVERAGE.md` §4 (the
 authoritative coverage source). This ledger mirrors status; the coverage doc holds the as-built detail.*
 
-### Phase II — Deterministic Recovery · **Planned**
-- [ ] Per-monitor `diagnose()` · [ ] `recover()` · [ ] `verify()` · [ ] `escalate()`
-- [ ] Verification gate blocking auto-close on unverified recovery
+### Phase II — Deterministic Recovery · **Framework SHIPPED (dark) — pilots pending enablement**
+
+| ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
+|---|---|---|---|---|---|---|
+| [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | _pending push_ | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
+| [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | _pending push_ | ship-dark | §4 | `test_recovery.py::PolicyTests` |
+| [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | _pending push_ | ship-dark | §9 | `test_recovery.py` |
+| [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | _pending push_ | ship-dark | §9 | `test_recovery.py` |
+| [x] | `RecoveryEngine` lifecycle (diagnose→gate→recover→verify→audit→escalate) | 2026-07-11 | _pending push_ | ship-dark | §5 | `test_recovery.py::RecoveryEngineTests` |
+| [x] | Verification reuses the detector predicate (never closes optimistically) | 2026-07-11 | _pending push_ | ship-dark | §5 | `test_verification_failure_never_succeeds…` |
+| [x] | Separate downstream recovery task + gated hand-off from SAME cycle | 2026-07-11 | _pending push_ | ship-dark | §7 | smoke-verified |
+| [x] | Kill switch `OPS_RECOVERY_ENABLED` (default False → true no-op) | 2026-07-11 | _pending push_ | ship-dark | §11 | `test_kill_switch_is_true_noop` |
+| [x] | Read-only "Recovery Activity" Ops Wall card (cache-published) | 2026-07-11 | _pending push_ | ship-dark | §9 | payload-builder test |
+| [x] | Import-boundary + request-path CI contract tests | 2026-07-11 | _pending push_ | ship-dark | §11 | `test_import_boundaries.py`, `test_request_path_safety_contract.py` |
+| [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | _pending push_ | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
+| [ ] | **Enable** Pilot (add a task to `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST` + flip flags) | — | — | — | — | — |
+| [-] | Snapshot-refresh pilot | **Deferred** (ADR-16) — its condition is already covered by the Beat-retry pilot; a separate handler would double-cover one condition (III.1). | | | | |
+| [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |
+
+*Framework is shipped dark: `OPS_RECOVERY_ENABLED=False` and an empty allowlist mean ZERO production
+behavior change. Enabling a pilot is a deliberate later operator step. Subsystem maturity for the covered
+monitor advances to **O2 (Recoverable)** once the Beat-retry pilot is enabled in production.*
 
 ### Phase III — Recovery Framework · **Planned**
 - [ ] Declarative recovery-policy schema (retry · cooldown · verification · escalation · audit)
@@ -855,6 +874,9 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-13 | 2026-07-11 | **Separate observation from action: all Phase II action code lives in a new `apps/core/operations/` package, distinct from `apps/core/ai_observability/` (§10).** | Blast-radius isolation + one-way dependency + mechanically-provable request-path safety. The observation tree's internal reorg is optional/deferred; the `operations/` seam is required. |
 | ADR-14 | 2026-07-11 | **Permanent import boundaries (§11), CI-enforced: truth never imports action; the CoS consumes only Operations Truth, never recovery/escalation; Operations never imports the CoS.** | Makes the independence requirement (Principles 13/14) structural rather than disciplinary; the Escalation prompt-generation exception emits a deterministic string and never calls an LLM. |
 | ADR-15 | 2026-07-11 | **Architecture frozen at this milestone.** Subsequent Operations work is implementation, not subsystem redesign; changes to a frozen section require an ADR (and, if it touches a Constitution Article, a Constitutional Review). | Closes the architecture phase; protects against drift/re-litigation once Phase II construction begins. |
+| ADR-16 | 2026-07-11 | **Phase II implementation finding — recovery NEVER writes incident state.** The SAME detector/reconcile pipeline (`_reconcile_anomalies`) is the single authority for `OpsAnomaly.is_active`. Recovery performs the deterministic action, proves health with the detector's OWN predicate, and audits; the reconcile pipeline resolves the incident on its next cycle. | Stronger than "verify before closing": recovery has NO write access to incident state, so it *cannot* manufacture a healthy state (V.1). Honors single-authority III.1/III.2 — recovery never becomes a second writer of incident lifecycle. |
+| ADR-17 | 2026-07-11 | **Snapshot-refresh pilot deferred; Beat-task re-enqueue is the sole first-cut pilot.** In the current architecture a stale snapshot is a downstream symptom of a missed Beat task (already detected by OPS-1 MISSED_RUN and recovered by the Beat-retry pilot); a separate snapshot handler would double-cover one condition. | Constitution III.1 (one authority per condition) + simplicity (IV.2). Deferred with a promotion trigger: a snapshot whose staleness is NOT already a missed-Beat-task symptom (and its own detector) would justify a distinct handler. |
+| ADR-18 | 2026-07-11 | **Truth→action hand-off is by Celery task NAME, not import.** The SAME cycle (in `ai_observability`) enqueues the recovery task via the Celery registry string, and the recovery telemetry reaches the Ops Wall via a shared cache KEY — never a Python import of `operations`. | Preserves the frozen §11 boundary (truth never imports action) while still coupling the two through the broker/cache — exactly the broker-decoupled independence Principles 13/14 intend. CI-enforced by `test_import_boundaries.py`. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 
@@ -933,8 +955,11 @@ additionally requires a Constitutional Review. The next chat begins **Phase II i
 
 ---
 
-*Last updated: 2026-07-11 — **ARCHITECTURE FREEZE.** Added Internal Architecture (§8), Canonical
-Operations Objects (§9), Package Layout (§10), Import Boundaries (§11), Operations Truth definition (§12),
-Success Metrics (§13), and the Implementation Readiness Review (§18); ADR-12…15 recorded (incl. the freeze).
-Trailing sections renumbered. Architecture is stable; the next milestone is Phase II implementation. Still
-documentation-only — no recovery code written.*
+*Last updated: 2026-07-11 — **PHASE II FRAMEWORK SHIPPED (dark).** Built `apps/core/operations/`
+(RecoveryEngine, RecoveryPolicy, RecoveryHandler+registry, RecoveryAttempt audit model + migration 0130,
+verification framework, separate downstream recovery task, kill switch, read-only Ops Wall card,
+import-boundary + request-path CI contracts) and the one first-cut R1 pilot (Beat-task re-enqueue,
+allowlisted/empty). `OPS_RECOVERY_ENABLED=False` → zero production behavior change; O2 (Recoverable) is
+reached when a pilot is enabled. ADR-16…18 recorded (recovery never writes incident state; snapshot pilot
+deferred; truth→action hand-off by task-name/cache, not import). Ledger §15 updated. All scoped tests green
+(operations 23, constitution, payload, OPS-1, Ops Wall v2 85).*

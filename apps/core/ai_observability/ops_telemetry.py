@@ -2562,6 +2562,28 @@ OPS_STREAM_CACHE_KEY = "wlj:ops:stream_payload"
 OPS_STREAM_CACHE_TTL = 90  # seconds — SAME runs every 60s, 1.5x margin
 
 
+def _get_recovery_telemetry(now=None):
+    """Read-only recovery section published by the Operations recovery cycle.
+
+    IMPORT BOUNDARY (WLJ_OPERATIONS_VISION.md §11): this observability module must
+    NEVER import ``apps.core.operations`` (truth never imports action). It only
+    READS the cache key that the recovery cycle
+    (``apps.core.operations.recovery.telemetry``) writes — cache coupling, not a
+    code import. Returns a benign 'pending' shape until recovery first publishes
+    (cold start / disabled), so the section never fails the payload build.
+    """
+    # Cache key literal duplicated (deliberately NOT imported) from
+    # apps.core.operations.recovery.telemetry.OPS_RECOVERY_CACHE_KEY.
+    cached = django_cache.get("wlj:ops:recovery")
+    if cached is not None:
+        return cached
+    return {
+        "enabled": False, "status": "OK",
+        "counts": {"recovered_24h": 0, "verified_24h": 0, "escalated_24h": 0, "pending": 0},
+        "recent": [], "pending": True,
+    }
+
+
 def build_ops_stream_payload():
     """Build the complete Ops Stream telemetry payload.
 
@@ -2640,6 +2662,9 @@ def build_ops_stream_payload():
     _section("storage", _get_storage_telemetry, now)
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
+    # WLJ Operations Phase II — read-only recovery activity (published by the
+    # Operations recovery cycle to a cache key; never computed here).
+    _section("recovery", _get_recovery_telemetry, now)
 
     # ── Executive synthesis (Ops Command Center) ───────────────────
     # Deterministic reduction over the sections built above — overall status,

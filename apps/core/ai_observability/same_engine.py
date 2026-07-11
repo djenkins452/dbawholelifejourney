@@ -92,6 +92,30 @@ def run_same():
     except Exception as e:
         logger.warning("SAME: Failed to build ops stream payload: %s", e)
 
+    # Step 7 (WLJ Operations Phase II): hand off to the deterministic recovery
+    # cycle — ONLY after Operations Truth is built and cached above. This is a
+    # non-blocking, fire-and-forget enqueue of a SEPARATE worker task; a recovery
+    # fault can never delay/lengthen/destabilize this telemetry path. Gated by
+    # OPS_RECOVERY_ENABLED (default False → true no-op). The recovery task lives in
+    # apps.core.operations (the ACTION package); we reference it by NAME via the
+    # Celery registry rather than importing it, to preserve the frozen import
+    # boundary (truth never imports action — WLJ_OPERATIONS_VISION.md §11).
+    try:
+        from django.conf import settings
+
+        if getattr(settings, "OPS_RECOVERY_ENABLED", False):
+            from celery import current_app
+
+            from apps.core.celery_utils import safe_enqueue
+
+            _recovery_task = current_app.tasks.get(
+                "apps.core.operations.tasks.run_recovery_cycle_task"
+            )
+            if _recovery_task is not None:
+                safe_enqueue(_recovery_task)
+    except Exception as e:
+        logger.warning("SAME: recovery enqueue skipped (non-fatal): %s", e)
+
     return {
         "anomalies_created": stats["created"],
         "anomalies_resolved": stats["resolved"],

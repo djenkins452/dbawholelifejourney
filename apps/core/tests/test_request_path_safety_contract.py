@@ -142,6 +142,41 @@ class RequestPathSafetyContractTests(SimpleTestCase):
             + "\n".join(violations),
         )
 
+    def test_no_request_path_import_of_operations(self):
+        """No request-path module may import the WLJ Operations ACTION package.
+
+        ``apps.core.operations`` (recovery/verification/escalation/audit) is
+        worker-only by construction (WLJ_OPERATIONS_VISION.md §11). A view/api/
+        signals module importing it would put recovery execution one call away from
+        the gunicorn request thread. Recovery data reaches the UI only as a
+        pre-computed telemetry section read from cache — never by importing action
+        code. AST-scans import statements (the Call-based tests above do not cover
+        imports)."""
+        violations = []
+        for path in _iter_request_modules():
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    if mod == "apps.core.operations" or mod.startswith("apps.core.operations."):
+                        violations.append(f"{_rel(path)}:{node.lineno} → from {mod}")
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name == "apps.core.operations" or alias.name.startswith(
+                            "apps.core.operations."
+                        ):
+                            violations.append(f"{_rel(path)}:{node.lineno} → import {alias.name}")
+
+        self.assertEqual(
+            violations, [],
+            "Request-path module imports the WLJ Operations action package. Recovery "
+            "is worker-only; surface recovery data via the cached telemetry section "
+            "instead of importing apps.core.operations:\n" + "\n".join(violations),
+        )
+
     def test_no_inline_llm_on_request_path(self):
         """No view/signal module may construct an OpenAI client or issue an LLM
         completion inline, unless the module is an allowlisted, user-invoked AI

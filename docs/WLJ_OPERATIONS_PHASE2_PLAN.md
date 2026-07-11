@@ -1,6 +1,10 @@
 # WLJ Operations — Phase II Engineering Implementation Plan (Deterministic Recovery)
 
-> **Status:** PLAN · Not implemented. **Established:** 2026-07-11.
+> **Status:** IMPLEMENTED (framework, ship-dark) · **Established:** 2026-07-11.
+> The recovery framework + the one first-cut R1 pilot (Beat-task re-enqueue) are built and shipped dark
+> (`OPS_RECOVERY_ENABLED=False`, empty allowlist → zero production behavior change). Implementation
+> findings are recorded as vision ADR-16…18 (recovery never writes incident state; snapshot pilot deferred;
+> truth→action hand-off by task-name/cache, not import). Enabling a pilot is a later operator step.
 > **Authority:** Engineering plan (companion to the governing `WLJ_OPERATIONS_VISION.md`).
 > **Governed by (authoritative, frozen 2026-07-11):** `WLJ_OPERATIONS_VISION.md` — §4 Recovery Safety
 > Classification, §5 Standard Recovery Lifecycle, §8 Internal Architecture, §10 Package Layout, §11 Import

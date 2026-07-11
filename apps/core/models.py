@@ -2321,6 +2321,10 @@ from apps.core.ai_observability.models import (  # noqa: E402, F401
     StorageSnapshot,
 )
 
+# WLJ Operations (Phase II) — action-subsystem audit model. Imported here (a
+# non-request-path module) so Django registers it under app_label "core".
+from apps.core.operations.models import RecoveryAttempt  # noqa: E402, F401
+
 # Import blueprint models so Django discovers them for migrations
 from apps.core.blueprint.models import (  # noqa: E402, F401
     ArchitecturePlan,

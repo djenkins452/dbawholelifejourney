@@ -266,8 +266,9 @@ class BuildOpsStreamPayloadTests(TestCase):
         telemetry = payload["_build_telemetry"]
         self.assertIn("total_ms", telemetry)
         # Bumped +3 for the OPS-2/3/4 sections (storage, chat_queue,
-        # upstream_health) and +1 for the executive synthesis section.
-        self.assertEqual(telemetry["sections_ok"], 27)
+        # upstream_health), +1 for the executive synthesis section, and +1 for
+        # the WLJ Operations Phase II read-only "recovery" section.
+        self.assertEqual(telemetry["sections_ok"], 28)
         self.assertEqual(telemetry["sections_degraded"], 0)
         self.assertIn("section_timings", telemetry)
-        self.assertEqual(len(telemetry["section_timings"]), 27)
+        self.assertEqual(len(telemetry["section_timings"]), 28)

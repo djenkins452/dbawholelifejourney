@@ -1,0 +1,90 @@
+"""
+WLJ Operations — Recovery Handler contract + registry (Phase II).
+
+A ``RecoveryHandler`` lives HERE, in ``operations/`` — never on an observability
+monitor class (that would put action code inside the truth package, violating the
+frozen §11 seam). A handler *consumes* Operations Truth (the detector predicate) from
+``ai_observability/`` and performs the deterministic action.
+
+The lifecycle (WLJ_OPERATIONS_VISION.md §5): diagnose → recover → verify, driven by
+``RecoveryEngine``. Verification reuses the EXACT detector predicate that raised the
+incident, so "recovered" is provably the negation of "detected".
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Optional
+
+from apps.core.operations.recovery.policy import RecoveryPolicy
+
+
+@dataclass
+class RecoveryDiagnosis:
+    """Structured, side-effect-free cause + target for one incident."""
+
+    target: str  # the specific thing to act on (e.g. a Beat task name)
+    reason: str  # human-readable deterministic cause
+    evidence: dict = field(default_factory=dict)
+    recoverable: bool = True  # False → observe-only (R0) even if a handler exists
+
+
+@dataclass
+class RecoveryOutcome:
+    """What ``recover()`` deterministically did."""
+
+    action_taken: str
+    # If the effect is asynchronous (e.g. a re-enqueued task runs later),
+    # verification must defer to a later cycle rather than close optimistically.
+    verification_deferred: bool = False
+    evidence: dict = field(default_factory=dict)
+
+
+@dataclass
+class VerificationResult:
+    """Deterministic proof (from the detector predicate) that health returned."""
+
+    healthy: bool
+    evidence: dict = field(default_factory=dict)
+
+
+class RecoveryHandler:
+    """Base class for a deterministic recovery. Subclass in ``operations/``.
+
+    A handler is associated with incidents by ``monitor_key`` and the set of
+    ``anomaly_type`` values it handles. An incident with no registered handler is
+    R0 by default (observe-only) — the safe default.
+    """
+
+    monitor_key: str = ""
+    handled_anomaly_types: frozenset[str] = frozenset()
+    policy: RecoveryPolicy
+
+    def diagnose(self, anomaly) -> RecoveryDiagnosis:  # pragma: no cover - interface
+        raise NotImplementedError
+
+    def recover(self, diagnosis: RecoveryDiagnosis) -> RecoveryOutcome:  # pragma: no cover
+        raise NotImplementedError
+
+    def verify(self, diagnosis: RecoveryDiagnosis) -> VerificationResult:  # pragma: no cover
+        raise NotImplementedError
+
+
+class RecoveryRegistry:
+    """Maps an incident's ``anomaly_type`` to the handler that recovers it."""
+
+    def __init__(self):
+        self._by_type: dict[str, RecoveryHandler] = {}
+
+    def register(self, handler: RecoveryHandler) -> None:
+        for atype in handler.handled_anomaly_types:
+            self._by_type[atype] = handler
+
+    def handler_for(self, anomaly_type: str) -> Optional[RecoveryHandler]:
+        return self._by_type.get(anomaly_type)
+
+    def __len__(self) -> int:
+        return len(self._by_type)
+
+
+# Process-wide registry, populated by ``handlers.register_default_handlers()``.
+registry = RecoveryRegistry()

@@ -1492,6 +1492,21 @@ WLJ_INTENT_BYPASS_ENABLED = env.bool('WLJ_INTENT_BYPASS_ENABLED', default=True)
 # + Health Analyze v0. Master kill switch (default ON); set False to revert
 # instantly without a code change. See docs/wlj_claude_changelog.md (2026-06-07).
 WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', default=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WLJ Operations — Phase II Deterministic Recovery (ships DARK).
+# Governing docs: docs/WLJ_OPERATIONS_VISION.md, docs/WLJ_OPERATIONS_PHASE2_PLAN.md.
+# Master kill switch: False → the SAME cycle never enqueues recovery, and the
+# recovery task is a true no-op (no payload read, no action). Default OFF.
+OPS_RECOVERY_ENABLED = env.bool('OPS_RECOVERY_ENABLED', default=False)
+# Per-handler enable for the Beat-task re-enqueue pilot (R1). Default OFF.
+OPS_RECOVERY_BEAT_RETRY = env.bool('OPS_RECOVERY_BEAT_RETRY', default=False)
+# Operator allowlist of PROVABLY-IDEMPOTENT recompute/cleanup Beat task names the
+# Beat-retry pilot may re-enqueue. EMPTY by default — nothing recovers until an
+# operator adds a specific task name. NEVER add a user-facing send/notification/
+# digest task (a re-run could double-send). See PHASE2_PLAN §1.1 Pilot 2.
+OPS_RECOVERY_BEAT_RETRY_ALLOWLIST = env.list('OPS_RECOVERY_BEAT_RETRY_ALLOWLIST', default=[])
+# ─────────────────────────────────────────────────────────────────────────────
 # P1 weight-contradiction fix (Layer 1): truth-validator guard that corrects any
 # current-weight figure in Beth's reply that contradicts canonical SAE
 # weight_current, plus log-only diagnostic to pin the stale-value source.

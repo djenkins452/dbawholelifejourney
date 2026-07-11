@@ -68,7 +68,7 @@ Nothing else.
 ## 3. Architectural Principles (Governing)
 
 These are the non-negotiable laws of the subsystem. Any change to one is an architectural decision
-that must be recorded in §6.
+that must be recorded in §10 (ADR Log).
 
 1. **WLJ Operations is a Layer 1 Truth Domain** — a peer of Health, Finance, Meals, Journal, Relationships.
 2. **WLJ Operations never performs reasoning.** Every statement is a deterministic reduction over evidence.
@@ -109,12 +109,152 @@ eliminate.
 
 ---
 
-## 4. Phased Roadmap
+## 4. Recovery Safety Classification (Governing)
+
+Before any recovery code is written, every deterministic recovery action must be assigned to exactly
+one of **five safety classifications**. The classification — not a developer's judgment in the moment —
+decides whether an action may run automatically, whether it requires operator approval, or whether it
+demands deliberate engineering. **No monitor may execute a recovery whose classification has not been
+declared.** This is the single most important safety control in the subsystem.
+
+| Class | Name | Automation | Retry / Verification | Examples |
+|---|---|---|---|---|
+| **R0** | **Observe Only** | **None.** Detection only. | No recovery exists; **engineering escalation required.** | Any condition with no safe deterministic fix (data corruption suspicion, unknown root cause, novel failure). |
+| **R1** | **Safe Idempotent Recovery** | **Automatic.** | **Unlimited retries acceptable** *if verification succeeds.* Always verify. | Retry failed job · refresh cache · refresh snapshot · recompute derived data. |
+| **R2** | **Low-Risk Service Recovery** | **Automatic.** | **Bounded by retry policy** (attempts + cooldown). **Always verify.** | Restart worker · restart scheduler · requeue work. |
+| **R3** | **Stateful Recovery** | **Never automatic.** Requires **explicit operator approval.** | Verification still required after the approved action. | Restart Redis · restart PostgreSQL · restart a Railway service · restart infrastructure components. |
+| **R4** | **Destructive Recovery** | **Never automated. Never approval-only.** Requires **deliberate engineering intervention.** | Verification required; performed by a human under change control. | Restore backup · delete data · rebuild indexes · repair corrupted data. |
+
+**Governing rules:**
+- The classification is a property of the **recovery action**, declared in the monitor's recovery policy (Phase III) and recorded in the ADR log when first assigned.
+- **R1/R2 are the only classes the subsystem may execute autonomously.** R2 is always bounded; R1 may retry freely only because each attempt is idempotent *and* verified.
+- **R3 requires a human to say yes** — Operations may *prepare* and *stage* the action and present it, but the execute step is gated on explicit operator approval.
+- **R4 is never offered as a one-click action.** Operations escalates with full context; a human performs it deliberately under change control.
+- When in doubt, **classify higher (safer).** An action is R2 only when it is provably safe and reversible-by-verification; otherwise it is R3.
+
+---
+
+## 5. Standard Recovery Lifecycle (Governing)
+
+Every monitor — present and future — follows the **exact same** recovery sequence. This uniformity is
+what lets recovery become configuration (Phase III) rather than bespoke control loops, and what makes
+the audit trail (Principle 10) identical across the whole subsystem.
+
+```
+        ┌─────────┐
+        │ Detect  │   (Phase I — already exists)
+        └────┬────┘
+             ▼
+        ┌──────────┐
+        │ Diagnose │   what specifically is wrong, from evidence
+        └────┬─────┘
+             ▼
+          ╔══════╗
+          ║ Safe?║   (recovery class R1/R2 AND within policy?)
+          ╚══╤═══╝
+        No ──┘   └── Yes
+        ▼             ▼
+  ┌──────────┐   ┌─────────┐
+  │ Escalate │   │ Recover │   execute the single safest deterministic action
+  └──────────┘   └────┬────┘
+   (R0/R3/R4)         ▼
+                 ┌─────────┐
+                 │ Verify  │   deterministic check that health was restored
+                 └────┬────┘
+                      ▼
+                  ╔════════╗
+                  ║Healthy?║
+                  ╚═══╤════╝
+                Yes ──┘   └── No
+                ▼             ▼
+           ┌───────┐      ╔═══════╗
+           │ Audit │      ║ Retry?║   (attempts left under retry policy?)
+           └───┬───┘      ╚═══╤═══╝
+               ▼         Yes ─┘   └── No
+        ┌──────────────┐  ▼            ▼
+        │ Close Incident│ (Recover   ┌────────────────────────┐
+        └──────────────┘  again)     │ Engineering Escalation │
+                                     └────────────────────────┘
+```
+
+**Sequence (canonical):** Detect → Diagnose → **Safe?** → (No → Escalate) / (Yes → Recover → Verify →
+**Healthy?**) → (Yes → Audit → Close Incident) / (No → **Retry?** → Yes → Recover again / No →
+Engineering Escalation).
+
+**Invariants (non-negotiable):**
+- **Every path is audited** — including "Safe? = No" (escalated without recovery) and every failed recovery attempt, not only the happy path.
+- **Verify always follows Recover.** There is no path from Recover to Close that skips Verify (Principle 9).
+- **A recovery never closes an incident on its own claim** — only a passing Verify closes it.
+- **Retry is bounded by policy** (except R1's verified-idempotent case); exhausting retries routes to Engineering Escalation (Phase IV), never to silent close.
+- **Safe?** is answered *only* by the recovery classification (§4) and the retry/cooldown policy (Phase III) — never by ad-hoc logic.
+
+This lifecycle is a **required contract for every future monitor.** Phase III makes it declarative;
+Phase II implements it for the first recovery classes.
+
+---
+
+## 6. Operational Maturity Model (Governing)
+
+A long-term maturity scale for the subsystem, **independent of the implementation phases**. Phases are
+*how we build*; maturity levels are *how capable the running system is*. A component can sit at a
+different maturity level than the subsystem as a whole.
+
+| Level | Name | Meaning | Phase alignment |
+|---|---|---|---|
+| **O0** | **Invisible** | Nothing is monitored; failures are discovered by users. | Pre–Phase I |
+| **O1** | **Observable** | Problems are visible, evidence-backed, and explained. | **Current — Phase I** |
+| **O2** | **Recoverable** | Deterministic recovery exists and is verified. | Phase II / III |
+| **O3** | **Autonomous** | Self-healing succeeds without operator involvement. | Phase VI |
+| **O4** | **Predictive** | Operations predicts incidents before they occur. | Phase VII |
+| **O5** | **Self-Optimizing** | Operations continuously improves itself using deterministic operational history. | Beyond Phase VIII/IX |
+
+**Current subsystem maturity: O1 (Observable).** The whole platform is visible; nothing yet
+self-heals. Individual monitors advance up this ladder as recovery, autonomy, and prediction are added
+to them — the subsystem's overall level is the *minimum* meaningful level across its critical monitors,
+not the maximum any one has reached. **O5** is deliberately the summit: it depends on Operations Memory
+(§7) — deterministic operational history rich enough to tell the subsystem which recoveries work and
+which permanent fixes ended a recurring class.
+
+---
+
+## 7. Operations Memory (Future Capability)
+
+> **Status: FUTURE.** Not built. Reserved architecture. Earliest natural home is Phase VIII
+> (Operational Excellence) / the O5 maturity level.
+
+**Operations Memory is NOT AI memory.** It is **deterministic operational history** — a structured,
+queryable record of how each recurring incident class has behaved and been resolved over time. It is the
+**institutional memory** of WLJ Operations: what turns a subsystem that recovers the *same* incident a
+hundred times into one that recognizes the pattern and drives toward a permanent fix.
+
+Each recurring incident class should eventually maintain deterministic facts such as:
+
+- **Times observed** (count + first/last seen)
+- **Average recovery time** (MTTR for this class)
+- **Typical recovery method** (which R-class action usually resolves it)
+- **Successful permanent fix** (the change that ended the class, if any)
+- **Related ADRs** (architectural decisions taken because of it)
+- **Related commits** (the SHAs that touched it)
+- **Regression history** (did a "fixed" class return? when?)
+
+**Why it matters:** it operationalizes the Constitution's *"eliminate the class"* posture with evidence —
+a recurring R1 incident with a rising observation count and no permanent fix is exactly the signal that
+the *condition* should be removed, not recovered forever. Operations Memory makes that argument in
+deterministic numbers rather than intuition. It is also the substrate for O5 self-optimization: the
+subsystem cannot improve itself without a factual record of what it has already tried.
+
+**Explicitly out of scope for now:** any reasoning, prediction, or learning *over* this memory. Phase VII
+may forecast from it and Phase VIII may measure with it, but Operations Memory itself is only the
+deterministic ledger — never a mind.
+
+---
+
+## 8. Phased Roadmap
 
 Nine phases carry WLJ Operations from *"know everything"* to a world-class autonomous operations
 platform. Each phase below records **Purpose · Goals · Capabilities · Deliverables · Success Criteria ·
 Dependencies · Future Expansion · Completion Status**. The authoritative checklist with dates, SHAs,
-and test references is the **Living Status Section (§5)** — this section is the narrative; §5 is the ledger.
+and test references is the **Living Status Section (§9)** — this section is the narrative; §9 is the ledger.
 
 ---
 
@@ -155,7 +295,7 @@ detection, confirmation-queue/attachment/audit-lag health, build-runner/deploy o
 measured Beat). Owner dimension is currently absent system-wide (OPS-6).
 
 **Completion Status:** **Mostly Complete** — visibility surface and OPS-1…4 shipped; OPS-5…10 remain as
-tracked backlog. See §5 for the exact ledger.
+tracked backlog. See §9 for the exact ledger.
 
 ---
 
@@ -269,6 +409,25 @@ to interrupt Danny. **Operations never interrupts directly.** This is a truth-do
 (a composed Operations briefing consumed through the existing envelope), **not** a new CoS capability
 and **not** a change to CoS reasoning.
 
+**The division of responsibility (explicit):**
+
+*Operations publishes deterministic operational truth, including an expression of deterministic urgency:*
+- `operational_status` — the current health posture (e.g. HEALTHY / DEGRADED / INCIDENT).
+- `priority` — deterministic ranking of what matters most right now.
+- `urgency` — how time-sensitive the condition is, derived from evidence (duration, customer impact, trend).
+- `attention_required` — a deterministic boolean: does this cross the threshold where a human *could* be needed?
+- `recommended_action` — the single deterministic next action (or "none — monitoring").
+
+*The Chief of Staff — and only the Chief of Staff — determines:*
+- **whether** interruption is appropriate (given everything else in the person's life and context),
+- **when** the interruption should occur (now, at a daypart boundary, never),
+- **how** it should be communicated (tone, framing, channel).
+
+This keeps **all reasoning inside the Chief of Staff** while letting Operations express **deterministic
+urgency**. Operations saying `attention_required = true, urgency = high` is a *fact about the platform*,
+not a command to interrupt — the CoS still owns the decision. Operations never pushes a notification and
+never reaches the user except through the CoS's judgment.
+
 **Deliverables:** *(planned)* an Operations truth briefing + a page-summary/tool the CoS can consume;
 zero CoS reasoning code.
 
@@ -378,7 +537,7 @@ recovery happen, reviews history, and only rarely intervenes.
 
 ---
 
-## 5. Living Status Section (The Ledger)
+## 9. Living Status Section (The Ledger)
 
 > **This section is ALWAYS maintained.** Every completed item records **Completion Date · Git SHA ·
 > Deployment Date · Docs Updated · Tests Added**. Checkbox legend: `[x]` Completed · `[~]` In Progress ·
@@ -443,7 +602,7 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 
 ---
 
-## 6. Architectural Decisions (ADR Log)
+## 10. Architectural Decisions (ADR Log)
 
 Every material Operations decision is recorded here with its rationale, so the *why* is never lost.
 
@@ -456,20 +615,24 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-5 | 2026-07-11 | **Prefer eliminating a failure *class* over adding a detector/recovery.** | Inherits the "eliminate the class" posture; recovery routines exist only for classes we cannot yet structurally remove, bounded by blast radius. |
 | ADR-6 | 2026-07-11 | **OPS-1 monitor is a generic Beat-schedule-vs-actual reconciler**, not per-task registration. | Future Beat tasks are covered automatically; no registration drift. (As-built detail in coverage doc §4.) |
 | ADR-7 | 2026-07-11 | **Recovery must verify before closing (Principle 9).** Established as a Phase II law up-front. | An unverified recovery is a guess; auto-close on an unverified recovery would manufacture false "healthy" truth — the exact class of trust-break this subsystem must never create. |
+| ADR-8 | 2026-07-11 | **Five-level Recovery Safety Classification (R0–R4); only R1/R2 may auto-execute; R3 approval-gated; R4 engineering-only (§4).** | Puts the automate/approve/human-only decision in a declared property of the action, not a developer's in-the-moment judgment. "Classify higher when in doubt" makes the safe default structural. |
+| ADR-9 | 2026-07-11 | **One mandatory Standard Recovery Lifecycle for every monitor (§5): Detect→Diagnose→Safe?→Recover→Verify→Healthy?→Audit/Retry→Escalate.** | Uniformity is the precondition for Phase III (recovery-as-config) and an identical audit trail; every path — including no-recovery escalation and every failed attempt — is audited. |
+| ADR-10 | 2026-07-11 | **Operations expresses deterministic urgency (`operational_status`/`priority`/`urgency`/`attention_required`/`recommended_action`); the CoS owns whether/when/how to interrupt (§ Phase V).** | Lets Operations state a *fact* about platform urgency without ever owning the interruption decision — all reasoning stays in the CoS; Operations never reaches the user directly. Refines ADR-4. |
+| ADR-11 | 2026-07-11 | **Operations Memory (§7) is deterministic history only — never a mind; O5 self-optimization depends on it but reasoning over it is out of scope until Phase VII/VIII.** | Preserves "WLJ owns truth, not reasoning" at the operations layer; the institutional record operationalizes "eliminate the class" with evidence, not intuition. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 
 ---
 
-## 7. Claude Responsibilities (Maintenance Contract)
+## 11. Claude Responsibilities (Maintenance Contract)
 
 **From this point forward, whenever ANY Operations work is completed, Claude MUST — automatically,
 without being asked:**
 
 1. **Update this document** (`docs/WLJ_OPERATIONS_VISION.md`).
-2. **Mark completed work** in the Living Status ledger (§5) with Date · SHA · Deploy date · Docs · Tests.
+2. **Mark completed work** in the Living Status ledger (§9) with Date · SHA · Deploy date · Docs · Tests.
 3. **Adjust future phases** if the work changed the roadmap.
-4. **Record architectural decisions** in the ADR log (§6).
+4. **Record architectural decisions** in the ADR log (§10).
 5. **Record deferred work** (with a phase number + promotion trigger — never "someday").
 6. **Update implementation status** so every checkbox reflects reality.
 7. **Keep the roadmap accurate** — this document must never go stale; it always represents reality.
@@ -479,8 +642,9 @@ commit + push main). Operations work updates *this* document as a required extra
 
 ---
 
-## 8. Cross-References
+## 12. Cross-References
 
+- `docs/WLJ_OPERATIONS_PHASE2_PLAN.md` — the detailed Phase II (Deterministic Recovery) engineering implementation plan + risk register. Read before writing any recovery code.
 - `docs/WLJ_OPS_WALL_COVERAGE.md` — the operational coverage matrix + the authoritative OPS-1…10 backlog (Phase I as-built detail).
 - `docs/WLJ_REQUEST_PATH_SAFETY.md` — the never-compute-on-the-request-path law Operations inherits.
 - `docs/WLJ_CONSTITUTION.md` / `WLJ_PRODUCT_VISION.md` — the apex documents this subsystem serves.
@@ -490,4 +654,7 @@ commit + push main). Operations work updates *this* document as a required extra
 
 ---
 
-*Last updated: 2026-07-11 — document established (Phase I status recorded; Phases II–IX planned).*
+*Last updated: 2026-07-11 — architecture refinement pass: added Recovery Safety Classification (§4),
+Standard Recovery Lifecycle (§5), Operational Maturity Model (§6), Operations Memory (§7); expanded
+Phase V urgency contract; ADR-8…11 recorded. Companion Phase II engineering plan authored
+(`WLJ_OPERATIONS_PHASE2_PLAN.md`). Still documentation-only — no recovery code written.*

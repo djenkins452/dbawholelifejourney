@@ -6,6 +6,45 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): architecture refinement pass + Phase II implementation plan (still docs-only)
+
+**Why:** Final documentation milestone before Phase II recovery code is written — the governing document
+must completely define the subsystem so recovery has a deterministic blueprint. No recovery logic, no CoS
+change, no production behavior touched.
+
+**What (added to `docs/WLJ_OPERATIONS_VISION.md`):**
+- **§4 Recovery Safety Classification (governing):** five classes R0 Observe-Only / R1 Safe-Idempotent /
+  R2 Low-Risk-Service / R3 Stateful (approval-gated) / R4 Destructive (engineering-only). Only R1/R2 may
+  auto-execute; "classify higher when in doubt." No monitor may run an unclassified recovery.
+- **§5 Standard Recovery Lifecycle (governing):** one mandatory sequence for every monitor —
+  Detect→Diagnose→Safe?→Recover→Verify→Healthy?→Audit/Close or Retry?→Engineering Escalation — with
+  invariants (every path audited; Verify always follows Recover; only a passing Verify closes an incident).
+- **§6 Operational Maturity Model (governing):** O0 Invisible → O1 Observable (current) → O2 Recoverable →
+  O3 Autonomous → O4 Predictive → O5 Self-Optimizing, mapped to phases; subsystem currently O1.
+- **§7 Operations Memory (future capability):** deterministic operational history (times observed, MTTR,
+  typical/permanent fix, related ADRs/commits, regression history) — institutional memory, never a mind.
+- **Phase V expanded:** Operations publishes deterministic urgency (`operational_status`/`priority`/
+  `urgency`/`attention_required`/`recommended_action`); the CoS alone decides whether/when/how to interrupt.
+- Renumbered trailing sections (Roadmap→§8, Living Status→§9, ADR Log→§10, Responsibilities→§11,
+  Cross-Refs→§12) and fixed all internal cross-references; added ADR-8…11.
+
+**What (new doc `docs/WLJ_OPERATIONS_PHASE2_PLAN.md`):** detailed Phase II engineering plan — Recovery
+Engine architecture, recovery policy model, monitor interfaces (`diagnose`/`recover`/`verify`),
+verification framework (reuses detection — the core safety invariant), `RecoveryAttempt` audit model,
+execution pipeline (worker-only, kill-switch `OPS_RECOVERY_ENABLED` default off), escalation stub,
+read-only UI, testing strategy, ship-dark deployment strategy, a pilot set (2×R1 + 1×R2), and a 10-item
+architectural risk register. **Plan only — not implemented.**
+
+**Cross-references:** startup `99_REFERENCE_INDEX.md` (two ops rows updated + Phase II plan row);
+`WLJ_DOCUMENTATION_INVENTORY.md` (CURRENT 96→97, total 187→188; §11 ref fixed); vision-doc cross-refs.
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md`, `docs/WLJ_OPERATIONS_PHASE2_PLAN.md` (new),
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md`,
+`docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+**Verification:** Documentation-only — no code/models/migrations/tests changed; no runtime behavior
+changed. Section numbering + internal §-references verified consistent.
+
 ## 2026-07-11 — docs(operations): establish WLJ Operations subsystem vision + living 9-phase roadmap
 
 **Why:** Beginning a new long-term architectural initiative — **WLJ Operations**, the autonomous

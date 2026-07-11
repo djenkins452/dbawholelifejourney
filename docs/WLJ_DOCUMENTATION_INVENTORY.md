@@ -9,11 +9,11 @@
 
 | Classification | Count | Meaning |
 |---|---|---|
-| CURRENT | 96 | Describes today's design; authoritative |
+| CURRENT | 97 | Describes today's design; authoritative |
 | HISTORICAL | 39 | Real past design, no longer current; preserved as history (banner applied) |
 | SUPERSEDED | 3 | Replaced by a named successor |
 | ARCHIVE | 49 | Completed one-off reports/handoffs/trackers |
-| **Total** | **187** | |
+| **Total** | **188** | |
 | MISSING | 3 real + 7 stale-path | Referenced but absent / relocated |
 
 **Milestone action taken:** the clearly-historical reasoning-engine docs receive the standard banner (see §4). The **uncertain** set (§6) is intentionally NOT auto-classified — it requires Danny's judgment because several are still linked as CURRENT from `CLAUDE.md`.
@@ -54,7 +54,9 @@ The 95 current docs are the governing + reference set. The apex is `WLJ_CONSTITU
 
 **Added 2026-07-11:** `WLJ_OPERATIONS_VISION` — the governing (living) design document for the new
 **WLJ Operations** subsystem (a Layer 1 truth domain; 9-phase roadmap + maintained status ledger).
-CURRENT and self-maintaining per its own §7 Claude-responsibilities contract.
+CURRENT and self-maintaining per its own §11 Claude-responsibilities contract. Companion engineering
+plan `WLJ_OPERATIONS_PHASE2_PLAN.md` (Phase II Deterministic Recovery blueprint + risk register) —
+CURRENT PLAN, not yet implemented.
 
 ## 6. Uncertain — REQUIRES DANNY'S JUDGMENT (not auto-classified)
 

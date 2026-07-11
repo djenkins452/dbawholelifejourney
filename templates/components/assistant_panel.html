@@ -977,23 +977,31 @@
         }
 
         // Image messages use non-streaming endpoint — EXCEPT ChatGPT CoS users,
-        // who must always use the streaming/background path.
+        // who must always use the streaming/background path (and now CARRY the image on it).
         if (sentImages && sentImages.length > 0 && !AP_IS_COS_USER) {
             showTyping(container);
             apSendNonStreaming(message, container, btnEl, inputEl, sentImages);
             return;
         }
 
-        // All text messages — and ALL ChatGPT CoS messages — use streaming.
+        // All text messages — and ALL ChatGPT CoS messages — use streaming. Images (if any)
+        // ride ALONG the streaming request body so the model actually receives them.
         showTyping(container);
-        apSendStreaming(message, container, btnEl, inputEl);
+        apSendStreaming(message, container, btnEl, inputEl, sentImages);
     }
 
     // Streaming path — async/await + ReadableStream for immediate token rendering
-    async function apSendStreaming(message, container, btnEl, inputEl) {
+    async function apSendStreaming(message, container, btnEl, inputEl, sentImages) {
         var pageCtx = getFullPageContext();
         // Thread the correlation id to the server (BETH_JOB_CREATED + task stages).
         try { pageCtx.beth_cid = (apGetPending() || {}).cid || null; } catch (e) {}
+
+        // Multimodal: attach uploaded images to the streaming request body (base64). The
+        // server (AssistantChatStreamView) reads `images: [{data, mime}]` and routes them
+        // through the model-interface runtime so the model can perceive them this turn.
+        var imagesPayload = (sentImages && sentImages.length > 0)
+            ? sentImages.map(function(img) { return { data: img.data, mime: img.mimeType }; })
+            : null;
 
         // Create message element BEFORE fetch so it exists in DOM immediately
         var msgEl = apCreateStreamingMsg(container);
@@ -1016,7 +1024,8 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    page_context: pageCtx
+                    page_context: pageCtx,
+                    images: imagesPayload
                 })
             });
             clearTimeout(streamTimeout);

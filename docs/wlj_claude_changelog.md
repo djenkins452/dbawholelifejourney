@@ -6,6 +6,49 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(multimodal): image dropped in the FRONTEND — CoS users' image turns took the streaming path, which never sent the image
+
+**Symptom (first live production test):** uploaded a scale photo + "Log my weight" → Beth asked
+"Could you please provide your current weight…"; "It's in the picture" → "I don't see any
+attachments or images…". The model never received the image. NOT OCR, NOT vision — a transport bug.
+
+**End-to-end trace (proven, not assumed):**
+1. Browser attached the image? YES — `attachedImages` holds `{data, mimeType, dataUrl}` and it
+   renders in the chat bubble (`assistant_panel.html`).
+2. Request contained the image? **NO — this is the drop point.** `sendMessage` routes image turns
+   to the non-streaming multipart endpoint ONLY for `!AP_IS_COS_USER`; a CoS/model-interface user
+   (`AP_IS_COS_USER = WLJ_COS_EVIDENCE_TOOLS_ENABLED`, true because the owner has
+   `use_chatgpt_cos=True`) falls through to `apSendStreaming`, whose fetch body was
+   `{message, page_context}` — **the image was never put in the request.**
+3–7. Server receive / artifact / runtime / OpenAI attach / model payload — all NO downstream of #2.
+8. Dropped at: `templates/components/assistant_panel.html :: apSendStreaming` (the streaming body
+   omitted the image). Slice 1b had wired the SERVER streaming path for images, but the CLIENT never
+   sent them on that path.
+
+**Fix (root cause):**
+- Frontend `apSendStreaming(…, sentImages)` now serializes uploads into the streaming JSON body as
+  `images: [{data, mime}]`; `sendMessage` passes the attached images through to it. Text-only turns
+  send `images: null` (unchanged behavior).
+- Server `AssistantChatStreamView` had a latent single-image bug (`images_list` only forwarded when
+  2+, leaving `image_data` unset for one image). Now the FIRST image also populates the singular
+  fields — mirrors `AssistantChatView` — so a single scale photo flows. `DATA_UPLOAD_MAX_MEMORY_SIZE`
+  is 10 MB (one ~6.7 MB base64 photo fits).
+
+**Live flow now:** attach photo → streaming body carries base64 → `AssistantChatStreamView` →
+`CoSGateway.respond(image_data=…)` → `ModelInterfaceRuntime.respond` → `ingest_uploads` (artifact
+created) → `run_model_interface_generation.delay(images=…, attachments=…)` → `generate(images=…)` →
+`_call_api_with_tools(images=…)` → OpenAI receives the image → `log_weight(…, source_artifact_id,
+confidence)` → deterministic path.
+
+**Files:** `templates/components/assistant_panel.html` (streaming body carries images),
+`apps/ai/views.py` (streaming single-image extraction), `apps/ai/tests/test_multimodal_wiring.py`
+(+`StreamingViewTransportTests` — POST to the streaming endpoint asserts the image reaches the
+gateway; test users now get full PA prerequisites + TermsAcceptance).
+
+**Verification:** `test_multimodal_wiring.py` (18, all pass) incl. the streaming-view transport test;
+`test_multimodal` (14) + `test_request_path_safety_contract` (3) pass. Perception (model reading the
+pixels) still requires a live OpenAI key — but the image now provably reaches the OpenAI request.
+
 ## 2026-07-11 — fix(cos): Current Context lifecycle — stale focus never survives navigation
 
 **Trust bug:** navigating Journal → Goal → Workout, then asking (still on the workout page)

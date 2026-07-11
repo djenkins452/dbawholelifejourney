@@ -1230,7 +1230,7 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
             page_context = data.get('page_context', {})
 
             # Multimodal arrival path (streaming). Images arrive base64-encoded in the JSON
-            # body: singular image_data/image_mime_type, or an `images` list of {data, mime}.
+            # body: an `images` list of {data, mime}, or singular image_data/image_mime_type.
             image_data = data.get('image_data')
             image_mime_type = data.get('image_mime_type')
             images_list = []
@@ -1241,6 +1241,10 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                         images_list.append((it['data'], it['mime']))
             if not images_list and image_data and image_mime_type:
                 images_list = [(image_data, image_mime_type)]
+            # Mirror the sync view: the FIRST image also populates the singular fields, so a
+            # single image flows even though images_list is only forwarded when there are 2+.
+            if images_list and not (image_data and image_mime_type):
+                image_data, image_mime_type = images_list[0]
 
             if not message:
                 return JsonResponse(

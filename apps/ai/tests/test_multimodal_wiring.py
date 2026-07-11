@@ -41,10 +41,20 @@ _PNG_B64 = base64.b64encode(_PNG_BYTES).decode("utf-8")
 
 
 def _make_user(email):
+    from django.conf import settings
+
+    from apps.users.models import TermsAcceptance
     user = User.objects.create_user(email=email, password="x")
+    TermsAcceptance.objects.create(
+        user=user, terms_version=settings.WLJ_SETTINGS["TERMS_VERSION"])
     prefs = user.preferences
     prefs.use_model_interface = True
     prefs.has_completed_onboarding = True
+    # Personal-assistant prerequisites so the chat endpoints run (not the enable-gate).
+    prefs.ai_enabled = True
+    prefs.ai_data_consent = True
+    prefs.personal_assistant_enabled = True
+    prefs.personal_assistant_consent = True
     prefs.save()
     return user
 
@@ -117,6 +127,42 @@ class RuntimeWiringTests(TestCase):
             self.user, image_data=_PNG_B64, image_mime_type="image/png")
         self.assertEqual(attachments2[0]["artifact_id"], attachments[0]["artifact_id"])
         self.assertEqual(MultimodalArtifact.objects.filter(user=self.user).count(), 1)
+
+
+class StreamingViewTransportTests(TestCase):
+    """The streaming chat endpoint (the path CoS/model-interface users take) must carry the
+    image from the JSON body to the gateway — this is where the first live test dropped it."""
+
+    def setUp(self):
+        self.user = _make_user("mmstream@example.com")
+        self.client.force_login(self.user)
+
+    def test_streaming_view_forwards_image_to_gateway(self):
+        import json as _json
+
+        class _Env:
+            stream_job_id = "job-x"
+            meta = {"conversation_id": 1}
+
+        with mock.patch("apps.ai.cos_gateway.CoSGateway.respond",
+                        return_value=_Env()) as respond, \
+                mock.patch("apps.ai.views._chat_relay_stream", return_value=iter([])):
+            resp = self.client.post(
+                "/assistant/api/chat/stream/",
+                data=_json.dumps({
+                    "message": "log my weight",
+                    "page_context": {},
+                    "images": [{"data": _PNG_B64, "mime": "image/png"}],
+                }),
+                content_type="application/json",
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(respond.called)
+        _, kwargs = respond.call_args
+        # The image reached the gateway (single image → singular fields populated).
+        self.assertEqual(kwargs.get("image_data"), _PNG_B64)
+        self.assertEqual(kwargs.get("image_mime_type"), "image/png")
+        self.assertTrue(kwargs.get("stream"))
 
 
 class CurrentContextAttachmentTests(TestCase):

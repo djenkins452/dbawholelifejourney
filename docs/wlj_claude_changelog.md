@@ -6,6 +6,52 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — ops(OPS-1): Ops Wall coverage for all scheduled Celery Beat tasks (generic Beat-run reconciler)
+
+**Why:** The Ops Wall heartbeat/MISSED_RUN machinery is engine-centric — it only sees work that
+writes `EngineRun` records inside the ISE cycle. The ~23 plain Celery Beat tasks (Goal Momentum,
+`cleanup_soft_deletes`, capture retention/reminders, celebrations, digests, `cos_keepalive`, faith/
+health/birthday reminders, recurring-task processing, operating profiles, activity patterns, …) wrote
+no such records and had no cadence config, so **MISSED_RUN never fired for them** — a scheduled job
+could die silently in production. (`docs/WLJ_OPS_WALL_COVERAGE.md §4`, gap OPS-1 — the highest-ranked
+Ops Wall hole.)
+
+**What (chose the generic reconciler — the cleaner of the two documented options; no per-task
+registration, future Beat tasks are covered automatically):**
+- **New model** `ScheduledTaskRun` (`core_scheduled_task_run`) — one UPSERTed current-state row per
+  monitored task (last run time + status). Bounded storage even for the 30s `cos_keepalive`.
+- **New module** `apps/core/ai_observability/scheduled_task_monitor.py`:
+  - Expected cadence derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers as-is;
+    crontabs estimated to a nominal period). Excludes the SAME/ISE *cycle* tasks (already covered by
+    `SchedulerHeartbeat`).
+  - Actual runs recorded via Celery `task_prerun`/`task_postrun` signals (connected in
+    `apps/core/apps.py::ready()`) — no per-task edits.
+  - `detect_scheduled_task_missed_runs()` emits `MISSED_RUN` descriptors that flow through the existing
+    SAME pipeline (`run_same` → `_reconcile_anomalies`) so they appear on the Ops Wall, escalate, and
+    resolve like engine misses. NEVER_RUN (no run since deploy) is intentionally not flagged.
+  - `get_scheduled_tasks_telemetry()` powers a new **`scheduled_tasks`** payload section + Ops Wall card.
+- **SAME** (`same_engine.py`) — added `_detect_scheduled_task_missed_runs(now)` to the detector chain
+  (10 → 11 detectors).
+- **`OpsAnomaly.engine_name`** widened 10 → 128 chars so full Beat task names fit as the stable
+  reconciliation key.
+- **Ops Wall template** — new "Scheduled Beat Tasks" freshness card (`renderScheduledTasks`).
+- Kept deliberately separate from `EngineRun`/engine heartbeats to avoid polluting
+  engine-health/integrity/narrative or the error-spike/starvation detectors.
+
+**Files:** `apps/core/ai_observability/models.py` (+`ScheduledTaskRun`, widen `OpsAnomaly.engine_name`),
+`apps/core/ai_observability/scheduled_task_monitor.py` (new), `apps/core/ai_observability/same_engine.py`,
+`apps/core/ai_observability/ops_telemetry.py`, `apps/core/apps.py`, `apps/core/models.py`,
+`apps/core/migrations/0128_alter_opsanomaly_engine_name_scheduledtaskrun.py`,
+`templates/admin_console/operations_wall.html`, `apps/core/tests/test_scheduled_task_monitor.py` (new),
+docs: `WLJ_OPS_WALL_COVERAGE.md`, `WLJ_KNOWN_LIMITATIONS.md`, `WLJ_PRODUCTION_RUNBOOKS.md`,
+`ENGINE_COS_REFERENCE.md`, startup `00_NEXT_CHAT_STARTUP.md`.
+
+**Verification:** `apps/core/tests/test_scheduled_task_monitor.py` — 13 tests incl. an **end-to-end
+SAME-cycle proof** that a stale Beat task becomes an active `MISSED_RUN` `OpsAnomaly`. Confirmed the full
+`build_ops_stream_payload()` includes the `scheduled_tasks` section (23 tasks monitored). Existing
+observability/contract tests still green (request-path safety, scheduler health, self-governance,
+constitution — 32 tests). `makemigrations --check` clean.
+
 ## 2026-07-11 — startup(memory): institutional-memory finalization + self-improving close-out
 
 Final finalization pass. No feature work, no redesign. Folded this milestone's permanent lessons

@@ -604,6 +604,20 @@ def _get_scheduler_heartbeats():
     return schedulers
 
 
+def _get_scheduled_tasks_telemetry(now):
+    """
+    OPS-1 — freshness of every non-engine Celery Beat scheduled task.
+
+    Delegates to the generic scheduled-task monitor (cadence derived from
+    CELERY_BEAT_SCHEDULE; last-run state from ScheduledTaskRun). Cheap: one
+    small query + arithmetic. Safe on the request path (read-only aggregate).
+    """
+    from apps.core.ai_observability.scheduled_task_monitor import (
+        get_scheduled_tasks_telemetry,
+    )
+    return get_scheduled_tasks_telemetry(now)
+
+
 def _get_scheduler_health():
     """Get Celery Beat scheduling health for the Ops Wall stream."""
     try:
@@ -2556,6 +2570,7 @@ def build_ops_stream_payload():
     _section("feed", get_recent_feed, since=None, limit=50, engine_filter=None)
     _section("integrity", _get_latest_integrity)
     _section("scheduler_heartbeats", _get_scheduler_heartbeats)
+    _section("scheduled_tasks", _get_scheduled_tasks_telemetry, now)
     _section("eae_telemetry", _get_eae_ops_telemetry, now)
     _section("scheduler_health", _get_scheduler_health)
     _section("celery_health", _get_celery_health)

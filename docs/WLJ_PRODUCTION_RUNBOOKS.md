@@ -52,7 +52,7 @@ Prefer `revert` over force-push. Never force-push `main` without explicit intent
 ## 4. Celery workers / beat
 
 - **Worker down:** Ops Wall Celery card → DOWN/CRITICAL. Railway restarts the `worker` service; confirm `inspect().ping()` recovers. Backlogged tasks drain (acks_late re-queues in-flight).
-- **Beat drift / missed runs:** Ops Wall scheduler card → `drift_seconds`, MISSED_RUN, ENGINE_STARVATION. Beat liveness is *inferred* from ISE+SAME heartbeats (gap OPS-10) — a non-engine Beat task can die silently (gap OPS-1). If a scheduled job's output is stale, check whether it's a registered engine; if not, verify it via its data freshness.
+- **Beat drift / missed runs:** Ops Wall scheduler card → `drift_seconds`, MISSED_RUN, ENGINE_STARVATION. Beat liveness is *inferred* from ISE+SAME heartbeats (gap OPS-10). Non-engine Beat tasks are now covered (OPS-1, done 2026-07-11): the **Scheduled Beat Tasks** card shows the freshness of every scheduled job, and a stale one raises a `MISSED_RUN` anomaly keyed by task name (e.g. `dashboard_v2.compute_nightly_momentum`). If a scheduled job's output is stale, check that card first: `MISSED` → Beat/worker not dispatching it; `NEVER_RUN` → hasn't run since the last deploy yet; `OK·ERR` → it runs but its last execution errored (check worker logs).
 - Enqueues are fire-and-forget (`CELERY_TASK_IGNORE_RESULT=True`, 0.5s socket timeouts) — a degraded Redis never blocks a request. Always enqueue via `safe_enqueue`.
 
 ## 5. Redis

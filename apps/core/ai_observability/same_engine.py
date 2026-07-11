@@ -52,6 +52,7 @@ def run_same():
     detected.extend(_detect_looping_reminders(now))
     detected.extend(_detect_engine_starvation(heartbeats, now))
     detected.extend(_detect_delivery_retry_spike(now))
+    detected.extend(_detect_scheduled_task_missed_runs(now))
 
     # Compute signal health ONCE and reuse for all signal detectors + cache
     # (Previously computed 3x per cycle — ~72 queries reduced to ~24)
@@ -421,6 +422,25 @@ def _detect_delivery_retry_spike(now):
         }]
 
     return []
+
+
+def _detect_scheduled_task_missed_runs(now):
+    """
+    Detect non-engine Celery Beat tasks that missed their expected cadence
+    (OPS-1). Delegates to the generic scheduled-task monitor, which derives
+    expected cadence from CELERY_BEAT_SCHEDULE and reads last-run state from
+    ScheduledTaskRun. Returns MISSED_RUN descriptors for _reconcile_anomalies.
+    """
+    try:
+        from apps.core.ai_observability.scheduled_task_monitor import (
+            detect_scheduled_task_missed_runs,
+        )
+        return detect_scheduled_task_missed_runs(now)
+    except Exception as e:
+        logger.warning(
+            "SAME scheduled-task missed-run detection failed: %s", e, exc_info=True
+        )
+        return []
 
 
 def _compute_signal_health_once():

@@ -42,3 +42,9 @@ class CoreConfig(AppConfig):
         # and event-triggered recompute signal handlers.
         import apps.core.health_briefing.tasks  # noqa: F401
         import apps.core.health_briefing.signals  # noqa: F401
+        # OPS-1 — connect Celery signals that record scheduled Beat-task runs
+        # so the Ops Wall can detect MISSED_RUN for non-engine scheduled jobs.
+        from apps.core.ai_observability.scheduled_task_monitor import (
+            connect_signals as _connect_beat_task_signals,
+        )
+        _connect_beat_task_signals()

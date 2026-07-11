@@ -4015,6 +4015,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Scheduled Beat Tasks (OPS-1 — full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Scheduled Beat Tasks</span>
+                        <span class="ops-sched-status-label" id="schedTasksSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsScheduledTasks">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -4712,6 +4727,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderEngineAccordion(data.engine_cards || []);
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
+        renderScheduledTasks(data.scheduled_tasks);
         // Phase 5 — new card renders
         renderCosPerformance(data.cos_performance);
         renderValidatorGate(data.validator_health);
@@ -5939,6 +5955,65 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 '<span class="ops-feed-action">' + escapeHtml(f.action) +
                 (f.detail ? ' | ' + escapeHtml(f.detail) : '') + '</span>';
 
+            container.appendChild(line);
+        });
+    }
+
+    // OPS-1 — Scheduled Beat Tasks freshness card
+    function renderScheduledTasks(sched) {
+        var container = document.getElementById('opsScheduledTasks');
+        var summaryEl = document.getElementById('schedTasksSummary');
+        if (!container) return;
+
+        if (!sched || !sched.tasks) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            if (summaryEl) summaryEl.textContent = '—';
+            return;
+        }
+
+        var counts = sched.counts || {};
+        if (summaryEl) {
+            var overall = sched.status || 'OK';
+            summaryEl.textContent =
+                (sched.total || 0) + ' tasks · ' +
+                (counts.OK || 0) + ' ok' +
+                (counts.LATE ? ' · ' + counts.LATE + ' late' : '') +
+                (counts.MISSED ? ' · ' + counts.MISSED + ' MISSED' : '') +
+                (counts.NEVER_RUN ? ' · ' + counts.NEVER_RUN + ' pending' : '') +
+                (counts.ERROR ? ' · ' + counts.ERROR + ' erroring' : '');
+            summaryEl.className = 'ops-sched-status-label ' + (
+                overall === 'MISSED' ? 'OFFLINE' :
+                overall === 'DEGRADED' ? 'DELAYED' : 'ALIVE'
+            );
+        }
+
+        container.innerHTML = '';
+        var tasks = sched.tasks || [];
+        if (tasks.length === 0) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No scheduled tasks</div>';
+            return;
+        }
+
+        function statusColor(s, lastStatus) {
+            if (s === 'MISSED') return '#ff5a5a';
+            if (s === 'LATE') return '#ffb020';
+            if (s === 'NEVER_RUN') return 'var(--ops-text-dim)';
+            if (lastStatus === 'error') return '#ffb020';
+            return '#3fd07a';
+        }
+
+        tasks.forEach(function(t) {
+            var last = t.last_run_at ? new Date(t.last_run_at).toLocaleString() : 'never';
+            var badge = t.status;
+            if ((t.status === 'OK' || t.status === 'LATE') && t.last_status === 'error') {
+                badge = t.status + '·ERR';
+            }
+            var line = document.createElement('div');
+            line.className = 'ops-feed-line';
+            line.innerHTML =
+                '<span class="ops-feed-time" style="color:' + statusColor(t.status, t.last_status) + '">' + escapeHtml(badge) + '</span>' +
+                '<span class="ops-feed-engine">' + escapeHtml(t.label || t.task_name) + '</span>' +
+                '<span class="ops-feed-action" style="color:var(--ops-text-dim)">last run: ' + escapeHtml(last) + '</span>';
             container.appendChild(line);
         });
     }

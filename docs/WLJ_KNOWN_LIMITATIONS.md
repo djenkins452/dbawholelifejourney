@@ -12,7 +12,7 @@ The product is **not finished**. The milestone establishes that the **fundamenta
 ## Current limitations (tracked, phased)
 
 ### Observability (from `WLJ_OPS_WALL_COVERAGE.md`)
-- **OPS-1 (highest):** ~10 non-engine Celery Beat tasks have no heartbeat → MISSED_RUN never fires for them. Silent scheduled-job death is possible (affects Goal momentum, background cleanup, image-retention jobs). *Phase: next.*
+- ~~**OPS-1 (highest):** non-engine Celery Beat tasks have no heartbeat → MISSED_RUN never fires.~~ **RESOLVED 2026-07-11** — the generic scheduled-task monitor (`apps/core/ai_observability/scheduled_task_monitor.py`) now covers all 23 non-engine Beat tasks (Goal momentum, background cleanup, image-retention, etc.); MISSED_RUN fires for every scheduled job.
 - **OPS-2/3/4:** No monitoring for volumes/artifact storage/DB capacity; `chat` queue backlog not measured; no OpenAI/Model-Interface upstream health card. *Phase: next.*
 - **OPS-5–10:** Postgres depth, per-component `owner` field, dead-job detection, confirmation-queue/attachment/dedup/audit-lag health, build-runner observability, direct Beat measurement. *Phase: following.*
 

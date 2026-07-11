@@ -586,10 +586,14 @@ class OpsAnomaly(models.Model):
 
     severity = models.CharField(max_length=2, choices=SEVERITY_CHOICES)
     engine_name = models.CharField(
-        max_length=10,
+        max_length=128,
         blank=True,
         default="",
-        help_text="Affected engine (blank for cross-engine anomalies).",
+        help_text=(
+            "Affected engine or scheduled-task name (blank for cross-engine "
+            "anomalies). Widened to 128 for full Celery Beat task names "
+            "(OPS-1)."
+        ),
     )
     anomaly_type = models.CharField(max_length=25, choices=ANOMALY_TYPES)
     summary = models.TextField(
@@ -1510,3 +1514,71 @@ class ValidatorMetric(models.Model):
 
     def __str__(self):
         return f"VGE [{self.outcome}] policy={self.policy} {self.duration_ms}ms"
+
+
+class ScheduledTaskRun(models.Model):
+    """
+    One execution of a monitored Celery Beat scheduled task (OPS-1).
+
+    Non-engine Beat tasks (Goal Momentum, cleanup jobs, image-retention,
+    celebrations, digests, reminders, cos_keepalive, …) are NOT registered
+    intelligence engines and therefore never produced ``EngineRun`` records,
+    so the heartbeat/MISSED_RUN machinery could not see them — a scheduled
+    job could die silently in production.
+
+    This model is the actual-run half of the generic
+    "Beat-schedule-vs-actual-run reconciler": a ``task_postrun`` Celery
+    signal UPSERTS one row per monitored task (current state — last run
+    time + last status). The expected-cadence half is derived directly from
+    ``settings.CELERY_BEAT_SCHEDULE`` (see
+    ``apps.core.ai_observability.scheduled_task_monitor``), so every scheduled
+    job is covered automatically — including ones added later.
+
+    One row per task (``task_name`` is unique) keeps storage bounded even
+    for high-frequency tasks (``cos_keepalive`` fires every 30s); only the
+    latest execution is needed to detect a missed cadence.
+
+    Kept deliberately separate from ``EngineRun`` (whose ``engine_name`` is
+    capped at 10 chars and whose telemetry feeds engine-health/integrity):
+    Beat tasks are not engines, and mixing them would pollute engine
+    heartbeats, error-spike, and starvation detection.
+    """
+
+    class Meta:
+        app_label = "core"
+        db_table = "core_scheduled_task_run"
+        ordering = ["-ran_at"]
+        indexes = [
+            models.Index(fields=["-ran_at"], name="idx_schedrun_time"),
+        ]
+
+    STATUS_CHOICES = [
+        ("success", "Success"),
+        ("error", "Error"),
+    ]
+
+    task_name = models.CharField(
+        max_length=128,
+        unique=True,
+        help_text="Celery task name, e.g. 'dashboard_v2.compute_nightly_momentum'.",
+    )
+    ran_at = models.DateTimeField(
+        help_text="When this task last completed.",
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="success",
+    )
+    duration_ms = models.IntegerField(
+        default=0,
+        help_text="Execution duration in milliseconds (0 if unknown).",
+    )
+    error_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="Exception message on error (truncated).",
+    )
+
+    def __str__(self):
+        return f"{self.task_name} [{self.status}] at {self.ran_at}"

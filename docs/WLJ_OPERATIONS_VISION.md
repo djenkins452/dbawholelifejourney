@@ -806,17 +806,17 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 
 | ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
 |---|---|---|---|---|---|---|
-| [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | _pending push_ | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
-| [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | _pending push_ | ship-dark | §4 | `test_recovery.py::PolicyTests` |
-| [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | _pending push_ | ship-dark | §9 | `test_recovery.py` |
-| [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | _pending push_ | ship-dark | §9 | `test_recovery.py` |
-| [x] | `RecoveryEngine` lifecycle (diagnose→gate→recover→verify→audit→escalate) | 2026-07-11 | _pending push_ | ship-dark | §5 | `test_recovery.py::RecoveryEngineTests` |
-| [x] | Verification reuses the detector predicate (never closes optimistically) | 2026-07-11 | _pending push_ | ship-dark | §5 | `test_verification_failure_never_succeeds…` |
-| [x] | Separate downstream recovery task + gated hand-off from SAME cycle | 2026-07-11 | _pending push_ | ship-dark | §7 | smoke-verified |
-| [x] | Kill switch `OPS_RECOVERY_ENABLED` (default False → true no-op) | 2026-07-11 | _pending push_ | ship-dark | §11 | `test_kill_switch_is_true_noop` |
-| [x] | Read-only "Recovery Activity" Ops Wall card (cache-published) | 2026-07-11 | _pending push_ | ship-dark | §9 | payload-builder test |
-| [x] | Import-boundary + request-path CI contract tests | 2026-07-11 | _pending push_ | ship-dark | §11 | `test_import_boundaries.py`, `test_request_path_safety_contract.py` |
-| [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | _pending push_ | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
+| [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | b3e6c40a | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
+| [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | b3e6c40a | ship-dark | §4 | `test_recovery.py::PolicyTests` |
+| [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
+| [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
+| [x] | `RecoveryEngine` lifecycle (diagnose→gate→recover→verify→audit→escalate) | 2026-07-11 | b3e6c40a | ship-dark | §5 | `test_recovery.py::RecoveryEngineTests` |
+| [x] | Verification reuses the detector predicate (never closes optimistically) | 2026-07-11 | b3e6c40a | ship-dark | §5 | `test_verification_failure_never_succeeds…` |
+| [x] | Separate downstream recovery task + gated hand-off from SAME cycle | 2026-07-11 | b3e6c40a | ship-dark | §7 | smoke-verified |
+| [x] | Kill switch `OPS_RECOVERY_ENABLED` (default False → true no-op) | 2026-07-11 | b3e6c40a | ship-dark | §11 | `test_kill_switch_is_true_noop` |
+| [x] | Read-only "Recovery Activity" Ops Wall card (cache-published) | 2026-07-11 | b3e6c40a | ship-dark | §9 | payload-builder test |
+| [x] | Import-boundary + request-path CI contract tests | 2026-07-11 | b3e6c40a | ship-dark | §11 | `test_import_boundaries.py`, `test_request_path_safety_contract.py` |
+| [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | b3e6c40a | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
 | [ ] | **Enable** Pilot (add a task to `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST` + flip flags) | — | — | — | — | — |
 | [-] | Snapshot-refresh pilot | **Deferred** (ADR-16) — its condition is already covered by the Beat-retry pilot; a separate handler would double-cover one condition (III.1). | | | | |
 | [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |

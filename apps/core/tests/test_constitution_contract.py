@@ -34,7 +34,12 @@ from django.test import SimpleTestCase
 
 _ROOT = Path(settings.BASE_DIR)
 _DOCS = _ROOT / "docs"
-_CONSTITUTION = _DOCS / "WLJ_CONSTITUTION.md"
+
+# Canonical Constitution lives in the startup package; docs/WLJ_CONSTITUTION.md is a pointer.
+_STARTUP = _ROOT / "@WLJ_SYSTEM_PROMPTS" / "00_WLJ_CHIEF_OF_STAFF_STARTUP"
+_CONSTITUTION_CANONICAL = _STARTUP / "01_WLJ_CONSTITUTION.md"
+_CONSTITUTION_POINTER = _DOCS / "WLJ_CONSTITUTION.md"
+_CONSTITUTION = _CONSTITUTION_CANONICAL if _CONSTITUTION_CANONICAL.exists() else _CONSTITUTION_POINTER
 
 # Every Article that must remain present in the Constitution.
 _ARTICLE_IDS = [

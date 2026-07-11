@@ -1,12 +1,28 @@
 # WLJ Prompt Library — Load Manifest
 
 ```text
-Version:      1.1
-Last updated: 2026-07-09 (harmonized to the LLM/WLJ governing hierarchy)
+Version:      2.0
+Last updated: 2026-07-11 (startup package became the primary onboarding experience)
 Authority:    Danny Jenkins
 Applies to:   Every new WLJ session with any conversational model
 Load class:   Read this first (it tells you what else to load)
 ```
+
+> ## ⭐ START HERE (2026-07-11): the onboarding package is one folder
+>
+> **`00_WLJ_CHIEF_OF_STAFF_STARTUP/`** is the permanent onboarding package. For a brand-new
+> ChatGPT or Claude session, **load that one folder** and nothing else is required:
+> 1. `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` — what/why/architecture/maturity/lessons
+> 2. `01_WLJ_CONSTITUTION.md` — protected Articles + Constitutional Review
+> 3. `02_ENGINEERING_OPERATING_GUIDE.md` — how to engineer safely (Claude especially)
+> 4. `03_DANNY_WORKING_PREFERENCES.md` — how to work with Danny
+> 5. `99_NEXT_CHAT_STARTUP.md` — current priorities & open work (bootloader)
+> 6. `99_REFERENCE_INDEX.md` — master TOC of every governing/supporting doc
+>
+> Everything below is **legacy load-guidance** for the specialized reference folders
+> (`01_`–`08_`), kept for on-demand use. The three old `00_CORE_STARTUP/` always-load files
+> were **migrated + rewritten** into the package above and archived under
+> `_ARCHIVE_SUPERSEDED_STARTUP/` — do not load them.
 
 > **⚠ AUTHORITATIVE GOVERNING HIERARCHY (2026-07-09) — load in this order, always:**
 > 1. `docs/WLJ_PRODUCT_VISION.md` — the product *why* (WLJ is a Personal Truth Platform,
@@ -45,23 +61,22 @@ prompt that matches your work.
 | **ARCHIVE** | Superseded but preserved. Don't load. |
 | **DEPRECATED** | Slated for removal. Don't load. |
 
-> *(No documents are currently ARCHIVE or DEPRECATED — the corrupted Preferences
-> file was rebuilt, not archived.)*
+> *(ARCHIVE as of 2026-07-11: the three former `00_CORE_STARTUP/` startup files are in
+> `_ARCHIVE_SUPERSEDED_STARTUP/` — superseded by the `00_WLJ_CHIEF_OF_STAFF_STARTUP/` package.)*
 
 ---
 
 ## ALWAYS LOAD (every session)
 
+**The always-load set is the startup package** — `00_WLJ_CHIEF_OF_STAFF_STARTUP/` (all six files above). That folder is self-contained: architecture, Constitution, engineering guide, Danny's preferences, current priorities, and the reference index.
+
 | File | Folder | Notes |
 |------|--------|-------|
-| `WLJ ARCHITECTURE LAWS.md` | `03_CANON_REFERENCE/` | **Overrides all other instructions.** Non-negotiable. |
-| `WLJ MASTER CONTEXT — CONTINUATION SESSION.md` | `00_CORE_STARTUP/` | System primer + operating + continuity rules. |
-| `WLJ MASTER PROMPT — DANNY'S PREFERENCES.md` | `00_CORE_STARTUP/` | Collaboration contract (tone, decisiveness, deploy). |
-| `WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md` | `00_CORE_STARTUP/` | **Claude sessions only** — pre-write gate, red lines. |
+| The six startup-package files | `00_WLJ_CHIEF_OF_STAFF_STARTUP/` | The permanent onboarding package. Drag the folder in. |
+| `WLJ ARCHITECTURE LAWS.md` | `03_CANON_REFERENCE/` | Also always-load for engineering; the `docs/WLJ_ARCHITECTURE_LAWS.md` copy is authoritative. |
 
-> The three persona-neutral / persona-specific always-load files live together in
-> `00_CORE_STARTUP/` so the startup set is one folder. Architecture Laws stay in
-> `03_CANON_REFERENCE/` (canon) but are always-load.
+> The old `00_CORE_STARTUP/` always-load files (Continuation, Danny's Preferences,
+> Execution Playbook) were migrated + rewritten into the startup package and archived.
 
 ---
 
@@ -128,7 +143,8 @@ production contract is `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTR
 
 | Folder | Was | Load class |
 |--------|-----|------------|
-| `00_CORE_STARTUP/` | `00_CONTEXT` (+ moved-in always-load files) | CORE_STARTUP |
+| `00_WLJ_CHIEF_OF_STAFF_STARTUP/` | *new (2026-07-11)* | **CORE_STARTUP — the package** |
+| `_ARCHIVE_SUPERSEDED_STARTUP/` | `00_CORE_STARTUP/` files | ARCHIVE (don't load) |
 | `01_CHATGPT_MODES/` | `01_CHATGPT` | SPECIALIZED_ON_DEMAND |
 | `02_CLAUDE_MODES/` | `02_CLAUDE` | SPECIALIZED_ON_DEMAND |
 | `03_CANON_REFERENCE/` | `03_REFERENCE` | CANON |
@@ -145,19 +161,14 @@ production contract is `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTR
 **New Claude debugging session (a CoS mismatch bug):**
 ```
 Load:
-  03_CANON_REFERENCE/WLJ ARCHITECTURE LAWS.md
-  00_CORE_STARTUP/WLJ MASTER CONTEXT — CONTINUATION SESSION.md
-  00_CORE_STARTUP/WLJ MASTER PROMPT — DANNY'S PREFERENCES.md
-  00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION PLAYBOOK.md
+  00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
   02_CLAUDE_MODES/WLJ MASTER PROMPT — CLAUDE DEBUGGING MODE.md
 ```
 
 **New ChatGPT architecture session (proposing a new domain):**
 ```
 Load:
-  03_CANON_REFERENCE/WLJ ARCHITECTURE LAWS.md
-  00_CORE_STARTUP/WLJ MASTER CONTEXT — CONTINUATION SESSION.md
-  00_CORE_STARTUP/WLJ MASTER PROMPT — DANNY'S PREFERENCES.md
+  00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
   01_CHATGPT_MODES/WLJ MASTER PROMPT — CHATGPT ARCHITECTURE MODE.md
   03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md
   03_CANON_REFERENCE/WLJ SIGNAL ONTOLOGY.md

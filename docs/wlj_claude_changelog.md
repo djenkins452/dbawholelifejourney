@@ -6,11 +6,39 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — startup(package): permanent WLJ Chief of Staff onboarding package (startup becomes the primary deliverable)
+
+Restructured the milestone effort around a single permanent onboarding package so a brand-new
+ChatGPT/Claude session can load **one folder** and immediately understand the product, architecture,
+Constitution, how to engineer safely, how to work with Danny, and what remains to be done.
+
+**New package `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/`:**
+- `00_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` — what WLJ is, product vision, the OpenAI pivot, current architecture & maturity, lessons, references.
+- `01_WLJ_CONSTITUTION.md` — **canonical Constitution relocated here** (softened to "considered stable and constitutionally protected"; `docs/WLJ_CONSTITUTION.md` is now a pointer; `test_constitution_contract.py` reads the new path).
+- `02_ENGINEERING_OPERATING_GUIDE.md` — merged/rewrote the Opus Execution Playbook: tracing, root-cause proof, pre-write gate, request-path safety, deploy/doc discipline, **Session Transition Protocol (§15)**.
+- `03_DANNY_WORKING_PREFERENCES.md` — rewrote Danny's Preferences: communication, workflow, product/investigation/decision/architecture philosophy.
+- `99_NEXT_CHAT_STARTUP.md` — lean **bootloader** (current priorities/open work only; gets shorter over time).
+- `99_REFERENCE_INDEX.md` — master TOC (title/authority/audience/status/purpose) of every governing + supporting doc.
+
+**Migrations/archival:** the three old `00_CORE_STARTUP/` startup docs (Continuation, Danny's Preferences,
+Execution Playbook) were **migrated + rewritten**, then archived to `_ARCHIVE_SUPERSEDED_STARTUP/`
+(engineering history preserved, not deleted). Updated `00_README_LOAD_MANIFEST.md` to make the package
+the primary always-load set. Added a START-HERE pointer to `CLAUDE.md`.
+
+**Language correction (throughout milestone docs + release):** softened "the architecture is complete"
+to "considered **stable and constitutionally protected**" — reflects that the architecture evolves
+slowly through Constitutional Review, not that it is permanently immutable.
+
+Verification: `test_constitution_contract.py` 9/9 passing against the relocated canonical Constitution.
+
+---
+
 ## 2026-07-11 — milestone(cos): WLJ Chief of Staff Architecture Milestone — Constitutional Lock + Recovery Point
 
-Established the **WLJ Chief of Staff Architecture Milestone**: the fundamental architecture is now
-considered complete and intentionally protected. Future work improves the product; it does not
-redefine the architecture absent an explicit Constitutional Review approved by Danny. Gate met:
+Established the **WLJ Chief of Staff Architecture Milestone**: the fundamental architecture is
+considered **stable and constitutionally protected** — not finished, and not frozen forever; it
+evolves slowly through Constitutional Review, not casual redesign. Future work improves the product;
+it changes the architecture only via an explicit Constitutional Review approved by Danny. Gate met:
 the "Check on Von's House" occurrence-scoped completion fix (`2f368f7e`) is on deploy `main` and
 Danny-confirmed; its temporary glass-box was already removed in that same commit.
 

@@ -3,6 +3,13 @@
 **Project:** Django 5.x personal wellness/journaling app
 **Repo:** GitHub: djenkins452/dbawholelifejourney
 
+> **⭐ START HERE — the permanent onboarding package:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/`
+> is the self-contained startup package for every session (architecture, Constitution, engineering
+> guide, Danny's preferences, current priorities, reference index). The **WLJ Constitution** (canonical:
+> `01_WLJ_CONSTITUTION.md`; `docs/WLJ_CONSTITUTION.md` is a pointer) is now the apex architecture doc —
+> any change to a constitutional Article requires a **Constitutional Review** (default NO; Danny's explicit
+> written approval). Read `99_NEXT_CHAT_STARTUP.md` for current priorities.
+
 ---
 
 ## Behavior Rules

@@ -8,7 +8,7 @@
 
 ## What this milestone is
 
-The result of ~4–6 months of architecture, engineering, testing, simplification, and production validation. It marks the point where the **fundamental architecture of the WLJ Chief of Staff is complete and intentionally protected**. It does **not** claim the product is finished. Future work improves the product; it does not redefine the architecture, absent an explicit Constitutional Review approved by Danny.
+The result of ~4–6 months of architecture, engineering, testing, simplification, and production validation. It marks the point where the **fundamental architecture of the WLJ Chief of Staff is considered stable and constitutionally protected**. It does **not** claim the product is finished, and it does not freeze the architecture forever — the architecture is expected to evolve **slowly, through Constitutional Review**, not through casual redesign. Future work improves the product; it changes the architecture only with an explicit Constitutional Review approved by Danny.
 
 Gate: the "Check on Von's House" occurrence-scoped completion correction (`2f368f7e`) is on the deploy remote's `main` and confirmed by Danny. The temporary glass-box diagnostic was already removed in that same commit; the tree carries no diagnostic scaffolding.
 
@@ -69,4 +69,4 @@ Full procedure: `docs/WLJ_PRODUCTION_RUNBOOKS.md §1`.
 
 ## Confirmation
 
-This milestone establishes the **permanent architectural foundation of the WLJ Chief of Staff**. The architecture is complete and protected. Future work should improve the product while remaining inside the constitutional boundaries in `docs/WLJ_CONSTITUTION.md`, unless an explicit Constitutional Review is approved by Danny. The default answer to a constitutional change is **NO**; solve inside the Constitution first.
+This milestone establishes the **foundational architecture of the WLJ Chief of Staff**. The architecture is **considered stable and constitutionally protected** — expected to evolve slowly through Constitutional Review, not to be casually redefined. Future work should improve the product while remaining inside the constitutional boundaries in `docs/WLJ_CONSTITUTION.md`, unless an explicit Constitutional Review is approved by Danny. The default answer to a constitutional change is **NO**; solve inside the Constitution first.

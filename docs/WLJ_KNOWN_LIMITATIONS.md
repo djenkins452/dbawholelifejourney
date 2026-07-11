@@ -7,7 +7,7 @@
 
 ## This milestone does NOT claim
 
-The product is **not finished**. The milestone establishes that the **fundamental architecture is complete and protected**. Future work improves the product within these boundaries.
+The product is **not finished**. The milestone establishes that the **fundamental architecture is considered stable and constitutionally protected** — expected to evolve slowly through Constitutional Review, not frozen forever. Future work improves the product within these boundaries.
 
 ## Current limitations (tracked, phased)
 

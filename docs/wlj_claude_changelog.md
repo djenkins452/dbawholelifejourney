@@ -6,6 +6,40 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): establish WLJ Operations subsystem vision + living 9-phase roadmap
+
+**Why:** Beginning a new long-term architectural initiative — **WLJ Operations**, the autonomous
+operational nervous system of WLJ. The non-negotiable boundary: this is NOT an enhancement to the
+Chief of Staff and NOT another reasoning/conversational engine. Operations becomes a **Layer 1 Truth
+Domain** (a peer of Health/Finance/Meals/Journal/Relationships) that owns deterministic operational
+truth; the CoS consumes it exactly like any other domain. This preserves the constitutionally-protected
+CoS architecture untouched. This first milestone is **documentation-only** — no production behavior, no
+CoS changes, no Phase II code.
+
+**What:** Created `docs/WLJ_OPERATIONS_VISION.md` — the authoritative **living** design document for the
+entire subsystem (mission, 14 governing principles incl. bidirectional CoS↔Operations independence and
+inherited request-path safety, a 9-phase roadmap Phase I→IX each with Purpose/Goals/Capabilities/
+Deliverables/Success/Dependencies/Future/Status, a maintained status ledger with checkboxes +
+Date/SHA/Deploy/Docs/Tests per item, an ADR log (7 decisions), and a §7 Claude maintenance contract
+requiring every future Operations change to update the doc). **Phase I (Operations Visibility) status
+recorded from the as-built code**: Operations Command Center at `/admin-console/ops/`, executive
+synthesis (`ops_executive.py`), SAME anomaly engine, explainable integrity scoring, incident
+detection/history, root-cause chains, customer impact, trends, and monitors OPS-1 (scheduled Beat
+tasks, `bc8f49b4`) / OPS-2 (storage) / OPS-3 (chat queue) / OPS-4 (OpenAI upstream) (`8d7dab87`) —
+marked Mostly Complete; OPS-5…10 remain tracked backlog. Phases II–IX are Planned.
+
+**Cross-references added:** startup package `99_REFERENCE_INDEX.md` (new Governing row); CLAUDE.md
+Reference Docs table (read-at-start-of-any-Operations-work entry); `WLJ_DOCUMENTATION_INVENTORY.md`
+(CURRENT 95→96, total 186→187, §5 note); `WLJ_OPS_WALL_COVERAGE.md` (governing-doc pointer, now the
+Phase I as-built companion).
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md` (new), `CLAUDE.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md`,
+`docs/WLJ_DOCUMENTATION_INVENTORY.md`, `docs/WLJ_OPS_WALL_COVERAGE.md`.
+
+**Verification:** Documentation-only — no code, models, migrations, or tests touched; no runtime
+behavior changed. `git status` confirms only `.md` files modified.
+
 ## 2026-07-11 — ops(command-center): Executive Operations Summary — Ops Wall → Operations Command Center
 
 **Why:** After OPS-1→OPS-4 the telemetry was strong but the *operator experience* was Grafana-like — a

@@ -52,7 +52,8 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_VERSION_MANIFEST.md` | Reference | Operator | SHA/tag/versions/migrations. |
 | `WLJ_ACCEPTANCE_BASELINE.md` | Governing | Engineer | Permanent regression suite (14 areas → tests). |
 | `WLJ_DOCUMENTATION_INVENTORY.md` | Reference | All | 186-doc classification + the 14 uncertain docs. |
-| `WLJ_OPS_WALL_COVERAGE.md` | Operational | Operator | Observability coverage + OPS-1…10 backlog. |
+| `WLJ_OPERATIONS_VISION.md` | Governing | Engineer | **The WLJ Operations subsystem** — Layer 1 truth domain; living 9-phase roadmap + status ledger. |
+| `WLJ_OPS_WALL_COVERAGE.md` | Operational | Operator | Observability coverage + OPS-1…10 backlog (Phase I as-built). |
 | `WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md` | Reference | Engineer | Page-coverage audit + CC/HELP backlog. |
 | `WLJ_RELEASE_POLICY.md` | Governing | All | Three publication levels. |
 | `WLJ_PRODUCTION_RUNBOOKS.md` | Operational | Operator | Failures, rollback, recovery, streaming, OpenAI, workers, Redis, Postgres. |

@@ -9,11 +9,11 @@
 
 | Classification | Count | Meaning |
 |---|---|---|
-| CURRENT | 95 | Describes today's design; authoritative |
+| CURRENT | 96 | Describes today's design; authoritative |
 | HISTORICAL | 39 | Real past design, no longer current; preserved as history (banner applied) |
 | SUPERSEDED | 3 | Replaced by a named successor |
 | ARCHIVE | 49 | Completed one-off reports/handoffs/trackers |
-| **Total** | **186** | |
+| **Total** | **187** | |
 | MISSING | 3 real + 7 stale-path | Referenced but absent / relocated |
 
 **Milestone action taken:** the clearly-historical reasoning-engine docs receive the standard banner (see §4). The **uncertain** set (§6) is intentionally NOT auto-classified — it requires Danny's judgment because several are still linked as CURRENT from `CLAUDE.md`.
@@ -51,6 +51,10 @@ Engineering history is **never deleted** — only labeled.
 ## 5. CURRENT (95) — the authoritative set
 
 The 95 current docs are the governing + reference set. The apex is `WLJ_CONSTITUTION.md`; the governing docs are `WLJ_PRODUCT_VISION`, `WLJ_LLM_TRUTH_ACTION_CONTRACT`, `WLJ_ARCHITECTURE_LAWS`, `WLJ_CONDUCTOR_DEVELOPMENT_MODEL`, `WLJ_CURRENT_CONTEXT_CONTRACT`, `WLJ_VISUAL_TRUTH_CONTRACT`, `WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE`, `LAYER1_DOMAIN_FRAMEWORK`. The rest are live domain/reference/operational docs (Legacy, Medication, Security suite, Signal taxonomy, SAE contract, iOS, Bible plans, billing, calendar, finance, etc.) plus the milestone docs added today (`WLJ_CONSTITUTION`, `WLJ_ACCEPTANCE_BASELINE`, `WLJ_OPS_WALL_COVERAGE`, `WLJ_CURRENT_CONTEXT_HELP_COVERAGE`, `WLJ_DOCUMENTATION_INVENTORY`, `WLJ_RELEASE_POLICY`, `WLJ_PRODUCTION_RUNBOOKS`, `WLJ_SECURITY_PRIVACY_RETENTION`, `WLJ_KNOWN_LIMITATIONS`, `WLJ_MILESTONE_COS_ARCHITECTURE`). Full per-file reasons are in the milestone audit record.
+
+**Added 2026-07-11:** `WLJ_OPERATIONS_VISION` — the governing (living) design document for the new
+**WLJ Operations** subsystem (a Layer 1 truth domain; 9-phase roadmap + maintained status ledger).
+CURRENT and self-maintaining per its own §7 Claude-responsibilities contract.
 
 ## 6. Uncertain — REQUIRES DANNY'S JUDGMENT (not auto-classified)
 

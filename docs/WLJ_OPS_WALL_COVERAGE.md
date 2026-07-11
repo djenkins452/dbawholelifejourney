@@ -1,5 +1,9 @@
 # WLJ Ops Wall — Production Coverage Audit
 
+> **Governing document:** `docs/WLJ_OPERATIONS_VISION.md` — the WLJ Operations subsystem vision +
+> 9-phase living roadmap. This coverage audit is the **Phase I as-built** companion (the coverage
+> matrix + the authoritative OPS-1…10 remediation backlog).
+
 **Status:** CURRENT · Milestone audit (2026-07-11)
 **Governing principle:** *"If it runs in production, it must be observable."*
 **Scope decision:** This document **reports** coverage and **prioritizes** remediation. Building observability for the un-monitored subsystems is tracked as a phased backlog (§4), not implemented in the milestone — per the Constitution's "harden, don't redesign; bounded by blast radius." The gaps are recorded honestly (Article IV.1), not hidden.

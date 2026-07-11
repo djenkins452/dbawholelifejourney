@@ -56,7 +56,7 @@ Stack: Django 4.2.27 (note: CLAUDE.md says "5.x"; runtime is 4.2), PostgreSQL/Re
 - **Layer 1 truth:** Medication is the **certified reference** domain; others follow `LAYER1_DOMAIN_FRAMEWORK.md` up the maturity ladder.
 - **Current Context:** mechanism complete; **adoption early** (page-summary pattern live on ~1 page). Help coverage broad (135/135 ids).
 - **Multimodal:** **first production capability complete** — image transport, artifact persistence, conversation integrity, provenance, validation, confirmation, idempotent duplicate prevention, deterministic execution, results-not-intentions.
-- **Observability (Ops Wall):** audit **complete**; implementation **intentionally deferred** and carried as an explicit next-session priority. Governing principle: *"if it runs in production, it must be observable."* Strong for engines/signals; gaps in non-engine Beat tasks, storage/volumes, OpenAI upstream, chat-queue backlog (OPS-1…10 backlog).
+- **Observability (Ops Wall):** now its own **Layer 1 truth domain — "WLJ Operations"** (`docs/WLJ_OPERATIONS_VISION.md`, architecture frozen 2026-07-11). Phase I visibility **shipped** (OPS-1…4: Beat-task/storage/chat-queue/OpenAI-upstream monitors). **Phase II Deterministic Recovery framework shipped dark** (`apps/core/operations/`, `OPS_RECOVERY_ENABLED=False` → zero behavior change; O2 reached when the first Beat-retry pilot is enabled). Remaining: OPS-5…10 backlog + controlled pilot enablement. Governing principle: *"if it runs in production, it must be observable."*
 - **Product:** not finished. UX and daily usage drive the roadmap. See `docs/WLJ_KNOWN_LIMITATIONS.md`.
 
 ## 6. Major lessons learned

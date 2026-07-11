@@ -11,34 +11,38 @@
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Carries only what's below — nothing constitutional, architectural, or duplicated — and gets shorter over time.*
 
-**Last regenerated:** 2026-07-11 (OPS-1 shipped + verified; milestone-session cadence folded into `04`/`98`).
+**Last regenerated:** 2026-07-11 (Operations Phase II recovery framework shipped dark + independently verified; milestone closeout).
 
 ---
 
 ## Current sprint
-Architecture is stable and constitutionally protected. WLJ is in **product refinement** — remaining work is product + coverage, all inside the Constitution. Roadmap now advances to **CC-1** (Current Context page-summary coverage). No feature work in flight.
+Architecture is stable and constitutionally protected. WLJ is in **product refinement**. **WLJ Operations** is now its own frozen Layer 1 truth domain (`docs/WLJ_OPERATIONS_VISION.md`): Phase I visibility + Phase II Deterministic Recovery framework are **shipped dark**. No feature work in flight.
 
 ## Current priorities (ranked)
 1. **CC-1** — `@register_page_summary` providers for the 8 core dashboards (pattern: `health.weight`). `docs/WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md §4`.
 2. **CC-2 / CC-4** — `CurrentContextMixin` on the ~8 non-DetailView detail pages; spot-check the ~45 auto-declared DetailViews inherit `UserOwnedModel`.
-3. **Acceptance gaps** — end-to-end scheduled-check-in test; standalone conversation-integrity contract. `docs/WLJ_ACCEPTANCE_BASELINE.md §5`.
-4. **OPS-2 / OPS-3 / OPS-4** — storage/volume monitoring, `chat` queue backlog, OpenAI upstream health. `docs/WLJ_OPS_WALL_COVERAGE.md §4`.
+3. **Operations pilot enablement (OPERATOR-GATED — the O1→O2 gate)** — enable the first Beat-retry recovery pilot in production: add an idempotent recompute/cleanup task to `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST`, set `OPS_RECOVERY_ENABLED=true` + `OPS_RECOVERY_BEAT_RETRY=true`, then verify via the Ops Wall "Recovery Activity" card. Deliberate, one task at a time. `docs/WLJ_OPERATIONS_VISION.md §15`.
+4. **Acceptance gaps** — end-to-end scheduled-check-in test; standalone conversation-integrity contract. `docs/WLJ_ACCEPTANCE_BASELINE.md §5`.
 5. **Help gaps** — per-page finance help; add `SECURITY_DASHBOARD`, `SPORTS_HUB`, `CALENDAR_EVENT_DETAIL` topics.
 
 ## Deferred (do not lose)
-- **Ops Wall OPS-5..OPS-10** — further-out observability backlog (DB depth, `owner` field, dead-job aggregation, confirmation-queue/audit-lag, build-runner, direct Beat measurement). `docs/WLJ_OPS_WALL_COVERAGE.md §4`.
+- **Ops Wall OPS-5…OPS-10** — further-out observability backlog (DB depth, `owner` field, dead-job aggregation, confirmation-queue/audit-lag, build-runner, direct Beat measurement). `docs/WLJ_OPS_WALL_COVERAGE.md §4`.
+- **Operations Phases III–IX** — recovery-framework generalization → escalation → CoS awareness → autonomy → predictive → Mission Control. `docs/WLJ_OPERATIONS_VISION.md §14`.
+- **Deferred recovery pilots** — snapshot-refresh (ADR-17: already covered by the Beat-retry pilot's condition) and chat-requeue (needs a proven idempotency/dedup design). Each has a promotion trigger in `WLJ_OPERATIONS_PHASE2_PLAN.md §1.1`.
 
 ## Recently completed
-- **OPS-1** (2026-07-11) — **shipped and independently verified.** Generic Beat-schedule-vs-actual-run reconciler: all 25 `CELERY_BEAT_SCHEDULE` entries observable (23 via `ScheduledTaskMonitor`, 2 via `SchedulerHeartbeat`); MISSED_RUN fires for every non-engine Beat task; new **Scheduled Beat Tasks** Ops Wall card. `apps/core/ai_observability/scheduled_task_monitor.py`, `docs/WLJ_OPS_WALL_COVERAGE.md §4`.
+- **Operations Phase II** (2026-07-11, `b3e6c40a`) — **Deterministic Recovery framework shipped DARK.** `apps/core/operations/`: RecoveryEngine (diagnose→gate→recover→verify→audit→escalate), RecoveryPolicy (R0–R4, finite bounds, recurrence→permanent-fix), handler+registry, `RecoveryAttempt` audit model (migration 0130), verification reuses the detector predicate, separate downstream recovery task, kill switch, read-only Recovery Activity card, import-boundary + request-path CI contracts; one R1 pilot (Beat-task re-enqueue, allowlist empty). `OPS_RECOVERY_ENABLED=False` → zero behavior change. Recovery never writes incident state (SAME owns the lifecycle). Verified: operations 23, constitution, payload, OPS-1, Ops Wall v2 85 — all green.
+- **Operations architecture** (2026-07-11) — vision + Phase II plan authored; architecture **frozen** (`WLJ_OPERATIONS_VISION.md` §§1–18, ADR-1…18).
+- **OPS-1…4** (2026-07-11) — Ops Wall monitors: non-engine Beat tasks, storage/volume, chat-queue backlog, OpenAI upstream health. `docs/WLJ_OPS_WALL_COVERAGE.md §4`.
 
 ## Open investigations / Outstanding bugs
 - None.
 
 ## Waiting on Danny
-- **Doc classification (14 uncertain)** — CURRENT vs HISTORICAL vs SUPERSEDED, especially the CLAUDE.md-linked `INTELLIGENCE_ARCHITECTURE`, `DOMAIN_INTELLIGENCE_ARCHITECTURE`, `ENGINE_COS_REFERENCE`, `ENGINE_INTEGRATION_GUIDE`. If retired, update CLAUDE.md in the same change. `docs/WLJ_DOCUMENTATION_INVENTORY.md §6`.
+- **Production live-check (operator)** — confirm `/_health/` + Ops Wall are green after the Phase II deploy; confirm `OPS_RECOVERY_*` remain **unset/disabled** in the Railway env; confirm the "Recovery Activity" card renders "disabled". (Phase II ships dark — this just confirms no unexpected enablement.)
+- **Doc classification (14 uncertain)** — CURRENT vs HISTORICAL, especially the CLAUDE.md-linked `INTELLIGENCE_ARCHITECTURE`, `DOMAIN_INTELLIGENCE_ARCHITECTURE`, `ENGINE_COS_REFERENCE`, `ENGINE_INTEGRATION_GUIDE`. If retired, update CLAUDE.md in the same change. `docs/WLJ_DOCUMENTATION_INVENTORY.md §6`.
 - **DB backup verification (operator)** — confirm the latest Railway Postgres snapshot; record its timestamp in `docs/WLJ_MILESTONE_COS_ARCHITECTURE.md`.
-- **Production live-check** — confirm `/_health/` + Ops Wall are green after the OPS-1 deploy.
 
 ## Immediate next steps
-- If Danny is available: resolve the 14-doc classification (unblocks a CLAUDE.md cleanup).
-- Otherwise: start **CC-1** (top-ranked open priority).
+- If Danny is available: choose **CC-1** (product coverage) vs the **operator-gated Operations pilot enablement** (O1→O2). Recommendation: start **CC-1** in a fresh chat; treat pilot enablement as a separate, deliberate operator-gated step.
+- Otherwise: start **CC-1** (top open priority).

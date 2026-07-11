@@ -36,7 +36,8 @@ These are AST/static/structural tests that make architecture impossible to viola
 | Contract test | Guards |
 |---|---|
 | `apps/core/tests/test_constitution_contract.py` | **NEW at milestone** — the Constitution doc, its Articles, enforcement references, naming rule, no-fabrication clause |
-| `apps/core/tests/test_request_path_safety_contract.py` | No inline heavy-intelligence / un-allowlisted inline LLM on request path (I.2, IV.2) |
+| `apps/core/tests/test_request_path_safety_contract.py` | No inline heavy-intelligence / un-allowlisted inline LLM on request path (I.2, IV.2); no request-path import of the WLJ Operations action package |
+| `apps/core/operations/tests/test_import_boundaries.py` | **NEW (Operations Phase II)** — permanent import boundaries (`WLJ_OPERATIONS_VISION.md` §11): truth (`ai_observability`) never imports action (`operations`); action never imports CoS reasoning; CoS never imports recovery internals (Principles 13/14) |
 | `apps/core/tests/test_execution_decision_authority_contract.py` | Exactly one `current_action` producer (III.2) |
 | `apps/core/tests/test_completion_single_source_contract.py` | Execution Truth is the sole "completed today" producer (III.1, Execution Truth) |
 | `apps/core/tests/test_visual_truth_contract.py` | Only real completion may look complete (V.1) |
@@ -60,6 +61,7 @@ python manage.py test \
   apps.ai.tests.test_conductor_contract \
   apps.ai.tests.test_intent_registration \
   apps.cos.tests.test_contracts \
+  apps.core.operations.tests.test_import_boundaries \
   --keepdb -v 1
 ```
 

@@ -6,6 +6,49 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(operations): Phase II post-implementation verification + milestone closeout
+
+**Why:** Independent verification and milestone-closeout pass after the Phase II Deterministic Recovery
+framework shipped. Verification-only — no code, no behavior change. Reconcile documentation to as-built
+reality and leave the repo at a clean milestone boundary.
+
+**Verified (evidence):** repo parity — local HEAD `68034e39` == `origin/main` == GitHub (after a correct
+port-443 fetch; the default `origin` URL failed and was showing a stale ref); impl commits `b3e6c40a` /
+`68034e39` are ancestors of main and no later commit altered/reverted the implementation; migration
+`0130_recoveryattempt` present; `makemigrations --check` = "No changes detected"; `manage.py check` no
+errors. Runtime invariants proven by committed-code file:line: recovery never writes `OpsAnomaly.is_active`
+(only `filter`/read in `operations/`), SAME `_reconcile_anomalies` (`same_engine.py:844-846`) is the sole
+lifecycle writer, verify reuses `compute_scheduled_task_states` (`handlers.py:113`), unregistered anomaly →
+R0 `continue` (`engine.py:84`), ship-dark triple-gated (`same_engine.py:106`, `engine.py:69`,
+`tasks.py:29`), telemetry crosses the boundary only via cache key `wlj:ops:recovery`, no
+`ai_observability→operations` or `operations→CoS` imports. **Scoped tests all green:** operations 23
+(incl. import-boundary + recovery), OPS-1 monitor 13, payload builder 9, constitution contract,
+request-path safety, Ops Wall v2 85.
+
+**Documentation reconciled to as-built (factual corrections only, no redesign):**
+- `WLJ_OPERATIONS_PHASE2_PLAN.md` — the plan scoped **two** R1 pilots but only **one** shipped (snapshot
+  pilot deferred, ADR-17). Added AS-BUILT notes to §1.1 and corrected the Definition of Done (it wrongly
+  claimed "two R1 pilots … implemented"). Corrected the audit-model location (`operations/models.py`, not
+  `operations/audit/models.py`) and the minimal-package diagram to the shipped tree.
+- `01_READ_FIRST…ARCHITECTURE.md §5` — replaced the stale "Ops Wall implementation intentionally deferred"
+  line with the real state (OPS-1…4 shipped; Phase II recovery framework shipped dark).
+- `99_REFERENCE_INDEX.md` — Operations vision row now says "Phase I + Phase II framework shipped (dark)".
+- `WLJ_ACCEPTANCE_BASELINE.md` — registered the new permanent contract
+  `apps/core/operations/tests/test_import_boundaries.py` (§11 boundaries) + added it to the baseline run.
+- `00_NEXT_CHAT_STARTUP.md` — regenerated: Phase II marked complete, stale "OPS-2/3/4 pending" / "Phase II
+  is next" removed, OPS-5…10 + Operations III–IX + CC roadmap preserved, pilot enablement added as an
+  operator-gated priority.
+- Left unchanged as milestone-anchored point-in-time snapshots (not inconsistencies): `WLJ_VERSION_MANIFEST.md`
+  (migration count 731 at the milestone), `WLJ_MILESTONE_COS_ARCHITECTURE.md` (OPS-1-top-remediation was
+  milestone-time truth). `WLJ_OPS_WALL_COVERAGE.md` / `CLAUDE.md` already accurate.
+
+**Note:** the prior docs-only commit `68034e39` (ledger SHA-fill) shipped without its own changelog line;
+this entry records it retroactively (folded into the closeout).
+
+**Files:** `docs/WLJ_OPERATIONS_PHASE2_PLAN.md`, `docs/WLJ_ACCEPTANCE_BASELINE.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE,99_REFERENCE_INDEX}.md`,
+`docs/wlj_claude_changelog.md`.
+
 ## 2026-07-11 — feat(operations): Phase II Deterministic Recovery framework (SHIPS DARK)
 
 **Why:** Execute the approved, frozen Phase II plan — turn WLJ Operations from Observable (O1) toward

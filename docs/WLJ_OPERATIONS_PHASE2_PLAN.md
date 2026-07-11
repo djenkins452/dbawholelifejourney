@@ -48,10 +48,17 @@ LLM/Claude execute an operational action** — Recovery actions are deterministi
 - Operations Memory — **future** (§7 of the vision).
 - Any CoS change — **out of scope in every Operations phase until Phase V truth integration.**
 
-**Pilot set (first cut) — TWO R1 recoveries only.** After reconciling each candidate against the frozen
-R0–R4 classification (§4) and the verification-reuses-detection invariant (vision §5), the first cut is
-**two idempotent R1 actions**. The originally-proposed **chat-queue requeue was removed from the first
-cut** (see below). Full per-pilot specifications are in **§1.1**.
+> **AS-BUILT (2026-07-11, SHA `b3e6c40a`):** the plan below scoped **two** R1 pilots; at implementation
+> **only Pilot 2 (Beat-task re-enqueue) shipped.** Pilot 1 (snapshot refresh) was **deferred** — in the
+> current architecture a stale snapshot is a downstream symptom of a missed Beat task already covered by
+> Pilot 2, so a separate handler would double-cover one condition (Constitution III.1). Recorded as vision
+> **ADR-17**. The two-pilot text below is preserved as the original plan intent.
+
+**Pilot set (first cut) — planned as TWO R1 recoveries; ONE shipped (see AS-BUILT above).** After
+reconciling each candidate against the frozen R0–R4 classification (§4) and the verification-reuses-
+detection invariant (vision §5), the plan scoped **two idempotent R1 actions**. The originally-proposed
+**chat-queue requeue was removed from the first cut** (see below). Full per-pilot specifications are in
+**§1.1**.
 1. **R1 — refresh a stale snapshot / recompute derived data** (a stale integrity/storage/maturity snapshot). Idempotent overwrite, zero external blast radius.
 2. **R1 — re-enqueue a missed Beat task, restricted to an allowlist of provably-idempotent recompute/cleanup tasks** surfaced by OPS-1 MISSED_RUN. **User-facing send/notification/digest tasks are excluded** (a re-run could double-send).
 
@@ -219,8 +226,10 @@ class RecoveryHandler(Protocol):
 
 ## 6. Audit Model
 
-New model `RecoveryAttempt` in **`apps/core/operations/audit/models.py`** (the action package, frozen
-§10; **not** in `ai_observability/models.py`). Because `operations/` is a sub-package of the `core` app,
+New model `RecoveryAttempt` in **`apps/core/operations/models.py`** (the action package, frozen §10;
+**not** in `ai_observability/models.py`). *(AS-BUILT: shipped in `operations/models.py` rather than a
+separate `operations/audit/models.py` sub-module — the audit concern is a single model, so a dedicated
+sub-package would be premature per the "minimal subset" rule.)* Because `operations/` is a sub-package of the `core` app,
 the model keeps `app_label="core"` and its migration lands in `apps/core/migrations/` — additive only,
 no changes to existing tables:
 
@@ -347,24 +356,26 @@ down the site.
 ## 13. Definition of Done (Phase II)
 
 - `apps/core/operations/` package created (minimal subset — see below); Recovery Engine + registry + policy model + `RecoveryAttempt` audit model shipped (dark).
-- The **two R1 pilots** (snapshot refresh, allowlisted Beat-task re-enqueue) implemented, tested, and each enabled behind its own flag. (Chat requeue explicitly deferred with a promotion trigger, §1.1.)
+- **AS-BUILT:** the **one first-cut R1 pilot** (allowlisted Beat-task re-enqueue) implemented, tested, and behind its own flag. The **snapshot-refresh pilot was deferred at implementation** (vision ADR-17 — its condition is already covered by the Beat-retry pilot; double-covering violates III.1). Chat requeue deferred (§1.1).
 - Verification-reuses-detection invariant enforced by test; R1 finite-bound + recurrence/permanent-fix escalation enforced by test.
 - Import-boundary + request-path-safety contract tests cover `operations/` (§10).
 - Command Center shows read-only recovery activity (Visual-Truth-compliant).
 - Vision-doc ledger (vision §15) marks the Phase II pilot items complete with Date/SHA/Deploy/Docs/Tests; ADRs recorded (vision §16) for each classification assignment.
 - Subsystem maturity for the covered monitors advances O1 → **O2 (Recoverable)**.
 
-**Minimal package subset for the first cut** (do not create empty packages the first milestone doesn't
-use; the frozen §10 layout is the destination, not a day-one requirement):
+**Minimal package subset — AS-BUILT (`b3e6c40a`)** (do not create empty packages the first milestone
+doesn't use; the frozen §10 layout is the destination, not a day-one requirement):
 ```
 apps/core/operations/
     __init__.py
-    recovery/        # engine, registry, base handler, the 2 pilot handlers, RecoveryPolicy
-    audit/           # RecoveryAttempt model
-    tests/
+    models.py        # RecoveryAttempt audit model (single model → no audit/ sub-pkg yet)
+    tasks.py         # run_recovery_cycle_task (separate downstream worker task)
+    recovery/        # policy, base (handler+registry), engine, handlers (1 pilot), telemetry
+    tests/           # test_recovery.py, test_import_boundaries.py
 ```
-`policies/`, `verification/`, and `escalation/` begin as **modules** (e.g. `recovery/policies.py`,
-`recovery/verification.py`, `recovery/escalation.py`) and graduate to their own sub-packages as they grow
+`policies/`, `verification/`, `escalation/`, and `audit/` remain **modules within `recovery/` /
+`models.py`** for now (e.g. verification lives in the handler + engine; escalation is an engine phase)
+and graduate to their own sub-packages as they grow
 into the full frozen §10 layout — no premature empty directories.
 
 ---

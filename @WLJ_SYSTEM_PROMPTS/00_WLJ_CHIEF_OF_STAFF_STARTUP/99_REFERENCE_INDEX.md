@@ -52,7 +52,7 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_VERSION_MANIFEST.md` | Reference | Operator | SHA/tag/versions/migrations. |
 | `WLJ_ACCEPTANCE_BASELINE.md` | Governing | Engineer | Permanent regression suite (14 areas → tests). |
 | `WLJ_DOCUMENTATION_INVENTORY.md` | Reference | All | 186-doc classification + the 14 uncertain docs. |
-| `WLJ_OPERATIONS_VISION.md` | Governing | Engineer | **The WLJ Operations subsystem (architecture FROZEN 2026-07-11)** — Layer 1 truth domain; internal architecture + canonical object model + package layout + permanent import boundaries; recovery classification (R0–R4), lifecycle, maturity model (O0–O5); living 9-phase roadmap + ledger. Next milestone = Phase II implementation. |
+| `WLJ_OPERATIONS_VISION.md` | Governing | Engineer | **The WLJ Operations subsystem (architecture FROZEN 2026-07-11)** — Layer 1 truth domain; internal architecture + canonical object model + package layout + permanent import boundaries; recovery classification (R0–R4), lifecycle, maturity model (O0–O5); living 9-phase roadmap + ledger. **Phase I visibility + Phase II recovery framework SHIPPED (dark, `b3e6c40a`)**; next = controlled pilot enablement. |
 | `WLJ_OPERATIONS_PHASE2_PLAN.md` | Reference | Engineer | Phase II (Deterministic Recovery) engineering plan + risk register. Read before writing recovery code. |
 | `WLJ_OPS_WALL_COVERAGE.md` | Operational | Operator | Observability coverage + OPS-1…10 backlog (Phase I as-built). |
 | `WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md` | Reference | Engineer | Page-coverage audit + CC/HELP backlog. |

@@ -6,6 +6,43 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(multimodal): conversation integrity — the uploaded image vanished from the transcript after logging
+
+**Symptom (2nd live test):** the scale photo logged 400.0 lb successfully (transport fix worked),
+but the uploaded image DISAPPEARED from the conversation once processing finished / on the next
+history reload. The transcript should stay a faithful record of what happened.
+
+**Root cause (traced):** `AssistantMessage` fully supports attachments (`image_data`/
+`image_mime_type` + related `MessageImage` rows + `all_image_data_urls`), and the history endpoint
+already serializes them (`views.py` → `image_data_urls`). The LEGACY chat path persists the image
+onto the user message (`personal_assistant.py`), but the **model-interface runtime creates the user
+message as plain `message_type="text"` with NO image** — in BOTH `ModelInterfaceRuntime.respond`
+(sync) and `run_model_interface_generation` (streaming). The image was used for perception and
+passed to the task, but never written to the stored conversation message → nothing to re-render on
+reload. Conversation lifecycle and artifact lifecycle were conflated: the artifact resolves into a
+WeightEntry, but the message kept nothing.
+
+**Fix:** new `multimodal.attach_images_to_message(message, images)` — persists the submitted
+image(s) onto the user's conversation message (first image in the legacy fields, extras as
+`MessageImage` rows, 72h retention = the platform-wide chat-image policy, matching legacy). Wired
+into both model-interface message-creation sites (sync `respond` + streaming task). Applies to any
+attachment modality (images/PDFs/screenshots/receipts) since it operates on (base64, mime) pairs.
+The transcript now keeps what the user sent, independent of the artifact/processing lifecycle.
+
+**Note (separate policy decision, NOT changed here):** chat images platform-wide carry a 72h
+`image_expires_at` retention (a storage/privacy policy applied by a cleanup job to legacy AND
+model-interface images alike). This fix restores the IMMEDIATE persistence the model-interface path
+was missing and matches legacy retention; whether the conversation should preserve submitted content
+BEYOND 72h (e.g. keep a placeholder after the blob is purged) is a broader retention decision to
+raise separately.
+
+**Files:** `apps/ai/multimodal.py` (+`attach_images_to_message`), `apps/ai/cos_gateway/runtime.py`
+(sync respond persists), `apps/ai/model_interface/tasks.py` (streaming task persists),
+`apps/ai/tests/test_multimodal_wiring.py` (+`ConversationIntegrityTests`).
+
+**Verification:** `test_multimodal_wiring.py` (21, all pass) — sync + streaming persistence, the
+helper (retention + multi-image), and history serialization surface the image.
+
 ## 2026-07-11 — fix(multimodal): image dropped in the FRONTEND — CoS users' image turns took the streaming path, which never sent the image
 
 **Symptom (first live production test):** uploaded a scale photo + "Log my weight" → Beth asked

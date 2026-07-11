@@ -185,10 +185,15 @@ class ModelInterfaceRuntime(ConversationalRuntime):
 
         # Load PRIOR turns BEFORE persisting this one (conversation continuity).
         history = load_conversation_history(conversation)
-        AssistantMessage.objects.create(
+        user_msg = AssistantMessage.objects.create(
             conversation=conversation, role="user", content=message or "",
             message_type="text",
         )
+        # Conversation integrity: the transcript keeps the image the user submitted, even
+        # after the artifact resolves into truth (artifact lifecycle ≠ conversation lifecycle).
+        if images:
+            from apps.ai.multimodal import attach_images_to_message
+            attach_images_to_message(user_msg, images)
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface=surface,
             conversation_history=history,

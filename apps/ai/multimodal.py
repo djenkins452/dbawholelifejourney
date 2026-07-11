@@ -68,6 +68,41 @@ def ingest_uploads(user, *, image_data=None, image_mime_type=None, images_list=N
     return images, attachments
 
 
+# ── Conversation integrity (the transcript keeps what the user submitted) ────
+def attach_images_to_message(message, images):
+    """Persist the user's uploaded images ONTO their conversation message so the transcript
+    stays a faithful record of what actually happened, independent of the artifact/processing
+    lifecycle. `images` is a list of (base64, mime).
+
+    Conversation lifecycle ≠ artifact lifecycle: the MultimodalArtifact may resolve into
+    deterministic truth (a WeightEntry) and its bytes may expire for processing/storage
+    reasons, but the conversation message keeps the image the user actually sent. Mirrors the
+    legacy chat persistence (first image in the message's legacy fields, additional images as
+    MessageImage rows, 72h retention — the platform-wide chat-image retention policy). Applies
+    to any attachment modality (images/PDFs/screenshots/receipts). Never raises."""
+    if not message or not images:
+        return
+    try:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.ai.models import MessageImage
+        expires = timezone.now() + timedelta(hours=72)
+        first_b64, first_mime = images[0]
+        message.image_data = first_b64
+        message.image_mime_type = first_mime
+        message.image_expires_at = expires
+        message.save(update_fields=["image_data", "image_mime_type", "image_expires_at"])
+        for idx, (b64, mime) in enumerate(images[1:]):
+            MessageImage.objects.create(
+                message=message, image_data=b64, image_mime_type=mime,
+                image_expires_at=expires, order=idx,
+            )
+    except Exception:  # pragma: no cover - defensive; transcript persistence must never break a turn
+        logger.warning("multimodal.attach_images_to_message failed", exc_info=True)
+
+
 # ── Artifact store (provenance + artifact-level dedup) ───────────────────────
 def store_artifact(user, *, data=None, content_type="", kind="", storage_ref=""):
     """Store (or return the existing) artifact, keyed by content hash. Returns

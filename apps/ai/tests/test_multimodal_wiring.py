@@ -165,6 +165,67 @@ class StreamingViewTransportTests(TestCase):
         self.assertTrue(kwargs.get("stream"))
 
 
+class ConversationIntegrityTests(TestCase):
+    """The transcript keeps the image the user submitted — after processing completes and after
+    a history reload — independent of the artifact lifecycle."""
+
+    def setUp(self):
+        self.user = _make_user("mmconv@example.com")
+
+    def test_attach_images_helper_persists_and_sets_retention(self):
+        from apps.ai.models import AssistantConversation, AssistantMessage
+        conv = AssistantConversation.get_or_create_active(self.user)
+        msg = AssistantMessage.objects.create(
+            conversation=conv, role="user", content="log it", message_type="text")
+        multimodal.attach_images_to_message(
+            msg, [(_PNG_B64, "image/png"), ("second-b64", "image/jpeg")])
+        msg.refresh_from_db()
+        self.assertEqual(msg.image_data, _PNG_B64)
+        self.assertEqual(msg.image_mime_type, "image/png")
+        self.assertIsNotNone(msg.image_expires_at)
+        # The second image is preserved as a MessageImage row.
+        self.assertEqual(msg.images.count(), 1)
+        # History serialization surfaces BOTH images.
+        self.assertEqual(len(msg.all_image_data_urls), 2)
+
+    def test_sync_respond_persists_image_on_user_message(self):
+        from apps.ai.models import AssistantMessage
+        with mock.patch(
+            "apps.ai.model_interface.service.ModelInterfaceService.generate",
+            return_value={"answer": "Logged 400 lb.", "tools_called": ["log_weight"]},
+        ):
+            ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT, message="log my weight",
+                image_data=_PNG_B64, image_mime_type="image/png",
+            )
+        user_msg = AssistantMessage.objects.filter(
+            conversation__user=self.user, role="user").order_by("-id").first()
+        self.assertIsNotNone(user_msg)
+        self.assertEqual(user_msg.image_data, _PNG_B64)
+        self.assertTrue(user_msg.has_image)
+        self.assertEqual(len(user_msg.all_image_data_urls), 1)
+
+    def test_streaming_task_persists_image_on_user_message(self):
+        from apps.ai.models import AssistantConversation, AssistantMessage
+        from apps.ai.model_interface.tasks import run_model_interface_generation
+        conv = AssistantConversation.get_or_create_active(self.user)
+        with mock.patch(
+            "apps.ai.model_interface.service.ModelInterfaceService.generate",
+            return_value={"answer": "Logged.", "tools_called": []},
+        ):
+            # Celery serializes tuples as lists — pass the JSON-shape the worker receives.
+            run_model_interface_generation(
+                self.user.id, conv.id, "log my weight", {}, "job-conv",
+                images=[[_PNG_B64, "image/png"]],
+                attachments=[{"artifact_id": 1, "content_type": "image/png", "kind": "image"}],
+            )
+        user_msg = AssistantMessage.objects.filter(
+            conversation=conv, role="user").order_by("-id").first()
+        self.assertIsNotNone(user_msg)
+        self.assertEqual(user_msg.image_data, _PNG_B64)
+        self.assertTrue(user_msg.has_image)
+
+
 class CurrentContextAttachmentTests(TestCase):
     """The artifact is surfaced into Current Context as the turn's attachment/focus."""
 

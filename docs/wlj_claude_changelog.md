@@ -6,6 +6,48 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(cos): Current Context lifecycle — stale focus never survives navigation
+
+**Trust bug:** navigating Journal → Goal → Workout, then asking (still on the workout page)
+"Tell me about what I'm looking at," Beth answered about the earlier **Relationship with God goal**.
+
+**Forensic lifecycle trace (root cause, two compounding defects):**
+1. **The workout page never declared its canonical reference.** `WorkoutDetailView` is a
+   `TemplateView` (not a `DetailView`) that puts the session in `context["workout"]`, never
+   `object`, with no `CurrentContextMixin` — so base.html's `{% elif object.context_ref %}`
+   branch never fired and NO `<meta name="wlj-context">` was rendered. The client therefore sent
+   no `focus_ref` from the workout page.
+2. **The conversation fallback had no navigation guard.** `current_focus_store` persisted only
+   `{ref, at}` — no url. With no current-request focus, `_resolve_fallback` blindly served the
+   last-remembered object (the goal) regardless of which page the user was now on. The goal
+   (last page that DID declare focus) kept being served as the "current screen."
+
+This is a CLASS: any page that declares no focus could inherit a prior page's object.
+
+**Fix (no retrieval-tool or reasoning changes; both chat surfaces covered by the shared server path):**
+- **`apps/health/views.py :: WorkoutDetailView`** — now declares its canonical reference via
+  `CurrentContextMixin` + `get_current_context_object()` (fetches the session once, reused by the
+  template). The page emits `<meta name="wlj-context" content="health.workoutsession:{pk}">`, so a
+  valid `focus_ref` is sent and the current request wins (authority rule 1).
+- **`apps/ai/cos_services/current_focus_store.py`** — `remember_focus` now stores the PAGE `url`
+  the focus was authoritatively seen on (the navigation discriminator).
+- **`apps/ai/cos_services/current_context.py`** — `_resolve_fallback` gains a NAVIGATION GUARD:
+  the fallback is honored ONLY when the current turn is on the SAME url the focus was remembered
+  on. Navigate to any different page and the previous object is dropped (returns `None`), never
+  presented as the current screen (authority rules 2–4). The legitimate same-page transient
+  omission (HTMX-stale `<head>`) still works.
+
+**Files:** `apps/health/views.py`, `apps/ai/cos_services/current_focus_store.py`,
+`apps/ai/cos_services/current_context.py`, `apps/ai/tests/test_current_context_navigation.py` (new),
+`apps/ai/tests/test_current_context_baseline.py` (fallback tests updated to the same-page contract).
+**Verification:** new regression `test_current_context_navigation` (4) covers Journal → Goal →
+Workout then "what am I looking at" → focus is the workout, goal absent; plus the navigation guard,
+the preserved same-page net, and the workout page emitting the meta. `test_current_context_baseline`
+(now with a new navigation-guard case), `test_standing_context`, `test_model_interface_runtime`
+green. `manage.py check` + `makemigrations --check` clean (no model changes). (Pre-existing,
+unrelated: `apps.core.tests.test_current_context.test_reasoning_planner_receives_focus_identity`
+fails on a stale mock in the retired chatgpt_cos reasoning path — untouched here.)
+
 ## 2026-07-11 — feat(multimodal): slice 1b — scale photo → log_weight LIVE end-to-end on the model interface
 
 **What shipped:** the multimodal spine (slice 1) is now wired into the live model-interface chat runtime,

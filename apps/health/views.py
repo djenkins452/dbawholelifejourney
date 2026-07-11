@@ -25,6 +25,7 @@ from django.views.generic import (
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 
+from apps.core.current_context import CurrentContextMixin
 from apps.core.events.domain_events import safe_emit_event, EventTypes
 from apps.core.utils import get_user_today, user_log_id
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
@@ -1669,19 +1670,32 @@ class WorkoutListView(LoginRequiredMixin, ListView):
         return WorkoutSession.objects.filter(user=self.request.user)
 
 
-class WorkoutDetailView(LoginRequiredMixin, TemplateView):
+class WorkoutDetailView(CurrentContextMixin, LoginRequiredMixin, TemplateView):
     """
     View a completed workout session.
     """
 
     template_name = "health/fitness/workout_detail.html"
 
+    def _get_workout(self):
+        # Fetched once; reused by both the template context and the Current Context
+        # declaration (get_current_context_object) — one query, one source of truth.
+        if not hasattr(self, "_workout_obj"):
+            self._workout_obj = get_object_or_404(
+                WorkoutSession.objects.filter(user=self.request.user),
+                pk=self.kwargs["pk"],
+            )
+        return self._workout_obj
+
+    def get_current_context_object(self):
+        # Current Context Contract — this TemplateView isn't a DetailView, so it declares
+        # its focused canonical object explicitly. CurrentContextMixin emits the
+        # <meta name="wlj-context"> so the workout is what the assistant sees on screen.
+        return self._get_workout()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        workout = get_object_or_404(
-            WorkoutSession.objects.filter(user=self.request.user),
-            pk=self.kwargs["pk"],
-        )
+        workout = self._get_workout()
         context["workout"] = workout
         context["workout_exercises"] = workout.workout_exercises.select_related(
             "exercise"

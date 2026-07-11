@@ -38,16 +38,20 @@ def _key(conversation):
     return _KEY.format(cid=cid) if cid else None
 
 
-def remember_focus(conversation, ref, *, now_iso=None):
+def remember_focus(conversation, ref, *, now_iso=None, url=None):
     """Record the AUTHORITATIVELY-resolved focus reference for this conversation as the
-    priority-2 fallback for a later turn that arrives without one. Stores the reference
-    + the timestamp it was authoritatively seen (never content). Never raises."""
+    priority-2 fallback for a later turn that arrives without one. Stores the reference,
+    the timestamp it was authoritatively seen, and the PAGE URL it was seen on (never
+    content). The url is the navigation discriminator: the fallback is a SAME-PAGE
+    transient-omission net, so recall only honors it when the later turn is on that same
+    url (see current_context._resolve_fallback). Never raises."""
     key = _key(conversation)
     if not key or not ref:
         return
     try:
         from django.core.cache import cache
-        cache.set(key, {"ref": str(ref), "at": now_iso}, _TTL_SECONDS)
+        cache.set(key, {"ref": str(ref), "at": now_iso,
+                        "url": (str(url).strip() if url else None)}, _TTL_SECONDS)
     except Exception:  # pragma: no cover - defensive
         logger.debug("current_focus_store: remember skipped", exc_info=True)
 

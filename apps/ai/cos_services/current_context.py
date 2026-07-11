@@ -147,14 +147,18 @@ def _resolve_focus(user, page_context):
     }
 
 
-def _resolve_fallback(user, conversation, now):
+def _resolve_fallback(user, conversation, now, current_url=None):
     """PRIORITY 2 (safety net only). The last object the user was AUTHORITATIVELY seen
     looking at in THIS conversation — used ONLY because the client reported no focus this
-    turn (an intermittent omission). Never authoritative: the identity may be stale
-    (they may have navigated away), so it is marked `source: fallback`,
-    `authority: conversation_fallback`, with a freshness verdict + age. Content is
-    re-resolved FRESH from canonical truth, so a fallback never serves stale content or a
-    deleted/unowned object. Returns the marked focus dict or None."""
+    turn (an intermittent omission ON THE SAME PAGE, e.g. an HTMX swap staled the <head>).
+    Never authoritative, marked `source: fallback` / `authority: conversation_fallback`.
+
+    NAVIGATION GUARD (the lifecycle rule): the fallback is honored ONLY when the current
+    turn is on the SAME url the focus was authoritatively seen on. If the user has
+    navigated to a DIFFERENT page (different url) that simply declared no focus, the
+    previous object is NOT what they are viewing now — return None so a stale object can
+    never be presented as the current screen. This makes "navigation replaces/clears the
+    previous focus" structural, not advisory. Returns the marked focus dict or None."""
     if not user or conversation is None:
         return None
     try:
@@ -166,6 +170,14 @@ def _resolve_fallback(user, conversation, now):
         return None
     ref = (remembered.get("ref") or "").strip()
     if not ref:
+        return None
+
+    # NAVIGATION GUARD — only a same-page transient omission may use the fallback. We must
+    # be able to POSITIVELY confirm the current turn is on the page where this focus lived;
+    # if the urls are absent or differ, the user has navigated and we do NOT serve it.
+    remembered_url = (remembered.get("url") or "").strip()
+    cur_url = (current_url or "").strip()
+    if not (remembered_url and cur_url and remembered_url == cur_url):
         return None
     # Re-resolve the REFERENCE to fresh canonical content (identity may be stale; content
     # is not). Ownership is re-checked inside resolve_current_context.
@@ -210,10 +222,11 @@ def _resolve_fallback(user, conversation, now):
     }
 
 
-def _remember_focus(conversation, ref, now):
-    """Record an AUTHORITATIVE focus as the conversation's fallback. Only the current
-    request's resolved focus is ever remembered — never a fallback (so age keeps growing
-    from the last real sighting). Never raises."""
+def _remember_focus(conversation, ref, now, url=None):
+    """Record an AUTHORITATIVE focus as the conversation's fallback, tagged with the PAGE
+    URL it was seen on (the navigation discriminator). Only the current request's resolved
+    focus is ever remembered — never a fallback (so age keeps growing from the last real
+    sighting). Never raises."""
     if conversation is None or not ref:
         return
     try:
@@ -221,6 +234,7 @@ def _remember_focus(conversation, ref, now):
         store.remember_focus(
             conversation, ref,
             now_iso=now.isoformat() if now is not None else None,
+            url=url,
         )
     except Exception:  # pragma: no cover - defensive
         logger.debug("CurrentContext: remember focus skipped", exc_info=True)
@@ -244,10 +258,11 @@ def _current_screen(user, page_context, conversation=None, now=None) -> dict:
     declared_ref = (page_context.get("focus_ref") or "").strip() \
         if isinstance(page_context, dict) else ""
 
-    # 1) PRIORITY 1 — the current request is authoritative.
+    # 1) PRIORITY 1 — the current request is authoritative. Remember it tagged with THIS
+    #    page's url so a later same-page omission (only) may fall back to it.
     focus = _resolve_focus(user, page_context)
     if focus is not None:
-        _remember_focus(conversation, focus.get("ref"), now)
+        _remember_focus(conversation, focus.get("ref"), now, url=location.get("url"))
         return {"status": "present", "location": location, "focus": focus}
 
     # 2) A declared-but-unresolved ref is a sync/ownership signal — surface it, never mask
@@ -257,8 +272,9 @@ def _current_screen(user, page_context, conversation=None, now=None) -> dict:
                 "note": (f"page declared focus '{declared_ref}' but it did not resolve "
                          "(sync/ownership) — do not assume the object is absent")}
 
-    # 3) PRIORITY 2 — safety net for an intermittent client omission ONLY.
-    fallback = _resolve_fallback(user, conversation, now)
+    # 3) PRIORITY 2 — safety net for an intermittent SAME-PAGE client omission ONLY. The
+    #    navigation guard inside _resolve_fallback drops it if this turn is on a new page.
+    fallback = _resolve_fallback(user, conversation, now, current_url=location.get("url"))
     if fallback is not None:
         return {"status": "present", "location": location, "focus": fallback}
 

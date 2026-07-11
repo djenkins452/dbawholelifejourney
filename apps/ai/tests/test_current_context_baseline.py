@@ -144,12 +144,14 @@ class CurrentContextOwnershipModelTests(TestCase):
         self.assertNotIn("Goal A", json.dumps(screen))
 
     def test_fallback_fills_gap_when_client_omits_focus(self):
-        # Message 1 declared Goal A; message 2 arrives with NO focus_ref (client hiccup) →
+        # SAME-PAGE transient omission: message 1 declared Goal A on its page; message 2
+        # arrives on the SAME url with NO focus_ref (client hiccup / HTMX-stale <head>) →
         # the safety net serves Goal A, clearly marked as a stale-able fallback.
         a = self._goal("Goal A")
         now = timezone.now()
-        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}"}, now=now)  # remembers A @ now
-        screen = self._screen({"url": "/dashboard/"}, now=now + timedelta(seconds=30))
+        url = f"/purpose/goals/{a.pk}/"
+        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}", "url": url}, now=now)
+        screen = self._screen({"url": url}, now=now + timedelta(seconds=30))  # SAME page
         focus = screen["focus"]
         self.assertIsNotNone(focus)
         self.assertEqual(focus["source"], "fallback")
@@ -159,22 +161,38 @@ class CurrentContextOwnershipModelTests(TestCase):
         self.assertEqual(focus["age_seconds"], 30)
         self.assertIn("as_of", focus)
 
+    def test_fallback_dropped_when_user_navigated_to_another_page(self):
+        # NAVIGATION GUARD (the stale-focus regression): message 1 declared Goal A on its
+        # page; message 2 arrives on a DIFFERENT url with no focus_ref → the fallback is a
+        # SAME-PAGE net only, so Goal A must NOT be served as the current screen.
+        a = self._goal("Goal A")
+        now = timezone.now()
+        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}",
+                      "url": f"/purpose/goals/{a.pk}/"}, now=now)
+        screen = self._screen({"url": "/health/physical/fitness/workout/9/"},
+                              now=now + timedelta(seconds=30))
+        self.assertIsNone(screen["focus"])
+        self.assertNotIn("Goal A", json.dumps(screen))
+
     def test_fallback_marked_stale_when_old(self):
         a = self._goal("Goal A")
         now = timezone.now()
-        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}"}, now=now)
-        screen = self._screen({"url": "/dashboard/"}, now=now + timedelta(minutes=20))
+        url = f"/purpose/goals/{a.pk}/"
+        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}", "url": url}, now=now)
+        screen = self._screen({"url": url}, now=now + timedelta(minutes=20))  # SAME page
         self.assertEqual(screen["focus"]["freshness"], "stale")
         self.assertEqual(screen["focus"]["age_seconds"], 1200)
 
     def test_fallback_does_not_refresh_its_own_age(self):
         # A fallback turn must NOT reset the remembered timestamp — age keeps growing from
         # the last AUTHORITATIVE sighting, so staleness is honest across many gap turns.
+        # (All same-page omissions, so the same-page fallback net applies each turn.)
         a = self._goal("Goal A")
         now = timezone.now()
-        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}"}, now=now)   # authoritative @ now
-        self._screen({"url": "/x/"}, now=now + timedelta(minutes=5))       # fallback (no remember)
-        screen = self._screen({"url": "/y/"}, now=now + timedelta(minutes=20))
+        url = f"/purpose/goals/{a.pk}/"
+        self._screen({"focus_ref": f"purpose.lifegoal:{a.pk}", "url": url}, now=now)  # authoritative @ now
+        self._screen({"url": url}, now=now + timedelta(minutes=5))          # fallback (no remember)
+        screen = self._screen({"url": url}, now=now + timedelta(minutes=20))
         self.assertEqual(screen["focus"]["age_seconds"], 1200)             # from t0, not t+5
 
     def test_declared_but_unresolved_never_falls_back(self):

@@ -56,6 +56,11 @@ def _make_user(email):
     prefs.personal_assistant_enabled = True
     prefs.personal_assistant_consent = True
     prefs.save()
+    # Past initial calibration so Learning Mode is not active (an established user, like the
+    # owner) — otherwise the first write creates a blueprint that gates subsequent actions.
+    from apps.core.blueprint.models import PersonalOperatingBlueprint
+    PersonalOperatingBlueprint.objects.update_or_create(
+        user=user, defaults={"calibration_complete": True})
     return user
 
 
@@ -363,6 +368,69 @@ class DeterministicActionPathTests(TestCase):
         entry = WeightEntry.objects.filter(user=self.user, status="active").first()
         self.assertIsNotNone(entry)
         self.assertEqual(entry.value, Decimal("168"))
+
+    def test_artifact_idempotency_no_duplicate_on_resubmit(self):
+        art = self._art()
+        # First log from the image → one entry, artifact resolved to it.
+        first = action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        self.assertEqual(first["status"], "ok", first)
+        self.assertEqual(WeightEntry.objects.filter(user=self.user, status="active").count(), 1)
+        # Re-uploading the SAME image (same artifact) is idempotent — no confirmation, no dup.
+        again = action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        self.assertEqual(again["status"], "ok", again)
+        self.assertIn("didn't add a duplicate", again["result"])
+        self.assertEqual(WeightEntry.objects.filter(user=self.user, status="active").count(), 1)
+
+    def test_artifact_idempotency_holds_even_through_confirmation(self):
+        art = self._art()
+        action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        # Directly force the confirmed re-execution of the same artifact — still no duplicate.
+        from apps.ai.cos_services.action_execution import execute_action
+        out = execute_action(self.user, "log_weight", {
+            "value": 400, "unit": "lb", "source_artifact_id": art.id,
+            "confidence": 0.97, "confirmed": True})
+        self.assertEqual(out["status"], "success", out)
+        self.assertEqual(WeightEntry.objects.filter(user=self.user, status="active").count(), 1)
+
+    def test_idempotency_releases_after_entry_deleted(self):
+        art = self._art()
+        action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        WeightEntry.objects.filter(user=self.user, status="active").update(status="deleted")
+        # With the prior entry gone, re-logging the same photo is legitimate again.
+        again = action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        self.assertEqual(again["status"], "ok", again)
+        self.assertEqual(WeightEntry.objects.filter(user=self.user, status="active").count(), 1)
+
+    def test_success_message_states_image_provenance(self):
+        art = self._art()
+        out = action_interface.request_action(
+            self.user, "log_weight",
+            {"value": 400, "unit": "lb", "source_artifact_id": art.id, "confidence": 0.97},
+        )
+        # The value came from the image — the result must say so (not "from your overview").
+        self.assertIn("photo", out["result"].lower())
+        self.assertNotIn("overview", out["result"].lower())
+
+    def test_typed_success_message_has_no_photo_provenance(self):
+        out = action_interface.request_action(
+            self.user, "log_weight", {"value": 168, "unit": "lb"})
+        self.assertEqual(out["status"], "ok", out)
+        self.assertNotIn("photo", out["result"].lower())
 
     def test_log_weight_is_allowlisted(self):
         # execute_action gate: log_weight must be enabled for the assistant action path.

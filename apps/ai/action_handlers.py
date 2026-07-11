@@ -768,6 +768,27 @@ class ActionHandler:
         # an implausible value is rejected even when confirmed).
         confirmed = bool(kwargs.get('confirmed'))
 
+        # ── Artifact-level IDEMPOTENCY — the SAME image can never create two entries ──
+        # Runs BEFORE the confirmation gate AND independent of `confirmed`, so re-uploading a
+        # photo that already became a WeightEntry is a no-op that reports the existing record —
+        # it can't be turned into a duplicate by a "yes". (A genuine re-weigh uses a NEW photo →
+        # a different artifact → fact-level confirmation below.)
+        if source_artifact_id:
+            existing = multimodal.artifact_resolved_weight(self.user, source_artifact_id)
+            if existing is not None:
+                return ActionResult(
+                    success=True,
+                    message=(f"You already logged {existing.value} {existing.unit} from this "
+                             "photo, so I didn't add a duplicate — that entry still stands."),
+                    created_object={
+                        'model': 'WeightEntry', 'id': existing.id,
+                        'value': float(existing.value), 'unit': existing.unit,
+                        'recorded_at': existing.recorded_at.isoformat(),
+                        'duplicate_of_artifact': source_artifact_id,
+                    },
+                    action_type='log_weight',
+                )
+
         # ── Deterministic validation — reject an implausible extraction (never store it) ──
         if not multimodal.validate_weight(value, unit):
             return ActionResult(
@@ -821,15 +842,26 @@ class ActionHandler:
             except Exception:
                 pass
 
+            # Provenance-aware result: when the value was read from an uploaded image, SAY so \u2014
+            # the source is a fact the model must communicate (and preserve for follow-ups),
+            # never attribute to a page the user happens to be viewing.
+            if source_artifact_id:
+                success_message = f"I read {value} {unit} from your uploaded photo \u2014 logged."
+            else:
+                success_message = (f"{_pick_opener(_SUCCESS_OPENERS, 'wt')} \u2014 "
+                                   f"{value} {unit} is logged.")
+
             return ActionResult(
                 success=True,
-                message=f"{_pick_opener(_SUCCESS_OPENERS, 'wt')} \u2014 {value} {unit} is logged.",
+                message=success_message,
                 created_object={
                     'model': 'WeightEntry',
                     'id': entry.id,
                     'value': float(entry.value),
                     'unit': entry.unit,
-                    'recorded_at': entry.recorded_at.isoformat()
+                    'recorded_at': entry.recorded_at.isoformat(),
+                    'source': ('user_upload:%s' % source_artifact_id
+                               if source_artifact_id else 'typed'),
                 },
                 action_type='log_weight',
                 confirmation_detail=self._build_confirmation(

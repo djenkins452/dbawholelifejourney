@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — fix(multimodal): same-image duplicate write + wrong provenance in follow-up
+
+Two product issues from live multimodal use.
+
+**Issue 1 (dup write — highest priority): re-uploading the SAME scale photo created a second
+identical WeightEntry.** Timeline: logged 400 lb from the image → uploaded the same image again →
+fact-level dedup fired confirmation → user said "yes" → `confirmed=True` bypassed the gate and wrote
+a SECOND 400 lb entry. Artifact-level dedup existed only for STORAGE (`store_artifact` returns the
+same row), never to prevent the WRITE. Root fix (eliminate the class): **artifact-level idempotency**
+— new `multimodal.artifact_resolved_weight(user, artifact_id)`; `handle_log_weight` checks it FIRST,
+before the confirmation gate and independent of `confirmed`. If the exact artifact already produced a
+LIVE WeightEntry, re-submitting it is a no-op that returns that record ("you already logged … from
+this photo, so I didn't add a duplicate"). The same image is now structurally incapable of creating
+two entries. Idempotency releases if the entry is deleted (a fresh log is then legitimate). A genuine
+re-weigh uses a NEW photo → a different artifact → the existing fact-level confirmation path (keep
+both remains a real user judgment for same-value-different-source).
+
+**Issue 2 (provenance): asked "what weight did you read?", Beth answered "…based on what is displayed
+in your weight overview" — WRONG.** The value came from the IMAGE. Root cause:
+`load_conversation_history` preserves only `[{role, content}]` — tool calls, args, and
+`source_artifact_id` are dropped — so on the follow-up turn the model had no record the 400 came from
+an image, saw Current Context = the weight page showing 400, and fabricated the source. Fix: (a) the
+multimodal `log_weight` ActionResult now STATES provenance ("I read 400.0 lb from your uploaded photo
+— logged") and carries `source: user_upload:<artifact_id>` in `created_object`, so the model narrates
+it and the transcript preserves it for follow-ups; (b) constitution PROVENANCE clause — where a value
+came from is a FACT: say you read it from the image, never attribute an image-read value to a page/
+overview you're viewing, never invent a source.
+
+**Files:** `apps/ai/multimodal.py` (+`artifact_resolved_weight`), `apps/ai/action_handlers.py`
+(`handle_log_weight` idempotency + provenance-aware success message + `source` in created_object),
+`apps/ai/model_interface/constitution.py` (PROVENANCE clause), `apps/ai/tests/test_multimodal_wiring.py`
+(idempotency no-dup / holds-through-confirmation / releases-after-delete, provenance message; test
+users now past calibration so Learning Mode doesn't gate the 2nd write).
+
+**Verification:** `test_multimodal_wiring.py` (40) + `test_multimodal` (14) + action/model-interface/
+request-path suites (30) all pass. Perception (model reading pixels) still needs a live key; the
+deterministic dedup + provenance are fully tested.
+
 ## 2026-07-11 — diag(execution): TEMPORARY read-only glass-box — "Check on Von's House" completion incident
 
 **Why:** production trust incident — the assistant said "You've completed checking on Von's house"

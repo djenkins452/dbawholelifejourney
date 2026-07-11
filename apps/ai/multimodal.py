@@ -123,6 +123,28 @@ def store_artifact(user, *, data=None, content_type="", kind="", storage_ref="")
         return None, False
 
 
+def artifact_resolved_weight(user, artifact_id):
+    """Artifact-level IDEMPOTENCY for weight. If this exact image already produced a LIVE
+    WeightEntry, return it — re-submitting the SAME photo can NEVER create a second health
+    entry (the same image is one measurement event, not two). This removes the condition that
+    let a re-upload become a duplicate, even through a confirmation. Returns the WeightEntry or
+    None (nothing resolved, or the entry was since deleted → a fresh log is then legitimate)."""
+    if not artifact_id:
+        return None
+    try:
+        from apps.capture.models import MultimodalArtifact
+        from apps.health.models import WeightEntry
+        art = MultimodalArtifact.objects.filter(
+            id=artifact_id, user=user, status="resolved",
+            resolved_intent="log_weight", resolved_object_type="WeightEntry",
+        ).values_list("resolved_object_id", flat=True).first()
+        if not art:
+            return None
+        return WeightEntry.objects.filter(id=art, user=user, status="active").first()
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
 def link_artifact(artifact_id, *, intent, object_type, object_id):
     """Record the deterministic record an artifact produced (provenance chain). Never raises."""
     if not artifact_id:

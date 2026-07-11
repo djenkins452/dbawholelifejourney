@@ -6,6 +6,28 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — diag(execution): TEMPORARY read-only glass-box — "Check on Von's House" completion incident
+
+**Why:** production trust incident — the assistant said "You've completed checking on Von's house"
+for a task that is not completed, not due yet, and not on the dashboard. Local reproduction proved
+the code path is clean for a genuinely-not-completed task (`execution_state.completed` empty), so we
+need the ACTUAL production truth to settle: upstream false completion in deterministic truth vs.
+OpenAI fabrication from correct truth. No prompt/guard/producer changes yet — evidence first.
+
+- **`apps/admin_console/temp_diag_von.py`** (new, TEMPORARY) — `TempVonDiagnosticView`: read-only,
+  self-scoped (only `request.user`'s own data), staff-gated (`AdminRequiredMixin`), `never_cache`.
+  GET returns JSON: `execution_state` (completed/overdue/due_now/coming_up/later + current_action),
+  `deterministic_understanding.wins`, an envelope scan for "von" (which keys carry it), and the raw
+  Task rows for the title (id, completion_status, completed_at, due_date, recurrence fields,
+  created_at, updated_at — incl. soft-deleted via `all_objects` when present). Makes NO writes and
+  issues NO LLM call.
+- **`apps/admin_console/urls.py`** — one temporary route `temp-diag/von-current-context/`.
+
+Read-only; CI request-path-safety contract still passes (no banned callee, no inline LLM). **To be
+removed with its URL in a single follow-up commit once evidence is captured** (temporary-infra
+lifecycle). Verified locally: staff→200 JSON surfacing the completed bucket + raw rows; non-staff
+blocked; `check` + request-path-safety contract green.
+
 ## 2026-07-11 — docs(cos): Current Context two-pattern standard — the DEFAULT for every page
 
 Standardized the two Current Context patterns as the required default for all future page work

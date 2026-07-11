@@ -824,12 +824,24 @@ authoritative coverage source). This ledger mirrors status; the coverage doc hol
 | [x] | Pilot: Beat-task re-enqueue handler (R1, allowlisted, empty default) | 2026-07-11 | b3e6c40a | ship-dark | §1.1 | `BeatTaskRetryHandlerTests` |
 | [x] | Pilot selected + controlled E2E recovery lifecycle proven (real handler/engine/MISSED_RUN) | 2026-07-11 | `b6b20ea5` | ship-dark | PHASE2_PLAN §11.1 | `BeatTaskRetryPilotE2ETests` (4) |
 | [ ] | **Enable in PRODUCTION** (OPERATOR-GATED — the O1→O2 gate): allowlist `apps.core.health_briefing.tasks.recompute_all_health_briefings_task` + set the 3 Railway env vars + observe ≥3 SAME cycles. Runbook: PHASE2_PLAN §11.1 | — | — | — | — | — |
-| [-] | Snapshot-refresh pilot | **Deferred** (ADR-16) — its condition is already covered by the Beat-retry pilot; a separate handler would double-cover one condition (III.1). | | | | |
 | [-] | Chat-queue requeue pilot | **Deferred** (PHASE2_PLAN §1.1) — unprovable idempotency/dedup; promotion trigger recorded. | | | | |
 
-*Framework is shipped dark: `OPS_RECOVERY_ENABLED=False` and an empty allowlist mean ZERO production
-behavior change. Enabling a pilot is a deliberate later operator step. Subsystem maturity for the covered
-monitor advances to **O2 (Recoverable)** once the Beat-retry pilot is enabled in production.*
+**Phase II-B — Expanded R1 recoveries (shipped dark, `_this commit_`):**
+
+| ✔ | Sub-feature | Shape | Docs | Tests |
+|---|---|---|---|---|
+| [x] | `EngineStarvationRetriggerHandler` (R1, `OPS_RECOVERY_ENGINE_RETRIGGER` + allowlist) | re-trigger → async verify | ADR-20 | `EngineStarvationPilotE2ETests` |
+| [x] | `MaturitySnapshotRefreshHandler` (R1, `OPS_RECOVERY_MATURITY_SNAPSHOT`) | recompute → **synchronous** verify | ADR-19 | `MaturitySnapshotPilotE2ETests` |
+| [x] | New `MATURITY_SNAPSHOT_STALE` detector (fills the unmonitored ISE-job gap; migration `0131`) | detection (observability) | ADR-21 | `MaturityStalenessDetectorTests` |
+| [-] | Snapshot-refresh for integrity/storage | **Deferred (correct)** — rewritten every SAME cycle; fresh whenever SAME runs; no incident (ADR-19). | | |
+| [-] | LOOPING_REMINDER / SUPPRESSION_STORM / statistical spikes | **Deferred (correct)** — questionable action, already auto-remediated, or no safe deterministic action (PHASE2_PLAN §14). | | |
+
+*Three concrete R1 handlers now exist across TWO shapes (re-trigger, recompute). Comparison + the Phase III
+readiness determination are in `WLJ_OPERATIONS_PHASE2_PLAN.md §14`.*
+
+*Framework is shipped dark: `OPS_RECOVERY_ENABLED=False` + empty allowlists + per-handler flags off mean
+ZERO production behavior change. Subsystem maturity advances to **O2 (Recoverable)** only once a pilot is
+enabled in production and recovers a real condition (still pending — operator-gated).*
 
 ### Phase III — Recovery Framework · **Planned**
 - [ ] Declarative recovery-policy schema (retry · cooldown · verification · escalation · audit)
@@ -883,6 +895,9 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-16 | 2026-07-11 | **Phase II implementation finding — recovery NEVER writes incident state.** The SAME detector/reconcile pipeline (`_reconcile_anomalies`) is the single authority for `OpsAnomaly.is_active`. Recovery performs the deterministic action, proves health with the detector's OWN predicate, and audits; the reconcile pipeline resolves the incident on its next cycle. | Stronger than "verify before closing": recovery has NO write access to incident state, so it *cannot* manufacture a healthy state (V.1). Honors single-authority III.1/III.2 — recovery never becomes a second writer of incident lifecycle. |
 | ADR-17 | 2026-07-11 | **Snapshot-refresh pilot deferred; Beat-task re-enqueue is the sole first-cut pilot.** In the current architecture a stale snapshot is a downstream symptom of a missed Beat task (already detected by OPS-1 MISSED_RUN and recovered by the Beat-retry pilot); a separate snapshot handler would double-cover one condition. | Constitution III.1 (one authority per condition) + simplicity (IV.2). Deferred with a promotion trigger: a snapshot whose staleness is NOT already a missed-Beat-task symptom (and its own detector) would justify a distinct handler. |
 | ADR-18 | 2026-07-11 | **Truth→action hand-off is by Celery task NAME, not import.** The SAME cycle (in `ai_observability`) enqueues the recovery task via the Celery registry string, and the recovery telemetry reaches the Ops Wall via a shared cache KEY — never a Python import of `operations`. | Preserves the frozen §11 boundary (truth never imports action) while still coupling the two through the broker/cache — exactly the broker-decoupled independence Principles 13/14 intend. CI-enforced by `test_import_boundaries.py`. |
+| ADR-19 | 2026-07-11 | **ADR-17 REFINED (partially superseded).** ADR-17 deferred all snapshot-refresh recovery as "downstream of a missed Beat task." Correct for `SystemIntegritySnapshot`/`StorageSnapshot` (rewritten EVERY SAME cycle → fresh whenever SAME runs → no incident). **WRONG for `SystemMaturitySnapshot`**, which is a 24h **ISE** job (not SAME, not a Beat task) and was completely UNMONITORED. A dedicated staleness detector + R1 recompute recovery is therefore justified and NOT double-coverage. | Evidence from Phase II-B monitor review (`docs/WLJ_OPERATIONS_PHASE2_PLAN.md §14`). Corrects an over-broad deferral; fills a real observability gap. |
+| ADR-20 | 2026-07-11 | **ENGINE_STARVATION gets an R1 re-trigger handler** (`EngineStarvationRetriggerHandler`), reusing `run_engine_task` + the exact `EngineRun.count(24h)>0` predicate. | Provably NOT double-covering the legacy in-SAME `_run_autonomous_remediation`, which only re-runs **P3 MISSED_RUN** engines; starvation is **P1** and was never auto-remediated. (Observation: the legacy auto-rerun is a *second* remediation path — a future consolidation candidate for Phase III, not touched now.) |
+| ADR-21 | 2026-07-11 | **New `MATURITY_SNAPSHOT_STALE` detector added to SAME** (P3, ≥2-day threshold, read-only). This is Phase I observability added alongside the recovery so the recompute handler has an incident to act on. | The only way to recover the maturity-snapshot gap (ADR-19) is to detect it first. Conservative severity/threshold keeps production noise near-zero; the detector is the truth producer, the handler the action consumer. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 
@@ -961,7 +976,16 @@ additionally requires a Constitutional Review. The next chat begins **Phase II i
 
 ---
 
-*Last updated: 2026-07-11 — **PHASE III controlled-enablement prep.** Pilot selected (safest task:
+*Last updated: 2026-07-11 — **PHASE II-B: expanded R1 recoveries.** Added two concrete R1 handlers across
+two shapes — `EngineStarvationRetriggerHandler` (re-trigger → async verify) and
+`MaturitySnapshotRefreshHandler` (recompute → synchronous verify) — plus a new `MATURITY_SNAPSHOT_STALE`
+detector (fills the previously-unmonitored ISE-job gap; corrects ADR-17 → ADR-19/20/21). All ship dark
+(per-handler flags/allowlists off/empty). Comparison + Phase III determination in PHASE2_PLAN §14: **Phase
+III NOT yet justified** (abstraction from too few examples + zero R2 + zero production experience); next =
+production enablement + operational evidence. Maturity unchanged (still O1, O2 pending production proof).
+Prior line ↓.*
+
+*2026-07-11 — **PHASE III controlled-enablement prep.** Pilot selected (safest task:
 `recompute_all_health_briefings_task`); the full recovery lifecycle proven in a controlled environment with
 the REAL handler/engine/MISSED_RUN (`BeatTaskRetryPilotE2ETests`); operator production-enablement runbook
 authored (`WLJ_OPERATIONS_PHASE2_PLAN.md §11.1`). **O2 is O2-READY but NOT yet reached** — it requires the

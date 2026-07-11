@@ -53,6 +53,7 @@ def run_same():
     detected.extend(_detect_engine_starvation(heartbeats, now))
     detected.extend(_detect_delivery_retry_spike(now))
     detected.extend(_detect_scheduled_task_missed_runs(now))
+    detected.extend(_detect_stale_maturity_snapshot(now))
 
     # Compute signal health ONCE and reuse for all signal detectors + cache
     # (Previously computed 3x per cycle — ~72 queries reduced to ~24)
@@ -359,6 +360,64 @@ def _detect_looping_reminders(now):
         })
 
     return anomalies
+
+
+def engine_ran_within_24h(engine, now=None):
+    """Deterministic predicate: has this engine produced a run in the last 24h?
+
+    This is the inverse of the ENGINE_STARVATION detector's core condition
+    (``count(24h) == 0``). Exposed so the recovery VERIFICATION reuses the exact
+    same predicate that raised the incident (WLJ_OPERATIONS_VISION.md §5) — never a
+    second, drifting definition of "healthy".
+    """
+    from apps.core.ai_observability.models import EngineRun
+
+    now = now or timezone.now()
+    return EngineRun.objects.filter(
+        engine_name=engine, started_at__gte=now - timedelta(hours=24)
+    ).exists()
+
+
+# System maturity snapshot freshness — the single predicate reused by BOTH the
+# detector below AND the recovery handler's verification (verification-reuses-
+# detection). The maturity snapshot is written by a 24h ISE job (not SAME, not a
+# Beat task), so it can go stale independently and was previously UNMONITORED.
+MATURITY_SNAPSHOT_STALE_DAYS = 2  # 24h cadence + a full day of grace
+
+
+def maturity_snapshot_age_days(now=None):
+    """Age in days of the newest SystemMaturitySnapshot, or None if never computed."""
+    from apps.core.ai_observability.models import SystemMaturitySnapshot
+
+    now = now or timezone.now()
+    latest = SystemMaturitySnapshot.objects.order_by("-snapshot_date").first()
+    if latest is None:
+        return None
+    return (now.date() - latest.snapshot_date).days
+
+
+def _detect_stale_maturity_snapshot(now):
+    """Fire when the system maturity snapshot is >= threshold days stale.
+
+    Never flags a never-computed snapshot (age is None) — like NEVER_RUN, a
+    first-ever snapshot may simply not exist yet on a fresh deploy.
+    """
+    age = maturity_snapshot_age_days(now)
+    if age is None or age < MATURITY_SNAPSHOT_STALE_DAYS:
+        return []
+    return [{
+        "anomaly_type": "MATURITY_SNAPSHOT_STALE",
+        "severity": "P3",
+        "engine_name": "SystemMaturitySnapshot",
+        "summary": (
+            f"System maturity snapshot is {age} days stale — the daily ISE "
+            f"maturity job may have missed (threshold {MATURITY_SNAPSHOT_STALE_DAYS}d)."
+        ),
+        "evidence": {"age_days": age, "threshold_days": MATURITY_SNAPSHOT_STALE_DAYS},
+        "suggested_actions": [
+            {"action": "recompute_maturity_snapshot", "label": "Recompute maturity snapshot"},
+        ],
+    }]
 
 
 def _detect_engine_starvation(heartbeats, now):

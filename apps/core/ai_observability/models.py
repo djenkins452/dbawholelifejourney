@@ -579,6 +579,7 @@ class OpsAnomaly(models.Model):
         ("VALIDATOR_SPIKE", "Validator Block Spike"),
         ("SIGNAL_DROUGHT", "Signal Drought"),
         ("SIGNAL_LOW_DIVERSITY", "Signal Low Diversity"),
+        ("MATURITY_SNAPSHOT_STALE", "Maturity Snapshot Stale"),
     ]
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1506,6 +1506,12 @@ OPS_RECOVERY_BEAT_RETRY = env.bool('OPS_RECOVERY_BEAT_RETRY', default=False)
 # operator adds a specific task name. NEVER add a user-facing send/notification/
 # digest task (a re-run could double-send). See PHASE2_PLAN §1.1 Pilot 2.
 OPS_RECOVERY_BEAT_RETRY_ALLOWLIST = env.list('OPS_RECOVERY_BEAT_RETRY_ALLOWLIST', default=[])
+# Phase II-B — engine-starvation re-trigger pilot (R1). Default OFF. Only engines in
+# the allowlist are re-triggered; everything else stays R0 (observe-only).
+OPS_RECOVERY_ENGINE_RETRIGGER = env.bool('OPS_RECOVERY_ENGINE_RETRIGGER', default=False)
+OPS_RECOVERY_ENGINE_ALLOWLIST = env.list('OPS_RECOVERY_ENGINE_ALLOWLIST', default=[])
+# Phase II-B — stale maturity-snapshot recompute pilot (R1, synchronous). Default OFF.
+OPS_RECOVERY_MATURITY_SNAPSHOT = env.bool('OPS_RECOVERY_MATURITY_SNAPSHOT', default=False)
 # ─────────────────────────────────────────────────────────────────────────────
 # P1 weight-contradiction fix (Layer 1): truth-validator guard that corrects any
 # current-weight figure in Beth's reply that contradicts canonical SAE

@@ -6,6 +6,55 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(operations): Phase II-B expanded R1 recoveries (ships dark) + Phase III readiness finding
+
+**Why:** Build several more concrete R1 recoveries to discover the true framework abstraction through
+evidence rather than speculation — deliberately BEFORE any Phase III (recovery-as-config). No engine/policy
+redesign; ships dark.
+
+**Rigorous monitor review first (Phase A):** examined every SAME anomaly type. Genuinely-safe, non-double-
+covering R1 recoveries are FEWER than the milestone's examples suggested — integrity/storage snapshots are
+rewritten every SAME cycle (fresh by construction; ADR-17 holds); statistical spikes (ERROR_SPIKE,
+VALIDATOR_SPIKE, …) have no safe deterministic action; SIGNAL_DROUGHT/DIVERSITY reflect absent user data;
+SUPPRESSION_STORM + P3 engine-MISSED_RUN are already auto-remediated (`_run_autonomous_remediation`);
+LOOPING_REMINDER's cache-clear "fix" is questionable → deferred. Two clean candidates remained.
+
+**Phase B — two new R1 handlers across TWO shapes (`apps/core/operations/recovery/handlers.py`):**
+- `EngineStarvationRetriggerHandler` (ENGINE_STARVATION) — **re-trigger shape**: `run_engine_task` guarded by
+  `is_engine_active`; verification reuses `engine_ran_within_24h` (async/deferred). Gated by
+  `OPS_RECOVERY_ENGINE_RETRIGGER` + `OPS_RECOVERY_ENGINE_ALLOWLIST` (off/empty). NOT double-covering the
+  legacy P3-only auto-rerun (starvation is P1) — ADR-20.
+- `MaturitySnapshotRefreshHandler` (MATURITY_SNAPSHOT_STALE) — **recompute shape**: `create_daily_snapshot()`
+  in-process; verification reuses `maturity_snapshot_age_days` (**synchronous** — completes in one cycle).
+  Gated by `OPS_RECOVERY_MATURITY_SNAPSHOT` (off). ADR-19.
+- New SAME detector `_detect_stale_maturity_snapshot` (P3, ≥2-day threshold) + anomaly type
+  `MATURITY_SNAPSHOT_STALE` (migration `0131`) — fills the previously-UNMONITORED `SystemMaturitySnapshot`
+  gap (a 24h ISE job, not SAME/Beat; corrects ADR-17's over-broad deferral). ADR-21.
+
+**Phase C — verification (`test_recovery.py`, now 27):** both handlers proven E2E with the real engine
+(`EngineStarvationPilotE2ETests`, `MaturitySnapshotPilotE2ETests`) — recover→verify→VERIFIED audit,
+incident `is_active` untouched, non-allowlisted/disabled → R0 observe-only; detector threshold logic
+(`MaturityStalenessDetectorTests`). All scoped suites green: operations 31, payload builder, OPS-1,
+constitution, request-path (66 fast), Ops Wall v2 85. `check` + `makemigrations --check` clean.
+
+**Phase D/E — comparison + Phase III determination (`WLJ_OPERATIONS_PHASE2_PLAN.md §14`):** the whole
+lifecycle is engine-owned and identical across all 3 handlers (they add zero lifecycle logic); the
+deferred-vs-synchronous verification split already generalized with no engine change. The ONE real
+duplication is the flag+allowlist gating pattern (2–3 handlers). **Phase III is NOT yet justified** —
+abstracting from 3 handlers / 2 shapes / zero R2 / zero production experience would be premature. Next
+milestone: controlled PRODUCTION enablement + operational observation (the governing philosophy is
+experience-before-abstraction), then optionally a first R2.
+
+**Ship-dark:** every new control defaults off/empty; `OPS_RECOVERY_ENABLED=False` still gates the whole
+cycle. Maturity unchanged (O1; O2 pending production proof). CoS untouched; boundaries intact.
+
+**Files:** `apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/models.py`,
+`apps/core/migrations/0131_alter_opsanomaly_anomaly_type.py` (new),
+`apps/core/operations/recovery/handlers.py`, `config/settings.py`,
+`apps/core/operations/tests/test_recovery.py`, `docs/WLJ_OPERATIONS_VISION.md`,
+`docs/WLJ_OPERATIONS_PHASE2_PLAN.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-11 — docs(operations): fill pilot-proven ledger SHA (b6b20ea5)
 
 Living-doc maintenance: record the Git SHA for the "pilot selected + controlled E2E proven" ledger row in

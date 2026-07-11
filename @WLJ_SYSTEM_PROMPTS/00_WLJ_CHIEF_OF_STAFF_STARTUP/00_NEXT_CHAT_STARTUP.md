@@ -16,7 +16,7 @@
 ---
 
 ## Current sprint
-Architecture is stable and constitutionally protected. WLJ is in **product refinement**. **WLJ Operations** is now its own frozen Layer 1 truth domain (`docs/WLJ_OPERATIONS_VISION.md`): Phase I visibility + Phase II Deterministic Recovery framework are **shipped dark**. No feature work in flight.
+Architecture is stable and constitutionally protected. WLJ is in **product refinement**. **WLJ Operations** is now its own frozen Layer 1 truth domain (`docs/WLJ_OPERATIONS_VISION.md`): Phase I visibility + Phase II recovery framework + **Phase II-B expanded R1 recoveries** (3 handlers, 2 shapes) are **shipped dark**. Phase III (recovery-as-config) is **NOT yet justified** — the gate is real production experience, not more code (`WLJ_OPERATIONS_PHASE2_PLAN.md §14`). No feature work in flight.
 
 ## Current priorities (ranked)
 1. **CC-1** — `@register_page_summary` providers for the 8 core dashboards (pattern: `health.weight`). `docs/WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md §4`.
@@ -31,6 +31,7 @@ Architecture is stable and constitutionally protected. WLJ is in **product refin
 - **Deferred recovery pilots** — snapshot-refresh (ADR-17: already covered by the Beat-retry pilot's condition) and chat-requeue (needs a proven idempotency/dedup design). Each has a promotion trigger in `WLJ_OPERATIONS_PHASE2_PLAN.md §1.1`.
 
 ## Recently completed
+- **Operations Phase II-B** (2026-07-11) — **expanded R1 recoveries, shipped DARK.** Two more handlers across two shapes: `EngineStarvationRetriggerHandler` (re-trigger→async verify) and `MaturitySnapshotRefreshHandler` (recompute→sync verify) + a new `MATURITY_SNAPSHOT_STALE` detector filling the unmonitored ISE-maturity-job gap (corrects ADR-17→ADR-19/20/21). Evidence-driven finding: **Phase III not yet justified** (too few examples, zero R2, zero prod experience) — next is production enablement. `WLJ_OPERATIONS_PHASE2_PLAN.md §14`.
 - **Operations Phase II** (2026-07-11, `b3e6c40a`) — **Deterministic Recovery framework shipped DARK.** `apps/core/operations/`: RecoveryEngine (diagnose→gate→recover→verify→audit→escalate), RecoveryPolicy (R0–R4, finite bounds, recurrence→permanent-fix), handler+registry, `RecoveryAttempt` audit model (migration 0130), verification reuses the detector predicate, separate downstream recovery task, kill switch, read-only Recovery Activity card, import-boundary + request-path CI contracts; one R1 pilot (Beat-task re-enqueue, allowlist empty). `OPS_RECOVERY_ENABLED=False` → zero behavior change. Recovery never writes incident state (SAME owns the lifecycle). Verified: operations 23, constitution, payload, OPS-1, Ops Wall v2 85 — all green.
 - **Operations architecture** (2026-07-11) — vision + Phase II plan authored; architecture **frozen** (`WLJ_OPERATIONS_VISION.md` §§1–18, ADR-1…18).
 - **OPS-1…4** (2026-07-11) — Ops Wall monitors: non-engine Beat tasks, storage/volume, chat-queue backlog, OpenAI upstream health. `docs/WLJ_OPS_WALL_COVERAGE.md §4`.

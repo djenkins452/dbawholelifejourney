@@ -41,6 +41,12 @@ def _beat_retry_allowlist() -> frozenset[str]:
     return frozenset(str(x) for x in raw)
 
 
+def _engine_allowlist() -> frozenset[str]:
+    """Operator allowlist of engine names eligible for re-trigger recovery (empty default)."""
+    raw = getattr(settings, "OPS_RECOVERY_ENGINE_ALLOWLIST", ()) or ()
+    return frozenset(str(x) for x in raw)
+
+
 class BeatTaskRetryHandler(RecoveryHandler):
     """R1 — re-enqueue an allowlisted, idempotent Beat task that OPS-1 flagged MISSED."""
 
@@ -126,14 +132,161 @@ class BeatTaskRetryHandler(RecoveryHandler):
         )
 
 
+class EngineStarvationRetriggerHandler(RecoveryHandler):
+    """R1 (re-trigger shape) — re-run a starved engine that ENGINE_STARVATION flagged.
+
+    Shares the exact shape as ``BeatTaskRetryHandler`` (re-trigger a scheduled unit of
+    work; verify via its freshness predicate) but for registered engines rather than
+    Beat tasks. Verification is DEFERRED (the re-run is async). NOT double-covering the
+    legacy `_run_autonomous_remediation` auto-rerun, which only touches P3 MISSED_RUN
+    (starvation is P1 and is never auto-remediated). Allowlisted + flagged; empty/off
+    by default.
+    """
+
+    monitor_key = "engine"
+    handled_anomaly_types = frozenset({"ENGINE_STARVATION"})
+    policy = RecoveryPolicy(
+        classification=R1,
+        max_attempts=2,
+        cooldown_seconds=300,       # engines run on minute+ cadences
+        recurrence_window_hours=24,
+        recurrence_limit=4,         # keeps starving → the scheduler needs a permanent fix
+    )
+
+    def diagnose(self, anomaly) -> RecoveryDiagnosis:
+        from apps.core.ai_observability.engine_registry import get_engine_meta
+
+        engine = (anomaly.engine_name or "").strip()
+        allow = engine in _engine_allowlist()
+        enabled = bool(getattr(settings, "OPS_RECOVERY_ENGINE_RETRIGGER", False))
+        meta = get_engine_meta(engine)
+        can_run = bool(meta and meta.get("can_manual_run"))
+        recoverable = allow and enabled and can_run
+        return RecoveryDiagnosis(
+            target=engine,
+            reason=(
+                f"Engine '{engine}' is STARVED (no runs in 24h)."
+                + ("" if recoverable else " Not allowlisted/enabled/runnable → observe-only (R0).")
+            ),
+            evidence={
+                "engine": engine, "allowlisted": allow,
+                "handler_enabled": enabled, "can_manual_run": can_run,
+            },
+            recoverable=recoverable,
+        )
+
+    def recover(self, diagnosis: RecoveryDiagnosis) -> RecoveryOutcome:
+        """Re-trigger the engine via the deterministic by-name runner (idempotent,
+        guarded by is_engine_active). The run is async → verification deferred."""
+        from apps.core.ai_observability.models import EngineExecutionLog
+        from apps.core.celery_utils import safe_enqueue
+        from apps.core.tasks import run_engine_task
+
+        engine = diagnosis.target
+        if EngineExecutionLog.is_engine_active(engine):
+            # Already running — nothing to do; let verification confirm freshness.
+            return RecoveryOutcome(
+                action_taken=f"Engine '{engine}' already active; no re-trigger needed.",
+                verification_deferred=True,
+                evidence={"skipped": "already_active"},
+            )
+        execution = EngineExecutionLog.objects.create(
+            engine_name=engine, trigger_source="ops_recovery", status="queued",
+            triggered_by=None,
+        )
+        enqueued = safe_enqueue(run_engine_task, engine, execution.id)
+        return RecoveryOutcome(
+            action_taken=(
+                f"Re-triggered engine '{engine}' (execution_id={execution.id})"
+                + ("" if enqueued else " (broker unavailable — enqueue failed)")
+            ),
+            verification_deferred=enqueued,
+            evidence={"enqueued": enqueued, "execution_id": execution.id},
+        )
+
+    def verify(self, diagnosis: RecoveryDiagnosis) -> VerificationResult:
+        """Healthy iff the engine has produced a run in the last 24h — the exact
+        inverse of the ENGINE_STARVATION detector predicate."""
+        from apps.core.ai_observability.same_engine import engine_ran_within_24h
+
+        engine = diagnosis.target
+        ran = engine_ran_within_24h(engine)
+        return VerificationResult(healthy=ran, evidence={"engine": engine, "ran_24h": ran})
+
+
+class MaturitySnapshotRefreshHandler(RecoveryHandler):
+    """R1 (recompute shape) — recompute a stale system maturity snapshot.
+
+    A DIFFERENT shape from the re-trigger handlers: the recompute runs SYNCHRONOUSLY
+    in the recovery worker (background — heavy compute is fine off the request path),
+    so verification is IMMEDIATE (not deferred). The maturity snapshot is a 24h ISE
+    job, independent of SAME and Beat, so this fills a real gap (corrects ADR-17 for
+    this snapshot). Flagged; off by default.
+    """
+
+    monitor_key = "maturity_snapshot"
+    handled_anomaly_types = frozenset({"MATURITY_SNAPSHOT_STALE"})
+    policy = RecoveryPolicy(
+        classification=R1,
+        max_attempts=2,
+        cooldown_seconds=300,
+        recurrence_window_hours=48,
+        recurrence_limit=3,         # keeps going stale → ISE schedule needs a permanent fix
+    )
+
+    def diagnose(self, anomaly) -> RecoveryDiagnosis:
+        enabled = bool(getattr(settings, "OPS_RECOVERY_MATURITY_SNAPSHOT", False))
+        return RecoveryDiagnosis(
+            target="SystemMaturitySnapshot",
+            reason=(
+                "System maturity snapshot is stale."
+                + ("" if enabled else " Handler disabled → observe-only (R0).")
+            ),
+            evidence={"handler_enabled": enabled},
+            recoverable=enabled,
+        )
+
+    def recover(self, diagnosis: RecoveryDiagnosis) -> RecoveryOutcome:
+        """Recompute the daily snapshot (idempotent update_or_create on today's date).
+        Synchronous — verification is immediate, not deferred."""
+        from apps.core.ai_observability.maturity_engine import create_daily_snapshot
+
+        create_daily_snapshot()
+        return RecoveryOutcome(
+            action_taken="Recomputed the system maturity snapshot (daily upsert).",
+            verification_deferred=False,
+            evidence={},
+        )
+
+    def verify(self, diagnosis: RecoveryDiagnosis) -> VerificationResult:
+        """Healthy iff the newest snapshot is now within the staleness threshold —
+        the exact predicate the detector uses."""
+        from apps.core.ai_observability.same_engine import (
+            MATURITY_SNAPSHOT_STALE_DAYS,
+            maturity_snapshot_age_days,
+        )
+
+        age = maturity_snapshot_age_days()
+        healthy = age is not None and age < MATURITY_SNAPSHOT_STALE_DAYS
+        return VerificationResult(healthy=healthy, evidence={"age_days": age})
+
+
 def register_default_handlers() -> None:
-    """Register the Phase II pilot handlers into the process-wide registry.
+    """Register the concrete R1 recovery handlers into the process-wide registry.
 
     R0 handlers are never registered — an unregistered anomaly type is R0 by
-    default (observe-only), which is the safe default.
+    default (observe-only), which is the safe default. Each handler is further gated
+    by its own operator flag/allowlist, all off/empty by default (ship-dark).
     """
     registry.register(BeatTaskRetryHandler())
+    registry.register(EngineStarvationRetriggerHandler())
+    registry.register(MaturitySnapshotRefreshHandler())
 
 
-# Kept for symmetry / documentation of the safe default.
-__all__ = ["BeatTaskRetryHandler", "register_default_handlers", "R0", "R1"]
+__all__ = [
+    "BeatTaskRetryHandler",
+    "EngineStarvationRetriggerHandler",
+    "MaturitySnapshotRefreshHandler",
+    "register_default_handlers",
+    "R0", "R1",
+]

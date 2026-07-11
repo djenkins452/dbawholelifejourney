@@ -301,3 +301,128 @@ class BeatTaskRetryPilotE2ETests(TestCase):
         self.assertFalse(summary["enabled"])
         self.assertEqual(m_enq.call_count, 0)
         self.assertEqual(RecoveryAttempt.objects.count(), 0)
+
+
+@override_settings(
+    OPS_RECOVERY_ENABLED=True,
+    OPS_RECOVERY_ENGINE_RETRIGGER=True,
+    OPS_RECOVERY_ENGINE_ALLOWLIST=["SAE"],
+)
+class EngineStarvationPilotE2ETests(TestCase):
+    """Controlled E2E for the re-trigger shape (ENGINE_STARVATION → async verify)."""
+
+    def setUp(self):
+        engine_mod._HANDLERS_READY = False
+
+    def test_full_retrigger_lifecycle_success(self):
+        anomaly = _mk_anomaly(engine="SAE", atype="ENGINE_STARVATION")
+        with mock.patch(
+            "apps.core.ai_observability.engine_registry.get_engine_meta",
+            return_value={"can_manual_run": True},
+        ), mock.patch(
+            "apps.core.ai_observability.models.EngineExecutionLog.is_engine_active",
+            return_value=False,
+        ), mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            run_recovery_cycle()  # cycle 1 — re-trigger
+        self.assertEqual(m_enq.call_count, 1, "starved engine must be re-triggered")
+        row = RecoveryAttempt.objects.get()
+        self.assertEqual(row.classification, "R1")
+        self.assertEqual(row.outcome, RecoveryAttempt.OUTCOME_PENDING)
+
+        self._backdate(row, 400)  # past the 300s cooldown
+        with mock.patch(
+            "apps.core.ai_observability.same_engine.engine_ran_within_24h",
+            return_value=True,
+        ):
+            run_recovery_cycle()  # cycle 2 — deferred verify
+        row.refresh_from_db()
+        self.assertEqual(row.outcome, RecoveryAttempt.OUTCOME_SUCCESS)
+        anomaly.refresh_from_db()
+        self.assertTrue(anomaly.is_active)  # SAME owns lifecycle
+
+    def _backdate(self, row, seconds):
+        RecoveryAttempt.objects.filter(pk=row.pk).update(
+            created_at=timezone.now() - __import__("datetime").timedelta(seconds=seconds)
+        )
+
+    @override_settings(OPS_RECOVERY_ENGINE_ALLOWLIST=[])
+    def test_non_allowlisted_engine_is_observe_only(self):
+        _mk_anomaly(engine="SAE", atype="ENGINE_STARVATION")
+        with mock.patch(
+            "apps.core.celery_utils.safe_enqueue", return_value=True
+        ) as m_enq:
+            run_recovery_cycle()
+        self.assertEqual(m_enq.call_count, 0)
+        self.assertEqual(
+            RecoveryAttempt.objects.filter(
+                phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE, classification="R0"
+            ).count(), 1
+        )
+
+
+@override_settings(OPS_RECOVERY_ENABLED=True, OPS_RECOVERY_MATURITY_SNAPSHOT=True)
+class MaturitySnapshotPilotE2ETests(TestCase):
+    """Controlled E2E for the recompute shape (MATURITY_SNAPSHOT_STALE → SYNC verify).
+
+    Distinct from the re-trigger handlers: recompute runs synchronously so
+    verification is immediate — the whole lifecycle completes in ONE cycle."""
+
+    def setUp(self):
+        engine_mod._HANDLERS_READY = False
+
+    def test_synchronous_recompute_lifecycle_success(self):
+        anomaly = _mk_anomaly(engine="SystemMaturitySnapshot", atype="MATURITY_SNAPSHOT_STALE")
+        with mock.patch(
+            "apps.core.ai_observability.maturity_engine.create_daily_snapshot"
+        ) as m_recompute, mock.patch(
+            "apps.core.ai_observability.same_engine.maturity_snapshot_age_days",
+            return_value=0,  # fresh after recompute
+        ):
+            run_recovery_cycle()  # recover + verify in ONE cycle (synchronous)
+        m_recompute.assert_called_once()
+        row = RecoveryAttempt.objects.get()
+        self.assertEqual(row.phase, RecoveryAttempt.PHASE_VERIFIED)
+        self.assertEqual(row.outcome, RecoveryAttempt.OUTCOME_SUCCESS)
+        anomaly.refresh_from_db()
+        self.assertTrue(anomaly.is_active)
+
+    @override_settings(OPS_RECOVERY_MATURITY_SNAPSHOT=False)
+    def test_disabled_is_observe_only(self):
+        _mk_anomaly(engine="SystemMaturitySnapshot", atype="MATURITY_SNAPSHOT_STALE")
+        with mock.patch(
+            "apps.core.ai_observability.maturity_engine.create_daily_snapshot"
+        ) as m_recompute:
+            run_recovery_cycle()
+        m_recompute.assert_not_called()
+        self.assertEqual(
+            RecoveryAttempt.objects.filter(
+                phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE
+            ).count(), 1
+        )
+
+
+class MaturityStalenessDetectorTests(TestCase):
+    """The new detector's threshold logic (fills the previously-unmonitored gap)."""
+
+    def _detect(self, age):
+        from apps.core.ai_observability import same_engine
+        with mock.patch.object(same_engine, "maturity_snapshot_age_days", return_value=age):
+            return same_engine._detect_stale_maturity_snapshot(timezone.now())
+
+    def test_never_computed_does_not_flag(self):
+        self.assertEqual(self._detect(None), [])
+
+    def test_fresh_does_not_flag(self):
+        self.assertEqual(self._detect(1), [])
+
+    def test_stale_flags_maturity_snapshot_stale(self):
+        out = self._detect(3)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["anomaly_type"], "MATURITY_SNAPSHOT_STALE")
+        self.assertEqual(out[0]["severity"], "P3")
+
+    def test_age_none_when_no_snapshot_rows(self):
+        from apps.core.ai_observability.same_engine import maturity_snapshot_age_days
+        self.assertIsNone(maturity_snapshot_age_days())

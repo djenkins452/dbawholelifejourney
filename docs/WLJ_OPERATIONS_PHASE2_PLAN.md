@@ -408,9 +408,64 @@ into the full frozen §10 layout — no premature empty directories.
 
 ---
 
-*Last updated: 2026-07-11 — **reconciled against the frozen architecture** (`WLJ_OPERATIONS_VISION.md`,
-frozen at SHA `d1a06636`): action code relocated to `apps/core/operations/` (frozen §10); recovery runs
-as a separate downstream task (execution isolation); stale vision cross-refs corrected (ledger §15,
-terminology §12); import-boundary contract tests specified (§10/§11); pilot set reduced to two R1 actions
-with full specs (§1.1) and chat requeue deferred with a promotion trigger; R1 bounded with a
-permanent-fix recurrence escalation. Plan only — not implemented; awaiting review before Phase II begins.*
+---
+
+## 14. Phase II-B — Expanded R1 recoveries: comparison & Phase III readiness
+
+Three concrete R1 handlers now exist. This section is the evidence-driven answer to *"has the common
+framework naturally emerged, and is Phase III (recovery-as-configuration) justified?"*
+
+### 14.1 The three handlers
+
+| Handler | Anomaly | Action | Verification | Gating | Shape |
+|---|---|---|---|---|---|
+| `BeatTaskRetryHandler` | MISSED_RUN (Beat) | re-enqueue task by name | `compute_scheduled_task_states` (async, deferred) | flag + allowlist | **re-trigger** |
+| `EngineStarvationRetriggerHandler` | ENGINE_STARVATION | `run_engine_task` (guarded by `is_engine_active`) | `engine_ran_within_24h` (async, deferred) | flag + allowlist | **re-trigger** |
+| `MaturitySnapshotRefreshHandler` | MATURITY_SNAPSHOT_STALE | `create_daily_snapshot()` in-process | `maturity_snapshot_age_days` (**synchronous**) | flag only | **recompute** |
+
+### 14.2 What repeated (already centralized in the engine — NOT duplicated)
+
+The entire lifecycle is engine-owned and identical across all three: diagnose→gate→recover→verify→
+audit→retry/escalate, cooldown (audit-derived), retry bounds, recurrence→permanent-fix escalation, the
+classification gate, `RecoveryAttempt` auditing, and the "recovery never writes incident state" invariant.
+**Handlers add ZERO lifecycle logic** — strong evidence the engine's core abstraction is correct.
+
+The engine's **deferred-vs-synchronous verification split** (`verification_deferred`) already generalized
+cleanly across both shapes with no engine change — a Phase II assumption that proved right.
+
+### 14.3 What differed (irreducibly handler-specific)
+
+- **The action** (`recover()`) — re-enqueue vs engine-trigger vs in-process recompute. This is CODE, not config; no Phase III schema removes it.
+- **The verification predicate** (`verify()`) — each reuses its own detector's predicate.
+- **Verification mode** — async/deferred (re-trigger shapes) vs synchronous (recompute shape).
+
+### 14.4 The ONE real duplication (candidate abstraction)
+
+The **gating pattern** repeats: every `diagnose()` does `recoverable = <per-handler flag> and (<target> in <allowlist>)`. `_beat_retry_allowlist()` / `_engine_allowlist()` are near-identical. This is the only genuine duplication — a candidate for a policy field (`gating: flag | allowlist`) or an `AllowlistGatedHandler` mixin. **But it appears in only 2–3 handlers — extracting now would abstract from too few examples.**
+
+### 14.5 Which Phase II assumptions were right / wrong
+
+- **Right:** finite R1 bounds; recurrence→permanent-fix escalation is meaningful for all three (persistently-starving engine / stale snapshot / missed task each signal a systemic cause). The engine needed no change to absorb a third handler or a new verification mode.
+- **Incomplete:** the `RecoveryPolicy` owns no gating field — each handler hard-codes flag+allowlist in `diagnose()`. This is the clearest "policy should own gating" signal, but it's a **weak** signal at 2–3 handlers.
+- **Untested:** the **R2** class (worker/scheduler restart, requeue) is entirely unexercised — the whole "bounded-service / approval" half of the classification has no concrete instance, so the policy's real R2 requirements are unknown.
+
+### 14.6 Phase III determination — **NOT YET JUSTIFIED**
+
+The universal parts are already centralized (not duplicated), so Phase III's value would be making
+**gating + policy declarative** — but that abstraction rests on only 3 handlers, 2 shapes, one real
+duplication, and **zero R2 evidence and zero production experience**. Extracting a config framework now is
+exactly the premature abstraction this milestone exists to avoid.
+
+**Recommended next milestone (one): controlled PRODUCTION enablement + operational observation of the
+existing R1 handlers** (operator-gated, runbook §11.1). The governing philosophy is *gain real operational
+experience before extracting the framework* — and none of these handlers has yet run in production. Real
+operational evidence, not more code, is the missing input. Only after that (and ideally one first **R2**
+recovery to exercise the untested half of the classification) should Phase III be reconsidered.
+
+---
+
+*Last updated: 2026-07-11 — **Phase II-B: expanded R1 recoveries.** Added `EngineStarvationRetriggerHandler`
+(re-trigger) + `MaturitySnapshotRefreshHandler` (recompute, synchronous verify) + a new
+`MATURITY_SNAPSHOT_STALE` detector (fills the ISE-job gap; corrects ADR-17 → ADR-19/20/21). Comparison +
+Phase III readiness in §14: **Phase III not yet justified**; next = production enablement + operational
+evidence. Earlier: reconciled against the frozen architecture (`d1a06636`).*

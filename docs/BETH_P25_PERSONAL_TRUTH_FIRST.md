@@ -1,3 +1,11 @@
+> ⚠️ **HISTORICAL ARCHITECTURE — NOT CURRENT DESIGN.**
+> **DO NOT RESTORE WITHOUT CONSTITUTIONAL REVIEW** (`docs/WLJ_CONSTITUTION.md` §3).
+> This document predates the 2026-07-09 truth/reasoning pivot (WLJ owns deterministic
+> truth; the conversational model owns reasoning). Preserved as engineering history.
+> Current docs: `docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+---
+
 # Beth P25 — Personal Truth First (routing architecture)
 
 > **Status: SHADOW (Phase 1–2). P25 routing is NOT active — current lane routing is

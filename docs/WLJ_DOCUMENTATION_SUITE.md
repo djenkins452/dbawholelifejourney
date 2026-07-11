@@ -1,3 +1,11 @@
+> ⚠️ **HISTORICAL ARCHITECTURE — NOT CURRENT DESIGN.**
+> **DO NOT RESTORE WITHOUT CONSTITUTIONAL REVIEW** (`docs/WLJ_CONSTITUTION.md` §3).
+> This document predates the 2026-07-09 truth/reasoning pivot (WLJ owns deterministic
+> truth; the conversational model owns reasoning). Preserved as engineering history.
+> Current docs: `docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+---
+
 # Whole Life Journey — Complete Documentation Suite
 
 **Generated:** 2026-03-30

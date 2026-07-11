@@ -1,3 +1,11 @@
+> ⚠️ **HISTORICAL ARCHITECTURE — NOT CURRENT DESIGN.**
+> **DO NOT RESTORE WITHOUT CONSTITUTIONAL REVIEW** (`docs/WLJ_CONSTITUTION.md` §3).
+> This document predates the 2026-07-09 truth/reasoning pivot (WLJ owns deterministic
+> truth; the conversational model owns reasoning). Preserved as engineering history.
+> Current docs: `docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+---
+
 # Personal Understanding — Evidence-First Ontology & Architecture (P36.1 → P36.2)
 
 **Status:** DESIGN ONLY. No code. Supersedes the P36 framing (BehaviorDirective is a

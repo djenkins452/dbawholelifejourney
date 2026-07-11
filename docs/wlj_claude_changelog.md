@@ -6,6 +6,44 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — milestone(cos): WLJ Chief of Staff Architecture Milestone — Constitutional Lock + Recovery Point
+
+Established the **WLJ Chief of Staff Architecture Milestone**: the fundamental architecture is now
+considered complete and intentionally protected. Future work improves the product; it does not
+redefine the architecture absent an explicit Constitutional Review approved by Danny. Gate met:
+the "Check on Von's House" occurrence-scoped completion fix (`2f368f7e`) is on deploy `main` and
+Danny-confirmed; its temporary glass-box was already removed in that same commit.
+
+**New documents (all CURRENT):**
+- `docs/WLJ_CONSTITUTION.md` — v1.0. 22 permanent Articles (Truth/Reasoning division, Current
+  Context authority, single deterministic authority, engineering discipline, product governance) +
+  a mandatory **Constitutional Review** process (default NO; explicit written approval required;
+  solve inside the Constitution first).
+- `docs/WLJ_ACCEPTANCE_BASELINE.md` — permanent regression-suite map (14 areas → tests).
+- `docs/WLJ_DOCUMENTATION_INVENTORY.md` — 186 docs classified (95 CURRENT / 39 HISTORICAL /
+  3 SUPERSEDED / 49 ARCHIVE); 26 historical docs bannered; 14 flagged for Danny's judgment.
+- `docs/WLJ_OPS_WALL_COVERAGE.md` — production observability matrix + ranked OPS-1…10 backlog.
+- `docs/WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md` — page-coverage audit + phased backlog.
+- `docs/WLJ_RELEASE_POLICY.md` — three publication levels.
+- `docs/WLJ_PRODUCTION_RUNBOOKS.md` — failures/rollback/recovery/streaming/OpenAI/workers/Redis/
+  Postgres/multimodal/audit/confirmations.
+- `docs/WLJ_SECURITY_PRIVACY_RETENTION.md` — 72h image retention (kept & locked), audit, provenance.
+- `docs/WLJ_KNOWN_LIMITATIONS.md` — honest, phased limitations.
+- `docs/WLJ_VERSION_MANIFEST.md` + `docs/WLJ_MILESTONE_COS_ARCHITECTURE.md` — recovery point + final report.
+
+**New/changed enforcement:**
+- `apps/core/tests/test_constitution_contract.py` (9 tests) — makes the Constitution executable
+  (Articles present, enforcement refs exist, naming rule, no-fabrication clause). Fills the
+  "results-not-intentions" acceptance gap.
+- Restored `apps/core/ai_state/test_health_contract_glucose_extensions.py` (renamed from `tests_…`,
+  which Django's `test*` discovery never collected — 26 regression tests were dormant since
+  2026-05-31; now back in CI).
+
+**Recovery point:** annotated tag `milestone-cos-architecture-v1` at `__MILESTONE_SHA__` + GitHub Release.
+**Verification:** constitutional contract suite 53/53 passing; `manage.py check` clean; no pending migrations.
+
+---
+
 ## 2026-07-11 — chore(compat): retire deprecated `django.utils.timezone.utc` / `timezone.datetime`
 
 Milestone pre-hygiene ahead of the WLJ Chief of Staff Architecture Milestone recovery point.

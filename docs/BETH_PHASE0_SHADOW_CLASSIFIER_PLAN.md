@@ -1,3 +1,11 @@
+> ⚠️ **HISTORICAL ARCHITECTURE — NOT CURRENT DESIGN.**
+> **DO NOT RESTORE WITHOUT CONSTITUTIONAL REVIEW** (`docs/WLJ_CONSTITUTION.md` §3).
+> This document predates the 2026-07-09 truth/reasoning pivot (WLJ owns deterministic
+> truth; the conversational model owns reasoning). Preserved as engineering history.
+> Current docs: `docs/WLJ_DOCUMENTATION_INVENTORY.md`.
+
+---
+
 # Beth Phase 0 — Cognitive Mode Shadow Classifier + Model A/B Evaluation
 
 **Status:** INERT BUILD COMPLETE (2026-06-07) — Steps 1, 3, 4, 6, 7 + A/B scaffold built & tested (21/21 pass, golden-corpus mode accuracy 100%). Steps 2 (migration), 5 (live hook), flag flips, and A/B API execution remain HELD for approval.

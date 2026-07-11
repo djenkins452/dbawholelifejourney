@@ -6,6 +6,38 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(startup): Phase II-B reconciliation + milestone closeout (docs-only)
+
+**Why:** Documentation-only reconciliation and Session-Transition closeout for Operations Phase II-B (impl
+complete at HEAD `5ca7a485`; no code/behavior change). Bring the startup package to ground truth and remove
+stale references.
+
+**Contradictions corrected (startup package):**
+- `00_NEXT_CHAT_STARTUP.md` — the "Deferred recovery pilots" line wrongly listed generic **snapshot-refresh**
+  as deferred under ADR-17. Replaced: chat-queue requeue is the only deferred pilot; integrity/storage
+  snapshots are non-candidates (SAME rewrites them), the maturity snapshot is **implemented**
+  (`MATURITY_SNAPSHOT_STALE` + `MaturitySnapshotRefreshHandler`). Collapsed four overlapping Operations
+  "recently completed" bullets into one lean entry (removed the stale "one R1 pilot" framing and
+  `b3e6c40a`-as-latest); applied results-not-intentions to deployment status; updated the production
+  live-check waiting-item.
+- `01_READ_FIRST…ARCHITECTURE.md §5` — Operations maturity paragraph updated: Phase II-B (three R1 handlers /
+  two shapes), Phase III not-yet-justified, evidence gate = controlled production experience.
+- `99_REFERENCE_INDEX.md` — vision + plan rows updated: removed `b3e6c40a`-as-latest; now reflect Phase II-B
+  completion, maturity-staleness coverage, evidence-backed Phase III deferral, IMPLEMENTED plan + §11.1/§14.
+- `03_ENGINEERING_OPERATING_GUIDE.md §11` (Workflow Improvement Review) — folded a recurring durable fact:
+  fetch/parity checks must use the port-443 SSH URL (default `origin` is blocked and shows a stale ref).
+- Files `02`/`04`/`98` had no Operations/ADR-17/pilot staleness (verified); left unchanged.
+
+**Deployment status (results-not-intentions):** committed + pushed to `main`; Railway auto-deploy triggered.
+**Production runtime is NOT independently operator-verified.** Recovery remains ship-dark (all
+`OPS_RECOVERY_*` env vars default off/empty).
+
+**Verification:** `manage.py check` no errors; `test_constitution_contract` 9/9; residual stale-phrase grep
+across all 7 package files → none. No app code, migrations, tests, settings, or recovery behavior changed.
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE,03_ENGINEERING_OPERATING_GUIDE,99_REFERENCE_INDEX}.md`,
+`docs/wlj_claude_changelog.md`.
+
 ## 2026-07-11 — docs(operations): fill Phase II-B ledger SHA (655fb94a)
 
 Living-doc maintenance: record the Git SHA for the Phase II-B expanded-R1 ledger row in

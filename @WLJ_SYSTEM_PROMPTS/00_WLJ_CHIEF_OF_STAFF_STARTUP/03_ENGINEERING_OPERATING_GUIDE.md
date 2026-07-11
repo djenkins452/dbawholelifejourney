@@ -87,6 +87,7 @@ Never `except Exception: pass` on a critical path. Separate `ImportError` (optio
 
 - **Application work is not complete until committed and pushed to `main`** unless Danny says otherwise. Deploy automatically — don't ask "ready to deploy?".
 - Push: `GIT_SSH_COMMAND="ssh -p 443" git push git@ssh.github.com:djenkins452/dbawholelifejourney.git main`. Railway auto-deploys on push.
+- **Fetch/parity checks use the same 443 SSH URL** — the default `origin` (github.com:22) is blocked and returns a *stale* `origin/main`. To verify parity: `GIT_SSH_COMMAND="ssh -p 443" git fetch git@ssh.github.com:djenkins452/dbawholelifejourney.git main:refs/remotes/origin/main`, then compare `git rev-parse HEAD` vs `origin/main`.
 - **No prod CLI/SSH.** One-off prod changes go through a `RunPython` data migration only (the Procfile runs `migrate` every deploy). Data is **forward-only** — never un-migrate prod; ship a corrective migration.
 - Vendored static asset? Run `python3 manage.py collectstatic --noinput` locally first (prod's manifest storage fails hard on missing maps/fonts/images).
 - Temporary infra (debug endpoints/flags/glass-box) is production code — remove it **completely in one commit** and verify `manage.py check` before committing.

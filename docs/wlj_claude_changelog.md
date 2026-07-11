@@ -6,6 +6,47 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(cos): Current Context for OVERVIEW pages — the page-summary pattern (Weight adopts it)
+
+**Ask:** the Weight page is an overview/dashboard page (no focused object), so Beth correctly said
+"there isn't a specific focused object declared." Make overview pages first-class Current Context
+pages — and define the REUSABLE pattern, not a Weight special-case.
+
+**Pattern (the correct generalization):** a DETAIL page declares a focused OBJECT (`app.model:pk`);
+an OVERVIEW page declares a deterministic PAGE SUMMARY (`summary:<key>`) that a registered,
+user-scoped, request-path-safe provider resolves server-side into the SAME `{title, content, kind}`
+shape. The entire transport (meta → `focus_ref` → resolve → envelope → retrieval precedence →
+navigation guard) is reused unchanged.
+
+- **`apps/core/current_context.py`** — added the page-summary registry (`register_page_summary`),
+  the `summary:<key>[;k=v…]` resolution branch in `resolve_current_context`, and **`PageSummaryMixin`**
+  (one line: set `page_summary_key` + `page_summary_title` → emits
+  `<meta name="wlj-context" content="summary:<key>">`). Optional deterministic view state (e.g. a
+  selected chart point) folds into the ref via `get_page_summary_params()` → `;point=<iso-date>`.
+- **`apps/health/services/weight_summary.py`** (new) — `build_weight_summary(user)`: ONE deterministic
+  source (current weight, genuine 30-DAY avg/low/high, total change first→latest, count, date range,
+  optional selected point). **Consumed by BOTH the page and the provider** so the assistant can never
+  contradict the numbers on screen (no re-derivation, no drift).
+- **`apps/health/page_summaries.py`** (new) — the `health.weight` provider narrates the facts (facts
+  only; no verdicts). Registered at app-ready (`HealthConfig.ready`).
+- **`apps/health/views.py :: WeightListView`** — adopts `PageSummaryMixin` and now reads
+  `build_weight_summary` for its stats. **Correction:** the card labels said "(30d)" but the old code
+  computed over the last 30 ENTRIES; both page and assistant now use a genuine 30-DAY window (identical
+  for near-daily data; correct for sparse data).
+
+Overview pages become conversational with `PageSummaryMixin` + a provider — no Chief-of-Staff changes.
+Selected-point CLIENT transport is Phase 2 (the provider + ref already accept it; trigger = a page with
+persistent point selection).
+
+**Files:** `apps/core/current_context.py`, `apps/health/services/weight_summary.py` (new),
+`apps/health/page_summaries.py` (new), `apps/health/apps.py`, `apps/health/views.py`,
+`docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`, `apps/health/tests/test_weight_current_context.py` (new).
+**Verification:** `test_weight_current_context` (10) — page emits `summary:health.weight`; the ref
+resolves to deterministic facts; it lands as `current_request` focus in the envelope; page stats ==
+assistant summary (one source); user-scoped ownership; selected-point param; empty state; and the
+pattern generalizes. `test_current_context_baseline`, `test_current_context_navigation`,
+`test_weight_sync`, `test_health` green. `check` + `makemigrations --check` clean (no model changes).
+
 ## 2026-07-11 — fix(multimodal): conversation integrity — the uploaded image vanished from the transcript after logging
 
 **Symptom (2nd live test):** the scale photo logged 400.0 lb successfully (transport fix worked),

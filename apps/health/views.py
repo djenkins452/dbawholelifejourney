@@ -25,7 +25,7 @@ from django.views.generic import (
 from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 
-from apps.core.current_context import CurrentContextMixin
+from apps.core.current_context import CurrentContextMixin, PageSummaryMixin
 from apps.core.events.domain_events import safe_emit_event, EventTypes
 from apps.core.utils import get_user_today, user_log_id
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
@@ -779,7 +779,7 @@ class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
 # Weight Views
 
-class WeightListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class WeightListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
     """
     List weight entries with stats.
     """
@@ -789,6 +789,10 @@ class WeightListView(HelpContextMixin, LoginRequiredMixin, ListView):
     context_object_name = "entries"
     paginate_by = 30
     help_context_id = "HEALTH_WEIGHT"
+    # Current Context — this overview page declares a deterministic PAGE SUMMARY
+    # (summary:health.weight), resolved by apps/health/page_summaries.py.
+    page_summary_key = "health.weight"
+    page_summary_title = "Weight"
 
     def get_queryset(self):
         return WeightEntry.objects.filter(user=self.request.user)
@@ -805,27 +809,22 @@ class WeightListView(HelpContextMixin, LoginRequiredMixin, ListView):
             context["reimport_latest"] = None
 
         if entries.exists():
+            # ONE deterministic summary drives both the page stats AND the assistant's
+            # Current Context (no re-derivation → the assistant can't contradict the screen).
+            from apps.health.services.weight_summary import build_weight_summary
+            facts = build_weight_summary(self.request.user)
+
             context["latest"] = entries.first()
-            context["total_count"] = entries.count()
+            context["total_count"] = facts["count"]
+            context["min_weight"] = facts["low_30d_lb"]
+            context["max_weight"] = facts["high_30d_lb"]
+            context["avg_weight"] = facts["avg_30d_lb"]
 
-            # Stats for last 30 entries
-            values = [e.value_in_lb for e in entries[:30]]
-            if values:
-                context["min_weight"] = min(values)
-                context["max_weight"] = max(values)
-                context["avg_weight"] = round(sum(values) / len(values), 1)
-
-            # Total weight loss calculation (first entry to last entry)
-            first_entry = entries.last()  # Oldest entry (queryset ordered by -recorded_at)
-            latest_entry = entries.first()  # Most recent entry
-            if first_entry and latest_entry and first_entry != latest_entry:
-                first_weight = float(first_entry.value_in_lb)
-                latest_weight = float(latest_entry.value_in_lb)
-                weight_change = latest_weight - first_weight
-                context["weight_change"] = round(weight_change, 1)
-                context["first_entry"] = first_entry
-                context["first_weight"] = round(first_weight, 1)
-                context["latest_weight_lb"] = round(latest_weight, 1)
+            if facts["total_change_lb"] is not None:
+                context["weight_change"] = facts["total_change_lb"]
+                context["first_entry"] = entries.last()  # oldest (ordered by -recorded_at)
+                context["first_weight"] = facts["first_lb"]
+                context["latest_weight_lb"] = facts["current_lb"]
 
             # Chart data - all entries for the graph (up to 100 for performance)
             chart_entries = list(entries[:100])

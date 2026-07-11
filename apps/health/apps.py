@@ -24,3 +24,6 @@ class HealthConfig(AppConfig):
 
         # Architecture Evolution Phase 1 — calendar projections
         import apps.health.signals  # noqa: F401
+
+        # Current Context — register Health overview page-summary providers (Weight, …).
+        import apps.health.page_summaries  # noqa: F401

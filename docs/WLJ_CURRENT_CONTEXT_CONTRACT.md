@@ -41,7 +41,22 @@ Current Context answers *"what is the user looking at RIGHT NOW?"*, so the **cur
 
 **Injected ONCE, before lane routing (Chief-of-Staff capability, not per-lane / not tool-loop-only).** The turn's focused object is resolved once at the top of `ChatGPTCoSService.generate` (before `route_message`) and stored in a turn-scoped context (`current_context.set_current_focus`). It is then injected at the **single shared LLM-call choke point** — `services.py :: _ground_current_context`, called inside `_call_api` and `_call_api_with_tools` — so **every reasoning lane's answer** begins with the same `CURRENT CONTEXT / OBJECT IN FOCUS` preamble, then applies its specialization. No lane builds Current Context itself; adding a new lane requires no Current-Context code. Exclusions (must NOT be grounded): the **sandboxed general lane** (`bypass_breaker=True` — stays personal-data-free), the **planner/classifier** and **fact-phrasing** calls (`skip_current_context=True`), and `cos_page_reference` (self-grounds). Root cause this fixed: Current Context was injected only in the tool-loop path, so a reasoning lane (the health lane) that intercepted before the tool-loop built a health-only prompt with no object. `is_page_reference` remains only a deterministic deixis fast-path/degradation; it is not the capability.
 
-**Declaration is automatic for DetailViews.** `base.html` emits `<meta name="wlj-context">` from `object` whenever it is a Narratable (`UserOwnedModel`) — so ANY DetailView is Beth-aware with zero per-view code. `CurrentContextMixin` is only for overview pages with ONE deterministic focus (e.g. the goals overview → active mission goal via `get_current_context_object`). A page with no single object stays honestly unresolved (Beth asks which one).
+**Declaration is automatic for DetailViews.** `base.html` emits `<meta name="wlj-context">` from `object` whenever it is a Narratable (`UserOwnedModel`) — so ANY DetailView is Beth-aware with zero per-view code. `CurrentContextMixin` is only for overview pages with ONE deterministic focus (e.g. the goals overview → active mission goal via `get_current_context_object`). A page with no single object stays honestly unresolved (Beth asks which one) — UNLESS it declares a page summary (below).
+
+### Overview/dashboard pages — the PAGE-SUMMARY pattern (2026-07-11)
+
+Two kinds of Current Context page, one transport:
+
+| Page kind | Declares | Ref grammar | Resolved by |
+|-----------|----------|-------------|-------------|
+| **Detail** | a focused OBJECT | `app_label.model:pk` | the object's `get_context_summary()` (Narratable) |
+| **Overview/dashboard** | a deterministic PAGE SUMMARY | `summary:<key>[;k=v…]` | a registered server-side provider |
+
+An overview page (Weight, and any dashboard/list) has no single object, so it declares a **deterministic page summary** instead. `resolve_current_context` branches on the `summary:` prefix and dispatches to a provider registered with `@register_page_summary("<key>")` (`apps/core/current_context.py`). The provider is `fn(user, params) -> {title, content, kind}`, MUST be **user-scoped** (its own query is the ownership boundary — no separate check) and **request-path-safe** (aggregate/pre-computed truth only), and returns the SAME shape an object summary does — so envelope, retrieval precedence, and the navigation guard are all unchanged.
+
+A page opts in with one line via **`PageSummaryMixin`**: set `page_summary_key` (+ optional `page_summary_title`); it emits `<meta name="wlj-context" content="summary:<key>">`. Optional deterministic view state (e.g. a selected chart point) is folded into the ref as `summary:<key>;point=<iso-date>` via `get_page_summary_params()` and received by the provider (Phase 2: client transport for the selected point).
+
+**Single source of truth (mandatory):** the page and its provider MUST read ONE deterministic utility so the assistant can never contradict the numbers on screen. Reference implementation — **Weight**: `apps/health/services/weight_summary.py :: build_weight_summary(user)` is consumed by BOTH `WeightListView` (page stats) and the `health.weight` provider (`apps/health/page_summaries.py`). Providers self-register at app-ready (`HealthConfig.ready` imports `apps.health.page_summaries`). Rollout: any dashboard/overview page adopts `PageSummaryMixin` + a provider; no Chief-of-Staff code changes.
 **Governing principle:** Beth (the One Brain) must understand *where the user is, what page is open, what object is in focus, and what canonical content belongs to it* — for **any** WLJ page — **without page-specific conversational code.** A new page becomes conversational by implementing ONE contract, not by editing Beth.
 
 ---

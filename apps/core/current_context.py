@@ -71,6 +71,69 @@ _REF_RE = re.compile(r"^([a-z_]+)\.([a-z_]+):(\d+)$", re.IGNORECASE)
 _GENERIC_FIELDS = {"description", "body", "content", "text", "notes", "summary", "details"}
 
 
+# ── Overview/dashboard pages: the PAGE-SUMMARY pattern ────────────────────────
+# A DETAIL page declares a focused OBJECT ("app.model:pk"). An OVERVIEW/dashboard page
+# has no single object — it declares a deterministic PAGE SUMMARY ("summary:<key>") that a
+# registered, USER-SCOPED, request-path-safe provider resolves server-side into the SAME
+# {title, content, kind} shape objects use. Everything downstream (transport, envelope,
+# retrieval precedence, navigation guard) is identical — an overview page is a first-class
+# Current Context page. See docs/WLJ_CURRENT_CONTEXT_CONTRACT.md (overview-page section).
+_SUMMARY_PREFIX = "summary:"
+_PAGE_SUMMARY_PROVIDERS = {}
+
+
+def register_page_summary(key):
+    """Register a deterministic page-summary provider under `key` (e.g. "health.weight").
+
+    The provider is `fn(user, params: dict) -> {"title", "content", "kind"}` and MUST be
+    deterministic, USER-SCOPED (query only the given user's data — this is the ownership
+    boundary; there is no separate ownership check for summaries), and cheap enough for the
+    request path (no heavy compute — read pre-computed/aggregate truth only). Providers are
+    imported at app-ready so they self-register before any request resolves a ref."""
+    def _decorator(fn):
+        _PAGE_SUMMARY_PROVIDERS[str(key).strip().lower()] = fn
+        return fn
+    return _decorator
+
+
+def _parse_summary_params(param_str):
+    """Parse the optional ';k=v;k=v' tail of a summary ref into a flat dict (values are
+    strings). Deterministic view state only (e.g. a selected chart point) — never truth."""
+    params = {}
+    for part in (param_str or "").split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, _, v = part.partition("=")
+        k = k.strip().lower()
+        if k:
+            params[k] = v.strip()
+    return params
+
+
+def _resolve_page_summary(user, ref_str):
+    """Resolve a 'summary:<key>[;k=v...]' reference via its registered provider. Returns
+    {title, content, kind, ref} or None (unknown key, provider error, or empty summary)."""
+    body = ref_str[len(_SUMMARY_PREFIX):]
+    key, _, param_str = body.partition(";")
+    key = key.strip().lower()
+    provider = _PAGE_SUMMARY_PROVIDERS.get(key)
+    if provider is None:
+        logger.warning("current_context: no page-summary provider for key=%s", key)
+        return None
+    try:
+        summ = provider(user, _parse_summary_params(param_str)) or {}
+    except Exception:
+        logger.warning("current_context: page-summary provider failed key=%s", key,
+                       exc_info=True)
+        return None
+    if not (summ.get("title") or summ.get("content")):
+        return None
+    summ.setdefault("ref", f"{_SUMMARY_PREFIX}{key}")
+    summ.setdefault("kind", "page summary")
+    return summ
+
+
 class NarratableMixin:
     """Opt-in protocol that makes a model Beth-aware. The default reads the title plus the
     fields named in CONTEXT_FIELDS (or common text fields); models override
@@ -137,7 +200,11 @@ def resolve_current_context(user, ref=None, url=None):
     Returns None when nothing is in focus, the ref is malformed, or the object isn't owned."""
     if not user or not ref:
         return None
-    m = _REF_RE.match(str(ref).strip())
+    ref_str = str(ref).strip()
+    # Overview/dashboard pages declare a deterministic PAGE SUMMARY, not an object.
+    if ref_str.lower().startswith(_SUMMARY_PREFIX):
+        return _resolve_page_summary(user, ref_str)
+    m = _REF_RE.match(ref_str)
     if not m:
         return None
     app_label, model_name, pk = m.group(1).lower(), m.group(2).lower(), int(m.group(3))
@@ -198,4 +265,41 @@ class CurrentContextMixin:
                 }
             except Exception:
                 logger.warning("CurrentContextMixin: descriptor build failed", exc_info=True)
+        return ctx
+
+
+class PageSummaryMixin:
+    """Overview/dashboard counterpart to CurrentContextMixin. A DETAIL page declares a
+    focused OBJECT; an OVERVIEW page declares a deterministic PAGE SUMMARY that a registered
+    server-side provider resolves (see register_page_summary). Set `page_summary_key` (and
+    optionally `page_summary_title`); this emits <meta name="wlj-context"
+    content="summary:<key>"> via base.html. One line makes any overview page a first-class
+    Current Context page — the assistant answers "what am I looking at?" from the same
+    deterministic summary the page shows, no retrieval needed.
+
+    Override `get_page_summary_params()` to fold deterministic view state (e.g. a selected
+    chart point) into the ref as `summary:<key>;point=<iso-date>`; the provider receives it."""
+
+    page_summary_key = None
+    page_summary_title = None
+
+    def get_page_summary_key(self):
+        return self.page_summary_key
+
+    def get_page_summary_params(self):
+        return {}
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        key = (self.get_page_summary_key() or "").strip()
+        if key:
+            ref = f"{_SUMMARY_PREFIX}{key}"
+            params = self.get_page_summary_params() or {}
+            if params:
+                ref += ";" + ";".join(f"{k}={v}" for k, v in params.items() if v not in (None, ""))
+            ctx["current_context_descriptor"] = {
+                "ref": ref,
+                "kind": "page summary",
+                "title": self.page_summary_title or "",
+            }
         return ctx

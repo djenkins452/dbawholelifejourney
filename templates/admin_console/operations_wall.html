@@ -3127,6 +3127,190 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     .ops-diagnostics-grid { grid-template-columns: 1fr; }
     .ops-engine-cat-expanded.visible { grid-template-columns: 1fr; }
 }
+/* =====================================================================
+   EXECUTIVE OPERATIONS SUMMARY — Command Center band
+   ===================================================================== */
+.ops-exec {
+    border-radius: var(--ops-radius);
+    border: 1px solid var(--ops-glass-border);
+    background: var(--ops-surface);
+    backdrop-filter: blur(12px);
+    box-shadow: var(--ops-glass-shadow-lg);
+    margin-bottom: 14px;
+    overflow: hidden;
+    position: relative;
+    border-left: 4px solid var(--ops-green);
+    transition: border-color var(--ops-transition);
+}
+.ops-exec.ops-status-healthy  { border-left-color: var(--ops-green); }
+.ops-exec.ops-status-degraded { border-left-color: var(--ops-yellow); }
+.ops-exec.ops-status-critical { border-left-color: var(--ops-red); animation: opsExecPulse 2.2s ease-in-out infinite; }
+@keyframes opsExecPulse {
+    0%,100% { box-shadow: var(--ops-glass-shadow-lg); }
+    50%     { box-shadow: 0 8px 44px rgba(239,68,68,0.30); }
+}
+.ops-exec-top {
+    display: grid;
+    grid-template-columns: 1.1fr 1.3fr 1.4fr 2fr;
+    gap: 0;
+}
+.ops-exec-cell {
+    padding: 16px 20px;
+    border-right: 1px solid var(--ops-glass-border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+}
+.ops-exec-cell:last-child { border-right: none; }
+.ops-exec-statuscell { flex-direction: row; align-items: center; gap: 14px; }
+.ops-exec-statuslamp {
+    width: 40px; height: 40px; border-radius: 50%;
+    flex-shrink: 0;
+    background: radial-gradient(circle at 35% 35%, var(--ops-green), rgba(16,185,129,0.35));
+    box-shadow: 0 0 18px var(--ops-green);
+}
+.ops-status-degraded .ops-exec-statuslamp { background: radial-gradient(circle at 35% 35%, var(--ops-yellow), rgba(245,158,11,0.35)); box-shadow: 0 0 18px var(--ops-yellow); }
+.ops-status-critical .ops-exec-statuslamp { background: radial-gradient(circle at 35% 35%, var(--ops-red), rgba(239,68,68,0.35)); box-shadow: 0 0 20px var(--ops-red); }
+.ops-exec-celltext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ops-exec-big {
+    font-size: 1.5rem; font-weight: 750; line-height: 1.05;
+    letter-spacing: -0.01em; color: var(--ops-text-bright);
+}
+.ops-exec-statuscell .ops-exec-big { text-transform: uppercase; letter-spacing: 0.02em; }
+.ops-status-healthy  .ops-exec-statuscell .ops-exec-big { color: var(--ops-green); }
+.ops-status-degraded .ops-exec-statuscell .ops-exec-big { color: var(--ops-yellow); }
+.ops-status-critical .ops-exec-statuscell .ops-exec-big { color: var(--ops-red); }
+.ops-exec-cap {
+    font-size: 0.62rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.09em; color: var(--ops-text-dim);
+}
+.ops-exec-impactphrases { font-size: 0.72rem; color: var(--ops-text-muted); margin-top: 3px; line-height: 1.3; }
+.ops-exec-impactcell.impact-none   .ops-exec-big { color: var(--ops-green); }
+.ops-exec-impactcell.impact-low    .ops-exec-big { color: var(--ops-text-bright); }
+.ops-exec-impactcell.impact-medium .ops-exec-big { color: var(--ops-yellow); }
+.ops-exec-impactcell.impact-high   .ops-exec-big { color: var(--ops-red); }
+.ops-exec-trend { font-size: 0.9rem; margin-left: 6px; font-weight: 700; vertical-align: middle; }
+.ops-exec-trend.up   { color: var(--ops-green); }
+.ops-exec-trend.down { color: var(--ops-red); }
+.ops-exec-trend.flat { color: var(--ops-text-dim); }
+.ops-exec-why { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.ops-exec-why-item {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-size: 0.7rem; color: var(--ops-text-muted);
+}
+.ops-exec-why-item .pts { color: var(--ops-red); font-variant-numeric: tabular-nums; font-weight: 600; }
+.ops-exec-why-empty { font-size: 0.7rem; color: var(--ops-green); }
+.ops-exec-actioncell { background: rgba(59,130,246,0.05); }
+.ops-exec-action { display: flex; flex-direction: column; gap: 4px; }
+.ops-exec-action-title { font-size: 0.95rem; font-weight: 650; color: var(--ops-text-bright); }
+.ops-exec-action-btn {
+    align-self: flex-start; margin-top: 4px;
+    background: var(--ops-blue); color: #fff; border: none;
+    border-radius: var(--ops-radius-sm); padding: 6px 14px;
+    font-size: 0.75rem; font-weight: 600; cursor: pointer;
+    transition: filter var(--ops-transition);
+}
+.ops-exec-action-btn:hover { filter: brightness(1.12); }
+.ops-exec-action-meta { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 2px; }
+.ops-exec-action-meta span { font-size: 0.68rem; color: var(--ops-text-muted); }
+.ops-exec-action-meta b { color: var(--ops-text); font-weight: 600; }
+.ops-exec-action-none { font-size: 0.85rem; color: var(--ops-green); font-weight: 600; }
+.ops-exec-bottom {
+    display: grid; grid-template-columns: 1fr 1.4fr; gap: 0;
+    border-top: 1px solid var(--ops-glass-border);
+}
+.ops-exec-summary, .ops-exec-narrative { padding: 12px 20px; font-size: 0.82rem; line-height: 1.5; }
+.ops-exec-summary { border-right: 1px solid var(--ops-glass-border); }
+.ops-exec-summary-line { color: var(--ops-text); margin-bottom: 2px; }
+.ops-exec-summary-line.lead { font-weight: 650; color: var(--ops-text-bright); }
+.ops-exec-summary-line.impact { color: var(--ops-text-muted); margin-top: 4px; }
+.ops-exec-narrative { color: var(--ops-text-muted); font-style: italic; }
+
+/* ---- Active Incident cards ---- */
+.ops-incidents-wrap { margin-bottom: 14px; }
+.ops-incidents-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ops-incidents-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ops-text); }
+.ops-incidents-count {
+    background: var(--ops-red-dim); color: var(--ops-red);
+    border-radius: 20px; padding: 1px 9px; font-size: 0.72rem; font-weight: 700;
+}
+.ops-incidents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.ops-incident {
+    border-radius: var(--ops-radius); border: 1px solid var(--ops-glass-border);
+    background: var(--ops-surface); padding: 14px 16px;
+    border-left: 4px solid var(--ops-yellow);
+    display: flex; flex-direction: column; gap: 8px;
+}
+.ops-incident.sev-P1 { border-left-color: var(--ops-red); }
+.ops-incident.sev-P2 { border-left-color: var(--ops-yellow); }
+.ops-incident.sev-P3 { border-left-color: var(--ops-blue); }
+.ops-incident-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ops-incident-title { font-size: 0.88rem; font-weight: 650; color: var(--ops-text-bright); line-height: 1.3; }
+.ops-incident-sev {
+    flex-shrink: 0; font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 2px 8px; border-radius: 4px;
+}
+.ops-incident-sev.sev-P1 { background: var(--ops-red-dim); color: var(--ops-red); }
+.ops-incident-sev.sev-P2 { background: var(--ops-yellow-dim); color: var(--ops-yellow); }
+.ops-incident-sev.sev-P3 { background: var(--ops-blue-dim); color: var(--ops-blue); }
+.ops-incident-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.ops-incident-kv { display: flex; flex-direction: column; }
+.ops-incident-kv .k { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ops-text-dim); }
+.ops-incident-kv .v { font-size: 0.76rem; color: var(--ops-text); font-weight: 500; }
+.ops-incident-kv .v.impact { color: var(--ops-yellow); }
+.ops-incident-kv .v.recovering { color: var(--ops-green); }
+.ops-incident-kv .v.escalating { color: var(--ops-red); }
+.ops-incident-cause { font-size: 0.76rem; color: var(--ops-text-muted); }
+.ops-incident-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.68rem; }
+.ops-incident-chain .node { background: var(--ops-surface-alt); border-radius: 4px; padding: 2px 7px; color: var(--ops-text-muted); }
+.ops-incident-chain .arrow { color: var(--ops-text-dim); }
+.ops-incident-action-btn {
+    align-self: flex-start; background: transparent; color: var(--ops-blue);
+    border: 1px solid var(--ops-blue); border-radius: var(--ops-radius-sm);
+    padding: 4px 12px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    transition: all var(--ops-transition);
+}
+.ops-incident-action-btn:hover { background: var(--ops-blue); color: #fff; }
+
+/* ---- Subsystem strip (Phase 6 — healthy fades back) ---- */
+.ops-subsystems { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.ops-subsystem {
+    display: flex; align-items: center; gap: 8px;
+    border-radius: var(--ops-radius-sm); padding: 7px 13px;
+    border: 1px solid var(--ops-glass-border); background: var(--ops-surface);
+    transition: opacity var(--ops-transition), border-color var(--ops-transition);
+}
+.ops-subsystem-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ops-subsystem-name { font-size: 0.74rem; font-weight: 500; color: var(--ops-text); }
+.ops-subsystem-status { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.ops-subsystem.st-healthy { opacity: 0.5; }
+.ops-subsystem.st-healthy .ops-subsystem-dot { background: var(--ops-green); }
+.ops-subsystem.st-healthy .ops-subsystem-status { color: var(--ops-text-dim); }
+.ops-subsystem.st-unknown { opacity: 0.55; }
+.ops-subsystem.st-unknown .ops-subsystem-dot { background: var(--ops-slate); }
+.ops-subsystem.st-unknown .ops-subsystem-status { color: var(--ops-text-dim); }
+.ops-subsystem.st-degraded { opacity: 1; border-color: rgba(245,158,11,0.4); }
+.ops-subsystem.st-degraded .ops-subsystem-dot { background: var(--ops-yellow); box-shadow: 0 0 8px var(--ops-yellow); }
+.ops-subsystem.st-degraded .ops-subsystem-status { color: var(--ops-yellow); }
+.ops-subsystem.st-critical { opacity: 1; border-color: rgba(239,68,68,0.5); }
+.ops-subsystem.st-critical .ops-subsystem-dot { background: var(--ops-red); box-shadow: 0 0 10px var(--ops-red); }
+.ops-subsystem.st-critical .ops-subsystem-status { color: var(--ops-red); }
+
+/* Phase 6 — when all-clear, gently de-emphasize the detail hero below the fold */
+.ops-wall.all-healthy .ops-health-hero { opacity: 0.82; }
+
+@media (max-width: 1100px) {
+    .ops-exec-top { grid-template-columns: 1fr 1fr; }
+    .ops-exec-cell { border-right: none; border-bottom: 1px solid var(--ops-glass-border); }
+    .ops-exec-bottom { grid-template-columns: 1fr; }
+    .ops-exec-summary { border-right: none; border-bottom: 1px solid var(--ops-glass-border); }
+}
+@media (max-width: 640px) {
+    .ops-exec-top { grid-template-columns: 1fr; }
+    .ops-incidents-grid { grid-template-columns: 1fr; }
+}
 </style>
 
 <!-- ECharts Library -->
@@ -3141,7 +3325,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     <!-- ZONE 0 — Command Bar (unchanged) -->
     <div class="ops-section ops-topbar">
         <div class="ops-topbar-left">
-            <span class="ops-topbar-title">Ops Wall 2.0</span>
+            <span class="ops-topbar-title">Ops Command Center</span>
         </div>
         <div class="ops-topbar-actions">
             <button class="ops-btn" id="wallModeBtn" title="Wall Mode (W)">Wall</button>
@@ -3153,6 +3337,61 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             <a href="{% url 'admin_console:dashboard' %}" class="ops-btn">Admin</a>
         </div>
     </div>
+
+    <!-- ============================================================
+         EXECUTIVE OPERATIONS SUMMARY — answers the 5 operator questions
+         (Am I ok? What's wrong? Why? Who's affected? What next?)
+         Deterministic synthesis over telemetry (payload.executive).
+         ============================================================ -->
+    <div class="ops-exec ops-status-healthy" id="execBand" data-status="HEALTHY">
+        <div class="ops-exec-top">
+            <div class="ops-exec-cell ops-exec-statuscell">
+                <div class="ops-exec-statuslamp" id="execStatusLamp"></div>
+                <div class="ops-exec-celltext">
+                    <span class="ops-exec-big" id="execStatusLabel">Initializing</span>
+                    <span class="ops-exec-cap">Operational Status</span>
+                </div>
+            </div>
+            <div class="ops-exec-cell ops-exec-impactcell">
+                <div class="ops-exec-celltext">
+                    <span class="ops-exec-big" id="execImpactLabel">&mdash;</span>
+                    <span class="ops-exec-cap">Customer Impact</span>
+                    <span class="ops-exec-impactphrases" id="execImpactPhrases"></span>
+                </div>
+            </div>
+            <div class="ops-exec-cell ops-exec-scorecell">
+                <div class="ops-exec-celltext">
+                    <span class="ops-exec-big">
+                        <span id="execScoreValue">&mdash;</span><span class="ops-exec-trend" id="execScoreTrend"></span>
+                    </span>
+                    <span class="ops-exec-cap">Operational Health</span>
+                </div>
+                <div class="ops-exec-why" id="execScoreWhy"></div>
+            </div>
+            <div class="ops-exec-cell ops-exec-actioncell" id="execActionCell">
+                <span class="ops-exec-cap">Recommended Action</span>
+                <div class="ops-exec-action" id="execAction">
+                    <span class="ops-exec-action-none">No action required</span>
+                </div>
+            </div>
+        </div>
+        <div class="ops-exec-bottom">
+            <div class="ops-exec-summary" id="execSummaryText"></div>
+            <div class="ops-exec-narrative" id="execNarrative"></div>
+        </div>
+    </div>
+
+    <!-- Active Incidents — full incident cards (hidden when none) -->
+    <div class="ops-incidents-wrap" id="incidentsWrap" style="display:none">
+        <div class="ops-incidents-head">
+            <span class="ops-incidents-title">Active Incidents</span>
+            <span class="ops-incidents-count" id="incidentsCount">0</span>
+        </div>
+        <div class="ops-incidents-grid" id="incidentsGrid"></div>
+    </div>
+
+    <!-- Subsystem strip — healthy fades back, problems attract the eye (Phase 6) -->
+    <div class="ops-subsystems" id="subsystemStrip"></div>
 
     <!-- ============================================================
          ZONE 1 — System Health Hero
@@ -4750,6 +4989,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     var previousSchedulerStatuses = {};
 
     function render(data) {
+        renderExecutive(data.executive);
         renderIntegrity(data.integrity);
         renderSchedulerHeartbeats(data.scheduler_heartbeats || []);
         renderAPSchedulerHealth(data.scheduler_health);
@@ -6061,6 +6301,174 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             container.appendChild(line);
         });
     }
+
+    /* =====================================================================
+       EXECUTIVE OPERATIONS SUMMARY — render (Command Center)
+       ===================================================================== */
+
+    function execTrendGlyph(trend) {
+        if (!trend) return { glyph: '', cls: 'flat' };
+        var sem = trend.semantic;
+        if (sem === 'improving')          return { glyph: '↑', cls: 'up' };
+        if (sem === 'rapidly_declining')  return { glyph: '↓↓↓', cls: 'down' };
+        if (sem === 'declining')          return { glyph: '↓', cls: 'down' };
+        return { glyph: '→', cls: 'flat' };
+    }
+
+    function renderExecutive(ex) {
+        var band = document.getElementById('execBand');
+        if (!band || !ex) return;
+
+        var status = (ex.overall_status || 'HEALTHY').toUpperCase();
+        band.setAttribute('data-status', status);
+        band.className = 'ops-exec ops-status-' + status.toLowerCase();
+
+        // Phase 6 — mark the whole wall all-healthy so detail fades back.
+        var wall = document.querySelector('.ops-wall');
+        if (wall) wall.classList.toggle('all-healthy', status === 'HEALTHY' && (ex.active_incident_count || 0) === 0);
+
+        setText('execStatusLabel', status === 'HEALTHY' ? 'Healthy' : (status === 'DEGRADED' ? 'Degraded' : 'Critical'));
+
+        // Customer impact
+        var impactCell = document.querySelector('.ops-exec-impactcell');
+        setText('execImpactLabel', ex.customer_impact || 'None');
+        if (impactCell) impactCell.className = 'ops-exec-cell ops-exec-impactcell impact-' + (ex.customer_impact || 'none').toLowerCase();
+        var phrasesEl = document.getElementById('execImpactPhrases');
+        if (phrasesEl) phrasesEl.textContent = (ex.customer_impact_phrases || []).join(' · ');
+
+        // Score + trend + "why not 100"
+        var score = ex.score || {};
+        setText('execScoreValue', score.value !== null && score.value !== undefined ? Math.round(score.value) : '—');
+        var tg = execTrendGlyph(score.trend);
+        var trendEl = document.getElementById('execScoreTrend');
+        if (trendEl) { trendEl.textContent = tg.glyph; trendEl.className = 'ops-exec-trend ' + tg.cls; }
+        var whyEl = document.getElementById('execScoreWhy');
+        if (whyEl) {
+            var ded = score.deductions || [];
+            if (!ded.length) {
+                whyEl.innerHTML = '<span class="ops-exec-why-empty">Perfect health — no deductions</span>';
+            } else {
+                whyEl.innerHTML = ded.slice(0, 5).map(function(d) {
+                    return '<div class="ops-exec-why-item"><span>' + escapeHtml(d.label) + '</span><span class="pts">' + d.points + '</span></div>';
+                }).join('');
+            }
+        }
+
+        // Recommended action (single)
+        var actionEl = document.getElementById('execAction');
+        var actionCell = document.getElementById('execActionCell');
+        var rec = ex.recommended_action;
+        if (actionEl) {
+            if (!rec) {
+                actionEl.innerHTML = '<span class="ops-exec-action-none">✓ No action required</span>';
+                if (actionCell) actionCell.style.background = '';
+            } else {
+                if (actionCell) actionCell.style.background = 'rgba(59,130,246,0.05)';
+                var btn = rec.action_key && rec.engine
+                    ? '<button class="ops-exec-action-btn" data-action="' + escapeHtml(rec.action_key) + '" data-engine="' + escapeHtml(rec.engine) + '">' + escapeHtml(rec.title) + '</button>'
+                    : '';
+                actionEl.innerHTML =
+                    '<span class="ops-exec-action-title">' + escapeHtml(rec.title) + '</span>' +
+                    '<div class="ops-exec-action-meta">' +
+                        '<span>Severity: <b>' + escapeHtml(rec.severity_label || '—') + '</b></span>' +
+                        '<span>Impact: <b>' + escapeHtml(rec.customer_impact || '—') + '</b></span>' +
+                        '<span>Started: <b>' + escapeHtml(rec.started_ago || '—') + '</b></span>' +
+                        '<span>Confidence: <b>' + (rec.confidence != null ? rec.confidence + '%' : '—') + '</b></span>' +
+                    '</div>' + btn;
+            }
+        }
+
+        // Plain-English summary
+        var sumEl = document.getElementById('execSummaryText');
+        if (sumEl) {
+            var lines = ex.summary_lines || [];
+            sumEl.innerHTML = lines.map(function(l, i) {
+                var cls = i === 0 ? 'lead' : (/Customer impact/.test(l) ? 'impact' : '');
+                return '<div class="ops-exec-summary-line ' + cls + '">' + escapeHtml(l) + '</div>';
+            }).join('');
+        }
+
+        // Operational narrative
+        setText('execNarrative', ex.narrative || '');
+
+        renderIncidents(ex.incidents || []);
+        renderSubsystems(ex.subsystems || []);
+    }
+
+    function renderIncidents(incidents) {
+        var wrap = document.getElementById('incidentsWrap');
+        var grid = document.getElementById('incidentsGrid');
+        if (!wrap || !grid) return;
+        if (!incidents.length) { wrap.style.display = 'none'; grid.innerHTML = ''; return; }
+        wrap.style.display = '';
+        setText('incidentsCount', incidents.length);
+
+        grid.innerHTML = incidents.map(function(inc) {
+            var sev = inc.severity || 'P2';
+            var recCls = inc.recovery_state === 'Recovering' ? 'recovering'
+                       : inc.recovery_state === 'Escalating' ? 'escalating' : '';
+            var chain = (inc.root_cause_chain || []).map(function(n, i) {
+                return (i ? '<span class="arrow">↓</span>' : '') + '<span class="node">' + escapeHtml(n) + '</span>';
+            }).join('');
+            var actionBtn = inc.action_key && inc.engine
+                ? '<button class="ops-incident-action-btn" data-action="' + escapeHtml(inc.action_key) + '" data-engine="' + escapeHtml(inc.engine) + '">' + escapeHtml(inc.suggested_action) + '</button>'
+                : '';
+            return '' +
+            '<div class="ops-incident sev-' + sev + '">' +
+                '<div class="ops-incident-head">' +
+                    '<span class="ops-incident-title">' + escapeHtml(inc.title || 'Incident') + '</span>' +
+                    '<span class="ops-incident-sev sev-' + sev + '">' + escapeHtml(inc.severity_label || sev) + '</span>' +
+                '</div>' +
+                '<div class="ops-incident-grid">' +
+                    kv('Detected', inc.detected_ago || '—') +
+                    kv('Duration', inc.duration || '—') +
+                    kv('Customer Impact', inc.customer_impact || 'None', 'impact') +
+                    kv('Confidence', (inc.confidence != null ? inc.confidence + '%' : '—')) +
+                    kv('Status', inc.status || 'Active') +
+                    kv('Recovery', inc.recovery_state || '—', recCls) +
+                '</div>' +
+                '<div class="ops-incident-cause"><b>Likely cause:</b> ' + escapeHtml(inc.likely_cause || '—') + '</div>' +
+                '<div class="ops-incident-cause"><b>Affected:</b> ' + escapeHtml((inc.affected_components || []).join(', ')) + '</div>' +
+                (chain ? '<div class="ops-incident-chain">' + chain + '</div>' : '') +
+                actionBtn +
+            '</div>';
+        }).join('');
+    }
+
+    function kv(k, v, extraCls) {
+        return '<div class="ops-incident-kv"><span class="k">' + escapeHtml(k) + '</span>' +
+               '<span class="v ' + (extraCls || '') + '">' + escapeHtml(String(v)) + '</span></div>';
+    }
+
+    function renderSubsystems(subsystems) {
+        var strip = document.getElementById('subsystemStrip');
+        if (!strip) return;
+        strip.innerHTML = subsystems.map(function(s) {
+            var st = (s.status || 'HEALTHY').toLowerCase();
+            return '<div class="ops-subsystem st-' + st + '">' +
+                '<span class="ops-subsystem-dot"></span>' +
+                '<span class="ops-subsystem-name">' + escapeHtml(s.name) + '</span>' +
+                '<span class="ops-subsystem-status">' + escapeHtml(s.status || '') + '</span>' +
+            '</div>';
+        }).join('');
+    }
+
+    // Small text setter used by the executive renderers.
+    function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+
+    // Delegated click handler for exec/incident action buttons (CSP-safe).
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.ops-exec-action-btn, .ops-incident-action-btn');
+        if (!btn) return;
+        var action = btn.getAttribute('data-action');
+        var engine = btn.getAttribute('data-engine');
+        if (action && engine && typeof executeAction === 'function') {
+            executeAction(action, engine, btn);
+        }
+    });
 
     /* =====================================================================
        OPS-2/3/4 — Infrastructure Monitor Render Functions

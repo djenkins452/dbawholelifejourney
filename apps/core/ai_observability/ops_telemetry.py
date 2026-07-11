@@ -2641,6 +2641,22 @@ def build_ops_stream_payload():
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
 
+    # ── Executive synthesis (Ops Command Center) ───────────────────
+    # Deterministic reduction over the sections built above — overall status,
+    # customer impact, explainable score, prioritized action, enriched
+    # incidents, operational narrative, trends. Runs LAST (needs all sections);
+    # error-isolated like any other section so it can never break the payload.
+    def _exec_builder():
+        from apps.core.ai_observability.ops_executive import build_executive_summary
+        return build_executive_summary(sections, now)
+    exec_data, exec_meta = _build_section("executive", _exec_builder)
+    if exec_data is None and previous.get("executive") is not None:
+        exec_data = previous["executive"]
+        exec_meta["stale"] = True
+        exec_meta["carry_forward"] = True
+    sections["executive"] = exec_data
+    section_meta["executive"] = exec_meta
+
     # ── Derive posture from narrative ──────────────────────────────
     narrative = sections.get("narrative")
     posture = narrative.get("posture", "OK") if narrative else "OK"

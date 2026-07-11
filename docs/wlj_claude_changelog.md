@@ -6,6 +6,56 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — ops(command-center): Executive Operations Summary — Ops Wall → Operations Command Center
+
+**Why:** After OPS-1→OPS-4 the telemetry was strong but the *operator experience* was Grafana-like — a
+wall of metrics, no synthesis. The goal of this milestone was product refinement, NOT more monitoring:
+transform the Ops Wall so a first-time operator understands system health in ten seconds and an
+experienced SRE thinks "whoever built this has operated production systems." The page must answer five
+questions — Am I okay? What's wrong? Why? Who's affected? What next? — from the data we already collect.
+
+**What (one new DETERMINISTIC synthesis layer over existing telemetry — no new monitors, no AI, no
+request-path compute):** `apps/core/ai_observability/ops_executive.py :: build_executive_summary()` runs
+LAST in `build_ops_stream_payload()` (SAME 60s background cycle), reduces the already-assembled sections
++ the System Integrity component breakdown + the active `OpsAnomaly` set + the in-memory engine
+dependency registry + a small cache-persisted KPI history into an `executive` payload section. Every
+value is traceable to a monitored fact — no hallucination.
+
+- **Phase 1 Executive Summary** — overall status (HEALTHY/DEGRADED/CRITICAL), customer impact
+  (None/Low/Medium/High), and deterministic plain-English summary lines.
+- **Phase 2 Explainable score** — the integrity `components` penalties + per-anomaly severity weights
+  become an itemized "why not 100" (e.g. "SAE — Error Spike −7", "Scheduler degraded (ISE delayed) −2").
+- **Phase 3 Prioritized action** — the single highest-priority incident → one recommendation (severity,
+  customer impact, started, diagnosis confidence, one-click action button).
+- **Phase 4 Customer impact** — deterministic mapping from degraded subsystem state to human phrases
+  ("Chat responses delayed", "Cannot save new data") — worst of section + anomaly impacts.
+- **Phase 5 Incident cards** — each anomaly enriched: severity, detected, duration, likely cause,
+  confidence, affected components (+downstream dependents), customer impact, suggested action, status,
+  recovery state.
+- **Phase 6 Healthy fades** — subsystem strip dims healthy chips; the detail hero de-emphasizes when
+  all-clear; problems attract the eye. No information removed.
+- **Phase 7 Operational narrative** — deterministic paragraph assembled from subsystem states + trend.
+- **Phase 8 Trend direction** — per-KPI velocity (improving ↑ / stable → / declining ↓ / rapidly ↓↓↓)
+  from a bounded cache KPI history persisted each cycle.
+- **Phase 9 Recovery timeline** — started / duration / status / recovery state per incident.
+- **Phase 10 Root-cause chain** — deterministic dependency chain per incident from anomaly type +
+  correlated live telemetry (e.g. Redis) + the engine dependency registry + evidence tail.
+- **Phase 11 Visual polish** — premium Command Center band, status lamp, typography/spacing/hierarchy,
+  color used for signal not decoration; renamed "Ops Wall 2.0" → "Ops Command Center".
+
+**Files:** `apps/core/ai_observability/ops_executive.py` (new), `apps/core/ai_observability/ops_telemetry.py`
+(executive section wired into `build_ops_stream_payload`), `templates/admin_console/operations_wall.html`
+(Executive band + incident cards + subsystem strip markup, ~200 lines premium CSS, render functions —
+CSP-compliant delegated action handler), `apps/core/tests/test_ops_executive.py` (13 tests),
+`apps/core/ai_observability/tests_payload_builder.py` (section count 26→27),
+`docs/WLJ_OPS_WALL_COVERAGE.md`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification:** 13 executive tests + 49 impacted tests pass; `makemigrations --check` clean (no schema
+change — synthesis + presentation only); inline JS `node --check` clean; **rendered in a real browser**
+via a CSS+JS harness — DEGRADED state shows status lamp, explainable score, single recommendation,
+enriched incident cards with root-cause chains, and a dimmed subsystem strip; HEALTHY state collapses to
+"✓ No action required" with healthy chips faded. No console errors in either state.
+
 ## 2026-07-11 — ops(OPS-2/3/4): Ops Wall storage, chat-queue, and OpenAI-upstream monitors
 
 **Why:** OPS-1 made every scheduled Beat task observable; three "if it runs in production, it must be

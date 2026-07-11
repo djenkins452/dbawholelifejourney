@@ -8,7 +8,7 @@
 
 ## 1. What the Ops Wall is
 
-A single read-only monitoring surface at **`/admin-console/ops/`**, polled every 2s, driven by a background-computed telemetry payload (`build_ops_stream_payload()`, 26 sections). A component is observable **only if** it is either (a) a registered engine with a heartbeat cadence, (b) has a dedicated `_get_*` telemetry section, or (c) is a scheduled Beat task tracked by the scheduled-task monitor (OPS-1, below). Anything else running in prod is invisible.
+A single read-only monitoring surface at **`/admin-console/ops/`** — the **Operations Command Center** — polled every 2s, driven by a background-computed telemetry payload (`build_ops_stream_payload()`, 27 sections). The page opens with an **Executive Operations Summary** that answers the five operator questions in ten seconds (Am I okay? / What's wrong? / Why? / Who's affected? / What next?), synthesized deterministically from the telemetry below (`ops_executive.py :: build_executive_summary`, runs last in the SAME cycle — no new monitoring, no AI, no request-path compute). A component is observable **only if** it is either (a) a registered engine with a heartbeat cadence, (b) has a dedicated `_get_*` telemetry section, or (c) is a scheduled Beat task tracked by the scheduled-task monitor (OPS-1, below). Anything else running in prod is invisible.
 
 **Key code:**
 - Telemetry: `apps/core/ai_observability/ops_telemetry.py`
@@ -17,6 +17,7 @@ A single read-only monitoring surface at **`/admin-console/ops/`**, polled every
 - Storage / volume monitor (OPS-2): `apps/core/ai_observability/storage_monitor.py` — Postgres size + growth, Redis memory/eviction, disk/volume utilization; daily `StorageSnapshot` for trend.
 - Chat queue monitor (OPS-3): `apps/core/ai_observability/chat_queue_monitor.py` — passive Celery-signal lifecycle (publish/prerun/postrun) over the chat tasks; Redis-backed depth/wait/throughput/stuck/starvation.
 - OpenAI upstream monitor (OPS-4): `apps/core/ai_observability/upstream_health.py` — passive per-call recorder at `AIService._log_usage`; availability, latency, consecutive failures, degradation state (distinguishes "WLJ healthy" from "OpenAI degraded").
+- Executive synthesis / Command Center (`ops_executive.py :: build_executive_summary`): deterministic reduction over the assembled sections → `executive` payload section (overall status, customer impact, explainable score deductions, single prioritized action, enriched incidents with root-cause chains, operational narrative, per-KPI trends). Presentation + synthesis only; reuses all telemetry above.
 - Celery/infra health: `apps/core/ai_observability/celery_health.py`, `apps/core/scheduler_health.py`
 - Engine registry (~46 engines): `apps/core/engine_registry.py`
 - Separate infra liveness (NOT on the wall): `/_health/` (`HealthCheckView` — DB `SELECT 1`, Redis probe, scheduler)

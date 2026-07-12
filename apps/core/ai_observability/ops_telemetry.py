@@ -2531,6 +2531,23 @@ def _get_db_health_telemetry(now):
         return None
 
 
+def _get_confirmation_audit_telemetry(now):
+    """
+    OPS-8a — Confirmation-queue health (pending/stalled/oldest/flow from
+    `PendingAction`) + audit-stream liveness (`DecisionRecord` / `AIActionMetric`
+    throughput + recency). Deterministic aggregate reads, ONLY here in the SAME
+    background cycle; cache-guarded (5 min). Never on the request path.
+    """
+    try:
+        from apps.core.ai_observability.confirmation_audit_monitor import (
+            get_confirmation_audit_telemetry,
+        )
+        return get_confirmation_audit_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: confirmation_audit telemetry unavailable: %s", e)
+        return None
+
+
 def _get_task_health_telemetry(now):
     """
     OPS-7 — Pool-wide background-task lifecycle (stuck / failing / retrying /
@@ -2694,6 +2711,7 @@ def build_ops_stream_payload():
     _section("storage", _get_storage_telemetry, now)
     _section("db_health", _get_db_health_telemetry, now)  # OPS-5
     _section("task_health", _get_task_health_telemetry, now)  # OPS-7
+    _section("confirmation_audit", _get_confirmation_audit_telemetry, now)  # OPS-8a
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

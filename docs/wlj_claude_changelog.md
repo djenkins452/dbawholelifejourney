@@ -6,6 +6,54 @@
 # Last Updated: 2026-07-11 (fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — feat(ops-8a): Confirmation-queue & audit-pipeline health (`confirmation_audit` section)
+
+**Why:** OPS-8a (Operational Hardening) — ensure user-requested actions never silently stop executing, and
+keep the constitutional "complete auditing" guarantee continuously observable. First correctness-adjacent
+Operations milestone after Phase I closed.
+
+**Investigation (prefer exposing existing truth):** confirmed the truth sources exist — `PendingAction`
+(`core_pendingaction`: durable confirmation record with status lifecycle + `created_at`/`expires_at`/
+`resolved_at`, indexed), `DecisionRecord` and `AIActionMetric` (both `created_at`-indexed audit streams).
+**Evidence-driven scope refinement:** auditing is **synchronous/inline** — `record_decision` →
+`DecisionRecord.objects.create` (instrumentation.py:166) and `AIActionMetric.objects.create`
+(execution_engine.py:28) are written at the moment of the event; **there is no audit queue, no deferred
+writer, no "unapplied audits."** So the originally-scoped "audit lag / oldest unapplied audit / delayed
+writes / failed processing" describe a pipeline that does not exist — measuring them would fabricate a
+signal (same lesson as OPS-5 backup-verification). Replaced with the honest deterministic signal: **audit-
+stream liveness** (throughput/hour + last-write recency), facts not a verdict (Constitution I.4) — a
+flatline is visible while a quiet period isn't falsely flagged.
+
+**What (new `apps/core/ai_observability/confirmation_audit_monitor.py`, reuses the OPS-2/5 pattern):**
+- **Confirmation queue** (`PendingAction`): pending-active, **stalled** (status still `pending` but past
+  `expires_at` — the confirmation silently died: user action never executed AND never cleaned up),
+  oldest-pending age, age buckets, 24h flow (created/confirmed/cancelled). WARNING on any stalled or an
+  unusually old live pending; CRITICAL on many stalled.
+- **Audit streams**: `DecisionRecord` + `AIActionMetric` count/hour + last-write age (informational facts).
+- `get_confirmation_audit_telemetry` — cache-guarded (5 min), background-only, worst-status roll-up, each
+  block degrades to `UNAVAILABLE` (never raises).
+
+**Wiring:** `ops_telemetry.py` reader + `_section("confirmation_audit", …)` (SAME background cycle; request
+path only reads the cache — request-path safety preserved). `operations_wall.html` — full-width read-only
+"Confirmation & Audit Health" card + `renderConfirmationAudit`. **No model, no migration** (reuses existing
+truth; introduces no new persistence). Telemetry-only (no anomaly/recovery).
+
+**Verification:** `tests_confirmation_audit.py` (9 — confirmation active/stalled/critical/old-live/flow,
+audit stream-liveness facts + empty-stream age-None, section shape + cache guard); payload builder 30→31;
+Ops Wall v2 85; `check` + `makemigrations --check` clean; `renderConfirmationAudit` `node --check` valid.
+**Real data-path proof:** dev DB returned confirmation HEALTHY (0 pending/stalled) and audit facts (last
+decision-write ~132d ago, last action-write ~3.5d ago, 0/h) with **no false "stale" verdict** — validating
+the facts-only design.
+
+**Remaining for OPS-8b:** attachment/conversation-image persistence durability, duplicate-detection rate,
+and the unmonitored S3 audio bucket — now the next engineering milestone.
+
+**Files:** `apps/core/ai_observability/confirmation_audit_monitor.py` (new),
+`apps/core/ai_observability/tests_confirmation_audit.py` (new),
+`apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/tests_payload_builder.py`,
+`templates/admin_console/operations_wall.html`, `docs/WLJ_OPS_WALL_COVERAGE.md`,
+`docs/WLJ_OPERATIONS_VISION.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-12 — docs(operations): Phase I CLOSED (complete) + roadmap reorganized (docs-only)
 
 **Why:** Phase I (Operations Visibility) has achieved its original mission — *"nothing important happens in

@@ -65,8 +65,8 @@ A single read-only monitoring surface at **`/admin-console/ops/`** — the **Ope
 | Scheduled Check-ins | ✅ Yes | COSSCHED, COSDELIV, CDCE_CI heartbeats |
 | Notifications | ✅ Yes | DNE heartbeat + DELIVERY_RETRY_SPIKE |
 | Action execution | ✅ Yes | `aafr` metrics (success/blocked/top-failure) |
-| Confirmation queue | ❌ No | Depth/staleness not measured |
-| Audit pipeline | Partial | DecisionRecord in feed; no lag/failure metric |
+| Confirmation queue | ✅ Yes | `confirmation_audit` section: pending-active, **stalled** (orphaned past expiry), oldest-pending age, age buckets, 24h flow — from `PendingAction` (OPS-8a) |
+| Audit pipeline | ✅ Yes (liveness) | `confirmation_audit` section: `DecisionRecord` + `AIActionMetric` throughput/hour + last-write recency (OPS-8a). Audit is synchronous — no queue-lag exists; stream-liveness facts make a flatline visible |
 | Signal pipeline | ✅ Yes | Per-domain freshness/volume/diversity + drought/diversity detectors |
 | Goal momentum | ✅ Yes | Covered by scheduled-task monitor (OPS-1) → MISSED_RUN fires |
 | Deterministic Understanding | Partial | SUE heartbeat; classifier drift not surfaced |
@@ -113,7 +113,7 @@ The remaining work is heterogeneous; a numbered `OPS-N` list misrepresented it. 
 
 | Category | Item | What it is | Priority |
 |---|---|---|---|
-| **Operational Hardening** | **OPS-8a — Confirmation queue & audit-pipeline health** | Correctness-adjacent visibility: pending-confirmation depth/staleness (`PendingAction` / `get_pending_confirmation`) + audit lag (`DecisionRecord` timestamps). A stale confirmation queue = user actions silently not executing; audit lag degrades the constitutional audit guarantee. **Buildable (verified).** | **NEXT engineering milestone** |
+| ~~**Operational Hardening**~~ | ~~**OPS-8a — Confirmation queue & audit-pipeline health**~~ → **DONE (2026-07-12).** `confirmation_audit` section: confirmation queue (pending-active, **stalled** = orphaned pending past expiry, oldest-pending age, age buckets, 24h flow) from the durable `PendingAction` record; audit-stream **liveness** (throughput/hour + last-write recency) for `DecisionRecord` + `AIActionMetric`. Telemetry-only, request-path-safe, no model/migration; reuses existing truth. **Scope refinement (evidence):** auditing is **synchronous/inline** (no audit queue/deferred writer exists), so "audit lag / oldest unapplied audit / delayed writes / failed processing" were **not fabricated** — replaced with the honest, deterministic signal (stream throughput + recency, facts not a verdict; a flatline is visible). | ~~NEXT~~ ✅ Done |
 | **Operational Hardening** | **OPS-8b — Attachment persistence + dedup + S3 artifact bucket** | Multimodal durability + dedup rate + the unmonitored S3 audio bucket. | Later |
 | **Administrative** | **OPS-6 — Per-component `owner` dimension** | Organizational metadata (no owner field exists). Near-zero value for a single-owner (solo-founder) system. | Deferred — revisit for a multi-owner/team surface |
 | **Infrastructure** | **OPS-9 — Build-runner / deploy-pipeline observability** | External (Railway build). The high-value slice is already proxied by OPS-5 (migrations) + OPS-7 (post-deploy task fallout). | Future / re-scope small |

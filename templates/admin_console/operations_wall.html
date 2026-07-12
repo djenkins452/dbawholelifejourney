@@ -4354,6 +4354,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Confirmation & Audit Health (OPS-8a — full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Confirmation &amp; Audit Health</span>
+                        <span class="ops-sched-status-label" id="confAuditSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsConfAudit">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -5058,6 +5073,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderStorage(data.storage);
         renderDbHealth(data.db_health);  // OPS-5
         renderTaskHealth(data.task_health);  // OPS-7
+        renderConfirmationAudit(data.confirmation_audit);  // OPS-8a
         renderChatQueue(data.chat_queue);
         renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
@@ -6777,6 +6793,45 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var rv = th.revoked || {};
         opsFeedLine(container, rv.recent_count > 0 ? 'WARNING' : 'HEALTHY', 'Revoked (recent)',
             String(rv.recent_count || 0));
+    }
+
+    function renderConfirmationAudit(ca) {
+        var container = document.getElementById('opsConfAudit');
+        if (!container) return;
+        if (!ca) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('confAuditSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('confAuditSummary', ca.status, ca.status || '—');
+        container.innerHTML = '';
+
+        var c = ca.confirmation || {};
+        if (c.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Confirmation queue', c.reason || 'unavailable');
+        } else {
+            var oldest = (c.oldest_pending_age_s !== null && c.oldest_pending_age_s !== undefined)
+                ? ' · oldest ' + c.oldest_pending_age_s + 's' : '';
+            var cDetail = (c.pending_active || 0) + ' pending' + oldest +
+                (c.stalled ? ' · ' + c.stalled + ' STALLED' : '');
+            opsFeedLine(container, c.status, 'Confirmation queue', cDetail);
+            var f = c.flow_24h || {};
+            opsFeedLine(container, 'HEALTHY', '  flow 24h',
+                (f.created || 0) + ' created · ' + (f.confirmed || 0) + ' confirmed · ' + (f.cancelled || 0) + ' cancelled');
+        }
+
+        var a = ca.audit || {};
+        if (a.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Audit streams', a.reason || 'unavailable');
+        } else {
+            var dr = a.decision_records || {};
+            var am = a.action_metrics || {};
+            function fmtAge(x) { return (x === null || x === undefined) ? 'none' : x + 's ago'; }
+            opsFeedLine(container, 'HEALTHY', 'Decision audit',
+                (dr.count_1h || 0) + '/h · last ' + fmtAge(dr.last_write_age_s));
+            opsFeedLine(container, 'HEALTHY', 'Action audit',
+                (am.count_1h || 0) + '/h · last ' + fmtAge(am.last_write_age_s));
+        }
     }
 
     function renderChatQueue(cq) {

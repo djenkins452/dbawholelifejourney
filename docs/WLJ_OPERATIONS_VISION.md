@@ -817,8 +817,8 @@ is `WLJ_OPS_WALL_COVERAGE.md §4`):
 
 | Category | Item | Status |
 |---|---|---|
-| **Operational Hardening** | **OPS-8a** Confirmation-queue depth/staleness + audit-pipeline lag | [ ] **next engineering milestone** |
-| **Operational Hardening** | **OPS-8b** Attachment persistence + dedup + S3 artifact bucket | [ ] later |
+| **Operational Hardening** | **OPS-8a** Confirmation-queue health + audit-stream liveness (`confirmation_audit` section) | [x] **DONE 2026-07-12** (`d6291b45`+) — `tests_confirmation_audit.py` (9). Audit is synchronous → stream-liveness facts, no fabricated queue-lag. |
+| **Operational Hardening** | **OPS-8b** Attachment persistence + dedup + S3 artifact bucket | [ ] **next engineering milestone** |
 | **Administrative** | **OPS-6** Per-component `owner` dimension | [-] deferred (near-zero value for a single-owner system; revisit for a team) |
 | **Infrastructure** | **OPS-9** Build-runner / deploy-pipeline (external; migrations already via OPS-5) | [ ] future |
 | **Technical Debt** | **OPS-11** Retire inert legacy `_run_autonomous_remediation` | [ ] opportunistic |

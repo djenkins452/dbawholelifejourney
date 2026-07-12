@@ -768,6 +768,26 @@ class ActionHandler:
         # an implausible value is rejected even when confirmed).
         confirmed = bool(kwargs.get('confirmed'))
 
+        # ── Layer 1 fail-closed guard: WEIGHT only ever holds weight ──
+        # The log_weight schema advertises unit ∈ {lb, kg}, but that enum is advisory —
+        # the model can still emit a non-weight unit (e.g. "in" for a body measurement it
+        # mis-routed to log_weight). The Weight truth domain must NEVER accept
+        # body-composition data: one measurement stored as a WeightEntry corrupts every
+        # weight reader (page, SAE weight_current, dashboard, CoS). Reject it here and
+        # steer to the correct domain instead of writing. Weight never consumes
+        # BodyComposition. (Root cause of the 2026-07-12 "51.0 in latest weight" incident.)
+        _wu = (unit or "lb").lower()
+        if _wu not in ("lb", "kg"):
+            return ActionResult(
+                success=False,
+                error='wrong_domain',
+                message=(
+                    "That reads like a body measurement, not a weigh-in — I keep those "
+                    "in Body Intelligence, not Weight. I didn't log it as weight."
+                ),
+            )
+        unit = _wu
+
         # ── Artifact-level IDEMPOTENCY — the SAME image can never create two entries ──
         # Runs BEFORE the confirmation gate AND independent of `confirmed`, so re-uploading a
         # photo that already became a WeightEntry is a no-op that reports the existing record —

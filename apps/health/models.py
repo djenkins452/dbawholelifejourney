@@ -528,6 +528,9 @@ class WeightEntry(UserOwnedModel):
         ("kg", "Kilograms"),
     ]
 
+    #: The ONLY units a weigh-in may carry. Layer 1 fail-closed guard (see save()).
+    VALID_WEIGHT_UNITS = ("lb", "kg")
+
     value = models.DecimalField(
         max_digits=5,
         decimal_places=1,
@@ -591,6 +594,36 @@ class WeightEntry(UserOwnedModel):
 
     def __str__(self):
         return f"{self.value} {self.unit} on {self.recorded_at.date()}"
+
+    def save(self, *args, **kwargs):
+        """Layer 1 fail-closed guard: the Weight truth domain holds ONLY weight.
+
+        A weigh-in may carry ONLY a weight unit (lb/kg). Any attempt to write a
+        non-weight unit — e.g. a body measurement in inches/centimetres that was
+        mis-routed here — is rejected, so BodyComposition can NEVER contaminate Weight.
+        (Weight is an independent deterministic domain; Body Intelligence consumes
+        Weight, never the reverse.) A single contaminated row corrupts every weight
+        reader — the Weight page, SAE ``weight_current``, the dashboard, and the CoS —
+        because they all read the latest ``WeightEntry``.
+
+        Validates on INSERT and on any change that touches ``unit``. Deliberately does
+        NOT block a status-only update (``update_fields`` without ``unit``), so an
+        already-contaminated legacy row can still be soft-deleted/restored during
+        cleanup.
+        """
+        update_fields = kwargs.get("update_fields")
+        validating_unit = (
+            self._state.adding
+            or update_fields is None
+            or "unit" in update_fields
+        )
+        if validating_unit and (self.unit or "").lower() not in self.VALID_WEIGHT_UNITS:
+            raise ValueError(
+                f"WeightEntry.unit must be one of {self.VALID_WEIGHT_UNITS}, got "
+                f"{self.unit!r}. Body measurements belong in BodyCompositionEntry, "
+                f"not the Weight domain."
+            )
+        super().save(*args, **kwargs)
 
     @property
     def value_in_kg(self):

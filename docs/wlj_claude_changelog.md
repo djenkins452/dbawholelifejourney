@@ -6,6 +6,42 @@
 # Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — fix(health): CRITICAL — Weight Layer 1 truth contamination (body measurements written into WeightEntry)
+
+**Symptom (prod, Danny's account):** Weight page showed "Latest 51.0 in", "Total change −198.6 lb"; weight
+history listed chest/waist/hips rows; Body Intelligence reported "Weight down 198.6 lb overall (now 112.4 lb)".
+Every weight surface (page, history, summary, dashboard, Body Intelligence, CoS) was corrupted.
+
+**Root cause (PROVEN by runtime trace, not guessed):** Body-measurement DATA was being WRITTEN into the
+`WeightEntry` table (rows with `unit="in"`, notes "Chest/Waist/Hips measurement"). Every weight reader
+(`WeightListView`, `build_weight_summary`, `weight_queries`, SAE `weight_current`) correctly reads only
+`WeightEntry.objects` — so the latest row (a 51.0-in chest measurement) became "current weight". `value_in_lb`
+mis-converts a non-lb unit as kg (51 × 2.20462 = 112.4), producing the exact "112.4 lb" seen. The writer was
+`handle_log_weight` (the ONLY `WeightEntry` writer that sets `notes`): the `log_weight` intent schema's
+`unit ∈ {lb,kg}` enum is only advisory, so when the model mis-routed a body measurement to `log_weight` and
+emitted `unit="in"`, the Weight domain **fail-OPEN accepted it**. This is a Weight-domain integrity defect, NOT
+a BodyComposition read-path leak, and NOT a CoS-reasoning bug.
+
+**Fix (eliminate the CLASS — make the Weight domain fail-closed; no CoS-reasoning change):**
+1. `WeightEntry.save()` — Layer 1 guard: a weigh-in may carry ONLY `lb`/`kg`. Any non-weight unit is rejected
+   on insert or unit-change (status-only updates like soft-delete/restore are allowed, so legacy rows can be
+   cleaned). Protects ALL writers (CoS, HealthKit sync, imports, future) — the class is now structurally
+   impossible. (`apps/health/models.py`)
+2. `handle_log_weight` — rejects a non-weight unit at the CoS action boundary and steers to
+   `log_body_measurement` instead of writing. (`apps/ai/action_handlers.py`)
+3. Data migration `health/0100_decontaminate_weight_domain` — for every ACTIVE `WeightEntry` with a non-weight
+   unit: re-home it as a `BodyCompositionEntry` (metric inferred from notes; nothing destroyed) and soft-delete
+   the offending weight row. Idempotent; no-op on clean DBs. Restores prod on deploy (runs via `migrate`).
+
+**Invariant restored:** Weight is an independent deterministic truth domain. Body Intelligence consumes Weight;
+Weight NEVER consumes BodyComposition.
+
+**Verification:** Reproduced the exact incident locally (112.4 lb, −198.6, 51.0 in) → after fix: weight 285.0 lb,
+change −26.0, SAE `weight_current` 285.0 (waist 53.5 separate), BI headline "Weight down 26 lb", 0 contaminating
+rows, chest/waist/hips preserved as BodyComposition. 8 new integrity tests + 14 Body Intelligence tests pass; no
+regressions (one pre-existing `ai_state.test_empty_health_state` failure confirmed unrelated via clean-checkout
+stash). New tests: `apps/health/tests/test_weight_domain_integrity.py`.
+
 ## 2026-07-12 — docs(operations): Phase II Operational Validation (Shadow) — honest validation scope + operator observation checklist
 
 **Why:** Kickoff of the "prove the subsystem operationally" milestone (Danny's prompt called it "Phase II-B";

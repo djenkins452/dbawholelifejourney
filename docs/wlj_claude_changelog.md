@@ -6,6 +6,38 @@
 # Last Updated: 2026-07-12 (fix(ops): Recovery Engine panel promoted out of collapsed Diagnostics drawer — always visible)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — refactor(dashboard): Mission card composes every field from ONE canonical Current Mission State
+
+**Symptom:** the France 2027 mission card mixed sources — counter (2/12), next milestone (279.9) and current
+weight (283.5) were current truth, but "How things are going" still talked about completing Goal Weight 289.9,
+the status read "Milestone reached / At milestone target", and the target shown was 289.9 instead of the active
+279.9.
+
+**Root cause (traced per field):** the counter/next-milestone/weight read live goal + SAE state, but the STATUS +
+NARRATIVE were driven by `_mission_progress_read`'s `milestone_reached` EVENT — the most-recently-completed
+milestone — via `_build_mission_status` → `_mission_status_narrative` → `_milestone_meaning_text(last_title)`.
+So the card replayed a completed rung while the rest showed current truth. (An earlier tie-break fix corrected
+*which* completed rung was named; it did not stop the card from centring on a completed rung at all.)
+
+**Refactor (not a point fix; eliminates the replay class):** added `_build_current_mission_state` — the ONE
+canonical Current Mission State (mission title · completed/total · ACTIVE milestone + its target · current weight ·
+remaining distance · phase · momentum). The rendered status now composes every value from it:
+`_compose_current_state_narrative` writes a deterministic current-state summary (progress · position vs the ACTIVE
+milestone · momentum/phase coaching · grounded habit clause), and `_build_mission_status` classifies purely by
+current momentum/behind (the `milestone_reached` state dominance is removed). A just-cleared milestone is now
+context (the count), never the headline — celebrating it in the moment remains the Significant Event Pipeline's
+job, not this always-on card. Nothing hardcoded; the composition uses `next_milestone` dynamically, so future
+milestones stay correct automatically. `_build_mission_panel` (unused/unrendered legacy) was left untouched.
+
+**Result (Danny's state, verified end-to-end):** "2 of 12 milestones complete on your France 2027 Family 10K
+mission. You're at 283.5 lb, about 3.6 lb to go to reach Goal Weight 279.9. …" · label "Improving" · target 279.9 ·
+counter 2/12 · weight 283.5 — every field internally consistent, no 289.9/284.9, no "Milestone reached".
+
+**Tests:** updated the five tests that encoded the old milestone-celebration behavior to the current-state
+contract (`test_composer`, `test_mission_truth_reconciliation`); full `dashboard_v3` mission suites pass (164).
+Two `test_phase2_dedup` query-cap failures are PRE-EXISTING (reproduced on a clean checkout with this work
+stashed) and unrelated.
+
 ## 2026-07-12 — fix(ops): Recovery Engine panel was inside the collapsed Diagnostics drawer — promoted to always-visible
 
 **Symptom (prod):** Even with correct telemetry (recovery object present in `/ops/stream/`), the Recovery Engine

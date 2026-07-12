@@ -80,12 +80,20 @@ class MilestoneReconciliationTests(TestCase):
         self.assertIn("279.9", n)               # next focus named
         self.assertNotIn("Milestone reached", n)
 
-    def test_status_state_is_not_celebratory_when_regressed(self):
+    def test_status_never_celebrates_a_regressed_milestone(self):
+        # The persistent status composes from the CURRENT mission state, so a completed
+        # milestone the weight no longer holds is never celebrated — it names the ACTIVE
+        # milestone and current position instead.
+        from apps.dashboard_v3.services.composer import _build_current_mission_state
         prog = self._prog(285.3)
-        status = _build_mission_status(self.goal, None, [], self.today, prog)
-        self.assertEqual(status["state"], "MAINTAINING")   # steady, not a WIN
-        self.assertEqual(status["tone"], "flat")
-        self.assertIn("Current weight is 285.3", status["narrative"])
+        cms = _build_current_mission_state(
+            self.goal, self.next, {"weight_current": 285.3, "weight_unit": "lb"},
+            None, "foundation", self.goal.title)
+        status = _build_mission_status(self.goal, None, [], self.today, prog, cms)
+        self.assertNotIn(status["state"], ("MILESTONE_WIN", "AHEAD_OF_PLAN"))
+        self.assertNotEqual(status["state_label"], "Milestone reached")
+        self.assertIn("279.9", status["narrative"])            # active milestone named
+        self.assertNotIn("Milestone reached", status["narrative"])
 
     # ── Truth preserved: still held → still a win ───────────────────
     def test_at_or_below_target_still_reads_as_win(self):
@@ -95,13 +103,17 @@ class MilestoneReconciliationTests(TestCase):
         self.assertEqual(panel["label"], "Milestone reached")
         self.assertEqual(panel["trend"], "up")
 
-    # ── A real drift (beyond fluctuation) reads as Slipping ─────────
-    def test_large_regression_reads_as_slipping(self):
-        prog = self._prog(290.0)               # 5.1 lb above → not fluctuation
+    # ── A real drift is still described as CURRENT state (never a milestone win) ──
+    def test_large_regression_still_reads_current_state(self):
+        from apps.dashboard_v3.services.composer import _build_current_mission_state
+        prog = self._prog(290.0)               # 5.1 lb above the completed rung
         self.assertIs(prog["last_holds"], False)
-        status = _build_mission_status(self.goal, None, [], self.today, prog)
-        self.assertEqual(status["state"], "SLIPPING")
-        self.assertIn("worth refocusing", status["narrative"])
+        cms = _build_current_mission_state(
+            self.goal, self.next, {"weight_current": 290.0, "weight_unit": "lb"},
+            None, "foundation", self.goal.title)
+        status = _build_mission_status(self.goal, None, [], self.today, prog, cms)
+        self.assertNotIn(status["state"], ("MILESTONE_WIN", "AHEAD_OF_PLAN"))
+        self.assertIn("279.9", status["narrative"])            # active milestone named
 
     # ── No current weight → behaviour unchanged (never contradict blind) ─
     def test_no_current_weight_leaves_celebratory_read(self):

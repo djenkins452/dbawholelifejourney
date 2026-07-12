@@ -1145,10 +1145,11 @@ class MissionCardTests(TestCase):
     def _panel(self):
         return build_dashboard_v3_context(self.user)["mission"]["panel"]
 
-    def test_recent_milestone_reached_on_time_reads_ahead_not_maintaining(self):
-        # EXACT reported case: stable momentum + strong habits would classify as
-        # MAINTAINING — but a milestone was just cleared ON TIME. The executive
-        # read must be "Ahead of plan", never "Maintaining".
+    def test_recent_milestone_does_not_replay_on_the_persistent_card(self):
+        # A just-cleared milestone must NOT hijack the persistent card. The status
+        # describes CURRENT state — momentum + the ACTIVE milestone + progress — never a
+        # replay/celebration of the completed rung. (Celebration is the Significant Event
+        # Pipeline's in-the-moment job, not this always-on summary.)
         from datetime import date, timedelta
         goal = self._goal(title="France 2027")
         self._momentum(goal, trend="stable")
@@ -1162,26 +1163,24 @@ class MissionCardTests(TestCase):
         self._milestone(goal, title="Reach 279.9 lb",
                         target_date=date.today() + timedelta(days=60))
         status = self._status()
-        self.assertNotEqual(status["state"], "MAINTAINING")
-        self.assertEqual(status["state"], "AHEAD_OF_PLAN")
-        self.assertEqual(status["ring_word"], "AHEAD")
-        self.assertEqual(status["tone"], "up")
-        # Meaning-first commentary: WHAT changed (named milestone), WHY it
-        # matters (tied to the mission), and WHAT'S NEXT — grounded in truth.
-        self.assertIn("Reach 284.9 lb", status["narrative"])          # what
-        self.assertIn("France 2027", status["narrative"])             # why (mission)
-        self.assertIn("Reach 279.9 lb", status["narrative"])          # next
-        self.assertIn("now active", status["narrative"])
+        # Current-state momentum classification — never a milestone-celebration state.
+        self.assertNotIn(status["state"], ("MILESTONE_WIN", "AHEAD_OF_PLAN"))
+        self.assertNotEqual(status["state_label"], "Milestone reached")
+        # Narrative describes the mission, progress, and the ACTIVE milestone; it never
+        # replays the completed rung.
+        self.assertIn("France 2027", status["narrative"])            # mission
+        self.assertIn("1 of 2 milestones", status["narrative"])      # current progress
+        self.assertIn("Reach 279.9 lb", status["narrative"])         # ACTIVE focus
+        self.assertNotIn("Reach 284.9 lb", status["narrative"])      # not the completed one
 
-    def test_milestone_commentary_celebrates_meaning_not_number(self):
-        # Mission Dashboard Truth: commentary must answer three questions —
-        # (1) WHAT happened, (2) WHY it matters for THIS mission, (3) WHAT'S
-        # NEXT — not "that's milestone 6 of 12". Deterministic, zero LLM.
+    def test_narrative_describes_current_state_not_completed_milestone(self):
+        # The persistent card describes CURRENT state — progress count, the ACTIVE
+        # milestone, and the mission — never a replay/celebration of the completed rung.
         from datetime import date, timedelta
         goal = self._goal(title="Deepen My Walk With God")
         self._momentum(goal, trend="stable")
         self._seed_state(faith={"prayer_7d": 6})
-        # Five prior rungs already cleared → this is the 6th.
+        # Five prior rungs already cleared → June is the 6th.
         for i in range(5):
             self._milestone(goal, title=f"Prior {i}", completed=True,
                             completed_date=date.today() - timedelta(days=30 * (6 - i)))
@@ -1198,31 +1197,29 @@ class MissionCardTests(TestCase):
                             target_date=date.today() + timedelta(days=60 + 30 * i))
 
         narrative = self._status()["narrative"]
-        # (1) WHAT happened — the milestone, named.
-        self.assertIn("June Prayer Milestone", narrative)
-        # (2) WHY it matters — its own meaning + tied to the mission's purpose.
-        self.assertIn("Six consecutive months of consistent prayer", narrative)
-        self.assertIn("Deepen My Walk With God", narrative)
-        # (3) WHAT'S NEXT — the next rung is now the live focus.
-        self.assertIn("July Prayer Milestone", narrative)
-        self.assertIn("now active", narrative)
-        # NOT a bare numeric celebration.
-        self.assertNotIn("milestone 6 of 12", narrative)
-        self.assertNotIn("That's milestone", narrative)
+        # Current state — the ACTIVE milestone, the mission, and the progress count.
+        self.assertIn("July Prayer Milestone", narrative)          # active focus
+        self.assertIn("Deepen My Walk With God", narrative)        # mission
+        self.assertIn("6 of 12 milestones", narrative)             # current progress
+        # Never replays the just-completed rung.
+        self.assertNotIn("June Prayer Milestone", narrative)
 
-    def test_recent_milestone_reached_late_reads_milestone_win(self):
+    def test_late_completed_milestone_still_reads_current_state(self):
+        # A milestone completed after its target date is history — the persistent card
+        # still reads CURRENT state (momentum), never a "Milestone reached" celebration.
         from datetime import date, timedelta
         goal = self._goal(title="Late win")
         self._momentum(goal, trend="stable")
         self._seed_state(fitness={"workouts_7d": 4})
-        # Completed AFTER its target date → still a win, but not "ahead".
         self._milestone(goal, title="Reach 284.9 lb", completed=True,
                         completed_date=date.today(),
                         target_date=date.today() - timedelta(days=2))
+        self._milestone(goal, title="Reach 279.9 lb",
+                        target_date=date.today() + timedelta(days=60))
         status = self._status()
-        self.assertEqual(status["state"], "MILESTONE_WIN")
-        self.assertEqual(status["ring_word"], "MILESTONE")
-        self.assertEqual(status["tone"], "up")
+        self.assertNotIn(status["state"], ("MILESTONE_WIN", "AHEAD_OF_PLAN"))
+        self.assertNotEqual(status["state_label"], "Milestone reached")
+        self.assertIn("Reach 279.9 lb", status["narrative"])   # ACTIVE milestone
 
     def test_next_milestone_overdue_reads_behind_plan(self):
         from datetime import date, timedelta

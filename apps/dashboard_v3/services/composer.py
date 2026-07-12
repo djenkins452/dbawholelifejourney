@@ -599,7 +599,14 @@ def _build_mission_card(user) -> dict | None:
         # Phase 3.5 — the milestone PHASE shapes how movement is judged.
         phase = _mission_movement_phase(goal)
         signals = _evaluate_mission_signals(states, phase)
-        status = _build_mission_status(goal, snap, signals, today, progress_read)
+        # ONE canonical Current Mission State — every narrative/label/target field is
+        # composed from this (never a replay of the most-recently-completed milestone).
+        current_state = _build_current_mission_state(
+            goal, nm, states.get("health", {}), snap, phase, display_title
+        )
+        status = _build_mission_status(
+            goal, snap, signals, today, progress_read, current_state
+        )
         # Always-on Weight Status block — read-only over the SAE health snapshot
         # already read above + the next milestone already evaluated above.
         # Returns None for non-weight missions; that omits the block in
@@ -1336,28 +1343,17 @@ def _milestone_meaning_text(prog) -> str:
     )
 
 
-def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
-    """Compose the executive narrative deterministically: what changed · why /
-    trajectory · next focus · one grounded habit clause. A progress state LEADS
-    with the concrete milestone change (actual title + count) and names the next
-    focus; habit states keep the original base+signal composition unchanged.
-    Nothing is fabricated — every clause names real truth."""
+def _mission_status_narrative(state, current_state, prog, helping, watching, needs) -> str:
+    """Compose the mission narrative deterministically from the CURRENT mission state.
+
+    Every non-``behind`` state describes the present — milestone progress, position vs the
+    ACTIVE milestone, and momentum/phase coaching — via the ONE canonical Current Mission
+    State. It NEVER names or replays a completed milestone. The ``behind`` state keeps its
+    current-state composition (it names the overdue ACTIVE milestone, which is present
+    truth). Nothing is fabricated; every clause names real truth.
+    """
     prog = prog or {}
-    event = prog.get("event")
-
-    if event == "milestone_reached":
-        # Dashboard Truth: if the current metric no longer holds the cleared
-        # milestone, the present state — not the past achievement — drives it.
-        if prog.get("last_holds") is False:
-            return _reconciled_milestone_text(prog)
-        # Celebrate what the milestone MEANS for this mission — not a bare count.
-        text = _milestone_meaning_text(prog)
-        # One grounded habit clause, only if a real helping signal exists.
-        if helping and helping[0].get("help_frag"):
-            text = f"{text} {helping[0]['help_frag']}"
-        return text
-
-    if event == "behind":
+    if prog.get("event") == "behind":
         od = prog.get("next_days_overdue") or 0
         unit = "day" if od == 1 else "days"
         parts = [f"Behind plan — “{prog.get('next_title')}” was due {od} "
@@ -1368,19 +1364,109 @@ def _mission_status_narrative(state, prog, helping, watching, needs) -> str:
             parts.append(helping[0]["help_frag"])
         return " ".join(p for p in parts if p)
 
-    # Habit-trend states — the ORIGINAL composition, unchanged.
-    parts = [_STATE_BASE[state]]
+    # All other states — the canonical CURRENT-STATE composition (progress · active
+    # milestone · momentum/phase · grounded habit clause). Watching signals never lead;
+    # they surface in the drivers columns, not the headline.
+    return _compose_current_state_narrative(current_state, state, helping, watching, needs)
+
+
+def _build_current_mission_state(goal, next_milestone, health_state, snap,
+                                 phase, mission_title) -> dict:
+    """The ONE canonical Current Mission State the whole card composes from.
+
+    Everything the mission card SAYS — the "How things are going" narrative, the status
+    label, the current target, the remaining distance — is derived from this single dict,
+    so no two fields can disagree and nothing replays a completed milestone. All values are
+    CURRENT deterministic truth:
+
+      * ``completed`` / ``total``  — milestone progression (goal counts)
+      * ``active_milestone`` / ``active_target`` — the NEXT incomplete milestone (the real
+        current target), never a completed one
+      * ``current_value`` / ``unit`` — canonical weight from the SAE health snapshot
+      * ``remaining`` — current_value − active_target for a weight mission (≥ 0)
+      * ``all_complete`` — every milestone done (no active target remains)
+      * ``phase`` / ``momentum_trend`` — current mission phase + persisted momentum
+
+    Read-only; no queries beyond the goal relations/health dict already loaded.
+    """
+    nm = next_milestone
+    active_title = nm.title if nm else None
+    active_target = None
+    if (
+        nm is not None
+        and getattr(nm, "objective_metric", None) == "weight_lb"
+        and getattr(nm, "objective_target_value", None) is not None
+    ):
+        active_target = float(nm.objective_target_value)
+
+    current_value = (health_state or {}).get("weight_current")
+    unit = (health_state or {}).get("weight_unit") or "lb"
+
+    remaining = None
+    if active_target is not None and current_value is not None:
+        remaining = round(max(0.0, float(current_value) - active_target), 1)
+
+    total = goal.milestone_count
+    return {
+        "mission_title": (mission_title or "").strip() or None,
+        "completed": goal.completed_milestone_count,
+        "total": total,
+        "active_milestone": active_title,
+        "active_target": active_target,
+        "current_value": round(float(current_value), 1) if current_value is not None else None,
+        "unit": unit,
+        "remaining": remaining,
+        "all_complete": (nm is None and total > 0),
+        "phase": phase,
+        "momentum_trend": (snap.momentum_trend if snap and snap.momentum_trend else None),
+    }
+
+
+def _compose_current_state_narrative(cms, state, helping, watching, needs) -> str:
+    """Deterministic CURRENT-STATE mission narrative composed only from the canonical
+    Current Mission State — progress · position vs the ACTIVE milestone · momentum/phase
+    coaching · one grounded habit clause. Never names or replays a completed milestone;
+    always describes where the user IS now and what's next. Nothing hardcoded — every
+    value comes from ``cms`` so it stays correct as milestones advance.
+    """
+    cms = cms or {}
+    parts = []
+
+    completed, total = cms.get("completed"), cms.get("total")
+    mt = cms.get("mission_title")
+    if total:
+        lead = f"{completed} of {total} milestone{'s' if total != 1 else ''} complete"
+        parts.append(f"{lead} on your {mt} mission." if mt else f"{lead}.")
+
+    active = cms.get("active_milestone")
+    cur, rem, unit = cms.get("current_value"), cms.get("remaining"), cms.get("unit")
+    if cms.get("all_complete"):
+        parts.append("Every milestone is complete — the mission target is met.")
+    elif active and cur is not None and rem is not None:
+        near = "essentially there" if rem <= 0 else f"about {rem:g} {unit} to go"
+        parts.append(f"You're at {cur:g} {unit}, {near} to reach {active}.")
+    elif active:
+        parts.append(f"Your current focus is {active}.")
+
+    # Momentum/phase coaching — the current-state base line for the classified state.
+    parts.append(_STATE_BASE[state])
+
+    # Grounded habit clauses — the top real helping signal, plus the top real need (or an
+    # encouraging worth-watching note when there is no need). Never invented; each names a
+    # signal that actually exists.
     if helping and helping[0].get("help_frag"):
         parts.append(helping[0]["help_frag"])
     if needs and needs[0].get("need_frag"):
         parts.append(needs[0]["need_frag"])
     elif watching and watching[0].get("watch_frag"):
         parts.append(watching[0]["watch_frag"])
-    return " ".join(parts)
+
+    return " ".join(p for p in parts if p)
 
 
 def _build_mission_status(goal, snap, signals: list[dict], today,
-                          progress: dict | None = None) -> dict:
+                          progress: dict | None = None,
+                          current_state: dict | None = None) -> dict:
     """Deterministic, explainable mission-state classifier (Phase 3A/3B).
 
     Truth rules:
@@ -1419,24 +1505,14 @@ def _build_mission_status(goal, snap, signals: list[dict], today,
     prog = progress or {}
     prog_event = prog.get("event")
 
-    # ── PROGRESS DOMINATES ─────────────────────────────────────────────
-    # A milestone just cleared, or a milestone target that slipped, is a
-    # stronger executive read than a habit trend — an executive who just hit a
-    # mission milestone must never see "Maintaining". These are real,
-    # deterministic events, so they take precedence; we fall through to the
-    # habit-trend classification ONLY when there is no live progress event.
-    if prog_event == "milestone_reached":
-        if prog.get("last_holds") is False:
-            # Reached historically, but the current metric has regressed above
-            # it — NOT a present win. Steady for a small fluctuation, Slipping
-            # for a real drift. The narrative reconciles the two.
-            over = prog.get("last_overage") or 0.0
-            state = (_STATE_MAINTAINING if over <= _WEIGHT_FLUCTUATION_LB
-                     else _STATE_SLIPPING)
-        else:
-            state = (_STATE_AHEAD_OF_PLAN if prog.get("pace") == "ahead"
-                     else _STATE_MILESTONE_WIN)
-    elif prog_event == "behind":
+    # ── CURRENT-STATE classification ───────────────────────────────────
+    # The persistent mission card describes where the mission IS now — momentum, and
+    # whether the ACTIVE milestone has slipped past its date — never a replay of a
+    # completed milestone. (Celebrating a just-cleared milestone is a transient event
+    # owned by the Significant Event Pipeline / in-the-moment notification, not this
+    # always-on summary; leading with it here is exactly what made the card describe an
+    # already-passed milestone while the counter/next/weight showed current truth.)
+    if prog_event == "behind":
         state = _STATE_BEHIND_PLAN
     elif trend == "rising":
         state = _STATE_IMPROVING if helping else _STATE_BUILDING_MOMENTUM
@@ -1455,9 +1531,12 @@ def _build_mission_status(goal, snap, signals: list[dict], today,
         # honest state is "getting started".
         state = _STATE_BUILDING_MOMENTUM if helping else _STATE_GETTING_STARTED
 
-    # Executive narrative — what changed · why/trajectory · next focus · one
-    # grounded habit clause. Deterministic; every clause names ACTUAL truth.
-    narrative = _mission_status_narrative(state, prog, helping, watching, needs)
+    # Executive narrative — composed from the ONE canonical Current Mission State:
+    # progress · position vs the ACTIVE milestone · momentum/phase · one grounded habit
+    # clause. Deterministic; describes the present, never replays a completed milestone.
+    narrative = _mission_status_narrative(
+        state, current_state, prog, helping, watching, needs
+    )
 
     # Display — one column per polarity, in the mission-priority order from
     # _apply_priority (pinned signals first) then the fixed signal order. Phase D:

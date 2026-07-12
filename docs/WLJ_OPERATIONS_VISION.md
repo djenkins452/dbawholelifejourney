@@ -821,7 +821,7 @@ is `WLJ_OPS_WALL_COVERAGE.md §4`):
 | **Operational Hardening** | **OPS-8b** Media & capture persistence (`media_persistence` section) | [x] **DONE 2026-07-12** — `tests_media_persistence.py` (9). Roadmap corrected: NO S3 (prod = Cloudinary); dedup-rate/orphan/verification-failure signals NOT built (would be fabricated). Discovered: no expired-image cleanup task exists. |
 | **Technical Debt** | **Expired-image cleanup task** (discovered by OPS-8b) — 72h `AssistantMessage.image_data` is never purged; a Layer-1 hygiene task should add the cleaner. | [ ] follow-up (action, not observability) |
 | **Administrative** | **OPS-6** Per-component `owner` dimension | [-] deferred (near-zero value for a single-owner system; revisit for a team) |
-| **Infrastructure** | **OPS-9** Build-runner / deploy-pipeline (external; migrations already via OPS-5) | [ ] future |
+| **Infrastructure** | **OPS-9** Deployment & version health (`deployment` section) | [x] **DONE 2026-07-12** — `tests_deployment.py` (10). Running SHA + migration/partial-deploy signal + self-observed deploy detection; NO external poll. Roadmap corrected: build/failed-deploy/rollback are Railway-side (not built). |
 | **Technical Debt** | **OPS-11** Retire inert legacy `_run_autonomous_remediation` | [ ] opportunistic |
 | **Technical Debt** | **OPS-10** Direct Beat measurement | [-] **accept-inference** (subsumed by scheduler_health + OPS-1 + OPS-7; residual logged) |
 

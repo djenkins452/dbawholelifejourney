@@ -2531,6 +2531,20 @@ def _get_db_health_telemetry(now):
         return None
 
 
+def _get_deployment_telemetry(now):
+    """
+    OPS-9 — Deployment & version health (running commit SHA, environment, runtime
+    versions, migration status, self-observed deploy detection). Deterministic
+    reads only — NO external Railway/GitHub poll. Cache-guarded (5 min).
+    """
+    try:
+        from apps.core.ai_observability.deployment_monitor import get_deployment_telemetry
+        return get_deployment_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: deployment telemetry unavailable: %s", e)
+        return None
+
+
 def _get_media_persistence_telemetry(now):
     """
     OPS-8b — Media & capture persistence health (capture pipeline status/failures/
@@ -2729,6 +2743,7 @@ def build_ops_stream_payload():
     _section("task_health", _get_task_health_telemetry, now)  # OPS-7
     _section("confirmation_audit", _get_confirmation_audit_telemetry, now)  # OPS-8a
     _section("media_persistence", _get_media_persistence_telemetry, now)  # OPS-8b
+    _section("deployment", _get_deployment_telemetry, now)  # OPS-9
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

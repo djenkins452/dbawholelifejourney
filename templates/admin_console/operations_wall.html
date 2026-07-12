@@ -4384,6 +4384,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Deployment & Version (OPS-9 — full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Deployment &amp; Version</span>
+                        <span class="ops-sched-status-label" id="deploymentSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsDeployment">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -5090,6 +5105,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderTaskHealth(data.task_health);  // OPS-7
         renderConfirmationAudit(data.confirmation_audit);  // OPS-8a
         renderMediaPersist(data.media_persistence);  // OPS-8b
+        renderDeployment(data.deployment);  // OPS-9
         renderChatQueue(data.chat_queue);
         renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
@@ -6890,6 +6906,46 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 'Cloudinary ' + (sc.cloudinary_configured ? 'on' : 'off') +
                 ' · S3 ' + (sc.capture_s3_configured ? 'on' : 'off') +
                 ' · ' + (sc.artifacts_ingested_24h || 0) + ' artifacts/24h');
+        }
+    }
+
+    function renderDeployment(dp) {
+        var container = document.getElementById('opsDeployment');
+        if (!container) return;
+        if (!dp) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('deploymentSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('deploymentSummary', dp.status, dp.status || '—');
+        container.innerHTML = '';
+
+        var r = dp.running || {};
+        opsFeedLine(container, 'HEALTHY', 'Running version',
+            escapeHtml(r.commit_short || '?') + ' · ' + escapeHtml(r.environment || '?') +
+            ' · Django ' + escapeHtml(r.django_version || '?') + ' · Py ' + escapeHtml(r.python_version || '?'));
+
+        var d = dp.deploy || {};
+        if (d.status !== 'UNAVAILABLE') {
+            function fmtDur(s) {
+                if (s === null || s === undefined) return '?';
+                if (s < 3600) return Math.round(s / 60) + 'm';
+                if (s < 86400) return Math.round(s / 3600) + 'h';
+                return Math.round(s / 86400) + 'd';
+            }
+            var detail = 'up ' + fmtDur(d.observed_for_s) +
+                (d.previous_sha ? ' · prev ' + escapeHtml(d.previous_sha) : ' · first observed version');
+            opsFeedLine(container, 'HEALTHY', 'Deploy', detail);
+        }
+
+        var mg = dp.migrations || {};
+        if (mg.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Migrations', mg.reason || 'unavailable');
+        } else {
+            var mgDetail = mg.all_applied ? 'all applied — deploy fully succeeded' :
+                (mg.unapplied + ' UNAPPLIED — PARTIAL DEPLOY' +
+                 (mg.pending && mg.pending.length ? ' · ' + escapeHtml(mg.pending.join(', ')) : ''));
+            opsFeedLine(container, mg.status, 'Migrations', mgDetail);
         }
     }
 

@@ -6,6 +6,53 @@
 # Last Updated: 2026-07-11 (fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — feat(ops-9): Deployment & version health (`deployment` section)
+
+**Why:** OPS-9 (Infrastructure) — answer "What version is actually running? / Did the last deploy succeed? /
+Can I trust production?" from inside the running process, deterministically, with NO external poll.
+
+**Mandatory investigation — bounded OPS-9 to what a running process can actually know:** the app already
+reads `RAILWAY_GIT_COMMIT_SHA` in 5+ places (`config/settings.py:1466`, `HealthCheckView` at
+`apps/core/views.py:219`, …). Available Railway env at runtime = `RAILWAY_GIT_COMMIT_SHA`,
+`RAILWAY_ENVIRONMENT`, `RAILWAY_VOLUME_MOUNT_PATH` (no branch/deployment-id/build vars; psutil absent).
+**Roadmap corrections — deliberately NOT built (would fabricate state or require external polling, forbidden):**
+build status/duration/failures (Railway build-runner's domain — a running process can't see the build);
+failed deployments (a failed deploy leaves the OLD process running; detecting it needs a GitHub poll for the
+"expected" SHA); deploy duration; rollback availability/state. These are Railway/operator truth, not WLJ
+truth.
+
+**What (new `apps/core/ai_observability/deployment_monitor.py`) — deterministic, no external call:**
+- **Running version**: commit SHA (short+full), environment, Django/Python versions.
+- **Migration status** (reuses OPS-5 `db_health._probe_migrations`, Constitution IV.3) — the deterministic
+  "did the release `migrate` step complete / did the deploy fully succeed?" signal; unapplied ⇒ **CRITICAL
+  partial deploy**.
+- **Self-observed deploy detection**: the SAME cycle records the running SHA in a cache marker; when it
+  changes (new deploy = new process/new SHA) it logs the transition (current-SHA first-observed + previous
+  SHA). A lightweight deploy log the app builds from its own observation — no GitHub/Railway poll, no model.
+- `get_deployment_telemetry` — cache-guarded (5 min), background-only, graceful degradation, plus an
+  `external_note` documenting the Railway-side boundary honestly.
+
+**Wiring:** `ops_telemetry.py` reader + `_section("deployment", …)`; `operations_wall.html` full-width
+read-only "Deployment & Version" card + `renderDeployment`. **No model, no migration** (deploy marker is a
+cache key). Telemetry-only, request-path-safe.
+
+**Verification:** `tests_deployment.py` (10 — running-version facts, local defaults, deploy first-observe +
+SHA-change transition + stable-SHA, section shape, all-applied HEALTHY, unapplied CRITICAL, cache guard,
+external-note); payload builder 32→33; Ops Wall v2 85; `check` + `makemigrations --check` clean;
+`renderDeployment` `node --check` valid. **Real data-path proof:** dev returned running `development/local/
+Django 4.2.27/Py 3.9.6`, deploy-detection recorded first observation, and status **CRITICAL because dev-DB
+migrations are unapplied** — correctly firing the partial-deploy signal (prod migrates every deploy → HEALTHY).
+
+**Remaining Phase I / observability:** essentially complete (OPS-5/7/8a/8b/9 shipped, 33 sections). Remaining
+is small tech-debt (OPS-11 retire legacy remediation; expired-image cleanup task) + the operator O1→O2 pilot
++ forward Phases.
+
+**Files:** `apps/core/ai_observability/deployment_monitor.py` (new),
+`apps/core/ai_observability/tests_deployment.py` (new),
+`apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/tests_payload_builder.py`,
+`templates/admin_console/operations_wall.html`, `docs/WLJ_OPS_WALL_COVERAGE.md`,
+`docs/WLJ_OPERATIONS_VISION.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-12 — feat(ops-8b): Media & capture persistence health (`media_persistence` section)
 
 **Why:** OPS-8b (Operational Hardening) — visibility into whether uploaded artifacts (capture audio,

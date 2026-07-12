@@ -269,9 +269,9 @@ class BuildOpsStreamPayloadTests(TestCase):
         # upstream_health), +1 for the executive synthesis section, +1 for the
         # WLJ Operations Phase II read-only "recovery" section, +1 for the
         # OPS-5 "db_health" section, +1 for the OPS-7 "task_health" section,
-        # +1 for the OPS-8a "confirmation_audit" section, and +1 for the OPS-8b
-        # "media_persistence" section.
-        self.assertEqual(telemetry["sections_ok"], 32)
+        # +1 for the OPS-8a "confirmation_audit" section, +1 for the OPS-8b
+        # "media_persistence" section, and +1 for the OPS-9 "deployment" section.
+        self.assertEqual(telemetry["sections_ok"], 33)
         self.assertEqual(telemetry["sections_degraded"], 0)
         self.assertIn("section_timings", telemetry)
-        self.assertEqual(len(telemetry["section_timings"]), 32)
+        self.assertEqual(len(telemetry["section_timings"]), 33)

@@ -83,7 +83,7 @@ class ImageRetentionTests(TestCase):
         r = mpm._image_retention_health(timezone.now())
         self.assertEqual(r["status"], "HEALTHY")
         self.assertEqual(r["expired_unpurged"], 0)
-        self.assertIn("no cleanup task", r["note"])
+        self.assertIn("purge_expired_images", r["note"])
 
     def test_expired_unpurged_counted(self):
         from apps.ai.models import AssistantConversation, AssistantMessage

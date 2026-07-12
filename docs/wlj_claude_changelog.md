@@ -3,8 +3,56 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (fix(nav): footer regression — footer no longer renders in the middle of page content)
+# Last Updated: 2026-07-12 (chore(ops): OPS-11 remove inert autonomous remediation + add expired-image cleanup)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — chore(ops): OPS-11 remove inert autonomous remediation + add expired-image cleanup (Operations tech-debt)
+
+Cleared the two remaining low-risk Operations technical-debt items before Phase III. Runtime paths were
+PROVEN before any code changed (a passing unit test is not proof).
+
+**Priority 1 — OPS-11: removed the legacy `_run_autonomous_remediation` (dead code, eliminated not disabled).**
+- **Proof of inertness:** the function ran every SAME cycle but only ever acted on anomalies matching
+  `severity="P3" AND anomaly_type ∈ {MISSED_RUN, SUPPRESSION_STORM}`. The detectors create MISSED_RUN only at
+  P1/P2 (`same_engine.py::_detect_missed_runs`) and SUPPRESSION_STORM only at P2 (`_detect_suppression_storm`);
+  `_reconcile_anomalies` re-syncs severity to the detector value each cycle and `_escalate_anomalies` only
+  promotes upward (P3→P2→P1). So neither type can ever be P3 → the two action branches were unreachable →
+  `actions_taken` could never increment. The existing `AutonomousRemediationTest` only passed because it
+  *synthesised* a `severity="P3", anomaly_type="MISSED_RUN"` row the production pipeline cannot produce.
+- **Removed:** `_run_autonomous_remediation`, `_auto_rerun_engine`, `_auto_clear_suppression`, the
+  `AUTONOMOUS_REMEDIATION_ENABLED` / `MAX_AUTO_ACTIONS_PER_CYCLE` / `AUTO_ACTION_COOLDOWN_MINUTES` constants,
+  the `run_same()` call site + `auto_remediated` return key (no consumer read it), and `AutonomousRemediationTest`.
+  Updated the `EngineStarvationRetriggerHandler` docstring (it is now the sole engine re-run path).
+- **Deliberately kept:** the `AdminIntervention.action_type` (`auto_rerun_engine`/`auto_clear_suppression`) and
+  `EngineExecutionLog.trigger_source` (`auto_remediation`) enum choices — immutable historical audit labels
+  referenced by past migrations; removing them is migration churn with prod-display risk and near-zero benefit
+  (logged residual, blast-radius bound).
+
+**Priority 2 — Expired-image cleanup (the missing cleaner OPS-8b surfaced).**
+- 72h chat-image bytes (`AssistantMessage.image_data`, `MessageImage.image_data`, stamped
+  `image_expires_at = created_at + 72h`) were never purged → base64 blobs accrued in Postgres forever.
+- New `apps/ai/image_retention.py::purge_expired_images(now=None)`: single bulk `UPDATE` clears expired
+  `AssistantMessage` bytes (row KEPT — it is conversation history) and single bulk `DELETE` removes expired
+  `MessageImage` attachment rows. **Idempotent** (filters only match rows still holding expired bytes),
+  **deterministic**, **request-path safe** (background only). Registered as daily Beat task
+  `apps.ai.tasks.purge_expired_images` (03:15 UTC).
+- **Monitoring (reused, no new framework):** registering the task in `CELERY_BEAT_SCHEDULE` auto-enrols it in
+  the OPS-1 scheduled-task monitor (records `ScheduledTaskRun` success/error via Celery signals; fires
+  MISSED_RUN if it stops running). OPS-8b's `media_persistence.expired_unpurged` independently catches a stall
+  (a rising count now means the cleaner failed, not that a cleaner is missing). Updated that monitor's
+  note/docstring + its test accordingly.
+
+**Files:** `apps/core/ai_observability/same_engine.py`, `apps/core/operations/recovery/handlers.py`,
+`apps/core/ai_observability/tests_ops_wall_v2.py`, `apps/ai/image_retention.py` (new),
+`apps/ai/tasks.py`, `apps/ai/tests/test_image_retention.py` (new), `config/settings.py`,
+`apps/core/ai_observability/media_persistence_monitor.py`,
+`apps/core/ai_observability/tests_media_persistence.py`, `docs/WLJ_OPERATIONS_VISION.md` (ADR-26 + roadmap),
+`docs/WLJ_OPS_WALL_COVERAGE.md`.
+
+**Verification:** `manage.py check` clean; `makemigrations --check` = no changes (no model edits); scoped tests
+green — `test_image_retention` (8) + `tests_media_persistence` (9) = 17, and `tests_ops_wall_v2` +
+`test_scheduled_task_monitor` = 91. **Why:** removes a latent boundary-crossing (truth-engine-acts, §11)
+reactivation footgun and closes a real DB-growth gap, both by reusing existing Operations infrastructure.
 
 ## 2026-07-12 — fix(nav): footer no longer renders in the middle of page content (regression from the fixed-header shell)
 

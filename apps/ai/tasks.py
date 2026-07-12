@@ -290,6 +290,23 @@ def react_to_significant_event_task(self, user_id, event_type, data):
             return {"status": "failed", "user_id": user_id}
 
 
+@shared_task(
+    name="apps.ai.tasks.purge_expired_images",
+    soft_time_limit=120,
+    time_limit=180,
+    acks_late=True,
+)
+def purge_expired_images_task():
+    """Daily hygiene: purge expired (>72h) chat-image bytes from Postgres.
+
+    The missing cleaner surfaced by OPS-8b. Deterministic + idempotent; the
+    OPS-1 scheduled-task monitor tracks this run (MISSED_RUN if it stops firing),
+    and OPS-8b's ``expired_unpurged`` count independently catches a failure.
+    """
+    from apps.ai.image_retention import purge_expired_images
+    return purge_expired_images()
+
+
 # =============================================================================
 # Register the clean ChatGPT CoS generation task with the Celery WORKER.
 # It lives in apps.ai.chatgpt_cos.tasks — a sub-package that

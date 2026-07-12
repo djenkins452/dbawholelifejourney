@@ -90,9 +90,6 @@ def run_same():
     # Step 3.5: Escalation state machine
     escalated = _escalate_anomalies(now)
 
-    # Step 3.6: Autonomous remediation (if enabled)
-    remediated = _run_autonomous_remediation(now)
-
     # Step 4: Generate narrative
     narrative = _generate_narrative(heartbeats, detected, now)
 
@@ -157,7 +154,6 @@ def run_same():
         "anomalies_created": stats["created"],
         "anomalies_resolved": stats["resolved"],
         "anomalies_escalated": escalated,
-        "auto_remediated": remediated,
         "narrative": narrative,
         "integrity": integrity,
     }
@@ -1071,178 +1067,6 @@ def _escalate_anomalies(now):
             break  # Only one escalation per anomaly per cycle
 
     return escalated
-
-
-# =========================================================================
-# AUTONOMOUS REMEDIATION
-# =========================================================================
-
-# Feature flag — set to False to disable all autonomous actions
-AUTONOMOUS_REMEDIATION_ENABLED = True
-
-# Max auto-actions per SAME cycle (prevents infinite loop)
-MAX_AUTO_ACTIONS_PER_CYCLE = 3
-
-# Cooldown: minutes since last auto-action on same anomaly
-AUTO_ACTION_COOLDOWN_MINUTES = 30
-
-
-def _run_autonomous_remediation(now):
-    """
-    Execute safe automatic actions for eligible anomalies.
-
-    Rules:
-    - Only acts on P3 severity anomalies (low risk)
-    - Auto-rerun for single MISSED_RUN (P3 only, once per anomaly)
-    - Auto-clear suppression cache for SUPPRESSION_STORM (P3 only)
-    - Logs every action as a system-initiated AdminIntervention
-    - Respects MAX_AUTO_ACTIONS_PER_CYCLE to prevent runaway
-    - Respects AUTO_ACTION_COOLDOWN_MINUTES to prevent infinite loops
-    - Can be disabled via AUTONOMOUS_REMEDIATION_ENABLED flag
-
-    Returns:
-        int — number of auto-actions taken.
-    """
-    if not AUTONOMOUS_REMEDIATION_ENABLED:
-        return 0
-
-    from apps.core.ai_observability.engine_registry import ENGINE_REGISTRY
-    from apps.core.ai_observability.models import AdminIntervention, OpsAnomaly
-
-    # Only auto-remediate system engines (needs_user_context=False)
-    system_engines = [
-        name for name, meta in ENGINE_REGISTRY.items()
-        if not meta.get("needs_user_context", False)
-    ]
-
-    actions_taken = 0
-    active_p3 = OpsAnomaly.objects.filter(
-        is_active=True, severity="P3", engine_name__in=system_engines,
-    )
-
-    for anomaly in active_p3:
-        if actions_taken >= MAX_AUTO_ACTIONS_PER_CYCLE:
-            break
-
-        # Check cooldown: has this anomaly already been auto-remediated recently?
-        recent_auto = AdminIntervention.objects.filter(
-            is_system_initiated=True,
-            engine_name=anomaly.engine_name,
-            created_at__gte=now - timedelta(minutes=AUTO_ACTION_COOLDOWN_MINUTES),
-        ).exists()
-        if recent_auto:
-            continue
-
-        if anomaly.anomaly_type == "MISSED_RUN":
-            result = _auto_rerun_engine(anomaly, now)
-            if result:
-                actions_taken += 1
-
-        elif anomaly.anomaly_type == "SUPPRESSION_STORM":
-            result = _auto_clear_suppression(anomaly, now)
-            if result:
-                actions_taken += 1
-
-    return actions_taken
-
-
-def _auto_rerun_engine(anomaly, now):
-    """
-    Auto-rerun a missed engine via Celery (non-blocking).
-
-    Uses ENGINE_REGISTRY to validate the engine supports manual execution,
-    then dispatches run_engine_task via Celery with trigger_source=auto_remediation.
-    Creates EngineExecutionLog + AdminIntervention audit records.
-    """
-    import uuid
-
-    from apps.core.ai_observability.engine_registry import get_engine_meta
-    from apps.core.ai_observability.models import AdminIntervention, EngineExecutionLog
-
-    engine = anomaly.engine_name
-    meta = get_engine_meta(engine)
-    if not meta or not meta["can_manual_run"]:
-        return False
-
-    # Idempotency: skip if already executing
-    if EngineExecutionLog.is_engine_active(engine):
-        logger.info("SAME auto-remediation: %s already active, skipping", engine)
-        return False
-
-    trace_id = str(uuid.uuid4())
-
-    try:
-        # Create execution log
-        execution = EngineExecutionLog.objects.create(
-            engine_name=engine,
-            trigger_source="auto_remediation",
-            status="queued",
-            triggered_by=None,
-        )
-
-        # Dispatch via Celery (non-blocking)
-        from apps.core.tasks import run_engine_task
-
-        result = run_engine_task.delay(engine, execution.id)
-        execution.celery_task_id = result.id
-        execution.save(update_fields=["celery_task_id"])
-
-        AdminIntervention.objects.create(
-            admin_user=None,
-            action_type="auto_rerun_engine",
-            engine_name=engine,
-            trace_id=trace_id,
-            notes=(
-                f"SAME autonomous remediation: {engine} "
-                f"(execution_id={execution.id}, celery_task_id={result.id})"
-            ),
-            result_status="pending",
-            is_system_initiated=True,
-        )
-
-        logger.info(
-            "SAME auto-remediation: dispatched %s (trace=%s, execution_id=%s)",
-            engine, trace_id, execution.id,
-        )
-        return True
-
-    except Exception as e:
-        logger.warning("SAME auto-remediation failed for %s: %s", engine, e)
-        return False
-
-
-def _auto_clear_suppression(anomaly, now):
-    """Auto-clear ICQG suppression cache for P3 suppression storm."""
-    import uuid
-
-    from apps.core.ai_observability.models import AdminIntervention
-
-    trace_id = str(uuid.uuid4())
-
-    try:
-        from apps.core.ai_observability.ops_views import _action_clear_suppression_cache
-        result = _action_clear_suppression_cache("ICQG")
-
-        AdminIntervention.objects.create(
-            admin_user=None,
-            action_type="auto_clear_suppression",
-            engine_name="ICQG",
-            trace_id=trace_id,
-            notes="SAME autonomous remediation: auto-clear suppression cache for P3 SUPPRESSION_STORM",
-            result_status=result["status"],
-            result_detail=result["detail"],
-            is_system_initiated=True,
-        )
-
-        logger.info(
-            "SAME auto-remediation: clear suppression (trace=%s, result=%s)",
-            trace_id, result["status"],
-        )
-        return True
-
-    except Exception as e:
-        logger.warning("SAME auto-remediation suppression clear failed: %s", e)
-        return False
 
 
 # =========================================================================

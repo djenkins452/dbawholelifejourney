@@ -147,10 +147,10 @@ class EngineStarvationRetriggerHandler(RecoveryHandler):
 
     Shares the exact shape as ``BeatTaskRetryHandler`` (re-trigger a scheduled unit of
     work; verify via its freshness predicate) but for registered engines rather than
-    Beat tasks. Verification is DEFERRED (the re-run is async). NOT double-covering the
-    legacy `_run_autonomous_remediation` auto-rerun, which only touches P3 MISSED_RUN
-    (starvation is P1 and is never auto-remediated). Allowlisted + flagged; empty/off
-    by default.
+    Beat tasks. Verification is DEFERRED (the re-run is async). This is the SOLE
+    engine re-run path: the legacy in-SAME ``_run_autonomous_remediation`` auto-rerun
+    was proven inert (its P3 filter never matched P1/P2 MISSED_RUN/SUPPRESSION_STORM)
+    and removed under OPS-11 (2026-07-12). Allowlisted + flagged; empty/off by default.
     """
 
     monitor_key = "engine"

@@ -19,12 +19,15 @@ Evidence-driven scope (investigated 2026-07-12 — the roadmap was half-wrong)
   populated — and prod is Cloudinary; would need remote listing), and generic
   persistence/verification failures (image writes are fire-and-forget with swallowed
   exceptions; verification exists only on the dormant S3 path).
-* **A real gap this monitor SURFACES:** there is **no cleanup task** for expired
-  images — `AssistantMessage.image_data` (base64, 72h `image_expires_at`) is never
-  purged, so expired image bytes accumulate in Postgres forever. We expose the
-  "expired-but-never-purged" count (the OPS-8a "stalled" pattern) — honest visibility
-  of a missing cleaner + a real DB-growth risk. (Building the cleaner is out of scope
-  — this is observability; see the roadmap note.)
+* **The cleaner this monitor drove:** OPS-8b surfaced that no cleanup task existed
+  for expired images — `AssistantMessage.image_data` / `MessageImage.image_data`
+  (base64, 72h `image_expires_at`) were never purged, so expired bytes accumulated
+  in Postgres forever. The deterministic cleaner
+  `apps.ai.tasks.purge_expired_images` (daily Beat, see `apps/ai/image_retention.py`)
+  now drains them. This monitor keeps the "expired-but-unpurged" count as the
+  steady-state health signal: it should sit near zero, and a **rising** count is
+  honest visibility that the cleaner has stalled (a real DB-growth risk). The
+  cleaner's own liveness is ALSO tracked by the OPS-1 scheduled-task monitor.
 
 What IS real, deterministic, queryable
 --------------------------------------
@@ -149,7 +152,10 @@ def _image_retention_health(now):
         return {
             "status": status,
             "expired_unpurged": expired,
-            "note": "72h image_data has no cleanup task — expired bytes accrue in Postgres",
+            "note": (
+                "72h image_data is drained daily by apps.ai.tasks.purge_expired_images "
+                "(OPS-11 follow-up); a rising count means that cleaner has stalled"
+            ),
         }
     except Exception as e:
         logger.debug("OPS-8b image-retention probe failed: %s", e)

@@ -1268,6 +1268,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.cleanup_soft_deletes",
         "schedule": crontab(hour=3, minute=0, day_of_week="sun"),  # Weekly Sunday (was APScheduler)
     },
+    "expired-image-cleanup-daily-315am-utc": {
+        "task": "apps.ai.tasks.purge_expired_images",
+        "schedule": crontab(hour=3, minute=15),  # Daily — drains 72h expired image bytes (OPS-8b gap)
+    },
     "eae-nightly-signal-aggregation-430am-utc": {
         "task": "core.compute_nightly_signals",
         "schedule": crontab(hour=4, minute=30),  # 4:30 AM UTC = 11:30 PM EST

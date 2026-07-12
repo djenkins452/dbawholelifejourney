@@ -527,12 +527,20 @@ backlog). The five operator questions are answerable from the Command Center in 
 
 **Dependencies:** Celery/Redis, the SAME 60s cycle, the engine registry, `WLJ_REQUEST_PATH_SAFETY.md`.
 
-**Future Expansion:** The OPS-5…10 backlog (Postgres depth & DB admin, per-component `owner`, dead-job
-detection, confirmation-queue/attachment/audit-lag health, build-runner/deploy observability, directly
-measured Beat). Owner dimension is currently absent system-wide (OPS-6).
+**Future Expansion:** The residual OPS backlog (now reclassified out of Phase I by category — see the
+**Operations Backlog** table in `WLJ_OPS_WALL_COVERAGE.md §4`): Operational Hardening (confirmation-queue +
+audit-lag, attachment/dedup), Administrative (`owner` dimension), Infrastructure (build-runner/deploy),
+Technical Debt (retire legacy remediation; accept-inference on direct Beat). These are refinements —
+**not** critical-visibility gaps.
 
-**Completion Status:** **Mostly Complete** — visibility surface and OPS-1…4 shipped; OPS-5…10 remain as
-tracked backlog. See §15 for the exact ledger.
+**Completion Status:** ✅ **COMPLETE (2026-07-12).** The Phase I *mission* — "nothing important happens in
+production without being visible" — is achieved: the critical infrastructure + execution surface (web
+liveness, workers, Beat, PostgreSQL depth, Redis, disk, queues, scheduled tasks, OpenAI upstream, and
+pool-wide background-task lifecycle) is comprehensively observable. Judged by the mission, not the backlog
+count — the remaining ❌/Partial rows are correctness dashboards (a higher bar than visibility), one
+hardening gap (confirmation-queue/audit-lag), an external component (build runner), a subsumed item
+(direct Beat), metadata, and tech-debt. Evidence + rationale: §15 ledger + `WLJ_OPS_WALL_COVERAGE.md §4`.
+The subsystem remains an **active initiative** (Phases II–IX ahead); only *Phase I* is closed.
 
 ---
 
@@ -780,7 +788,11 @@ recovery happen, reviews history, and only rarely intervenes.
 > Deployment Date · Docs Updated · Tests Added**. Checkbox legend: `[x]` Completed · `[~]` In Progress ·
 > `[ ]` Planned · `[-]` Deferred · `[✗]` Cancelled.
 
-### Phase I — Operations Visibility · **Mostly Complete**
+### Phase I — Operations Visibility · ✅ **COMPLETE (2026-07-12)**
+
+*Mission achieved — the critical infrastructure + execution surface is comprehensively observable (see §14
+Phase I Completion Status). The residual OPS items are reclassified out of Phase I by category below; they
+are refinements/hardening/tech-debt, not critical-visibility gaps.*
 
 | ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
 |---|---|---|---|---|---|---|
@@ -797,15 +809,23 @@ recovery happen, reviews history, and only rarely intervenes.
 | [x] | **OPS-2** Storage/volume monitor (Postgres/Redis/disk + `StorageSnapshot`) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_storage_monitor.py` |
 | [x] | **OPS-3** Chat-queue monitor (depth/wait/throughput/stuck/starvation) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_chat_queue_monitor.py` |
 | [x] | **OPS-4** OpenAI upstream-health monitor (avail/latency/degradation) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_upstream_health.py` |
-| [x] | **OPS-5** Postgres depth + DB administration (`db_health` section: connections, long-running queries, dead-tuple bloat, migration status) | 2026-07-11 | _this commit_ | live | Coverage §4 | `tests_db_health.py` (9) |
-| [ ] | **OPS-6** Per-component `owner` dimension (cross-cutting) | — | — | — | — | — |
-| [x] | **OPS-7** Dead-job / stuck-task / general Celery-retry aggregation (`task_health` section: pool-wide stuck/failures/retries/revocations via worker-side signals) | 2026-07-11 | _this commit_ | live | Coverage §4 | `tests_task_health.py` (8) |
-| [ ] | **OPS-8** Confirmation queue, attachment persistence, dedup, audit-lag | — | — | — | — | — |
-| [ ] | **OPS-9** Build-runner / deploy-pipeline observability | — | — | — | — | — |
-| [ ] | **OPS-10** Celery Beat directly measured (not inferred) | — | — | — | — | — |
+| [x] | **OPS-5** Postgres depth + DB administration (`db_health` section: connections, long-running queries, dead-tuple bloat, migration status) | 2026-07-11 | `906d907f` | live | Coverage §4 | `tests_db_health.py` (9) |
+| [x] | **OPS-7** Dead-job / stuck-task / general Celery-retry aggregation (`task_health` section: pool-wide stuck/failures/retries/revocations via worker-side signals) | 2026-07-11 | `24345af7` | live | Coverage §4 | `tests_task_health.py` (8) |
 
-*OPS-1…4 detail and the ranked remediation backlog live in `WLJ_OPS_WALL_COVERAGE.md` §4 (the
-authoritative coverage source). This ledger mirrors status; the coverage doc holds the as-built detail.*
+**Post-Phase-I backlog — reclassified by category** (was OPS-6/8/9/10; the authoritative categorized list
+is `WLJ_OPS_WALL_COVERAGE.md §4`):
+
+| Category | Item | Status |
+|---|---|---|
+| **Operational Hardening** | **OPS-8a** Confirmation-queue depth/staleness + audit-pipeline lag | [ ] **next engineering milestone** |
+| **Operational Hardening** | **OPS-8b** Attachment persistence + dedup + S3 artifact bucket | [ ] later |
+| **Administrative** | **OPS-6** Per-component `owner` dimension | [-] deferred (near-zero value for a single-owner system; revisit for a team) |
+| **Infrastructure** | **OPS-9** Build-runner / deploy-pipeline (external; migrations already via OPS-5) | [ ] future |
+| **Technical Debt** | **OPS-11** Retire inert legacy `_run_autonomous_remediation` | [ ] opportunistic |
+| **Technical Debt** | **OPS-10** Direct Beat measurement | [-] **accept-inference** (subsumed by scheduler_health + OPS-1 + OPS-7; residual logged) |
+
+*OPS-1…4 detail lives in `WLJ_OPS_WALL_COVERAGE.md` §4 (the authoritative coverage source). This ledger
+mirrors status; the coverage doc holds the as-built detail + the categorized backlog.*
 
 ### Phase II — Deterministic Recovery · **Framework SHIPPED (dark) — pilots pending enablement**
 
@@ -976,7 +996,16 @@ additionally requires a Constitutional Review. The next chat begins **Phase II i
 
 ---
 
-*Last updated: 2026-07-11 — **PHASE II-B: expanded R1 recoveries.** Added two concrete R1 handlers across
+*Last updated: 2026-07-12 — **PHASE I CLOSED (COMPLETE) + roadmap reorganized.** Marked Phase I —
+Operations Visibility ✅ complete (mission achieved: critical infra + execution surface comprehensively
+observable, OPS-1…5,7). The residual OPS backlog is reclassified out of Phase I by category (Operational
+Hardening / Administrative / Infrastructure / Technical Debt — see §15 + `WLJ_OPS_WALL_COVERAGE.md §4`).
+The O1→O2 production pilot is reframed as an **Operational Rollout** activity (operator-gated), separate
+from the engineering roadmap — engineering for it is done. WLJ Operations remains the **primary active
+initiative** (Phases II–IX ahead). Next engineering milestone: **OPS-8a** (confirmation-queue + audit-lag,
+Operational Hardening). Docs-only. Prior line ↓.*
+
+*2026-07-11 — **PHASE II-B: expanded R1 recoveries.** Added two concrete R1 handlers across
 two shapes — `EngineStarvationRetriggerHandler` (re-trigger → async verify) and
 `MaturitySnapshotRefreshHandler` (recompute → synchronous verify) — plus a new `MATURITY_SNAPSHOT_STALE`
 detector (fills the previously-unmonitored ISE-job gap; corrects ADR-17 → ADR-19/20/21). All ship dark

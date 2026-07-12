@@ -2,7 +2,8 @@
 
 > **Governing document:** `docs/WLJ_OPERATIONS_VISION.md` — the WLJ Operations subsystem vision +
 > 9-phase living roadmap. This coverage audit is the **Phase I as-built** companion (the coverage
-> matrix + the authoritative OPS-1…10 remediation backlog).
+> matrix + the categorized post-Phase-I backlog, §4). **Phase I (Operations Visibility) is COMPLETE
+> (2026-07-12)** — see §4. Remaining work is reclassified by category (§4.1), not a numbered OPS-N list.
 
 **Status:** CURRENT · Milestone audit (2026-07-11)
 **Governing principle:** *"If it runs in production, it must be observable."*
@@ -85,23 +86,46 @@ Every monitored item exposes Healthy / Degraded / Failed. The **owner** dimensio
 
 ---
 
-## 4. Ranked remediation backlog (phased)
+## 4. Backlog — Phase I complete; residual reclassified by category
 
-The observability gaps below run in production but have no operational health. Each is a tracked follow-up, not a milestone blocker.
+> **Phase I (Operations Visibility) is COMPLETE (2026-07-12).** The mission — *"nothing important happens in
+> production without being visible"* — is achieved: the critical infrastructure + execution surface (web
+> liveness, workers, Beat, PostgreSQL depth, Redis, disk, queues, scheduled tasks, OpenAI upstream, and
+> pool-wide background-task lifecycle) is comprehensively observable via OPS-1…5,7. Judged by the mission,
+> **not** the backlog count. The remaining items below are **not** critical-visibility gaps — they are
+> operational hardening, administrative metadata, external infrastructure, and technical debt. They are
+> therefore reclassified out of Phase I (§4.1). WLJ Operations remains an active initiative (Phases II–IX).
 
-| ID | Gap | Impact | Phase |
+### 4.0 Completed under Phase I (historical record)
+
+| ID | Gap | Impact | Status |
 |---|---|---|---|
 | ~~**OPS-1**~~ | ~~non-engine Beat tasks are structurally invisible~~ → **DONE (2026-07-11).** All 23 non-engine Beat tasks (Goal momentum, `cleanup_soft_deletes`, capture retention/reminders, celebrations, digests, `cos_keepalive`, …) are now covered by the generic scheduled-task monitor. MISSED_RUN fires for every scheduled job. | ~~Highest~~ | ✅ Done |
 | ~~**OPS-2**~~ | ~~Volumes / DB / Redis storage capacity unmonitored~~ → **DONE (2026-07-11).** `storage` section: Postgres size + 30-day growth, Redis used/max memory + eviction, disk/volume utilization, warn/critical thresholds, daily `StorageSnapshot`, graceful UNAVAILABLE per resource. (S3 audio bucket deferred to OPS-8.) | ~~High~~ | ✅ Done |
 | ~~**OPS-3**~~ | ~~`chat` queue + chatworker backlog not measured~~ → **DONE (2026-07-11).** `chat_queue` section: passive Celery-signal lifecycle over the chat tasks → depth, oldest-queued age, throughput, queue wait, stuck detection, worker starvation. | ~~High~~ | ✅ Done |
 | ~~**OPS-4**~~ | ~~OpenAI connectivity / Model Interface health not surfaced~~ → **DONE (2026-07-11).** `upstream_health` section: passive per-call recorder → availability %, latency, consecutive failures, breaker state, degradation (OUTAGE/DEGRADED/HEALTHY/IDLE), last success. Distinguishes "WLJ healthy" from "OpenAI degraded". | ~~High~~ | ✅ Done |
 | ~~**OPS-5**~~ | ~~PostgreSQL depth + DB administration (connections, migrations, bloat, backup verification)~~ → **DONE (2026-07-11).** `db_health` section: connection-pool saturation (active/idle/idle-in-txn vs `max_connections`), long-running queries (max age + count over threshold), dead-tuple bloat + autovacuum age (`pg_stat_user_tables`), and unapplied-migration detection (partial-deploy guard). Telemetry-only (no anomaly/recovery), request-path-safe, graceful UNAVAILABLE on non-Postgres. **Scope refinement:** *backup verification* has no *trustworthy automated signal* today (Railway manages backups; no in-DB probe) → it remains a **FUTURE Operations capability** (kept in the vision), operator-verified for now, NOT faked with an artificial status. | ~~Medium~~ | ✅ Done |
-| **OPS-6** | No `owner` field on any component (cross-cutting; add via engine registry) | Medium | Next |
 | ~~**OPS-7**~~ | ~~Dead-job / stuck-task / general Celery-retry aggregation~~ → **DONE (2026-07-11).** `task_health` section: pool-wide worker-side capture of the Celery task lifecycle for ALL task names — active/oldest-age/**stuck** (past the 120s time-limit), **failures** (recurring-vs-isolated by name), **retries**, **revocations**. Fills the genuine gap (`task_failure`/`task_retry`/`task_revoked` were captured nowhere; no result backend). Redis-only (no model/migration), telemetry-only, worker-side (zero request-path). Reuses OPS-3's signal→Redis pattern; complements `celery_health` (workers) + `chat_queue` (chat-specific). | ~~Medium~~ | ✅ Done |
-| **OPS-8** | Confirmation queue, attachment persistence, duplicate detection, audit-pipeline lag health | Medium | Following |
-| **OPS-9** | Build Runner / deploy pipeline observability (note: every deploy silently runs `load_initial_data` + `recalculate_task_priorities`) | Low–Medium | Later |
-| **OPS-10** | Celery Beat directly measured (not inferred from ISE/SAME) | Low–Medium | Later |
-| **OPS-11** | Remove Legacy Autonomous Remediation — `_run_autonomous_remediation` (`same_engine.py`) is structurally unreachable (filters `severity="P3"` for MISSED_RUN/SUPPRESSION_STORM, which are only ever emitted P1/P2). Inert dead code, no active conflict with the Recovery Engine, no constitutional concern (investigated 2026-07-11). Retire it (or fold its two intents into the recovery framework) as normal tech-debt; best timed with Phase III consolidation or when engine-starvation recovery is enabled. Not urgent. | Low | Later |
+
+### 4.1 Post-Phase-I backlog (by category — the active list)
+
+The remaining work is heterogeneous; a numbered `OPS-N` list misrepresented it. Reclassified by what each item actually is:
+
+| Category | Item | What it is | Priority |
+|---|---|---|---|
+| **Operational Hardening** | **OPS-8a — Confirmation queue & audit-pipeline health** | Correctness-adjacent visibility: pending-confirmation depth/staleness (`PendingAction` / `get_pending_confirmation`) + audit lag (`DecisionRecord` timestamps). A stale confirmation queue = user actions silently not executing; audit lag degrades the constitutional audit guarantee. **Buildable (verified).** | **NEXT engineering milestone** |
+| **Operational Hardening** | **OPS-8b — Attachment persistence + dedup + S3 artifact bucket** | Multimodal durability + dedup rate + the unmonitored S3 audio bucket. | Later |
+| **Administrative** | **OPS-6 — Per-component `owner` dimension** | Organizational metadata (no owner field exists). Near-zero value for a single-owner (solo-founder) system. | Deferred — revisit for a multi-owner/team surface |
+| **Infrastructure** | **OPS-9 — Build-runner / deploy-pipeline observability** | External (Railway build). The high-value slice is already proxied by OPS-5 (migrations) + OPS-7 (post-deploy task fallout). | Future / re-scope small |
+| **Technical Debt** | **OPS-11 — Retire legacy `_run_autonomous_remediation`** | Inert dead code (P3 filter never matches P1/P2 MISSED_RUN/SUPPRESSION_STORM; investigated 2026-07-11). No active conflict, no constitutional concern. Latent reactivation footgun + audit-split. Retire or fold into the recovery framework. | Opportunistic (with Phase III or engine-recovery enablement) |
+| **Technical Debt** | **OPS-10 — Direct Beat measurement** | **Accept-inference / won't-do.** Beat blindness is already caught by three independent signals (scheduler_health ISE/SAME drift + OPS-1 MISSED_RUN + OPS-7 active-count drop). Direct measurement adds only marginal precision. **Residual logged:** if a real "Beat died but nothing lit up" incident ever occurs, reopen. | Closed (accept-inference) |
+
+**Also tracked separately (NOT engineering):** the **O1→O2 production pilot** is an **Operational Rollout**
+activity — engineering is complete (recovery framework + 3 R1 handlers + runbook `WLJ_OPERATIONS_PHASE2_PLAN.md
+§11.1`); what remains is an operator-gated Railway env-var change + observation. See the vision ledger §15.
+
+**Future capability (kept in the vision, not built):** *backup verification* — no trustworthy automated
+signal exists today (Railway-managed); operator-verified for now, never faked with an artificial status.
 
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.

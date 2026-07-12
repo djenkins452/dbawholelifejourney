@@ -6,6 +6,64 @@
 # Last Updated: 2026-07-11 (fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — docs(operations): Phase I CLOSED (complete) + roadmap reorganized (docs-only)
+
+**Why:** Phase I (Operations Visibility) has achieved its original mission — *"nothing important happens in
+production without being visible."* Formally close Phase I and reorganize the remainder, while keeping WLJ
+Operations the project's primary active initiative through the full Operations Vision. No code, no
+architecture, no vision redefinition.
+
+**Why Phase I is complete (evidence, not backlog count):** the critical infrastructure + execution surface
+is now comprehensively observable — web liveness (`/_health/`+`api_health`), workers (`celery_health`),
+Beat (three inference signals), PostgreSQL depth (`storage`+`db_health`/OPS-5), Redis/disk/queues,
+scheduled tasks (OPS-1), OpenAI upstream (OPS-4), and pool-wide background-task lifecycle
+(`task_health`/OPS-7). The remaining ❌/Partial coverage rows are correctness dashboards (a higher bar than
+visibility), one hardening gap (confirmation-queue/audit-lag), an external component (build runner), a
+subsumed item (direct Beat), metadata, and tech-debt — **not** critical-visibility gaps.
+
+**Roadmap reorganization (numbered OPS-N → categories):**
+- **Phase I marked ✅ COMPLETE** (vision §14 Completion Status + §15 ledger; coverage §4 header).
+- Residual reclassified by category (coverage **§4.1**): **Operational Hardening** (OPS-8a confirmation+audit-lag → *next engineering milestone*; OPS-8b attachment/dedup/S3), **Administrative** (OPS-6 `owner` — deferred, near-zero value for a single-owner system), **Infrastructure** (OPS-9 build-runner — future/re-scope), **Technical Debt** (OPS-11 retire inert legacy remediation; OPS-10 direct-Beat closed as accept-inference with logged residual).
+- **O1→O2 production pilot reframed as an Operational Rollout** (operator-gated), separated from the engineering roadmap — engineering for it is done.
+- **Backup verification** kept as a FUTURE capability (no trustworthy signal today; never faked).
+
+**Startup package (WLJ Operations = primary initiative):** `00_NEXT_CHAT_STARTUP` restructured — Operations
+primary through Phases II–IX; Phase I closed; next engineering = OPS-8a; Operational Rollout track for the
+pilot; CC-* and other WLJ work explicitly secondary until Danny redirects. `01_READ_FIRST §5` updated to
+match. Also filled the stale `_this commit_` ledger SHAs (OPS-5 `906d907f`, OPS-7 `24345af7`).
+
+**Vision consistency:** the 9-phase Operations Vision, the Constitution, and the CoS architecture are
+unchanged — Phase I closure + categorization is a status/organization change, not an architecture change.
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md`, `docs/WLJ_OPS_WALL_COVERAGE.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE}.md`,
+`docs/wlj_claude_changelog.md`.
+
+## 2026-07-11 — feat(ops-7): pool-wide background task health observability (`task_health` section) [changelog backfilled 2026-07-12]
+
+**Note:** this entry was deferred at commit time (`24345af7`) because a concurrent, uncommitted security
+change occupied the changelog; backfilled now that that work has landed (`ec4e6025`).
+
+**Why:** OPS-7 — observability for dead/stuck/orphaned/unhealthy background work. Investigation showed most
+OPS-7 questions were already answered (celery_health=workers+default-queue, chat_queue=chat, scheduled_tasks
+=Beat misses, ERROR_SPIKE=engine failures). The genuine uncovered gap: Celery `task_failure`/`task_retry`/
+`task_revoked` are captured nowhere, and with `CELERY_TASK_IGNORE_RESULT=True` + no result backend there is
+no per-task state history to query.
+
+**What:** new `apps/core/ai_observability/task_health_monitor.py` — passive WORKER-SIDE capture of the
+Celery lifecycle for ALL task names (`task_prerun/postrun/failure/retry/revoked`) into self-expiring Redis
+structures (mirrors OPS-3's pattern). Surfaces pool-wide active/oldest-age/**stuck** (past the 120s
+time-limit), **failures** (recurring-vs-isolated by name), **retries**, **revocations**. Wired as a
+`task_health` telemetry section + full-width read-only Ops Wall card (`renderTaskHealth`). Worker-side only
+(zero request-path additions), Redis-only (no model/migration), telemetry-only (no anomaly/recovery).
+Complements `celery_health` (workers) and `chat_queue` (chat-specific) rather than duplicating them.
+
+**Verification:** `tests_task_health.py` (8); payload builder 29→30; Ops Wall v2 85; `check` +
+`makemigrations --check` clean; `renderTaskHealth` `node --check` valid; reader degrades to UNAVAILABLE
+without Redis (dev). **Commit:** `24345af7`. **Files:** `task_health_monitor.py` (new), `tests_task_health.py`
+(new), `ops_telemetry.py`, `tests_payload_builder.py`, `apps.py`, `operations_wall.html`,
+`WLJ_OPERATIONS_VISION.md`, `WLJ_OPS_WALL_COVERAGE.md`, `00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-11 — fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping (kills dependency/worktree false positives)
 
 **Why:** Security assessment (2026-07-11) flagged three findings. Two of the three "HIGH" items were

@@ -2074,3 +2074,54 @@ class CaptureExpiredAudioTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '1 day remaining')
+
+
+class ServiceWorkerUploadSameOriginTests(TestCase):
+    """
+    SEC-001 remediation: the Service Worker upload endpoint is CSRF-exempt
+    (SWs can't carry a CSRF token) but enforces same-origin via
+    Sec-Fetch-Site / Origin so a cross-site forged POST is rejected.
+    """
+
+    def setUp(self):
+        self.client = Client(enforce_csrf_checks=True)
+        self.user = User.objects.create_user(
+            email='swuser@example.com', password='testpass123'
+        )
+        try:
+            from apps.users.models import TermsAcceptance
+            TermsAcceptance.objects.create(
+                user=self.user,
+                terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
+            )
+        except Exception:
+            pass
+        self.user.preferences.has_completed_onboarding = True
+        self.user.preferences.save()
+        self.client.login(email='swuser@example.com', password='testpass123')
+        self.url = reverse('capture:sw_upload')
+
+    def test_cross_site_post_rejected(self):
+        """A cross-site POST (Sec-Fetch-Site: cross-site) is rejected 403."""
+        resp = self.client.post(self.url, data={}, HTTP_SEC_FETCH_SITE='cross-site')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_foreign_origin_rejected(self):
+        """A foreign Origin header is rejected 403."""
+        resp = self.client.post(
+            self.url, data={}, HTTP_ORIGIN='https://evil.example'
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_same_origin_passes_guard_without_csrf_token(self):
+        """
+        A same-origin POST passes the same-origin guard AND the csrf_exempt
+        (no CSRF token supplied, enforce_csrf_checks=True). It reaches the
+        handler, which returns 400 for the missing audio file — proving the
+        request was NOT blocked by CSRF or the same-origin guard.
+        """
+        resp = self.client.post(
+            self.url, data={}, HTTP_SEC_FETCH_SITE='same-origin'
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('No audio file', resp.json().get('error', ''))

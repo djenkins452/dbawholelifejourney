@@ -1485,12 +1485,58 @@ class CaptureFileUploadView(LoginRequiredMixin, View):
 @method_decorator(csrf_exempt, name='dispatch')
 class CaptureServiceWorkerUploadView(CaptureFileUploadView):
     """
-    CSRF-exempt upload endpoint for Service Worker background sync.
+    Upload endpoint for Service Worker background sync.
 
-    Service Workers cannot access document.cookie for CSRF tokens.
-    Authentication is handled via session cookie (credentials: 'same-origin').
-
-    Pattern follows apps/health/views_sleep_api.py (SleepEntryListCreateView):
-    @csrf_exempt + LoginRequiredMixin for device/background upload contexts.
+    Service Workers cannot access document.cookie for a CSRF token, so Django's
+    token-based CSRF check is exempted here. CSRF is instead enforced via an
+    explicit **same-origin check** (``Sec-Fetch-Site`` / ``Origin``): these
+    headers are set by the browser and cannot be forged by page JavaScript, so
+    a cross-site forged POST is rejected. Combined with LoginRequiredMixin and
+    the SameSite=Lax session cookie, this is defense-in-depth equivalent to
+    (and for the SW case, more robust than) a CSRF token.
     """
-    pass
+
+    def dispatch(self, request, *args, **kwargs):
+        # CSRF defense: reject any state-changing request that is not
+        # same-origin, before auth or upload processing runs.
+        if request.method not in ('GET', 'HEAD', 'OPTIONS', 'TRACE'):
+            if not self._is_same_origin(request):
+                logger.warning(
+                    "SW upload rejected: cross-origin request for %s "
+                    "(Sec-Fetch-Site=%s, Origin=%s)",
+                    user_log_id(getattr(request, 'user', None)),
+                    request.META.get('HTTP_SEC_FETCH_SITE'),
+                    request.META.get('HTTP_ORIGIN'),
+                )
+                return JsonResponse(
+                    {'error': 'Cross-origin request rejected'}, status=403
+                )
+        return super().dispatch(request, *args, **kwargs)
+
+    @staticmethod
+    def _is_same_origin(request):
+        """
+        True if the request originates from this site (CSRF-safe).
+
+        Prefers ``Sec-Fetch-Site`` (browser-set metadata, unforgeable by page
+        JS); falls back to comparing the ``Origin`` header against this host and
+        ``CSRF_TRUSTED_ORIGINS``. Only when a client sends neither header (e.g.
+        a non-browser client, which cannot mount a browser-driven CSRF attack)
+        do we defer to the existing SameSite=Lax + login protections.
+        """
+        fetch_site = request.META.get('HTTP_SEC_FETCH_SITE')
+        if fetch_site:
+            return fetch_site in ('same-origin', 'same-site')
+
+        origin = request.META.get('HTTP_ORIGIN')
+        if origin:
+            expected = '{}://{}'.format(
+                'https' if request.is_secure() else 'http',
+                request.get_host(),
+            )
+            if origin == expected:
+                return True
+            return origin in getattr(settings, 'CSRF_TRUSTED_ORIGINS', [])
+
+        # Neither header present: not a browser-forgeable CSRF vector.
+        return True

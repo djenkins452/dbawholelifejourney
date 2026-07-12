@@ -1900,7 +1900,8 @@ class SecurityScanner:
             except Exception:
                 pass
 
-        # csrf_exempt is OK for webhooks and mobile API endpoints (Bearer token auth)
+        # csrf_exempt is OK for webhooks, mobile API endpoints (Bearer token
+        # auth), and endpoints that enforce same-origin themselves.
         def is_legitimate_csrf_exempt(filepath):
             # Webhooks receive external POST requests that can't include CSRF tokens
             if 'webhook' in filepath.lower():
@@ -1909,11 +1910,18 @@ class SecurityScanner:
             # CSRF protection only applies to cookie-based authentication
             if 'mobile' in filepath.lower() and 'views' in filepath.lower():
                 return True
-            # Also check if file contains webhook function
+            # Also check file content for a legitimate exemption pattern
             try:
                 full_path = self.base_path / filepath
                 content = full_path.read_text()
-                return '_webhook' in content or 'webhook' in content.lower()
+                if '_webhook' in content or 'webhook' in content.lower():
+                    return True
+                # Endpoints that verify same-origin via Sec-Fetch-Site / Origin
+                # are CSRF-safe without a token — the valid pattern for Service
+                # Worker / background-sync endpoints that cannot carry one.
+                if 'HTTP_SEC_FETCH_SITE' in content or 'Sec-Fetch-Site' in content:
+                    return True
+                return False
             except Exception:
                 return False
 

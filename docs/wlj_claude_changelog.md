@@ -6,6 +6,34 @@
 # Last Updated: 2026-07-12 (feat(ops): Recovery Engine is now a first-class Ops Wall component — expose existing truth)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — fix(core): SAE state JSON serialization boundary — Decimal in state_data broke deploy (migration 0102)
+
+**Symptom:** deploy failed applying `health.0102_refresh_sae_after_weight_repair` →
+`rebuild_user_state(user)` → `UserState.save()` with `TypeError: Object of type Decimal is not JSON serializable`
+(the broken transaction then produced trailing `TransactionManagementError` noise). Not a startup problem.
+
+**Root cause (traced):** `UserState.state_data` is a plain `JSONField`. A state builder leaked a `Decimal` into
+the snapshot — specifically `build_finance_state` (`apps/core/ai_state/state_builder.py:5050`
+`round(g.progress_percentage, 1)`, and `:5067`/`:5074` `round(b.spent_percentage, 1)`): those model properties
+return `Decimal` (`FinancialGoal.progress_percentage` = `current_amount / target_amount * 100`), and
+`round(Decimal, n)` returns a `Decimal`. Every other finance value uses `float(...)`; these `round`-on-Decimal
+calls were the miss. Any affected user with finance goals/budgets therefore serialized a Decimal on `save()`.
+(Only surfaced now because migration 0102 forces a full `rebuild_user_state` for the weight-repaired users.)
+
+**Fix — canonical serialization boundary, not scattered float casts.** `UserState.save()` is the single point
+where state becomes JSON, so `state_data` is normalised there once, via a new `to_json_safe` helper
+(`apps/core/ai_state/models.py`): `Decimal → float` (state's numeric convention — builders already `float(...)`
+everywhere), `datetime/date → ISO string`, `set/tuple → list`, other JSON-native types unchanged. Every writer
+(`rebuild_user_state`, `state_updater`, warm tasks) goes through `save()`, so no builder can ever persist a
+non-JSON object again — the whole class is eliminated at the boundary. The offending finance builder lines are
+left as-is deliberately (the boundary handles them; no whack-a-mole).
+
+**Verification:** `to_json_safe` unit tests + `UserState.save` sanitizes a deep Decimal (stored as float,
+`json.dumps` clean); a Decimal placed in `state_data` saves without error; `rebuild_user_state` and the
+migration `refresh()` complete with finance-Decimal data present, leaving zero residual Decimals; `manage.py
+check` clean. New tests: `apps/core/ai_state/test_state_serialization.py`. (One pre-existing unrelated
+`ai_state.test_empty_health_state` failure confirmed earlier via clean-checkout stash.)
+
 ## 2026-07-12 — fix(health): stabilization pass — Weight-truth consistency, blast-radius repair, session association, mission current-state
 
 Final stabilization after the Weight decontamination. Every fix was traced to proof before code.

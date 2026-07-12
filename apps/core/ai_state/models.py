@@ -11,8 +11,45 @@ outputs. Eliminates the statelessness problem where CoS rebuilds
 context from scratch every message.
 """
 
+from datetime import date, datetime
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
+
+
+def to_json_safe(value):
+    """Recursively coerce a value into JSON-native types for SAE state persistence.
+
+    This is the CANONICAL serialization boundary for ``UserState.state_data``. The state
+    builders produce large nested dicts and it is easy for a ``Decimal`` to slip through —
+    e.g. ``round(some_decimal, 1)`` returns a ``Decimal``, and a model ``DecimalField``
+    read without ``float(...)`` stays ``Decimal`` — which the JSONField cannot serialize
+    ("Object of type Decimal is not JSON serializable"). Rather than scatter ``float()``
+    casts across dozens of builders (whack-a-mole, easily reintroduced), we normalise once
+    here, at the point state becomes JSON:
+
+      * ``Decimal``            → ``float``  (state's numeric convention; builders already
+                                             ``float(...)`` everywhere else)
+      * ``datetime`` / ``date`` → ISO-8601 ``str``
+      * ``set`` / ``tuple``    → ``list``
+      * dict / list           → recursed
+      * everything else (int, float, str, bool, None) → passed through unchanged
+
+    State JSON therefore never contains a ``Decimal`` (or other non-JSON) object, no matter
+    which builder produced it.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, Decimal):
+        return float(value)
+    if isinstance(value, (datetime, date)):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {k: to_json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_json_safe(v) for v in value]
+    return value
 
 
 class UserState(models.Model):
@@ -57,6 +94,20 @@ class UserState(models.Model):
         ]
         verbose_name = "User State"
         verbose_name_plural = "User States"
+
+    def save(self, *args, **kwargs):
+        """Normalise state_data to JSON-native types at the persistence boundary.
+
+        Every writer of state_data (rebuild_user_state, state_updater, warm tasks) goes
+        through save(), so sanitising here guarantees the JSONField never receives a
+        Decimal/date object regardless of which builder produced the value. Only runs when
+        state_data is actually being written (full save or update_fields includes it), so
+        unrelated field-only saves stay cheap.
+        """
+        update_fields = kwargs.get("update_fields")
+        if (update_fields is None or "state_data" in update_fields) and self.state_data:
+            self.state_data = to_json_safe(self.state_data)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         modules = list(self.state_data.keys()) if self.state_data else []

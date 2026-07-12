@@ -3,8 +3,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (fix(ops): Recovery Engine panel promoted out of collapsed Diagnostics drawer — always visible)
+# Last Updated: 2026-07-12 (docs/test(ops): O1→O2 gate — allowlisted MISSED_RUN shadows R0 = stale shadow row, expected not a defect)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — docs/test(ops): O1→O2 gate — proved WHY an allowlisted Beat MISSED_RUN still shadows R0 (expected, not a defect)
+
+**Question (final engineering gate before ACTIVE):** `apps.core.health_briefing.tasks.recompute_all_health_briefings_task`
+is allowlisted and `OPS_RECOVERY_BEAT_RETRY=true`, yet the Recovery Engine shadow-classified its `MISSED_RUN`
+incident as `SIM:R0:SHADOW` ("would observe only (R0)"). Investigated the runtime path; **no production code
+changed** (behavior is correct).
+
+**Proven runtime path (file:line):**
+- Shadow R0 vs R1 is decided at `apps/core/operations/recovery/engine.py:207` — R0 iff
+  `not diagnosis.recoverable or not policy.auto_executable`.
+- `BeatTaskRetryHandler.policy` is R1 and `RecoveryPolicy.auto_executable` = classification ∈ {R1,R2}
+  (`policy.py:26,50`) ⇒ **True**, so R0 can only come from `diagnosis.recoverable=False`.
+- `BeatTaskRetryHandler.diagnose` (`handlers.py:73-90`): `recoverable = allow and enabled`, where
+  `allow = engine_name ∈ OPS_RECOVERY_BEAT_RETRY_ALLOWLIST` and `enabled = OPS_RECOVERY_BEAT_RETRY`.
+- The incident's `engine_name` is the Beat-schedule task path (`scheduled_task_monitor.py:358` →
+  `get_monitored_beat_tasks` → `entry["task"]`), which **equals the allowlist value exactly**
+  (`config/settings.py:1251`). So under the CURRENT config `allow=True`, `enabled=True` ⇒ a **fresh**
+  evaluation is **R1 (would recover)**, not R0.
+- Therefore the observed R0 cannot be a fresh decision. It is a **STALE shadow row**: Shadow Mode writes exactly
+  ONE `SHADOW` row per incident occurrence (idempotency guard `engine.py:196-201`, anti-audit-flood). The
+  Health-Briefing incident was first shadow-evaluated BEFORE beat-retry/allowlist were enabled → R0; enabling
+  them afterward does NOT re-evaluate the same still-open occurrence, so the R0 persists.
+
+**Answers:** (1) allowlist matches exactly (proven); (2) no diagnose gate blocks it — the shadow idempotency
+guard freezes the first decision; (3) not intentionally ineligible; (4) the handler's FIRST decision (beat-retry
+then OFF) was correctly R0 and is what's frozen; (5) **expected behavior, not a defect.** ACTIVE is unaffected:
+the non-shadow lifecycle re-diagnoses every cycle and only the R0/skip path is once-per-occurrence — a
+recoverable incident proceeds to `recover()`, and `PHASE_SHADOW` rows are never counted in ACTIVE
+retry/cooldown/recurrence.
+
+**Change (test + docs only, no production code):** added production-equivalent proof
+`apps/core/operations/tests/test_recovery_shadow_mode.py::ShadowBeatRetryO1O2Tests` (3 tests, real
+`BeatTaskRetryHandler` + real `MISSED_RUN` OpsAnomaly): allowlist==Beat-task-path; fresh eval under current
+config ⇒ R1 would-recover; and a direct reproduction that a pre-enable R0 row survives after enabling beat-retry
+(idempotency). 50/50 recovery+shadow tests pass. Recommendation recorded: **ready for O1→O2** — to see a clean
+R1 shadow signal, evaluate a FRESH occurrence after the config change (the current occurrence's shadow decision
+is frozen by design). Docs: `docs/WLJ_OPERATIONS_VISION.md` (§4a note).
 
 ## 2026-07-12 — refactor(dashboard): Mission card composes every field from ONE canonical Current Mission State
 

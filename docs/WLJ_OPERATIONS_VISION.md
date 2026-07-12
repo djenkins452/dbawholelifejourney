@@ -158,6 +158,15 @@ incident, with which action, verified by which predicate?"* — without any prod
   SHADOW. Anything unrecognised → DISABLED.
 - **Shadow is idempotent** — one `SHADOW` row per incident occurrence (never one per 60s cycle; audit-volume
   guard R-8). The decision is stable within an occurrence because shadow advances no attempt/cooldown counters.
+  - **Corollary — a shadow decision can be STALE after a mid-occurrence config change (expected, by design).**
+    Because the first evaluation is frozen for the occurrence's lifetime, enabling `OPS_RECOVERY_BEAT_RETRY` /
+    allowlisting a task *after* an incident was already shadow-evaluated does **not** re-classify that still-open
+    occurrence — it keeps its original `R0 observe-only` row. This is NOT an allowlist-match failure or a
+    recovery defect: under the new config a **fresh** occurrence classifies `R1 would-recover`, and ACTIVE mode
+    re-diagnoses every cycle (only the R0/skip path is once-per-occurrence), so ACTIVE recovers regardless of any
+    stale shadow row. To see a clean `R1` shadow signal after changing config, evaluate a NEW occurrence. Proven
+    by `test_recovery_shadow_mode.py::ShadowBeatRetryO1O2Tests` (allowlist==Beat-task-path; fresh⇒R1;
+    stale-R0-survives-enable). Runtime decision point: `engine.py:207`; idempotency guard: `engine.py:196-201`.
 - **The import boundary holds** (§11): the SAME→recovery enqueue gate in `ai_observability` mirrors the
   resolver via settings only (never imports `operations`); a contract test keeps the mirror in exact sync.
 

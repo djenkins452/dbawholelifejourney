@@ -303,6 +303,83 @@ class RecoveryConfigTelemetryTests(TestCase):
             self.assertEqual(describe_mode_source(), "OPS_RECOVERY_ENABLED (legacy bridge)")
 
 
+# ── O1→O2 gate: why an allowlisted+enabled MISSED_RUN can still read R0 ─────
+HEALTH_BRIEFING_TASK = "apps.core.health_briefing.tasks.recompute_all_health_briefings_task"
+
+
+@override_settings(
+    OPS_RECOVERY_MODE="SHADOW", OPS_RECOVERY_ENABLED=False,
+    OPS_RECOVERY_BEAT_RETRY=True,
+    OPS_RECOVERY_BEAT_RETRY_ALLOWLIST=[HEALTH_BRIEFING_TASK],
+)
+class ShadowBeatRetryO1O2Tests(TestCase):
+    """Production-equivalent proof for the final O1→O2 question: an allowlisted Beat
+    task with beat-retry ENABLED was still shadow-classified 'would observe only (R0)'.
+
+    Uses the REAL ``BeatTaskRetryHandler`` and a real ``MISSED_RUN`` OpsAnomaly whose
+    ``engine_name`` is the exact Beat-schedule task path (== the allowlist entry,
+    ``config/settings.py`` CELERY_BEAT_SCHEDULE). Proves:
+      1. the allowlist string matches the Beat-schedule task path exactly;
+      2. a FRESH evaluation under the CURRENT config classifies R1 (would recover) —
+         so the config + handler logic are correct;
+      3. the observed R0 is a STALE shadow decision: the one-SHADOW-row-per-occurrence
+         idempotency guard freezes the FIRST decision, so an incident first evaluated
+         BEFORE beat-retry was enabled keeps its R0 even after the operator enables it.
+    """
+
+    def setUp(self):
+        from apps.core.operations.recovery.handlers import register_default_handlers
+        engine_mod._HANDLERS_READY = False
+        register_default_handlers()  # real BeatTaskRetryHandler claims MISSED_RUN
+
+    def _mk_missed_run(self):
+        return OpsAnomaly.objects.create(
+            severity="P1", engine_name=HEALTH_BRIEFING_TASK,
+            anomaly_type="MISSED_RUN", summary="health briefing missed", is_active=True,
+        )
+
+    def test_allowlist_equals_beat_schedule_task_path_exactly(self):
+        from django.conf import settings
+        tasks = {e.get("task") for e in settings.CELERY_BEAT_SCHEDULE.values()}
+        self.assertIn(HEALTH_BRIEFING_TASK, tasks,
+                      "allowlist value must equal a real Beat-schedule task path (exact match)")
+
+    def test_fresh_evaluation_under_current_config_is_R1_would_recover(self):
+        self._mk_missed_run()
+        summary = run_recovery_cycle()
+        rows = RecoveryAttempt.objects.filter(
+            anomaly_type="MISSED_RUN", engine_name=HEALTH_BRIEFING_TASK)
+        self.assertEqual(rows.count(), 1)
+        row = rows.first()
+        self.assertEqual(row.phase, RecoveryAttempt.PHASE_SHADOW)
+        self.assertEqual(row.classification, "R1")
+        self.assertTrue(row.evidence_before.get("would_execute"))
+        self.assertEqual(row.evidence_before.get("decision"), "recover")
+        self.assertTrue(row.evidence_before.get("allowlisted"))
+        self.assertTrue(row.evidence_before.get("handler_enabled"))
+        self.assertEqual(summary["would_recover"], 1)
+        self.assertEqual(summary["would_observe"], 0)
+
+    def test_stale_R0_survives_after_enabling_beat_retry(self):
+        # Exact reproduction of the reported symptom.
+        self._mk_missed_run()
+        # (1) First evaluated while beat-retry was OFF → R0 observe-only.
+        with override_settings(OPS_RECOVERY_BEAT_RETRY=False):
+            run_recovery_cycle()
+        row = RecoveryAttempt.objects.get(
+            anomaly_type="MISSED_RUN", engine_name=HEALTH_BRIEFING_TASK)
+        self.assertEqual(row.classification, "R0")
+        self.assertFalse(row.evidence_before.get("would_execute"))
+        # (2) Operator now ENABLES beat-retry (allowlist already set) → re-run cycle.
+        #     Idempotency guard freezes the first decision: still ONE row, still R0.
+        run_recovery_cycle()
+        rows = RecoveryAttempt.objects.filter(
+            anomaly_type="MISSED_RUN", engine_name=HEALTH_BRIEFING_TASK)
+        self.assertEqual(rows.count(), 1, "one SHADOW row per occurrence — not re-evaluated")
+        self.assertEqual(rows.first().classification, "R0",
+                         "stale R0 persists for the same occurrence despite the new config")
+
+
 # ── SAME enqueue mirror stays in exact sync with the canonical resolver ─────
 class MirrorSyncTests(TestCase):
     """The SAME enqueue gate mirrors get_recovery_mode() via settings only (import

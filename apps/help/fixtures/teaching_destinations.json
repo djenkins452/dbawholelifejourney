@@ -3170,5 +3170,39 @@
       "created_at": "2026-07-06T00:00:00Z",
       "updated_at": "2026-07-06T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 191,
+    "fields": {
+      "destination_id": "health-body-intelligence",
+      "name": "Body Intelligence",
+      "path_description": "Health - Body Intelligence",
+      "explanation": "See what's happening to your body: current weight, body fat, fat and lean mass, and every tape measurement (waist, chest, arms, thighs) with the change since last time; week/month/quarter/year weight trends; fat-loss quality, plateau, and muscle-preservation signals; goal progress; and progress photos. Record a check-in at any cadence to group measurements, a weigh-in, and photos together.",
+      "url": "/health/physical/body-intelligence/",
+      "keywords": "body intelligence,body composition,measurements,waist,chest,arms,thighs,tape measure,body fat,lean mass,fat mass,muscle,progress photos,check-in,body progress,recomposition,plateau,muscle preservation",
+      "module": "health",
+      "sort_order": 247,
+      "is_active": true,
+      "created_at": "2026-07-12T14:00:00Z",
+      "updated_at": "2026-07-12T14:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 192,
+    "fields": {
+      "destination_id": "health-body-check-ins",
+      "name": "Body check-ins",
+      "path_description": "Health - Body Intelligence - Check-ins",
+      "explanation": "Start and browse body check-ins — point-in-time groupings of your measurements, weigh-in, and progress photos. Event-driven: record one weekly, monthly, or whenever you measure. Deleting a check-in never deletes the underlying measurements.",
+      "url": "/health/physical/body-intelligence/check-ins/",
+      "keywords": "check-in,body check-in,measurement session,progress photos,log measurements,body progress timeline,new check-in",
+      "module": "health",
+      "sort_order": 248,
+      "is_active": true,
+      "created_at": "2026-07-12T14:00:00Z",
+      "updated_at": "2026-07-12T14:00:00Z"
+    }
   }
 ]

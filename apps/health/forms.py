@@ -20,6 +20,8 @@ from .models import (
     BloodOxygenEntry,
     BloodPressureEntry,
     BodyCompositionEntry,
+    BodyMeasurementSession,
+    BodyProgressPhoto,
     BODY_COMPOSITION_METRIC_CHOICES,
     BODY_COMPOSITION_UNIT_CHOICES,
     CustomFood,
@@ -1885,6 +1887,63 @@ class BodyCompositionEntryForm(forms.ModelForm):
             else:
                 cleaned_data["metric_name"] = custom
         return cleaned_data
+
+
+# =============================================================================
+# Body Measurement Session (Check-in) Forms
+# =============================================================================
+
+class BodyMeasurementSessionForm(forms.ModelForm):
+    """Create/edit a body check-in — an organizational grouping. Event-driven: the
+    user chooses the timestamp; there is no monthly assumption."""
+
+    class Meta:
+        model = BodyMeasurementSession
+        fields = ["title", "checked_in_at", "source", "notes"]
+        widgets = {
+            "title": forms.TextInput(attrs={
+                "class": "form-input",
+                "placeholder": "e.g. Quarterly check-in (optional)",
+            }),
+            "checked_in_at": forms.DateTimeInput(attrs={
+                "class": "form-input",
+                "type": "datetime-local",
+            }, format="%Y-%m-%dT%H:%M"),
+            "source": forms.Select(attrs={"class": "form-select"}),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 2,
+                "placeholder": "Anything notable about this check-in...",
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+        # HTML datetime-local needs the value without seconds/timezone suffix.
+        self.fields["checked_in_at"].input_formats = ["%Y-%m-%dT%H:%M"]
+        if not (self.instance and self.instance.pk):
+            self.initial.setdefault("checked_in_at", timezone.localtime().strftime("%Y-%m-%dT%H:%M"))
+
+
+class BodyProgressPhotoForm(forms.ModelForm):
+    """Upload a single progress photo for a check-in. Session is set by the view."""
+
+    class Meta:
+        model = BodyProgressPhoto
+        fields = ["pose", "image", "notes"]
+        widgets = {
+            "pose": forms.Select(attrs={"class": "form-select"}),
+            "image": forms.ClearableFileInput(attrs={
+                "class": "form-input",
+                "accept": "image/*",
+            }),
+            "notes": forms.Textarea(attrs={
+                "class": "form-textarea",
+                "rows": 2,
+                "placeholder": "Optional note about this photo...",
+            }),
+        }
 
 
 # =============================================================================

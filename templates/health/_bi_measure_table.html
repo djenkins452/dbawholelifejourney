@@ -1,0 +1,42 @@
+{% comment %}
+Body Intelligence measurement table partial.
+Expects: rows = list of {label, value, unit, previous, delta, delta_pct, improved}
+Read-only presentation of the canonical body-composition snapshot.
+{% endcomment %}
+<div class="bi-table-wrap">
+<table class="bi-table">
+    <thead>
+        <tr><th>Measurement</th><th>Current</th><th>Previous</th><th>Change</th></tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="bi-td-label">{{ row.label }}</td>
+            <td>{{ row.value|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}</td>
+            <td>{% if row.previous is not None %}{{ row.previous|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}{% else %}<span class="bi-muted">—</span>{% endif %}</td>
+            <td>
+                {% if row.delta is not None %}
+                    <span class="bi-chg {% if row.improved %}is-good{% elif row.improved == False %}is-bad{% endif %}">
+                        {% if row.delta > 0 %}+{% endif %}{{ row.delta|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}
+                        {% if row.improved %}<span class="bi-chg-arrow" aria-label="improving">&#10003;</span>{% endif %}
+                    </span>
+                {% else %}
+                    <span class="bi-muted">first entry</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+<style nonce="{{ csp_nonce }}">
+.bi-table-wrap { overflow-x: auto; }
+.bi-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm, 0.875rem); }
+.bi-table th { text-align: left; font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--color-text-muted, #6b7280); padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--color-border, #e5e7eb); }
+.bi-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--color-border, #f1f1f1); color: var(--color-text, #111827); }
+.bi-td-label { font-weight: 600; }
+.bi-chg.is-good { color: var(--color-success, #10b981); font-weight: 600; }
+.bi-chg.is-bad { color: var(--color-warning, #f59e0b); font-weight: 600; }
+.bi-chg-arrow { font-size: 0.8em; }
+</style>

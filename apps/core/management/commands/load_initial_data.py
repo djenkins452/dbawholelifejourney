@@ -661,6 +661,10 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for Body Transformation Protocol
         self._reset_transformation_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Body Intelligence
+        # (release note PK 267, teaching destinations PK 191/192, help topic PK 161)
+        self._reset_body_intelligence_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Clear cached FatSecret FoodItems (serving size fix)
         self._clear_fatsecret_cached_items(DataLoadConfig, force, verbosity)
 
@@ -2046,6 +2050,38 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Calendar Projection fixtures FAILED: {e}'))
+
+    def _reset_body_intelligence_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload fixtures for Body Intelligence. Reloads release_notes
+        (PK 267), teaching_destinations (PK 191 health-body-intelligence, PK 192
+        health-body-check-ins), and help_topics (PK 161 HEALTH_BODY_INTELLIGENCE) so
+        the What's New entry, teaching destinations, and help topic appear.
+        """
+        reset_tracker_name = 'reset_body_intelligence_fixtures_2026_07_12'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'teaching_destinations', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for Body Intelligence')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Body Intelligence (Jul 2026)',
+                'command', 'One-time reset to reload release notes, teaching destinations, and help topics for Body Intelligence'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset Body Intelligence fixtures FAILED: {e}'))
 
     def _reset_current_context_fixtures(self, DataLoadConfig, force=False, verbosity=1):
         """

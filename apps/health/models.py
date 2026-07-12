@@ -572,6 +572,18 @@ class WeightEntry(UserOwnedModel):
         help_text="Unique ID for deduplication during sync",
     )
 
+    # Optional organizational grouping into a body check-in (Option A: WeightEntry
+    # remains the canonical source of weight truth; the session merely references it).
+    # NULL = ungrouped. SET_NULL so deleting a session never destroys the weigh-in.
+    session = models.ForeignKey(
+        "BodyMeasurementSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="weight_entries",
+        help_text="Optional check-in this weigh-in was recorded in",
+    )
+
     class Meta:
         ordering = ["-recorded_at"]
         verbose_name = "weight entry"
@@ -5235,6 +5247,7 @@ class BodyCompositionEntry(UserOwnedModel):
     SOURCE_CHOICES = [
         ("manual", "Manual Entry"),
         ("smart_scale", "Smart Scale"),
+        ("renpho", "RENPHO"),
         ("dexa_scan", "DEXA Scan"),
         ("bod_pod", "Bod Pod"),
         ("inbody", "InBody Scanner"),
@@ -5243,6 +5256,18 @@ class BodyCompositionEntry(UserOwnedModel):
         ("other", "Other"),
     ]
 
+    # Optional organizational grouping into a point-in-time check-in.
+    # NULL = ungrouped (legacy rows and device-synced rows). SET_NULL so deleting a
+    # session NEVER destroys the underlying measurement — the measurement is the
+    # canonical truth; the session is only an organizational construct.
+    session = models.ForeignKey(
+        "BodyMeasurementSession",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="entries",
+        help_text="Optional check-in this measurement was recorded in",
+    )
     metric_name = models.CharField(
         max_length=50,
         help_text="Type of measurement (e.g. body_fat_pct, lean_mass, waist)",
@@ -5286,6 +5311,148 @@ class BodyCompositionEntry(UserOwnedModel):
         """Return human-readable metric name."""
         choices_dict = dict(BODY_COMPOSITION_METRIC_CHOICES)
         return choices_dict.get(self.metric_name, self.metric_name)
+
+
+class BodyMeasurementSession(UserOwnedModel):
+    """
+    A point-in-time body check-in — an ORGANIZATIONAL construct that groups the
+    measurements, weight, body-composition values, progress photos, and notes recorded
+    together at one moment.
+
+    This is NOT a source of truth. Individual ``BodyCompositionEntry`` /
+    ``WeightEntry`` rows remain the canonical truth; the session merely references
+    them (via nullable ``SET_NULL`` FKs on those models). Deleting a session therefore
+    never destroys a measurement — it only removes the grouping.
+
+    Event-driven by design: a user may check in daily, weekly, monthly, quarterly, or
+    irregularly. There is NO monthly assumption anywhere. Every new session is compared
+    against the previous applicable session; calendar windows (7d / 30d / quarter /
+    year / custom) are reporting lenses over history, not the storage model.
+
+    Partial sessions are fully supported — a session may hold only photos, only a
+    waist measurement, or any subset. Existing ungrouped measurements (``session`` is
+    NULL) remain valid and require no backfill.
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("renpho", "RENPHO"),
+        ("inbody", "InBody"),
+        ("smart_scale", "Smart Scale"),
+        ("dexa_scan", "DEXA Scan"),
+        ("other", "Other"),
+    ]
+
+    checked_in_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this check-in was taken (gives the time-of-day resolution a "
+        "date alone lacks, and lets historical imports set an explicit timestamp).",
+    )
+    title = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Optional label, e.g. 'Quarterly check-in' or 'Start of cut'.",
+    )
+    notes = models.TextField(blank=True)
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="manual",
+        blank=True,
+    )
+    sync_id = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Unique ID for idempotent import/sync deduplication.",
+    )
+
+    CONTEXT_FIELDS = ("title", "notes")
+
+    class Meta:
+        ordering = ["-checked_in_at"]
+        verbose_name = "body measurement session"
+        verbose_name_plural = "body measurement sessions"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "sync_id"],
+                name="unique_body_session_sync_id",
+                condition=models.Q(sync_id__gt=""),
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "-checked_in_at"]),
+        ]
+
+    def __str__(self):
+        label = self.title or "Check-in"
+        return f"{label} — {timezone.localtime(self.checked_in_at).date()}"
+
+    @property
+    def measurement_count(self):
+        """Number of (non-deleted) measurements grouped in this session."""
+        return self.entries(manager="objects").count()
+
+    @property
+    def photo_count(self):
+        """Number of (non-deleted) progress photos in this session."""
+        return self.photos(manager="objects").count()
+
+
+class BodyProgressPhoto(UserOwnedModel):
+    """
+    A single body progress photo belonging to a ``BodyMeasurementSession``.
+
+    Event-driven — NOT monthly. Poses are an extensible enum (add a choice to support a
+    new angle later with no storage change). Files use the project's default storage
+    (Cloudinary in production, local filesystem in dev) — the same durable backend every
+    other WLJ ``ImageField`` uses; no per-model storage override is needed for images.
+    """
+
+    POSE_FRONT_RELAXED = "front_relaxed"
+    POSE_LEFT_RELAXED = "left_relaxed"
+    POSE_RIGHT_RELAXED = "right_relaxed"
+    POSE_BACK_RELAXED = "back_relaxed"
+    POSE_FRONT_DOUBLE_BICEPS = "front_double_biceps"
+
+    POSE_CHOICES = [
+        (POSE_FRONT_RELAXED, "Front Relaxed"),
+        (POSE_LEFT_RELAXED, "Left Side Relaxed"),
+        (POSE_RIGHT_RELAXED, "Right Side Relaxed"),
+        (POSE_BACK_RELAXED, "Back Relaxed"),
+        (POSE_FRONT_DOUBLE_BICEPS, "Front Double Biceps"),
+    ]
+
+    #: Canonical display order for pose grids and side-by-side comparison.
+    POSE_ORDER = [
+        POSE_FRONT_RELAXED,
+        POSE_LEFT_RELAXED,
+        POSE_RIGHT_RELAXED,
+        POSE_BACK_RELAXED,
+        POSE_FRONT_DOUBLE_BICEPS,
+    ]
+
+    session = models.ForeignKey(
+        "BodyMeasurementSession",
+        on_delete=models.CASCADE,
+        related_name="photos",
+        help_text="The check-in this photo belongs to.",
+    )
+    pose = models.CharField(max_length=30, choices=POSE_CHOICES)
+    image = models.ImageField(upload_to="health/body_progress/%Y/%m/")
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["session", "pose"]
+        verbose_name = "body progress photo"
+        verbose_name_plural = "body progress photos"
+        indexes = [
+            models.Index(fields=["user", "pose", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.get_pose_display()} — {self.session_id}"
 
 
 # =============================================================================

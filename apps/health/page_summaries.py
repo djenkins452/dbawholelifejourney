@@ -51,3 +51,45 @@ def weight_page_summary(user, params):
 
     return {"title": "Weight", "kind": "weight overview",
             "content": "Weight overview\n" + "\n".join(lines)}
+
+
+@register_page_summary("health.body_intelligence")
+def body_intelligence_page_summary(user, params):
+    """The Body Intelligence dashboard. Deterministic facts only — the SAME composition
+    the page renders (build_body_intelligence), so the assistant can never contradict
+    the screen. WLJ exposes numbers; the model decides what they mean."""
+    from apps.health.services.body_intelligence import build_body_intelligence
+
+    bi = build_body_intelligence(user)
+    if not bi.get("has_any_data"):
+        return {"title": "Body Intelligence", "kind": "body intelligence overview",
+                "content": "Body Intelligence — no measurements, weigh-ins, or check-ins "
+                           "logged yet."}
+
+    lines = [bi["headline"]["primary"]]
+    lines.extend(bi["headline"].get("supporting", []))
+
+    snap = bi.get("snapshot") or {}
+    if snap.get("latest_date"):
+        lines.append(f"Latest measurements logged: {_d(snap['latest_date'])}"
+                     + (f" (previous {_d(snap['previous_date'])})" if snap.get("previous_date") else ""))
+    sess = bi.get("sessions") or {}
+    if sess.get("count"):
+        latest_sess = sess.get("latest") or {}
+        detail = f"Check-ins recorded: {sess['count']}"
+        if latest_sess.get("checked_in_at"):
+            detail += f" (latest {_d(latest_sess['checked_in_at'])})"
+        lines.append(detail)
+        photo_ct = latest_sess.get("photo_count") or 0
+        if photo_ct:
+            lines.append(f"Progress photos in latest check-in: {photo_ct}")
+
+    # Windowed weight change lenses (facts).
+    for w in bi.get("trend_windows") or []:
+        ch = w.get("change")
+        if ch:
+            lines.append(f"{w['label']} weight change: "
+                         f"{'+' if ch['delta'] > 0 else ''}{ch['delta']:g} lb")
+
+    return {"title": "Body Intelligence", "kind": "body intelligence overview",
+            "content": "Body Intelligence overview\n" + "\n".join(lines)}

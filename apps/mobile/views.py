@@ -684,6 +684,7 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
         "stand_hours": process_stand_hours_metric,
         "body_fat": process_body_fat_metric,
         "bmi": process_bmi_metric,
+        "waist": process_waist_metric,
         "workout": process_workout_metric,
         "lean_body_mass": process_lean_body_mass_metric,
         "respiratory_rate": process_respiratory_rate_metric,
@@ -1751,6 +1752,35 @@ def process_bmi_metric(user, metric_date, source, sync_id, data):
         raise ValueError(f"BMI value out of range: {bmi_value}")
 
     return _sync_body_composition_entry(user, "bmi", bmi_value, "", metric_date, source)
+
+
+def process_waist_metric(user, metric_date, source, sync_id, data):
+    """
+    Process waist circumference from Apple HealthKit (native ``waistCircumference``).
+
+    Stored as a BodyCompositionEntry(metric_name="waist"), the same canonical row a
+    manual entry writes — so waist flows through the existing body-composition snapshot,
+    intelligence, and Body Intelligence dashboard with zero new infrastructure. Unit is
+    preserved from the sample ("in" or "cm"); default "in".
+    """
+    waist_value = data.get("value")
+    if waist_value is None:
+        raise ValueError("value is required for waist")
+
+    try:
+        waist_value = Decimal(str(waist_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid waist value: {waist_value}")
+
+    unit = (data.get("unit") or "in").lower()
+    if unit not in ("in", "cm"):
+        unit = "in"
+
+    # Generous range covering both inches (~10–80) and centimetres (~25–250).
+    if waist_value <= 0 or waist_value > 300:
+        raise ValueError(f"Waist value out of range: {waist_value}")
+
+    return _sync_body_composition_entry(user, "waist", waist_value, unit, metric_date, source)
 
 
 def _sync_body_composition_entry(user, metric_name, value, unit, measurement_date, source):

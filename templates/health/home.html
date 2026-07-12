@@ -319,6 +319,35 @@
             <a href="{% url 'health:body_composition_create' %}" class="btn btn-primary btn-sm">Log Measurement</a>
         </div>
 
+        {# ── Body Intelligence summary card → full dashboard ── #}
+        <a href="{% url 'health:body_intelligence' %}" class="bi-summary-card" data-testid="bi-summary-card">
+            <div class="bi-summary-head">
+                <span class="bi-summary-title">Body Intelligence</span>
+                <span class="bi-summary-open">Open &rarr;</span>
+            </div>
+            <div class="bi-summary-stats">
+                <div class="bi-summary-stat">
+                    <span class="bi-summary-k">Weight</span>
+                    <span class="bi-summary-v">{% if hs.weight_current %}{{ hs.weight_current }} {{ hs.weight_unit }}{% else %}—{% endif %}</span>
+                </div>
+                <div class="bi-summary-stat">
+                    <span class="bi-summary-k">Body Fat</span>
+                    <span class="bi-summary-v">{% if hs.body_fat_current %}{{ hs.body_fat_current }}%{% else %}—{% endif %}</span>
+                </div>
+                <div class="bi-summary-stat">
+                    <span class="bi-summary-k">Waist</span>
+                    <span class="bi-summary-v">{% if hs.waist_current %}{{ hs.waist_current }} in{% else %}—{% endif %}</span>
+                </div>
+                <div class="bi-summary-stat">
+                    <span class="bi-summary-k">Lean Mass</span>
+                    <span class="bi-summary-v">{% if hs.lean_mass_current %}{{ hs.lean_mass_current }} lb{% else %}—{% endif %}</span>
+                </div>
+            </div>
+            {% if body_comp_insight and body_comp_insight.headline %}
+            <p class="bi-summary-insight">{{ body_comp_insight.headline }}</p>
+            {% endif %}
+        </a>
+
         {% if body_comp_insight %}
         <div class="body-comp-insight body-comp-insight--{{ body_comp_insight.severity }}">
             <p class="insight-headline">{{ body_comp_insight.headline }}</p>
@@ -1077,6 +1106,28 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* Body Intelligence summary card (links into the full dashboard) */
+.bi-summary-card {
+    display: block;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent, #6366f1) 12%, var(--color-surface)), var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.bi-summary-card:hover { border-color: var(--color-accent, #6366f1); }
+.bi-summary-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3); }
+.bi-summary-title { font-weight: 700; color: var(--color-text); }
+.bi-summary-open { font-size: var(--font-size-sm); color: var(--color-accent, #6366f1); font-weight: 600; }
+.bi-summary-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: var(--space-3); }
+.bi-summary-stat { display: flex; flex-direction: column; gap: 0.15rem; }
+.bi-summary-k { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.bi-summary-v { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; color: var(--color-text); }
+.bi-summary-insight { margin: var(--space-3) 0 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+
 /* Health Disclaimer */
 .health-disclaimer {
     background: var(--color-surface);

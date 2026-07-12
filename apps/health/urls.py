@@ -13,6 +13,7 @@ from django.views.generic import RedirectView
 from . import views
 from . import views_acquisition
 from . import views_body_composition
+from . import views_body_intelligence
 from . import views_cycle
 from . import views_dashboards
 from . import views_export
@@ -357,6 +358,17 @@ urlpatterns = [
     path("physical/cycle/data/delete-all/", views_cycle.CycleDeleteAllView.as_view(), name="cycle_delete_all"),
     path("physical/api/cycle/export/", views_cycle.CycleExportAPIView.as_view(), name="cycle_export_api"),
     path("physical/api/cycle/delete-all/", views_cycle.CycleDeleteAllAPIView.as_view(), name="cycle_delete_all_api"),
+
+    # Body Intelligence — the flagship physical-progress dashboard + check-ins + photos
+    path("physical/body-intelligence/", views_body_intelligence.BodyIntelligenceView.as_view(), name="body_intelligence"),
+    path("physical/body-intelligence/check-ins/", views_body_intelligence.BodyMeasurementSessionListView.as_view(), name="body_session_list"),
+    path("physical/body-intelligence/check-ins/new/", views_body_intelligence.BodyMeasurementSessionCreateView.as_view(), name="body_session_create"),
+    path("physical/body-intelligence/check-ins/<int:pk>/", views_body_intelligence.BodyMeasurementSessionDetailView.as_view(), name="body_session_detail"),
+    path("physical/body-intelligence/check-ins/<int:pk>/edit/", views_body_intelligence.BodyMeasurementSessionUpdateView.as_view(), name="body_session_update"),
+    path("physical/body-intelligence/check-ins/<int:pk>/delete/", views_body_intelligence.BodyMeasurementSessionDeleteView.as_view(), name="body_session_delete"),
+    path("physical/body-intelligence/check-ins/<int:session_pk>/photos/add/", views_body_intelligence.BodyProgressPhotoCreateView.as_view(), name="body_photo_create"),
+    path("physical/body-intelligence/photos/<int:pk>/delete/", views_body_intelligence.BodyProgressPhotoDeleteView.as_view(), name="body_photo_delete"),
+    path("physical/body-intelligence/compare/", views_body_intelligence.BodyProgressComparisonView.as_view(), name="body_photo_compare"),
 
     # Body Composition
     path("physical/body-composition/", views_body_composition.BodyCompositionListView.as_view(), name="body_composition_list"),

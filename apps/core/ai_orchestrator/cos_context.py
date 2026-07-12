@@ -851,6 +851,16 @@ def _build_health_and_vitals(user):
             bmr = get_state_value(user, 'health.bmr_current')
             if bmr is not None:
                 health_signals['bmr_current'] = bmr
+            # Waist circumference — the one native-HealthKit body measurement whose
+            # canonical SAE value (health.waist_current, from BodyCompositionEntry) was
+            # computed but never folded into the proactive CoS envelope, so CoS could
+            # only "see" waist when it actively queried it. Exposing it here (same
+            # pre-computed SAE read as the rest of this block) closes that gap so the
+            # assistant proactively knows the user's waist, matching the Body
+            # Intelligence dashboard. Truth exposure only — no reasoning change.
+            waist = get_state_value(user, 'health.waist_current')
+            if waist is not None:
+                health_signals['waist_current'] = waist
             # Pre-computed body composition intelligence (from DailyHealthSummary)
             for fld in (
                 'fat_loss_phase', 'fat_loss_quality_label',

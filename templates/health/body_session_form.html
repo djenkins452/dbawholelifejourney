@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}{% if form.instance.pk %}Edit check-in{% else %}New check-in{% endif %} - Body Intelligence{% endblock %}
+
+{% block content %}
+<div class="container container-narrow" data-testid="body-session-form">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:body_intelligence' %}">Body Intelligence</a>
+        <span>/</span>
+        <a href="{% url 'health:body_session_list' %}">Check-ins</a>
+        <span>/</span>
+        <span>{% if form.instance.pk %}Edit{% else %}New{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if form.instance.pk %}Edit check-in{% else %}New check-in{% endif %}</h1>
+        <p class="page-subtitle">A check-in is just a point in time — log at any cadence that suits you.</p>
+    </div>
+
+    <form method="post" class="wlj-form">
+        {% csrf_token %}
+        {% for field in form %}
+        <div class="form-group">
+            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small class="form-help">{{ field.help_text }}</small>{% endif %}
+            {% for error in field.errors %}<div class="form-error">{{ error }}</div>{% endfor %}
+        </div>
+        {% endfor %}
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">{% if form.instance.pk %}Save changes{% else %}Start check-in{% endif %}</button>
+            <a href="{% url 'health:body_session_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.container-narrow { max-width: 560px; }
+.wlj-form .form-group { margin-bottom: var(--space-4, 1rem); }
+.wlj-form .form-label { display: block; font-weight: 600; margin-bottom: 0.3rem; }
+.wlj-form .form-input, .wlj-form .form-select, .wlj-form .form-textarea { width: 100%; }
+.form-help { display: block; color: var(--color-text-muted, #6b7280); font-size: var(--font-size-xs, 0.75rem); margin-top: 0.25rem; }
+.form-error { color: var(--color-error, #ef4444); font-size: var(--font-size-sm, 0.875rem); margin-top: 0.25rem; }
+.form-actions { display: flex; gap: var(--space-2, 0.5rem); margin-top: var(--space-5, 1.25rem); }
+</style>
+{% endblock %}

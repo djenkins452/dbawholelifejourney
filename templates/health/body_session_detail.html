@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.title|default:"Check-in" }} - Body Intelligence{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="body-session-detail">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:body_intelligence' %}">Body Intelligence</a>
+        <span>/</span>
+        <a href="{% url 'health:body_session_list' %}">Check-ins</a>
+        <span>/</span>
+        <span>{{ session.checked_in_at|date:"M j, Y" }}</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">{{ session.title|default:"Check-in" }}</h1>
+            <p class="page-subtitle">{{ session.checked_in_at|date:"l, F j, Y · g:i A" }}{% if session.source %} · {{ session.get_source_display }}{% endif %}</p>
+        </div>
+        <div class="bsd-actions">
+            <a href="{% url 'health:body_session_update' session.pk %}" class="btn btn-secondary">Edit</a>
+            <form method="post" action="{% url 'health:body_session_delete' session.pk %}" class="bsd-inline-form"
+                  data-confirm="Delete this check-in? Your measurements and weigh-ins are kept — only the grouping and its photos are removed.">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    {% if session.notes %}<p class="bsd-notes">{{ session.notes }}</p>{% endif %}
+
+    <!-- Measurements -->
+    <div class="bsd-card">
+        <div class="bsd-card-head">
+            <h2>Measurements</h2>
+            <a href="{% url 'health:body_composition_create' %}?session={{ session.pk }}" class="btn btn-sm btn-primary">Add measurement</a>
+        </div>
+        {% if entries %}
+        <div class="bi-table-wrap">
+        <table class="bi-table">
+            <thead><tr><th>Metric</th><th>Value</th><th>Source</th><th></th></tr></thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td class="bi-td-label">{{ e.get_metric_display }}</td>
+                    <td>{{ e.value|floatformat:"-2" }}{% if e.unit %} {{ e.unit }}{% endif %}</td>
+                    <td class="bsd-muted">{{ e.get_source_display }}</td>
+                    <td class="bsd-row-actions">
+                        <a href="{% url 'health:body_composition_update' e.pk %}">Edit</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="bsd-muted">No measurements in this check-in yet.</p>
+        {% endif %}
+        {% if weigh_ins %}
+        <div class="bsd-weighins">
+            {% for w in weigh_ins %}<span class="bsd-chip">Weight: {{ w.value }} {{ w.unit }}</span>{% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Progress photos -->
+    <div class="bsd-card">
+        <div class="bsd-card-head">
+            <h2>Progress photos</h2>
+            <a href="{% url 'health:body_photo_compare' %}?after={{ session.pk }}" class="btn btn-sm btn-secondary">Compare</a>
+        </div>
+        <div class="bsd-pose-grid">
+            {% for slot in pose_slots %}
+            <div class="bsd-pose">
+                <span class="bsd-pose-label">{{ slot.label }}</span>
+                {% if slot.photo %}
+                    <div class="bsd-pose-img">
+                        <img src="{{ slot.photo.image.url }}" alt="{{ slot.label }}" loading="lazy">
+                        <form method="post" action="{% url 'health:body_photo_delete' slot.photo.pk %}" class="bsd-photo-del"
+                              data-confirm="Delete this photo?">
+                            {% csrf_token %}
+                            <button type="submit" class="bsd-photo-del-btn" aria-label="Delete photo">&times;</button>
+                        </form>
+                    </div>
+                    <a href="{% url 'health:body_photo_create' session.pk %}?pose={{ slot.pose }}" class="bsd-pose-replace">Replace</a>
+                {% else %}
+                    <a href="{% url 'health:body_photo_create' session.pk %}?pose={{ slot.pose }}" class="bsd-pose-empty">
+                        <span>+ Add</span>
+                    </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.bsd-actions { display: flex; gap: var(--space-2, 0.5rem); }
+.bsd-inline-form { display: inline; }
+.bsd-notes { color: var(--color-text-muted, #4b5563); margin-bottom: var(--space-4, 1rem); }
+.bsd-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
+    padding: var(--space-5, 1.25rem); margin-bottom: var(--space-4, 1rem); }
+.bsd-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3, 0.75rem); }
+.bsd-card-head h2 { font-size: var(--font-size-base, 1rem); font-weight: 700; }
+.bsd-muted { color: var(--color-text-muted, #6b7280); }
+.bsd-row-actions a { color: var(--color-accent, #6366f1); text-decoration: none; font-size: var(--font-size-sm, 0.875rem); }
+.bsd-weighins { margin-top: var(--space-3, 0.75rem); display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.bsd-chip { font-size: var(--font-size-xs, 0.75rem); background: var(--color-background, #f3f4f6); color: var(--color-text-muted, #4b5563); padding: 0.2rem 0.5rem; border-radius: var(--radius-full, 999px); }
+.bsd-pose-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3, 0.75rem); }
+.bsd-pose { display: flex; flex-direction: column; gap: 0.3rem; }
+.bsd-pose-label { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); }
+.bsd-pose-img { position: relative; border-radius: var(--radius-lg, 12px); overflow: hidden; aspect-ratio: 3 / 4; background: var(--color-background, #f3f4f6); }
+.bsd-pose-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bsd-photo-del { position: absolute; top: 4px; right: 4px; }
+.bsd-photo-del-btn { background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%; width: 26px; height: 26px; font-size: 1rem; cursor: pointer; line-height: 1; }
+.bsd-pose-replace { font-size: var(--font-size-xs, 0.75rem); color: var(--color-accent, #6366f1); text-decoration: none; text-align: center; }
+.bsd-pose-empty { display: flex; align-items: center; justify-content: center; aspect-ratio: 3 / 4; border: 2px dashed var(--color-border, #d1d5db);
+    border-radius: var(--radius-lg, 12px); color: var(--color-text-muted, #6b7280); text-decoration: none; font-weight: 600; }
+.bsd-pose-empty:hover { border-color: var(--color-accent, #6366f1); color: var(--color-accent, #6366f1); }
+.btn-sm { padding: 0.3rem 0.7rem; font-size: var(--font-size-sm, 0.875rem); }
+</style>
+{% endblock %}

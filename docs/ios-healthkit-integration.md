@@ -29,6 +29,7 @@ The WLJ iOS app reads health data from Apple Health and syncs it to the Django b
 | Body Fat % | `.bodyFatPercentage` | WeightEntry.body_fat_percentage + BodyCompositionEntry | Most recent per day |
 | Lean Body Mass | `.leanBodyMass` | WeightEntry.lean_body_mass + BodyCompositionEntry | In pounds |
 | BMI | `.bodyMassIndex` | BodyCompositionEntry(bmi) | Most recent per day |
+| Waist | `.waistCircumference` | BodyCompositionEntry(waist) | Send `type:"waist"`, `value`, `unit` ("in"/"cm"); powers Body Intelligence |
 | Fat Mass | *computed* | BodyCompositionEntry(fat_mass) | weight × body_fat_pct / 100 |
 | BMR | `.basalEnergyBurned` | BodyCompositionEntry(bmr) | Mirrored from StepsEntry.resting_calories |
 

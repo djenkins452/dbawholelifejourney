@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Body Check-ins - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="body-session-list">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <a href="{% url 'health:body_intelligence' %}">Body Intelligence</a>
+        <span>/</span>
+        <span>Check-ins</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Body check-ins</h1>
+            <p class="page-subtitle">A check-in groups the measurements, weigh-in, and photos you take together — at whatever cadence works for you.</p>
+        </div>
+        <a href="{% url 'health:body_session_create' %}" class="btn btn-primary">New check-in</a>
+    </div>
+
+    {% if sessions %}
+    <div class="bsl-list">
+        {% for s in sessions %}
+        <a class="bsl-item" href="{% url 'health:body_session_detail' s.pk %}">
+            <div class="bsl-main">
+                <span class="bsl-title">{{ s.title|default:"Check-in" }}</span>
+                <span class="bsl-date">{{ s.checked_in_at|date:"D, M j, Y · g:i A" }}</span>
+                {% if s.notes %}<span class="bsl-notes">{{ s.notes|truncatechars:90 }}</span>{% endif %}
+            </div>
+            <div class="bsl-meta">
+                <span class="bsl-chip">{{ s.measurement_count }} measure{{ s.measurement_count|pluralize }}</span>
+                <span class="bsl-chip">{{ s.photo_count }} photo{{ s.photo_count|pluralize }}</span>
+                {% if s.source %}<span class="bsl-chip bsl-src">{{ s.get_source_display }}</span>{% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    {% if is_paginated %}
+    <div class="pagination mt-4">
+        {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="btn btn-secondary">Previous</a>{% endif %}
+        <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+        {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="btn btn-secondary">Next</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="bsl-empty">
+        <p>No check-ins yet. Start one to group your measurements and progress photos.</p>
+        <a href="{% url 'health:body_session_create' %}" class="btn btn-primary">Start your first check-in</a>
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.bsl-list { display: flex; flex-direction: column; gap: var(--space-3, 0.75rem); }
+.bsl-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4, 1rem);
+    background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
+    padding: var(--space-4, 1rem); text-decoration: none; color: inherit; transition: border-color var(--transition-fast, 0.15s); }
+.bsl-item:hover { border-color: var(--color-accent, #6366f1); }
+.bsl-main { display: flex; flex-direction: column; gap: 0.2rem; }
+.bsl-title { font-weight: 700; color: var(--color-text, #111827); }
+.bsl-date { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #6b7280); }
+.bsl-notes { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #6b7280); }
+.bsl-meta { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.bsl-chip { font-size: var(--font-size-xs, 0.75rem); background: var(--color-background, #f3f4f6); color: var(--color-text-muted, #4b5563);
+    padding: 0.2rem 0.5rem; border-radius: var(--radius-full, 999px); white-space: nowrap; }
+.bsl-chip.bsl-src { background: color-mix(in srgb, var(--color-accent, #6366f1) 14%, transparent); color: var(--color-accent, #6366f1); }
+.bsl-empty { text-align: center; padding: var(--space-8, 2rem); background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); }
+.bsl-empty p { margin-bottom: var(--space-4, 1rem); color: var(--color-text-muted, #6b7280); }
+</style>
+{% endblock %}

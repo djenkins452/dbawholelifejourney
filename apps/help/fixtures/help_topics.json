@@ -2535,5 +2535,21 @@
       "created_at": "2026-07-06T00:00:00Z",
       "updated_at": "2026-07-06T00:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 161,
+    "fields": {
+      "context_id": "HEALTH_BODY_INTELLIGENCE",
+      "help_id": "health-body-intelligence",
+      "title": "Body Intelligence",
+      "description": "Understand what's changing about your body — measurements, composition, trends, goals, and progress photos in one place.",
+      "content": "## Body Intelligence\n\nBody Intelligence answers one question quickly: **what is happening to my body?** It brings your measurements together and explains the change — not just charts.\n\n### What you'll see\n\n- **Current snapshot** — weight, body fat, fat mass, lean mass, skeletal muscle, and waist.\n- **Weight trend** — change over the past week, month, quarter, and year. These are lenses over your history; you can measure at any cadence.\n- **Body composition** — fat-loss quality, muscle preservation, plateau, and recomposition signals (computed for you overnight).\n- **Body measurements** — every measurement's current value, previous value, and change, with a graph.\n- **Goal** — progress toward your weight goal.\n- **Insights** — the single most important thing to notice right now.\n\n### Check-ins\n\nA **check-in** groups the measurements, weigh-in, and progress photos you record together at one point in time. Start one anytime — weekly, monthly, or whenever you measure. Deleting a check-in never deletes your measurements; it only removes the grouping.\n\n### Progress photos\n\nAdd front, side, back, and flexed photos to any check-in, then compare any two check-ins side by side to see your progress.\n\n### Your data, your control\n\nEvery measurement and photo can be added, edited, or removed by hand. Apple Health, RENPHO, and InBody simply add to your data — they never own it. Waist also syncs automatically from Apple Health.",
+      "app_name": "health",
+      "order": 60,
+      "is_active": true,
+      "created_at": "2026-07-12T14:00:00Z",
+      "updated_at": "2026-07-12T14:00:00Z"
+    }
   }
 ]

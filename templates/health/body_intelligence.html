@@ -1,0 +1,435 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Body Intelligence - Health - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container bi" data-testid="body-intelligence">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'health:home' %}">Health</a>
+        <span>/</span>
+        <span>Body Intelligence</span>
+    </nav>
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Body Intelligence</h1>
+            <p class="page-subtitle">What is happening to your body — from your own measurements.</p>
+        </div>
+        <div class="bi-header-actions">
+            <a href="{% url 'health:body_session_create' %}" class="btn btn-primary" data-testid="bi-new-checkin">New check-in</a>
+            <a href="{% url 'health:body_session_list' %}" class="btn btn-secondary">Check-ins</a>
+        </div>
+    </div>
+
+    {% if not bi.has_any_data %}
+    <div class="bi-empty">
+        <h2>Start tracking your body</h2>
+        <p>Log a weigh-in or a measurement, or start a check-in, and Body Intelligence will
+           show you what's changing and whether progress is on track.</p>
+        <div class="bi-empty-actions">
+            <a href="{% url 'health:body_session_create' %}" class="btn btn-primary">Start a check-in</a>
+            <a href="{% url 'health:weight_create' %}" class="btn btn-secondary">Log weight</a>
+            <a href="{% url 'health:body_composition_create' %}" class="btn btn-secondary">Log a measurement</a>
+        </div>
+    </div>
+    {% else %}
+
+    <!-- ── Headline: what is happening to my body? ─────────────────────── -->
+    <section class="bi-headline" data-testid="bi-headline">
+        <div class="bi-headline-primary">{{ bi.headline.primary }}</div>
+        {% if bi.headline.supporting %}
+        <ul class="bi-headline-support">
+            {% for item in bi.headline.supporting %}<li>{{ item }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+    </section>
+
+    <!-- ── Current snapshot ────────────────────────────────────────────── -->
+    <h2 class="bi-section-title">Current snapshot</h2>
+    <div class="bi-stat-grid" data-testid="bi-snapshot">
+        <div class="bi-stat">
+            <span class="bi-stat-label">Weight</span>
+            <span class="bi-stat-value">{% if bi.current.weight %}{{ bi.current.weight }}<small>lb</small>{% else %}—{% endif %}</span>
+        </div>
+        <div class="bi-stat">
+            <span class="bi-stat-label">Body Fat</span>
+            <span class="bi-stat-value">{% if bi.current.body_fat_pct %}{{ bi.current.body_fat_pct }}<small>%</small>{% else %}—{% endif %}</span>
+        </div>
+        <div class="bi-stat">
+            <span class="bi-stat-label">Fat Mass</span>
+            <span class="bi-stat-value">{% if bi.current.fat_mass %}{{ bi.current.fat_mass }}<small>lb</small>{% else %}—{% endif %}</span>
+        </div>
+        <div class="bi-stat">
+            <span class="bi-stat-label">Lean Mass</span>
+            <span class="bi-stat-value">{% if bi.current.lean_mass %}{{ bi.current.lean_mass }}<small>lb</small>{% else %}—{% endif %}</span>
+        </div>
+        <div class="bi-stat">
+            <span class="bi-stat-label">Skeletal Muscle</span>
+            <span class="bi-stat-value">{% if bi.current.skeletal_muscle_mass %}{{ bi.current.skeletal_muscle_mass }}<small>lb</small>{% else %}—{% endif %}</span>
+        </div>
+        <div class="bi-stat">
+            <span class="bi-stat-label">Waist</span>
+            <span class="bi-stat-value">{% if bi.current.waist %}{{ bi.current.waist }}<small>{{ bi.current.waist_unit }}</small>{% else %}—{% endif %}</span>
+        </div>
+    </div>
+
+    <!-- ── Trends: reporting lenses over history ───────────────────────── -->
+    <h2 class="bi-section-title">Weight trend</h2>
+    <p class="bi-section-note">Change over each window — a lens on your history, whatever cadence you weigh in.</p>
+    <div class="bi-trend-grid" data-testid="bi-trends">
+        {% for w in bi.trend_windows %}
+        <div class="bi-trend-card">
+            <span class="bi-trend-label">{{ w.label }}</span>
+            {% if w.change %}
+                <span class="bi-trend-delta {% if w.change.delta < 0 %}is-down{% elif w.change.delta > 0 %}is-up{% endif %}">
+                    {% if w.change.delta > 0 %}+{% endif %}{{ w.change.delta }}<small>lb</small>
+                </span>
+                <span class="bi-trend-range">{{ w.change.start }} → {{ w.change.end }} lb</span>
+            {% else %}
+                <span class="bi-trend-delta is-none">—</span>
+                <span class="bi-trend-range">Not enough history</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="bi-chart-card">
+        <div class="bi-chart-head">
+            <h3>Weight · Fat mass · Lean mass (last 56 days)</h3>
+        </div>
+        <div class="bi-chart-wrap"><canvas id="biTrendChart"></canvas></div>
+    </div>
+
+    <!-- ── Body composition intelligence ───────────────────────────────── -->
+    {% if bi.body_comp %}
+    <h2 class="bi-section-title">Body composition</h2>
+    <div class="bi-intel-grid" data-testid="bi-composition">
+        {% if bi.body_comp.fat_loss_quality_label %}
+        <div class="bi-intel-card">
+            <span class="bi-intel-label">Fat-loss quality</span>
+            <span class="bi-intel-value">{{ bi.body_comp.fat_loss_quality_label|cut:"_"|title }}</span>
+            {% if bi.body_comp.fat_loss_ratio_14d %}<span class="bi-intel-sub">ratio {{ bi.body_comp.fat_loss_ratio_14d }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if bi.body_comp.muscle_preservation_status %}
+        <div class="bi-intel-card">
+            <span class="bi-intel-label">Muscle preservation</span>
+            <span class="bi-intel-value">{{ bi.body_comp.muscle_preservation_status|cut:"_"|title }}</span>
+        </div>
+        {% endif %}
+        {% if bi.body_comp.muscle_loss_risk_level %}
+        <div class="bi-intel-card">
+            <span class="bi-intel-label">Muscle-loss risk</span>
+            <span class="bi-intel-value">{{ bi.body_comp.muscle_loss_risk_level|title }}</span>
+            {% if bi.body_comp.muscle_loss_risk_score is not None %}<span class="bi-intel-sub">score {{ bi.body_comp.muscle_loss_risk_score }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if bi.body_comp.plateau_status %}
+        <div class="bi-intel-card">
+            <span class="bi-intel-label">Plateau</span>
+            <span class="bi-intel-value">{{ bi.body_comp.plateau_status|cut:"_"|title }}</span>
+            {% if bi.body_comp.plateau_risk_label %}<span class="bi-intel-sub">risk {{ bi.body_comp.plateau_risk_label|title }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% if bi.body_comp.recomposition_flag_14d %}
+        <div class="bi-intel-card bi-intel-good">
+            <span class="bi-intel-label">Recomposition</span>
+            <span class="bi-intel-value">Detected</span>
+            <span class="bi-intel-sub">fat ↓ &amp; lean ↑</span>
+        </div>
+        {% endif %}
+        {% if bi.body_comp.fat_loss_phase %}
+        <div class="bi-intel-card">
+            <span class="bi-intel-label">Phase</span>
+            <span class="bi-intel-value">{{ bi.body_comp.fat_loss_phase|cut:"_"|title }}</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="bi-delta-row">
+        {% if bi.body_comp.weight_delta_14d is not None %}
+        <span class="bi-delta">Weight 14d: <b>{% if bi.body_comp.weight_delta_14d > 0 %}+{% endif %}{{ bi.body_comp.weight_delta_14d }} lb</b></span>
+        {% endif %}
+        {% if bi.body_comp.fat_mass_delta_14d is not None %}
+        <span class="bi-delta">Fat 14d: <b>{% if bi.body_comp.fat_mass_delta_14d > 0 %}+{% endif %}{{ bi.body_comp.fat_mass_delta_14d }} lb</b></span>
+        {% endif %}
+        {% if bi.body_comp.lean_mass_delta_14d is not None %}
+        <span class="bi-delta">Lean 14d: <b>{% if bi.body_comp.lean_mass_delta_14d > 0 %}+{% endif %}{{ bi.body_comp.lean_mass_delta_14d }} lb</b></span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Body measurements ───────────────────────────────────────────── -->
+    <h2 class="bi-section-title">Body measurements</h2>
+    <p class="bi-section-note">Latest vs previous for each measurement. Positive/negative is your literal change; the arrow marks the healthier direction where WLJ knows it.</p>
+
+    {% if bi.circumference_rows or bi.composition_rows %}
+    <div class="bi-measure-tables">
+        {% if bi.circumference_rows %}
+        <div class="bi-measure-block">
+            <h3 class="bi-measure-title">Circumference</h3>
+            {% include "health/_bi_measure_table.html" with rows=bi.circumference_rows %}
+        </div>
+        {% endif %}
+        {% if bi.composition_rows %}
+        <div class="bi-measure-block">
+            <h3 class="bi-measure-title">Composition</h3>
+            {% include "health/_bi_measure_table.html" with rows=bi.composition_rows %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="bi-chart-card">
+        <div class="bi-chart-head">
+            <h3>Measurement history</h3>
+            <select id="biMeasureSelect" class="form-select bi-measure-select" data-testid="bi-measure-select"></select>
+        </div>
+        <div class="bi-chart-wrap"><canvas id="biMeasureChart"></canvas></div>
+    </div>
+    {% else %}
+    <p class="bi-muted">No tape or composition measurements logged yet.
+        <a href="{% url 'health:body_composition_create' %}">Log one →</a></p>
+    {% endif %}
+
+    <!-- ── Goal ────────────────────────────────────────────────────────── -->
+    {% if bi.goal and bi.goal.goal %}
+    <h2 class="bi-section-title">Weight goal</h2>
+    <div class="bi-goal-card" data-testid="bi-goal">
+        <div class="bi-goal-numbers">
+            <div><span class="bi-goal-k">Current</span><span class="bi-goal-v">{{ bi.goal.current_weight|default:"—" }} {{ bi.goal.unit }}</span></div>
+            <div><span class="bi-goal-k">Goal</span><span class="bi-goal-v">{{ bi.goal.goal }} {{ bi.goal.unit }}</span></div>
+            <div><span class="bi-goal-k">Remaining</span><span class="bi-goal-v">{{ bi.goal.remaining }} {{ bi.goal.unit }}</span></div>
+            {% if bi.goal.target_date %}<div><span class="bi-goal-k">Target date</span><span class="bi-goal-v">{{ bi.goal.target_date|date:"M j, Y" }}</span></div>{% endif %}
+        </div>
+        <div class="bi-goal-bar"><div class="bi-goal-fill" data-pct="{{ bi.goal.progress_percent }}"></div></div>
+        <div class="bi-goal-pct">{{ bi.goal.progress_percent }}% toward goal</div>
+    </div>
+    {% endif %}
+
+    <!-- ── Insights ────────────────────────────────────────────────────── -->
+    {% if bi.body_comp.top_insight or bi.snapshot.trend_summary %}
+    <h2 class="bi-section-title">Insights</h2>
+    <div class="bi-insights">
+        {% if bi.body_comp.top_insight %}<p class="bi-insight-top">{{ bi.body_comp.top_insight }}</p>{% endif %}
+        {% if bi.snapshot.trend_summary %}
+        <ul class="bi-insight-list">
+            {% for line in bi.snapshot.trend_summary %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ── Progress photos entry ───────────────────────────────────────── -->
+    <h2 class="bi-section-title">Progress photos</h2>
+    <div class="bi-photos-cta">
+        <p>{% if bi.sessions.count %}{{ bi.sessions.count }} check-in{{ bi.sessions.count|pluralize }} recorded.{% else %}No check-ins yet.{% endif %}</p>
+        <div>
+            <a href="{% url 'health:body_photo_compare' %}" class="btn btn-secondary">Compare photos</a>
+            <a href="{% url 'health:body_session_list' %}" class="btn btn-secondary">View timeline</a>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+{% if bi.has_any_data %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{{ chart_weight|json_script:"bi-weight-data" }}
+{{ chart_fat|json_script:"bi-fat-data" }}
+{{ chart_lean|json_script:"bi-lean-data" }}
+{{ chart_measurements|json_script:"bi-measure-data" }}
+{{ bi.metric_labels|json_script:"bi-metric-labels-src" }}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function () {
+    // Goal bar width (CSP-safe: no inline style attribute).
+    document.querySelectorAll('.bi-goal-fill').forEach(function (el) {
+        var pct = parseFloat(el.dataset.pct || '0');
+        el.style.width = Math.max(0, Math.min(100, pct)) + '%';
+    });
+
+    function parseJSON(id) {
+        var node = document.getElementById(id);
+        if (!node) return null;
+        try { return JSON.parse(node.textContent); } catch (e) { return null; }
+    }
+    var css = getComputedStyle(document.documentElement);
+    var accent = (css.getPropertyValue('--color-accent') || '#6366f1').trim();
+    var muted = (css.getPropertyValue('--color-text-muted') || '#9ca3af').trim();
+    var grid = 'rgba(148,163,184,0.15)';
+
+    function series(raw) {
+        raw = raw || [];
+        return raw.map(function (p) { return { x: p.date, y: p.value }; });
+    }
+    var baseOpts = {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+            x: { type: 'time', time: { unit: 'week' }, grid: { color: grid }, ticks: { color: muted } },
+            y: { grid: { color: grid }, ticks: { color: muted } }
+        },
+        plugins: { legend: { labels: { color: muted } } }
+    };
+    // Chart.js time scale needs a date adapter; fall back to category if absent.
+    function xConfig(points) {
+        return { type: 'category', labels: points.map(function (p) { return p.x; }),
+                 grid: { color: grid }, ticks: { color: muted, maxTicksLimit: 8 } };
+    }
+
+    // Trend chart: weight / fat / lean.
+    var wData = series(parseJSON('bi-weight-data'));
+    var fData = series(parseJSON('bi-fat-data'));
+    var lData = series(parseJSON('bi-lean-data'));
+    var trendEl = document.getElementById('biTrendChart');
+    if (trendEl && (wData.length || fData.length || lData.length)) {
+        var labels = (wData.length ? wData : (fData.length ? fData : lData)).map(function (p) { return p.x; });
+        new Chart(trendEl.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Weight', data: wData.map(function (p) { return p.y; }), borderColor: accent, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+                    { label: 'Fat mass', data: fData.map(function (p) { return p.y; }), borderColor: '#f59e0b', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 },
+                    { label: 'Lean mass', data: lData.map(function (p) { return p.y; }), borderColor: '#10b981', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: { x: { grid: { color: grid }, ticks: { color: muted, maxTicksLimit: 8 } },
+                          y: { grid: { color: grid }, ticks: { color: muted } } },
+                plugins: { legend: { labels: { color: muted } } } }
+        });
+    }
+
+    // Measurement history chart with a metric selector.
+    var measurePayload = parseJSON('bi-measure-data') || { series: {}, units: {} };
+    var mSeries = measurePayload.series || {};
+    var mUnits = measurePayload.units || {};
+    var sel = document.getElementById('biMeasureSelect');
+    var mEl = document.getElementById('biMeasureChart');
+    var metricLabels = parseJSON('bi-metric-labels-src') || {};
+    var chartRef = null;
+    var keys = Object.keys(mSeries).filter(function (k) { return (mSeries[k] || []).length > 0; });
+    if (sel && mEl && keys.length) {
+        keys.forEach(function (k) {
+            var opt = document.createElement('option');
+            opt.value = k; opt.textContent = metricLabels[k] || k;
+            sel.appendChild(opt);
+        });
+        function draw(metric) {
+            var pts = mSeries[metric] || [];
+            var unit = mUnits[metric] || '';
+            if (chartRef) chartRef.destroy();
+            chartRef = new Chart(mEl.getContext('2d'), {
+                type: 'line',
+                data: { labels: pts.map(function (p) { return p.date; }),
+                    datasets: [{ label: (metricLabels[metric] || metric) + (unit ? ' (' + unit + ')' : ''),
+                        data: pts.map(function (p) { return p.value; }),
+                        borderColor: accent, backgroundColor: 'transparent', tension: 0.3, pointRadius: 2 }] },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { grid: { color: grid }, ticks: { color: muted, maxTicksLimit: 8 } },
+                              y: { grid: { color: grid }, ticks: { color: muted } } },
+                    plugins: { legend: { labels: { color: muted } } } }
+            });
+        }
+        // Prefer waist if present, else first.
+        var initial = keys.indexOf('waist') >= 0 ? 'waist' : keys[0];
+        sel.value = initial; draw(initial);
+        sel.addEventListener('change', function () { draw(sel.value); });
+    } else if (sel) {
+        sel.style.display = 'none';
+    }
+});
+</script>
+{% endif %}
+
+<style nonce="{{ csp_nonce }}">
+.bi { max-width: 1100px; }
+.bi-header-actions { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; }
+.bi-section-title { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; margin: var(--space-8, 2rem) 0 var(--space-2, 0.5rem); }
+.bi-section-note { color: var(--color-text-muted, #6b7280); font-size: var(--font-size-sm, 0.875rem); margin-bottom: var(--space-4, 1rem); }
+.bi-muted { color: var(--color-text-muted, #6b7280); }
+
+/* Headline */
+.bi-headline { background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent, #6366f1) 14%, var(--color-surface, #fff)), var(--color-surface, #fff));
+    border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
+    padding: var(--space-6, 1.5rem); margin-bottom: var(--space-6, 1.5rem); }
+.bi-headline-primary { font-size: var(--font-size-xl, 1.375rem); font-weight: 700; color: var(--color-text, #111827); }
+.bi-headline-support { margin: var(--space-3, 0.75rem) 0 0; padding-left: 1.1rem; color: var(--color-text-muted, #4b5563); }
+.bi-headline-support li { margin: 0.15rem 0; }
+
+/* Stat grid */
+.bi-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3, 0.75rem); }
+.bi-stat { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-lg, 12px); padding: var(--space-4, 1rem); display: flex; flex-direction: column; gap: 0.25rem; }
+.bi-stat-label { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); }
+.bi-stat-value { font-size: var(--font-size-xl, 1.375rem); font-weight: 700; color: var(--color-text, #111827); }
+.bi-stat-value small { font-size: 0.7em; font-weight: 600; color: var(--color-text-muted, #6b7280); margin-left: 2px; }
+
+/* Trends */
+.bi-trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3, 0.75rem); margin-bottom: var(--space-4, 1rem); }
+.bi-trend-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-lg, 12px); padding: var(--space-4, 1rem); display: flex; flex-direction: column; gap: 0.25rem; }
+.bi-trend-label { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); }
+.bi-trend-delta { font-size: var(--font-size-lg, 1.25rem); font-weight: 700; }
+.bi-trend-delta small { font-size: 0.65em; font-weight: 600; margin-left: 2px; }
+.bi-trend-delta.is-down { color: var(--color-success, #10b981); }
+.bi-trend-delta.is-up { color: var(--color-warning, #f59e0b); }
+.bi-trend-delta.is-none { color: var(--color-text-muted, #9ca3af); }
+.bi-trend-range { font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
+
+/* Chart card */
+.bi-chart-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-lg, 12px); padding: var(--space-4, 1rem); margin-bottom: var(--space-4, 1rem); }
+.bi-chart-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3, 0.75rem); margin-bottom: var(--space-3, 0.75rem); flex-wrap: wrap; }
+.bi-chart-head h3 { font-size: var(--font-size-base, 1rem); font-weight: 600; }
+.bi-chart-wrap { position: relative; height: 300px; }
+.bi-measure-select { max-width: 220px; }
+
+/* Intelligence cards */
+.bi-intel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3, 0.75rem); }
+.bi-intel-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+    border-left: 3px solid var(--color-accent, #6366f1); border-radius: var(--radius-lg, 12px);
+    padding: var(--space-4, 1rem); display: flex; flex-direction: column; gap: 0.2rem; }
+.bi-intel-card.bi-intel-good { border-left-color: var(--color-success, #10b981); }
+.bi-intel-label { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); }
+.bi-intel-value { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; color: var(--color-text, #111827); }
+.bi-intel-sub { font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
+.bi-delta-row { display: flex; flex-wrap: wrap; gap: var(--space-4, 1rem); margin-top: var(--space-3, 0.75rem); color: var(--color-text-muted, #4b5563); }
+
+/* Measurement tables */
+.bi-measure-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-4, 1rem); margin-bottom: var(--space-4, 1rem); }
+.bi-measure-title { font-size: var(--font-size-sm, 0.875rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); margin-bottom: var(--space-2, 0.5rem); }
+
+/* Goal */
+.bi-goal-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-5, 1.25rem); }
+.bi-goal-numbers { display: flex; flex-wrap: wrap; gap: var(--space-6, 1.5rem); margin-bottom: var(--space-4, 1rem); }
+.bi-goal-numbers > div { display: flex; flex-direction: column; }
+.bi-goal-k { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); }
+.bi-goal-v { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; }
+.bi-goal-bar { height: 10px; background: var(--color-border, #e5e7eb); border-radius: var(--radius-full, 999px); overflow: hidden; }
+.bi-goal-fill { height: 100%; background: var(--color-accent, #6366f1); border-radius: var(--radius-full, 999px); width: 0; transition: width 0.4s ease; }
+.bi-goal-pct { margin-top: var(--space-2, 0.5rem); font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #4b5563); }
+
+/* Insights */
+.bi-insights { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-5, 1.25rem); }
+.bi-insight-top { font-weight: 600; margin-bottom: var(--space-2, 0.5rem); }
+.bi-insight-list { margin: 0; padding-left: 1.1rem; color: var(--color-text-muted, #4b5563); }
+
+/* Photos CTA */
+.bi-photos-cta { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4, 1rem); flex-wrap: wrap;
+    background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-4, 1rem); }
+.bi-photos-cta > div { display: flex; gap: var(--space-2, 0.5rem); flex-wrap: wrap; }
+
+/* Empty */
+.bi-empty { text-align: center; padding: var(--space-8, 2rem); background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); }
+.bi-empty h2 { margin-bottom: var(--space-2, 0.5rem); }
+.bi-empty-actions { display: flex; gap: var(--space-2, 0.5rem); justify-content: center; flex-wrap: wrap; margin-top: var(--space-4, 1rem); }
+
+@media (max-width: 480px) {
+    .bi-header-actions { width: 100%; }
+    .bi-chart-wrap { height: 260px; }
+}
+</style>
+{% endblock %}

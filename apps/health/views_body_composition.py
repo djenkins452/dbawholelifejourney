@@ -20,6 +20,7 @@ from .forms import BodyCompositionEntryForm, HealthProfileForm
 from .models import (
     BODY_COMPOSITION_METRIC_CHOICES,
     BodyCompositionEntry,
+    BodyMeasurementSession,
     HealthProfile,
 )
 from .services.body_composition_snapshot import METRIC_LABELS
@@ -88,9 +89,42 @@ class BodyCompositionCreateView(
         kwargs["user"] = self.request.user
         return kwargs
 
+    def _requested_session(self):
+        """The check-in this measurement is being logged into, if any (?session=<id>)."""
+        session_id = self.request.GET.get("session") or self.request.POST.get("session")
+        if not session_id:
+            return None
+        return BodyMeasurementSession.objects.filter(
+            user=self.request.user, pk=session_id
+        ).first()
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["session"] = self._requested_session()
+        return ctx
+
     def form_valid(self, form):
+        from django.shortcuts import redirect
+        from django.urls import reverse
+
         form.instance.user = self.request.user
-        if "save_add_another" not in self.request.POST:
+        session = self._requested_session()
+        if session is not None:
+            form.instance.session = session
+        add_another = "save_add_another" in self.request.POST
+
+        if session is not None:
+            # Session-scoped: bypass the generic mixin so we can preserve the
+            # ?session= context on "Save & Add Another" and return to the check-in.
+            self.object = form.save()
+            if add_another:
+                messages.success(self.request, "Measurement added. Add another!")
+                base = reverse("health:body_composition_create")
+                return redirect(f"{base}?session={session.pk}")
+            messages.success(self.request, "Measurement added to check-in.")
+            return redirect("health:body_session_detail", pk=session.pk)
+
+        if not add_another:
             messages.success(self.request, "Measurement logged.")
         return super().form_valid(form)
 

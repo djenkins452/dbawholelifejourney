@@ -6,6 +6,62 @@
 # Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — feat(health): Body Intelligence — event-driven body-composition dashboard, check-ins, progress photos, waist sync, CoS truth
+
+**Why:** WLJ already computed most body-composition intelligence (snapshot deltas, fat-loss quality,
+plateau/recomposition, goal progress) but never exposed it as a coherent product. A read-only investigation
+confirmed the truth existed; the gaps were user-facing experience, a point-in-time grouping ("check-in"),
+progress photos, native-HealthKit waist ingestion, and one proactive CoS envelope gap. Built entirely on the
+existing Health Truth architecture — compose and expose existing truth, never recompute.
+
+**Architecture (locked with Danny):**
+- **Body Intelligence is event-driven, not monthly.** Calendar windows (7d/30d/quarter/year) are reporting
+  *lenses* over history, never the storage model. A user checks in at any cadence; every check-in compares to
+  the previous applicable one.
+- **`BodyMeasurementSession` is an organizational construct, NOT a source of truth.** Individual
+  `BodyCompositionEntry` / `WeightEntry` rows remain canonical. Optional nullable `session` FK (`SET_NULL`) on
+  both — deleting a session never destroys a measurement; the delete view also unlinks children so they become
+  ungrouped immediately. Existing ungrouped rows stay valid with zero backfill.
+- **Weight = Option A.** `WeightEntry` stays the canonical weight source; it gains an optional nullable session
+  FK. Weight is never duplicated into `BodyCompositionEntry`.
+- **Reuse, don't recompute.** The dashboard composes `build_body_composition_snapshot`,
+  `HealthCommandCenterService._build_body_comp_panel` (pre-computed `DailyHealthSummary` intelligence),
+  `build_weight_summary`, and `HealthProfile.get_weight_progress`. The only new arithmetic is one windowed-change
+  helper (single authority for a reporting lens). Request-path-safe (passes
+  `test_request_path_safety_contract`).
+- **CoS is a truth consumer only — no reasoning/orchestration change.** Closed the proven proactive-envelope
+  gap: `cos_context.py` now folds `health.waist_current` (already in SAE state) into `health_signals`, and the
+  new `health.body_intelligence` page summary exposes the dashboard's deterministic facts as Current Context.
+
+**Milestones delivered:** M1 read-only Body Intelligence dashboard + page summary + Current Context;
+M2 measurement CRUD + smallest-safe `BodyMeasurementSession` grouping (+ RENPHO source); M3 native HealthKit
+`waist` ingestion; M4 event-driven Body Progress Photos (front/side/back/flexed) with upload/replace/soft-delete
++ side-by-side comparison; M5 compact Body Intelligence summary card on the Health home; M6 CoS truth exposure.
+
+**Files (new):** `apps/health/services/body_intelligence.py`, `apps/health/views_body_intelligence.py`,
+`apps/health/migrations/0099_bodymeasurementsession_and_more.py`,
+`apps/health/tests/test_body_intelligence.py`, `templates/health/body_intelligence.html`,
+`templates/health/_bi_measure_table.html`, `templates/health/body_session_list.html`,
+`templates/health/body_session_detail.html`, `templates/health/body_session_form.html`,
+`templates/health/body_photo_form.html`, `templates/health/body_photo_compare.html`.
+**Files (changed):** `apps/health/models.py` (BodyMeasurementSession, BodyProgressPhoto, session FKs, RENPHO
+source), `apps/health/forms.py`, `apps/health/views_body_composition.py` (session-scoped create),
+`apps/health/urls.py`, `apps/health/page_summaries.py` (`health.body_intelligence` provider),
+`apps/mobile/views.py` (`process_waist_metric`), `apps/core/ai_orchestrator/cos_context.py` (waist envelope),
+`templates/health/home.html` (M5 card), release_notes/help_topics/teaching_destinations fixtures +
+`load_initial_data.py` reset.
+
+**Migration:** `health/0099` — 2 `CreateModel` (BodyMeasurementSession, BodyProgressPhoto), 2 nullable FK
+`AddField` (NULL-backfilled), 1 `AlterField` (source choices). Non-destructive; no data migration.
+
+**Verification:** 14 new tests pass (model SET_NULL preservation, legacy ungrouped rows, service composition,
+dashboard/CRUD/photo/comparison views, ownership isolation, waist ingestion). `test_request_path_safety_contract`
++ `test_body_composition*` pass. Live browser verification with seeded data: dashboard headline "Weight down
+10.8 lb", snapshot cards, week/month/quarter/year lenses, measurement table with waist −2in ✓, check-in
+timeline + detail, M5 summary card. Note: 3 PRE-EXISTING failures in `test_body_comp_signal` (weight-vote logic
+in `body_composition_signal.py`) reproduce on a clean checkout with this work stashed — unrelated; flagged for a
+separate fix.
+
 ## 2026-07-12 — fix(security): SEC-001 CSRF — same-origin guard on Service Worker upload endpoint (→ Grade A)
 
 **Why:** After the 2026-07-11 remediation the full assessment had ONE finding left — SEC-001 "CSRF
@@ -40,52 +96,6 @@ is blocked. Guard logic verified across 6 header permutations via RequestFactory
 **Verification (`run_security_assessment --report`, before → after):** Grade D → **A**; findings 1 → **0**
 (all severities 0); CVSS avg 6.4 → **0.0**; Risk 4 → **0/100**; BitSight 900/900; tests passing 97 → **98/100**.
 CSRF test (SEC-T023) now `pass`, 0 findings. `manage.py check` clean.
-
-## 2026-07-12 — feat(operations): Phase II-A hardening — DB-level recovery concurrency lock (ADR-22)
-
-**Why:** A "Phase II-A — Recovery Foundation, shipped dark" milestone. **Mandatory pre-write verification
-found the Phase II-A foundation was ALREADY built and shipped dark** (`b3e6c40a`…`24345af7`): the
-`apps/core/operations/` package + boundaries, `RecoveryEngine` lifecycle, `RecoveryPolicy` (R0–R4), registry,
-three R1 handlers **including the snapshot-refresh pilot `MaturitySnapshotRefreshHandler`**, `RecoveryAttempt`
-+ migration `0130`, kill switches (`OPS_RECOVERY_ENABLED` + per-handler, all default False), the gated
-non-blocking downstream enqueue (`same_engine.py:107`), the Recovery Activity Ops Wall card, and the
-import-boundary + request-path CI contracts. Re-implementing would **duplicate/revert** shipped, tested,
-deployed work — so I did NOT. (Note: the plan's original "snapshot-refresh = Pilot 1 / no Beat-retry" was
-reversed at implementation per ADR-16/17 — Beat-retry shipped first, snapshot-refresh shipped as the
-recompute-shape `MaturitySnapshotRefreshHandler`. Removing Beat-retry would be a regression, not progress.)
-
-**The one genuine net-new requirement not fully as-built = database-backed concurrency protection.** The
-engine already used durable DB audit records (not cache) for cooldown/attempt state, but that only *reduced*
-the read-decide-act (TOCTOU) window between overlapping recovery cycles/workers. Added a hard **DB row
-lock**: `engine.py::_process_locked` re-fetches each active incident under `SELECT … FOR UPDATE SKIP LOCKED`
-in its own transaction, and writes the RecoveryAttempt audit rows inside that transaction — so two
-overlapping cycles process **disjoint** incident sets (skip_locked = no blocking, no double-execute), and
-the pending/attempt record is durably committed with the lock. Added while ship-dark (safest time); Postgres-
-real. Never swallows exceptions (logs `exc_info=True` + audits).
-
-**What changed:** `apps/core/operations/recovery/engine.py` (per-incident `_process_locked` with
-select_for_update; `locked_skipped` summary counter). Everything else already existed. **No new model, no
-migration** (`RecoveryAttempt`/`0130` already shipped).
-
-**Verification:** new `test_recovery_concurrency.py` (2 — a real cross-connection `FOR UPDATE` lock proves a
-locked incident is skipped and never acted-on/audited; unlocked processes normally). Existing suites still
-green: operations 33 (27 recovery + 2 concurrency + 4 import-boundary), request-path safety + constitution +
-import-boundary contracts 17; `check` + `makemigrations --check` clean.
-
-**Production behavior:** UNCHANGED — recovery remains **shipped dark** (`OPS_RECOVERY_ENABLED=False`, all
-per-handler flags False). No automatic production recovery runs; no production incident state is changed by
-recovery. Subsystem remains **O1** until a pilot is enabled + proven in production. This is a docs + one
-engine-file change; deployed via `main`, runtime not operator-verified.
-
-**Docs:** vision ADR-22 (+ a note that the Phase II-A foundation was already shipped, so it isn't
-re-implemented) + Phase II ledger; PHASE2_PLAN §7 (as-built concurrency) + risk R-9 (resolved). **Next
-milestone to enable/observe the first R1 pilot:** the operator-gated O1→O2 rollout (`PHASE2_PLAN §11.1`) —
-set the 3 Railway env vars for the safest allowlisted task + observe ≥3 SAME cycles.
-
-**Files:** `apps/core/operations/recovery/engine.py`,
-`apps/core/operations/tests/test_recovery_concurrency.py` (new), `docs/WLJ_OPERATIONS_VISION.md`,
-`docs/WLJ_OPERATIONS_PHASE2_PLAN.md`, `docs/wlj_claude_changelog.md`,
-`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
 
 ## 2026-07-12 — feat(ops-9): Deployment & version health (`deployment` section)
 

@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 )
 def run_recovery_cycle_task(self):
     """Run one deterministic recovery cycle, then publish read-only telemetry."""
-    from django.conf import settings
+    from apps.core.operations.recovery.mode import DISABLED, get_recovery_mode
 
-    if not getattr(settings, "OPS_RECOVERY_ENABLED", False):
-        return {"enabled": False}
+    if get_recovery_mode() == DISABLED:
+        return {"enabled": False, "mode": DISABLED}
 
     from apps.core.operations.recovery.engine import run_recovery_cycle
     from apps.core.operations.recovery.telemetry import publish_recovery_telemetry

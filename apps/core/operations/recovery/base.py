@@ -58,6 +58,10 @@ class RecoveryHandler:
     monitor_key: str = ""
     handled_anomaly_types: frozenset[str] = frozenset()
     policy: RecoveryPolicy
+    # Human-readable name of the deterministic predicate ``verify()`` reuses (the
+    # exact detector that raised the incident). Used by Shadow Mode to record the
+    # verification STRATEGY without executing it. Overridden per handler.
+    verification_predicate: str = ""
 
     def diagnose(self, anomaly) -> RecoveryDiagnosis:  # pragma: no cover - interface
         raise NotImplementedError
@@ -67,6 +71,15 @@ class RecoveryHandler:
 
     def verify(self, diagnosis: RecoveryDiagnosis) -> VerificationResult:  # pragma: no cover
         raise NotImplementedError
+
+    def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
+        """Side-effect-free description of the action ``recover()`` WOULD take.
+
+        Shadow Mode uses this to record "what recovery would have done" WITHOUT
+        calling ``recover()``. Must never mutate state. Default is generic; each
+        handler overrides it with its concrete deterministic action.
+        """
+        return f"execute recovery for '{diagnosis.target}'"
 
 
 class RecoveryRegistry:

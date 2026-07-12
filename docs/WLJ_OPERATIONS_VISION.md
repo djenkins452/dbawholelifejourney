@@ -132,6 +132,35 @@ declared.** This is the single most important safety control in the subsystem.
 - **R4 is never offered as a one-click action.** Operations escalates with full context; a human performs it deliberately under change control.
 - When in doubt, **classify higher (safer).** An action is R2 only when it is provably safe and reversible-by-verification; otherwise it is R3.
 
+### 4a. Recovery Mode — Disabled / Shadow / Active (Governing)
+
+Orthogonal to *classification* (what an action is allowed to be) is **execution mode** (what the engine is
+allowed to do right now). There are exactly three modes, resolved by one deterministic source of truth
+(`apps/core/operations/recovery/mode.py :: get_recovery_mode`, config `OPS_RECOVERY_MODE`):
+
+| Mode | The engine… | Writes | Production |
+|---|---|---|---|
+| **DISABLED** | does nothing — a true no-op. No diagnosis, action, verification, incident mutation, or audit volume. | nothing | **default** |
+| **SHADOW** | runs the **entire** deterministic lifecycle (detect → diagnose → classify → policy → kill-switch → cooldown → retry → verification strategy → determine action → determine escalation path), then **STOPS immediately before executing the action**. | ONE distinct **`SHADOW`** audit row per incident occurrence — *what recovery would have done* (`would_execute`, action, classification, handler, verification predicate, evidence). No action, no `verify()`, no state mutation, no incident closure. | validation only |
+| **ACTIVE** | performs real deterministic recovery (still per-pilot gated by the handler flags/allowlists). | real lifecycle rows (`RECOVER_ATTEMPTED`/`VERIFIED`/`ESCALATED`/…) | per-pilot, operator-gated |
+
+**Shadow Mode is the final validation stage before the first automatic production recovery.** It answers,
+with deterministic evidence: *"If recovery had been enabled, exactly what would WLJ have done — on which
+incident, with which action, verified by which predicate?"* — without any production risk.
+
+**Governing rules:**
+- **A shadow decision can never be mistaken for real recovery.** Shadow rows carry both `phase=SHADOW` **and**
+  `mode=SHADOW`, use their own outcome (`SHADOW_SIMULATED`), and render with a distinct "simulated only"
+  treatment. Shadow **never** writes a real `RECOVER_ATTEMPTED`/`VERIFIED`/`ESCALATED`/`PENDING`/`CLOSED` row —
+  even a simulated failure is recorded as a `SHADOW` row, never a real escalation.
+- **Precedence is fail-safe.** An explicit mode always wins; the legacy `OPS_RECOVERY_ENABLED=True` bridges to
+  ACTIVE **only** when `OPS_RECOVERY_MODE` is left at its DISABLED default — it can never upgrade an explicit
+  SHADOW. Anything unrecognised → DISABLED.
+- **Shadow is idempotent** — one `SHADOW` row per incident occurrence (never one per 60s cycle; audit-volume
+  guard R-8). The decision is stable within an occurrence because shadow advances no attempt/cooldown counters.
+- **The import boundary holds** (§11): the SAME→recovery enqueue gate in `ai_observability` mirrors the
+  resolver via settings only (never imports `operations`); a contract test keeps the mirror in exact sync.
+
 ---
 
 ## 5. Standard Recovery Lifecycle (Governing)
@@ -828,19 +857,22 @@ is `WLJ_OPS_WALL_COVERAGE.md §4`):
 *OPS-1…4 detail lives in `WLJ_OPS_WALL_COVERAGE.md` §4 (the authoritative coverage source). This ledger
 mirrors status; the coverage doc holds the as-built detail + the categorized backlog.*
 
-### Phase II — Deterministic Recovery · **Phase II-A foundation SHIPPED (dark) — pilots pending enablement**
+### Phase II — Deterministic Recovery · **Phase II-A foundation + Shadow Mode SHIPPED (dark) — pilots pending enablement**
 
 *Phase II-A (Recovery Foundation, shipped dark) is **complete**: the package/boundaries, lifecycle, audit,
 verification, request-path isolation, kill switches, Command Center visibility, and three R1 handlers
 (Beat-retry, engine-starvation, and the **snapshot-refresh pilot** `MaturitySnapshotRefreshHandler`) were
-built and shipped dark (`b3e6c40a`…`24345af7`). The 2026-07-12 milestone added only the DB-level
-concurrency lock (ADR-22). **No automatic production recovery has run** — the subsystem is **O1** until a
-pilot is enabled and proven in production. The covered pilots are recovery-capable, not operationally active.*
+built and shipped dark (`b3e6c40a`…`24345af7`). The 2026-07-12 milestone added the DB-level
+concurrency lock (ADR-22) and **Recovery Shadow Mode** (ADR-23) — the final validation stage that runs the
+full deterministic lifecycle and records what recovery WOULD do, without executing. **No automatic production
+recovery has run** — the subsystem is **O1** until a pilot is enabled and proven in production. The covered
+pilots are recovery-capable, not operationally active.*
 
 | ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
 |---|---|---|---|---|---|---|
 | [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | b3e6c40a | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
 | [x] | **DB-level per-incident concurrency lock** (`SELECT … FOR UPDATE SKIP LOCKED`) — ADR-22 | 2026-07-12 | `0fb0ae1e` | ship-dark | ADR-22 / PHASE2_PLAN §7 | `test_recovery_concurrency.py` (2) |
+| [x] | **Recovery Shadow Mode** (`OPS_RECOVERY_MODE=DISABLED\|SHADOW\|ACTIVE`; full lifecycle, stops before acting; distinct `SHADOW` audit row; Command Center "simulated only"; migration `0132`) — ADR-23 | 2026-07-12 | `_this commit_` | ship-dark (DISABLED) | §4a / ADR-23 / PHASE2_PLAN §12 | `test_recovery_shadow_mode.py` (18) |
 | [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | b3e6c40a | ship-dark | §4 | `test_recovery.py::PolicyTests` |
 | [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
 | [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
@@ -929,6 +961,7 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-21 | 2026-07-11 | **New `MATURITY_SNAPSHOT_STALE` detector added to SAME** (P3, ≥2-day threshold, read-only). This is Phase I observability added alongside the recovery so the recompute handler has an incident to act on. | The only way to recover the maturity-snapshot gap (ADR-19) is to detect it first. Conservative severity/threshold keeps production noise near-zero; the detector is the truth producer, the handler the action consumer. |
 | ADR-22 | 2026-07-12 | **Phase II-A hardening — DB-level per-incident concurrency lock.** The recovery engine now re-fetches each active incident under `SELECT … FOR UPDATE SKIP LOCKED` in its own transaction (`engine.py::_process_locked`), so two overlapping recovery cycles/workers can never act on the same incident; RecoveryAttempt audit rows are written inside that transaction, closing the read-decide-act (TOCTOU) window. | The prior cooldown/pending checks (durable audit records) *reduced* but did not *eliminate* the concurrency window. `skip_locked` means a concurrent cycle processes a disjoint incident set (no blocking, no double-execute). Postgres-real; added while ship-dark (safest time). Proven by `test_recovery_concurrency.py`. |
 | — | 2026-07-12 | **NOTE — Phase II-A "snapshot-refresh pilot" already shipped as `MaturitySnapshotRefreshHandler`** (R1, recompute shape, ADR-19); the Phase II plan's original "snapshot-refresh = Pilot 1" was reversed at implementation (ADR-16/17 shipped Beat-retry first). The Phase II-A foundation (engine, policy, registry, 3 R1 handlers, `RecoveryAttempt`+migration 0130, kill switches, gated non-blocking enqueue, telemetry + Ops Wall card, import-boundary + request-path contracts) was **already built and shipped dark** (`b3e6c40a`…`24345af7`); this milestone added only the ADR-22 concurrency lock. | Recorded so a future reader does not re-implement or revert the shipped foundation. |
+| ADR-23 | 2026-07-12 | **Recovery Shadow Mode — the final validation stage before the first automatic production recovery.** Introduced `OPS_RECOVERY_MODE` (DISABLED/SHADOW/ACTIVE) with one deterministic resolver (`recovery/mode.py`). SHADOW runs the **entire** deterministic lifecycle (diagnose→classify→policy→kill-switch→cooldown→retry→verification-strategy→determine-action→determine-escalation) and then **STOPS before executing** — writing one distinct `SHADOW` audit row (`phase=SHADOW`, `mode=SHADOW`, `outcome=SHADOW_SIMULATED`) recording `would_execute`, the action, classification, handler, and the verification predicate — with **no** `recover()`, **no** `verify()`, **no** state mutation, **no** incident closure, **no** side effect. Idempotent per incident occurrence. Command Center shows the mode and marks simulated rows "simulated only" (distinct colour, never green). Migration `0132` adds the additive `mode` field. Legacy `OPS_RECOVERY_ENABLED=True` bridges to ACTIVE only when the mode is the DISABLED default (never upgrades an explicit SHADOW). SAME's enqueue gate mirrors the resolver via settings only (§11 boundary), kept in sync by a contract test. | We must be able to answer "if recovery had been enabled, exactly what would WLJ have done?" with deterministic evidence, at zero production risk, before turning on the first R1 pilot. Reusing the real engine (not a separate simulator) guarantees the shadow proves the actual code path; a distinct phase+mode+outcome guarantees an operator can never mistake a simulation for real recovery — eliminating the "shadow looks live" failure class rather than detecting it. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 

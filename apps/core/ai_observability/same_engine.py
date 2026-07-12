@@ -29,6 +29,22 @@ from django.utils import timezone
 logger = logging.getLogger(__name__)
 
 
+def _recovery_enqueue_enabled(settings) -> bool:
+    """Should SAME hand off to the recovery cycle? True when recovery is not DISABLED.
+
+    IMPORT BOUNDARY (WLJ_OPERATIONS_VISION.md §11): ai_observability (truth) must
+    never import apps.core.operations (action), so this MIRRORS the canonical
+    resolver apps.core.operations.recovery.mode.get_recovery_mode() using settings
+    only (same discipline as the duplicated cache-key literal). Kept in exact sync by
+    apps.core.operations.tests.test_recovery_shadow_mode :: MirrorSyncTests.
+    """
+    raw = str(getattr(settings, "OPS_RECOVERY_MODE", "DISABLED") or "DISABLED").strip().upper()
+    if raw in ("SHADOW", "ACTIVE"):
+        return True
+    # DISABLED / unknown → only the legacy bridge can enable (ACTIVE).
+    return bool(getattr(settings, "OPS_RECOVERY_ENABLED", False))
+
+
 def run_same():
     """
     Main SAME entry point. Compute anomalies + narrative + integrity, persist all.
@@ -96,15 +112,18 @@ def run_same():
     # Step 7 (WLJ Operations Phase II): hand off to the deterministic recovery
     # cycle — ONLY after Operations Truth is built and cached above. This is a
     # non-blocking, fire-and-forget enqueue of a SEPARATE worker task; a recovery
-    # fault can never delay/lengthen/destabilize this telemetry path. Gated by
-    # OPS_RECOVERY_ENABLED (default False → true no-op). The recovery task lives in
-    # apps.core.operations (the ACTION package); we reference it by NAME via the
-    # Celery registry rather than importing it, to preserve the frozen import
-    # boundary (truth never imports action — WLJ_OPERATIONS_VISION.md §11).
+    # fault can never delay/lengthen/destabilize this telemetry path. Enqueue when
+    # recovery is NOT DISABLED (SHADOW or ACTIVE); DISABLED → no enqueue (true
+    # no-op). The recovery task lives in apps.core.operations (the ACTION package);
+    # we reference it by NAME via the Celery registry rather than importing it, to
+    # preserve the frozen import boundary (truth never imports action —
+    # WLJ_OPERATIONS_VISION.md §11). The mode predicate below MIRRORS the canonical
+    # resolver apps.core.operations.recovery.mode.get_recovery_mode() (deliberately
+    # NOT imported, same as the duplicated cache-key literal) — kept in sync by test.
     try:
         from django.conf import settings
 
-        if getattr(settings, "OPS_RECOVERY_ENABLED", False):
+        if _recovery_enqueue_enabled(settings):
             from celery import current_app
 
             from apps.core.celery_utils import safe_enqueue

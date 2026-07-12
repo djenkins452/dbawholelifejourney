@@ -2657,8 +2657,11 @@ def _get_recovery_telemetry(now=None):
     if cached is not None:
         return cached
     return {
-        "enabled": False, "status": "OK",
-        "counts": {"recovered_24h": 0, "verified_24h": 0, "escalated_24h": 0, "pending": 0},
+        "mode": "DISABLED", "enabled": False, "status": "OK",
+        "counts": {
+            "recovered_24h": 0, "verified_24h": 0, "escalated_24h": 0, "pending": 0,
+            "shadowed_24h": 0, "would_recover_24h": 0,
+        },
         "recent": [], "pending": True,
     }
 

@@ -52,6 +52,7 @@ class BeatTaskRetryHandler(RecoveryHandler):
 
     monitor_key = "scheduled_task"
     handled_anomaly_types = frozenset({"MISSED_RUN"})
+    verification_predicate = "compute_scheduled_task_states (OPS-1 freshness)"
     policy = RecoveryPolicy(
         classification=R1,
         max_attempts=2,          # finite even for R1 — no unbounded loop
@@ -59,6 +60,9 @@ class BeatTaskRetryHandler(RecoveryHandler):
         recurrence_window_hours=24,
         recurrence_limit=5,      # keeps missing → permanent-fix escalation
     )
+
+    def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
+        return f"re-enqueue Beat task '{diagnosis.target}'"
 
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
         task_name = (anomaly.engine_name or "").strip()
@@ -145,6 +149,7 @@ class EngineStarvationRetriggerHandler(RecoveryHandler):
 
     monitor_key = "engine"
     handled_anomaly_types = frozenset({"ENGINE_STARVATION"})
+    verification_predicate = "engine_ran_within_24h (starvation inverse)"
     policy = RecoveryPolicy(
         classification=R1,
         max_attempts=2,
@@ -152,6 +157,9 @@ class EngineStarvationRetriggerHandler(RecoveryHandler):
         recurrence_window_hours=24,
         recurrence_limit=4,         # keeps starving → the scheduler needs a permanent fix
     )
+
+    def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
+        return f"re-trigger engine '{diagnosis.target}'"
 
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
         from apps.core.ai_observability.engine_registry import get_engine_meta
@@ -226,6 +234,7 @@ class MaturitySnapshotRefreshHandler(RecoveryHandler):
 
     monitor_key = "maturity_snapshot"
     handled_anomaly_types = frozenset({"MATURITY_SNAPSHOT_STALE"})
+    verification_predicate = "maturity_snapshot_age_days < threshold (staleness inverse)"
     policy = RecoveryPolicy(
         classification=R1,
         max_attempts=2,
@@ -233,6 +242,9 @@ class MaturitySnapshotRefreshHandler(RecoveryHandler):
         recurrence_window_hours=48,
         recurrence_limit=3,         # keeps going stale → ISE schedule needs a permanent fix
     )
+
+    def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
+        return "recompute the system maturity snapshot (daily upsert)"
 
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
         enabled = bool(getattr(settings, "OPS_RECOVERY_MATURITY_SNAPSHOT", False))

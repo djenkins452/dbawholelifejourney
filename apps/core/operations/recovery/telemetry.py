@@ -29,7 +29,7 @@ OPS_RECOVERY_CACHE_TTL = 180  # seconds
 
 def build_recovery_telemetry(now=None) -> dict:
     """Assemble the read-only recovery section from the RecoveryAttempt audit rows."""
-    from django.conf import settings
+    from apps.core.operations.recovery.mode import DISABLED, get_recovery_mode
 
     now = now or timezone.now()
     window_start = now - timedelta(hours=24)
@@ -44,15 +44,26 @@ def build_recovery_telemetry(now=None) -> dict:
     recovered_24h = all_window.filter(phase=RecoveryAttempt.PHASE_RECOVER_ATTEMPTED).count()
     escalated_24h = all_window.filter(phase=RecoveryAttempt.PHASE_ESCALATED).count()
     pending = RecoveryAttempt.objects.filter(outcome=RecoveryAttempt.OUTCOME_PENDING).count()
+    # Shadow-mode simulated decisions (never executed) — kept in their OWN counters
+    # so a simulated "would recover" can never be counted as a real recovery.
+    shadowed_24h = all_window.filter(phase=RecoveryAttempt.PHASE_SHADOW).count()
+    would_recover_24h = all_window.filter(
+        phase=RecoveryAttempt.PHASE_SHADOW,
+        evidence_before__would_execute=True,
+    ).count()
 
+    mode = get_recovery_mode()
     section = {
-        "enabled": bool(getattr(settings, "OPS_RECOVERY_ENABLED", False)),
+        "mode": mode,                       # DISABLED | SHADOW | ACTIVE
+        "enabled": mode != DISABLED,        # back-compat for existing JS
         "status": "ATTENTION" if escalated_24h else "OK",
         "counts": {
             "recovered_24h": recovered_24h,
             "verified_24h": verified_24h,
             "escalated_24h": escalated_24h,
             "pending": pending,
+            "shadowed_24h": shadowed_24h,
+            "would_recover_24h": would_recover_24h,
         },
         "recent": [
             {
@@ -63,6 +74,8 @@ def build_recovery_telemetry(now=None) -> dict:
                 "classification": r.classification,
                 "phase": r.phase,
                 "outcome": r.outcome,
+                "mode": r.mode,
+                "simulated": r.mode == RecoveryAttempt.MODE_SHADOW,
                 "action": r.action_taken,
             }
             for r in recent

@@ -1496,8 +1496,19 @@ WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', defa
 # ─────────────────────────────────────────────────────────────────────────────
 # WLJ Operations — Phase II Deterministic Recovery (ships DARK).
 # Governing docs: docs/WLJ_OPERATIONS_VISION.md, docs/WLJ_OPERATIONS_PHASE2_PLAN.md.
-# Master kill switch: False → the SAME cycle never enqueues recovery, and the
-# recovery task is a true no-op (no payload read, no action). Default OFF.
+#
+# OPS_RECOVERY_MODE is the single source of truth for what recovery may do:
+#   DISABLED — true no-op (no diagnosis/action/verification/audit). Production default.
+#   SHADOW   — run the FULL deterministic lifecycle, then STOP before acting; record
+#              one distinct SHADOW audit row per incident (what recovery WOULD do).
+#              The final validation stage before the first automatic production recovery.
+#   ACTIVE   — real deterministic recovery (still per-pilot gated by the flags below).
+# Resolver: apps.core.operations.recovery.mode.get_recovery_mode(). An explicit mode
+# always wins; the legacy OPS_RECOVERY_ENABLED=True below bridges to ACTIVE ONLY when
+# mode is left at the DISABLED default (never upgrades an explicit SHADOW). Ships DISABLED.
+OPS_RECOVERY_MODE = env.str('OPS_RECOVERY_MODE', default='DISABLED')
+# Legacy master switch (retained for back-compat + the existing pilot allowlists).
+# True → ACTIVE when OPS_RECOVERY_MODE is unset/DISABLED. Default OFF.
 OPS_RECOVERY_ENABLED = env.bool('OPS_RECOVERY_ENABLED', default=False)
 # Per-handler enable for the Beat-task re-enqueue pilot (R1). Default OFF.
 OPS_RECOVERY_BEAT_RETRY = env.bool('OPS_RECOVERY_BEAT_RETRY', default=False)

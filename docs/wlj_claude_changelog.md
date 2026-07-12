@@ -6,6 +6,68 @@
 # Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — feat(operations): Recovery Shadow Mode — final validation stage before first automatic production recovery (ADR-23)
+
+**Why:** Before WLJ ever performs its first *automatic* production recovery, we need to answer — with
+deterministic evidence and zero production risk — *"if recovery had been enabled, exactly what would WLJ have
+done?"* Shadow Mode runs the **entire** deterministic recovery lifecycle exactly as it would live, then
+**STOPS immediately before executing the action**.
+
+**What changed:**
+- **`OPS_RECOVERY_MODE` (DISABLED / SHADOW / ACTIVE)** — one deterministic resolver
+  (`apps/core/operations/recovery/mode.py :: get_recovery_mode`). DISABLED = true no-op (unchanged prod
+  default). SHADOW = full lifecycle (detect→diagnose→classify→policy→kill-switch→cooldown→retry→verification
+  strategy→determine action→determine escalation), then stops before `recover()`. ACTIVE = real recovery
+  (per-pilot gated, unchanged). Precedence is fail-safe: an explicit mode always wins; legacy
+  `OPS_RECOVERY_ENABLED=True` bridges to ACTIVE **only** when mode is the DISABLED default (never upgrades an
+  explicit SHADOW); anything unrecognised → DISABLED.
+- **Shadow audit** — one distinct row per incident occurrence: `phase=SHADOW`, `mode=SHADOW`,
+  `outcome=SHADOW_SIMULATED`, recording `would_execute`, the action, classification, handler, verification
+  predicate, evidence, and `skipped_because="Shadow Mode — simulated only"`. **No** `recover()`, **no**
+  `verify()`, **no** state mutation, **no** incident closure, **no** side effect. Idempotent (never floods).
+  A shadow row can never be mistaken for real recovery (distinct phase+mode+outcome); even a simulated failure
+  is a SHADOW row, never a real escalation.
+- **Command Center** — the Recovery Activity card shows the mode (Disabled/Shadow/Active) and marks simulated
+  rows "simulated only" with a distinct colour (never green). Cold-start/default reader reports `mode=DISABLED`.
+- **Migration `0132`** (additive `mode` field; existing rows default ACTIVE) + new `SHADOW`/`SHADOW_SIMULATED`
+  choices. **SAME enqueue gate** now fires for SHADOW or ACTIVE via a settings-only mirror of the resolver
+  (preserves the frozen §11 boundary — `ai_observability` never imports `operations`), kept in exact sync by a
+  contract test. Recovery task gate is mode-aware.
+
+**Verification:** new `test_recovery_shadow_mode.py` (18) — resolver/precedence, shadow runs diagnose but
+never acts/verifies, one distinct shadow row, no incident closure/mutation, idempotency, observe-only (R0)
+path, DISABLED no-op, **ACTIVE behaviour unchanged**, telemetry mode+counts, and the SAME-mirror sync matrix.
+Full recovery suite green: operations **51** (27 recovery incl. prior E2E + 2 concurrency + 4 import-boundary
++ 18 shadow), payload-builder **33 sections intact**, request-path-safety + constitution contracts green;
+`check` + `makemigrations --check` clean; renderer JS syntax-validated.
+
+**Production behavior:** UNCHANGED — ships **DISABLED** (`OPS_RECOVERY_MODE=DISABLED`, all handler flags
+False). No shadow or real recovery runs in production until an operator sets the mode. Subsystem remains **O1**.
+Docs deployed via `main`; runtime not operator-verified.
+
+**Files:** `apps/core/operations/recovery/mode.py` (new), `apps/core/operations/recovery/engine.py`,
+`apps/core/operations/recovery/base.py`, `apps/core/operations/recovery/handlers.py`,
+`apps/core/operations/recovery/telemetry.py`, `apps/core/operations/tasks.py`,
+`apps/core/operations/models.py`, `apps/core/migrations/0132_recoveryattempt_mode_alter_recoveryattempt_outcome_and_more.py`,
+`apps/core/ai_observability/same_engine.py`, `apps/core/ai_observability/ops_telemetry.py`,
+`config/settings.py`, `templates/admin_console/operations_wall.html`,
+`apps/core/operations/tests/test_recovery_shadow_mode.py` (new), `docs/WLJ_OPERATIONS_VISION.md`,
+`docs/WLJ_OPERATIONS_PHASE2_PLAN.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
+## 2026-07-12 — feat(operations): Phase II-A hardening — DB-level recovery concurrency lock (ADR-22) [backfilled]
+
+**Why:** Changelog line deferred at commit time (`0fb0ae1e`) because a concurrent session owned the shared
+changelog that cycle; backfilled here now that it has landed. Phase II-A pre-write verification found the
+recovery foundation was **already built and shipped dark** (`b3e6c40a`…`24345af7`), so it was NOT rebuilt.
+The one genuine net-new requirement = **database-backed concurrency protection**: `engine.py::_process_locked`
+re-fetches each active incident under `SELECT … FOR UPDATE SKIP LOCKED` in its own transaction and writes the
+`RecoveryAttempt` audit rows inside that transaction, so two overlapping cycles/workers process **disjoint**
+incident sets (no blocking, no double-execute) — closing the read-decide-act (TOCTOU) window. Ship-dark;
+Postgres-real; never swallows exceptions. **Verification:** `test_recovery_concurrency.py` (2, real
+cross-connection `FOR UPDATE` lock). No new model/migration. **Files:** `apps/core/operations/recovery/engine.py`,
+`apps/core/operations/tests/test_recovery_concurrency.py`, `docs/WLJ_OPERATIONS_VISION.md` (ADR-22),
+`docs/WLJ_OPERATIONS_PHASE2_PLAN.md` (§7 / R-9).
+
 ## 2026-07-12 — feat(health): Body Intelligence — event-driven body-composition dashboard, check-ins, progress photos, waist sync, CoS truth
 
 **Why:** WLJ already computed most body-composition intelligence (snapshot deltas, fat-loss quality,

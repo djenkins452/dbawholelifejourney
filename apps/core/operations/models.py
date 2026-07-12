@@ -36,6 +36,11 @@ class RecoveryAttempt(models.Model):
     PHASE_ESCALATED = "ESCALATED"
     PHASE_SKIPPED_COOLDOWN = "SKIPPED_COOLDOWN"
     PHASE_SKIPPED_UNSAFE = "SKIPPED_UNSAFE"
+    # Shadow Mode: a SIMULATED decision — the engine ran the full deterministic
+    # lifecycle and recorded what it WOULD have done, then stopped before acting.
+    # This phase is used ONLY for simulated rows, so a shadow record can never be
+    # mistaken for a real recovery/verification/escalation (mode is SHADOW too).
+    PHASE_SHADOW = "SHADOW"
     PHASE_CHOICES = [
         (PHASE_DIAGNOSED, "Diagnosed"),
         (PHASE_RECOVER_ATTEMPTED, "Recover attempted"),
@@ -44,16 +49,30 @@ class RecoveryAttempt(models.Model):
         (PHASE_ESCALATED, "Escalated to engineering"),
         (PHASE_SKIPPED_COOLDOWN, "Skipped — cooldown"),
         (PHASE_SKIPPED_UNSAFE, "Skipped — unsafe classification"),
+        (PHASE_SHADOW, "Shadow — simulated only (no action)"),
     ]
 
     # ── Outcome ───────────────────────────────────────────────────────────
     OUTCOME_SUCCESS = "SUCCESS"
     OUTCOME_FAILED = "FAILED"
     OUTCOME_PENDING = "PENDING_VERIFICATION"
+    OUTCOME_SHADOW = "SHADOW_SIMULATED"  # a shadow decision — nothing was executed
     OUTCOME_CHOICES = [
         (OUTCOME_SUCCESS, "Success"),
         (OUTCOME_FAILED, "Failed"),
         (OUTCOME_PENDING, "Pending verification"),
+        (OUTCOME_SHADOW, "Shadow (simulated — no action taken)"),
+    ]
+
+    # ── Execution mode this row was written under (Shadow-Mode validation) ─
+    # ACTIVE = a real recovery decision that executed (or gated) for real.
+    # SHADOW = a simulated decision (engine stopped before acting).
+    # Pre-existing rows default to ACTIVE (they were all written by live recovery).
+    MODE_ACTIVE = "ACTIVE"
+    MODE_SHADOW = "SHADOW"
+    MODE_CHOICES = [
+        (MODE_ACTIVE, "Active (real)"),
+        (MODE_SHADOW, "Shadow (simulated)"),
     ]
 
     # Recovery safety classification at the time of action (vision §4).
@@ -84,6 +103,12 @@ class RecoveryAttempt(models.Model):
     phase = models.CharField(max_length=24, choices=PHASE_CHOICES)
     outcome = models.CharField(
         max_length=24, choices=OUTCOME_CHOICES, blank=True, default=""
+    )
+    # Execution mode: ACTIVE (real) or SHADOW (simulated). Additive; existing rows
+    # default ACTIVE. Lets the audit + Command Center distinguish shadow decisions
+    # from real recovery beyond doubt (belt-and-braces with PHASE_SHADOW).
+    mode = models.CharField(
+        max_length=8, choices=MODE_CHOICES, default=MODE_ACTIVE, db_index=True
     )
 
     attempt_number = models.PositiveIntegerField(default=1)

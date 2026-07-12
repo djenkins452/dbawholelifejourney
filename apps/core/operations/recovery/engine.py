@@ -24,13 +24,18 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
 from apps.core.operations.models import RecoveryAttempt
 from apps.core.operations.recovery.base import RecoveryDiagnosis, registry
 from apps.core.operations.recovery.handlers import register_default_handlers
+from apps.core.operations.recovery.mode import (
+    ACTIVE,
+    DISABLED,
+    SHADOW,
+    get_recovery_mode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +50,8 @@ def _ensure_handlers():
 
 
 def _audit(anomaly, handler, phase, *, classification, outcome="",
-           attempt_number=1, action="", before=None, after=None, error=""):
+           attempt_number=1, action="", before=None, after=None, error="",
+           mode=RecoveryAttempt.MODE_ACTIVE):
     return RecoveryAttempt.objects.create(
         anomaly_id=getattr(anomaly, "id", None),
         anomaly_type=anomaly.anomaly_type,
@@ -59,25 +65,36 @@ def _audit(anomaly, handler, phase, *, classification, outcome="",
         evidence_before=before or {},
         evidence_after=after or {},
         error=error or "",
+        mode=mode,
     )
 
 
 def run_recovery_cycle(now=None) -> dict:
     """Process every active incident that has a registered recovery handler.
 
+    Three modes (WLJ_OPERATIONS_VISION.md §4a Recovery Mode):
+      * DISABLED → a true no-op (no diagnosis/action/verification/audit).
+      * SHADOW   → run the FULL deterministic lifecycle, then STOP before acting;
+        record one distinct SHADOW audit row per incident (what recovery WOULD do).
+      * ACTIVE   → real recovery (unchanged behaviour).
+
     Returns a deterministic summary (also used by the recovery telemetry section).
     """
-    if not getattr(settings, "OPS_RECOVERY_ENABLED", False):
-        return {"enabled": False, "processed": 0}
+    mode = get_recovery_mode()
+    if mode == DISABLED:
+        return {"enabled": False, "mode": DISABLED, "processed": 0}
 
     from apps.core.ai_observability.models import OpsAnomaly
 
     _ensure_handlers()
     now = now or timezone.now()
+    shadow = mode == SHADOW
     summary = {
-        "enabled": True, "processed": 0, "recovered": 0, "verified": 0,
-        "escalated": 0, "skipped_unsafe": 0, "waiting": 0, "errors": 0,
-        "locked_skipped": 0,
+        "enabled": True, "mode": mode, "processed": 0, "recovered": 0,
+        "verified": 0, "escalated": 0, "skipped_unsafe": 0, "waiting": 0,
+        "errors": 0, "locked_skipped": 0,
+        # Shadow-only counters (0 in ACTIVE mode):
+        "shadowed": 0, "would_recover": 0, "would_observe": 0,
     }
 
     # Snapshot the candidate incident ids first, then process each under a
@@ -86,12 +103,12 @@ def run_recovery_cycle(now=None) -> dict:
         OpsAnomaly.objects.filter(is_active=True).values_list("pk", flat=True)
     )
     for pk in active_ids:
-        _process_locked(pk, now, summary)
+        _process_locked(pk, now, summary, shadow)
 
     return summary
 
 
-def _process_locked(pk, now, summary):
+def _process_locked(pk, now, summary, shadow=False):
     """Process one incident under a DURABLE per-incident DB row lock.
 
     Concurrency protection (beyond the audit-record cooldown/pending checks): each
@@ -121,7 +138,7 @@ def _process_locked(pk, now, summary):
             if handler is None:
                 return  # no handler → R0 (observe-only), the safe default
             summary["processed"] += 1
-            _process_incident(anomaly, handler, now, summary)
+            _process_incident(anomaly, handler, now, summary, shadow)
     except Exception as e:  # never swallow — audit + log, continue with the rest
         summary["errors"] += 1
         logger.error(
@@ -132,10 +149,20 @@ def _process_locked(pk, now, summary):
             a = _OA.objects.filter(pk=pk).first()
             h = registry.handler_for(a.anomaly_type) if a else None
             if a is not None and h is not None:
-                _audit(a, h, RecoveryAttempt.PHASE_ESCALATED,
-                       classification=h.policy.classification,
-                       outcome=RecoveryAttempt.OUTCOME_FAILED,
-                       action="Handler raised — escalated.", error=str(e))
+                # In SHADOW a failure is a simulated failure — it must NEVER surface
+                # as a real escalation (which pages engineering). Record it as a
+                # SHADOW row instead, so shadow can never mutate real recovery state.
+                if shadow:
+                    _audit(a, h, RecoveryAttempt.PHASE_SHADOW,
+                           classification=h.policy.classification,
+                           outcome=RecoveryAttempt.OUTCOME_SHADOW,
+                           action="SHADOW: simulation raised — no action taken.",
+                           error=str(e), mode=RecoveryAttempt.MODE_SHADOW)
+                else:
+                    _audit(a, h, RecoveryAttempt.PHASE_ESCALATED,
+                           classification=h.policy.classification,
+                           outcome=RecoveryAttempt.OUTCOME_FAILED,
+                           action="Handler raised — escalated.", error=str(e))
         except Exception:  # pragma: no cover - audit best-effort
             logger.error("Recovery: failed to audit handler error", exc_info=True)
 
@@ -149,7 +176,75 @@ def _attempts_for(anomaly, since=None):
     return qs
 
 
-def _process_incident(anomaly, handler, now, summary):
+def _verification_predicate(handler) -> str:
+    """Name of the deterministic predicate ``verify()`` reuses (never executed here)."""
+    return getattr(handler, "verification_predicate", "") or f"{handler.__class__.__name__}.verify"
+
+
+def _shadow_evaluate(anomaly, handler, now, summary):
+    """SHADOW mode: run the deterministic decision, record what recovery WOULD do,
+    then STOP. No ``recover()``, no ``verify()``, no state mutation, no incident
+    closure, no side effect — only a single distinct SHADOW audit row.
+
+    Idempotent per incident occurrence (one SHADOW row since ``anomaly.created_at``),
+    so a 60s cycle cadence never floods the audit (risk R-8). The decision is stable
+    within an occurrence because shadow writes no RECOVER_ATTEMPTED rows, so cooldown/
+    retry counters never advance — shadow answers "right now, would recovery act?".
+    """
+    policy = handler.policy
+
+    already = _attempts_for(anomaly, since=anomaly.created_at).filter(
+        phase=RecoveryAttempt.PHASE_SHADOW
+    ).exists()
+    if already:
+        summary["shadowed"] += 1  # counted, not re-written (audit-volume guard)
+        return
+
+    # diagnose() is contractually side-effect-free — safe to call in shadow.
+    diagnosis = handler.diagnose(anomaly)
+    predicate = _verification_predicate(handler)
+
+    if not diagnosis.recoverable or not policy.auto_executable:
+        would_execute = False
+        classification = "R0"
+        decision = "observe_only"
+        action = f"SHADOW: would observe only (R0) — {diagnosis.reason}"
+        summary["would_observe"] += 1
+    else:
+        would_execute = True
+        classification = policy.classification
+        decision = "recover"
+        action = (
+            f"SHADOW: would {handler.describe_action(diagnosis)} "
+            f"({classification}); verify via {predicate}"
+        )
+        summary["would_recover"] += 1
+
+    _audit(
+        anomaly, handler, RecoveryAttempt.PHASE_SHADOW,
+        classification=classification,
+        outcome=RecoveryAttempt.OUTCOME_SHADOW,
+        action=action,
+        before={
+            **(diagnosis.evidence or {}),
+            "shadow": True,
+            "would_execute": would_execute,
+            "decision": decision,
+            "verification_predicate": predicate,
+            "recovery_action": handler.describe_action(diagnosis) if would_execute else None,
+            "skipped_because": "Shadow Mode — simulated only",
+        },
+        mode=RecoveryAttempt.MODE_SHADOW,
+    )
+    summary["shadowed"] += 1
+
+
+def _process_incident(anomaly, handler, now, summary, shadow=False):
+    if shadow:
+        # Stop before ANY action: full deterministic decision, recorded, no execute.
+        _shadow_evaluate(anomaly, handler, now, summary)
+        return
+
     policy = handler.policy
     cooldown = timedelta(seconds=policy.cooldown_seconds)
 

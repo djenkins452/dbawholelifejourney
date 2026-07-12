@@ -6410,29 +6410,45 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         }
 
         var counts = rec.counts || {};
+        // Recovery Mode is the primary signal — DISABLED / SHADOW / ACTIVE.
+        var mode = (rec.mode || (rec.enabled ? 'ACTIVE' : 'DISABLED')).toUpperCase();
+        var modeLabel = mode === 'SHADOW' ? 'Shadow' : (mode === 'ACTIVE' ? 'Active' : 'Disabled');
         if (summaryEl) {
-            var label = rec.enabled ? '' : 'disabled · ';
-            summaryEl.textContent =
-                label +
-                (counts.verified_24h || 0) + ' verified · ' +
-                (counts.recovered_24h || 0) + ' attempts' +
-                (counts.escalated_24h ? ' · ' + counts.escalated_24h + ' escalated' : '') +
-                (counts.pending ? ' · ' + counts.pending + ' pending' : '');
+            var text;
+            if (mode === 'DISABLED') {
+                text = 'Disabled (ship-dark)';
+            } else if (mode === 'SHADOW') {
+                // Simulation only — report what recovery WOULD do; never "verified".
+                text = 'Shadow (simulated) · ' +
+                    (counts.would_recover_24h || 0) + ' would-recover · ' +
+                    (counts.shadowed_24h || 0) + ' simulated';
+            } else {
+                text = 'Active · ' +
+                    (counts.verified_24h || 0) + ' verified · ' +
+                    (counts.recovered_24h || 0) + ' attempts' +
+                    (counts.escalated_24h ? ' · ' + counts.escalated_24h + ' escalated' : '') +
+                    (counts.pending ? ' · ' + counts.pending + ' pending' : '');
+            }
+            summaryEl.textContent = text;
             summaryEl.className = 'ops-sched-status-label ' + (
                 rec.status === 'ATTENTION' ? 'DELAYED' :
-                rec.enabled ? 'ALIVE' : ''
+                mode === 'SHADOW' ? 'DELAYED' :   // amber-ish: distinct, never "alive/green"
+                mode === 'ACTIVE' ? 'ALIVE' : ''
             );
         }
 
         container.innerHTML = '';
         var rows = rec.recent || [];
         if (rows.length === 0) {
-            var msg = rec.enabled ? 'No recovery activity' : 'Recovery disabled (ship-dark)';
+            var msg = mode === 'SHADOW' ? 'No simulated decisions yet (shadow mode)'
+                    : mode === 'ACTIVE' ? 'No recovery activity'
+                    : 'Recovery disabled (ship-dark)';
             container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">' + msg + '</div>';
             return;
         }
 
-        function phaseColor(phase, outcome) {
+        function phaseColor(phase, outcome, simulated) {
+            if (simulated || phase === 'SHADOW') return '#b98aff';  // distinct: simulated, never green
             if (phase === 'ESCALATED') return '#ff5a5a';
             if (outcome === 'FAILED') return '#ffb020';
             if (outcome === 'SUCCESS' || phase === 'VERIFIED' || phase === 'CLOSED') return '#3fd07a';
@@ -6442,13 +6458,16 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
 
         rows.forEach(function(r) {
             var when = r.time ? new Date(r.time).toLocaleString() : '';
-            var badge = (r.classification ? r.classification + '·' : '') + (r.phase || '');
+            // A simulated row is unmistakably marked — it must never read as real recovery.
+            var badge = (r.simulated ? 'SIM·' : '') +
+                        (r.classification ? r.classification + '·' : '') + (r.phase || '');
             var line = document.createElement('div');
             line.className = 'ops-feed-line';
+            var actionText = (r.simulated ? '[simulated only] ' : '') + (r.action || '');
             line.innerHTML =
-                '<span class="ops-feed-time" style="color:' + phaseColor(r.phase, r.outcome) + '">' + escapeHtml(badge) + '</span>' +
+                '<span class="ops-feed-time" style="color:' + phaseColor(r.phase, r.outcome, r.simulated) + '">' + escapeHtml(badge) + '</span>' +
                 '<span class="ops-feed-engine">' + escapeHtml(r.engine_name || r.anomaly_type || '') + '</span>' +
-                '<span class="ops-feed-action" style="color:var(--ops-text-dim)">' + escapeHtml(r.action || '') + ' · ' + escapeHtml(when) + '</span>';
+                '<span class="ops-feed-action" style="color:var(--ops-text-dim)">' + escapeHtml(actionText) + ' · ' + escapeHtml(when) + '</span>';
             container.appendChild(line);
         });
     }

@@ -260,7 +260,7 @@ Migration: additive only, no changes to existing tables.
 4. **Per anomaly:** `diagnose` → gate (classification §4 + policy: attempts/cooldown/recurrence) → `recover` (R1/R2) → `verify` (reuse detector predicate) → audit → `close` | `retry-next-cycle` | `escalate`.
 5. **Concurrency (AS-BUILT, hardened 2026-07-12 — ADR-22):** each incident is re-fetched under `SELECT … FOR UPDATE SKIP LOCKED` in its own transaction (`engine.py::_process_locked`), so two overlapping recovery cycles/workers process **disjoint** incident sets — the same anomaly can never be recovered twice at once. RecoveryAttempt audit rows are written inside that transaction, closing the read-decide-act (TOCTOU) window. Backed by durable DB state (audit records + row lock), not cache. Proven by `test_recovery_concurrency.py`.
 6. **Failure isolation:** each anomaly's handling is wrapped so one failing recovery cannot abort the task or block others. Exceptions are logged at `error` with `exc_info=True` and audited — **never swallowed** (AI Engineering Rules).
-7. **Kill switch:** settings flag `OPS_RECOVERY_ENABLED` (default **False**) — when off, the SAME task skips the enqueue, so recovery is a **true no-op** (no task, no payload read). Per-monitor enable flags allow staged rollout.
+7. **Kill switch / mode (AS-BUILT, extended 2026-07-12 — ADR-23):** `OPS_RECOVERY_MODE` (DISABLED/SHADOW/ACTIVE; resolver `recovery/mode.py`) is the single source of truth. **DISABLED** (default) → SAME skips the enqueue → **true no-op**. **SHADOW** → the cycle runs the full deterministic lifecycle and stops at step 4 *before* `recover()`, writing one distinct `SHADOW` audit row (what recovery would do) — no action, no verify, no mutation. **ACTIVE** → real recovery. Legacy `OPS_RECOVERY_ENABLED=True` bridges to ACTIVE only when the mode is the DISABLED default. Per-handler enable flags/allowlists still gate ACTIVE staged rollout.
 
 **Execution-isolation guarantees (required — reconciled against the frozen independence rules):**
 - A recovery failure **cannot** prevent the fresh Operations Truth payload from being built or cached — telemetry builds + caches *before* the recovery task is even enqueued.
@@ -334,6 +334,16 @@ Enablement is a Railway **env-var** change (there is no code path — `settings.
 so the framework never enables itself; flipping the code default would enable recovery in *every*
 environment and is forbidden). Claude cannot perform this step (no prod access); it is the operator's.
 
+**Stage 0 — Shadow Mode observation (RECOMMENDED before ACTIVE — ADR-23, the final validation stage).**
+Set `OPS_RECOVERY_MODE = SHADOW` (leave every handler flag/allowlist at default) and observe the Ops Wall
+**Recovery Activity** card for ≥3 SAME cycles. The card reads **"Shadow (simulated)"** and each simulated
+decision is marked *simulated only* (distinct colour, never green). This answers, with deterministic
+evidence and **zero production risk**, *"if recovery were enabled, exactly what would WLJ have done?"* — which
+incident, which action, which verification predicate. To see a "would-recover" row rather than "would observe
+only (R0)", also set the specific handler flag + allowlist entry from the steps below while keeping
+`OPS_RECOVERY_MODE = SHADOW` (the engine still stops before acting). Roll back instantly with
+`OPS_RECOVERY_MODE = DISABLED`. Only proceed to ACTIVE once the shadow rows show exactly the intended action.
+
 **Recommended first (and only) allowlist entry — the safest available task:**
 `apps.core.health_briefing.tasks.recompute_all_health_briefings_task`
 — a pure recompute, documented read-only against SAE with **zero post_save/post_delete cascade**
@@ -343,14 +353,14 @@ Re-running it is idempotent and externally harmless.
 **Steps (Railway service env vars → redeploy picks them up):**
 1. `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST = apps.core.health_briefing.tasks.recompute_all_health_briefings_task`
 2. `OPS_RECOVERY_BEAT_RETRY = true`
-3. `OPS_RECOVERY_ENABLED = true`
+3. `OPS_RECOVERY_MODE = ACTIVE` (equivalently, the legacy `OPS_RECOVERY_ENABLED = true` bridges to ACTIVE)
 
 **Observe (≥3 SAME cycles / ~3–5 min):**
 - Ops Wall **Recovery Activity** card shows `enabled`, 0 escalations, and (in steady state) no attempts — a healthy system rarely misses a Beat task.
 - `/_health/` stays green; telemetry cadence unchanged (recovery runs in a separate downstream task).
 - **Optional controlled demonstration:** briefly pause the `worker` so the recompute misses its window → OPS-1 raises `MISSED_RUN` → next recovery cycle re-enqueues it → verification flips it back to OK → a `RecoveryAttempt` VERIFIED/SUCCESS row appears on the card. Restore the worker.
 
-**Rollback (instant, no redeploy risk):** set `OPS_RECOVERY_ENABLED = false` (or `OPS_RECOVERY_BEAT_RETRY = false`).
+**Rollback (instant, no redeploy risk):** set `OPS_RECOVERY_MODE = DISABLED` (or `OPS_RECOVERY_ENABLED = false`, or `OPS_RECOVERY_BEAT_RETRY = false`).
 Verify: card shows `disabled`, no new attempts, telemetry continues, no orphaned incidents (recovery never
 owns incident state — SAME resolves incidents regardless).
 

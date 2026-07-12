@@ -840,7 +840,7 @@ pilot is enabled and proven in production. The covered pilots are recovery-capab
 | ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
 |---|---|---|---|---|---|---|
 | [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | b3e6c40a | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
-| [x] | **DB-level per-incident concurrency lock** (`SELECT … FOR UPDATE SKIP LOCKED`) — ADR-22 | 2026-07-12 | _this commit_ | ship-dark | ADR-22 / PHASE2_PLAN §7 | `test_recovery_concurrency.py` (2) |
+| [x] | **DB-level per-incident concurrency lock** (`SELECT … FOR UPDATE SKIP LOCKED`) — ADR-22 | 2026-07-12 | `0fb0ae1e` | ship-dark | ADR-22 / PHASE2_PLAN §7 | `test_recovery_concurrency.py` (2) |
 | [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | b3e6c40a | ship-dark | §4 | `test_recovery.py::PolicyTests` |
 | [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
 | [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |

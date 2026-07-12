@@ -6,6 +6,44 @@
 # Last Updated: 2026-07-12 (docs/test(ops): O1→O2 gate — allowlisted MISSED_RUN shadows R0 = stale shadow row, expected not a defect)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — polish(bodyintel): Body Intelligence UX pass — mission language, weight hierarchy, provenance, measurement cards
+
+Product-quality pass over Body Intelligence surfaces (expose existing truth only — no new
+calculations, no CoS-reasoning changes, no data-model changes).
+
+- **Mission status language & three distinct axes.** The ring, pill, and weight badge now
+  each carry one idea: the RING shows the mission PHASE identity ("Foundation" / "Momentum",
+  from milestone progression) instead of duplicating the momentum word; the status PILL
+  shows a progress-forward-but-truthful status ("On track", "Making progress", "Building
+  momentum", "Regrouping", "Needs focus"); the weight BADGE shows the weight trend. Added
+  `_PHASE_LABEL` + `phase`/`phase_label` on the mission card; retuned `_STATE_LABEL`.
+  (composer.py, mission.html, dashboard_v3.css)
+- **Current Weight panel hierarchy.** Current weight stays the focal number; Active target
+  and Remaining are now two distinct labelled stat cells, so the destination is immediately
+  obvious. (mission.html, dashboard_v3.css)
+- **Body Intelligence summary card (Health home).** Added the 30-day weight direction (↓ −X
+  lb · 30d) to the Weight stat — the single highest-value "what should I know in 5 seconds"
+  signal — reusing SAE `weight_change_30d`/`weight_trend`. (home.html)
+- **Measurement section → cards.** Replaced the dense measurement tables with a scannable
+  card grid (label · current value · Δ with direction/▲▼ and the healthier-direction ✓ ·
+  previous), keeping full current/previous/change detail. (_bi_measure_table.html)
+- **Provenance on the Body Composition ledger.** Each entry now shows "Logged {created}"
+  and "· edited {updated}" when modified — surfacing existing `created_at`/`updated_at`
+  audit fields (source is already the "recorded via"); no data-model change.
+  (body_composition_list.html)
+
+Verified: `manage.py check` clean; collectstatic 0 errors; 185 dashboard_v3 + Body
+Intelligence tests pass; new elements confirmed rendering (measurement cards, ledger
+provenance, summary-card direction, mission phase ring).
+
+Deferred (with rationale, for a focused pass): (2) Executive Briefing rewrite — it is
+composed by the SHARED `apps.core.cos_briefing.build_executive_summary`; improving its
+composition risks CoS behavior, which is explicitly off-limits, so it needs a dedicated
+CoS-aware pass. (6) Progress-photo lightbox / side-by-side comparison polish — needs
+interactive visual QA (a CSP-safe `<dialog>` lightbox) best done with live screenshots.
+(8) Broad spacing/typography sweep — partially addressed here; the remainder is iterative
+visual tuning.
+
 ## 2026-07-12 — fix(dashboard): Mission "Current Weight" panel used a completed milestone as its target
 
 **Symptom:** with the narrative now correct, the green Current Weight panel still showed "At milestone target"

@@ -1,42 +1,39 @@
 {% comment %}
-Body Intelligence measurement table partial.
+Body Intelligence measurement cards (formerly a dense table).
 Expects: rows = list of {label, value, unit, previous, delta, delta_pct, improved}
-Read-only presentation of the canonical body-composition snapshot.
+A card grid scans far faster than a wide table on both desktop and phone, while keeping
+the full current · previous · change detail. Read-only view of the canonical snapshot.
 {% endcomment %}
-<div class="bi-table-wrap">
-<table class="bi-table">
-    <thead>
-        <tr><th>Measurement</th><th>Current</th><th>Previous</th><th>Change</th></tr>
-    </thead>
-    <tbody>
-        {% for row in rows %}
-        <tr>
-            <td class="bi-td-label">{{ row.label }}</td>
-            <td>{{ row.value|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}</td>
-            <td>{% if row.previous is not None %}{{ row.previous|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}{% else %}<span class="bi-muted">—</span>{% endif %}</td>
-            <td>
-                {% if row.delta is not None %}
-                    <span class="bi-chg {% if row.improved %}is-good{% elif row.improved == False %}is-bad{% endif %}">
-                        {% if row.delta > 0 %}+{% endif %}{{ row.delta|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}
-                        {% if row.improved %}<span class="bi-chg-arrow" aria-label="improving">&#10003;</span>{% endif %}
-                    </span>
-                {% else %}
-                    <span class="bi-muted">first entry</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="bi-measure-cards">
+    {% for row in rows %}
+    <div class="bi-measure-card">
+        <span class="bi-measure-card-label">{{ row.label }}</span>
+        <span class="bi-measure-card-value">{{ row.value|floatformat:"-2" }}{% if row.unit %}<small>{{ row.unit }}</small>{% endif %}</span>
+        {% if row.delta is not None %}
+        <span class="bi-measure-card-delta {% if row.improved %}is-good{% elif row.improved == False %}is-bad{% endif %}">
+            {% if row.delta > 0 %}▲{% elif row.delta < 0 %}▼{% else %}→{% endif %}
+            {% if row.delta > 0 %}+{% endif %}{{ row.delta|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}
+            {% if row.improved %}<span class="bi-measure-card-tick" aria-label="improving">&#10003;</span>{% endif %}
+        </span>
+        <span class="bi-measure-card-prev">from {{ row.previous|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}</span>
+        {% else %}
+        <span class="bi-measure-card-delta is-first">First entry</span>
+        <span class="bi-measure-card-prev">no prior reading yet</span>
+        {% endif %}
+    </div>
+    {% endfor %}
 </div>
 <style nonce="{{ csp_nonce }}">
-.bi-table-wrap { overflow-x: auto; }
-.bi-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm, 0.875rem); }
-.bi-table th { text-align: left; font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--color-text-muted, #6b7280); padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--color-border, #e5e7eb); }
-.bi-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid var(--color-border, #f1f1f1); color: var(--color-text, #111827); }
-.bi-td-label { font-weight: 600; }
-.bi-chg.is-good { color: var(--color-success, #10b981); font-weight: 600; }
-.bi-chg.is-bad { color: var(--color-warning, #f59e0b); font-weight: 600; }
-.bi-chg-arrow { font-size: 0.8em; }
+.bi-measure-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3, 0.75rem); }
+.bi-measure-card { display: flex; flex-direction: column; gap: 0.15rem; background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-3, 0.75rem) var(--space-4, 1rem); }
+.bi-measure-card-label { font-size: var(--font-size-xs, 0.72rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); }
+.bi-measure-card-value { font-size: var(--font-size-xl, 1.375rem); font-weight: 800; color: var(--color-text, #111827); line-height: 1.1; }
+.bi-measure-card-value small { font-size: 0.55em; font-weight: 600; color: var(--color-text-muted, #6b7280); margin-left: 2px; }
+.bi-measure-card-delta { font-size: var(--font-size-sm, 0.875rem); font-weight: 700; color: var(--color-text-muted, #6b7280); margin-top: 2px; }
+.bi-measure-card-delta.is-good { color: var(--color-success, #10b981); }
+.bi-measure-card-delta.is-bad { color: var(--color-warning, #f59e0b); }
+.bi-measure-card-delta.is-first { color: var(--color-text-muted, #9ca3af); font-weight: 600; }
+.bi-measure-card-tick { margin-left: 2px; }
+.bi-measure-card-prev { font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted, #9ca3af); }
 </style>

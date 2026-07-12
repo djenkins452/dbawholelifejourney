@@ -329,6 +329,11 @@
                 <div class="bi-summary-stat">
                     <span class="bi-summary-k">Weight</span>
                     <span class="bi-summary-v">{% if hs.weight_current %}{{ hs.weight_current }} {{ hs.weight_unit }}{% else %}—{% endif %}</span>
+                    {% if hs.weight_change_30d is not None %}
+                    <span class="bi-summary-chg bi-summary-chg--{% if hs.weight_change_30d < 0 %}down{% elif hs.weight_change_30d > 0 %}up{% else %}flat{% endif %}">
+                        {% if hs.weight_trend == "decreasing" %}&#8595;{% elif hs.weight_trend == "increasing" %}&#8593;{% else %}&#8594;{% endif %}{% if hs.weight_change_30d > 0 %}+{% endif %}{{ hs.weight_change_30d }} lb · 30d
+                    </span>
+                    {% endif %}
                 </div>
                 <div class="bi-summary-stat">
                     <span class="bi-summary-k">Body Fat</span>
@@ -1126,6 +1131,10 @@
 .bi-summary-stat { display: flex; flex-direction: column; gap: 0.15rem; }
 .bi-summary-k { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
 .bi-summary-v { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; color: var(--color-text); }
+.bi-summary-chg { font-size: var(--font-size-xs, 0.72rem); font-weight: 700; margin-top: 1px; }
+.bi-summary-chg--down { color: var(--color-success, #10b981); }
+.bi-summary-chg--up { color: var(--color-warning, #f59e0b); }
+.bi-summary-chg--flat { color: var(--color-text-muted, #6b7280); }
 .bi-summary-insight { margin: var(--space-3) 0 0; font-size: var(--font-size-sm); color: var(--color-text-muted); }
 
 /* Health Disclaimer */

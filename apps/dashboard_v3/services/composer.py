@@ -307,17 +307,28 @@ _RING_WORD = {
     _STATE_BEHIND_PLAN: "REFOCUS",
 }
 
-# Human label for the status pill.
+# Human label for the status PILL — the mission's current STATUS. Progress-forward but
+# truthful: a user actively working a mission should see movement, not a flat "Maintaining".
+# (STEADY momentum still counts as forward motion on the mission; a genuine problem still
+# reads honestly as "Needs focus" / "Behind plan".)
 _STATE_LABEL = {
     _STATE_GETTING_STARTED: "Getting started",
     _STATE_BUILDING_MOMENTUM: "Building momentum",
-    _STATE_IMPROVING: "Improving",
-    _STATE_MAINTAINING: "Maintaining",
-    _STATE_SLIPPING: "Slipping",
-    _STATE_AT_RISK: "Needs attention",
+    _STATE_IMPROVING: "Making progress",
+    _STATE_MAINTAINING: "On track",
+    _STATE_SLIPPING: "Regrouping",
+    _STATE_AT_RISK: "Needs focus",
     _STATE_AHEAD_OF_PLAN: "Ahead of plan",
     _STATE_MILESTONE_WIN: "Milestone reached",
     _STATE_BEHIND_PLAN: "Behind plan",
+}
+
+# Ring identity — the mission's current PHASE (a DIFFERENT axis from the status pill).
+# Foundation = building the base (first half of milestones); Momentum = the back half,
+# where the goal is in reach. Derived from milestone progression (_mission_movement_phase).
+_PHASE_LABEL = {
+    "foundation": "Foundation",
+    "readiness": "Momentum",
 }
 
 # Tone reuses the existing momentum indicator classes (up / flat / down).
@@ -571,6 +582,11 @@ def _build_mission_card(user) -> dict | None:
     # plain decorative anchor with no numeric claim.
     progress = _build_mission_progress(goal)
 
+    # Mission PHASE — the ring's identity (distinct from the status pill). Cheap and
+    # snapshot-independent, so it is computed up front and always available.
+    phase = _mission_movement_phase(goal)
+    phase_label = _PHASE_LABEL.get(phase, "Foundation")
+
     # Optional supporting line — the user's own "why", excerpted. Never
     # generated; rendered only when they wrote one.
     why = (goal.why_it_matters or "").strip() or None
@@ -596,8 +612,7 @@ def _build_mission_card(user) -> dict | None:
         # Phase 3 — Mission Intelligence: deterministic state classification +
         # grounded coaching narrative + helping/needs split, from the same SAE
         # signals (no extra queries) and the persisted momentum trend only.
-        # Phase 3.5 — the milestone PHASE shapes how movement is judged.
-        phase = _mission_movement_phase(goal)
+        # Phase 3.5 — the milestone PHASE (computed above) shapes how movement is judged.
         signals = _evaluate_mission_signals(states, phase)
         # ONE canonical Current Mission State — every narrative/label/target field is
         # composed from this (never a replay of the most-recently-completed milestone).
@@ -648,6 +663,8 @@ def _build_mission_card(user) -> dict | None:
         "panel": panel,
         "drivers": drivers,
         "status": status,
+        "phase": phase,
+        "phase_label": phase_label,
         "weight_status": weight_status,
         "days_remaining": days_remaining,
         "progress": progress,

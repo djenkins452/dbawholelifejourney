@@ -82,6 +82,7 @@
                         <tr>
                             <td>
                                 <span class="entry-date">{{ entry.measurement_date|date:"M j, Y" }}</span>
+                                <span class="entry-prov">Logged {{ entry.created_at|date:"M j, Y" }}{% if entry.updated_at|date:"U" != entry.created_at|date:"U" %} · edited {{ entry.updated_at|date:"M j, Y" }}{% endif %}</span>
                             </td>
                             <td>{{ entry.get_metric_display }}</td>
                             <td class="entry-value">{{ entry.value }}{% if entry.unit %} {{ entry.unit }}{% endif %}</td>
@@ -219,6 +220,7 @@
 }
 
 .entry-date { display: block; }
+.entry-prov { display: block; margin-top: 2px; font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted); opacity: 0.85; }
 .entry-value { font-weight: 600; }
 .entry-source { font-size: var(--font-size-sm); color: var(--color-text-muted); }
 .entry-notes { color: var(--color-text-muted); font-size: var(--font-size-sm); }

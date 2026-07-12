@@ -57,8 +57,9 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                     {% endif %}
                 </svg>
                 <div class="v3-mission-ring-center">
-                    {% if mission.status %}
-                    <span class="v3-mission-ring-word v3-mission-ring-word--{{ mission.status.tone }}">{{ mission.status.ring_word }}</span>
+                    {% if mission.status and mission.phase_label %}
+                    <span class="v3-mission-ring-word v3-mission-ring-word--{{ mission.status.tone }}">{{ mission.phase_label }}</span>
+                    <span class="v3-mission-ring-phase">phase</span>
                     {% endif %}
                     {% if mission.progress.has_milestones %}
                     <span class="v3-mission-ring-frac">{{ mission.progress.completed }}<span class="v3-mission-ring-slash">/</span>{{ mission.progress.total }} milestones</span>
@@ -113,11 +114,24 @@ has not selected an active Primary Mission (renders nothing — no placeholder).
                         <span class="v3-mission-weight-change v3-mission-weight-change--{{ mission.weight_status.change_sign }}">{{ mission.weight_status.change_display }}</span>
                         {% endif %}
                     </div>
+                    {# Destination made obvious — target and remaining as distinct stats. #}
+                    <div class="v3-mission-weight-stats">
+                        <div class="v3-mission-weight-stat">
+                            <span class="v3-mission-weight-stat-k">Active target</span>
+                            <span class="v3-mission-weight-stat-v">{{ mission.weight_status.target }} {{ mission.weight_status.unit }}</span>
+                        </div>
+                        <div class="v3-mission-weight-stat">
+                            <span class="v3-mission-weight-stat-k">Remaining</span>
+                            <span class="v3-mission-weight-stat-v">{% if mission.weight_status.to_next > 0 %}{{ mission.weight_status.to_next }} {{ mission.weight_status.unit }}{% else %}Reached{% endif %}</span>
+                        </div>
+                    </div>
                     {% endif %}
                     <p class="v3-mission-weight-headline">
                         {% if mission.weight_status.tone == 'ok' %}<span class="v3-mission-weight-check" aria-hidden="true">✓</span> {% endif %}{{ mission.weight_status.headline }}
                     </p>
+                    {% if not mission.weight_status.has_data %}
                     <p class="v3-mission-weight-subline">{{ mission.weight_status.subline }}</p>
+                    {% endif %}
                     {% if mission.weight_status.sync_stale %}
                     <span class="v3-mission-weight-stale" title="Apple Health weight sync hasn't delivered recently">
                         Sync stale

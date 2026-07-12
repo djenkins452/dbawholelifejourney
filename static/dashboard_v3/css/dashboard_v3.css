@@ -1281,6 +1281,18 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-mission-ring-word--down { color: var(--v3-warn); }
 .v3-mission-ring-word--flat { color: var(--v3-accent); }
 
+/* Ring identity caption — the small "phase" label under the phase word. */
+.v3-mission-ring-phase {
+    font-size: 0.54rem;
+    font-weight: 700;
+    color: var(--v3-text-soft);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-top: 1px;
+    opacity: 0.8;
+}
+
 .v3-mission-ring-frac {
     font-size: 0.62rem;
     font-weight: 700;
@@ -1485,6 +1497,36 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-mission-weight-change--down { color: #1f7a3a; }
 .v3-mission-weight-change--up   { color: #a73a3a; }
 .v3-mission-weight-change--flat { color: var(--v3-text-mute); }
+
+/* Destination stats — Active target + Remaining as two distinct, labelled cells so the
+   goal is immediately obvious, without competing with the focal current-weight number. */
+.v3-mission-weight-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0 8px 0;
+}
+.v3-mission-weight-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 7px 10px;
+    background: var(--v3-surface-soft, rgba(127, 127, 127, 0.06));
+    border-radius: 9px;
+}
+.v3-mission-weight-stat-k {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--v3-text-mute);
+}
+.v3-mission-weight-stat-v {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: var(--v3-ink);
+    line-height: 1.15;
+}
 
 .v3-mission-weight-headline {
     margin: 0 0 2px 0;

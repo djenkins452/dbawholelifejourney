@@ -21,6 +21,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.views.generic import (
     CreateView,
     DetailView,
@@ -36,11 +37,15 @@ from apps.help.mixins import HelpContextMixin
 
 from .forms import BodyMeasurementSessionForm, BodyProgressPhotoForm
 from .models import (
+    BodyCompositionEntry,
     BodyMeasurementSession,
     BodyProgressPhoto,
     WeightEntry,
 )
-from .services.body_intelligence import build_body_intelligence
+from .services.body_intelligence import (
+    associate_ungrouped_for_session,
+    build_body_intelligence,
+)
 
 
 # ── Dashboard ──────────────────────────────────────────────────────────────
@@ -125,6 +130,19 @@ class BodyMeasurementSessionDetailView(
             {"pose": pose, "label": pose_labels.get(pose, pose), "photo": photos_by_pose.get(pose)}
             for pose in BodyProgressPhoto.POSE_ORDER
         ]
+
+        # Recovery affordance: measurements/weigh-ins logged the same day that aren't in
+        # any check-in yet (e.g. logged before the check-in existed, or via a path that
+        # didn't auto-attach). Offer a one-click link.
+        day = timezone.localtime(session.checked_in_at).date()
+        ctx["ungrouped_today"] = (
+            BodyCompositionEntry.objects.filter(
+                user=session.user, session__isnull=True, measurement_date=day
+            ).count()
+            + WeightEntry.objects.filter(
+                user=session.user, session__isnull=True, recorded_at__date=day
+            ).count()
+        )
         return ctx
 
 
@@ -217,6 +235,27 @@ class BodyMeasurementSessionDeleteView(LoginRequiredMixin, UndoDeleteMixin, View
         for photo in obj.photos(manager="objects").all():
             photo.soft_delete()
         return super().post(request, *args, **kwargs)
+
+
+class BodyMeasurementSessionLinkView(LoginRequiredMixin, View):
+    """One-click recovery: link this check-in's same-day, still-ungrouped measurements
+    and weigh-in into it. Reversible (session FK only); values untouched."""
+
+    def post(self, request, *args, **kwargs):
+        session = get_object_or_404(
+            BodyMeasurementSession.objects.filter(user=request.user), pk=self.kwargs["pk"]
+        )
+        m, w = associate_ungrouped_for_session(session)
+        if m or w:
+            bits = []
+            if m:
+                bits.append(f"{m} measurement{'s' if m != 1 else ''}")
+            if w:
+                bits.append(f"{w} weigh-in{'s' if w != 1 else ''}")
+            messages.success(request, f"Linked today's {' and '.join(bits)} to this check-in.")
+        else:
+            messages.info(request, "No unlinked measurements from that day to add.")
+        return redirect("health:body_session_detail", pk=session.pk)
 
 
 # ── Progress photos ─────────────────────────────────────────────────────────

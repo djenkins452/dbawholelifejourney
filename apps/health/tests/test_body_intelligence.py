@@ -230,6 +230,34 @@ class BodyCheckInAutoAssociationTest(TestCase):
         entry = BodyCompositionEntry.objects.get(user=self.user, metric_name="waist")
         self.assertEqual(entry.session_id, session.pk)
 
+    def test_cos_logged_measurement_auto_attaches(self):
+        """A measurement logged via the Chief of Staff joins today's open check-in."""
+        from apps.ai.action_handlers import ActionHandler
+        session = BodyMeasurementSession.objects.create(user=self.user, title="today")
+        ActionHandler(self.user).handle_log_body_measurement(metric="chest", value=42.0)
+        entry = BodyCompositionEntry.objects.get(user=self.user, metric_name="chest")
+        self.assertEqual(entry.session_id, session.pk)
+
+    def test_cos_logged_weight_auto_attaches(self):
+        from apps.ai.action_handlers import ActionHandler
+        session = BodyMeasurementSession.objects.create(user=self.user, title="today")
+        ActionHandler(self.user).handle_log_weight(value=283.5, unit="lb")
+        w = WeightEntry.objects.filter(user=self.user).order_by("-recorded_at").first()
+        self.assertEqual(w.session_id, session.pk)
+
+    def test_link_today_recovery_view(self):
+        """Orphaned same-day measurements can be linked with one click."""
+        today = timezone.now().date()
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="hips", value=Decimal("40.0"),
+            unit="in", measurement_date=today,
+        )
+        session = BodyMeasurementSession.objects.create(user=self.user, title="today")
+        # created before? No — created after the measurement; but recovery links same-date.
+        self.client.post(reverse("health:body_session_link_today", args=[session.pk]))
+        entry = BodyCompositionEntry.objects.get(user=self.user, metric_name="hips")
+        self.assertEqual(entry.session_id, session.pk)
+
 
 class BodyIntelligenceViewsTest(TestCase):
     def setUp(self):

@@ -65,6 +65,40 @@ COMPOSITION_METRICS = [
 ]
 
 
+def open_checkin_for_date(user, local_date):
+    """The user's most-recent check-in whose local date is ``local_date``, or None.
+
+    Used by every measurement/weigh-in write path (web, Chief of Staff, sync) to attach a
+    new row to the day's open check-in, so a check-in is never left missing measurements
+    the user logged the same day — regardless of which surface logged them. Must be called
+    in a request context so ``checked_in_at__date`` truncates in the user's active tz.
+    """
+    from apps.health.models import BodyMeasurementSession
+
+    return (
+        BodyMeasurementSession.objects
+        .filter(user=user, checked_in_at__date=local_date)
+        .order_by("-checked_in_at")
+        .first()
+    )
+
+
+def attach_measurement_to_open_checkin(entry):
+    """Link an ungrouped BodyCompositionEntry to the same-day open check-in, if any.
+
+    Idempotent (no-op when already grouped or no same-day check-in). Reversible — sets
+    only the session FK; the measurement value is untouched (it remains canonical truth).
+    Returns the session it linked to, or None.
+    """
+    if entry.session_id:
+        return None
+    session = open_checkin_for_date(entry.user, entry.measurement_date)
+    if session is not None:
+        entry.session = session
+        entry.save(update_fields=["session"])
+    return session
+
+
 def associate_ungrouped_for_session(session):
     """Associate the user's currently-UNGROUPED measurements and weigh-ins recorded on
     the check-in's calendar date with this session.

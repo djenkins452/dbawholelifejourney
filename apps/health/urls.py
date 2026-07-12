@@ -366,6 +366,7 @@ urlpatterns = [
     path("physical/body-intelligence/check-ins/<int:pk>/", views_body_intelligence.BodyMeasurementSessionDetailView.as_view(), name="body_session_detail"),
     path("physical/body-intelligence/check-ins/<int:pk>/edit/", views_body_intelligence.BodyMeasurementSessionUpdateView.as_view(), name="body_session_update"),
     path("physical/body-intelligence/check-ins/<int:pk>/delete/", views_body_intelligence.BodyMeasurementSessionDeleteView.as_view(), name="body_session_delete"),
+    path("physical/body-intelligence/check-ins/<int:pk>/link-today/", views_body_intelligence.BodyMeasurementSessionLinkView.as_view(), name="body_session_link_today"),
     path("physical/body-intelligence/check-ins/<int:session_pk>/photos/add/", views_body_intelligence.BodyProgressPhotoCreateView.as_view(), name="body_photo_create"),
     path("physical/body-intelligence/photos/<int:pk>/delete/", views_body_intelligence.BodyProgressPhotoDeleteView.as_view(), name="body_photo_delete"),
     path("physical/body-intelligence/compare/", views_body_intelligence.BodyProgressComparisonView.as_view(), name="body_photo_compare"),

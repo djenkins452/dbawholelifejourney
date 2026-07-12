@@ -6,6 +6,49 @@
 # Last Updated: 2026-07-12 (feat(ops): Recovery Engine is now a first-class Ops Wall component — expose existing truth)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — fix(health): stabilization pass — Weight-truth consistency, blast-radius repair, session association, mission current-state
+
+Final stabilization after the Weight decontamination. Every fix was traced to proof before code.
+
+**Weight consumer consistency (traced all consumers).** Audited every deterministic reader of Weight truth.
+Live readers — Weight page, Health-dashboard Body Intelligence card (M5, via `_fresh_module_state`), Body
+Intelligence snapshot/trend/graphs — already read canonical `WeightEntry`/`build_weight_summary` and self-heal
+(the default `SoftDeleteManager` excludes the soft-deleted contaminated rows). The consumers that DERIVE from the
+persisted SAE snapshot (`allow_rebuild=False`) — dashboard_v3 mission weight status, CoS envelope
+`weight_current`, health-briefing, dashboard_v2 tile — plus `DailyHealthSummary` are the only ones that could
+stay stale.
+
+**Blast-radius root cause + targeted repair (not a blanket recompute).** Migration 0100 soft-deleted the
+contaminated rows via the HISTORICAL model, so the real `WeightEntry` `post_save`/domain-event chain never fired
+→ the SAE snapshot (`UserState.state_data`, `wlj:user_state:{id}` cache) and dashboard caches were never
+invalidated. Classification: most consumers **self-heal**; SAE-snapshot consumers need **cache invalidation +
+rebuild**; `DailyHealthSummary` needs **recompute** (done in 0101). Repairs, affected users only, idempotent,
+no-op on clean DBs: migration `0101` rebuilds `DailyHealthSummary`; new migration
+`0102_refresh_sae_after_weight_repair` drops the SAE cache key, calls `rebuild_user_state`, and invalidates the
+dashboard health cache. Milestones self-heal (they read canonical `WeightEntry`); no false completions persisted.
+
+**Mission summary — current state, not event replay (traced).** `_mission_progress_read`
+(`dashboard_v3/services/composer.py`) selected the "last completed" milestone with `order_by("-completed_date")`
+only. 289.9 and 284.9 completed on the SAME day (one weigh-in crossed both), so the tie resolved arbitrarily to
+the earlier-created 289.9 — the "How things are going" narrative named it. No stale cache/event replay; the view
+is `never_cache` and reads live `GoalMilestone`. Fix: break the same-day tie toward the MOST-PROGRESSED rung
+(order by `-completed_date`, then the milestones' own progression order), so the narrative always names the
+deepest milestone reached (284.9) while next (279.9) and remaining (3.6) already read current truth.
+
+**Session workflow reliable association (traced).** The check-in showed only measurements whose FK pointed at it;
+`handle_log_body_measurement` (Chief of Staff) set no session, so assistant-logged measurements were orphaned.
+Fix: shared `attach_measurement_to_open_checkin` / `open_checkin_for_date` helpers; CoS `handle_log_body_measurement`
+and `handle_log_weight` now auto-attach to the day's open check-in (parity with the web form); a one-click
+"Add them to this check-in" recovery bar on the session detail links any same-day still-ungrouped
+measurements/weigh-in (`BodyMeasurementSessionLinkView`).
+
+**Verification (Weight → Goals → Mission → Body Intelligence → Health Dashboard → CoS).** With a clean 283.5
+weight and a deliberately stale SAE snapshot (51.0): after repair every layer reads 283.5 — Weight page, BI
+current/headline, SAE/CoS `weight_current`; mission narrative names 284.9, goal next 279.9, mission weight status
+to_next 3.6; CoS/web-logged measurements auto-attach to the day's check-in. New tests:
+`test_mission_milestone_tiebreak`, plus session-association/canonical-weight cases in `test_body_intelligence`
+(31 pass). request-path-safety + intent-registration + mission suites pass.
+
 ## 2026-07-12 — feat(ops): Recovery Engine is now a first-class Ops Wall component (expose existing truth, no new logic)
 
 **Problem (product):** After making the Recovery Engine configurable via shared Railway variables

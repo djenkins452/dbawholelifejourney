@@ -844,6 +844,18 @@ class ActionHandler:
                 recorded_at=self._get_recorded_at(kwargs)
             )
 
+            # Group into the day's open Body Intelligence check-in if one exists, so an
+            # assistant-logged weigh-in joins the same check-in as the day's measurements.
+            try:
+                from django.utils import timezone as _tz
+                from apps.health.services.body_intelligence import open_checkin_for_date
+                _checkin = open_checkin_for_date(self.user, _tz.localtime(entry.recorded_at).date())
+                if _checkin is not None:
+                    entry.session = _checkin
+                    entry.save(update_fields=["session"])
+            except Exception:
+                logger.warning("weigh-in check-in auto-attach failed", exc_info=True)
+
             # Provenance: link the image artifact to the record it produced (system of record).
             if source_artifact_id:
                 multimodal.link_artifact(
@@ -1541,6 +1553,17 @@ class ActionHandler:
                 notes=notes or "",
                 source="manual",
             )
+
+            # Workflow parity with the web form: if the user already has a check-in open
+            # today, group this measurement into it so an assistant-logged measurement is
+            # never orphaned from the day's Body Intelligence check-in. Best-effort.
+            try:
+                from apps.health.services.body_intelligence import (
+                    attach_measurement_to_open_checkin,
+                )
+                attach_measurement_to_open_checkin(entry)
+            except Exception:
+                logger.warning("body-measurement check-in auto-attach failed", exc_info=True)
 
             _emit_domain_event("health.body_measurement.logged", self.user, {
                 "entry_id": entry.id, "metric": metric, "value": float(value),

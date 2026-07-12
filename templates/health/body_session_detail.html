@@ -32,6 +32,16 @@
     {% if session.notes %}<p class="bsd-notes">{{ session.notes }}</p>{% endif %}
 
     <!-- Measurements -->
+    {% if ungrouped_today %}
+    <div class="bsd-linkbar" data-testid="bsd-link-today">
+        <span>You logged {{ ungrouped_today }} measurement{{ ungrouped_today|pluralize }}/weigh-in{{ ungrouped_today|pluralize }} today that {% if ungrouped_today == 1 %}isn't{% else %}aren't{% endif %} in this check-in yet.</span>
+        <form method="post" action="{% url 'health:body_session_link_today' session.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-primary">Add them to this check-in</button>
+        </form>
+    </div>
+    {% endif %}
+
     <div class="bsd-card">
         <div class="bsd-card-head">
             <h2>Measurements</h2>
@@ -98,6 +108,11 @@
 
 <style nonce="{{ csp_nonce }}">
 .bsd-actions { display: flex; gap: var(--space-2, 0.5rem); }
+.bsd-linkbar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3, 0.75rem); flex-wrap: wrap;
+    background: color-mix(in srgb, var(--color-accent, #6366f1) 12%, var(--color-surface, #fff));
+    border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
+    padding: var(--space-3, 0.75rem) var(--space-4, 1rem); margin-bottom: var(--space-4, 1rem); font-size: var(--font-size-sm, 0.875rem); }
+.bsd-linkbar form { margin: 0; }
 .bsd-inline-form { display: inline; }
 .bsd-notes { color: var(--color-text-muted, #4b5563); margin-bottom: var(--space-4, 1rem); }
 .bsd-card { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);

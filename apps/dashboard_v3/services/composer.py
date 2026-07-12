@@ -1264,12 +1264,22 @@ def _mission_progress_read(goal, next_milestone, today, current_weight=None) -> 
         # it means FOR THIS MISSION, not just that another milestone exists.
         out["mission_title"] = (getattr(goal, "title", "") or "").strip() or None
 
-        # Most-recent DATED completion. (Test fixtures create completed=True with
-        # no completed_date; those legitimately don't count as a fresh event —
-        # production completions always stamp completed_date.)
+        # Most-recent DATED completion, resolving same-day ties toward the MOST-PROGRESSED
+        # rung. When one weigh-in crosses several milestones at once they all complete on
+        # the SAME date (evaluate_weight_milestones stamps them together); ordering by
+        # completed_date alone leaves the tie to the DB and can surface an earlier rung
+        # (e.g. "289.9" when "284.9" is the true current position). Break the tie by the
+        # milestones' own progression order (the same order next_milestone uses), furthest
+        # first, so the narrative always names the deepest milestone actually reached — the
+        # user's CURRENT deterministic state, never an earlier event. (Test fixtures create
+        # completed=True with no completed_date; those don't count as a fresh event.)
+        from django.db.models import F
         last = (goal.milestones
                 .filter(completed=True, completed_date__isnull=False)
-                .order_by("-completed_date").first())
+                .order_by("-completed_date",
+                          F("target_date").desc(nulls_last=True),
+                          "-sort_order")
+                .first())
         if last is not None:
             out["last_title"] = last.title
             # The milestone's OWN meaning, if the user wrote one — the truest

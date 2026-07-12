@@ -6,6 +6,39 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — docs(startup): re-prioritize the bootloader to COMPLETE WLJ Operations first (docs-only)
+
+**Why:** The bootloader ranked CC-1 first and buried Operations, implying Operations was essentially done
+bar the pilot. Re-evaluated the true remaining Operations work against the actual implementation and every
+Operations doc, and re-focused the next chat on completing Operations. Docs-only; no code/behavior change.
+
+**Finding (evidence over stale assumption):** the only Operations work that was buried in "Deferred" —
+**OPS-5…10** — is in fact the *unblocked engineering* track that completes Phase I ("if it runs in
+production, it must be observable"). The pilot enablement is operator-only. So "complete Operations first"
+= two tracks: (a) operator O1→O2 enablement, (b) OPS-5…10 hardening.
+
+**Changes to `00_NEXT_CHAT_STARTUP.md`:**
+- Current sprint rewritten: near-term focus is COMPLETING Operations (O1 today); the two tracks named;
+  Phases III–IX explicitly evidence-gated/future.
+- Priorities reordered — Operations first: (1) O1→O2 production enablement (operator-gated), (2) OPS-5…10
+  observability hardening (the next unblocked engineering milestone; ranked in coverage §4; lead with OPS-5
+  or OPS-7), then (3) CC-1, (4) CC-2/4, (5) acceptance gaps, (6) help gaps.
+- Deferred cleaned: **OPS-5…10 moved OUT of Deferred** (now active priority 2); Deferred now holds only
+  genuinely-future work — Operations Phases III–IX (+ Operations Memory; Phase IV escalation is an
+  audit-stub today) and the deferred recovery expansion (chat-requeue + first R2), preserved without
+  implying active work.
+- Immediate next steps re-pointed to Operations (operator enablement ∥ OPS-5…10 engineering).
+
+**Note (results-not-intentions, unchanged):** Operations Phase I+II+II-B pushed to `main`; Railway deploy
+triggered; **production runtime not operator-verified**; recovery ships dark (`OPS_RECOVERY_*` default off).
+
+**Verification:** internal-consistency grep (OPS-5…10 no longer in Deferred; priority order coherent);
+`manage.py check` unaffected (no code touched). A comprehensive Operations status report was produced in
+the session (maturity/architecture/completed/remaining/doc-audit/risks/recommendation).
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`,
+`docs/wlj_claude_changelog.md`.
+
 ## 2026-07-11 — docs(startup): Phase II-B reconciliation + milestone closeout (docs-only)
 
 **Why:** Documentation-only reconciliation and Session-Transition closeout for Operations Phase II-B (impl

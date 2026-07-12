@@ -154,6 +154,13 @@ but the missing DOM node never appeared. Fix: `@never_cache` on `OperationsWallV
 Operations principle *"if it runs in production, it must be observable"*: freshness of the HTML shell (not just
 the polled data) is a correctness requirement whenever a new monitor card can be added.
 
+**Follow-on placement fix (2026-07-12) — Recovery promoted out of the collapsed Diagnostics drawer.** After the
+cache fix, the panel was still absent because the Recovery Engine card was rendered inside Zone 5 "Diagnostics"
+(`#diagnosticsBody`, `display:none` by default; all OPS monitor cards live there). Browser trace: card present
+in DOM but 0×0 / `offsetParent:null`, hidden by `#diagnosticsBody`. Fix (template-only): moved the card into a
+new always-visible zone `ops-zone-recovery` directly above the Diagnostics drawer — Recovery is now observable
+without expanding Diagnostics. Card ids/body unchanged (`renderRecovery()` untouched).
+
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.
 - **Actual runs** are recorded by Celery `task_prerun`/`task_postrun` signals (connected in `apps/core/apps.py::ready()`), each UPSERTing one current-state `ScheduledTaskRun` row per task (bounded storage even for the 30s `cos_keepalive`).

@@ -3,8 +3,37 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (fix(ops): Ops Wall @never_cache — stale HTML shell hid the Recovery Engine panel)
+# Last Updated: 2026-07-12 (fix(ops): Recovery Engine panel promoted out of collapsed Diagnostics drawer — always visible)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — fix(ops): Recovery Engine panel was inside the collapsed Diagnostics drawer — promoted to always-visible
+
+**Symptom (prod):** Even with correct telemetry (recovery object present in `/ops/stream/`), the Recovery Engine
+panel was **absent** from the Ops Wall.
+
+**Root cause (presentation/layout — browser-traced, no backend involvement):** The Recovery Engine card was
+rendered inside **Zone 5 "Diagnostics"**, whose body `#diagnosticsBody.ops-diagnostics-body` is
+**`display:none` by default** (collapsed drawer, opened via `#diagnosticsToggle`). Browser evidence: the card
+existed in the DOM (`.ops-cmd-card-title` = "Recovery Engine", `display:flex`, `visibility:visible`) but
+measured **0×0 with `offsetParent:null`**, and the nearest hiding ancestor was `#diagnosticsBody` (`display:
+none`). Every OPS monitor card (Storage, DB Health, Chat Queue, Scheduled Beat Tasks, …) lives in that same
+collapsed drawer; the always-visible cards are in other zones. So the panel only appeared if the operator
+expanded Diagnostics. Traced full pipeline (ops_stream JSON → template card → `render()` → `renderRecovery()` →
+DOM): every stage correct; the sole defect was the card's placement inside a collapsed-by-default zone.
+
+**Fix (smallest safe, template-only):** Moved the Recovery Engine card out of `#diagnosticsBody` into a new
+**always-visible zone `ops-zone-recovery`** placed directly above the Diagnostics drawer
+(`templates/admin_console/operations_wall.html`). No id/markup changes to the card body, so `renderRecovery()`
+and all element ids (`recoverySummary`, `opsRecoveryStatus`, `opsRecoveryFeedLabel`, `opsRecovery`) are
+untouched. No backend/telemetry/recovery change. Rationale: Recovery is an actively-validated Operations
+subsystem — "if it runs in production, it must be observable" — so it should not require expanding a drawer.
+
+**Verification (browser-level):** After the move, the card's nearest `display:none` ancestor is **null** (no
+longer hidden); it sits in `ops-zone-recovery` as a sibling of the always-visible zones and renders **full
+width (1176px)** directly above the still-collapsed Diagnostics drawer. Panel population confirmed by driving
+the real `renderRecovery()` with a representative SHADOW payload (mode + source, 1/3 handlers enabled, Beat
+Retry On · allowlist 1, 2 simulated · 1 would-recover, handler roster, SIM·SHADOW row). `manage.py check`
+clean; single card instance in the rendered HTML (no duplicate).
 
 ## 2026-07-12 — fix(ops): Ops Wall served stale HTML — Recovery Engine panel invisible despite valid telemetry
 

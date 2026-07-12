@@ -3954,6 +3954,31 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     </div><!-- /Zone 4 Row 2 -->
 
     <!-- ============================================================
+         ZONE 4.5 — Recovery Engine (ALWAYS VISIBLE, read-only)
+         Promoted out of the collapsed Diagnostics drawer: Recovery is an
+         actively-validated Operations subsystem and must be observable without
+         expanding Diagnostics ("if it runs in production, it must be observable").
+         ============================================================ -->
+    <div class="ops-zone ops-zone-recovery">
+        <div class="ops-diagnostics-full">
+            <div class="ops-cmd-card ops-glass">
+                <div class="ops-cmd-card-header">
+                    <span class="ops-cmd-card-title">Recovery Engine</span>
+                    <span class="ops-sched-status-label" id="recoverySummary">—</span>
+                </div>
+                <div class="ops-cmd-card-body">
+                    <!-- Deterministic status/config grid (populated by renderRecovery) -->
+                    <div class="ops-recovery-status" id="opsRecoveryStatus"></div>
+                    <div class="ops-recovery-feed-label" id="opsRecoveryFeedLabel"></div>
+                    <div class="ops-feed" id="opsRecovery">
+                        <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================
          ZONE 5 — Diagnostics (collapsed by default)
          ============================================================ -->
     <div class="ops-zone ops-zone-diagnostics">
@@ -4322,23 +4347,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
-            <!-- Recovery Engine (WLJ Operations Phase II — full width, read-only) -->
-            <div class="ops-diagnostics-full">
-                <div class="ops-cmd-card ops-glass">
-                    <div class="ops-cmd-card-header">
-                        <span class="ops-cmd-card-title">Recovery Engine</span>
-                        <span class="ops-sched-status-label" id="recoverySummary">—</span>
-                    </div>
-                    <div class="ops-cmd-card-body">
-                        <!-- Deterministic status/config grid (populated by renderRecovery) -->
-                        <div class="ops-recovery-status" id="opsRecoveryStatus"></div>
-                        <div class="ops-recovery-feed-label" id="opsRecoveryFeedLabel"></div>
-                        <div class="ops-feed" id="opsRecovery">
-                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Recovery Engine card lives in an ALWAYS-VISIBLE zone above the
+                 collapsed Diagnostics drawer (see ops-zone-recovery) so operators
+                 can observe Recovery without expanding Diagnostics. -->
 
             <!-- Infrastructure Monitors: Storage / Chat Queue / Upstream (OPS-2/3/4) -->
             <div class="ops-diagnostics-grid" style="grid-template-columns: 1fr 1fr 1fr">

@@ -6,6 +6,38 @@
 # Last Updated: 2026-07-12 (docs/test(ops): O1→O2 gate — allowlisted MISSED_RUN shadows R0 = stale shadow row, expected not a defect)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — fix(dashboard): Mission "Current Weight" panel used a completed milestone as its target
+
+**Symptom:** with the narrative now correct, the green Current Weight panel still showed "At milestone target"
+and "Target: 289.9 ✓" — a milestone already completed — while the active milestone is 279.9.
+
+**Root cause (traced, panel only):** `_build_mission_weight_status` resolved its target INDEPENDENTLY of the
+canonical Current Mission State. It used `next_milestone` only when `objective_metric == "weight_lb"`; for a
+title-form active rung ("Goal Weight 279.9") that check fails and it fell to a scan over **all** milestones
+without filtering `completed=False`, surfacing a completed rung's target (289.9). Since 283.5 ≤ 289.9 it then
+read as "At milestone target ✓". (Encoded, pre-fix, by `test_falls_back_to_weight_milestone_when_next_is_achievement`.)
+
+**Fix (composition, not wording):** added a shared `_active_weight_target(milestone)` — objective value OR the
+number parsed from the title via the SAME `_parse_weight_target_from_title` the evaluator/narrative use — and
+both the Current Mission State and the weight panel now resolve the target through it. The panel targets the
+ACTIVE (nearest incomplete) weight rung and NEVER a completed one while an incomplete rung remains; only when
+every weight rung is complete does it show the achieved final target. The panel headline now names the active
+milestone ("Working toward Goal Weight 279.9"), subline "3.6 lb to go · Target: 279.9 lb". Nothing hardcoded;
+future milestones advance automatically.
+
+**Result (verified, both objective and title-form active rungs):** current 283.5 · target **279.9** · remaining
+**3.6** · "Working toward Goal Weight 279.9" · "Trending down / -4.6 lb (30d)" — no 289.9, no "At milestone
+target". Every mission-card element (counter 2/12, focus 279.9, weight panel, narrative) now composes from the
+same current state.
+
+**Status-label audit (the additional refinement):** the card's remaining "status" words are three DISTINCT axes,
+all from the canonical state — momentum (ring word + pill label are ONE state rendered two ways, always agree),
+weight-vs-target position ("Working toward …"), and weight trend direction ("Trending down"). The genuinely
+conflicting label was "At milestone target" (a stale completed rung); this fix removes it. No further
+consolidation needed — the ring/pill share one source and cannot diverge.
+
+Updated the two weight-panel wording tests; all `dashboard_v3` mission suites pass (164).
+
 ## 2026-07-12 — docs/test(ops): O1→O2 gate — proved WHY an allowlisted Beat MISSED_RUN still shadows R0 (expected, not a defect)
 
 **Question (final engineering gate before ACTIVE):** `apps.core.health_briefing.tasks.recompute_all_health_briefings_task`

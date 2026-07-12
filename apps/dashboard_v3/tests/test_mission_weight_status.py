@@ -75,9 +75,12 @@ class TrendingDownTests(TestCase):
         self.assertEqual(ws["target"], 289.9)
         self.assertAlmostEqual(ws["to_next"], 6.5, places=1)
         self.assertEqual(ws["tone"], "down")
-        self.assertIn("6.5", ws["headline"])
-        self.assertIn("next milestone", ws["headline"])
-        self.assertEqual(ws["subline"], "Target: 289.9 lb")
+        # Headline names the ACTIVE milestone being worked toward; subline carries the
+        # remaining distance and the target.
+        self.assertIn("Working toward", ws["headline"])
+        self.assertIn("289.9", ws["headline"])
+        self.assertIn("6.5", ws["subline"])
+        self.assertIn("Target: 289.9 lb", ws["subline"])
         # 30d change is a real negative — sign + display present
         self.assertEqual(ws["change_sign"], "down")
         self.assertIn("-1.8", ws["change_display"])
@@ -142,7 +145,10 @@ class AtTargetTests(TestCase):
         }
         ws = _build_mission_weight_status(self.goal, health, self.milestone)
         self.assertEqual(ws["tone"], "ok")
-        self.assertEqual(ws["headline"], "At milestone target")
+        # At/under the ACTIVE (incomplete) milestone's target — a genuine present win that
+        # names the rung just reached (never a replay of an already-cleared one).
+        self.assertIn("Reached", ws["headline"])
+        self.assertIn("289.9", ws["headline"])
         self.assertIn("✓", ws["subline"])
 
     def test_below_target_tone_ok(self):

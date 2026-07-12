@@ -1370,6 +1370,33 @@ def _mission_status_narrative(state, current_state, prog, helping, watching, nee
     return _compose_current_state_narrative(current_state, state, helping, watching, needs)
 
 
+def _active_weight_target(milestone):
+    """The weight target of a SINGLE milestone, as a float, or None if it isn't a
+    weight-measurable rung.
+
+    Objective rungs carry ``objective_target_value``; title-form rungs ("Goal Weight
+    279.9") carry the number only in the title. We read the objective value when present,
+    else parse the title with the SAME parser the milestone evaluator, goal-pace, and
+    reconciliation use — so every surface (narrative, weight panel, evaluator) resolves
+    the identical target and can never disagree.
+    """
+    if milestone is None:
+        return None
+    if (
+        getattr(milestone, "objective_metric", None) == "weight_lb"
+        and getattr(milestone, "objective_target_value", None) is not None
+    ):
+        return float(milestone.objective_target_value)
+    try:
+        from apps.purpose.services.objective_weight_milestones import (
+            _parse_weight_target_from_title,
+        )
+        parsed = _parse_weight_target_from_title(getattr(milestone, "title", "") or "")
+        return float(parsed) if parsed is not None else None
+    except Exception:
+        return None
+
+
 def _build_current_mission_state(goal, next_milestone, health_state, snap,
                                  phase, mission_title) -> dict:
     """The ONE canonical Current Mission State the whole card composes from.
@@ -1391,13 +1418,9 @@ def _build_current_mission_state(goal, next_milestone, health_state, snap,
     """
     nm = next_milestone
     active_title = nm.title if nm else None
-    active_target = None
-    if (
-        nm is not None
-        and getattr(nm, "objective_metric", None) == "weight_lb"
-        and getattr(nm, "objective_target_value", None) is not None
-    ):
-        active_target = float(nm.objective_target_value)
+    # ACTIVE weight target — objective value OR the number parsed from a title-form rung,
+    # via the shared parser, so it always matches the weight panel and the evaluator.
+    active_target = _active_weight_target(nm)
 
     current_value = (health_state or {}).get("weight_current")
     unit = (health_state or {}).get("weight_unit") or "lb"
@@ -1634,30 +1657,31 @@ def _build_mission_weight_status(goal, health_state: dict, next_milestone) -> di
       - ``"flat"`` — stable or insufficient data (neutral)
       - ``"up"``   — above target, trending away from goal (truthful red)
     """
-    # Find an objective-weight target on this goal. Prefer the next incomplete
-    # milestone (matches the "Next milestone" row directly above us). Fall
-    # back to ANY objective-weight milestone on the goal so we still render
-    # for fully-completed weight missions (the at-target state).
-    target = None
-    if (
-        next_milestone is not None
-        and getattr(next_milestone, "objective_metric", None) == "weight_lb"
-        and getattr(next_milestone, "objective_target_value", None) is not None
-    ):
-        target = float(next_milestone.objective_target_value)
-    else:
-        # Reuse the milestones reverse relation already iterated for the ring;
-        # this filter hits the cached queryset if Django has it. One bounded
-        # scan over the goal's own milestones (typically <20 rows).
-        for m in goal.milestones.all():
-            if (
-                getattr(m, "objective_metric", None) == "weight_lb"
-                and getattr(m, "objective_target_value", None) is not None
-            ):
-                # Lowest target value = the ultimate weight goal for this mission.
-                tv = float(m.objective_target_value)
-                if target is None or tv < target:
-                    target = tv
+    # Resolve the target from the CURRENT mission position — the ACTIVE (nearest
+    # incomplete) weight milestone, resolved by the SAME `_active_weight_target` parser
+    # the Current Mission State narrative uses, so the panel and the narrative always name
+    # the same target. A COMPLETED milestone's target is NEVER used while an incomplete
+    # weight rung remains (the old bug: it fell back to a scan over ALL milestones and
+    # surfaced an already-cleared target like "289.9 ✓" / "At milestone target"). Only when
+    # every weight rung is complete — the mission's weight goal is truly achieved — do we
+    # fall back to the achieved final (lowest) target.
+    target = _active_weight_target(next_milestone)
+    active_title = getattr(next_milestone, "title", None) if target is not None else None
+    all_weight_complete = False
+    if target is None:
+        completed_targets = []
+        for m in goal.milestones.all():   # Meta.ordering = progression order
+            wt = _active_weight_target(m)
+            if wt is None:
+                continue
+            if not m.completed:
+                target = wt              # nearest incomplete weight rung = the active one
+                active_title = m.title
+                break
+            completed_targets.append(wt)
+        if target is None and completed_targets:
+            target = min(completed_targets)   # every weight rung complete → achieved goal
+            all_weight_complete = True
 
     if target is None:
         # Mission isn't weight-driven. Block is omitted in template.
@@ -1750,23 +1774,33 @@ def _build_mission_weight_status(goal, health_state: dict, next_milestone) -> di
     to_next = round(current_f - target, 1)
 
     if to_next <= 0:
-        # At-or-under-target: the ONLY completion-resembling state. The user
-        # has objectively reached the target by canonical data.
+        # At-or-under the CURRENT target: the ONLY completion-resembling state. Because
+        # `target` is the ACTIVE (incomplete) rung — never an already-cleared one — this
+        # is a genuine present win, not a replay. (When every weight rung is complete the
+        # mission's goal is achieved.)
         tone = "ok"
-        headline = "At milestone target"
+        if all_weight_complete:
+            headline = "Weight goal reached"
+        elif active_title:
+            headline = f"Reached {active_title}"
+        else:
+            headline = "At milestone target"
         subline = f"Target: {target:.1f} {unit} ✓"
     else:
-        # Above target — tone follows trend, NOT distance. Truth before
-        # encouragement: trending up gets the truthful "up" tone even close
-        # to target; trending down gets the "down" tone even far from target.
+        # Above the ACTIVE target — tone follows trend, NOT distance. Truth before
+        # encouragement: trending up gets the truthful "up" tone even close to target;
+        # trending down gets the "down" tone even far from target.
         if trend_raw == "decreasing":
             tone = "down"
         elif trend_raw == "increasing":
             tone = "up"
         else:
             tone = "flat"  # stable OR insufficient_data
-        headline = f"{to_next:.1f} {unit} to next milestone"
-        subline = f"Target: {target:.1f} {unit}"
+        # Name the ACTIVE milestone the user is working toward (current mission position),
+        # with the remaining distance and target in the subline.
+        headline = (f"Working toward {active_title}" if active_title
+                    else f"{to_next:.1f} {unit} to next milestone")
+        subline = f"{to_next:.1f} {unit} to go · Target: {target:.1f} {unit}"
 
     return {
         "has_data": True,

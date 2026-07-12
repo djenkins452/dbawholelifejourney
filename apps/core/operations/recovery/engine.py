@@ -25,6 +25,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 
 from apps.core.operations.models import RecoveryAttempt
@@ -76,32 +77,67 @@ def run_recovery_cycle(now=None) -> dict:
     summary = {
         "enabled": True, "processed": 0, "recovered": 0, "verified": 0,
         "escalated": 0, "skipped_unsafe": 0, "waiting": 0, "errors": 0,
+        "locked_skipped": 0,
     }
 
-    active = OpsAnomaly.objects.filter(is_active=True)
-    for anomaly in active:
-        handler = registry.handler_for(anomaly.anomaly_type)
-        if handler is None:
-            continue  # no handler → R0 (observe-only), the safe default
-        summary["processed"] += 1
-        try:
-            _process_incident(anomaly, handler, now, summary)
-        except Exception as e:  # never swallow — audit + log, continue
-            summary["errors"] += 1
-            logger.error(
-                "Recovery: handler %s failed on %s/%s: %s",
-                handler.monitor_key, anomaly.anomaly_type, anomaly.engine_name, e,
-                exc_info=True,
-            )
-            try:
-                _audit(anomaly, handler, RecoveryAttempt.PHASE_ESCALATED,
-                       classification=handler.policy.classification,
-                       outcome=RecoveryAttempt.OUTCOME_FAILED,
-                       action="Handler raised — escalated.", error=str(e))
-            except Exception:  # pragma: no cover - audit best-effort
-                logger.error("Recovery: failed to audit handler error", exc_info=True)
+    # Snapshot the candidate incident ids first, then process each under a
+    # per-incident row lock (below). Cheap; active anomalies are few.
+    active_ids = list(
+        OpsAnomaly.objects.filter(is_active=True).values_list("pk", flat=True)
+    )
+    for pk in active_ids:
+        _process_locked(pk, now, summary)
 
     return summary
+
+
+def _process_locked(pk, now, summary):
+    """Process one incident under a DURABLE per-incident DB row lock.
+
+    Concurrency protection (beyond the audit-record cooldown/pending checks): each
+    incident is re-fetched with ``SELECT … FOR UPDATE SKIP LOCKED`` inside its own
+    transaction, so two overlapping recovery cycles (or two workers) can never act
+    on the SAME incident — the second cycle finds the row locked and skips it. The
+    RecoveryAttempt audit rows are written inside this transaction, so the
+    pending/attempt record is durably committed with the lock, closing the
+    read-decide-act (TOCTOU) window. On Postgres this is a real row lock; the
+    recovery worker is the only writer of these attempts.
+    """
+    from apps.core.ai_observability.models import OpsAnomaly
+
+    try:
+        with transaction.atomic():
+            anomaly = (
+                OpsAnomaly.objects
+                .select_for_update(skip_locked=True)
+                .filter(pk=pk, is_active=True)
+                .first()
+            )
+            if anomaly is None:
+                # Locked by another cycle/worker (skip_locked) or resolved meanwhile.
+                summary["locked_skipped"] += 1
+                return
+            handler = registry.handler_for(anomaly.anomaly_type)
+            if handler is None:
+                return  # no handler → R0 (observe-only), the safe default
+            summary["processed"] += 1
+            _process_incident(anomaly, handler, now, summary)
+    except Exception as e:  # never swallow — audit + log, continue with the rest
+        summary["errors"] += 1
+        logger.error(
+            "Recovery: incident %s failed: %s", pk, e, exc_info=True,
+        )
+        try:
+            from apps.core.ai_observability.models import OpsAnomaly as _OA
+            a = _OA.objects.filter(pk=pk).first()
+            h = registry.handler_for(a.anomaly_type) if a else None
+            if a is not None and h is not None:
+                _audit(a, h, RecoveryAttempt.PHASE_ESCALATED,
+                       classification=h.policy.classification,
+                       outcome=RecoveryAttempt.OUTCOME_FAILED,
+                       action="Handler raised — escalated.", error=str(e))
+        except Exception:  # pragma: no cover - audit best-effort
+            logger.error("Recovery: failed to audit handler error", exc_info=True)
 
 
 def _attempts_for(anomaly, since=None):

@@ -828,11 +828,19 @@ is `WLJ_OPS_WALL_COVERAGE.md §4`):
 *OPS-1…4 detail lives in `WLJ_OPS_WALL_COVERAGE.md` §4 (the authoritative coverage source). This ledger
 mirrors status; the coverage doc holds the as-built detail + the categorized backlog.*
 
-### Phase II — Deterministic Recovery · **Framework SHIPPED (dark) — pilots pending enablement**
+### Phase II — Deterministic Recovery · **Phase II-A foundation SHIPPED (dark) — pilots pending enablement**
+
+*Phase II-A (Recovery Foundation, shipped dark) is **complete**: the package/boundaries, lifecycle, audit,
+verification, request-path isolation, kill switches, Command Center visibility, and three R1 handlers
+(Beat-retry, engine-starvation, and the **snapshot-refresh pilot** `MaturitySnapshotRefreshHandler`) were
+built and shipped dark (`b3e6c40a`…`24345af7`). The 2026-07-12 milestone added only the DB-level
+concurrency lock (ADR-22). **No automatic production recovery has run** — the subsystem is **O1** until a
+pilot is enabled and proven in production. The covered pilots are recovery-capable, not operationally active.*
 
 | ✔ | Sub-feature | Completed | Git SHA | Deployed | Docs | Tests |
 |---|---|---|---|---|---|---|
 | [x] | `apps/core/operations/` action package (frozen §10 seam) | 2026-07-11 | b3e6c40a | ship-dark | PHASE2_PLAN | `test_import_boundaries.py` |
+| [x] | **DB-level per-incident concurrency lock** (`SELECT … FOR UPDATE SKIP LOCKED`) — ADR-22 | 2026-07-12 | _this commit_ | ship-dark | ADR-22 / PHASE2_PLAN §7 | `test_recovery_concurrency.py` (2) |
 | [x] | `RecoveryPolicy` (R0–R4, finite bounds, recurrence) | 2026-07-11 | b3e6c40a | ship-dark | §4 | `test_recovery.py::PolicyTests` |
 | [x] | `RecoveryHandler` framework + `RecoveryRegistry` | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
 | [x] | `RecoveryAttempt` audit model (+ migration `0130`) | 2026-07-11 | b3e6c40a | ship-dark | §9 | `test_recovery.py` |
@@ -919,6 +927,8 @@ Every material Operations decision is recorded here with its rationale, so the *
 | ADR-19 | 2026-07-11 | **ADR-17 REFINED (partially superseded).** ADR-17 deferred all snapshot-refresh recovery as "downstream of a missed Beat task." Correct for `SystemIntegritySnapshot`/`StorageSnapshot` (rewritten EVERY SAME cycle → fresh whenever SAME runs → no incident). **WRONG for `SystemMaturitySnapshot`**, which is a 24h **ISE** job (not SAME, not a Beat task) and was completely UNMONITORED. A dedicated staleness detector + R1 recompute recovery is therefore justified and NOT double-coverage. | Evidence from Phase II-B monitor review (`docs/WLJ_OPERATIONS_PHASE2_PLAN.md §14`). Corrects an over-broad deferral; fills a real observability gap. |
 | ADR-20 | 2026-07-11 | **ENGINE_STARVATION gets an R1 re-trigger handler** (`EngineStarvationRetriggerHandler`), reusing `run_engine_task` + the exact `EngineRun.count(24h)>0` predicate. | Provably NOT double-covering the legacy in-SAME `_run_autonomous_remediation`, which only re-runs **P3 MISSED_RUN** engines; starvation is **P1** and was never auto-remediated. (Observation: the legacy auto-rerun is a *second* remediation path — a future consolidation candidate for Phase III, not touched now.) |
 | ADR-21 | 2026-07-11 | **New `MATURITY_SNAPSHOT_STALE` detector added to SAME** (P3, ≥2-day threshold, read-only). This is Phase I observability added alongside the recovery so the recompute handler has an incident to act on. | The only way to recover the maturity-snapshot gap (ADR-19) is to detect it first. Conservative severity/threshold keeps production noise near-zero; the detector is the truth producer, the handler the action consumer. |
+| ADR-22 | 2026-07-12 | **Phase II-A hardening — DB-level per-incident concurrency lock.** The recovery engine now re-fetches each active incident under `SELECT … FOR UPDATE SKIP LOCKED` in its own transaction (`engine.py::_process_locked`), so two overlapping recovery cycles/workers can never act on the same incident; RecoveryAttempt audit rows are written inside that transaction, closing the read-decide-act (TOCTOU) window. | The prior cooldown/pending checks (durable audit records) *reduced* but did not *eliminate* the concurrency window. `skip_locked` means a concurrent cycle processes a disjoint incident set (no blocking, no double-execute). Postgres-real; added while ship-dark (safest time). Proven by `test_recovery_concurrency.py`. |
+| — | 2026-07-12 | **NOTE — Phase II-A "snapshot-refresh pilot" already shipped as `MaturitySnapshotRefreshHandler`** (R1, recompute shape, ADR-19); the Phase II plan's original "snapshot-refresh = Pilot 1" was reversed at implementation (ADR-16/17 shipped Beat-retry first). The Phase II-A foundation (engine, policy, registry, 3 R1 handlers, `RecoveryAttempt`+migration 0130, kill switches, gated non-blocking enqueue, telemetry + Ops Wall card, import-boundary + request-path contracts) was **already built and shipped dark** (`b3e6c40a`…`24345af7`); this milestone added only the ADR-22 concurrency lock. | Recorded so a future reader does not re-implement or revert the shipped foundation. |
 
 *Append a new row for every material decision; never rewrite history — supersede it.*
 

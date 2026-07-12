@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-12 (feat(ops): Recovery Events — prominent, acknowledgeable operator alerts for real ACTIVE recoveries)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — docs(session): regenerate NEXT_CHAT_STARTUP bootloader — Shadow Validation COMPLETE, ACTIVE pilot live
+
+Session-close transition (`98_SESSION_TRANSITION_PROTOCOL`). Regenerated
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md` to the
+true current state: Stage-0 Shadow Validation is COMPLETE and the **O1→O2 ACTIVE
+recovery pilot is ENABLED in production** (single allowlisted Beat-retry handler for
+the health-briefing recompute task; all others disabled). New active milestone =
+**monitor the pilot and confirm O2** (a real `MISSED_RUN` recovered + verified). Folded
+this session's completed work into "Recently completed" (Recovery Engine first-class
+always-visible Ops Wall component via config-visibility + `@never_cache` + drawer
+promotion; the O1→O2 R0 "stale shadow row" proof; the Recovery Events operator alert
+banner). Updated "Waiting on Danny" (monitor ACTIVE + send the recovery trail) and
+retired the obsolete "confirm DISABLED / Recovery Activity card" note. No
+architecture / Constitution / engineering-guide / preferences change. Bootloader only.
+
 ## 2026-07-12 — feat(ops): Recovery Events — real ACTIVE recoveries surface as prominent, acknowledgeable operator alerts
 
 **Goal:** an autonomous ACTIVE recovery is a significant operational event and must never happen silently — the

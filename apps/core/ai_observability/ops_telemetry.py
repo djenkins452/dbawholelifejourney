@@ -2661,6 +2661,7 @@ def _get_recovery_telemetry(now=None):
         "enabled": False, "status": "OK",
         "config": None,          # populated by the recovery telemetry cycle
         "last_activity": None,
+        "events": [],
         "counts": {
             "recovered_24h": 0, "verified_24h": 0, "escalated_24h": 0, "failed_24h": 0,
             "pending": 0, "shadowed_24h": 0, "would_recover_24h": 0,

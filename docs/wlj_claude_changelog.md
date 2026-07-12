@@ -3,8 +3,49 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (docs/test(ops): O1→O2 gate — allowlisted MISSED_RUN shadows R0 = stale shadow row, expected not a defect)
+# Last Updated: 2026-07-12 (feat(ops): Recovery Events — prominent, acknowledgeable operator alerts for real ACTIVE recoveries)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — feat(ops): Recovery Events — real ACTIVE recoveries surface as prominent, acknowledgeable operator alerts
+
+**Goal:** an autonomous ACTIVE recovery is a significant operational event and must never happen silently — the
+operator should immediately see what/why/action/verification/attention, click for full detail, and acknowledge.
+
+**Approach (smallest change; no new framework, no duplicated truth, no polling):** investigated the existing
+Ops infrastructure. Rejected modeling recovery as an `OpsAnomaly` — that would violate the frozen boundary
+(recovery has NO write access to incident state, ADR-16 / Constitution V.1). The feed is ephemeral (5-min, no
+ids/ack) and toasts auto-dismiss. Instead reused the recovery telemetry channel already flowing from
+`RecoveryAttempt` rows (background `build_recovery_telemetry` → `wlj:ops:recovery` cache → Ops Wall payload).
+
+**Change:**
+- **Audit field:** `RecoveryAttempt.updated_at` (`auto_now`, nullable; migration `core/0133`). The only new
+  stored fact — the deterministic enabler for "verified-at" / **recovery duration** (`updated_at − created_at`).
+  Zero recovery-engine logic change (Django sets it on save).
+- **Producer:** `build_recovery_telemetry` gains an `events` list — a deterministic reduction over rows already
+  fetched, emitting REAL (`mode=ACTIVE`) notable outcomes only (success / failed / escalated; shadow
+  simulations excluded by construction). Each event is self-contained: headline, friendly title, reason, action,
+  verification (Passed/Failed), duration, attempt/retry count, retry history, escalation status, next-retry,
+  timestamps, and the `RecoveryAttempt` id (`apps/core/operations/recovery/telemetry.py`).
+- **UI:** a prominent **Recovery Events banner** at the top of the Ops Wall (below the executive band), rendered
+  by `renderRecoveryEvents` from `recovery.events`. Ordered most-severe-first (escalated → failed → success);
+  failures are visually louder (red; escalated pulses). Click a card to expand full detail; **Acknowledge**
+  hides it via `localStorage` (ephemeral client state, keyed by attempt id — never a backend write); events
+  naturally expire out of the 24h telemetry window. Zone hidden when empty. CSP-safe (delegated listeners, no
+  inline handlers).
+
+**Design compliance:** source of truth stays `RecoveryAttempt` (no duplication); acknowledgment is client-side
+(no new model/endpoint, no expensive query); the producer runs in the background cycle and the request-path
+reader stays cache-only (request-path-safety + import-boundary contracts pass, 8/8).
+
+**Verification:** 54/54 recovery+shadow tests pass incl. new `RecoveryEventsTelemetryTests` (success event +
+83s duration; failed event reports Failed + next-retry; escalated event; shadow row NEVER becomes an event).
+Fixed a sort bug found in visual verification (`order[kind] || 9` turned escalated's rank 0 into 9, sinking it
+to the bottom — the exact class of falsy-zero bug). Browser-verified the banner end-to-end: correct severity
+ordering, expand-to-detail (reason/action/verification/duration/incident/attempts/escalation/retry-history/
+Attempt ID), and Acknowledge dismissal + `localStorage` persistence. **Files:**
+`apps/core/operations/models.py` (+migration `0133`), `apps/core/operations/recovery/telemetry.py`,
+`apps/core/ai_observability/ops_telemetry.py`, `templates/admin_console/operations_wall.html`,
+`apps/core/operations/tests/test_recovery_shadow_mode.py`, `docs/WLJ_OPS_WALL_COVERAGE.md`.
 
 ## 2026-07-12 — polish(bodyintel): Body Intelligence UX pass — mission language, weight hierarchy, provenance, measurement cards
 

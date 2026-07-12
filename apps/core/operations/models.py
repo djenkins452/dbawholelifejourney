@@ -85,6 +85,11 @@ class RecoveryAttempt(models.Model):
     ]
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    # Last-write time (audit). For a deferred-verification row this is the moment
+    # the pending attempt was RESOLVED (verified/failed), so a recovery's duration
+    # is deterministically ``updated_at - created_at`` with no engine-logic change.
+    # Nullable so the additive migration needs no one-off default for historical rows.
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     # Reconciliation identity of the incident this attempt targets. We store the
     # anomaly's stable (anomaly_type, engine_name) key rather than a hard FK so an

@@ -26,6 +26,125 @@ logger = logging.getLogger(__name__)
 OPS_RECOVERY_CACHE_KEY = "wlj:ops:recovery"
 OPS_RECOVERY_CACHE_TTL = 180  # seconds
 
+# Human-readable reason per incident type (facts, not verdicts). Fallback below.
+_EVENT_REASONS = {
+    "MISSED_RUN": "Scheduled task missed its expected cadence.",
+    "ENGINE_STARVATION": "Engine produced no runs within its expected window.",
+    "MATURITY_SNAPSHOT_STALE": "System maturity snapshot went stale.",
+}
+
+
+def _friendly_title(engine_name: str) -> str:
+    """Humanise a task path / engine name for the event headline (facts only)."""
+    if not engine_name:
+        return "Recovery"
+    leaf = engine_name.rsplit(".", 1)[-1]
+    if leaf.endswith("_task"):
+        leaf = leaf[:-5]
+    words = leaf.replace("_", " ").strip()
+    return words.title() if words else engine_name
+
+
+def _duration_seconds(row):
+    """Deterministic recovery duration = resolution time − attempt time.
+
+    ``updated_at`` (auto_now) is set when the deferred attempt is RESOLVED, so for a
+    verified/failed row this is the real elapsed time. None when not yet resolved or
+    on historical rows written before ``updated_at`` existed.
+    """
+    if row.updated_at and row.created_at and row.updated_at > row.created_at:
+        return round((row.updated_at - row.created_at).total_seconds())
+    return None
+
+
+def _max_attempts_for(anomaly_type):
+    """Policy max_attempts for the incident's handler (config, not a query)."""
+    try:
+        from apps.core.operations.recovery.base import registry
+        handler = registry.handler_for(anomaly_type)
+        return getattr(handler.policy, "max_attempts", None) if handler else None
+    except Exception:  # pragma: no cover - defensive; never break telemetry
+        return None
+
+
+def _build_recovery_events(window_start, now):
+    """Compose prominent operator EVENTS from real (ACTIVE) recovery outcomes.
+
+    A deterministic reduction over the RecoveryAttempt rows already written by the
+    engine — never a new decision, never a verdict. Only REAL recoveries surface
+    (``mode=ACTIVE``); shadow simulations are excluded by construction. Each event
+    is self-contained (incident, action, verification, duration, retry history,
+    escalation status, timestamps, id) so the UI needs no follow-up query.
+    """
+    from collections import defaultdict
+
+    rows = list(
+        RecoveryAttempt.objects.filter(
+            created_at__gte=window_start, mode=RecoveryAttempt.MODE_ACTIVE
+        ).order_by("-created_at")[:100]
+    )
+    by_incident = defaultdict(list)
+    for r in rows:
+        by_incident[(r.anomaly_type, r.engine_name)].append(r)
+
+    events = []
+    for r in rows:
+        if r.phase == RecoveryAttempt.PHASE_ESCALATED:
+            kind, headline, verification = "escalated", "Recovery Escalated", "Failed"
+        elif r.outcome == RecoveryAttempt.OUTCOME_FAILED:
+            kind, headline, verification = "failed", "Recovery Failed", "Failed"
+        elif r.phase == RecoveryAttempt.PHASE_VERIFIED and r.outcome == RecoveryAttempt.OUTCOME_SUCCESS:
+            kind, headline, verification = "success", "Recovery Successful", "Passed"
+        else:
+            continue  # pending / in-flight — not yet a completed event
+
+        incident_rows = by_incident.get((r.anomaly_type, r.engine_name), [])
+        attempts = [a for a in incident_rows if a.phase == RecoveryAttempt.PHASE_RECOVER_ATTEMPTED]
+        escalated = any(a.phase == RecoveryAttempt.PHASE_ESCALATED for a in incident_rows)
+        max_attempts = _max_attempts_for(r.anomaly_type)
+        if kind == "failed" and not escalated and max_attempts and len(attempts) < max_attempts:
+            next_retry = "Will retry next cycle (after cooldown)."
+        elif kind == "failed":
+            next_retry = "Retries exhausted."
+        else:
+            next_retry = None
+
+        events.append({
+            "id": r.id,
+            "kind": kind,                       # success | failed | escalated
+            "headline": headline,
+            "title": _friendly_title(r.engine_name),
+            "task": r.engine_name,
+            "monitor_key": r.monitor_key,
+            "anomaly_type": r.anomaly_type,
+            "classification": r.classification,
+            "reason": _EVENT_REASONS.get(r.anomaly_type, f"{r.anomaly_type} incident."),
+            "action": r.action_taken,
+            "verification": verification,       # Passed | Failed
+            "duration_seconds": _duration_seconds(r),
+            "attempt_number": r.attempt_number,
+            "retry_count": len(attempts),
+            "escalation_status": "Escalated to engineering" if escalated else "None",
+            "next_retry": next_retry,
+            "error": r.error or "",
+            "attempted_at": r.created_at.isoformat(),
+            "resolved_at": r.updated_at.isoformat() if r.updated_at else None,
+            "time": r.created_at.isoformat(),
+            "retries": [
+                {
+                    "time": a.created_at.isoformat(),
+                    "phase": a.phase,
+                    "outcome": a.outcome,
+                    "attempt_number": a.attempt_number,
+                    "action": a.action_taken,
+                }
+                for a in sorted(incident_rows, key=lambda a: a.created_at)
+            ],
+        })
+        if len(events) >= 10:
+            break
+    return events
+
 
 def build_recovery_telemetry(now=None) -> dict:
     """Assemble the read-only recovery section from the RecoveryAttempt audit rows.
@@ -80,6 +199,8 @@ def build_recovery_telemetry(now=None) -> dict:
         "status": "ATTENTION" if escalated_24h else "OK",
         "config": recovery_config_snapshot(),
         "last_activity": latest.isoformat() if latest else None,
+        # Prominent operator events — real (ACTIVE) recoveries only; never shadow.
+        "events": _build_recovery_events(window_start, now),
         "counts": {
             "recovered_24h": recovered_24h,
             "verified_24h": verified_24h,

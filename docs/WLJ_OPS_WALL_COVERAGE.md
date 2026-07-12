@@ -161,6 +161,16 @@ in DOM but 0×0 / `offsetParent:null`, hidden by `#diagnosticsBody`. Fix (templa
 new always-visible zone `ops-zone-recovery` directly above the Diagnostics drawer — Recovery is now observable
 without expanding Diagnostics. Card ids/body unchanged (`renderRecovery()` untouched).
 
+**Recovery Events banner (2026-07-12).** A real ACTIVE recovery is a significant operational event and must not
+happen silently. `build_recovery_telemetry` now emits an `events` list (real `mode=ACTIVE` outcomes only —
+success/failed/escalated; shadow excluded) composed deterministically from the `RecoveryAttempt` rows already
+written, enriched with `updated_at` (new `auto_now` audit field, migration `core/0133`) so **recovery duration**
+= `updated_at − created_at`. A prominent **Recovery Events banner** at the top of the wall
+(`renderRecoveryEvents`) shows these most-severe-first (escalated pulses; failures red), expandable to full
+detail (reason, action, verification, duration, incident, attempts, escalation, retry history, Attempt ID) and
+**acknowledgeable** via `localStorage` (ephemeral client state — no backend write, no new model/endpoint; events
+expire out of the 24h window). No new notification framework; recovery still never writes incident state.
+
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.
 - **Actual runs** are recorded by Celery `task_prerun`/`task_postrun` signals (connected in `apps/core/apps.py::ready()`), each UPSERTing one current-state `ScheduledTaskRun` row per task (bounded storage even for the 30s `cos_keepalive`).

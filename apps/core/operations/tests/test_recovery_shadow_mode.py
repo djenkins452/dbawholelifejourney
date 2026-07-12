@@ -380,6 +380,70 @@ class ShadowBeatRetryO1O2Tests(TestCase):
                          "stale R0 persists for the same occurrence despite the new config")
 
 
+# ── Recovery EVENTS — prominent operator alerts from real (ACTIVE) recoveries ─
+class RecoveryEventsTelemetryTests(TestCase):
+    """The recovery telemetry ``events`` list surfaces REAL recoveries only, with
+    the operator-facing detail (reason/action/verification/duration/retries), and
+    NEVER a shadow simulation."""
+
+    def _row(self, *, phase, outcome, mode=RecoveryAttempt.MODE_ACTIVE,
+             engine="apps.core.health_briefing.tasks.recompute_all_health_briefings_task",
+             atype="MISSED_RUN", attempt=1):
+        return RecoveryAttempt.objects.create(
+            anomaly_type=atype, engine_name=engine, monitor_key="scheduled_task",
+            classification="R1", phase=phase, outcome=outcome, mode=mode,
+            attempt_number=attempt, action_taken="Re-enqueued Beat task.",
+        )
+
+    def test_verified_success_becomes_success_event_with_duration(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+
+        r = self._row(phase=RecoveryAttempt.PHASE_VERIFIED,
+                      outcome=RecoveryAttempt.OUTCOME_SUCCESS)
+        # Simulate attempt→verify elapsed time (update bypasses auto fields).
+        t0 = timezone.now() - timedelta(minutes=5)
+        RecoveryAttempt.objects.filter(pk=r.pk).update(
+            created_at=t0, updated_at=t0 + timedelta(seconds=83))
+
+        events = build_recovery_telemetry()["events"]
+        self.assertEqual(len(events), 1)
+        e = events[0]
+        self.assertEqual(e["kind"], "success")
+        self.assertEqual(e["headline"], "Recovery Successful")
+        self.assertEqual(e["verification"], "Passed")
+        self.assertEqual(e["duration_seconds"], 83)
+        self.assertEqual(e["title"], "Recompute All Health Briefings")
+        self.assertEqual(e["id"], r.id)
+
+    def test_failed_event_reports_verification_failed_and_next_retry(self):
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+        self._row(phase=RecoveryAttempt.PHASE_RECOVER_ATTEMPTED,
+                  outcome=RecoveryAttempt.OUTCOME_FAILED)
+        e = next(x for x in build_recovery_telemetry()["events"] if x["kind"] == "failed")
+        self.assertEqual(e["headline"], "Recovery Failed")
+        self.assertEqual(e["verification"], "Failed")
+        # BeatTaskRetryHandler.max_attempts=2, one attempt so far → a retry remains.
+        self.assertIn("retry", (e["next_retry"] or "").lower())
+
+    def test_escalated_event_is_most_prominent_kind(self):
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+        self._row(phase=RecoveryAttempt.PHASE_ESCALATED,
+                  outcome=RecoveryAttempt.OUTCOME_FAILED)
+        e = next(x for x in build_recovery_telemetry()["events"] if x["kind"] == "escalated")
+        self.assertEqual(e["headline"], "Recovery Escalated")
+        self.assertEqual(e["escalation_status"], "Escalated to engineering")
+
+    def test_shadow_simulation_never_becomes_an_event(self):
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+        # A shadow "would recover" row must NEVER appear as a real recovery event.
+        self._row(phase=RecoveryAttempt.PHASE_SHADOW,
+                  outcome=RecoveryAttempt.OUTCOME_SHADOW,
+                  mode=RecoveryAttempt.MODE_SHADOW)
+        self.assertEqual(build_recovery_telemetry()["events"], [])
+
+
 # ── SAME enqueue mirror stays in exact sync with the canonical resolver ─────
 class MirrorSyncTests(TestCase):
     """The SAME enqueue gate mirrors get_recovery_mode() via settings only (import

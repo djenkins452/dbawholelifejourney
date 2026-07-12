@@ -369,6 +369,59 @@ a `RecoveryAttempt` audit trail — then update the vision ledger (§15) + matur
 
 ---
 
+### 11.2 Shadow Validation — operator observation checklist (Phase II Operational Validation stage)
+
+> **This is the Operational Validation milestone** (Danny's kickoff called it "Phase II-B"; that label was
+> already used for the *expanded R1 recoveries*, so the docs call this the **Operational Validation (Shadow)**
+> stage). Its purpose is to turn the Recovery Engine from *implemented* into *trusted* **before** any
+> production recovery is enabled — using deterministic evidence at **zero production risk**.
+>
+> **Roles.** This is an **operator-observation** activity — the engine mechanics are already proven by
+> `test_recovery_shadow_mode.py` (18) + the ACTIVE E2E suite. Claude cannot enable or observe production
+> (no prod access). Danny runs the observation; Claude refines the implementation from what it surfaces.
+
+**Step A — turn Shadow on (Railway env var; instant rollback):** set `OPS_RECOVERY_MODE = SHADOW`. Leave every
+handler flag/allowlist at default. The Recovery Activity card now reads **"Shadow (simulated)"**.
+
+**Step B — observe ≥3 SAME cycles (~3–5 min) with flags OFF.** Expected steady state: with no pilot handler
+enabled, **every** shadow decision is *"would observe only (R0)"* and `would_recover_24h == 0`. This is the
+**no-unintended-recovery** proof — the strongest single signal: even simulated, recovery proposes to act on
+**nothing** unless an operator has explicitly enabled + allowlisted a specific handler.
+
+**Step C — controlled demonstration (manufacture ONE real incident, prove the plan).** To see a *would-recover*
+decision rather than only R0, set the pilot handler on **while staying in shadow** — `OPS_RECOVERY_BEAT_RETRY =
+true` + `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST = apps.core.health_briefing.tasks.recompute_all_health_briefings_task`,
+keeping `OPS_RECOVERY_MODE = SHADOW`. Then briefly pause the `worker` so that task misses its window → OPS-1
+raises `MISSED_RUN` → the next **shadow** cycle records a single `SHADOW` row: *"would re-enqueue Beat task
+'…recompute_all_health_briefings_task' (R1); verify via compute_scheduled_task_states"*, `would_execute = true`.
+The engine **still takes no action** (shadow). Restore the worker; SAME resolves the incident on its own.
+
+**Step D — confirmation matrix (what to check, where, and pass criterion).** *SHADOW-provable items are
+confirmed here; the rest are confirmed by the cited ACTIVE-mode tests / the O1→O2 pilot — Shadow does not prove
+them (Vision §4a).*
+
+| # | Confirmation | Method | Where to look | Pass criterion |
+|---|---|---|---|---|
+| 1 | Correct **incident selection** | SHADOW | Recovery Activity card rows / `RecoveryAttempt(mode=SHADOW)` | Every active `OpsAnomaly` with a registered handler has exactly one shadow row; `engine_name`/`anomaly_type` match the incident. |
+| 2 | Correct **handler selection** | SHADOW | Shadow row `classification` + action text | `MISSED_RUN`→scheduled_task, `ENGINE_STARVATION`→engine, `MATURITY_SNAPSHOT_STALE`→maturity_snapshot. |
+| 3 | Correct **recovery plan** | SHADOW | Shadow row action + `evidence_before.recovery_action` | Reads the intended deterministic action (e.g. "would re-enqueue Beat task 'X'"); `would_execute` reflects enabled+allowlisted. |
+| 4 | Correct **verification predicate** | SHADOW | `evidence_before.verification_predicate` | Names the exact detector inverse that raised the incident (e.g. `compute_scheduled_task_states`). |
+| 5 | Correct **audit records** | SHADOW | `RecoveryAttempt` row | One row/incident; `phase=SHADOW`, `mode=SHADOW`, `outcome=SHADOW_SIMULATED`; all fields populated; distinguishable from real rows. |
+| 6 | Correct **cooldown** | **ACTIVE test** (not shadow) | `test_recovery.py::test_cooldown_enforces_idempotency` (green) + O1→O2 pilot | Two back-to-back cycles ⇒ one action. *Shadow cannot exercise this (no attempts) — Vision §4a.* |
+| 7 | Correct **retry / exhaustion** | **ACTIVE test** (not shadow) | `test_verification_failure_never_succeeds_then_escalates`, `test_recurrence_triggers_permanent_fix_escalation` (green) + O1→O2 pilot | Finite attempts → escalate. *Shadow cannot exercise this — Vision §4a.* |
+| 8 | **No false positives** | SHADOW + Phase I | Shadow rows vs actual incident truth | Every shadow row corresponds to a genuine active incident; no shadow row for a healthy target. (Detector FP-rate is a Phase I/OPS-* concern.) |
+| 9 | **No unintended recoveries** | SHADOW (core safety) | `would_recover_24h`; per-row `would_execute` | With pilot flags OFF: `would_recover_24h == 0` (all R0). With exactly one pilot flag+allowlist ON: `would_execute=true` appears for **only** that one task. |
+
+**Step E — rollback:** set `OPS_RECOVERY_MODE = DISABLED` (and unset the Step-C pilot flags). Card returns to
+"disabled"; no attempts; no orphaned incidents (recovery never owns incident state).
+
+**Exit criteria → "sufficient operational confidence":** items 1–5, 8, 9 confirmed on real production shadow
+evidence across ≥3 cycles **including** at least one controlled-demonstration `would-recover` row that names the
+correct action + predicate; items 6–7 already green in the ACTIVE test suite. Only then does Claude
+**recommend** the O1→O2 enablement (§11.1) — the first time recovery is allowed to actually act.
+
+---
+
 ## 12. Architectural Risks (identify before implementing)
 
 | # | Risk | Severity | Mitigation |

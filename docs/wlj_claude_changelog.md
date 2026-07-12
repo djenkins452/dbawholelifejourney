@@ -6,6 +6,45 @@
 # Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — docs(operations): Phase II Operational Validation (Shadow) — honest validation scope + operator observation checklist
+
+**Why:** Kickoff of the "prove the subsystem operationally" milestone (Danny's prompt called it "Phase II-B";
+that label was already used for the *expanded R1 recoveries*, so the docs name this the **Operational
+Validation (Shadow)** stage). The mandatory "attempt to prove the roadmap wrong" pass reshaped the milestone.
+
+**Reality-check findings (recorded so they're not re-derived):**
+1. **Operational validation is an operator-observation activity, not code.** It needs `OPS_RECOVERY_MODE=SHADOW`
+   set in Railway + live production observation; Claude has no prod access, and recovery ships DISABLED. Danny
+   runs the observation; Claude refines from what it surfaces.
+2. **Shadow structurally CANNOT validate cooldown / retry / recurrence-escalation / verification-execution** —
+   it stops before acting and writes no `RECOVER_ATTEMPTED` rows, so attempt/cooldown counters never advance.
+   Verified in code (`_process_incident` branches to `_shadow_evaluate` and returns before every gate). Those
+   items are proven by the **ACTIVE-mode E2E tests** (green) + the O1→O2 pilot — never by shadow. The roadmap's
+   9-item list conflated "validate the engine" (tests, done) with "validate shadow observation" (the prod activity).
+3. **Shadow evidence needs incidents** — a healthy system yields zero shadow rows; real evidence requires a
+   controlled demonstration (pause the worker → raise a real `MISSED_RUN` → watch shadow plan it).
+4. **The engine mechanics are already deterministically proven** by `test_recovery_shadow_mode.py` (18); what
+   was missing for *operational* validation was production observation + legibility + honest docs — not code.
+
+**What changed (docs only — Danny chose "docs + operator checklist only"; NO engine code changed):**
+- **Vision §4a** — a "what Shadow validates vs. what it does NOT" table (pre-action half only; cooldown/retry/
+  escalation/verification-execution are ACTIVE-test/pilot-proven), so Shadow is never over-claimed.
+- **PHASE2_PLAN §11.2** — the operator **Shadow Validation** observation checklist: Steps A–E (turn on →
+  observe ≥3 cycles flags-off = the no-unintended-recovery proof → controlled `would-recover` demonstration →
+  rollback) + a **9-item confirmation matrix** mapping each confirmation to its method (SHADOW row vs ACTIVE
+  test vs pilot), where to look, and its pass criterion + explicit exit criteria.
+- **Vision ledger** — opened the **Operational Validation (Shadow)** stage (engineering/docs done; observation
+  = OPERATOR); recorded the naming rename and the shadow-scope reality-check.
+- **Bootloader** — Operational Rollout now leads with **Stage 0 (Shadow Validation)** before the O1→O2 pilot;
+  "Waiting on Danny" + "Immediate next steps" updated (engineering is idle on II-B by design until operator
+  evidence exists).
+
+**Verification:** documentation only — no code, no migration, no tests changed. Subsystem remains **O1**;
+production behaviour unchanged (ships `OPS_RECOVERY_MODE=DISABLED`).
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md`, `docs/WLJ_OPERATIONS_PHASE2_PLAN.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-12 — feat(operations): Recovery Shadow Mode — final validation stage before first automatic production recovery (ADR-23)
 
 **Why:** Before WLJ ever performs its first *automatic* production recovery, we need to answer — with

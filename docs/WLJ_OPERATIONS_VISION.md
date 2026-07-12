@@ -161,6 +161,19 @@ incident, with which action, verified by which predicate?"* — without any prod
 - **The import boundary holds** (§11): the SAME→recovery enqueue gate in `ai_observability` mirrors the
   resolver via settings only (never imports `operations`); a contract test keeps the mirror in exact sync.
 
+**What Shadow Mode validates — and what it deliberately does NOT (honest scope; do not over-claim):**
+Because Shadow stops *before* acting and writes no `RECOVER_ATTEMPTED` rows, it can validate only the pre-action
+half of the lifecycle. This split is structural, not a limitation to be "fixed":
+
+| Shadow **proves** (observable in production) | Shadow **cannot** prove (no action ⇒ no attempts) |
+|---|---|
+| Incident selection · handler selection · recovery **plan** (`would_execute` + action + classification) · verification-**predicate identity** · audit-row correctness · idempotency · R0 observe-only correctness · **no unintended recovery** (`would_execute` only where a handler is enabled + allowlisted) | Cooldown · retry / exhaustion · recurrence-**escalation** · verification **execution** (does the fix actually clear the detector?) |
+
+The right-hand column is proven by the **ACTIVE-mode controlled E2E tests** (`test_recovery.py` — cooldown,
+retry-exhaustion, recurrence-escalation, deferred-verification) and, ultimately, by the **O1→O2 production
+pilot** (a real condition recovered + verified). Never present Shadow as proof of cooldown/retry/verification.
+The operator observation procedure + the item-by-item confirmation matrix live in `PHASE2_PLAN §11.2`.
+
 ---
 
 ## 5. Standard Recovery Lifecycle (Governing)
@@ -903,6 +916,25 @@ readiness determination are in `WLJ_OPERATIONS_PHASE2_PLAN.md §14`.*
 *Framework is shipped dark: `OPS_RECOVERY_ENABLED=False` + empty allowlists + per-handler flags off mean
 ZERO production behavior change. Subsystem maturity advances to **O2 (Recoverable)** only once a pilot is
 enabled in production and recovers a real condition (still pending — operator-gated).*
+
+**Operational Validation (Shadow) · ACTIVE — operator observation (2026-07-12→):** *the milestone Danny's
+kickoff called "Phase II-B"; renamed to avoid the label collision above.* The goal is trust before action:
+observe Recovery Shadow Mode against real production incidents and confirm the shadow-provable items before
+recommending the first R1 pilot. **Engineering (docs) complete**; **observation is operator-run** (Claude has
+no prod access).*
+
+| ✔ | Item | Status | Where |
+|---|---|---|---|
+| [x] | Honest validation scope — what Shadow proves vs. what only ACTIVE tests / the pilot prove | done | Vision §4a table |
+| [x] | Operator observation checklist + controlled-demonstration + 9-item confirmation matrix | done | PHASE2_PLAN §11.2 |
+| [x] | Engine mechanics proven deterministically (selection/plan/predicate/audit/idempotency/no-unintended-recovery) | done | `test_recovery_shadow_mode.py` (18) |
+| [ ] | **Observe ≥3 prod SAME cycles in SHADOW + one controlled `would-recover` demonstration** | **OPERATOR** | Recovery Activity card; `PHASE2_PLAN §11.2` Steps A–D |
+| [ ] | Refine implementation from real shadow evidence (only if observation surfaces a gap) | pending observation | — |
+| [ ] | Then **recommend** O1→O2 enablement | pending above | `PHASE2_PLAN §11.1` |
+
+*Reality-check recorded (do not re-derive): Shadow **cannot** validate cooldown/retry/recurrence-escalation/
+verification-execution — it stops before acting, so no attempts accrue. Those are proven by the ACTIVE-mode
+E2E tests (green) and the O1→O2 pilot. Never present Shadow as proof of them.*
 
 ### Phase III — Recovery Framework · **Planned**
 - [ ] Declarative recovery-policy schema (retry · cooldown · verification · escalation · audit)

@@ -102,8 +102,10 @@ class PartialReflectsCanonicalStateTests(TestCase):
         )
         resp = self.client.get(reverse("dashboard_v3:section_utilities"))
         body = resp.content.decode()
-        # Total displayed must include the just-written entry.
-        self.assertIn("16.8", body)
+        # Effective total (16 × 1.05 = 16.8 oz — coefficient applied, full precision kept
+        # internally) is displayed rounded to a whole number for readability.
+        self.assertIn("17", body)
+        self.assertNotIn("16.8", body)
 
 
 class PartialEndpointEfficiencyTests(TestCase):

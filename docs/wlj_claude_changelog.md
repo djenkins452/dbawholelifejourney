@@ -6,6 +6,40 @@
 # Last Updated: 2026-07-12 (feat(ops): Recovery Events — prominent, acknowledgeable operator alerts for real ACTIVE recoveries)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — polish(dashboard): Purpose recommendation from mission state, whole-number water, CoS-style briefing close
+
+Product-polish pass (expose existing truth only; no CoS-reasoning change; no new/duplicate truth).
+
+- **Purpose accountability recommendation now composed from the CURRENT mission state.** Root cause (traced):
+  `_build_accountability_cards` set the Purpose recommendation to the top persisted `GuidanceItem`, which could
+  surface a stale/completed milestone (e.g. "Goal Weight 239.9"). New `_purpose_mission_recommendation` derives
+  it deterministically from `select_active_mission_goal → goal.next_milestone` via the shared
+  `_active_weight_target` parser (falls back to guidance only when there's no active mission). It advances
+  automatically as milestones complete and ends with ONE clear next action — e.g. "Keep working toward Goal
+  Weight 279.9 — about 3.6 lb to go." Nothing hardcoded. (composer.py)
+- **Water displays whole numbers.** `dashboard_v3` utilities water applied `floatformat:0` (the Health home
+  already rounded). Display-only rounding — full precision (incl. the hydration coefficient) is unchanged
+  internally. (utilities.html)
+- **Mission language.** The MAINTAINING coaching line "You're holding steady…" → "You're moving steadily toward
+  your goal — the milestones you've cleared are real progress. Keep the routine that's carrying you forward."
+  (progress-forward, still truthful — MAINTAINING is stable momentum, not acceleration). Pairs with the earlier
+  pill rename (Maintaining → On track). (composer.py)
+- **Executive Briefing close (presentation only — shared CoS composer untouched).** The "Recommended Focus" row
+  of multiple chips is now a single "Start here —" highest-leverage focus (recommendations are already
+  priority-ordered), so the reader leaves knowing exactly the one thing to do. (executive_summary.html)
+- **One clear next action (#5).** Both changes above end each recommendation with a single action.
+- **Comparison philosophy (#7) — verified, no change needed.** Body-measurement cards already compare to the
+  PREVIOUS measurement (per-metric latest-vs-previous, session cadence), never "yesterday"; weight/water/etc.
+  keep daily/rolling. Confirmed no "yesterday" comparison exists for body-comp metrics.
+
+Verified: `manage.py check` clean; 155 dashboard_v3 tests pass (purpose rec references the active 279.9 not 239.9;
+water renders "17" not "16.8"). Two `test_phase2_dedup` query-cap failures are PRE-EXISTING (reproduced with this
+work stashed) and unrelated.
+
+Deferred with rationale: (4) deeper Executive Briefing rewrite still needs the shared CoS composer, off-limits.
+(6) full visual-consistency sweep (spacing/typography/alignment across all cards) is best done against a live
+preview with screenshots — targeted safe fixes done here; the broad sweep is iterative visual tuning.
+
 ## 2026-07-12 — docs(session): regenerate NEXT_CHAT_STARTUP bootloader — Shadow Validation COMPLETE, ACTIVE pilot live
 
 Session-close transition (`98_SESSION_TRANSITION_PROTOCOL`). Regenerated

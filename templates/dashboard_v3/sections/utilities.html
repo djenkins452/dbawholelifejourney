@@ -16,7 +16,7 @@
             <div class="v3-utility-body">
                 <div class="v3-utility-line">
                     <span class="v3-utility-label">Water</span>
-                    <span class="v3-utility-value">{{ utilities.water.total_oz }}<span class="v3-utility-unit"> / {{ utilities.water.goal_oz }} oz</span></span>
+                    <span class="v3-utility-value">{{ utilities.water.total_oz|floatformat:0 }}<span class="v3-utility-unit"> / {{ utilities.water.goal_oz|floatformat:0 }} oz</span></span>
                 </div>
                 <div class="v3-utility-bar" aria-hidden="true">
                     <div class="v3-utility-bar-fill" style="width: {{ utilities.water.percentage|default:0 }}%"></div>

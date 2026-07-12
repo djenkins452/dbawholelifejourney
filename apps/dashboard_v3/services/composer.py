@@ -360,8 +360,8 @@ _STATE_BASE = {
         "compounds over time — France is built in ordinary days."
     ),
     _STATE_MAINTAINING: (
-        "You're holding steady. The opportunity now is building from "
-        "maintenance into meaningful forward progress."
+        "You're moving steadily toward your goal — the milestones you've cleared are real "
+        "progress. Keep the routine that's carrying you forward."
     ),
     _STATE_SLIPPING: (
         "Some important habits have softened recently. This is recoverable — "
@@ -2175,6 +2175,56 @@ def _strip_leading_greeting(text: str) -> str:
     return _LEADING_GREETING_RE.sub("", text, count=1).strip()
 
 
+def _purpose_mission_recommendation(user) -> dict | None:
+    """Deterministic Purpose next-action composed from the CURRENT mission state — the
+    ACTIVE (next incomplete) milestone, never a completed/stale one.
+
+    Keeps the Purpose accountability card in lock-step with the mission card (both read
+    ``goal.next_milestone`` + the shared ``_active_weight_target`` parser), so as milestones
+    complete the recommendation advances automatically. Ends with ONE clear next action.
+    Composed from existing truth only — no LLM, no new calculation.
+    """
+    try:
+        from apps.purpose.mission_selection import select_active_mission_goal
+
+        goal = select_active_mission_goal(user)
+        if goal is None:
+            return None
+        nm = goal.next_milestone
+        if nm is None:
+            return {
+                "id": None,
+                "title": "Mission milestones complete",
+                "message": (f"Every milestone on {goal.title} is complete — "
+                            "set your next target when you're ready."),
+                "priority": 3,
+            }
+        target = _active_weight_target(nm)
+        current = None
+        try:
+            from apps.core.ai_state.state_engine import get_module_state
+            current = (get_module_state(user, "health", allow_rebuild=False)
+                       or {}).get("weight_current")
+        except Exception:
+            pass
+        if target is not None and current is not None:
+            remaining = round(max(0.0, float(current) - target), 1)
+            message = (f"Keep working toward {nm.title} — about {remaining:g} lb to go."
+                       if remaining > 0
+                       else f"You're at {nm.title} — log the weigh-in to lock in the milestone.")
+        else:
+            message = f"Keep working toward {nm.title}."
+        return {
+            "id": None,
+            "title": f"Next milestone: {nm.title}",
+            "message": message,
+            "priority": 2,
+        }
+    except Exception:
+        logger.debug("purpose mission recommendation failed", exc_info=True)
+        return None
+
+
 def _build_accountability_cards(user) -> list[dict]:
     """For each enabled domain, compose a card from SAE state + insights.
 
@@ -2259,7 +2309,13 @@ def _build_accountability_cards(user) -> list[dict]:
 
         domain_guidance = [g for g in fresh_guidance if g.module == domain]
         recommendation = None
-        if domain_guidance:
+        # Purpose accountability = the mission. Always compose its recommendation from the
+        # CURRENT mission state (active milestone) so it never surfaces a stale/completed
+        # milestone from an older persisted GuidanceItem. Falls back to guidance only when
+        # there is no active mission.
+        if domain == "purpose":
+            recommendation = _purpose_mission_recommendation(user)
+        if recommendation is None and domain_guidance:
             top = domain_guidance[0]
             recommendation = {
                 "id": top.id,

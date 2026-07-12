@@ -38,6 +38,8 @@ from typing import Optional
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 # Health-related keywords to detect in journal entries
@@ -645,7 +647,7 @@ def maybe_generate_rolling_summary(user, conversation) -> None:
             )
             logger.debug(
                 "Rolling summary generated for user=%s (%d msgs)",
-                user.email, msg_count,
+                user_log_id(user), msg_count,
             )
 
     except Exception as e:
@@ -764,7 +766,7 @@ def _ensure_routine_tasks_for_today(user, today):
     if created_count > 0:
         logger.info(
             "Ensured %d routine tasks for today user=%s",
-            created_count, user.email,
+            created_count, user_log_id(user),
         )
 
 

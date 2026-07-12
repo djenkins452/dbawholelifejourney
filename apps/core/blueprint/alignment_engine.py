@@ -35,6 +35,8 @@ from typing import List, Optional
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -215,7 +217,7 @@ def get_alignment_trend(user, days=7):
                 'tier_scores': result.tier_scores,
             })
         except Exception as e:
-            logger.debug("Alignment trend: failed for %s on %s: %s", user.email, date, e)
+            logger.debug("Alignment trend: failed for %s on %s: %s", user_log_id(user), date, e)
             trend.append({
                 'date': str(date),
                 'score': 100.0,

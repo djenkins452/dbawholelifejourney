@@ -14,6 +14,8 @@ Usage:
 import logging
 from datetime import date, timedelta
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class ScorePipeline:
             .first()
         )
         if not summary:
-            logger.debug("No DailyHealthSummary for %s on %s", user.email, target_date)
+            logger.debug("No DailyHealthSummary for %s on %s", user_log_id(user), target_date)
             return None
 
         # Recovery score
@@ -49,7 +51,7 @@ class ScorePipeline:
         except Exception:
             logger.error(
                 "Failed to compute recovery score for %s on %s",
-                user.email, target_date, exc_info=True,
+                user_log_id(user), target_date, exc_info=True,
             )
 
         # Health score
@@ -60,7 +62,7 @@ class ScorePipeline:
         except Exception:
             logger.error(
                 "Failed to compute health score for %s on %s",
-                user.email, target_date, exc_info=True,
+                user_log_id(user), target_date, exc_info=True,
             )
 
         summary.save(update_fields=[
@@ -71,7 +73,7 @@ class ScorePipeline:
 
         logger.info(
             "Scores computed for %s on %s: health=%s recovery=%s",
-            user.email, target_date, summary.health_score, summary.recovery_score,
+            user_log_id(user), target_date, summary.health_score, summary.recovery_score,
         )
         return summary
 
@@ -88,7 +90,7 @@ class ScorePipeline:
             except Exception:
                 logger.error(
                     "Score pipeline failed for %s on %s",
-                    user.email, current, exc_info=True,
+                    user_log_id(user), current, exc_info=True,
                 )
             current += timedelta(days=1)
         return count
@@ -122,7 +124,7 @@ class ScorePipeline:
             except Exception:
                 logger.error(
                     "Full build failed for %s on %s",
-                    user.email, current, exc_info=True,
+                    user_log_id(user), current, exc_info=True,
                 )
             current += timedelta(days=1)
         return count

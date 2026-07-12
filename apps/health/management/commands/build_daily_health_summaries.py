@@ -24,6 +24,8 @@ from datetime import date, datetime, timedelta
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -110,7 +112,7 @@ class Command(BaseCommand):
                     user_count_built += 1
                 except Exception:
                     logger.error(
-                        "Failed for user %s on %s", user.email, current,
+                        "Failed for user %s on %s", user_log_id(user), current,
                         exc_info=True,
                     )
                 current += timedelta(days=1)

@@ -21,6 +21,8 @@ Public API:
 import logging
 from typing import Optional
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 # Response length buckets (word count thresholds)
@@ -98,7 +100,7 @@ def record_feedback(user, message_content: str, was_helpful: bool) -> None:
         logger.debug(
             "Updated response preferences for user %s: "
             "helpful=%s, length=%s, preferred=%s",
-            user.email, was_helpful, response_length, pref.preferred_length,
+            user_log_id(user), was_helpful, response_length, pref.preferred_length,
         )
 
     except Exception as e:

@@ -8,6 +8,7 @@ Each function wraps an engine's public API — no logic duplication.
 import logging
 
 from apps.core.ai_observability.trace import trace_context
+from apps.core.utils import user_log_id
 from apps.users.models import User
 
 logger = logging.getLogger(__name__)
@@ -305,7 +306,7 @@ def run_architecture_pass():
                     pass
 
             except Exception as e:
-                logger.warning(f"ISE: Architecture pass failed for {user.email}: {e}")
+                logger.warning(f"ISE: Architecture pass failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(f"ISE: Architecture pass completed — generated={generated}, errors={errors}")
@@ -339,7 +340,7 @@ def run_drift_scoring():
                 predict_drift_probability(user)
                 scored += 1
             except Exception as e:
-                logger.warning(f"ISE: Drift scoring failed for {user.email}: {e}")
+                logger.warning(f"ISE: Drift scoring failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(f"ISE: Drift scoring completed — scored={scored}, errors={errors}")
@@ -371,7 +372,7 @@ def run_assistant_triggers():
                 checked += 1
                 triggered += len(interventions)
             except Exception as e:
-                logger.warning(f"ISE: Trigger check failed for {user.email}: {e}")
+                logger.warning(f"ISE: Trigger check failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(
@@ -405,7 +406,7 @@ def run_weekly_pressure():
                 compute_weekly_pressure(user)
                 computed += 1
             except Exception as e:
-                logger.warning(f"ISE: Weekly pressure failed for {user.email}: {e}")
+                logger.warning(f"ISE: Weekly pressure failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(
@@ -452,7 +453,7 @@ def run_reflection_queue():
                     queue_reflection(user, event_dict)
                     queued += 1
             except Exception as e:
-                logger.warning(f"ISE: Reflection queue failed for {user.email}: {e}")
+                logger.warning(f"ISE: Reflection queue failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(
@@ -504,7 +505,7 @@ def run_relational_drift():
                     except Exception:
                         pass
             except Exception as e:
-                logger.warning(f"ISE: Relational drift failed for {user.email}: {e}")
+                logger.warning(f"ISE: Relational drift failed for {user_log_id(user)}: {e}")
                 errors += 1
 
         logger.info(
@@ -584,7 +585,7 @@ def run_prediction_validation():
                 validated += len(outcomes) if outcomes else 0
             except Exception as e:
                 errors += 1
-                logger.warning(f"ISE: Prediction validation failed for {user.email}: {e}")
+                logger.warning(f"ISE: Prediction validation failed for {user_log_id(user)}: {e}")
 
         logger.info(f"ISE: Prediction validation — validated={validated}, errors={errors}")
         return {"validated": validated, "errors": errors}
@@ -659,7 +660,7 @@ def run_intervention_effectiveness():
                 evaluated += 1
             except Exception as e:
                 errors += 1
-                logger.warning(f"ISE: Intervention effectiveness failed for {user.email}: {e}")
+                logger.warning(f"ISE: Intervention effectiveness failed for {user_log_id(user)}: {e}")
 
         logger.info(f"ISE: Intervention effectiveness — evaluated={evaluated}, errors={errors}")
         return {"evaluated": evaluated, "errors": errors}
@@ -701,7 +702,7 @@ def run_cdce_synthetic():
                 total_correlations += len(results) if results else 0
             except Exception as e:
                 errors += 1
-                logger.warning(f"ISE: CDCE failed for user {user.email}: {e}")
+                logger.warning(f"ISE: CDCE failed for user {user_log_id(user)}: {e}")
 
         logger.info(
             f"ISE: CDCE synthetic — processed={len(users)}, "
@@ -748,7 +749,7 @@ def run_cross_domain_insights():
                 total_insights += len(insights) if insights else 0
             except Exception as e:
                 errors += 1
-                logger.warning(f"ISE: Cross-domain insights failed for {user.email}: {e}")
+                logger.warning(f"ISE: Cross-domain insights failed for {user_log_id(user)}: {e}")
 
         logger.info(
             f"ISE: Cross-domain insights — checked={checked}, "

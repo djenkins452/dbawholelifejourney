@@ -13,6 +13,8 @@ from datetime import date, timedelta
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger("celery.tasks")
 
 
@@ -63,7 +65,7 @@ def build_nightly_health_summaries(self):
                     errors += 1
                     logger.error(
                         "Failed to build summary for %s on %s",
-                        user.email, current, exc_info=True,
+                        user_log_id(user), current, exc_info=True,
                     )
                 current += timedelta(days=1)
 
@@ -75,7 +77,7 @@ def build_nightly_health_summaries(self):
         except Exception:
             errors += 1
             logger.error(
-                "Error processing user %s", user.email, exc_info=True,
+                "Error processing user %s", user_log_id(user), exc_info=True,
             )
 
     logger.info(
@@ -186,7 +188,7 @@ def build_user_health_summary(self, user_id, target_date_str=None):
 
     try:
         summary = ScorePipeline.full_build(user, target)
-        logger.info("Built health summary for %s on %s", user.email, target)
+        logger.info("Built health summary for %s on %s", user_log_id(user), target)
         return {
             "status": "success",
             "user": user.email,
@@ -196,7 +198,7 @@ def build_user_health_summary(self, user_id, target_date_str=None):
     except Exception as exc:
         logger.error(
             "Failed to build health summary for %s on %s",
-            user.email, target, exc_info=True,
+            user_log_id(user), target, exc_info=True,
         )
         raise self.retry(exc=exc, countdown=30)
 

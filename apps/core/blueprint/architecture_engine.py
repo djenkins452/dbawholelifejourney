@@ -36,6 +36,8 @@ from . import engine as blueprint_engine
 from .models import ArchitecturePlan, ScheduledBlock
 from . import priority_engine
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,7 +163,7 @@ def run_architecture_pass(user, target_date=None):
 
     logger.info(
         "Architecture pass completed for %s on %s: %d blocks, %d warnings",
-        user.email, target_date, len(blocks), len(risk_warnings),
+        user_log_id(user), target_date, len(blocks), len(risk_warnings),
     )
 
     return plan
@@ -290,7 +292,7 @@ def handle_curveball(user, description, new_event_start=None, new_event_end=None
 
     logger.info(
         "Curveball handled for %s: '%s', %d blocks moved, tier1=%s",
-        user.email, description, len(resolution.moved_blocks),
+        user_log_id(user), description, len(resolution.moved_blocks),
         resolution.tier1_impacted,
     )
 

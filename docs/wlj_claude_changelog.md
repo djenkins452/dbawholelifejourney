@@ -3,8 +3,57 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
+# Last Updated: 2026-07-11 (fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping)
 # ================================================================# WLJ Change History
+
+## 2026-07-11 — fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping (kills dependency/worktree false positives)
+
+**Why:** Security assessment (2026-07-11) flagged three findings. Two of the three "HIGH" items were
+scanner noise; one MEDIUM was a genuine privacy issue. This change fixes the real one and corrects the
+scanner so it stops reporting false positives.
+
+**SEC-003 (MEDIUM — real): PII (raw `user.email`) logged without redaction.**
+Replaced raw `user.email` / `self.user.email` / `request.user.email` in `logger.*` calls with the existing
+privacy-safe `user_log_id(user)` helper (`apps/core/utils.py` → `"user:<pk>"`). CLI `stdout.write` output,
+email-sending (`recipient_list=[user.email]`), model `__str__`, and data-return payloads were intentionally
+left unchanged (not logs). Files: `apps/core/blueprint/{recovery_engine,learning_mode,engine,alignment_engine,
+panel_views,architecture_engine,assistant_triggers,drift_engine,intervention_engine}.py`,
+`apps/core/ai_scheduler/scheduler_runner.py`, `apps/core/ai_learning/learning_extractor.py`,
+`apps/core/services/test_user_service.py`, `apps/core/management/commands/rebuild_sae_state.py`,
+`apps/health/{tasks,pr_utils}.py`, `apps/health/services/{score_pipeline,daily_summary_builder}.py`,
+`apps/health/management/commands/build_daily_health_summaries.py`, `apps/ai/{executive_briefing,
+personal_assistant,response_optimizer}.py`, `apps/relationships/services.py`.
+
+**SEC-001 (HIGH — false positive): "258 hardcoded secrets."**
+The only flagged component was a test module (`apps/core/tests_intelligence_center.py`) whose throwaway
+`testpass123`-style fixtures are not real secrets. No real hardcoded secrets exist in the tree.
+
+**Systemic scanner defect (root cause of the ENTIRE false-positive grade).** Running the full
+`run_security_assessment` (100 tests) surfaced 2 CRITICAL + 4 HIGH findings that were ALL false positives:
+the scanner's ~59 `rglob` loops walked `settings.BASE_DIR`, which includes `venv/site-packages/`
+(installed dependencies) and `.claude/worktrees/` (dozens of stale git-worktree snapshots). Examples:
+certifi's `cacert.pem` reported as a "Private Key," botocore docs as "AWS Credentials Exposed," Django's DB
+backends as "SQL Injection." None are WLJ code. Fix in `apps/security/scanner.py`:
+- `_iter_source(pattern, root=None)` — an `rglob` wrapper that always skips `_NON_SOURCE_DIR_MARKERS`
+  (`/.claude/`, `/.git/`, venvs, `/site-packages/`, `node_modules`, caches). **All 59 `self.base_path.rglob(`
+  call sites now route through it**, so no scan can ever flag a dependency or worktree copy again.
+- `_is_test_source()` — recognises test packages AND test-named modules (`tests.py`/`test.py`/`conftest.py`,
+  `test_*`, `tests_*`, `*_test.py`, `*_tests.py`); `apps/core/tests_intelligence_center.py` was missed by
+  the old `/tests/`-dir-only check.
+- `_skip_source_scan()` — per-path gate for the secret/PII scans (SEC-T001, SEC-T028); excludes tests +
+  `backups/` (+ migrations for secrets) on top of `_iter_source`. `backups/` is intentionally NOT in the
+  universal markers so backup-detection tests still see it.
+Side benefit: full-scan wall time dropped 491s → 85s (no longer reading ~62k dependency/worktree files).
+
+**SEC-002 (HIGH — accepted, unchanged):** `@csrf_exempt` on `CaptureServiceWorkerUploadView`
+(`apps/capture/views.py:1485`) is a legitimate exemption (Service Workers can't read the CSRF cookie); it
+still requires login and `CsrfViewMiddleware` is enabled. Left as-is per review — this is the sole
+remaining finding.
+
+**Verification (`run_security_assessment --report`, before → after):** Grade F → D; Critical 2 → **0**;
+High 4 → **0**; Medium 2 → **1** (the accepted SEC-002 csrf_exempt); Risk score 100/100 → **4/100**;
+BitSight 495 → **900/900**; tests passing 90 → **97/100**. `manage.py check` clean; all 23 edited modules
+compile. SEC-001 and SEC-003 no longer appear in the report.
 
 ## 2026-07-11 — feat(ops-5): PostgreSQL health/administration observability (`db_health` section)
 

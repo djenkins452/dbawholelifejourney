@@ -39,6 +39,7 @@ from . import architecture_engine
 from . import drift_engine
 from . import intervention_engine
 from .models import ArchitecturePlan, InterventionLog
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -282,7 +283,7 @@ class CurveballView(LoginRequiredMixin, View):
                 'blocks_count': plan.blocks.count(),
             })
         except Exception as e:
-            logger.exception("Curveball handling failed for %s", request.user.email)
+            logger.exception("Curveball handling failed for %s", user_log_id(request.user))
             return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 

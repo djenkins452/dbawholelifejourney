@@ -30,6 +30,8 @@ import logging
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,7 +84,7 @@ def apply_recovery_adjustment(user, overridden_behavior_key):
         if not plan:
             logger.info(
                 "Recovery: No plan to adjust for %s after override of %s",
-                user.email, overridden_behavior_key,
+                user_log_id(user), overridden_behavior_key,
             )
             return result
 
@@ -167,11 +169,11 @@ def apply_recovery_adjustment(user, overridden_behavior_key):
 
         logger.info(
             "Recovery applied for %s: locked=%d, deferred=%d, behavior=%s",
-            user.email, locked_count, deferred, overridden_behavior_key,
+            user_log_id(user), locked_count, deferred, overridden_behavior_key,
         )
 
     except Exception as e:
-        logger.error("Recovery engine failed for %s: %s", user.email, e)
+        logger.error("Recovery engine failed for %s: %s", user_log_id(user), e)
 
     return result
 

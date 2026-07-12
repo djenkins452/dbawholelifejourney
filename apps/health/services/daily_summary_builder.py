@@ -19,6 +19,8 @@ from decimal import Decimal
 from django.db.models import Avg, Count, Max, Min, Q, Sum
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 # Domains used for completeness calculation
@@ -138,7 +140,7 @@ class DailyHealthSummaryBuilder:
         action = "created" if created else "updated"
         logger.info(
             "DailyHealthSummary %s for %s on %s (signals: %s, completeness: %.0f%%)",
-            action, user.email, target_date, signals, completeness,
+            action, user_log_id(user), target_date, signals, completeness,
         )
         return summary
 
@@ -153,7 +155,7 @@ class DailyHealthSummaryBuilder:
             except Exception:
                 logger.error(
                     "Failed to build summary for %s on %s",
-                    user.email, current, exc_info=True,
+                    user_log_id(user), current, exc_info=True,
                 )
             current += timedelta(days=1)
         return count
@@ -593,7 +595,7 @@ class DailyHealthSummaryBuilder:
         except Exception:
             logger.warning(
                 "Failed to collect medication adherence for %s on %s",
-                user.email, target_date, exc_info=True,
+                user_log_id(user), target_date, exc_info=True,
             )
         return None
 
@@ -650,7 +652,7 @@ class DailyHealthSummaryBuilder:
         except Exception:
             logger.warning(
                 "Failed to collect insulin totals for %s on %s",
-                user.email, target_date, exc_info=True,
+                user_log_id(user), target_date, exc_info=True,
             )
             return None
 
@@ -780,6 +782,6 @@ class DailyHealthSummaryBuilder:
         except Exception:
             logger.error(
                 "Failed to compute body composition intelligence for %s on %s",
-                user.email, target_date, exc_info=True,
+                user_log_id(user), target_date, exc_info=True,
             )
             return None

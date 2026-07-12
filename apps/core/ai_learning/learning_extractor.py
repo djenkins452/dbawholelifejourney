@@ -36,6 +36,8 @@ from django.utils import timezone
 
 from apps.core.ai_learning.models import LearningExtraction, UserLearnedProfile
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 # Confidence decay: items not re-confirmed in this many days start losing confidence
@@ -415,7 +417,7 @@ def evolve_profile(user):
             profile.save(update_fields=changed_fields)
             logger.debug(
                 "Evolved profile for user %s: updated %d categories",
-                user.email if hasattr(user, 'email') else user.pk,
+                user_log_id(user),
                 len(changed_fields) - 1,
             )
 

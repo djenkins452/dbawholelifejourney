@@ -35,6 +35,8 @@ from django.utils import timezone
 from . import engine as blueprint_engine
 from .models import InterventionLog
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -144,7 +146,7 @@ def create_intervention(user, level, trigger_type, message, behavior_key='',
 
     logger.info(
         "Intervention created: L%d %s for %s via %s",
-        level, trigger_type, user.email, delivered_via,
+        level, trigger_type, user_log_id(user), delivered_via,
     )
 
     return intervention

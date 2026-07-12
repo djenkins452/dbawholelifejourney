@@ -32,6 +32,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Q
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -591,7 +593,7 @@ class MentionParserService:
             logger.info(
                 "MentionParser: %d mentions created for %s in %s #%s",
                 len(mentions_created),
-                user.email,
+                user_log_id(user),
                 ct.model,
                 source_obj.pk,
             )
@@ -745,7 +747,7 @@ class ContactImportService:
 
         logger.info(
             "ContactImport: user=%s imported=%d skipped=%d errors=%d",
-            user.email, len(imported), len(skipped), len(errors),
+            user_log_id(user), len(imported), len(skipped), len(errors),
         )
 
         return {

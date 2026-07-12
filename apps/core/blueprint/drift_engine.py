@@ -31,6 +31,8 @@ from django.utils import timezone
 from . import engine as blueprint_engine
 from .models import DriftEvent, DriftScore
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -88,7 +90,7 @@ def record_drift_event(user, drift_type, behavior_key='', severity=None,
     enabled_types = blueprint_engine.get_enabled_drift_types(user)
     if drift_type not in enabled_types:
         logger.debug(
-            "Drift type %s not enabled for %s, skipping", drift_type, user.email,
+            "Drift type %s not enabled for %s, skipping", drift_type, user_log_id(user),
         )
         return None
 
@@ -117,7 +119,7 @@ def record_drift_event(user, drift_type, behavior_key='', severity=None,
 
     logger.info(
         "Drift event recorded: %s for %s (tier=%d, severity=%.2f)",
-        drift_type, user.email, tier, severity,
+        drift_type, user_log_id(user), tier, severity,
     )
 
     # Trigger PIE insight if tier 1
@@ -189,7 +191,7 @@ def compute_daily_drift_score(user, date=None):
 
     logger.info(
         "Drift score computed for %s on %s: %.1f/100 (%d events)",
-        user.email, date, normalized_score, event_count,
+        user_log_id(user), date, normalized_score, event_count,
     )
 
     return score_obj

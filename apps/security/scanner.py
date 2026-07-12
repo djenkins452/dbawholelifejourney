@@ -195,6 +195,77 @@ class SecurityScanner:
         self.findings: list[Finding] = []
         self.finding_counter = 0
 
+    # Directories that are NEVER production WLJ source and must be excluded
+    # from every scan. These are the dominant source of false positives:
+    # `/site-packages/` + `/venv/` are installed third-party dependencies
+    # (certifi's cacert.pem read as a "private key"; botocore docs read as
+    # "AWS credentials"; Django's DB backends read as "SQL injection"), and
+    # `/.claude/worktrees/` holds dozens of stale git-worktree snapshots of
+    # the tree. VCS and cache dirs are likewise not a threat surface. NOTE:
+    # `backups/` is intentionally NOT here — backup-detection tests must still
+    # see it; test/backup/migration scoping lives in `_skip_source_scan`.
+    _NON_SOURCE_DIR_MARKERS = (
+        '/.claude/',
+        '/.git/',
+        '/.venv/', '/venv/', '/env/',
+        '/site-packages/',
+        '/node_modules/',
+        '/staticfiles/', '/.mypy_cache/', '/.pytest_cache/', '/__pycache__/',
+    )
+
+    def _iter_source(self, pattern: str = '*.py', root=None):
+        """
+        ``rglob`` replacement used by every scan: yields files matching
+        ``pattern`` under ``root`` (default BASE_DIR) while always skipping the
+        non-production directories in ``_NON_SOURCE_DIR_MARKERS``. Installed
+        dependencies and stale worktree copies never contain WLJ code, so
+        scanning them only manufactures false-positive findings.
+        """
+        base = root or self.base_path
+        for p in base.rglob(pattern):
+            if any(marker in str(p) for marker in self._NON_SOURCE_DIR_MARKERS):
+                continue
+            yield p
+
+    def _is_test_source(self, path) -> bool:
+        """
+        True if `path` is test code (a test package OR a test-named module).
+
+        The `/tests/` directory check alone misses top-level test modules like
+        `apps/core/tests_intelligence_center.py`, whose throwaway fixture
+        credentials are not real secrets. Test code is scoped out of
+        secret/PII source scans — it never runs in production.
+        """
+        p = str(path)
+        name = Path(p).name
+        return (
+            '/tests/' in p
+            or name in ('tests.py', 'test.py', 'conftest.py')
+            or name.startswith('test_')
+            or name.startswith('tests_')
+            or name.endswith('_test.py')
+            or name.endswith('_tests.py')
+        )
+
+    def _skip_source_scan(self, path, skip_tests: bool = True,
+                          skip_migrations: bool = False) -> bool:
+        """
+        Per-path gate for the secret/PII source scans (SEC-T001, SEC-T028),
+        applied on top of `_iter_source`. Excludes non-production dirs AND
+        `backups/` AND — by default — test code. Set ``skip_migrations`` for
+        scans that also ignore Django migrations.
+        """
+        p = str(path)
+        if any(marker in p for marker in self._NON_SOURCE_DIR_MARKERS):
+            return True
+        if '/backups/' in p or 'backups/' in p:
+            return True
+        if skip_migrations and '/migrations/' in p:
+            return True
+        if skip_tests and self._is_test_source(path):
+            return True
+        return False
+
     def run_all_tests(self) -> tuple[list[TestResult], list[Finding]]:
         """
         Run all security tests.
@@ -328,9 +399,11 @@ class SecurityScanner:
         evidence = {'files_scanned': 0, 'matches': []}
         issues_found = []
 
-        for py_file in self.base_path.rglob('*.py'):
-            # Skip test files and migrations
-            if '/tests/' in str(py_file) or '/migrations/' in str(py_file):
+        for py_file in self._iter_source('*.py'):
+            # Skip test files, migrations, and non-production dirs (worktrees,
+            # backups, venvs). Throwaway test-fixture credentials are not real
+            # secrets and never ship to production.
+            if self._skip_source_scan(py_file, skip_tests=True, skip_migrations=True):
                 continue
 
             evidence['files_scanned'] += 1
@@ -575,7 +648,7 @@ class SecurityScanner:
 
         evidence = {'files_checked': 0, 'potential_keys': []}
 
-        for md_file in self.base_path.rglob('*.md'):
+        for md_file in self._iter_source('*.md'):
             rel_path = str(md_file.relative_to(self.base_path))
             evidence['files_checked'] += 1
             try:
@@ -652,7 +725,7 @@ class SecurityScanner:
         # Check for private key files
         key_patterns = ['*.pem', '*.key', '*.p12', '*.pfx', 'id_rsa', 'id_dsa', 'id_ecdsa']
         for pattern in key_patterns:
-            for key_file in self.base_path.rglob(pattern):
+            for key_file in self._iter_source(pattern):
                 rel_path = str(key_file.relative_to(self.base_path))
                 evidence['private_keys_found'].append(rel_path)
 
@@ -661,7 +734,7 @@ class SecurityScanner:
         private_key_pattern = r'-----BEGIN [A-Z ]*PRIVATE KEY-----\s+[A-Za-z0-9+/=\s]{50,}\s+-----END [A-Z ]*PRIVATE KEY-----'
         # Files to skip (scanner itself, tests, documentation)
         skip_patterns = ['scanner.py', 'test_', '_test.py', '.md', '.rst']
-        for py_file in self.base_path.rglob('*'):
+        for py_file in self._iter_source('*'):
             if py_file.is_file() and py_file.suffix in ['.py', '.txt', '.pem', '.key', '']:
                 rel_path = str(py_file.relative_to(self.base_path))
                 # Skip scanner and test files
@@ -728,7 +801,7 @@ class SecurityScanner:
             (r'aws_secret_access_key\s*=\s*[\'"][^\'"]+[\'"]', 'AWS Secret in config'),
         ]
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             if '/tests/' in str(py_file):
                 continue
             try:
@@ -1371,7 +1444,7 @@ class SecurityScanner:
         evidence['admin_url_customized'] = admin_url != 'admin'
 
         # Check for staff_member_required decorators
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             if 'views' in str(py_file):
                 try:
                     content = py_file.read_text()
@@ -1481,7 +1554,7 @@ class SecurityScanner:
         evidence = {'api_auth_methods': [], 'issues': []}
 
         # Check for API authentication patterns
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             if 'view' in str(py_file).lower() or 'api' in str(py_file).lower():
                 try:
                     content = py_file.read_text()
@@ -1619,7 +1692,7 @@ class SecurityScanner:
             r'cursor\.execute\([^,)]*\+',  # execute with string concatenation
         ]
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             if '/migrations/' in str(py_file):
                 continue
             # Exclude the scanner itself - it contains regex patterns that look like SQL injection
@@ -1683,7 +1756,7 @@ class SecurityScanner:
 
         evidence = {'mark_safe_usage': [], 'safe_filter_usage': []}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             if '/tests/' in str(py_file):
                 continue
             try:
@@ -1695,7 +1768,7 @@ class SecurityScanner:
                 pass
 
         # Check templates for |safe filter
-        for html_file in self.base_path.rglob('*.html'):
+        for html_file in self._iter_source('*.html'):
             try:
                 content = html_file.read_text()
                 if '|safe' in content:
@@ -1751,7 +1824,7 @@ class SecurityScanner:
 
         evidence = {'validation_found': False, 'magic_bytes_check': False, 'size_check': False}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'validate_image' in content or 'MAGIC_BYTES' in content:
@@ -1815,7 +1888,7 @@ class SecurityScanner:
         evidence['csrf_middleware'] = 'django.middleware.csrf.CsrfViewMiddleware' in middleware
 
         # Check for csrf_exempt usage (actual decorator usage, not just string references)
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 # Skip the scanner itself (it references csrf_exempt in detection logic)
                 if 'scanner.py' in str(py_file):
@@ -1904,7 +1977,7 @@ class SecurityScanner:
             (r'os\.popen\(', 'os.popen'),
         ]
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 for pattern, desc in dangerous_patterns:
@@ -1972,7 +2045,7 @@ class SecurityScanner:
 
         evidence = {'encryption_found': False, 'encrypted_fields': []}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'Fernet' in content or 'encrypt_' in content:
@@ -2030,7 +2103,7 @@ class SecurityScanner:
         evidence = {'pii_fields': [], 'soft_delete': False}
 
         # Check for soft delete pattern
-        for py_file in self.base_path.rglob('models.py'):
+        for py_file in self._iter_source('models.py'):
             try:
                 content = py_file.read_text()
                 if 'soft_delete' in content or 'deleted_at' in content:
@@ -2153,9 +2226,10 @@ class SecurityScanner:
         hash_pii_implemented = False
         hash_pii_usage_count = 0
 
-        for py_file in self.base_path.rglob('*.py'):
-            str_path = str(py_file)
-            if '/tests/' in str_path or '/backups/' in str_path or 'backups/' in str_path:
+        for py_file in self._iter_source('*.py'):
+            # Skip test code and non-production dirs (worktrees, backups,
+            # venvs). Test modules log throwaway fixture accounts, not real PII.
+            if self._skip_source_scan(py_file, skip_tests=True):
                 continue
             try:
                 content = py_file.read_text()
@@ -2245,7 +2319,7 @@ class SecurityScanner:
 
         evidence = {'soft_delete': False, 'retention_days': None}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'SOFT_DELETE_RETENTION_DAYS' in content:
@@ -2314,7 +2388,7 @@ class SecurityScanner:
 
         evidence = {'security_logger': False, 'event_types': []}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'wlj.security' in content or 'security_logger' in content:
@@ -2370,7 +2444,7 @@ class SecurityScanner:
 
         evidence = {'audit_models': [], 'finance_audit': False}
 
-        for py_file in self.base_path.rglob('models.py'):
+        for py_file in self._iter_source('models.py'):
             try:
                 content = py_file.read_text()
                 if 'AuditLog' in content:
@@ -2574,7 +2648,7 @@ class SecurityScanner:
 
         evidence = {'csp_middleware': False, 'uses_nonce': False, 'unsafe_inline': False, 'unsafe_eval': False}
 
-        for py_file in self.base_path.rglob('middleware.py'):
+        for py_file in self._iter_source('middleware.py'):
             try:
                 content = py_file.read_text()
                 if 'Content-Security-Policy' in content:
@@ -2765,7 +2839,7 @@ class SecurityScanner:
         }
 
         # Check CSP for frame-ancestors
-        for py_file in self.base_path.rglob('middleware.py'):
+        for py_file in self._iter_source('middleware.py'):
             try:
                 content = py_file.read_text()
                 if 'frame-ancestors' in content:
@@ -3324,7 +3398,7 @@ class SecurityScanner:
 
         evidence = {'honeypot_found': False}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'honeypot' in content.lower() or 'website' in content and 'HiddenInput' in content:
@@ -3427,7 +3501,7 @@ class SecurityScanner:
 
         evidence = {'rate_limiting_found': False}
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'signup' in content.lower() and ('rate_limit' in content or 'cache.get' in content):
@@ -3554,7 +3628,7 @@ class SecurityScanner:
                 pass
 
         # Check for Stripe tokenization (good)
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'stripe.PaymentMethod' in content or 'stripe.Token' in content or 'pm_' in content:
@@ -3621,7 +3695,7 @@ class SecurityScanner:
         findings = []
 
         # Find Stripe webhook handlers
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'stripe' in content.lower() and 'webhook' in content.lower():
@@ -3698,7 +3772,7 @@ class SecurityScanner:
         findings = []
 
         # Find Plaid integration
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'plaid' in content.lower():
@@ -3774,7 +3848,7 @@ class SecurityScanner:
 
         # Check for payment audit models
         audit_patterns = ['PaymentAuditLog', 'TransactionLog', 'FinanceAuditLog', 'BillingAudit']
-        for py_file in self.base_path.rglob('models.py'):
+        for py_file in self._iter_source('models.py'):
             try:
                 content = py_file.read_text()
                 for pattern in audit_patterns:
@@ -3785,7 +3859,7 @@ class SecurityScanner:
                 pass
 
         # Check for payment event logging
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if ('stripe' in content.lower() or 'payment' in content.lower()) and 'logger' in content:
@@ -3834,7 +3908,7 @@ class SecurityScanner:
             r'suspicious.*activity',
         ]
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text().lower()
                 for pattern in velocity_patterns:
@@ -4016,7 +4090,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'payment' in content.lower() or 'transaction' in content.lower():
@@ -4061,7 +4135,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 rel_path = str(py_file.relative_to(self.base_path))
@@ -4565,7 +4639,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'health' in str(py_file).lower():
@@ -4634,7 +4708,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('models.py'):
+        for py_file in self._iter_source('models.py'):
             try:
                 content = py_file.read_text()
                 if 'consent' in content.lower():
@@ -4650,7 +4724,7 @@ class SecurityScanner:
 
         # Also check for terms acceptance (basic consent)
         if not evidence['consent_model']:
-            for py_file in self.base_path.rglob('*.py'):
+            for py_file in self._iter_source('*.py'):
                 try:
                     content = py_file.read_text()
                     if 'TermsAcceptance' in content or 'terms_accepted' in content.lower():
@@ -4710,7 +4784,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'export' in content.lower() and 'health' in str(py_file).lower():
@@ -4780,7 +4854,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for notification system
@@ -4847,7 +4921,7 @@ class SecurityScanner:
             'audit_for_provider_access': False,
         }
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for provider/coach role
@@ -4906,7 +4980,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # DRF throttling
@@ -5006,7 +5080,7 @@ class SecurityScanner:
                 evidence['max_page_size'] = int(match.group(1))
 
         # Check for DRF pagination in views and manual limit enforcement
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 relative_path = str(py_file.relative_to(self.base_path))
@@ -5125,7 +5199,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for DRF serializers
@@ -5195,7 +5269,7 @@ class SecurityScanner:
 
         sensitive_patterns = ['password', 'secret', 'token', 'key', 'ssn', 'credit_card']
 
-        for py_file in self.base_path.rglob('serializers.py'):
+        for py_file in self._iter_source('serializers.py'):
             try:
                 content = py_file.read_text()
                 # Check for field exclusion
@@ -5272,7 +5346,7 @@ class SecurityScanner:
                 evidence['versioning_configured'] = True
 
         # Check URLs for versioning
-        for py_file in self.base_path.rglob('urls.py'):
+        for py_file in self._iter_source('urls.py'):
             try:
                 content = py_file.read_text()
                 if '/v1/' in content or '/v2/' in content or 'api/v' in content:
@@ -5342,7 +5416,7 @@ class SecurityScanner:
                 evidence['debug_disabled_in_prod'] = True
 
         # Check for generic error handling
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'exception_handler' in content or 'APIException' in content:
@@ -5403,7 +5477,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'graphene' in content.lower() or 'graphql' in content.lower():
@@ -5478,7 +5552,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for API key authentication
@@ -5648,7 +5722,7 @@ class SecurityScanner:
             r'cursor\.execute\s*\([^)]*,\s*\(',       # Parameterized with tuple
         ]
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 rel_path = str(py_file.relative_to(self.base_path))
@@ -5800,7 +5874,7 @@ class SecurityScanner:
             r'api_key\s*=\s*["\'][^"\']+["\']',
         ]
 
-        for migration in self.base_path.rglob('*/migrations/*.py'):
+        for migration in self._iter_source('*/migrations/*.py'):
             try:
                 content = migration.read_text()
                 evidence['migrations_checked'] += 1
@@ -5865,7 +5939,7 @@ class SecurityScanner:
         }
 
         # Check for backup scripts
-        for file in self.base_path.rglob('*backup*'):
+        for file in self._iter_source('*backup*'):
             evidence['backup_script_found'] = True
             try:
                 if file.is_file():
@@ -5876,7 +5950,7 @@ class SecurityScanner:
                 pass
 
         # Check for cloud backup references
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 's3' in content.lower() or 'gcs' in content.lower() or 'azure' in content.lower():
@@ -5976,7 +6050,7 @@ class SecurityScanner:
         # First pass: Find actual webhook handler files (views.py, webhooks.py, etc.)
         providers_used = set()
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 content_lower = content.lower()
@@ -6074,7 +6148,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'oauth' in content.lower() or 'allauth' in content.lower() or 'social' in content.lower():
@@ -6160,7 +6234,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'requests.get' in content or 'requests.post' in content or 'httpx' in content.lower():
@@ -6227,7 +6301,7 @@ class SecurityScanner:
 
         pii_patterns = ['email', 'phone', 'address', 'ssn', 'dob', 'date_of_birth']
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for third-party API calls with PII
@@ -6268,7 +6342,7 @@ class SecurityScanner:
         }
         findings = []
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'requests' in content or 'stripe' in content.lower() or 'plaid' in content.lower():
@@ -6336,7 +6410,7 @@ class SecurityScanner:
             'graceful_degradation': False,
         }
 
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 # Check for circuit breaker
@@ -6680,7 +6754,7 @@ class SecurityScanner:
                 evidence['error_tracking'] = True
 
         # Check for alerting
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'alert' in content.lower() or 'notify' in content.lower():
@@ -6740,7 +6814,7 @@ class SecurityScanner:
         }
 
         # Check for backup references
-        for file in self.base_path.rglob('*'):
+        for file in self._iter_source('*'):
             try:
                 if file.is_file() and 'backup' in str(file).lower():
                     evidence['backup_mentioned'] = True
@@ -6882,7 +6956,7 @@ class SecurityScanner:
         findings = []
 
         # Check for incident response documentation
-        for file in self.base_path.rglob('*'):
+        for file in self._iter_source('*'):
             try:
                 if 'incident' in str(file).lower() or 'security' in str(file).lower():
                     evidence['incident_documentation'] = True
@@ -6891,7 +6965,7 @@ class SecurityScanner:
                 pass
 
         # Check for notification capability
-        for py_file in self.base_path.rglob('*.py'):
+        for py_file in self._iter_source('*.py'):
             try:
                 content = py_file.read_text()
                 if 'send_mail' in content or 'notification' in content.lower():

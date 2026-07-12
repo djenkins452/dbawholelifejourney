@@ -25,6 +25,8 @@ import os
 
 from django.conf import settings
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 # Defaults when env vars are not set
@@ -188,7 +190,7 @@ def _disable_mfa(user):
     mfa_bypassed = getattr(user, "is_app_review_account", False)
 
     if mfa_bypassed or changed:
-        logger.debug("MFA disabled for test user: %s", user.email)
+        logger.debug("MFA disabled for test user: %s", user_log_id(user))
 
     return mfa_bypassed or changed
 
@@ -213,6 +215,6 @@ def _ensure_preferences(user):
         prefs.email_notifications_enabled = False
         prefs.notifications_enabled = False
         prefs.save()
-        logger.debug("Preferences configured for test user: %s", user.email)
+        logger.debug("Preferences configured for test user: %s", user_log_id(user))
     except Exception as exc:
         logger.warning("Failed to set preferences for test user: %s", exc)

@@ -35,6 +35,8 @@ from django.utils import timezone
 from . import engine as blueprint_engine
 from . import intervention_engine
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -307,7 +309,7 @@ def execute_trigger(user, trigger_result):
         if recent:
             logger.debug(
                 "Trigger deduped: %s for %s",
-                trigger_result.trigger_type, user.email,
+                trigger_result.trigger_type, user_log_id(user),
             )
             return None
 

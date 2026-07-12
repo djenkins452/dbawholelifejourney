@@ -42,6 +42,8 @@ from assistant.views import (
     get_friendly_data_type_name,
 )
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -3504,7 +3506,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                     cal_state = get_calibration_state(self.user)
                     logger.info(
                         "Calibration check: user=%s state=%s checkin_skip=%s",
-                        self.user.email,
+                        user_log_id(self.user),
                         {k: v for k, v in (cal_state or {}).items()
                          if k != 'next_question'} if cal_state else None,
                         _is_functional_query,
@@ -3517,7 +3519,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                         logger.info(
                             "Calibration injection: user=%s len=%d "
                             "first_100=%s",
-                            self.user.email,
+                            user_log_id(self.user),
                             len(cal_injection) if cal_injection else 0,
                             (cal_injection[:100] if cal_injection
                              else 'EMPTY'),

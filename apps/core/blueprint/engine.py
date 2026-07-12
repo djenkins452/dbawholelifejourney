@@ -24,6 +24,7 @@ Copyright:
 import logging
 
 from .models import PersonalOperatingBlueprint, NonNegotiable
+from apps.core.utils import user_log_id
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def update_blueprint(user, data):
         blueprint.save(update_fields=changed_fields)
         logger.info(
             "Blueprint updated for %s: fields=%s, version=%d",
-            user.email, changed_fields, blueprint.version,
+            user_log_id(user), changed_fields, blueprint.version,
         )
 
     return blueprint
@@ -101,7 +102,7 @@ def sync_flags(user):
     blueprint.save(update_fields=[
         'module_flags_snapshot', 'sub_feature_flags_snapshot', 'updated_at',
     ])
-    logger.info("Blueprint flags synced for %s", user.email)
+    logger.info("Blueprint flags synced for %s", user_log_id(user))
 
 
 def explain_blueprint(user):

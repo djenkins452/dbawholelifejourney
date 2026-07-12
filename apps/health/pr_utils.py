@@ -15,6 +15,8 @@ from decimal import Decimal
 
 from django.db.models import Max
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -248,6 +250,6 @@ def _record_prs(exercise_set, prs_detected, user, exercise, session):
     logger.info(
         "PR detected for %s on %s: %s",
         exercise.name,
-        user.email,
+        user_log_id(user),
         ", ".join(p["type"] for p in prs_detected),
     )

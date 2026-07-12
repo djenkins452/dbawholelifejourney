@@ -36,6 +36,8 @@ import logging
 
 from django.utils import timezone
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,10 +96,10 @@ def enter_learning_mode(user):
         blueprint.save(update_fields=[
             'cos_learning_mode_active', 'governance_overrides', 'updated_at',
         ])
-        logger.info("Learning Mode entered for %s", user.email)
+        logger.info("Learning Mode entered for %s", user_log_id(user))
         return True
     except Exception as e:
-        logger.error("Failed to enter Learning Mode for %s: %s", user.email, e)
+        logger.error("Failed to enter Learning Mode for %s: %s", user_log_id(user), e)
         return False
 
 
@@ -125,10 +127,10 @@ def request_exit_learning_mode(user, summary_text=''):
         blueprint.governance_overrides = overrides
         # cos_learning_mode_active stays True — execution still blocked
         blueprint.save(update_fields=['governance_overrides', 'updated_at'])
-        logger.info("Learning Mode exit requested for %s", user.email)
+        logger.info("Learning Mode exit requested for %s", user_log_id(user))
         return True
     except Exception as e:
-        logger.error("Failed to request exit for %s: %s", user.email, e)
+        logger.error("Failed to request exit for %s: %s", user_log_id(user), e)
         return False
 
 
@@ -160,10 +162,10 @@ def confirm_exit_learning_mode(user):
         blueprint.save(update_fields=[
             'cos_learning_mode_active', 'governance_overrides', 'updated_at',
         ])
-        logger.info("Learning Mode exit confirmed for %s", user.email)
+        logger.info("Learning Mode exit confirmed for %s", user_log_id(user))
         return True
     except Exception as e:
-        logger.error("Failed to confirm exit for %s: %s", user.email, e)
+        logger.error("Failed to confirm exit for %s: %s", user_log_id(user), e)
         return False
 
 
@@ -186,10 +188,10 @@ def cancel_exit_learning_mode(user):
         overrides.pop('learning_mode_exit_requested_at', None)
         blueprint.governance_overrides = overrides
         blueprint.save(update_fields=['governance_overrides', 'updated_at'])
-        logger.info("Learning Mode exit cancelled for %s", user.email)
+        logger.info("Learning Mode exit cancelled for %s", user_log_id(user))
         return True
     except Exception as e:
-        logger.error("Failed to cancel exit for %s: %s", user.email, e)
+        logger.error("Failed to cancel exit for %s: %s", user_log_id(user), e)
         return False
 
 

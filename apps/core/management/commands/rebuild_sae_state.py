@@ -15,6 +15,8 @@ import time
 
 from django.core.management.base import BaseCommand
 
+from apps.core.utils import user_log_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +56,7 @@ class Command(BaseCommand):
             except Exception as e:
                 errors += 1
                 self.stderr.write(f"  [{success + errors}/{total}] {user.email} — ERROR: {e}")
-                logger.error("SAE rebuild failed for %s: %s", user.email, e, exc_info=True)
+                logger.error("SAE rebuild failed for %s: %s", user_log_id(user), e, exc_info=True)
 
         elapsed = round(time.time() - start, 1)
         self.stdout.write(

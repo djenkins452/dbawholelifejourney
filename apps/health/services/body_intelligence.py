@@ -36,6 +36,8 @@ from __future__ import annotations
 import logging
 from datetime import date, timedelta
 
+from django.utils import timezone
+
 logger = logging.getLogger(__name__)
 
 #: Reporting lenses the dashboard offers. NOT a storage cadence — Body Intelligence is
@@ -61,6 +63,32 @@ COMPOSITION_METRICS = [
     "body_fat_pct", "lean_mass", "fat_mass", "skeletal_muscle_mass",
     "bone_mass", "body_water_pct", "visceral_fat", "bmr", "metabolic_age", "bmi",
 ]
+
+
+def associate_ungrouped_for_session(session):
+    """Associate the user's currently-UNGROUPED measurements and weigh-ins recorded on
+    the check-in's calendar date with this session.
+
+    Workflow smoothing: when a user starts a check-in, the measurements and weight they
+    already logged today (that aren't attached to any other session) clearly belong to
+    it, so we group them automatically instead of making the user re-enter or manually
+    link them. Deterministic and reversible — the session FK is SET_NULL and the
+    measurement VALUES are never touched (the measurements remain the canonical truth;
+    the session is only an organizational grouping). Only same-date, still-ungrouped rows
+    are linked, so it never steals a measurement already assigned to another check-in.
+
+    Returns ``(measurements_linked, weighins_linked)``.
+    """
+    from apps.health.models import BodyCompositionEntry, WeightEntry
+
+    day = timezone.localtime(session.checked_in_at).date()
+    measurements = BodyCompositionEntry.objects.filter(
+        user=session.user, session__isnull=True, measurement_date=day
+    ).update(session=session)
+    weighins = WeightEntry.objects.filter(
+        user=session.user, session__isnull=True, recorded_at__date=day
+    ).update(session=session)
+    return measurements, weighins
 
 
 def build_body_intelligence(user, *, as_of=None):
@@ -115,19 +143,29 @@ def build_body_intelligence(user, *, as_of=None):
         logger.warning("body_intelligence: body-comp panel read failed", exc_info=True)
 
     # ── Trend lenses: windowed change over history (single authority) ──────
-    weight_series = [
-        (s.summary_date, float(s.weight)) for s in summaries if s.weight
-    ]
-    fat_series = [
-        (s.summary_date, float(s.fat_mass)) for s in summaries if s.fat_mass
-    ]
-    lean_series = [
-        (s.summary_date, float(s.lean_mass)) for s in summaries if s.lean_mass
-    ]
-    # Weight can span far past 56 days — read a full-history light series for the
-    # yearly/YTD lens (values-only query, user-scoped).
+    # Weight can span far past 56 days — read a full-history light series (WeightEntry,
+    # the canonical Weight domain) for every weight lens/graph. NEVER derive weight from
+    # DailyHealthSummary here.
     weight_hist = _weight_history_series(user, target)
     trend_windows = _build_trend_windows(weight_hist, target)
+
+    # ── Weight is CANONICAL everywhere in Body Intelligence ────────────────
+    # BI CONSUMES the SAME Weight truth as the Weight page (build_weight_summary →
+    # WeightEntry). It must NEVER show the DailyHealthSummary rollup's weight copy, which
+    # can be stale or (pre-guard) contaminated. Body composition (fat/lean/quality) stays
+    # from the rollup — that's its job — but every WEIGHT value below comes from the
+    # Weight domain, so the snapshot, graph, and 14-day delta always match the Weight
+    # page exactly. (Root cause of the "Body Intelligence still shows 51.0 lb" gap.)
+    canonical_weight_lb = (weight or {}).get("current_lb")
+    weight_chart_56d = [
+        {"date": d.isoformat(), "value": v}
+        for d, v in weight_hist if d >= lookback_56
+    ]
+    if body_comp is not None:
+        body_comp["weight"] = canonical_weight_lb
+        body_comp["weight_trend_56d"] = weight_chart_56d
+        _wc14 = _window_change(weight_hist, 14, target)
+        body_comp["weight_delta_14d"] = _wc14["delta"] if _wc14 else None
 
     # ── Measurement history series (per metric, for the graphs) ────────────
     measurement_series = _measurement_series(user, METRIC_LABELS)
@@ -339,13 +377,17 @@ def _measurement_rows(snapshot, metric_order, metric_labels):
 
 
 def _current_snapshot(body_comp, snapshot, weight):
-    """Named current values for the top snapshot cards. Reads from the canonical sources
-    (body-comp panel for weight/fat/lean, measurement snapshot for waist)."""
+    """Named current values for the top snapshot cards. WEIGHT is canonical (the Weight
+    domain — same source as the Weight page); fat/lean come from the pre-computed
+    body-comp rollup; waist from the measurement snapshot."""
     bc = body_comp or {}
     snap_latest = (snapshot or {}).get("latest") or {}
     snap_units = (snapshot or {}).get("units") or {}
+    canonical_weight = (weight or {}).get("current_lb")
     return {
-        "weight": bc.get("weight") if bc.get("weight") is not None else (weight or {}).get("current_lb"),
+        # Weight is CANONICAL — the Weight domain (build_weight_summary → WeightEntry),
+        # the SAME source as the Weight page. Never the DailyHealthSummary rollup.
+        "weight": canonical_weight if canonical_weight is not None else bc.get("weight"),
         "body_fat_pct": bc.get("body_fat_pct"),
         "fat_mass": bc.get("fat_mass"),
         "lean_mass": bc.get("lean_mass"),

@@ -142,9 +142,28 @@ class BodyMeasurementSessionCreateView(HelpContextMixin, LoginRequiredMixin, Cre
         return kwargs
 
     def form_valid(self, form):
+        from .services.body_intelligence import associate_ungrouped_for_session
+
         form.instance.user = self.request.user
-        messages.success(self.request, "Check-in started. Add measurements and photos below.")
         self.object = form.save()
+
+        # Smooth workflow: pull in today's already-logged, still-ungrouped measurements
+        # and weigh-in so the user doesn't have to re-enter or manually link them.
+        m, w = associate_ungrouped_for_session(self.object)
+        if m or w:
+            bits = []
+            if m:
+                bits.append(f"{m} measurement{'s' if m != 1 else ''}")
+            if w:
+                bits.append(f"{w} weigh-in{'s' if w != 1 else ''}")
+            messages.success(
+                self.request,
+                f"Check-in started — linked today's {' and '.join(bits)}. Add photos below.",
+            )
+        else:
+            messages.success(
+                self.request, "Check-in started. Add measurements and photos below."
+            )
         return redirect("health:body_session_detail", pk=self.object.pk)
 
 

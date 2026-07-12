@@ -108,24 +108,42 @@ class BodyCompositionCreateView(
         from django.urls import reverse
 
         form.instance.user = self.request.user
-        session = self._requested_session()
-        if session is not None:
-            form.instance.session = session
+        explicit = self._requested_session()
         add_another = "save_add_another" in self.request.POST
 
-        if session is not None:
+        if explicit is not None:
             # Session-scoped: bypass the generic mixin so we can preserve the
             # ?session= context on "Save & Add Another" and return to the check-in.
+            form.instance.session = explicit
             self.object = form.save()
             if add_another:
                 messages.success(self.request, "Measurement added. Add another!")
                 base = reverse("health:body_composition_create")
-                return redirect(f"{base}?session={session.pk}")
+                return redirect(f"{base}?session={explicit.pk}")
             messages.success(self.request, "Measurement added to check-in.")
-            return redirect("health:body_session_detail", pk=session.pk)
+            return redirect("health:body_session_detail", pk=explicit.pk)
+
+        # No explicit check-in — workflow smoothing: if one already exists for this
+        # measurement's date, group the measurement into it automatically so the user
+        # never ends up with a check-in that's missing the measurements they just logged.
+        # Deterministic (same-date, most-recent check-in); reversible (session FK).
+        auto = (
+            BodyMeasurementSession.objects.filter(
+                user=self.request.user,
+                checked_in_at__date=form.instance.measurement_date,
+            )
+            .order_by("-checked_in_at")
+            .first()
+        )
+        if auto is not None:
+            form.instance.session = auto
 
         if not add_another:
-            messages.success(self.request, "Measurement logged.")
+            messages.success(
+                self.request,
+                "Measurement logged and added to today's check-in."
+                if auto is not None else "Measurement logged.",
+            )
         return super().form_valid(form)
 
 

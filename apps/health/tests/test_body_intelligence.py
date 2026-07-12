@@ -130,6 +130,107 @@ class BodyIntelligenceServiceTest(TestCase):
         self.assertEqual(a["headline"], b["headline"])
 
 
+class BodyIntelligenceCanonicalWeightTest(TestCase):
+    """BI must consume the SAME canonical Weight truth as the Weight page — never the
+    DailyHealthSummary rollup copy (regression for the '51.0 lb in Body Intelligence
+    while the Weight page shows 283.5' gap)."""
+
+    def setUp(self):
+        self.user = create_test_user(email="canon@example.com")
+
+    def test_current_weight_is_canonical_not_stale_rollup(self):
+        from apps.health.models import DailyHealthSummary
+
+        today = timezone.now().date()
+        # Canonical Weight truth: 283.5 lb.
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("311.0"), unit="lb",
+            recorded_at=timezone.now() - timedelta(days=40),
+        )
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("283.5"), unit="lb", recorded_at=timezone.now(),
+        )
+        # A STALE/corrupted rollup that still says 51.0 (as prod had post-contamination).
+        DailyHealthSummary.objects.create(
+            user=self.user, summary_date=today,
+            weight=Decimal("51.0"), body_fat_pct=Decimal("36.8"),
+            fat_mass=Decimal("18.77"), lean_mass=Decimal("32.2"),
+        )
+
+        bi = build_body_intelligence(self.user)
+        # Current snapshot weight must be the canonical 283.5, NOT the rollup's 51.0.
+        self.assertEqual(bi["current"]["weight"], 283.5)
+        self.assertEqual(bi["body_comp"]["weight"], 283.5)
+        # Headline weight matches too.
+        self.assertIn("283.5", bi["headline"]["primary"])
+        # Weight graph is the canonical WeightEntry series (values are real weights).
+        chart_vals = [p["value"] for p in bi["body_comp"]["weight_trend_56d"]]
+        self.assertIn(283.5, chart_vals)
+        self.assertNotIn(51.0, chart_vals)
+
+    def test_weight_matches_weight_summary_source(self):
+        WeightEntry.objects.create(user=self.user, value=Decimal("200.0"), unit="lb")
+        from apps.health.services.weight_summary import build_weight_summary
+        bi = build_body_intelligence(self.user)
+        self.assertEqual(bi["current"]["weight"], build_weight_summary(self.user)["current_lb"])
+
+
+class BodyCheckInAutoAssociationTest(TestCase):
+    """Workflow: a new check-in adopts today's ungrouped measurements + weigh-in."""
+
+    def setUp(self):
+        self.user = create_test_user(email="assoc@example.com")
+        self.client = Client()
+        self.client.force_login(self.user)
+
+    def test_session_create_links_todays_ungrouped(self):
+        today = timezone.now().date()
+        # Ungrouped measurements + weigh-in already logged today.
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="waist", value=Decimal("34.0"),
+            unit="in", measurement_date=today,
+        )
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="chest", value=Decimal("42.0"),
+            unit="in", measurement_date=today,
+        )
+        w = WeightEntry.objects.create(user=self.user, value=Decimal("200.0"), unit="lb")
+
+        self.client.post(reverse("health:body_session_create"), {
+            "title": "Today", "checked_in_at": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
+            "source": "manual", "notes": "",
+        })
+        session = BodyMeasurementSession.objects.get(user=self.user)
+        self.assertEqual(
+            BodyCompositionEntry.objects.filter(user=self.user, session=session).count(), 2
+        )
+        w.refresh_from_db()
+        self.assertEqual(w.session_id, session.pk)
+
+    def test_does_not_steal_other_sessions_measurements(self):
+        today = timezone.now().date()
+        other = BodyMeasurementSession.objects.create(user=self.user, title="earlier")
+        grouped = BodyCompositionEntry.objects.create(
+            user=self.user, metric_name="hips", value=Decimal("40.0"),
+            unit="in", measurement_date=today, session=other,
+        )
+        self.client.post(reverse("health:body_session_create"), {
+            "title": "New", "checked_in_at": timezone.localtime().strftime("%Y-%m-%dT%H:%M"),
+            "source": "manual", "notes": "",
+        })
+        grouped.refresh_from_db()
+        self.assertEqual(grouped.session_id, other.pk)  # untouched
+
+    def test_measurement_create_auto_attaches_to_existing_checkin(self):
+        session = BodyMeasurementSession.objects.create(user=self.user, title="today")
+        self.client.post(reverse("health:body_composition_create"), {
+            "metric_name": "waist", "value": "33.0", "unit": "in",
+            "measurement_date": timezone.now().date().isoformat(), "source": "manual",
+        })
+        entry = BodyCompositionEntry.objects.get(user=self.user, metric_name="waist")
+        self.assertEqual(entry.session_id, session.pk)
+
+
 class BodyIntelligenceViewsTest(TestCase):
     def setUp(self):
         self.user = create_test_user()

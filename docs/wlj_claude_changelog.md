@@ -6,6 +6,34 @@
 # Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — fix(health): Body Intelligence weight now canonical; stale rollup repaired; check-in auto-association
+
+Three integration gaps found in product testing, all fixed:
+
+**1 & 2 — Body Intelligence showed 51.0 lb while the Weight page showed 283.5 (weight trend/graph
+inconsistent).** Root cause (proven by trace): BI's Current Snapshot read weight from `bc.get("weight")` =
+`HealthCommandCenterService._build_body_comp_panel` → `DailyHealthSummary.weight` — a persisted ROLLUP that had
+captured the contaminated 51.0 weight (and derived fat_mass 18.77 = 51 × 36.8%) and hadn't recomputed. The
+Weight page + M5 card read canonical live `build_weight_summary`/SAE. Fix: in `build_body_intelligence`, WEIGHT
+is now consumed from the canonical Weight domain (`build_weight_summary` / `WeightEntry`) for the Current
+Snapshot, the 56-day graph, and the 14-day delta; body composition (fat/lean/quality) still comes from the
+rollup (its job). BI weight now always equals the Weight page. Data repair: migration
+`health/0101_rebuild_contaminated_daily_summaries` rebuilds the corrupted `DailyHealthSummary` rows (idempotent,
+best-effort, only for affected users, no-op on clean DBs) so fat/lean/quality are correct too. (Weight itself
+was already correct everywhere — this makes BI *consume* it instead of a rollup copy.)
+
+**3 — a new check-in didn't adopt measurements already logged today (check-in had photos but zero
+measurements).** Fix (workflow refinement, not redesign): `associate_ungrouped_for_session` links the user's
+same-date, still-ungrouped measurements AND weigh-in to a check-in on create (deterministic, reversible — the
+session FK is SET_NULL and values are untouched; never steals a measurement already in another session). Reverse
+flow too: logging a measurement when a same-date check-in exists auto-groups it. Messages report what was linked.
+
+**Verification (end-to-end: Measurements → Session → Photos → Dashboard → Body Intelligence → CoS):** with a
+clean 283.5 weight but a stale DHS weight=51.0, every BI weight surface (snapshot, headline, trend cards, 56-day
+graph) reads 283.5, chart contains 283.5 and not 51.0, SAE `weight_current`=283.5 (waist 53.5 separate); a new
+check-in auto-linked 2 measurements + 1 weigh-in. 19 Body Intelligence + 8 weight-integrity tests pass;
+request-path-safety contract passes.
+
 ## 2026-07-12 — fix(health): CRITICAL — Weight Layer 1 truth contamination (body measurements written into WeightEntry)
 
 **Symptom (prod, Danny's account):** Weight page showed "Latest 51.0 in", "Total change −198.6 lb"; weight

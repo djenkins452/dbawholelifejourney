@@ -144,6 +144,16 @@ allowlists/status are visible even when recovery is **DISABLED** — the state i
 them. The Ops Wall reader (`ops_telemetry.py::_get_recovery_telemetry`) stays cache-only (request-path safe).
 Tests: `test_recovery_shadow_mode.py::RecoveryConfigTelemetryTests`.
 
+**Presentation fix (2026-07-12, ADR-25) — wall HTML must not be cached.** During Stage-0 Shadow validation the
+Recovery telemetry was proven correct (SHADOW rows written; `/ops/stream/` JSON carried the full `recovery`
+section) yet the panel was invisible to the operator. Root cause was purely presentation: `OperationsWallView`
+sent **no cache headers**, so the wall's HTML *shell* — which carries each monitor card's DOM — was served
+**stale** from browser/WKWebView/CDN, predating the newly-added Recovery Engine card. The polled JSON was fresh
+but the missing DOM node never appeared. Fix: `@never_cache` on `OperationsWallView`
+(`Cache-Control: no-cache, no-store, must-revalidate`). No telemetry/recovery change. This upholds the
+Operations principle *"if it runs in production, it must be observable"*: freshness of the HTML shell (not just
+the polled data) is a correctness requirement whenever a new monitor card can be added.
+
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.
 - **Actual runs** are recorded by Celery `task_prerun`/`task_postrun` signals (connected in `apps/core/apps.py::ready()`), each UPSERTing one current-state `ScheduledTaskRun` row per task (bounded storage even for the 30s `cos_keepalive`).

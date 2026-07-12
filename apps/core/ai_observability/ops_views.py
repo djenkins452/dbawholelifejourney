@@ -21,7 +21,9 @@ from datetime import timedelta
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.http import JsonResponse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 
 logger = logging.getLogger(__name__)
@@ -39,11 +41,21 @@ class AdminRequiredMixin(UserPassesTestMixin):
         return redirect("dashboard:home")
 
 
+@method_decorator(never_cache, name="dispatch")
 class OperationsWallView(AdminRequiredMixin, TemplateView):
     """Main operations wall page — the flagship Vegas Ops Wall.
 
     Server-side context includes system maturity scores, domain coverage,
     and proactive intelligence metrics (updated on page load, not polled).
+
+    ``@never_cache`` (Cache-Control: no-store, no-cache, must-revalidate): the wall
+    is an authenticated, always-changing operational surface whose HTML frame
+    carries newly-added monitor cards (e.g. the Recovery Engine panel). Without
+    cache headers, a browser / WKWebView / CDN can serve a STALE page that predates
+    a new card — the live JSON (`ops/stream/`) polls fresh, but the missing DOM node
+    never appears, so a monitor that IS running looks invisible. Freshness of the
+    HTML shell is a correctness requirement here: "if it runs in production, it must
+    be observable." (Same class as the authenticated-dashboard never_cache rule.)
     """
 
     template_name = "admin_console/operations_wall.html"

@@ -3,8 +3,37 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (feat(ops): Recovery Engine is now a first-class Ops Wall component — expose existing truth)
+# Last Updated: 2026-07-12 (fix(ops): Ops Wall @never_cache — stale HTML shell hid the Recovery Engine panel)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — fix(ops): Ops Wall served stale HTML — Recovery Engine panel invisible despite valid telemetry
+
+**Symptom (prod):** With `OPS_RECOVERY_MODE=SHADOW` and recovery proven correct end-to-end (SHADOW audit rows
+written, `/admin-console/ops/stream/` JSON contained the full `recovery` section incl. `config`), the operator
+still saw **no Recovery Engine panel** on the Ops Wall — no mode, no simulations, no would-recover, no rows.
+
+**Root cause (presentation layer only — telemetry was correct):** `OperationsWallView` had **no cache
+headers**. The wall HTML shell (which carries the monitor-card DOM) was being served **stale** from the
+browser / WKWebView / CDN — a page that predated the newly-added **Recovery Engine** card (it replaced the old
+"Recovery Activity" card in the same commit). The live JSON polls fresh, but the missing DOM node never appears,
+so a monitor that IS running looks invisible. Same class as the authenticated-dashboard `never_cache` rule: the
+HTML shell of an always-changing authenticated operational surface must not be cached. Traced the full pipeline
+(ops_stream JSON → ops_telemetry → template card → `render()` dispatch → `renderRecovery()` → DOM); every stage
+was correct — `renderRecovery` is reached and does not throw (Storage et al. render after it) — the only defect
+was cache freshness of the shell.
+
+**Fix (smallest safe, presentation only):** `@method_decorator(never_cache, name="dispatch")` on
+`OperationsWallView` (`apps/core/ai_observability/ops_views.py`) → `Cache-Control: no-cache, no-store,
+must-revalidate, max-age=0, private`. No change to the Recovery Engine, telemetry generation, or recovery logic
+(all already correct).
+
+**Verification:** RequestFactory render of the wall (staff user) returns **200** with the no-store
+Cache-Control header AND the HTML contains the `Recovery Engine` card, `opsRecoveryStatus` grid, `opsRecovery`
+feed, the `renderRecovery(data.recovery)` dispatch, the function definition, and the `ops-recovery-grid` CSS;
+the old `Recovery Activity` title is gone. Panel render confirmed visually by driving the real `renderRecovery()`
+with a representative SHADOW payload (mode + source, 1/3 handlers enabled, Beat Retry On · allowlist 1, 2
+simulated · 1 would-recover, per-handler roster, two SIM·SHADOW rows). **Files:**
+`apps/core/ai_observability/ops_views.py`, `docs/WLJ_OPS_WALL_COVERAGE.md`, `docs/WLJ_OPERATIONS_VISION.md`.
 
 ## 2026-07-12 — fix(core): SAE state JSON serialization boundary — Decimal in state_data broke deploy (migration 0102)
 

@@ -2531,6 +2531,22 @@ def _get_db_health_telemetry(now):
         return None
 
 
+def _get_task_health_telemetry(now):
+    """
+    OPS-7 — Pool-wide background-task lifecycle (stuck / failing / retrying /
+    revoked across ALL task names).
+
+    Pure Redis reads maintained by worker-side task lifecycle signals. Runs ONLY
+    here in the SAME background cycle; UNAVAILABLE without Redis.
+    """
+    try:
+        from apps.core.ai_observability.task_health_monitor import get_task_health_telemetry
+        return get_task_health_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: task_health telemetry unavailable: %s", e)
+        return None
+
+
 def _get_chat_queue_telemetry(now):
     """
     OPS-3 — Chat generation queue health (depth, wait, stuck, starvation).
@@ -2677,6 +2693,7 @@ def build_ops_stream_payload():
     # OPS-2/3/4 — storage, chat queue, and OpenAI upstream monitors.
     _section("storage", _get_storage_telemetry, now)
     _section("db_health", _get_db_health_telemetry, now)  # OPS-5
+    _section("task_health", _get_task_health_telemetry, now)  # OPS-7
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

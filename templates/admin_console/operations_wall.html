@@ -4339,6 +4339,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Background Task Health (OPS-7 — full width, pool-wide lifecycle) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Background Task Health</span>
+                        <span class="ops-sched-status-label" id="taskHealthSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsTaskHealth">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -5042,6 +5057,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         // OPS-2/3/4 — infrastructure monitors
         renderStorage(data.storage);
         renderDbHealth(data.db_health);  // OPS-5
+        renderTaskHealth(data.task_health);  // OPS-7
         renderChatQueue(data.chat_queue);
         renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
@@ -6719,6 +6735,48 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 (mg.unapplied + ' UNAPPLIED' + (mg.pending && mg.pending.length ? ' · ' + escapeHtml(mg.pending.join(', ')) : ''));
             opsFeedLine(container, mg.status, 'Migrations', mgDetail);
         }
+    }
+
+    function renderTaskHealth(th) {
+        var container = document.getElementById('opsTaskHealth');
+        if (!container) return;
+        if (!th) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('taskHealthSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        if (th.status === 'UNAVAILABLE') {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">' + escapeHtml(th.reason || 'unavailable') + '</div>';
+            setInfraSummary('taskHealthSummary', 'UNAVAILABLE', 'UNAVAILABLE');
+            return;
+        }
+        setInfraSummary('taskHealthSummary', th.status, th.status || '—');
+        container.innerHTML = '';
+
+        var a = th.active || {};
+        var aStatus = (a.stuck_count > 0) ? 'CRITICAL' : 'HEALTHY';
+        var aDetail = (a.count || 0) + ' running' +
+            (a.oldest_age_s !== null && a.oldest_age_s !== undefined ? ' · oldest ' + a.oldest_age_s + 's' : '') +
+            (a.stuck_count ? ' · ' + a.stuck_count + ' STUCK' : '');
+        opsFeedLine(container, aStatus, 'Active tasks', aDetail);
+        (a.stuck_tasks || []).forEach(function(s) {
+            opsFeedLine(container, 'CRITICAL', '  stuck: ' + escapeHtml(s.task), s.age_s + 's');
+        });
+
+        var f = th.failures || {};
+        var fStatus = f.recurring ? 'CRITICAL' : (f.recent_count > 0 ? 'WARNING' : 'HEALTHY');
+        var fTop = (f.top_by_name || []).map(function(t) { return escapeHtml(t.name) + ' ×' + t.count; }).join(', ');
+        opsFeedLine(container, fStatus, 'Failures (recent)',
+            (f.recent_count || 0) + (f.recurring ? ' · RECURRING' : '') + (fTop ? ' · ' + fTop : ''));
+
+        var r = th.retries || {};
+        var rTop = (r.top_by_name || []).map(function(t) { return escapeHtml(t.name) + ' ×' + t.count; }).join(', ');
+        opsFeedLine(container, r.recent_count > 0 ? 'WARNING' : 'HEALTHY', 'Retries (recent)',
+            (r.recent_count || 0) + (rTop ? ' · ' + rTop : ''));
+
+        var rv = th.revoked || {};
+        opsFeedLine(container, rv.recent_count > 0 ? 'WARNING' : 'HEALTHY', 'Revoked (recent)',
+            String(rv.recent_count || 0));
     }
 
     function renderChatQueue(cq) {

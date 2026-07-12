@@ -54,6 +54,13 @@ class CoreConfig(AppConfig):
             connect_signals as _connect_chat_queue_signals,
         )
         _connect_chat_queue_signals()
+        # OPS-7 — connect worker-side task-lifecycle signals (prerun/postrun/
+        # failure/retry/revoked) for ALL tasks so the Ops Wall can see pool-wide
+        # stuck/failing/retrying/revoked background work.
+        from apps.core.ai_observability.task_health_monitor import (
+            connect_signals as _connect_task_health_signals,
+        )
+        _connect_task_health_signals()
         # WLJ Operations Phase II — register the recovery Celery task so Celery
         # discovers it (nested-subpackage tasks are not auto-discovered). Ships
         # dark: gated by OPS_RECOVERY_ENABLED (default False).

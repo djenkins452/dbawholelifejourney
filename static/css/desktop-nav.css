@@ -85,7 +85,16 @@
     }
 
     body.has-desktop-nav .main-content {
-        flex: 1;
+        /* flex:1 0 auto — NOT flex:1 (which is flex:1 1 0%). With flex-basis:0%
+           the main box ignores its own content height and gets sized to the
+           column's free space (clamped by min-height), so tall page content
+           overflowed the box while the footer — the next flex sibling — sat at
+           the box's bottom edge, i.e. IN THE MIDDLE of the content. flex-basis
+           auto sizes the box to its content and flex-shrink:0 stops it
+           collapsing below that, so the footer always follows all content;
+           flex-grow:1 still fills the viewport on short pages so the footer
+           rests at the bottom. */
+        flex: 1 0 auto;
         padding-bottom: 0; /* Remove mobile bottom padding */
     }
 

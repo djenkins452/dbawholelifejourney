@@ -3,8 +3,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (fix(nav): global header fixed at top while content scrolls — desktop + mobile)
+# Last Updated: 2026-07-12 (fix(nav): footer regression — footer no longer renders in the middle of page content)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — fix(nav): footer no longer renders in the middle of page content (regression from the fixed-header shell)
+
+Regression from the fixed-header / single-scroll shell change (commit add18eba): on desktop the global
+footer rendered IN THE MIDDLE of tall page content (reported on the Health meals page — footer appeared
+between meal sections with content continuing below it). Proven via a live DOM/layout trace of the running
+app, not guessed:
+
+- The DOM order was correct (`.desktop-main-area` → `<main class="main-content">` → footer). The defect was
+  **flex sizing**: `.main-content` used `flex: 1` (= `flex: 1 1 0%`). With `flex-basis:0%` the main box is
+  sized to the flex column's free space (clamped by `min-height:600px`) and IGNORES its own content height.
+  Measured on the meals page: `.main-content` box = 600px but its content was 1345px tall with
+  `overflow:visible`, so the content spilled out the bottom while the footer — the next flex sibling
+  (`flex:0 0 auto`) — sat at the box's bottom edge (top: 656), i.e. in the middle of the spilling content.
+- This only surfaced AFTER the header fix because before it the whole window scrolled (body uncapped), so
+  `.desktop-main-area` was never height-bounded and `.main-content` grew to its full content height. Once
+  the shell was capped to `100vh`, the flex box became bounded and the latent `flex-basis:0%` bug showed.
+
+Fix (correct the layout ownership, no margins / absolute / z-index hacks): `.main-content { flex: 1 0 auto }`
+— `flex-basis:auto` sizes the box to its content and `flex-shrink:0` stops it collapsing below that, so the
+footer always follows ALL content; `flex-grow:1` still fills the viewport on short pages so the footer rests
+at the bottom. (static/css/desktop-nav.css)
+
+Verified live on desktop (Health meals page, dashboard, journal-entry form, weight-history table, capture):
+`.main-content` now sizes to its full content and the footer starts exactly at content-bottom in every case
+(footer after the last form control / table / meal section), header pinned at top:0, single scrollbar, no
+root/window scroll. Mobile unaffected (the desktop `flex` override is scoped to ≥769px and `.site-footer` is
+`display:none` on mobile by design). Added regression test
+`apps/core/tests/test_fixed_header_footer_layout.py` (footer emitted after `<main>` inside the scroll region;
+`.main-content` is `flex:1 0 auto`; plus the shell/root/body single-scroll invariants). Bumped desktop-nav.css
+cache-bust `?v` to `20260712b`. (Files: static/css/desktop-nav.css, templates/base.html,
+apps/core/tests/test_fixed_header_footer_layout.py)
 
 ## 2026-07-12 — polish(dashboard): visual-finishing pass — ring word fit + briefing "Start here" consistency (live QA)
 

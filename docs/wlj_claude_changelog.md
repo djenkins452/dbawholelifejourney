@@ -6,6 +6,32 @@
 # Last Updated: 2026-07-12 (fix(nav): global header fixed at top while content scrolls — desktop + mobile)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — polish(dashboard): visual-finishing pass — ring word fit + briefing "Start here" consistency (live QA)
+
+Presentation-only visual-finishing pass, validated against the real rendered dashboard (desktop 1280px + mobile
+390px), not just template tests.
+
+- **Mission ring word truncation fixed.** After the phase-ring change, the longest phase word "FOUNDATION" was
+  clipped ("FOUNDATIO") — it inherited the old ring-word size (1.32rem) tuned for short words like "STEADY".
+  Reduced `.v3-mission-ring-word` to 0.98rem + `max-width:108px; text-align:center`; "FOUNDATION" and "MOMENTUM"
+  now sit fully inside the ring (measured: 106px wide, no overflow). (dashboard_v3.css)
+- **Executive Briefing "Start here" now consistent with the mission.** The briefing's top recommendation surfaced
+  a stale/completed milestone ("Push toward Goal Weight 190") from an older persisted GuidanceItem, while the
+  Purpose accountability card correctly showed the ACTIVE milestone (202). Aligned them: the dashboard composer
+  now post-processes the executive summary (same presentation-layer pattern as the existing biggest_risk dedup —
+  the SHARED cos_briefing composer is untouched) so any PURPOSE recommendation is replaced with the
+  mission-derived active-milestone action. "Start here" now reads "Next milestone: Goal Weight 202". (composer.py)
+
+Validated (live): all four prior checks confirmed on the rendered page — Purpose recommendation = active milestone
+(not 239.9/190); mission phase/status/target(202.0)/remaining(2.2)/trend internally consistent; Executive Briefing
+one "Start here" action; Water "63 / 64 oz" (63.2 effective total rounded at presentation, precision preserved).
+Mobile 390px: 0 horizontal-overflow elements; clean stacking. `manage.py check` clean; 155 dashboard_v3 tests
+pass; collectstatic 0 errors.
+
+Intentionally left unchanged (per "don't hide useful information"): the mission card's two-column whitespace and
+the single-card Domain Accountability gap are natural grid spacing with sparse demo data (they fill as more
+signals/domains report) — not defects; restructuring the grid would be architecture, out of scope.
+
 ## 2026-07-12 — fix(nav): global header now stays fixed at the top while content scrolls (desktop + mobile)
 
 The global WLJ header scrolled off the page on both desktop and mobile, so users lost navigation,

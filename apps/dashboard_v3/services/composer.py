@@ -124,6 +124,20 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     context["focus_now"] = exec_summary.get("focus_now")
     context["follow_on"] = exec_summary.get("follow_on") or []
 
+    # Presentation consistency (NOT a composer change — post-process only, like the
+    # biggest_risk dedup below): keep any PURPOSE recommendation in the briefing aligned
+    # with the CURRENT mission — the same active-milestone truth the accountability card
+    # uses — so "Start here" never surfaces a stale/completed milestone from an older
+    # persisted GuidanceItem.
+    _recs = exec_summary.get("recommendations") or []
+    if any(r.get("module") == "purpose" for r in _recs):
+        _mission_rec = _purpose_mission_recommendation(user)
+        if _mission_rec:
+            for r in _recs:
+                if r.get("module") == "purpose":
+                    r["title"] = _mission_rec["title"]
+                    r["message"] = _mission_rec["message"]
+
     # ── Self-critique fix: drop biggest_risk if it duplicates focus_now.
     risk = exec_summary.get("biggest_risk")
     focus = context["focus_now"]

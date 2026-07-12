@@ -1269,12 +1269,15 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 /* Phase 3D — ring centre answers "what am I doing now" with a state word,
    never a readiness %. The literal milestone count sits below as context. */
 .v3-mission-ring-word {
-    font-size: 1.32rem;
+    /* Sized to fit the longest phase word ("FOUNDATION") fully inside the ring. */
+    font-size: 0.98rem;
     font-weight: 800;
-    line-height: 1.04;
-    letter-spacing: 0.01em;
+    line-height: 1.05;
+    letter-spacing: 0.005em;
     text-transform: uppercase;
     color: var(--v3-accent);
+    max-width: 108px;
+    text-align: center;
 }
 
 .v3-mission-ring-word--up   { color: var(--v3-opp); }

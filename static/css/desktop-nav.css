@@ -16,11 +16,32 @@
        Layout Structure
        ========================================================================== */
 
-    /* Body class when desktop layout is active */
+    /* Body class when desktop layout is active.
+       The desktop shell is a NON-scrolling, viewport-height flex column: the
+       top bar stays pinned, the left rail is fixed, and ONLY .desktop-main-area
+       scrolls (see below). Capping the body to the viewport height with
+       overflow:hidden is what engages that single internal scroll region —
+       without it the whole window scrolls and the "sticky" top bar scrolls off. */
     body.has-desktop-nav {
         display: flex;
         flex-direction: column;
-        min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    /* The desktop shell body clips everything (100vh + overflow:hidden), so the
+       root must NOT also be a scroll container. Globally <html> has
+       overflow-x:hidden (needed on mobile to block horizontal scroll), but that
+       makes <html> compute overflow-y:auto — turning the root into a scroll
+       container that inherits a phantom vertical scroll from deep flex content
+       (a Chromium quirk). That produced a SECOND scrollbar AND let a
+       programmatic/anchor scroll shove the pinned top bar off-screen. Restoring
+       overflow-x:visible on the root (only when the desktop shell is active)
+       removes the root scroll container entirely — a single scroll region
+       (.desktop-main-area) remains. Horizontal overflow is still clipped by the
+       body's overflow:hidden. */
+    html:has(body.has-desktop-nav) {
+        overflow-x: visible;
     }
 
     body.has-desktop-nav .desktop-top-bar {

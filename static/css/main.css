@@ -133,7 +133,11 @@ body {
     color: var(--color-text);
     background-color: var(--color-background);
     min-height: 100vh;
-    overflow-x: hidden;
+    /* NOTE: overflow-x:hidden is intentionally NOT set on <body>. Setting any
+       overflow on <body> turns it into a scroll container, which breaks the
+       fixed/sticky global header (.site-header sticks to the body scrollport,
+       not the viewport, and scrolls away). Horizontal overflow is clipped on
+       <html> instead (see the html rule above). */
 }
 
 img, picture, video, canvas, svg {

@@ -1148,6 +1148,7 @@ class Command(BaseCommand):
 
         # One-time: Reload release_notes for Day Continuity (PK 266)
         self._reset_day_continuity_release_note(DataLoadConfig, force, verbosity)
+        self._reset_persistent_header_release_note(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -2405,6 +2406,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset Day Continuity release note FAILED: {e}'))
+
+    def _reset_persistent_header_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 268) so the What's New entry for
+        the persistent (fixed) global header — the top menu bar now stays in place
+        while page content scrolls, on both desktop and mobile — appears.
+        """
+        reset_tracker_name = 'reset_persistent_header_release_note_2026_07_12'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for persistent header')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for persistent header (Jul 2026)',
+                'command', 'One-time reset to reload the release note for the persistent global header'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset persistent header release note FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -3,8 +3,42 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (feat(ops): Recovery Events — prominent, acknowledgeable operator alerts for real ACTIVE recoveries)
+# Last Updated: 2026-07-12 (fix(nav): global header fixed at top while content scrolls — desktop + mobile)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — fix(nav): global header now stays fixed at the top while content scrolls (desktop + mobile)
+
+The global WLJ header scrolled off the page on both desktop and mobile, so users lost navigation,
+notifications, chat, profile, and status until they scrolled back up. Root causes (proven via a live
+runtime trace of the running app, not guessed):
+
+- **Desktop** — `body.has-desktop-nav` was designed as a NON-scrolling `100vh` flex shell whose only
+  scroll region is `.desktop-main-area` (`overflow-y:auto`; the wrapper is `overflow:hidden`), but the
+  body was only `min-height:100vh` with **no height cap and no `overflow:hidden`**. So the whole window
+  scrolled and the "sticky" top bar scrolled away with it, while the `position:fixed` left rail stayed.
+  Fix: cap the desktop shell — `body.has-desktop-nav { height:100vh; overflow:hidden }` — which engages
+  the already-designed single internal scroll region. (static/css/desktop-nav.css)
+- **Desktop double-scrollbar / phantom scroll** — the global `html { overflow-x:hidden }` (needed on
+  mobile) makes `<html>` compute `overflow-y:auto`, turning the ROOT into a scroll container that
+  inherited a phantom vertical scroll from deep flex content (Chromium quirk). That produced a SECOND
+  scrollbar AND let a programmatic/anchor scroll shove the pinned top bar off-screen (proven: form page
+  root scrolled 389px, `topbarTop → -389`). Fix (eliminate the class, don't hide the symptom):
+  `html:has(body.has-desktop-nav) { overflow-x:visible }` so the root is not a scroll container at all —
+  `.desktop-main-area` is the only scroll region. Horizontal overflow is still clipped by the body's
+  `overflow:hidden`. (static/css/desktop-nav.css)
+- **Mobile** — `body { overflow-x:hidden }` turned the body into a scroll container, so `.site-header`
+  (`position:sticky; top:0`) stuck to the body scrollport instead of the viewport and scrolled off. Fix:
+  drop `overflow-x` from `<body>` (kept on `<html>`, which still blocks horizontal scroll); `.site-header`
+  now stays pinned. (static/css/main.css)
+
+Single canonical layout retained (`templates/base.html` with two responsive header variants —
+`.desktop-top-bar` ≥769px, `.site-header` ≤768px); no second header introduced. Verified live on desktop
+(dashboard, health overview, journal list, weight-history table, journal-entry form, profile detail) and
+mobile (dashboard, health): header pinned under both a programmatic root scroll and an input-focus
+scroll-into-view, single scrollbar, no horizontal overflow, left rail unchanged, no console errors. The
+per-page `hide_nav_on_scroll` opt-in (immersive pages) is intentionally untouched. Bumped
+`main.css`/`desktop-nav.css` cache-bust `?v` to `20260712a`. (Files: static/css/main.css,
+static/css/desktop-nav.css, templates/base.html)
 
 ## 2026-07-12 — polish(dashboard): Purpose recommendation from mission state, whole-number water, CoS-style briefing close
 

@@ -4262,5 +4262,21 @@
       "created_at": "2026-07-12T14:00:00Z",
       "updated_at": "2026-07-12T14:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 268,
+    "fields": {
+      "title": "The top menu bar now stays put while you scroll",
+      "description": "The header at the top of every page — with your navigation, search, notifications, and profile — now stays fixed in place while the page content scrolls beneath it. No more scrolling back to the top just to reach a menu, your notifications, or your Chief of Staff. It works the same way on desktop and mobile, with a single clean scrollbar and no layout jitter.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-07-12",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-12T21:30:00Z",
+      "updated_at": "2026-07-12T21:30:00Z"
+    }
   }
 ]

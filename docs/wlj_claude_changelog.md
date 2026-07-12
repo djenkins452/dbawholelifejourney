@@ -6,6 +6,49 @@
 # Last Updated: 2026-06-02 (fix(briefing): Executive Briefing coherence — one dominant narrative, no contradictory state)
 # ================================================================# WLJ Change History
 
+## 2026-07-11 — feat(ops-5): PostgreSQL health/administration observability (`db_health` section)
+
+**Why:** OPS-5 — the next Operations milestone. OPS-2 covers Postgres *capacity* (size + growth); OPS-5
+adds the *administrative health* capacity can't see: connection-pool saturation, long-running/stuck
+queries, dead-tuple bloat + autovacuum lag, and unapplied migrations (a partial/failed deploy) — all
+silent, product-degrading conditions previously invisible on the Ops Wall.
+
+**Evidence-driven scope refinement (challenged the original vision):** the OPS-5 backlog listed "backup
+verification," but **no in-DB signal exists** for it (Railway manages Postgres backups; no `pg_*` query
+can confirm a backup succeeded). Fabricating a "backup OK" status would be dishonest, so backup
+verification stays an **operator-only** check (already a Danny waiting-item) — explicitly out of the
+monitor. Also chose **telemetry-only** (no anomaly/recovery), matching OPS-2/3/4 and keeping detection
+separate from recovery; DB-admin issues are operator/infra fixes, not safe auto-actions.
+
+**What (new `apps/core/ai_observability/db_health_monitor.py`, reuses the OPS-2 pattern):**
+- `_probe_connections` — `pg_stat_activity` total/active/idle/idle-in-txn vs `max_connections` → pool util.
+- `_probe_long_running` — oldest active client-query age + count over 60s (excludes autovacuum/self).
+- `_probe_dead_tuples` — `pg_stat_user_tables` top tables by `n_dead_tup`, worst dead ratio, autovacuum age.
+- `_probe_migrations` — Django `MigrationExecutor` unapplied-migration detection (partial-deploy guard; works on any vendor).
+- `get_db_health_telemetry` — cache-guarded (5 min), background-only, rolls up worst measured status; each probe degrades to `UNAVAILABLE` (never raises); Postgres-only probes degrade gracefully on dev SQLite.
+- Reuses OPS-2 shared helpers (`_status_from_util`, `_pct`, `_overall_status`, thresholds) — no duplication (Constitution IV.3).
+
+**Wiring:** `ops_telemetry.py` — `_get_db_health_telemetry` reader + `_section("db_health", …)` (runs in the
+SAME background cycle; the request path only reads the cached payload — request-path safety preserved).
+`operations_wall.html` — new full-width read-only "Database Health" card + `renderDbHealth` (CSP-safe,
+reuses `setInfraSummary`/`opsFeedLine`). **No model, no migration** (point-in-time telemetry).
+
+**Also:** filed **OPS-11** (Remove Legacy Autonomous Remediation) in the coverage backlog per the prior
+investigation — inert dead code, not urgent, do NOT implement now.
+
+**Verification:** `tests_db_health.py` (9 — probes, non-Postgres degradation, migrations detection, cache
+guard, worst-status roll-up); payload builder bumped 28→29 sections; Ops Wall v2 85; `check` +
+`makemigrations --check` clean; renderDbHealth `node --check` valid. **Real end-to-end data-path proof:**
+`get_db_health_telemetry()` on the dev DB returned live values (connections 1/100 HEALTHY, long-running
+HEALTHY, dead-tuples HEALTHY) and correctly flagged **migrations CRITICAL (11 unapplied)** on the behind
+dev DB — proving the partial-deploy guard works (prod runs `migrate` every deploy → HEALTHY).
+
+**Files:** `apps/core/ai_observability/db_health_monitor.py` (new),
+`apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/tests_payload_builder.py`,
+`apps/core/ai_observability/tests_db_health.py` (new), `templates/admin_console/operations_wall.html`,
+`docs/WLJ_OPS_WALL_COVERAGE.md`, `docs/WLJ_OPERATIONS_VISION.md`,
+`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-11 — docs(startup): re-prioritize the bootloader to COMPLETE WLJ Operations first (docs-only)
 
 **Why:** The bootloader ranked CC-1 first and buried Operations, implying Operations was essentially done

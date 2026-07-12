@@ -2515,6 +2515,22 @@ def _get_storage_telemetry(now):
         return None
 
 
+def _get_db_health_telemetry(now):
+    """
+    OPS-5 — PostgreSQL health / administration (connections, long-running queries,
+    dead-tuple bloat, migration status).
+
+    Runs live `pg_stat_*` probes but ONLY here in the SAME background cycle; the
+    reader is cache-guarded (5 min). Never called on the request path.
+    """
+    try:
+        from apps.core.ai_observability.db_health_monitor import get_db_health_telemetry
+        return get_db_health_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: db_health telemetry unavailable: %s", e)
+        return None
+
+
 def _get_chat_queue_telemetry(now):
     """
     OPS-3 — Chat generation queue health (depth, wait, stuck, starvation).
@@ -2660,6 +2676,7 @@ def build_ops_stream_payload():
     _section("email_intelligence", _get_email_intelligence_telemetry)
     # OPS-2/3/4 — storage, chat queue, and OpenAI upstream monitors.
     _section("storage", _get_storage_telemetry, now)
+    _section("db_health", _get_db_health_telemetry, now)  # OPS-5
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

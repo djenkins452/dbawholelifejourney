@@ -797,7 +797,7 @@ recovery happen, reviews history, and only rarely intervenes.
 | [x] | **OPS-2** Storage/volume monitor (Postgres/Redis/disk + `StorageSnapshot`) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_storage_monitor.py` |
 | [x] | **OPS-3** Chat-queue monitor (depth/wait/throughput/stuck/starvation) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_chat_queue_monitor.py` |
 | [x] | **OPS-4** OpenAI upstream-health monitor (avail/latency/degradation) | 2026-07-11 | `8d7dab87` | 2026-07-11 | Coverage audit §4 | `test_upstream_health.py` |
-| [ ] | **OPS-5** Postgres depth + DB administration | — | — | — | — | — |
+| [x] | **OPS-5** Postgres depth + DB administration (`db_health` section: connections, long-running queries, dead-tuple bloat, migration status) | 2026-07-11 | _this commit_ | live | Coverage §4 | `tests_db_health.py` (9) |
 | [ ] | **OPS-6** Per-component `owner` dimension (cross-cutting) | — | — | — | — | — |
 | [ ] | **OPS-7** Dead-job / stuck-task / general Celery-retry aggregation | — | — | — | — | — |
 | [ ] | **OPS-8** Confirmation queue, attachment persistence, dedup, audit-lag | — | — | — | — | — |

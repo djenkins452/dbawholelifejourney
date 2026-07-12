@@ -4324,6 +4324,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Database Health (OPS-5 — full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Database Health</span>
+                        <span class="ops-sched-status-label" id="dbHealthSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsDbHealth">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -5026,6 +5041,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderRecovery(data.recovery);
         // OPS-2/3/4 — infrastructure monitors
         renderStorage(data.storage);
+        renderDbHealth(data.db_health);  // OPS-5
         renderChatQueue(data.chat_queue);
         renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
@@ -6652,6 +6668,56 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             var dkDetail = fmtBytes(dk.used_bytes) + ' / ' + fmtBytes(dk.total_bytes) +
                 (dk.util_pct !== null && dk.util_pct !== undefined ? ' · ' + dk.util_pct + '%' : '');
             opsFeedLine(container, dk.status, 'Disk / Volume', dkDetail);
+        }
+    }
+
+    function renderDbHealth(db) {
+        var container = document.getElementById('opsDbHealth');
+        if (!container) return;
+        if (!db) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('dbHealthSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('dbHealthSummary', db.status, db.status || '—');
+        container.innerHTML = '';
+
+        var c = db.connections || {};
+        if (c.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Connections', c.reason || 'unavailable');
+        } else {
+            var cDetail = (c.total || 0) + ' / ' + (c.max_connections || '?') +
+                (c.util_pct !== null && c.util_pct !== undefined ? ' · ' + c.util_pct + '%' : '') +
+                ' · ' + (c.active || 0) + ' active · ' + (c.idle_in_transaction || 0) + ' idle-in-txn';
+            opsFeedLine(container, c.status, 'Connections', cDetail);
+        }
+
+        var lr = db.long_running || {};
+        if (lr.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Long-running queries', lr.reason || 'unavailable');
+        } else {
+            var lrDetail = 'oldest ' + (lr.max_secs || 0) + 's · ' + (lr.over_threshold || 0) +
+                ' over ' + (lr.threshold_secs || 60) + 's';
+            opsFeedLine(container, lr.status, 'Long-running queries', lrDetail);
+        }
+
+        var dt = db.dead_tuples || {};
+        if (dt.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Dead tuples / bloat', dt.reason || 'unavailable');
+        } else {
+            var top = (dt.top_tables && dt.top_tables[0]) ? dt.top_tables[0] : null;
+            var dtDetail = 'worst ' + (dt.worst_dead_ratio_pct || 0) + '%' +
+                (top ? ' · ' + escapeHtml(top.table) + ' (' + top.dead + ' dead)' : '');
+            opsFeedLine(container, dt.status, 'Dead tuples / bloat', dtDetail);
+        }
+
+        var mg = db.migrations || {};
+        if (mg.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Migrations', mg.reason || 'unavailable');
+        } else {
+            var mgDetail = mg.all_applied ? 'all applied' :
+                (mg.unapplied + ' UNAPPLIED' + (mg.pending && mg.pending.length ? ' · ' + escapeHtml(mg.pending.join(', ')) : ''));
+            opsFeedLine(container, mg.status, 'Migrations', mgDetail);
         }
     }
 

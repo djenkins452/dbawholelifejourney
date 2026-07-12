@@ -38,9 +38,9 @@ A single read-only monitoring surface at **`/admin-console/ops/`** — the **Ope
 | Celery Worker(s) | ✅ Yes | Mostly | HEALTHY/DEGRADED/CRITICAL/DOWN via `inspect().ping()`; worker count, concurrency, failed_1h |
 | Celery Beat | Partial | Partial | Liveness **inferred** from ISE+SAME heartbeats; no direct beat-process heartbeat |
 | Build Runner | ❌ No | No | Railway build/deploy runner unmonitored |
-| PostgreSQL | ✅ Yes | Size + growth | `storage` section: `pg_database_size` + 30-day growth trend (OPS-2). Connections/bloat/slow-query still pending (OPS-5) |
+| PostgreSQL | ✅ Yes | Size + growth + health | `storage` section: `pg_database_size` + 30-day growth (OPS-2). `db_health` section: connections vs `max_connections`, long-running queries, dead-tuple bloat + autovacuum age (OPS-5) |
 | Redis | ✅ Yes | Memory + eviction | `storage` section: used/max memory, utilization %, `maxmemory_policy`, `evicted_keys` (OPS-2); plus broker connectivity + circuit breaker |
-| Database Administration | ❌ No | No | No migration status, backup verification, pool, vacuum (OPS-5) |
+| Database Administration | ✅ Mostly | Migrations + pool + vacuum | `db_health` section: unapplied-migration detection (partial-deploy guard), connection-pool saturation, dead-tuple/vacuum lag (OPS-5). **Backup verification stays operator-only** — no in-DB signal exists (Railway-managed) |
 | Volumes | ✅ Yes | Disk utilization | `storage` section: `shutil.disk_usage` on the Railway volume / MEDIA_ROOT with warn/critical thresholds (OPS-2). S3 audio bucket still unmonitored (OPS-8) |
 | Queues | ✅ Yes | Depth + backlog | `chat_queue` section: chat depth, oldest-queued age, throughput, queue wait, stuck, worker starvation (OPS-3); `celery` default queue via `LLEN` |
 | Scheduler health | ✅ Yes | ✅ Yes | status, drift_seconds, cadence, MISSED_RUN/ENGINE_STARVATION |
@@ -95,12 +95,13 @@ The observability gaps below run in production but have no operational health. E
 | ~~**OPS-2**~~ | ~~Volumes / DB / Redis storage capacity unmonitored~~ → **DONE (2026-07-11).** `storage` section: Postgres size + 30-day growth, Redis used/max memory + eviction, disk/volume utilization, warn/critical thresholds, daily `StorageSnapshot`, graceful UNAVAILABLE per resource. (S3 audio bucket deferred to OPS-8.) | ~~High~~ | ✅ Done |
 | ~~**OPS-3**~~ | ~~`chat` queue + chatworker backlog not measured~~ → **DONE (2026-07-11).** `chat_queue` section: passive Celery-signal lifecycle over the chat tasks → depth, oldest-queued age, throughput, queue wait, stuck detection, worker starvation. | ~~High~~ | ✅ Done |
 | ~~**OPS-4**~~ | ~~OpenAI connectivity / Model Interface health not surfaced~~ → **DONE (2026-07-11).** `upstream_health` section: passive per-call recorder → availability %, latency, consecutive failures, breaker state, degradation (OUTAGE/DEGRADED/HEALTHY/IDLE), last success. Distinguishes "WLJ healthy" from "OpenAI degraded". | ~~High~~ | ✅ Done |
-| **OPS-5** | PostgreSQL depth + DB administration (connections, migrations, bloat, backup verification) | Medium | Next |
-| **OPS-6** | No `owner` field on any component (cross-cutting; add via engine registry) | Medium | Following |
+| ~~**OPS-5**~~ | ~~PostgreSQL depth + DB administration (connections, migrations, bloat, backup verification)~~ → **DONE (2026-07-11).** `db_health` section: connection-pool saturation (active/idle/idle-in-txn vs `max_connections`), long-running queries (max age + count over threshold), dead-tuple bloat + autovacuum age (`pg_stat_user_tables`), and unapplied-migration detection (partial-deploy guard). Telemetry-only (no anomaly/recovery), request-path-safe, graceful UNAVAILABLE on non-Postgres. **Scope refinement:** *backup verification* has NO in-DB signal (Railway manages backups) → it remains an **operator-only** item, correctly out of the monitor. | ~~Medium~~ | ✅ Done |
+| **OPS-6** | No `owner` field on any component (cross-cutting; add via engine registry) | Medium | Next |
 | **OPS-7** | Dead-job / stuck-task / general Celery-retry aggregation | Medium | Following |
 | **OPS-8** | Confirmation queue, attachment persistence, duplicate detection, audit-pipeline lag health | Medium | Following |
 | **OPS-9** | Build Runner / deploy pipeline observability (note: every deploy silently runs `load_initial_data` + `recalculate_task_priorities`) | Low–Medium | Later |
 | **OPS-10** | Celery Beat directly measured (not inferred from ISE/SAME) | Low–Medium | Later |
+| **OPS-11** | Remove Legacy Autonomous Remediation — `_run_autonomous_remediation` (`same_engine.py`) is structurally unreachable (filters `severity="P3"` for MISSED_RUN/SUPPRESSION_STORM, which are only ever emitted P1/P2). Inert dead code, no active conflict with the Recovery Engine, no constitutional concern (investigated 2026-07-11). Retire it (or fold its two intents into the recovery framework) as normal tech-debt; best timed with Phase III consolidation or when engine-starvation recovery is enabled. Not urgent. | Low | Later |
 
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.

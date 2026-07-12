@@ -2531,6 +2531,22 @@ def _get_db_health_telemetry(now):
         return None
 
 
+def _get_media_persistence_telemetry(now):
+    """
+    OPS-8b — Media & capture persistence health (capture pipeline status/failures/
+    stuck, expired-image retention, storage-config facts). Deterministic aggregate
+    reads, ONLY here in the SAME background cycle; cache-guarded (5 min).
+    """
+    try:
+        from apps.core.ai_observability.media_persistence_monitor import (
+            get_media_persistence_telemetry,
+        )
+        return get_media_persistence_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: media_persistence telemetry unavailable: %s", e)
+        return None
+
+
 def _get_confirmation_audit_telemetry(now):
     """
     OPS-8a — Confirmation-queue health (pending/stalled/oldest/flow from
@@ -2712,6 +2728,7 @@ def build_ops_stream_payload():
     _section("db_health", _get_db_health_telemetry, now)  # OPS-5
     _section("task_health", _get_task_health_telemetry, now)  # OPS-7
     _section("confirmation_audit", _get_confirmation_audit_telemetry, now)  # OPS-8a
+    _section("media_persistence", _get_media_persistence_telemetry, now)  # OPS-8b
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

@@ -4369,6 +4369,21 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
+            <!-- Media & Capture Persistence Health (OPS-8b — full width) -->
+            <div class="ops-diagnostics-full">
+                <div class="ops-cmd-card ops-glass">
+                    <div class="ops-cmd-card-header">
+                        <span class="ops-cmd-card-title">Media &amp; Persistence Health</span>
+                        <span class="ops-sched-status-label" id="mediaPersistSummary">—</span>
+                    </div>
+                    <div class="ops-cmd-card-body">
+                        <div class="ops-feed" id="opsMediaPersist">
+                            <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div><!-- /Zone 5 -->
 
@@ -5074,6 +5089,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderDbHealth(data.db_health);  // OPS-5
         renderTaskHealth(data.task_health);  // OPS-7
         renderConfirmationAudit(data.confirmation_audit);  // OPS-8a
+        renderMediaPersist(data.media_persistence);  // OPS-8b
         renderChatQueue(data.chat_queue);
         renderUpstreamHealth(data.upstream_health);
         // Phase 5 — new card renders
@@ -6831,6 +6847,49 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 (dr.count_1h || 0) + '/h · last ' + fmtAge(dr.last_write_age_s));
             opsFeedLine(container, 'HEALTHY', 'Action audit',
                 (am.count_1h || 0) + '/h · last ' + fmtAge(am.last_write_age_s));
+        }
+    }
+
+    function renderMediaPersist(mp) {
+        var container = document.getElementById('opsMediaPersist');
+        if (!container) return;
+        if (!mp) {
+            container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
+            setInfraSummary('mediaPersistSummary', 'UNAVAILABLE', '—');
+            return;
+        }
+        setInfraSummary('mediaPersistSummary', mp.status, mp.status || '—');
+        container.innerHTML = '';
+
+        var c = mp.capture || {};
+        if (c.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Capture pipeline', c.reason || 'unavailable');
+        } else {
+            var bs = c.by_status_24h || {};
+            var cDetail = (bs.ready || 0) + ' ready · ' + (c.failed_24h || 0) + ' failed' +
+                (c.top_error_type ? ' (' + escapeHtml(c.top_error_type) + ')' : '') +
+                (c.stuck ? ' · ' + c.stuck + ' STUCK' : '');
+            opsFeedLine(container, c.status, 'Capture pipeline (24h)', cDetail);
+            if (c.pending_abandoned_24h || c.pending_high_retry) {
+                opsFeedLine(container, c.pending_abandoned_24h ? 'WARNING' : 'HEALTHY', '  uploads',
+                    (c.pending_abandoned_24h || 0) + ' abandoned · ' + (c.pending_high_retry || 0) + ' high-retry');
+            }
+        }
+
+        var ir = mp.image_retention || {};
+        if (ir.status === 'UNAVAILABLE') {
+            opsFeedLine(container, 'UNAVAILABLE', 'Image retention', ir.reason || 'unavailable');
+        } else {
+            opsFeedLine(container, ir.status, 'Image retention',
+                (ir.expired_unpurged || 0) + ' expired unpurged (no cleaner)');
+        }
+
+        var sc = mp.storage_config || {};
+        if (sc.status !== 'UNAVAILABLE') {
+            opsFeedLine(container, 'HEALTHY', 'Storage config',
+                'Cloudinary ' + (sc.cloudinary_configured ? 'on' : 'off') +
+                ' · S3 ' + (sc.capture_s3_configured ? 'on' : 'off') +
+                ' · ' + (sc.artifacts_ingested_24h || 0) + ' artifacts/24h');
         }
     }
 

@@ -8,6 +8,7 @@ the real Postgres test DB; each block degrades gracefully and never raises.
 import uuid
 from datetime import timedelta
 
+from unittest import mock
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
@@ -121,6 +122,6 @@ class TelemetrySectionTests(TestCase):
         r = cam.get_confirmation_audit_telemetry()
         for key in ("status", "confirmation", "audit", "measured_at"):
             self.assertIn(key, r)
-        with __import__("unittest").mock.patch.object(cam, "_confirmation_health") as m:
+        with mock.patch.object(cam, "_confirmation_health") as m:
             cam.get_confirmation_audit_telemetry()  # cached → no re-probe
             m.assert_not_called()

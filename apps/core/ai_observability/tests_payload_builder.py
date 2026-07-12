@@ -268,9 +268,10 @@ class BuildOpsStreamPayloadTests(TestCase):
         # Bumped +3 for the OPS-2/3/4 sections (storage, chat_queue,
         # upstream_health), +1 for the executive synthesis section, +1 for the
         # WLJ Operations Phase II read-only "recovery" section, +1 for the
-        # OPS-5 "db_health" section, +1 for the OPS-7 "task_health" section, and
-        # +1 for the OPS-8a "confirmation_audit" section.
-        self.assertEqual(telemetry["sections_ok"], 31)
+        # OPS-5 "db_health" section, +1 for the OPS-7 "task_health" section,
+        # +1 for the OPS-8a "confirmation_audit" section, and +1 for the OPS-8b
+        # "media_persistence" section.
+        self.assertEqual(telemetry["sections_ok"], 32)
         self.assertEqual(telemetry["sections_degraded"], 0)
         self.assertIn("section_timings", telemetry)
-        self.assertEqual(len(telemetry["section_timings"]), 31)
+        self.assertEqual(len(telemetry["section_timings"]), 32)

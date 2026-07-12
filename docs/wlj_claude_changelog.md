@@ -6,6 +6,58 @@
 # Last Updated: 2026-07-11 (fix(security): SEC-003 PII log redaction + repo-wide scanner source-scoping)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — feat(ops-8b): Media & capture persistence health (`media_persistence` section)
+
+**Why:** OPS-8b (Operational Hardening) — visibility into whether uploaded artifacts (capture audio,
+conversation images) are safely persisted and whether anything is failing.
+
+**Mandatory pre-write investigation corrected the roadmap (it was half-wrong):**
+- **No "S3 audio bucket" in use.** Production media = **Cloudinary** (`STORAGES["default"] =
+  MediaCloudinaryStorage`, `config/settings.py:388`). The capture-audio S3 path exists but is env-gated
+  (`CAPTURE_AUDIO_BUCKET` empty default) and Cloudinary is checked first (`apps/capture/views.py`). → the
+  "S3 bucket availability" item is VOID; we expose *which store is configured* as a fact, with **no
+  synthetic S3/Cloudinary ping** (OPS-4 no-synthetic-pings discipline).
+- **Fabricated signals deliberately NOT built** (no backing evidence): duplicate-detection *rate* (dedup
+  outcome never recorded queryably — `MultimodalArtifact.status='duplicate'` never written; message
+  idempotency is cache-only), orphaned/missing objects (no `storage_ref` linkage — it's never populated;
+  prod is Cloudinary, would need remote listing), and generic persistence/verification failures (image
+  writes are fire-and-forget with swallowed exceptions; verification exists only on the dormant S3 path).
+- **Discovered gap (surfaced, not fixed — observability ≠ action):** there is **no cleanup task** for
+  expired conversation images — `AssistantMessage.image_data` (base64, 72h `image_expires_at`) is never
+  purged, so expired bytes accumulate in Postgres. Filed as a follow-up (Layer-1 hygiene task).
+
+**What (new `apps/core/ai_observability/media_persistence_monitor.py`, reuses the OPS-2/5/8a pattern) —
+built only on real deterministic truth:**
+- **Capture pipeline** (`CaptureEntry`/`PendingCapture`): 24h status breakdown, `failed_24h` + top error
+  type (via `get_error_type()`), **stuck** in-progress captures (non-terminal status, `updated_at` older
+  than 15m), `PendingCapture` abandoned + high-retry. WARNING/CRITICAL by stuck/failure volume.
+- **Image retention**: expired-but-never-purged `image_data` count (the missing-cleaner signal).
+- **Storage-config facts**: Cloudinary/S3 configured booleans + 24h artifact-ingestion count.
+- `get_media_persistence_telemetry` — cache-guarded (5 min), background-only, worst-status roll-up, each
+  block degrades to `UNAVAILABLE` (never raises).
+
+**Wiring:** `ops_telemetry.py` reader + `_section("media_persistence", …)` (SAME background cycle; request
+path reads cache only). `operations_wall.html` — full-width read-only "Media & Persistence Health" card +
+`renderMediaPersist`. **No model, no migration** (reuses existing truth). Telemetry-only.
+
+**Verification:** `tests_media_persistence.py` (9 — capture healthy/failed/stuck/critical/abandoned, image
+expired-unpurged, section shape + storage facts + cache guard); payload builder 31→32; Ops Wall v2 85;
+`check` + `makemigrations --check` clean; `renderMediaPersist` `node --check` valid. Also fixed a fragile
+`__import__("unittest").mock` idiom in the OPS-8a + OPS-8b cache-guard tests. **Real data-path proof:** dev
+DB returned capture/image HEALTHY and `storage_config` gracefully UNAVAILABLE (dev-DB drift: the
+`capture_multimodalartifact` table is missing locally; present in prod/test where migrations run) — proving
+graceful degradation.
+
+**Remaining OPS-8:** none — OPS-8a + OPS-8b complete. Next: OPS-9 (build-runner/deploy, re-scope small) and
+the discovered expired-image cleanup task.
+
+**Files:** `apps/core/ai_observability/media_persistence_monitor.py` (new),
+`apps/core/ai_observability/tests_media_persistence.py` (new),
+`apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/tests_payload_builder.py`,
+`apps/core/ai_observability/tests_confirmation_audit.py` (mock-idiom fix),
+`templates/admin_console/operations_wall.html`, `docs/WLJ_OPS_WALL_COVERAGE.md`,
+`docs/WLJ_OPERATIONS_VISION.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-12 — feat(ops-8a): Confirmation-queue & audit-pipeline health (`confirmation_audit` section)
 
 **Why:** OPS-8a (Operational Hardening) — ensure user-requested actions never silently stop executing, and

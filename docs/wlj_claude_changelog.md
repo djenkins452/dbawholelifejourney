@@ -3,8 +3,48 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (fix(security): SEC-001 CSRF — same-origin guard on SW upload endpoint → Grade A)
+# Last Updated: 2026-07-12 (feat(ops): Recovery Engine is now a first-class Ops Wall component — expose existing truth)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — feat(ops): Recovery Engine is now a first-class Ops Wall component (expose existing truth, no new logic)
+
+**Problem (product):** After making the Recovery Engine configurable via shared Railway variables
+(`OPS_RECOVERY_MODE`, `OPS_RECOVERY_BEAT_RETRY`, `OPS_RECOVERY_BEAT_RETRY_ALLOWLIST`), an operator standing at
+the Ops Wall had NO way to answer: is recovery Disabled/Shadow/Active? where does the mode come from? how many
+handlers are configured vs enabled? is Beat Retry on? how big is the allowlist? when did recovery last act?
+The truth already existed deterministically — it just wasn't surfaced. (Constitution: *"Expose existing truth
+before inventing new capability."*)
+
+**Change (smallest safe — no new recovery logic, no invented metrics):**
+- **Producer** `apps/core/operations/recovery/telemetry.py :: build_recovery_telemetry()` extended with a
+  `config` block (mode source, handler roster with per-handler enabled + allowlist counts, beat/engine/maturity
+  flags, configured/enabled rollups), plus `failed_24h` and `last_activity` — all deterministic reads the
+  background cycle was already entitled to make. Facts only, never a verdict.
+- **Single source for handler config:** new `recovery_config_snapshot()` in `recovery/handlers.py`; each handler
+  now exposes `is_enabled()` / `allowlist_size()` (base defaults in `recovery/base.py`), and each `diagnose()`
+  reuses `self.is_enabled()` so the Ops Wall snapshot can never drift from the gating the engine applies.
+  `RecoveryRegistry.handlers()` added. Mode-source label via new `recovery/mode.py :: describe_mode_source()`.
+- **Visibility no longer depends on being enabled (the key gap):** recovery telemetry previously published ONLY
+  inside the mode-gated action task, so in production `DISABLED` the Ops Wall cache was cold and showed nothing.
+  Added `publish_recovery_telemetry_task` (read-only, takes NO action) and enqueue it EVERY SAME cycle regardless
+  of mode (`same_engine.py` Step 7a, name-based — import boundary §11 preserved); the mode-gated ACTION enqueue
+  (7b) and the `_recovery_enqueue_enabled` mirror are untouched (MirrorSyncTests still green).
+- **UI:** the "Recovery Activity" card is now a first-class **Recovery Engine** panel
+  (`templates/admin_console/operations_wall.html`) rendering a deterministic status/config grid (Mode, Source,
+  Status, Handlers Enabled/Configured, Beat Retry + allowlist, Engine Retrigger + allowlist, Maturity Refresh,
+  24h Verified/Failed/Escalated/Simulations/Pending, Last Activity, Telemetry-As-Of) plus a per-handler enabled
+  roster, above the existing recent-activity feed. CSP-safe (no inline handlers), responsive.
+
+**Files:** `apps/core/operations/recovery/{telemetry,handlers,base,mode}.py`, `apps/core/operations/tasks.py`,
+`apps/core/ai_observability/{same_engine,ops_telemetry}.py`, `templates/admin_console/operations_wall.html`,
+`apps/core/operations/tests/test_recovery_shadow_mode.py`, `docs/WLJ_OPERATIONS_VISION.md`,
+`docs/WLJ_OPS_WALL_COVERAGE.md`.
+
+**Verification:** 45 recovery + 87 ops-wall/shadow tests pass (incl. new `RecoveryConfigTelemetryTests` proving
+the `config` block is present and correct when `DISABLED`); `manage.py check` clean; shell proof shows the
+current prod `DISABLED` state now surfaces `mode=DISABLED, source=OPS_RECOVERY_MODE, 3 handlers configured, 0
+enabled` with every flag/allowlist. No models changed → no migration. Request-path readers unchanged
+(cache-only); no request-path-safety impact.
 
 ## 2026-07-12 — fix(health): Body Intelligence weight now canonical; stale rollup repaired; check-in auto-association
 

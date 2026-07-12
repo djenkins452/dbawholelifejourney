@@ -45,3 +45,27 @@ def run_recovery_cycle_task(self):
 
     logger.info("Recovery cycle complete: %s", summary)
     return summary
+
+
+@shared_task(
+    name="apps.core.operations.tasks.publish_recovery_telemetry_task",
+    bind=True,
+    max_retries=0,
+    ignore_result=True,
+)
+def publish_recovery_telemetry_task(self):
+    """Publish read-only recovery telemetry EVERY SAME cycle, regardless of mode.
+
+    Recovery VISIBILITY must not depend on recovery being enabled: an operator needs
+    to see mode, configured/enabled handlers, allowlists and status precisely when
+    recovery is DISABLED. This is a read-only cache publish (a few count queries +
+    config reads) — it takes NO recovery action and is separate from the mode-gated
+    ``run_recovery_cycle_task``. Runs in the worker, never on the request path.
+    """
+    from apps.core.operations.recovery.telemetry import publish_recovery_telemetry
+
+    try:
+        publish_recovery_telemetry()
+    except Exception:  # pragma: no cover - telemetry is best-effort
+        logger.error("Recovery telemetry publish (standalone) failed", exc_info=True)
+    return {"published": True}

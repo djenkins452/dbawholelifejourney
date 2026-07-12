@@ -258,6 +258,51 @@ class ShadowTelemetryTests(TestCase):
         self.assertEqual(section["recent"][0]["mode"], RecoveryAttempt.MODE_SHADOW)
 
 
+# ── Telemetry exposes recovery CONFIG truth even when DISABLED ──────────────
+@override_settings(
+    OPS_RECOVERY_MODE="DISABLED",
+    OPS_RECOVERY_ENABLED=False,
+    OPS_RECOVERY_BEAT_RETRY=True,
+    OPS_RECOVERY_BEAT_RETRY_ALLOWLIST=["apps.core.tasks.some_task"],
+    OPS_RECOVERY_ENGINE_RETRIGGER=False,
+    OPS_RECOVERY_ENGINE_ALLOWLIST=[],
+    OPS_RECOVERY_MATURITY_SNAPSHOT=False,
+)
+class RecoveryConfigTelemetryTests(TestCase):
+    """Config visibility must NOT depend on recovery being enabled — an operator
+    needs mode source, handler roster, and allowlists precisely when DISABLED."""
+
+    def test_config_block_present_when_disabled(self):
+        from apps.core.operations.recovery.handlers import register_default_handlers
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+
+        register_default_handlers()  # idempotent — ensure the real handlers exist
+        section = build_recovery_telemetry()
+
+        self.assertEqual(section["mode"], DISABLED)
+        self.assertEqual(section["mode_source"], "OPS_RECOVERY_MODE")
+        cfg = section["config"]
+        self.assertIsNotNone(cfg, "config block must be present even when DISABLED")
+        # The three real handlers are always CONFIGURED (registered), even off.
+        self.assertGreaterEqual(cfg["handlers_configured"], 3)
+        # Only the beat-retry flag is on in this scenario.
+        self.assertTrue(cfg["beat_retry_enabled"])
+        self.assertEqual(cfg["beat_retry_allowlist_count"], 1)
+        self.assertFalse(cfg["engine_retrigger_enabled"])
+        self.assertFalse(cfg["maturity_snapshot_enabled"])
+        self.assertGreaterEqual(cfg["handlers_enabled"], 1)
+        # Facts-only: every handler row carries its enabled flag + allowlist count.
+        beat = next(h for h in cfg["handlers"] if h["monitor_key"] == "scheduled_task")
+        self.assertTrue(beat["enabled"])
+        self.assertEqual(beat["allowlist_count"], 1)
+
+    def test_describe_mode_source_reflects_legacy_bridge(self):
+        from apps.core.operations.recovery.mode import describe_mode_source
+
+        with override_settings(OPS_RECOVERY_MODE="", OPS_RECOVERY_ENABLED=True):
+            self.assertEqual(describe_mode_source(), "OPS_RECOVERY_ENABLED (legacy bridge)")
+
+
 # ── SAME enqueue mirror stays in exact sync with the canonical resolver ─────
 class MirrorSyncTests(TestCase):
     """The SAME enqueue gate mirrors get_recovery_mode() via settings only (import

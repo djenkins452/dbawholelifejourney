@@ -64,10 +64,16 @@ class BeatTaskRetryHandler(RecoveryHandler):
     def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
         return f"re-enqueue Beat task '{diagnosis.target}'"
 
+    def is_enabled(self) -> bool:
+        return bool(getattr(settings, "OPS_RECOVERY_BEAT_RETRY", False))
+
+    def allowlist_size(self) -> int:
+        return len(_beat_retry_allowlist())
+
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
         task_name = (anomaly.engine_name or "").strip()
         allow = task_name in _beat_retry_allowlist()
-        enabled = bool(getattr(settings, "OPS_RECOVERY_BEAT_RETRY", False))
+        enabled = self.is_enabled()
         recoverable = allow and enabled
         return RecoveryDiagnosis(
             target=task_name,
@@ -161,12 +167,18 @@ class EngineStarvationRetriggerHandler(RecoveryHandler):
     def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
         return f"re-trigger engine '{diagnosis.target}'"
 
+    def is_enabled(self) -> bool:
+        return bool(getattr(settings, "OPS_RECOVERY_ENGINE_RETRIGGER", False))
+
+    def allowlist_size(self) -> int:
+        return len(_engine_allowlist())
+
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
         from apps.core.ai_observability.engine_registry import get_engine_meta
 
         engine = (anomaly.engine_name or "").strip()
         allow = engine in _engine_allowlist()
-        enabled = bool(getattr(settings, "OPS_RECOVERY_ENGINE_RETRIGGER", False))
+        enabled = self.is_enabled()
         meta = get_engine_meta(engine)
         can_run = bool(meta and meta.get("can_manual_run"))
         recoverable = allow and enabled and can_run
@@ -246,8 +258,11 @@ class MaturitySnapshotRefreshHandler(RecoveryHandler):
     def describe_action(self, diagnosis: RecoveryDiagnosis) -> str:
         return "recompute the system maturity snapshot (daily upsert)"
 
+    def is_enabled(self) -> bool:
+        return bool(getattr(settings, "OPS_RECOVERY_MATURITY_SNAPSHOT", False))
+
     def diagnose(self, anomaly) -> RecoveryDiagnosis:
-        enabled = bool(getattr(settings, "OPS_RECOVERY_MATURITY_SNAPSHOT", False))
+        enabled = self.is_enabled()
         return RecoveryDiagnosis(
             target="SystemMaturitySnapshot",
             reason=(
@@ -295,10 +310,48 @@ def register_default_handlers() -> None:
     registry.register(MaturitySnapshotRefreshHandler())
 
 
+def recovery_config_snapshot() -> dict:
+    """Deterministic recovery CONFIGURATION facts for the Ops Wall (read-only).
+
+    Single source for "which handlers exist and which operator flags enable them".
+    Reads only settings + the process-wide handler registry (no DB, no compute) so
+    it is safe to call from the background telemetry cycle. Facts only — never a
+    verdict (Constitution I.4). ``register_default_handlers`` is idempotent, so we
+    ensure the registry is populated before reading it.
+    """
+    if len(registry) == 0:
+        register_default_handlers()
+
+    handlers = []
+    for h in registry.handlers():
+        atypes = sorted(h.handled_anomaly_types)
+        handlers.append({
+            "name": type(h).__name__,
+            "monitor_key": h.monitor_key,
+            "anomaly_type": atypes[0] if atypes else "",
+            "classification": getattr(h.policy, "classification", ""),
+            "enabled": h.is_enabled(),
+            "allowlist_count": h.allowlist_size(),
+        })
+    handlers.sort(key=lambda x: x["monitor_key"])
+
+    return {
+        "handlers": handlers,
+        "handlers_configured": len(handlers),
+        "handlers_enabled": sum(1 for h in handlers if h["enabled"]),
+        "beat_retry_enabled": bool(getattr(settings, "OPS_RECOVERY_BEAT_RETRY", False)),
+        "beat_retry_allowlist_count": len(_beat_retry_allowlist()),
+        "engine_retrigger_enabled": bool(getattr(settings, "OPS_RECOVERY_ENGINE_RETRIGGER", False)),
+        "engine_allowlist_count": len(_engine_allowlist()),
+        "maturity_snapshot_enabled": bool(getattr(settings, "OPS_RECOVERY_MATURITY_SNAPSHOT", False)),
+    }
+
+
 __all__ = [
     "BeatTaskRetryHandler",
     "EngineStarvationRetriggerHandler",
     "MaturitySnapshotRefreshHandler",
     "register_default_handlers",
+    "recovery_config_snapshot",
     "R0", "R1",
 ]

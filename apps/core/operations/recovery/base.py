@@ -81,6 +81,20 @@ class RecoveryHandler:
         """
         return f"execute recovery for '{diagnosis.target}'"
 
+    def is_enabled(self) -> bool:
+        """Is this handler's operator flag on? (read-only settings fact).
+
+        SINGLE source for "is handler X enabled" — ``diagnose()`` reuses this so the
+        Ops Wall telemetry snapshot can never drift from the gating the engine
+        actually applies. Default False (ship-dark); each handler overrides.
+        """
+        return False
+
+    def allowlist_size(self) -> Optional[int]:
+        """Count of allowlisted targets for this handler, or ``None`` if it has no
+        allowlist (a read-only config fact for Ops Wall display, never a verdict)."""
+        return None
+
 
 class RecoveryRegistry:
     """Maps an incident's ``anomaly_type`` to the handler that recovers it."""
@@ -94,6 +108,10 @@ class RecoveryRegistry:
 
     def handler_for(self, anomaly_type: str) -> Optional[RecoveryHandler]:
         return self._by_type.get(anomaly_type)
+
+    def handlers(self) -> list[RecoveryHandler]:
+        """Distinct registered handler instances (a handler may claim >1 type)."""
+        return list(dict.fromkeys(self._by_type.values()))
 
     def __len__(self) -> int:
         return len(self._by_type)

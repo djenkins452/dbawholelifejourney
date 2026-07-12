@@ -62,6 +62,21 @@ def get_recovery_mode() -> str:
     return mode
 
 
+def describe_mode_source() -> str:
+    """Deterministic label for WHERE the effective mode came from (read-only fact).
+
+    Mirrors the precedence in ``get_recovery_mode()`` so the Ops Wall can tell an
+    operator whether the mode is driven by ``OPS_RECOVERY_MODE`` or the legacy
+    ``OPS_RECOVERY_ENABLED`` bridge. This is a fact for display — never a verdict.
+    """
+    raw = str(getattr(settings, "OPS_RECOVERY_MODE", "") or "").strip().upper()
+    if raw in VALID_MODES:
+        return "OPS_RECOVERY_MODE"
+    if bool(getattr(settings, "OPS_RECOVERY_ENABLED", False)):
+        return "OPS_RECOVERY_ENABLED (legacy bridge)"
+    return "default (DISABLED)"
+
+
 def recovery_is_enabled() -> bool:
     """True when recovery should run at all (SHADOW or ACTIVE) — the enqueue gate."""
     return get_recovery_mode() != DISABLED

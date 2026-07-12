@@ -132,6 +132,18 @@ activity — engineering is complete (recovery framework + 3 R1 handlers + runbo
 **Future capability (kept in the vision, not built):** *backup verification* — no trustworthy automated
 signal exists today (Railway-managed); operator-verified for now, never faked with an artificial status.
 
+**Recovery Engine component as-built (2026-07-12, ADR-24):** the read-only "Recovery Activity" card is now a
+first-class **Recovery Engine** panel exposing existing deterministic truth (no new recovery logic, no invented
+metrics). The producer `apps/core/operations/recovery/telemetry.py::build_recovery_telemetry()` adds a `config`
+block — mode + source, configured vs enabled handlers, per-handler enabled + allowlist counts, beat/engine/
+maturity flags — plus `failed_24h` and `last_activity`; handler config comes from the single source
+`recovery/handlers.py::recovery_config_snapshot()` (each handler's `is_enabled()`/`allowlist_size()`, reused by
+`diagnose()`). Critically, telemetry now publishes **every SAME cycle regardless of mode** via a separate
+read-only `publish_recovery_telemetry_task` (name-based enqueue, §11 boundary preserved), so mode/handlers/
+allowlists/status are visible even when recovery is **DISABLED** — the state in which an operator most needs
+them. The Ops Wall reader (`ops_telemetry.py::_get_recovery_telemetry`) stays cache-only (request-path safe).
+Tests: `test_recovery_shadow_mode.py::RecoveryConfigTelemetryTests`.
+
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.
 - **Actual runs** are recorded by Celery `task_prerun`/`task_postrun` signals (connected in `apps/core/apps.py::ready()`), each UPSERTing one current-state `ScheduledTaskRun` row per task (bounded storage even for the 30s `cos_keepalive`).

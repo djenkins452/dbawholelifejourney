@@ -123,11 +123,28 @@ def run_same():
     try:
         from django.conf import settings
 
+        from celery import current_app
+
+        from apps.core.celery_utils import safe_enqueue
+
+        # 7a — ALWAYS publish read-only recovery telemetry (mode, handler roster,
+        # allowlists, status), regardless of mode. Recovery VISIBILITY must not
+        # depend on recovery being ENABLED: the operator needs to see config +
+        # status precisely when recovery is DISABLED. This task takes NO recovery
+        # action. Referenced by NAME (never imported) to preserve the frozen import
+        # boundary (truth never imports action — WLJ_OPERATIONS_VISION.md §11).
+        _telemetry_task = current_app.tasks.get(
+            "apps.core.operations.tasks.publish_recovery_telemetry_task"
+        )
+        if _telemetry_task is not None:
+            safe_enqueue(_telemetry_task)
+
+        # 7b — Hand off to the mode-gated recovery ACTION cycle ONLY when recovery
+        # is NOT DISABLED (SHADOW or ACTIVE). DISABLED → no action enqueue (true
+        # no-op for the action path). The mode predicate MIRRORS the canonical
+        # resolver apps.core.operations.recovery.mode.get_recovery_mode()
+        # (deliberately NOT imported) — kept in sync by MirrorSyncTests.
         if _recovery_enqueue_enabled(settings):
-            from celery import current_app
-
-            from apps.core.celery_utils import safe_enqueue
-
             _recovery_task = current_app.tasks.get(
                 "apps.core.operations.tasks.run_recovery_cycle_task"
             )

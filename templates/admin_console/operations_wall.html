@@ -2526,6 +2526,59 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     padding: 10px 14px 14px;
     flex: 1;
 }
+/* Recovery Engine — deterministic status/config grid (facts only) */
+.ops-recovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.ops-recovery-tile {
+    border: 1px solid var(--ops-border, rgba(255,255,255,0.08));
+    border-radius: 8px;
+    padding: 7px 10px;
+    background: rgba(255,255,255,0.02);
+    min-width: 0;
+}
+.ops-recovery-tile-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ops-text-dim);
+    margin-bottom: 3px;
+}
+.ops-recovery-tile-value {
+    font-size: 13px;
+    font-weight: 600;
+    word-break: break-word;
+}
+.ops-recovery-handlers {
+    border-top: 1px solid var(--ops-border, rgba(255,255,255,0.08));
+    padding-top: 8px;
+    margin-bottom: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.ops-recovery-handler-line {
+    font-size: 12px;
+    line-height: 1.4;
+}
+.ops-recovery-handler-key {
+    font-weight: 600;
+    color: var(--ops-text);
+}
+.ops-recovery-feed-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ops-text-dim);
+    margin: 4px 0 4px;
+}
+.ops-recovery-feed-label:empty { display: none; }
+@media (max-width: 480px) {
+    .ops-recovery-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+}
 /* Nested sections inside cards: remove ops-section spacing */
 .ops-cmd-card-body > .ops-section { margin-bottom: 0; }
 .ops-cmd-card-body > .ops-glass {
@@ -4269,14 +4322,17 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 </div>
             </div>
 
-            <!-- Recovery Activity (WLJ Operations Phase II — full width, read-only) -->
+            <!-- Recovery Engine (WLJ Operations Phase II — full width, read-only) -->
             <div class="ops-diagnostics-full">
                 <div class="ops-cmd-card ops-glass">
                     <div class="ops-cmd-card-header">
-                        <span class="ops-cmd-card-title">Recovery Activity</span>
+                        <span class="ops-cmd-card-title">Recovery Engine</span>
                         <span class="ops-sched-status-label" id="recoverySummary">—</span>
                     </div>
                     <div class="ops-cmd-card-body">
+                        <!-- Deterministic status/config grid (populated by renderRecovery) -->
+                        <div class="ops-recovery-status" id="opsRecoveryStatus"></div>
+                        <div class="ops-recovery-feed-label" id="opsRecoveryFeedLabel"></div>
                         <div class="ops-feed" id="opsRecovery">
                             <div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">Waiting for data...</div>
                         </div>
@@ -6401,11 +6457,15 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     function renderRecovery(rec) {
         var container = document.getElementById('opsRecovery');
         var summaryEl = document.getElementById('recoverySummary');
+        var statusEl = document.getElementById('opsRecoveryStatus');
+        var feedLabelEl = document.getElementById('opsRecoveryFeedLabel');
         if (!container) return;
 
         if (!rec) {
             container.innerHTML = '<div class="ops-feed-line" style="color:var(--ops-text-dim);justify-content:center">No data</div>';
             if (summaryEl) summaryEl.textContent = '—';
+            if (statusEl) statusEl.innerHTML = '';
+            if (feedLabelEl) feedLabelEl.textContent = '';
             return;
         }
 
@@ -6435,6 +6495,59 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 mode === 'SHADOW' ? 'DELAYED' :   // amber-ish: distinct, never "alive/green"
                 mode === 'ACTIVE' ? 'ALIVE' : ''
             );
+        }
+
+        // ── Deterministic status/config grid (facts only — never a verdict) ──
+        if (statusEl) {
+            var cfg = rec.config || {};
+            var modeColor = mode === 'ACTIVE' ? '#3fd07a' : (mode === 'SHADOW' ? '#b98aff' : 'var(--ops-text-dim)');
+            var statusColor = rec.status === 'ATTENTION' ? '#ff5a5a' : '#3fd07a';
+            function onoff(v) { return v ? 'On' : 'Off'; }
+            function onoffColor(v) { return v ? '#3fd07a' : 'var(--ops-text-dim)'; }
+            function tile(label, value, color) {
+                return '<div class="ops-recovery-tile">' +
+                    '<div class="ops-recovery-tile-label">' + escapeHtml(label) + '</div>' +
+                    '<div class="ops-recovery-tile-value" style="color:' + (color || 'var(--ops-text)') + '">' + value + '</div>' +
+                    '</div>';
+            }
+            var lastActivity = rec.last_activity ? new Date(rec.last_activity).toLocaleString() : 'None';
+            var asOf = rec.computed_at ? new Date(rec.computed_at).toLocaleTimeString() : '—';
+            var handlersConfigured = (cfg.handlers_configured != null) ? cfg.handlers_configured : '—';
+            var handlersEnabled = (cfg.handlers_enabled != null) ? cfg.handlers_enabled : '—';
+
+            var tiles = ''
+                + tile('Mode', escapeHtml(modeLabel), modeColor)
+                + tile('Source', escapeHtml(rec.mode_source || '—'), 'var(--ops-text-dim)')
+                + tile('Status', escapeHtml(rec.status || 'OK'), statusColor)
+                + tile('Handlers Enabled', handlersEnabled + ' / ' + handlersConfigured, handlersEnabled > 0 ? '#3fd07a' : 'var(--ops-text-dim)')
+                + tile('Beat Retry', onoff(cfg.beat_retry_enabled) + ' · allowlist ' + (cfg.beat_retry_allowlist_count != null ? cfg.beat_retry_allowlist_count : 0), onoffColor(cfg.beat_retry_enabled))
+                + tile('Engine Retrigger', onoff(cfg.engine_retrigger_enabled) + ' · allowlist ' + (cfg.engine_allowlist_count != null ? cfg.engine_allowlist_count : 0), onoffColor(cfg.engine_retrigger_enabled))
+                + tile('Maturity Refresh', onoff(cfg.maturity_snapshot_enabled), onoffColor(cfg.maturity_snapshot_enabled))
+                + tile('Verified (24h)', (counts.verified_24h || 0), (counts.verified_24h ? '#3fd07a' : 'var(--ops-text-dim)'))
+                + tile('Failed (24h)', (counts.failed_24h || 0), (counts.failed_24h ? '#ffb020' : 'var(--ops-text-dim)'))
+                + tile('Escalated (24h)', (counts.escalated_24h || 0), (counts.escalated_24h ? '#ff5a5a' : 'var(--ops-text-dim)'))
+                + tile('Simulations (24h)', (counts.shadowed_24h || 0) + (counts.would_recover_24h ? ' · ' + counts.would_recover_24h + ' would-recover' : ''), (counts.shadowed_24h ? '#b98aff' : 'var(--ops-text-dim)'))
+                + tile('Pending', (counts.pending || 0), (counts.pending ? '#7aa2ff' : 'var(--ops-text-dim)'))
+                + tile('Last Activity', escapeHtml(lastActivity), 'var(--ops-text-dim)')
+                + tile('Telemetry As Of', escapeHtml(asOf), 'var(--ops-text-dim)');
+
+            var handlerLines = '';
+            var hlist = (cfg.handlers || []);
+            if (hlist.length) {
+                handlerLines = '<div class="ops-recovery-handlers">' + hlist.map(function(h) {
+                    var en = h.enabled;
+                    var allow = (h.allowlist_count != null) ? (' · allowlist ' + h.allowlist_count) : '';
+                    return '<div class="ops-recovery-handler-line">' +
+                        '<span style="color:' + (en ? '#3fd07a' : 'var(--ops-text-dim)') + '">' + (en ? '● enabled ' : '○ disabled') + '</span> ' +
+                        '<span class="ops-recovery-handler-key">' + escapeHtml(h.monitor_key || h.name || '') + '</span> ' +
+                        '<span style="color:var(--ops-text-dim)">' + escapeHtml((h.classification || '') + ' · ' + (h.anomaly_type || '') + allow) + '</span>' +
+                        '</div>';
+                }).join('') + '</div>';
+            }
+            statusEl.innerHTML = '<div class="ops-recovery-grid">' + tiles + '</div>' + handlerLines;
+        }
+        if (feedLabelEl) {
+            feedLabelEl.textContent = 'Most recent recovery activity';
         }
 
         container.innerHTML = '';

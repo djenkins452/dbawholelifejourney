@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (fix(ops): restore Operations Wall scrolling in wall-mode)
+# Last Updated: 2026-07-13 (feat(rte): editor toolbar stays pinned while writing long documents)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): editor toolbar stays pinned to the top of the editor while writing
+
+UX refinement to the shared Rich Text Editor: the toolbar now stays visible while writing long documents. Fix
+was two bugs in `wlj-rich-text.css`: (1) the toolbar declared `position: sticky` then `position: relative`
+later (relative won → never sticky); (2) `.wlj-rte` had `overflow: hidden`, which makes it a scroll container
+and defeats descendant sticky. Now the toolbar is `position: sticky; top: 0` (mobile `top: 64px` to clear the
+sticky global header) with `z-index: 20`, and `.wlj-rte` sets no `overflow` (corner rounding moved to the
+toolbar top + content bottom). Sticky establishes the containing block, so the link popover stays anchored and
+layers above content. Behaviour: the toolbar pins to the top of the page scroll region **while the editor is
+on screen** and releases once you scroll past the editor — never pinned to the window independently. Verified
+live: desktop long Journal entry (toolbar pins at 56 below the global header through the scroll, content scrolls
+beneath, releases past the editor; link popover still renders above content) and long Faith reflection (same
+component, pins correctly); mobile pins at 64 just below the header with no overlap, toolbar wraps gracefully.
+Bumped `wlj-rich-text.css` `?v` to 20260713a.
 
 ## 2026-07-13 — fix(ops): restore Operations Wall scrolling in wall-mode (fixed-header shell × wall-mode incompatibility)
 

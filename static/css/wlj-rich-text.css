@@ -9,7 +9,9 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg, 8px);
     background: var(--color-background);
-    overflow: hidden;
+    /* NOTE: no `overflow` here — an overflow value would make .wlj-rte a scroll
+       container and defeat the sticky toolbar below. Corner rounding is applied
+       to the toolbar (top) and content (bottom) instead of clipped by overflow. */
 }
 
 /* ---- Toolbar ------------------------------------------------------------ */
@@ -21,10 +23,16 @@
     padding: var(--space-2, 8px);
     border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
-    position: sticky;          /* stays reachable while the field scrolls */
+    border-top-left-radius: var(--radius-lg, 8px);
+    border-top-right-radius: var(--radius-lg, 8px);
+    /* Sticky WITHIN the editor: pins to the top of the page scroll container
+       while this .wlj-rte field is on screen, and releases (scrolls away) once
+       the field is scrolled past — never pinned to the window independently.
+       `position: sticky` also establishes the containing block for the absolutely
+       positioned link popover below, so it stays anchored to the toolbar. */
+    position: sticky;
     top: 0;
-    z-index: 2;
-    position: relative;        /* anchor for the link popover */
+    z-index: 20;               /* above editor content; below global chrome (100) */
 }
 
 .wlj-rte-group {
@@ -94,7 +102,11 @@
 .wlj-rte-linkpop-apply { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
 
 /* ---- Editable content area --------------------------------------------- */
-.wlj-rte-content { background: var(--color-background); }
+.wlj-rte-content {
+    background: var(--color-background);
+    border-bottom-left-radius: var(--radius-lg, 8px);
+    border-bottom-right-radius: var(--radius-lg, 8px);
+}
 .wlj-rte-prose {
     padding: var(--space-4, 16px);
     outline: none;
@@ -201,7 +213,9 @@
 
 /* ---- Responsive: keep tap targets comfortable, allow wrap --------------- */
 @media (max-width: 768px) {
-    .wlj-rte-toolbar { gap: 2px; padding: 6px; }
+    /* On mobile the global .site-header is sticky at top:0 (z-index 50); stick the
+       editor toolbar just below it so it isn't hidden behind the header. */
+    .wlj-rte-toolbar { gap: 2px; padding: 6px; top: 64px; }
     .wlj-rte-group { padding-right: 4px; margin-right: 2px; }
     .wlj-rte-btn { min-width: 36px; height: 36px; }  /* >=44px combined tap area */
     .wlj-rte-linkpop { left: 6px; right: 6px; }

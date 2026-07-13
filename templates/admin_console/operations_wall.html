@@ -410,6 +410,16 @@ body.wall-mode .desktop-main-area {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    /* Restore a bounded, scrollable height. The fixed-header shell
+       (desktop-nav.css) makes .desktop-main-area the single scroll region, but it
+       gets its height from flex:1 INSIDE the flex .desktop-layout-wrapper. Wall-mode
+       sets that wrapper to display:block (below), which makes flex:1 inert — so the
+       main area sized to its content and its overflow-y:auto never engaged, leaving
+       content past the viewport clipped by body{overflow:hidden} and unscrollable.
+       An explicit viewport height re-engages the scroll region (top bars are hidden
+       in wall-mode, so the full 100vh is available). */
+    height: 100vh;
+    overflow-y: auto;
 }
 body.wall-mode .desktop-layout-wrapper {
     display: block !important;

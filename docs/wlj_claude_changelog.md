@@ -3,8 +3,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Faith reflections)
+# Last Updated: 2026-07-13 (fix(ops): restore Operations Wall scrolling in wall-mode)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — fix(ops): restore Operations Wall scrolling in wall-mode (fixed-header shell × wall-mode incompatibility)
+
+**Symptom:** the Operations Wall would not scroll at all in wall-mode — no scrollbar, wheel/PageUp-Down/keyboard
+inert, page "locked" — whenever wall content exceeded the viewport. Reported right after the Recovery Events UX
+deploy, but **that change was not the cause** (proven below).
+
+**Proven root cause (CSS cascade + git history, not guessed):**
+- The fixed-header shell (`static/css/desktop-nav.css`, commit `add18eba`) made `body.has-desktop-nav` a
+  single-scroll region: `body { height:100vh; overflow:hidden }` clips, and the **only** scroll container is
+  `.desktop-main-area { flex:1; overflow-y:auto }` — whose height comes from `flex:1` **inside the flex**
+  `.desktop-layout-wrapper`.
+- Wall-mode (pre-existing, `operations_wall.html`) overrides `.desktop-layout-wrapper { display:block !important }`.
+  With a **block** parent, `.desktop-main-area`'s `flex:1` is **inert** (flex item sizing only applies inside a
+  flex container), so it sized to its content height and its `overflow-y:auto` never engaged — content past the
+  viewport was clipped by `body{overflow:hidden}` and unscrollable. This is **global to wall-mode at page load**
+  (wall-mode is restored from `localStorage` before any interaction), independent of Recovery Events.
+- The new `scrollIntoView` (click-time) only *appeared* broken because wall-mode had no functioning scroll
+  container — it is not the cause; a load-time lock cannot come from a click handler.
+
+**Fix (smallest safe — 1 CSS rule, wall-mode-scoped):** give `.desktop-main-area` an explicit bounded height in
+wall-mode so its existing `overflow-y:auto` re-engages: `body.wall-mode .desktop-main-area { height:100vh;
+overflow-y:auto }`. Top bars/rails are `display:none` in wall-mode, so the full viewport height is available. No
+layout redesign, no added whitespace, no change outside wall-mode. This also makes the Recovery-Events
+`scrollIntoView` work as intended (there is now a real scroll region to move). (`operations_wall.html`)
+
+**Verification:** root cause proven by the deterministic CSS cascade (a `flex:1` item under a `display:block`
+parent has no bounded height → `overflow-y:auto` cannot engage → body `overflow:hidden` clips) corroborated by
+git history (`add18eba` shell vs the pre-existing wall-mode `display:block` override); the fix restores a bounded
+scroll region. `manage.py check` clean; no model/JS/test-logic change (pure CSS layout). Browser driving was
+attempted for a live before/after but the CDP tooling was unresponsive; the fix is a well-understood,
+wall-mode-scoped CSS addition with zero effect on any non-wall page.
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Faith reflections
 

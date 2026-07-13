@@ -52,7 +52,7 @@
     {% if person.bio %}
     <section class="lg-card profile-bio">
         <h2 class="profile-sec-title">Who they were</h2>
-        <p>{{ person.bio|linebreaks }}</p>
+        <div class="wlj-rich">{{ person.bio|safe }}</div>
     </section>
     {% endif %}
 

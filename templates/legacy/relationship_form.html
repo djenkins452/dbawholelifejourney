@@ -1,6 +1,7 @@
 {% extends "legacy/base_legacy.html" %}
 
 {% block legacy_content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="lib merge-page">
     <a href="{% url 'legacy:person_detail' person.pk %}" class="editor-back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="legacy-ico-sm"><path d="M15 18l-6-6 6-6"/></svg>

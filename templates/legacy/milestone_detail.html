@@ -18,7 +18,7 @@
     </div>
 
     {% if milestone.description %}
-    <section class="lg-card profile-bio"><p>{{ milestone.description|linebreaks }}</p></section>
+    <section class="lg-card profile-bio"><div class="wlj-rich">{{ milestone.description|safe }}</div></section>
     {% endif %}
 
     <section class="profile-sec">

@@ -28,6 +28,7 @@ from django.conf import settings
 from django.db import models
 
 from apps.core.models import UserOwnedModel
+from apps.core.rich_text import RichTextMixin
 
 
 class LegacyOwnedModel(UserOwnedModel):
@@ -86,7 +87,7 @@ class Media(LegacyOwnedModel):
 # ──────────────────────────────────────────────────────────────────────────
 # Person — canonical node (the primary index of a life)
 # ──────────────────────────────────────────────────────────────────────────
-class Person(LegacyOwnedModel):
+class Person(RichTextMixin, LegacyOwnedModel):
     """A person whose life is preserved, who contributes, or who is referenced."""
 
     display_name = models.CharField(max_length=200, db_index=True)
@@ -108,6 +109,9 @@ class Person(LegacyOwnedModel):
     birth_date = models.DateField(null=True, blank=True)
     death_date = models.DateField(null=True, blank=True)
     bio = models.TextField(blank=True, help_text="A 'who they were' narrative")
+    bio_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"bio": "bio_plain"}
     # The person's canonical PORTRAIT — conceptually owned by the Person; the Media
     # model just stores the file. One portrait, consumed by every view (Family Tree,
     # People, Relationships, stories, …). Formerly `primary_photo`.
@@ -163,12 +167,15 @@ def fmt_life_date(full, year):
 # ──────────────────────────────────────────────────────────────────────────
 # Place — canonical node (spatial anchor of memory)
 # ──────────────────────────────────────────────────────────────────────────
-class Place(LegacyOwnedModel):
+class Place(RichTextMixin, LegacyOwnedModel):
     """A location with meaning — a home, a town, a favorite table."""
 
     name = models.CharField(max_length=200, db_index=True)
     location_text = models.CharField(max_length=255, blank=True)
     description = models.TextField(blank=True, help_text="A 'what it was' narrative")
+    description_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"description": "description_plain"}
     # Set when a public place is verified via lookup (name + location only —
     # no deep research). Blank for personal places like "Grandma's house".
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -241,7 +248,7 @@ class Place(LegacyOwnedModel):
 # ──────────────────────────────────────────────────────────────────────────
 # Life Milestone — a major chapter of a life (an organizing layer, not an owner)
 # ──────────────────────────────────────────────────────────────────────────
-class LifeMilestone(LegacyOwnedModel):
+class LifeMilestone(RichTextMixin, LegacyOwnedModel):
     """
     A major chapter of a person's life — Marriage, Bought First House, Birth of
     a Child, Moved to Tennessee, Met Eric and Carrie, Retirement…
@@ -274,6 +281,10 @@ class LifeMilestone(LegacyOwnedModel):
     kind = models.CharField(max_length=14, choices=Kind.choices, default=Kind.OTHER)
     year = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     description = models.TextField(blank=True)
+    description_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"description": "description_plain"}
+
     significance = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
@@ -669,7 +680,7 @@ def classify_category(relationship_type):
     return "other"
 
 
-class Relationship(LegacyOwnedModel):
+class Relationship(RichTextMixin, LegacyOwnedModel):
     """A typed, directional, time-bounded relationship between two people. This
     model is the canonical truth for ALL relationships — family, romantic,
     professional, social, faith, and beyond. Specialized views (the Family tree,
@@ -718,6 +729,10 @@ class Relationship(LegacyOwnedModel):
     # overwrites a user-edited relationship — Canonical Truth wins over a poorer source.
     user_edited = models.BooleanField(default=False)
     notes = models.TextField(blank=True)
+    notes_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"notes": "notes_plain"}
+
     started_year = models.PositiveIntegerField(null=True, blank=True)
     ended_year = models.PositiveIntegerField(null=True, blank=True)
     # Full dates when known (e.g. GEDCOM marriage/divorce day).

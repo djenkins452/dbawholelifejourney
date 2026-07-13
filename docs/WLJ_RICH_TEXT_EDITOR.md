@@ -102,6 +102,41 @@ codes, search/keyword fields, tokens/OCR/error/system text, and AI-generated
 display text. When in doubt: is the user *writing prose*? If not, leave it a
 plain input.
 
+## Rollout status & intentionally plain-text fields
+
+**Guiding rule:** *if a user is expected to write paragraphs, they get the editor; if a field is
+typically one or two sentences, an annotation, or operational metadata, it stays plain text.* We do
+**not** mechanically convert every field named `notes`.
+
+**Adopted (rich text):**
+- Journal `body`; Notes `body`; Relationships `Person.notes`, `PersonGroup.description`;
+  Faith `PrayerRequest.description`/`answer_notes`, `FaithMilestone.description`, `BibleStudyNote.content`;
+  Legacy `Person.bio`, `Place.description`, `LifeMilestone.description`, `Relationship.notes`.
+
+**Intentionally left plain (with reasoning):**
+- **Legacy `Memory.body`** — *deferred, not declined.* It is the highest-value legacy narrative, but it also
+  feeds the revision history (`MemoryRevision.body`), AI `Output` generation, `body__icontains` search, and the
+  immersive preservation renderer, and lives under the Legacy preservation architecture (importer never
+  discards; Smart Refresh). It deserves a dedicated pass (route Output/search to the shadow, decide revision
+  rendering) rather than a mechanical conversion.
+- **Health log `notes`** (weight/glucose/sleep/workout/… entries), **Medical** `LabPanel`/`LabResult`/
+  `MedicalDocument.notes`, **Finance** account/transaction/budget/goal `notes`, **Life** task/inventory/
+  maintenance/pet/document `notes`, **Meals** `MealPlan.notes` — these are short per-entry annotations /
+  operational metadata rendered in table cells and previews, not paragraph writing. Plain text is the right fit.
+- **Life** `Recipe.instructions`/`ingredients`, `Routine.description`, `SignificantEvent.custom_message` —
+  structured or one-line content, not free prose.
+- **Users `UserPreferences.ai_profile`** — consumed directly as AI prompt context (many builders read it);
+  it is data-for-the-model more than a document, and rich markup would leak into prompts. Kept plain.
+- **Billing `FeatureSuggestion.suggestion_text`** — feeds plain-text notification emails; rich HTML would
+  degrade there. Kept plain.
+- **Purpose** goal/intention descriptions & reflections (`LifeGoal`, `HabitGoal`, `ChangeIntention`,
+  `ReflectionResponse`) and **Life** `Project` description/purpose/reflection are genuine paragraph surfaces and
+  are good future adopters — they use **generic CBVs without ModelForms**, so adopting them needs a
+  `form_class`/`get_form` override (a different wiring than the ModelForm apps). Queued as the next pass.
+
+Any future field adopts the editor by following “How to adopt a field” above — the pattern and the
+`backfill_rich_text` migration helper make it a small change.
+
 ## Rebuilding / upgrading the bundle
 
 See `frontend/tiptap/README.md`. In short: edit `frontend/tiptap/src/index.js`

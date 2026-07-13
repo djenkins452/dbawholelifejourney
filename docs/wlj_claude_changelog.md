@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): editor toolbar stays pinned while writing long documents)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Legacy narratives)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Legacy narratives
+
+Adopted the shared editor for the clear Legacy narrative surfaces (same component): `Person.bio`,
+`Place.description`, `LifeMilestone.description`, `Relationship.notes` are now `RichTextMixin` HTML + `*_plain`
+shadows; forms use `WLJRichTextWidget` (legacy forms render fields via `{% for field in form %}`, so the widget
+renders automatically); person/place/milestone detail views render `.wlj-rich |safe` (were `|linebreaks`);
+form templates load the editor assets (the sticky toolbar works within the immersive `.legacy-scroll`
+container). Migrations `legacy.0036…` + backfill `legacy.0037_backfill_legacy_richtext` (shared helper;
+lossless). **Deferred `Memory.body` on purpose** — it's the top legacy narrative but feeds the revision history,
+AI Output generation, search, and the preservation renderer, so it needs a dedicated pass, not a mechanical
+conversion (documented in `docs/WLJ_RICH_TEXT_EDITOR.md`, which also now lists every intentionally-plain field
+and the reasoning per the paragraphs-vs-annotation rule). Verified: `Person.bio` sanitization + shadow correct;
+`apps.legacy` suite green.
 
 ## 2026-07-13 — feat(rte): editor toolbar stays pinned to the top of the editor while writing
 

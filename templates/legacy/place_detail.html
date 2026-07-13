@@ -194,7 +194,7 @@
     {% if place.description %}
     <section class="lg-card profile-bio">
         <h2 class="profile-sec-title">What it was</h2>
-        <p>{{ place.description|linebreaks }}</p>
+        <div class="wlj-rich">{{ place.description|safe }}</div>
     </section>
     {% endif %}
 

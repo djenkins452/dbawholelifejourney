@@ -2,6 +2,7 @@
 
 from django import forms
 
+from apps.core.widgets import WLJRichTextWidget
 from apps.legacy.models import (
     RELATIONSHIP_TYPE_CHOICES, Contributor, Output, Person, Place, Relationship,
 )
@@ -42,7 +43,7 @@ class RelationshipForm(forms.ModelForm):
             "rel_status": forms.Select(attrs={"class": "lg-input"}),
             "started_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Started (year)"}),
             "ended_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Ended (year)"}),
-            "notes": forms.Textarea(attrs={"class": "lg-textarea", "rows": 3, "placeholder": "Anything worth remembering about this relationship…"}),
+            "notes": WLJRichTextWidget(placeholder="Anything worth remembering about this relationship…", min_height=140),
         }
 
 
@@ -60,9 +61,8 @@ class PersonForm(forms.ModelForm):
                 "class": "lg-input", "placeholder": "e.g. your father, a dear friend"}),
             "birth_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Born"}),
             "death_year": forms.NumberInput(attrs={"class": "lg-input", "placeholder": "Died (if applicable)"}),
-            "bio": forms.Textarea(attrs={
-                "class": "lg-textarea", "rows": 6,
-                "placeholder": "Who were they? What were they like?"}),
+            "bio": WLJRichTextWidget(
+                placeholder="Who were they? What were they like?", min_height=200),
         }
 
 
@@ -75,9 +75,9 @@ class PlaceForm(forms.ModelForm):
                 "class": "lg-input", "placeholder": "e.g. The lake house", "autocomplete": "off"}),
             "location_text": forms.TextInput(attrs={
                 "class": "lg-input", "placeholder": "Where is / was it?"}),
-            "description": forms.Textarea(attrs={
-                "class": "lg-textarea", "rows": 6,
-                "placeholder": "What was this place? What happened here? What did it feel like?"}),
+            "description": WLJRichTextWidget(
+                placeholder="What was this place? What happened here? What did it feel like?",
+                min_height=200),
             "latitude": forms.NumberInput(attrs={
                 "class": "lg-input", "placeholder": "e.g. 35.756", "step": "any", "inputmode": "decimal"}),
             "longitude": forms.NumberInput(attrs={

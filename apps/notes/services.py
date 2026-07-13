@@ -57,7 +57,7 @@ def _compute_matched_in(query_tokens, note):
     matched_in = []
     fields = [
         ("title", note.title or ""),
-        ("body", note.body or ""),
+        ("body", note.body_plain or ""),
         ("tags", note.tags_text or ""),
         ("attachments", note.attachments_text or ""),
     ]
@@ -112,7 +112,7 @@ def _build_citation_block(note, *, query=None, query_tokens=None, headline=None,
         "note_id": note.pk,
         "display_title": note.display_title,
         "body_preview": note.body_preview,
-        "body": note.body,
+        "body": note.body_plain,  # plain shadow for CoS/API
         "created_at": note.created_at,
         "updated_at": note.updated_at,
         "is_pinned": note.is_pinned,
@@ -233,7 +233,7 @@ def search_notes(
                 .annotate(
                     rank=SearchRank(F("search_vector"), search_query),
                     headline=SearchHeadline(
-                        "body",
+                        "body_plain",
                         search_query,
                         start_sel="<mark>",
                         stop_sel="</mark>",
@@ -248,7 +248,7 @@ def search_notes(
             # SQLite fallback: basic substring search
             queryset = queryset.filter(
                 Q(title__icontains=query_str)
-                | Q(body__icontains=query_str)
+                | Q(body_plain__icontains=query_str)
                 | Q(tags_text__icontains=query_str)
                 | Q(attachments_text__icontains=query_str)
             ).order_by("-is_pinned", "-updated_at")
@@ -498,7 +498,7 @@ def search_notes_cos(
             .annotate(
                 rank=SearchRank(F("search_vector"), search_query),
                 headline=SearchHeadline(
-                    "body",
+                        "body_plain",
                     search_query,
                     start_sel="<mark>",
                     stop_sel="</mark>",
@@ -512,7 +512,7 @@ def search_notes_cos(
         # SQLite fallback: basic substring search
         candidates_qs = base_qs.filter(
             Q(title__icontains=query_str)
-            | Q(body__icontains=query_str)
+            | Q(body_plain__icontains=query_str)
             | Q(tags_text__icontains=query_str)
             | Q(attachments_text__icontains=query_str)
         ).order_by("-is_pinned", "-updated_at")

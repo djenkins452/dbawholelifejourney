@@ -53,7 +53,7 @@ class NoteAdmin(admin.ModelAdmin):
         "created_at",
     ]
     list_filter = ["status", "color", "is_pinned", "created_at"]
-    search_fields = ["title", "body", "user__email"]
+    search_fields = ["title", "body_plain", "user__email"]
     raw_id_fields = ["user"]
     date_hierarchy = "created_at"
     ordering = ["-created_at"]

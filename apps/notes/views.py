@@ -59,7 +59,7 @@ class NoteListView(HelpContextMixin, LoginRequiredMixin, ListView):
             for word in search.split():
                 queryset = queryset.filter(
                     Q(title__icontains=word)
-                    | Q(body__icontains=word)
+                    | Q(body_plain__icontains=word)
                     | Q(tags__name__icontains=word)
                     | Q(attachments_text__icontains=word)
                 )

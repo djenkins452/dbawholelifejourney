@@ -199,7 +199,8 @@ class JournalEntry(RichTextMixin, UserOwnedModel):
     @property
     def body_preview(self):
         """First ~150 characters of the PLAIN-text body for list views."""
-        plain = self.body_plain or ""
+        # Derives from `body` when the shadow isn't set (e.g. unsaved instance).
+        plain = self.rich_text_plain("body")
         if len(plain) <= 150:
             return plain
         return plain[:150].rsplit(" ", 1)[0] + "..."

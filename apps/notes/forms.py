@@ -9,6 +9,7 @@ Purpose: Form for creating and editing notes
 from django import forms
 
 from apps.core.models import Tag
+from apps.core.widgets import WLJRichTextWidget
 
 from .models import Note
 
@@ -26,13 +27,7 @@ class NoteForm(forms.ModelForm):
                     "placeholder": "Title (optional — auto-generated if blank)",
                 }
             ),
-            "body": forms.Textarea(
-                attrs={
-                    "class": "form-textarea",
-                    "placeholder": "Write your note...",
-                    "rows": 8,
-                }
-            ),
+            "body": WLJRichTextWidget(placeholder="Write your note...", min_height=200),
             "color": forms.Select(
                 attrs={
                     "class": "form-select",

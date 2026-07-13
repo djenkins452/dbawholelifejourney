@@ -14,9 +14,10 @@ from django.db import models
 from django.urls import reverse
 
 from apps.core.models import Tag, UserOwnedModel
+from apps.core.rich_text import RichTextMixin
 
 
-class Note(UserOwnedModel):
+class Note(RichTextMixin, UserOwnedModel):
     """
     A general-purpose note that can stand alone or be attached to any WLJ entity.
 
@@ -44,8 +45,13 @@ class Note(UserOwnedModel):
         help_text="Optional title. If blank, derived from body preview.",
     )
     body = models.TextField(
-        help_text="Note content.",
+        help_text="Note content (sanitized rich-text HTML).",
     )
+    # Auto-derived plain-text shadow of `body` (search / preview / word count).
+    body_plain = models.TextField(blank=True, default="", editable=False)
+
+    # RichTextMixin: sanitize `body` on save and regenerate the plain shadow.
+    RICH_TEXT_FIELDS = {"body": "body_plain"}
     tags = models.ManyToManyField(
         Tag,
         blank=True,
@@ -111,10 +117,9 @@ class Note(UserOwnedModel):
         return self.display_title
 
     def save(self, *args, **kwargs):
-        if self.body:
-            self.word_count = len(self.body.split())
-        else:
-            self.word_count = 0
+        # Sanitize `body` HTML and (re)derive `body_plain` before counting words.
+        self.sync_rich_text_fields()
+        self.word_count = len((self.body_plain or "").split())
         super().save(*args, **kwargs)
         # Update search vector after save (separate UPDATE to avoid recursion)
         self._refresh_search_vector()
@@ -163,7 +168,7 @@ class Note(UserOwnedModel):
         Note.objects.filter(pk=self.pk).update(
             search_vector=(
                 SearchVector("title", weight="A")
-                + SearchVector("body", weight="B")
+                + SearchVector("body_plain", weight="B")  # plain shadow, not HTML
                 + SearchVector("tags_text", weight="C")
                 + SearchVector("attachments_text", weight="C")
             )
@@ -174,12 +179,15 @@ class Note(UserOwnedModel):
 
     @property
     def body_preview(self):
-        """First 100 characters for list views and auto-title."""
-        if not self.body:
+        """First 100 characters of the PLAIN body for list views and auto-title."""
+        # rich_text_plain derives from `body` when the shadow isn't set yet
+        # (e.g. an unsaved instance), so previews work before the first save.
+        plain = self.rich_text_plain("body")
+        if not plain:
             return "Empty note"
-        if len(self.body) <= 100:
-            return self.body
-        return self.body[:100].rsplit(" ", 1)[0] + "..."
+        if len(plain) <= 100:
+            return plain
+        return plain[:100].rsplit(" ", 1)[0] + "..."
 
     @property
     def display_title(self):

@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(platform): WLJ Rich Text Editor — Phase 1 platform + Journal reference integration)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Notes)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Notes
+
+Adopted the WLJ Rich Text Editor (see the Phase 1 entry below) for the Notes module using the same shared
+component — no fork. `Note` is now `RichTextMixin` with `body` (sanitized HTML) + `body_plain` shadow
+(`RICH_TEXT_FIELDS`); `save()` word count, `body_preview`/`display_title`, admin search, and the Postgres
+full-text `search_vector` (`_refresh_search_vector` + a migration UPDATE) all read the plain shadow so search
+never indexes markup. CoS/search integration routed to the shadow (`services.py` content-match + serialized
+`body` + `SearchHeadline` + SQLite fallback `icontains`; `embeddings.py`; `signals._EMBEDDING_CONTENT_FIELDS`;
+`views.py`). Form uses `WLJRichTextWidget` (+ assets include); `note_detail` renders `.wlj-rich` `|safe`.
+`body_preview`/`rich_text_plain` derive from `body` when the shadow isn't set yet (unsaved instances).
+Migrations: `notes.0009_note_body_plain_alter_note_body` + data backfill `notes.0010_backfill_notes_richtext`
+(legacy plain text → escaped/wrapped HTML + shadow + tsvector rebuild; no data loss). Verified: sanitization +
+shadow + preview correct; full `apps.notes` suite (227) green.
 
 ## 2026-07-12 — polish(dashboard): Phase I final refinement — typography rebalance, spacing rhythm, honest empty-state tone (presentation only)
 

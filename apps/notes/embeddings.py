@@ -33,7 +33,7 @@ def build_note_embedding_text(note):
         str: Formatted text for embedding generation.
     """
     title = note.title or ""
-    body = note.body or ""
+    body = note.body_plain or ""
     tags_text = note.tags_text or ""
     attachments_text = note.attachments_text or ""
 

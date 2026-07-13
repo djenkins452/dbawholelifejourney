@@ -43,7 +43,7 @@ def _enqueue_note_embedding(note_id):
 _old_note_content = {}
 
 # Fields that, when changed, trigger an embedding refresh
-_EMBEDDING_CONTENT_FIELDS = ("title", "body")
+_EMBEDDING_CONTENT_FIELDS = ("title", "body_plain")
 
 
 @receiver(pre_save, sender=Note)

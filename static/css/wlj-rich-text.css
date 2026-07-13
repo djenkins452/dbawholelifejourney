@@ -12,6 +12,14 @@
     /* NOTE: no `overflow` here — an overflow value would make .wlj-rte a scroll
        container and defeat the sticky toolbar below. Corner rounding is applied
        to the toolbar (top) and content (bottom) instead of clipped by overflow. */
+    transition: border-color var(--transition-fast, 150ms ease),
+                box-shadow var(--transition-fast, 150ms ease);
+}
+
+/* Highlight the active editor (like Notion / Docs) */
+.wlj-rte:focus-within {
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
 }
 
 /* ---- Toolbar ------------------------------------------------------------ */
@@ -62,8 +70,42 @@
 .wlj-rte-btn:hover { background: var(--color-background); color: var(--color-text); }
 .wlj-rte-btn.is-active { background: color-mix(in srgb, var(--color-accent) 15%, transparent); color: var(--color-accent); }
 .wlj-rte-btn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.wlj-rte-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .wlj-rte-btn svg { display: block; }
 .wlj-rte-btn-text { font-size: 13px; font-weight: 600; line-height: 1; }
+
+/* ---- Contextual table tools (appear only when the caret is in a table) --- */
+.wlj-rte-tabletools {
+    flex-basis: 100%;             /* own row inside the wrapping toolbar */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--color-border);
+}
+.wlj-rte-tabletools[hidden] { display: none; }
+.wlj-rte-tabletools-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-right: 2px;
+}
+.wlj-rte-tbtn {
+    font-size: 12px;
+    line-height: 1;
+    padding: 5px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 4px);
+    background: var(--color-background);
+    color: var(--color-text);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.wlj-rte-tbtn:hover { background: var(--color-surface); }
+.wlj-rte-tbtn:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.wlj-rte-tbtn.is-danger { color: var(--color-error, #ef4444); border-color: color-mix(in srgb, var(--color-error, #ef4444) 40%, var(--color-border)); }
 
 /* ---- Link popover ------------------------------------------------------- */
 .wlj-rte-linkpop {
@@ -210,6 +252,11 @@
     text-align: left;
 }
 .wlj-rte-prose th, .wlj-rich th { background: var(--color-surface); font-weight: 600; }
+/* Selected cell(s) while editing a table */
+.wlj-rte-prose .selectedCell {
+    background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+}
+.wlj-rte-prose td, .wlj-rte-prose th { position: relative; }
 
 /* ---- Responsive: keep tap targets comfortable, allow wrap --------------- */
 @media (max-width: 768px) {

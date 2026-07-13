@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(body): "Your Body Story" executive briefing — Body Intelligence Phase I)
+# Last Updated: 2026-07-13 (polish(rte): product-review pass — table controls, focus highlight, undo/redo states — milestone closed)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — polish(rte): editor product-review pass (table controls, focus highlight, undo/redo) — milestone closed
+
+Closed the Rich Text Editor milestone with a customer-experience (not engineering) review of the editor,
+implementing the worthwhile refinements found:
+
+- **Tables are now usable.** Previously a table inserted as a fixed 3×3 with no way to change its structure. Added
+  a contextual "Table:" tools row that appears only when the caret is in a table — Insert row above/below,
+  Delete row, Insert column left/right, Delete column, Toggle header row, Delete table (danger-styled) — wired
+  to TipTap's table commands, plus a selected-cell highlight. (static/js/wlj-rich-text.js, wlj-rich-text.css)
+- **Active-editor focus highlight.** `.wlj-rte:focus-within` gets an accent border + soft glow so the editor you're
+  writing in is obvious (Notion/Docs feel).
+- **Undo/redo reflect state.** The undo/redo buttons now disable when there's nothing to undo/redo
+  (`editor.can().undo()/redo()`), instead of always looking active.
+
+Reviewed the full list — toolbar behaviour (sticky, already shipped), spacing, keyboard shortcuts + Markdown
+input rules (StarterKit, enabled), copy/paste (TipTap + server sanitize), image resize (works), mobile (toolbar
+wraps; table tools wrap), accessibility (aria-label/title/role, focus-visible outlines), and light/dark theme —
+verified live in both light and a dark WLJ theme (momentum): the editor, toolbar, table tools, and focus glow all
+adapt via the shared `--color-*` tokens. Deliberately did NOT gold-plate (no image centering / link-hover menu —
+not worth the complexity now).
+
+Milestone status: the platform is built, product-reviewed, and adopted across the primary narrative surfaces
+(Journal, Notes, Relationships, Faith, Legacy, Life Projects, Purpose LifeGoals). Further field adoption is now
+**usage-driven**; intentionally-plain fields and the deferred Legacy `Memory.body` stay as documented in
+`docs/WLJ_RICH_TEXT_EDITOR.md`. Bumped editor JS/CSS `?v` to 20260713b.
 
 ## 2026-07-13 — feat(body): "Your Body Story" — the executive briefing hero for Body Intelligence (Phase I)
 

@@ -1,9 +1,13 @@
 # WLJ Rich Text Editor — the standard for all narrative writing
 
-**Status:** Platform capability (Phase 1 shipped — Journal is the reference
-integration). This is the ONE editor for every free-form/narrative field in WLJ.
-Do **not** build a second editor, fork it per module, or add a different
-storage strategy. New modules adopt this component with a few lines.
+**Status:** Milestone complete & proven (2026-07-13). The platform is built,
+product-reviewed, and adopted across the primary narrative surfaces (Journal,
+Notes, Relationships, Faith, Legacy, Life Projects, Purpose LifeGoals). This is
+the ONE editor for every free-form/narrative field in WLJ. Do **not** build a
+second editor, fork it per module, or add a different storage strategy. Further
+field adoption is **usage-driven** — convert more fields only when real product
+experience shows a need, following “How to adopt a field” below. New modules
+adopt this component with a few lines.
 
 > One editor. One component. One styling system. One storage strategy.
 
@@ -15,9 +19,18 @@ A reusable [TipTap](https://tiptap.dev)-based editor, self-hosted (no CDN),
 dropped into any form by swapping a field's widget. It gives every writing
 surface the same modern experience: bold/italic/underline/strike/inline-code,
 H1–H3, bullet/numbered/task lists, block quote, divider, links (with pasted-URL
-recognition), image upload (drag / paste / pick, resizable), simple tables,
+recognition), image upload (drag / paste / pick, resizable), tables with
+contextual row/column controls (a "Table:" tools row appears only when the caret
+is in a table — add/remove rows & columns, toggle header, delete table),
 left/center/right alignment, undo/redo, and the standard keyboard shortcuts
-(Ctrl+B/I/U/Z/Y, Ctrl+K for links).
+(Ctrl+B/I/U/Z/Y, Ctrl+K for links) plus Markdown input rules from StarterKit
+(`# ` → H1, `- ` → bullet, `> ` → quote, `**x**` → bold, …).
+
+Editor-feel polish (product-review pass): the active editor shows a focus
+highlight (accent border + glow), undo/redo disable when there's nothing to
+undo/redo, and the toolbar stays pinned while writing long documents. Everything
+is theme-aware (light/dark) via the shared `--color-*` tokens and adapts to every
+WLJ theme automatically.
 
 ## Architecture (where everything lives)
 

@@ -92,8 +92,8 @@
         { name: 'table', title: 'Insert table', html: ICONS.table, run: function (e) { e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); } },
       ].filter(Boolean),
       [
-        { name: 'undo', title: 'Undo (Ctrl+Z)', html: ICONS.undo, run: function (e) { e.chain().focus().undo().run(); } },
-        { name: 'redo', title: 'Redo (Ctrl+Y)', html: ICONS.redo, run: function (e) { e.chain().focus().redo().run(); } },
+        { name: 'undo', title: 'Undo (Ctrl+Z)', html: ICONS.undo, run: function (e) { e.chain().focus().undo().run(); }, enabled: function (e) { return e.can().undo(); } },
+        { name: 'redo', title: 'Redo (Ctrl+Y)', html: ICONS.redo, run: function (e) { e.chain().focus().redo().run(); }, enabled: function (e) { return e.can().redo(); } },
       ],
     ];
   }
@@ -231,17 +231,62 @@
           refreshActive();
         });
         g.appendChild(b);
-        if (spec.active) buttonEls.push({ el: b, active: spec.active });
+        if (spec.active || spec.enabled) {
+          buttonEls.push({ el: b, active: spec.active, enabled: spec.enabled });
+        }
       });
       toolbar.appendChild(g);
     });
 
+    // ---- contextual table tools (only visible when inside a table) ----
+    var TABLE_TOOLS = [
+      { title: 'Insert row above', label: '+ Row ↑', run: function (e) { e.chain().focus().addRowBefore().run(); } },
+      { title: 'Insert row below', label: '+ Row ↓', run: function (e) { e.chain().focus().addRowAfter().run(); } },
+      { title: 'Delete row', label: '− Row', run: function (e) { e.chain().focus().deleteRow().run(); } },
+      { title: 'Insert column left', label: '+ Col ←', run: function (e) { e.chain().focus().addColumnBefore().run(); } },
+      { title: 'Insert column right', label: '+ Col →', run: function (e) { e.chain().focus().addColumnAfter().run(); } },
+      { title: 'Delete column', label: '− Col', run: function (e) { e.chain().focus().deleteColumn().run(); } },
+      { title: 'Toggle header row', label: 'Header', run: function (e) { e.chain().focus().toggleHeaderRow().run(); } },
+      { title: 'Delete table', label: 'Delete table', run: function (e) { e.chain().focus().deleteTable().run(); } },
+    ];
+    var tableTools = document.createElement('div');
+    tableTools.className = 'wlj-rte-tabletools';
+    tableTools.hidden = true;
+    var tableLabel = document.createElement('span');
+    tableLabel.className = 'wlj-rte-tabletools-label';
+    tableLabel.textContent = 'Table:';
+    tableTools.appendChild(tableLabel);
+    TABLE_TOOLS.forEach(function (spec) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'wlj-rte-tbtn';
+      b.title = spec.title;
+      b.setAttribute('aria-label', spec.title);
+      b.textContent = spec.label;
+      if (spec.label === 'Delete table') b.classList.add('is-danger');
+      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+      b.addEventListener('click', function () { spec.run(editor); refreshActive(); });
+      tableTools.appendChild(b);
+    });
+    toolbar.appendChild(tableTools);  // full-width row inside the sticky toolbar
+
     function refreshActive() {
       buttonEls.forEach(function (item) {
-        var on = false;
-        try { on = !!item.active(editor); } catch (e) { on = false; }
-        item.el.classList.toggle('is-active', on);
+        if (item.active) {
+          var on = false;
+          try { on = !!item.active(editor); } catch (e) { on = false; }
+          item.el.classList.toggle('is-active', on);
+        }
+        if (item.enabled) {
+          var can = true;
+          try { can = !!item.enabled(editor); } catch (e) { can = true; }
+          item.el.disabled = !can;
+        }
       });
+      // Reveal the table tools only when the caret is inside a table.
+      var inTable = false;
+      try { inTable = editor.isActive('table'); } catch (e) { inTable = false; }
+      tableTools.hidden = !inTable;
     }
     editor.on('selectionUpdate', refreshActive);
     editor.on('transaction', refreshActive);

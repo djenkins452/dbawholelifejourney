@@ -6,6 +6,45 @@
 # Last Updated: 2026-07-12 (chore(ops): OPS-11 remove inert autonomous remediation + add expired-image cleanup)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — polish(dashboard): Phase I — public-launch product-craft pass (presentation only)
+
+Phase I of the three-phase Dashboard → Body Intelligence → Design-Language plan. **Presentation only** — no
+architecture, no CoS reasoning, no new calculations, no deterministic-truth changes. Validated live against the
+real rendered dashboard (bidemo) on desktop (1280) and mobile (375).
+
+**Typography & hierarchy (the biggest lift).** The dashboard shouted: **25** `text-transform: uppercase`
+declarations turned every label into an all-caps "engineer dashboard" tell. Reserved uppercase for exactly two
+deliberate accents — the `FOUNDATION` mission-phase ring word and the small `BEHIND / AT RISK` status badges — and
+converted every other label to calm sentence/title case, with the wide all-caps letter-spacing relaxed in one
+documented block. Elevated the section headings (`.v3-h2`: Executive Briefing / Domain Accountability / Today's
+Rhythm) from tiny muted uppercase eyebrows into real, confident ink headings so the page has a clear structural
+rhythm. (dashboard_v3.css; focus_now.html tag text)
+
+**Empty states.** "Caught up" now reads as an intentional result, not a void — no dashed borders (they read as
+unfinished scaffolding), no bare em-dashes. Four intents expressed through copy + tone: caught-up (green "✓ You're
+caught up" / "Nothing needs you this moment"), waiting ("Wins will land here as your week builds" / "You're clear
+for now — nothing queued next"), not-configured/no-data (gauge "No score yet" replaces the giant "—"; rhythm block
+"clear" replaces "—"), complete ("✓ Nothing needs attention"). Domain-accountability empty rewritten from the
+engineer-worded "cards appear as your engines accumulate data" to a reassuring two-line state.
+(executive_summary.html, focus_now.html, accountability_cards.html, gauges.html, rhythm.html + calm `.v3-empty-*`
+styles)
+
+**Mission hero density (kept prominence + "Why this matters").** De-boxed the "Next milestone" panel — three
+stacked bordered boxes (going / weight / milestone) read as "boxes in boxes"; the milestone is now a clean
+whitespace-separated labeled row under a hairline. The hero stays the visual heart of the page; "Why this matters"
+untouched. (dashboard_v3.css)
+
+**Tone / one situation + one action.** Lead-with-progress is preserved (briefing opens "Weight down 10.8 lb";
+mission narrative leads with milestones + weight trend). De-shouting removed the sense of many competing verdicts;
+the Executive Briefing headline is the single overall situation and "Start here" the single primary next action.
+
+Left deliberately unchanged: the shared `apps/core/cos_briefing` composer (incl. the rhythm "Nothing scheduled."
+momentum label) — out of scope per the Phase-I brief; the deterministic truth graph and mission composition; the
+Visual Truth Contract gating (only genuine completion may resemble completion). Validated: `manage.py check` clean;
+collectstatic 0 errors (510 post-processed); full `apps.dashboard_v3` suite green except two failures confirmed
+pre-existing via clean-tree stash (`test_dashboard_render_total_truth_fetches_capped`,
+`test_task_circle_posts_to_canonical_v2_toggle_endpoint`); mobile 375 = 0 horizontal-overflow elements.
+
 ## 2026-07-12 — chore(ops): OPS-11 remove inert autonomous remediation + add expired-image cleanup (Operations tech-debt)
 
 Cleared the two remaining low-risk Operations technical-debt items before Phase III. Runtime paths were

@@ -14,7 +14,11 @@
                         <span class="v3-gauge-label">{{ g.label }}</span>
                     </div>
                     <div class="v3-gauge-mid">
-                        <span class="v3-gauge-score">{{ g.score|default:"—" }}{% if g.score %}<span class="v3-gauge-pct">%</span>{% endif %}</span>
+                        {% if g.score %}
+                            <span class="v3-gauge-score">{{ g.score }}<span class="v3-gauge-pct">%</span></span>
+                        {% else %}
+                            <span class="v3-gauge-score-empty">No score yet</span>
+                        {% endif %}
                     </div>
                     {% if g.drivers %}
                         <ul class="v3-gauge-drivers">

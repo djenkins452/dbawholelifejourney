@@ -25,7 +25,7 @@
                         <li><span class="v3-mark" aria-hidden="true">✓</span>{{ item.title }}</li>
                     {% endfor %}
                 </ul>
-            {% else %}<p class="v3-muted">No positive signals this week.</p>{% endif %}
+            {% else %}<p class="v3-empty-line">Wins will land here as your week builds.</p>{% endif %}
         </div>
 
         <div class="v3-exec-col">
@@ -36,7 +36,7 @@
                         <li><span class="v3-mark" aria-hidden="true">{% if item.severity == 'critical' %}!{% else %}⚠{% endif %}</span><span class="v3-attn-text">{{ item.title }}</span>{% include "dashboard_v3/partials/_action_affordance.html" with route=item.route %}</li>
                     {% endfor %}
                 </ul>
-            {% else %}<p class="v3-muted">All clear.</p>{% endif %}
+            {% else %}<p class="v3-empty-line v3-empty-line-ok"><span aria-hidden="true">✓</span> Nothing needs attention.</p>{% endif %}
         </div>
 
         <div class="v3-exec-col v3-exec-col-callouts">

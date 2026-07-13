@@ -102,19 +102,17 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     margin-bottom: 6px;
 }
 .v3-h2 {
-    font-size: 0.85rem;
+    font-size: 1rem;
     font-weight: 700;
     margin: 0;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--v3-text-mute);
+    letter-spacing: -0.01em;
+    color: var(--v3-ink);
 }
 .v3-h4 {
     margin: 0 0 4px 0;
-    font-size: 0.66rem;
+    font-size: 0.72rem;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.01em;
     color: var(--v3-text-mute);
 }
 .v3-h4-inline { display: inline; margin-right: 6px; }
@@ -209,7 +207,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     border-radius: 999px;
     background: var(--v3-surface-soft);
     color: var(--v3-text-mute);
-    text-transform: uppercase;
     letter-spacing: 0.06em;
 }
 .v3-trajectory-improving { background: rgba(22, 101, 52, 0.10); color: var(--v3-positive); }
@@ -271,7 +268,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     display: block;
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--v3-text-mute);
     margin-bottom: 2px;
@@ -350,7 +346,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     gap: 6px;
     font-size: 0.66rem;
     font-weight: 800;
-    text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--v3-accent);
     padding: 3px 9px;
@@ -398,7 +393,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-focus-grid-row dt {
     font-size: 0.66rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--v3-text-mute);
     padding-top: 2px;
@@ -519,7 +513,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-card-slot-label {
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--v3-text-mute);
 }
@@ -607,7 +600,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-rhythm-now-pill {
     font-size: 0.6rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.08em;
     background: var(--v3-accent);
     color: #fff;
@@ -642,7 +634,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     margin: 4px 0 4px 0;
     font-size: 0.66rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--v3-text-mute);
 }
@@ -872,8 +863,8 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-ritem-badge {
     font-size: 0.58rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.06em;
+    text-transform: uppercase;
     padding: 2px 6px;
     border-radius: 999px;
     flex-shrink: 0;
@@ -941,7 +932,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 .v3-utility-label {
     font-size: 0.66rem;
     font-weight: 700;
-    text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--v3-text-mute);
 }
@@ -992,14 +982,47 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     cursor: progress;
 }
 
+/* ── Empty states (Phase I) ────────────────────────────────────
+   "Caught up" is a result, not a void. No dashed borders (they read as
+   unfinished scaffolding), no bare em-dashes. Four intents are expressed
+   through copy + tone: caught-up (positive), waiting (calm), not-configured
+   (gentle), complete (green). */
 .v3-empty-soft {
     background: var(--v3-surface-soft);
-    border: 1px dashed var(--v3-border);
+    border: 1px solid var(--v3-border);
     border-radius: var(--v3-radius);
-    padding: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.v3-empty-soft-title { font-size: 0.9rem; font-weight: 600; color: var(--v3-ink); }
+.v3-empty-soft-sub   { font-size: 0.8rem; color: var(--v3-text-mute); line-height: 1.4; }
+
+/* Inline "nothing here" line — calm and deliberate, never italic-placeholder. */
+.v3-empty-line {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.4;
     color: var(--v3-text-mute);
-    font-size: 0.84rem;
-    text-align: center;
+}
+.v3-empty-line-ok { color: var(--v3-positive); font-weight: 600; }
+
+/* Fallback-gauge "not configured" — a quiet label, never a giant dash. */
+.v3-gauge-score-empty {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--v3-text-soft);
+    line-height: 1.7;
+}
+
+/* Rhythm block with nothing scheduled — a soft word, not a bold count. */
+.v3-rhythm-count-clear { font-size: 0.72rem; font-weight: 500; color: var(--v3-text-soft); }
+
+/* Focus card, caught-up state — reassurance, distinct from the active accent tag. */
+.v3-focus-tag-clear {
+    color: var(--v3-positive);
+    background: rgba(22, 101, 52, 0.10);
 }
 
 /* ── Mission hero ─────────────────────────────────────────────
@@ -1154,7 +1177,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--v3-accent);
     background: var(--v3-accent-soft);
     border-radius: 999px;
@@ -1211,7 +1233,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.58rem;
     font-weight: 700;
     letter-spacing: 0.07em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
 }
 
@@ -1273,7 +1294,7 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.98rem;
     font-weight: 800;
     line-height: 1.05;
-    letter-spacing: 0.005em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     color: var(--v3-accent);
     max-width: 108px;
@@ -1290,7 +1311,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-weight: 700;
     color: var(--v3-text-soft);
     letter-spacing: 0.16em;
-    text-transform: uppercase;
     line-height: 1;
     margin-top: 1px;
     opacity: 0.8;
@@ -1302,7 +1322,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     color: var(--v3-text-soft);
     line-height: 1.2;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
     margin-top: 5px;
 }
 
@@ -1321,7 +1340,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.6rem;
     font-weight: 800;
     letter-spacing: 0.1em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
     margin-top: 6px;
 }
@@ -1367,7 +1385,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.09em;
-    text-transform: uppercase;
     color: var(--v3-accent);
 }
 
@@ -1443,7 +1460,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.09em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
 }
 
@@ -1521,7 +1537,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--v3-text-mute);
 }
 .v3-mission-weight-stat-v {
@@ -1562,7 +1577,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.66rem;
     font-weight: 800;
     letter-spacing: 0.05em;
-    text-transform: uppercase;
     padding: 2px 7px;
     border-radius: 999px;
     background: rgba(176, 130, 50, 0.12);
@@ -1581,13 +1595,14 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     }
 }
 
-/* ── Next milestone block — timing should feel like it matters ── */
+/* ── Next milestone block — timing should feel like it matters ──
+   Phase I: de-boxed. Stacking three bordered panels (going / weight /
+   milestone) read as "boxes in boxes"; this one becomes a clean labeled
+   row separated by whitespace + a hairline, not another container. */
 .v3-mission-milestone {
-    margin-top: 16px;
-    padding: 12px 14px;
-    background: var(--v3-surface);
-    border: 1px solid var(--v3-border-strong);
-    border-radius: 12px;
+    margin-top: 14px;
+    padding: 12px 2px 0;
+    border-top: 1px solid var(--v3-border);
 }
 
 .v3-mission-milestone-label {
@@ -1595,7 +1610,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
     margin-bottom: 4px;
 }
@@ -1654,7 +1668,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
     margin-bottom: 10px;
 }
@@ -1771,7 +1784,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.64rem;
     font-weight: 600;
     letter-spacing: 0.03em;
-    text-transform: uppercase;
     color: var(--v3-text-soft);
 }
 
@@ -1828,7 +1840,6 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 0.09em;
-    text-transform: uppercase;
     color: var(--v3-accent);
     margin-bottom: 7px;
 }
@@ -1840,6 +1851,34 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-style: italic;
     line-height: 1.6;
     color: var(--v3-ink);
+}
+
+/* ── Phase I typography — calm labels ──────────────────────────
+   Uppercase was removed from every label except the FOUNDATION ring word
+   and the small status badges. The wide letter-spacing that only read well
+   in all-caps is relaxed here so the now-sentence-case labels feel calm and
+   intentional rather than tracked-out. One place, easy to retune. */
+.v3-h4,
+.v3-callout-label,
+.v3-card-slot-label,
+.v3-rhythm-open-label,
+.v3-utility-label,
+.v3-focus-grid-row dt,
+.v3-focus-tag,
+.v3-trajectory,
+.v3-mission-kicker,
+.v3-mission-countdown-cap,
+.v3-mission-ring-phase,
+.v3-mission-ring-frac,
+.v3-mission-ring-cap,
+.v3-mission-going-label,
+.v3-mission-weight-label,
+.v3-mission-weight-stat-k,
+.v3-mission-milestone-label,
+.v3-mission-drivers-label,
+.v3-mission-driver-label,
+.v3-mission-why-label {
+    letter-spacing: 0.01em;
 }
 
 /* ── Responsive ───────────────────────────────────────────── */

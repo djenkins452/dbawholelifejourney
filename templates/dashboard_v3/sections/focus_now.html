@@ -7,9 +7,9 @@
             {% if focus %}
                 <div class="v3-focus-tag-row">
                     {% if focus.urgency == 'overdue' or focus.execution_status == 'AT_RISK' %}
-                        <span class="v3-focus-tag v3-focus-tag-urgent">⚠ DO THIS NOW</span>
+                        <span class="v3-focus-tag v3-focus-tag-urgent">⚠ Do this now</span>
                     {% else %}
-                        <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
+                        <span class="v3-focus-tag">🎯 Focus right now</span>
                     {% endif %}
                     {% if focus.destination_url %}<span class="v3-focus-go" aria-hidden="true">Go →</span>{% endif %}
                 </div>
@@ -54,9 +54,9 @@
                     <span class="v3-focus-action-note">Action: Start now.</span>
                 </div>
             {% else %}
-                <span class="v3-focus-tag">🎯 FOCUS RIGHT NOW</span>
-                <h2 class="v3-focus-title v3-focus-title-empty">All clear right now.</h2>
-                <p class="v3-focus-reason">Nothing pending in the current block. Take a breath.</p>
+                <span class="v3-focus-tag v3-focus-tag-clear">✓ You're caught up</span>
+                <h2 class="v3-focus-title v3-focus-title-empty">Nothing needs you this moment.</h2>
+                <p class="v3-focus-reason">You're clear for the current block — a good time to breathe or get ahead on what's coming up.</p>
             {% endif %}
         </div>
 
@@ -71,7 +71,7 @@
                         </li>
                     {% endfor %}
                 </ul>
-            {% else %}<p class="v3-muted">Nothing scheduled soon.</p>{% endif %}
+            {% else %}<p class="v3-empty-line">You're clear for now — nothing queued next.</p>{% endif %}
         </div>
     </article>
 </section>

@@ -25,7 +25,7 @@
                     <span class="v3-rhythm-count">
                         {% if s.completion.total %}
                             {{ s.completion.completed }}/{{ s.completion.total }}{% if not s.is_current and not s.is_past %} upcoming{% endif %}{% if s.is_past and s.open_count %} · {{ s.open_count }} still open{% endif %}
-                        {% else %}—{% endif %}
+                        {% else %}<span class="v3-rhythm-count-clear">clear</span>{% endif %}
                     </span>
                     {% if s.is_current %}<span class="v3-rhythm-now-pill">now</span>{% endif %}
                 </button>
@@ -138,7 +138,7 @@
                                 {% endfor %}
                             </ul>
                         {% else %}
-                            <p class="v3-rhythm-empty">Nothing scheduled in this block.</p>
+                            <p class="v3-rhythm-empty">Open block — nothing scheduled here.</p>
                         {% endif %}
 
                     {# ── SUMMARY mode (past rhythm) ── #}

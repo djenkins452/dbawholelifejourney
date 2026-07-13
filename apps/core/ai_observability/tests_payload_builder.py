@@ -275,3 +275,31 @@ class BuildOpsStreamPayloadTests(TestCase):
         self.assertEqual(telemetry["sections_degraded"], 0)
         self.assertIn("section_timings", telemetry)
         self.assertEqual(len(telemetry["section_timings"]), 33)
+
+
+class EngineCardDiagnosticFieldsTests(TestCase):
+    """Engine cards expose the cadence-tolerance diagnostics that make a flagged
+    engine self-describing on the wall (no code tracing / no raw JSON needed)."""
+
+    def test_card_exposes_jitter_recent_runs_and_lateness(self):
+        from apps.core.ai_observability.ops_telemetry import _build_engine_cards
+
+        now = timezone.now()
+        # DNE false-positive shape: ran recently, only modestly late, but tight jitter.
+        heartbeats = {
+            "DNE": {
+                "status": "MISSED",
+                "lateness_seconds": 240,
+                "next_expected_at": None,
+                "metadata": {"jitter_seconds": 60, "recent_runs_30m": 3},
+            }
+        }
+        cadence_config = {"DNE": {"interval": 600, "enabled": True}}
+        cards = _build_engine_cards(["DNE"], cadence_config, heartbeats, now)
+        card = next(c for c in cards if c["name"] == "DNE")
+
+        # The three fields the operator needs to judge a MISSED without leaving the wall.
+        self.assertEqual(card["jitter_seconds"], 60)
+        self.assertEqual(card["recent_runs_30m"], 3)
+        self.assertEqual(card["lateness_seconds"], 240)
+        self.assertEqual(card["cadence"], "10m")  # human interval label

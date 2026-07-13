@@ -201,6 +201,12 @@ Tests: `apps/core/tests/test_storage_monitor.py`, `apps/core/tests/test_chat_que
 
 ## 5. Human-judgment items recorded
 
+- **Self-describing engine cards (2026-07-13):** a flagged engine (status ≠ OK) now renders its cadence
+  diagnostic inline — `expected ~<cadence> ±<jitter> · <lateness> late · <recent_runs>/30m` — so a cadence
+  *false-positive* (ran recently, modestly late, but jitter tighter than real dispatch spacing) is diagnosable
+  on the wall without code tracing or raw JSON. Fields (`jitter_seconds`, `recent_runs_30m`) come from the
+  heartbeat metadata already computed in the background cycle (request-path-safe). Principle: **investigate WLJ
+  using WLJ.** Capture needs no new UI (Scheduled Tasks + Media & Capture Persistence panels already suffice).
 - **Operational Disposition Model (2026-07-13, ADR-28):** every investigated condition now ends in exactly one of **FIX / RETIRE / RECONFIGURE / ACCEPT** (Detect→Investigate→Disposition→Verify→Close). Governing definition + the live Disposition Ledger live in `WLJ_OPERATIONS_VISION.md §5a / §15.1`. First application: `sports.sync_games_from_provider` **RETIRED** from `CELERY_BEAT_SCHEDULE` (dormant default-OFF feature) — OPS-1 no longer monitors it (the reconciler derives from the Beat schedule), and the task stays registered for on-demand self-heal. This *reduces monitored surface for a dormant job* — it is not monitor suppression of an active subsystem.
 - **`/_health/` split:** DB/Redis/scheduler liveness IS checked at `/_health/` (Railway + uptime monitors) but is not on the Ops Wall. Decision pending: mirror infra liveness onto the wall, or accept the split (Ops Wall = intelligence/execution; `/_health/` = infra).
 - **"Engine ran" vs "service healthy":** many logical services are "partial" because the underlying engine heartbeat is monitored but output correctness is not. Whether heartbeat satisfies "healthy" for a given service is a per-service call.

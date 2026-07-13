@@ -273,6 +273,13 @@ def _build_engine_cards(engine_names, cadence_config, heartbeats, now):
             "duration_p95_1h": duration_p95,
             "sparkline": sparkline,
             "lateness_seconds": hb.get("lateness_seconds", 0),
+            # Cadence tolerance + actual recent activity — from the heartbeat metadata
+            # already computed this cycle (no new query). These make a flagged engine
+            # self-diagnosing on the wall: an engine that ran recently yet is MISSED
+            # because its jitter is tighter than its real dispatch spacing is now
+            # visible as "expected ~10m ±1m · 4m late · 3 runs/30m" without code tracing.
+            "jitter_seconds": hb.get("metadata", {}).get("jitter_seconds"),
+            "recent_runs_30m": hb.get("metadata", {}).get("recent_runs_30m"),
             "can_manual_run": can_manual,
             "execution_mode": execution_mode,
             "is_frozen": not cfg.get("enabled", True),

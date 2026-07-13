@@ -3,8 +3,38 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(body): Executive Visual Story — Body Shape + Limb Development (Phase II-A))
+# Last Updated: 2026-07-13 (feat(ops): engine cards self-describe cadence false-positives — investigate WLJ using WLJ)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(ops): engine cards self-describe cadence tolerance — an operator can diagnose a false-MISSED on the wall
+
+**Principle: an operator should be able to investigate WLJ using WLJ.** When an engine reads MISSED/LATE, the
+wall previously showed status + last-run-ago + a run count — enough to *notice* "ran recently yet flagged" but
+not enough to *explain* it, so diagnosing (e.g. DNE) required code tracing. Now the engine accordion surfaces
+the deterministic truth that makes a tolerance false-positive self-evident.
+
+- **Producer (`ops_telemetry.py::_build_engine_cards`):** each card now carries `jitter_seconds` and
+  `recent_runs_30m`, read from the heartbeat metadata **already computed this cycle** (zero new query,
+  background-only → request-path-safe). Joins the existing `cadence` + `lateness_seconds`.
+- **UI (`operations_wall.html::renderEngineAccordion`):** flagged engines (status ≠ OK **only** — healthy rows
+  stay clutter-free) render one compact line: **`expected ~10m ±1m · 4m late · 3 runs/30m`**. This makes the
+  DNE case self-diagnosing — an engine that ran 3× in 30 min and is only 4 min late yet reads MISSED because its
+  jitter (±1m) is tighter than its real 300s-grid dispatch spacing is now obviously a *tolerance* problem, not a
+  down engine; a genuinely-down engine reads `0 runs/30m · 120m late`.
+
+**Why (Operations self-service):** this is the meta-lesson from the P1/P2 investigations — the deterministic
+evidence existed in the payload but not on the wall, so the operator had to copy JSON / ask for code tracing.
+Surfacing it makes future cadence investigations UI-native. No thresholds changed, no monitoring weakened —
+pure exposure of existing truth (facts only, Constitution I.4).
+
+**P1 Capture needs NO new UI** — the **Scheduled Tasks** panel already shows per-task status + `·ERR` +
+`last run`, and **Media & Capture Persistence** already shows capture `failed_24h` / `top_error_type` / `STUCK`.
+
+**Verification:** browser harness confirmed the diagnostic line renders exactly (`expected ~10m ±1m · 4m late ·
+3 runs/30m`; healthy engines emit nothing); `tests_payload_builder` (10, incl. new
+`EngineCardDiagnosticFieldsTests`) + `manage.py check` clean; no model/migration. **Files:**
+`apps/core/ai_observability/ops_telemetry.py`, `templates/admin_console/operations_wall.html`,
+`apps/core/ai_observability/tests_payload_builder.py`, `docs/WLJ_OPS_WALL_COVERAGE.md`.
 
 ## 2026-07-13 — feat(body): Executive Visual Story — Body Shape + Limb Development (Phase II-A)
 

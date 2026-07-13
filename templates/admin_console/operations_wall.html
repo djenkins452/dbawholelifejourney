@@ -6072,6 +6072,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var container = document.getElementById('engineAccordion');
         if (!container || !cards || cards.length === 0) return;
 
+        // Compact seconds → "45s" / "4m" for the cadence diagnostic line.
+        function fmtDurSecs(s) {
+            if (s == null) return '?';
+            if (s < 60) return Math.round(s) + 's';
+            return Math.round(s / 60) + 'm';
+        }
+
         var cats = {};
         var CATEGORY_ORDER = ['System', 'Interpret', 'Execute', 'Post-Exec'];
 
@@ -6121,6 +6128,17 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 html += '</div>';
                 if (eng.last_run_at) {
                     html += '<div style="font-size:0.55rem;color:var(--ops-text-dim);margin-top:3px">Last: ' + formatAgo(eng.last_run_at) + '</div>';
+                }
+                // Cadence diagnostic — only on flagged engines (keeps healthy rows clean).
+                // Makes a tolerance false-positive self-evident: e.g. an engine that ran
+                // recently yet reads MISSED because its jitter is tighter than its real
+                // dispatch spacing shows "expected ~10m ±1m · 4m late · 3 runs/30m".
+                if (eng.status && eng.status !== 'OK') {
+                    var diag = 'expected ~' + escapeHtml(eng.cadence || '?') +
+                        (eng.jitter_seconds != null ? ' ±' + fmtDurSecs(eng.jitter_seconds) : '') +
+                        (eng.lateness_seconds ? ' · ' + fmtDurSecs(eng.lateness_seconds) + ' late' : '') +
+                        (eng.recent_runs_30m != null ? ' · ' + eng.recent_runs_30m + ' runs/30m' : '');
+                    html += '<div style="font-size:0.55rem;color:var(--ops-text-muted);margin-top:2px">' + diag + '</div>';
                 }
                 html += '</div>';
             });

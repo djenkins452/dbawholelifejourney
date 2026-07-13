@@ -1227,10 +1227,14 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.core.tasks.run_ise_cycle_task",
         "schedule": 300.0,  # Every 5 minutes — primary ISE trigger
     },
-    "sports-sync-every-900-seconds": {
-        "task": "sports.sync_games_from_provider",
-        "schedule": 900.0,  # Every 15 min — ESPN public API, no rate limit
-    },
+    # RETIRED 2026-07-13 (Operational Disposition: RETIRE — see WLJ_OPERATIONS_VISION §5a/§15).
+    # Sports is a default-OFF, read-only CONTEXT feature with no followers in the default
+    # product, so this 15-min ESPN sync was a dormant job generating a chronic MISSED_RUN with
+    # ~zero customer value. The task `sports.sync_games_from_provider` stays REGISTERED (apps/
+    # sports/tasks.py) and is re-queued on demand by the self-heal bootstrap (tasks.py: 0-GameEvent
+    # check) when a user actually enables sports. This retires the scheduled JOB (reduces operational
+    # surface) — it does NOT suppress a monitor of an active subsystem. If sports is ever promoted to
+    # an active product feature, restore a refresh mechanism (Beat entry or on-enable trigger).
     "cos-keepalive-every-30-seconds": {
         "task": "apps.ai.tasks.cos_keepalive_task",
         "schedule": 30.0,  # Keep CoS context warm for active users

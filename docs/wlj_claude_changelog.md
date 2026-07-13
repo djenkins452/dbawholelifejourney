@@ -3,8 +3,50 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (refine(body): Body Story — _builder rename, ranked wins/watch, structured confidence factors)
+# Last Updated: 2026-07-13 (feat(ops): Operational Disposition Model + retire dormant Sports Beat sync)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(ops): Operational Disposition Model + retire dormant Sports Beat sync (first RETIRE)
+
+Moves WLJ Operations from investigation to systematic operational improvement, under one principle:
+**measure the truth, improve the truth, never game the score.** Implemented only the items with sufficient
+evidence; P1/P2 held pending a production telemetry read (see below).
+
+**Operational Disposition Model (governing, ADR-28).** Formalized the ad-hoc practice into a permanent
+lifecycle — **Detect → Investigate → Disposition {FIX · RETIRE · RECONFIGURE · ACCEPT} → Verify → Close** —
+added to `WLJ_OPERATIONS_VISION.md` as **§5a** (the engineering counterpart to the automated Recovery
+Lifecycle §5), with a **§15.1 Disposition Ledger** recording the evidence-backed disposition of each
+investigated condition. Rules: evidence-first (no FIX/RETIRE/RECONFIGURE without production root-cause proof;
+contradicting evidence ⇒ stop & report); RECONFIGURE corrects a *false positive* and is categorically distinct
+from relaxing a *true* health rule; RETIRE reduces operational surface and is never monitor suppression of an
+active subsystem. (Placement rationale in §5a: Operations governance → the Vision, not the general eng guide.)
+
+**Priority 3 — Sports sync → RETIRE (implemented).** `sports.sync_games_from_provider` is a default-OFF
+(`context_processors.py:163`), read-only CONTEXT feature with no followers in the default product; its 15-min
+ESPN sync was a dormant job generating a chronic MISSED_RUN with ~zero customer value. Removed the
+`sports-sync-every-900-seconds` entry from `CELERY_BEAT_SCHEDULE` (`config/settings.py`). The `@shared_task`
+stays **registered** — the self-heal bootstrap (`apps/sports/tasks.py:54-56`, re-queues on 0 GameEvents)
+still populates data on demand if a user enables sports. Blast radius negligible (both consumers gated to
+disabled: `cos_context.py`, `state_builder.py`). No prod evidence needed — dormancy is structural. If sports
+is ever promoted to an active feature, restore a refresh mechanism.
+
+**Priority 4 — COAS health check → RECONFIGURE (recommended; NOT retired).** Architectural review: COAS's
+*scorers* have live value (re-run by the maturity engine, `maturity_engine.py:92-96`, which bypasses the
+snapshot), but the 5-min `check_system_health` snapshot task is marginal — its only unique consumers are the
+`coas_health` Ops Wall panel + admin-surfaced `OperationalAlert` rows. Recommendation: evolve the panel onto
+the live scorers and fold COAS alerts into SAME, then retire the standalone snapshot writer. Left in place
+pending that evolution (per directive: review only).
+
+**Priorities 1 & 2 — HELD (PENDING-EVIDENCE).** Capture (P1) and DNE (P2) both require a production read I
+cannot pull from this environment; per the directive I did **not** act on the hypotheses. Decisive reads:
+capture → `scheduled_tasks[capture.process_pending_captures]` (`OK`/recent ⇒ ACCEPT transient; `MISSED`+success+old
+⇒ FIX dispatch; `error` ⇒ FIX task-path); DNE → `EngineRun` rows for DNE last hour (~10–13 min spacing +
+success ⇒ RECONFIGURE jitter; zero rows ⇒ contradicts investigation, stop & report).
+
+**Verification:** `manage.py check` clean; `makemigrations --check` = no changes (no model change); OPS-1
+`test_scheduled_task_monitor` passes (13) — the Beat-schedule-derived reconciler simply monitors one fewer
+task. **Files:** `config/settings.py`, `docs/WLJ_OPERATIONS_VISION.md` (§5a, §15.1, ADR-28),
+`docs/WLJ_OPS_WALL_COVERAGE.md`.
 
 ## 2026-07-13 — refine(body): Your Body Story — naming, ranking, confidence structure (Phase I refinements)
 

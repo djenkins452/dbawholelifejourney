@@ -201,6 +201,7 @@ Tests: `apps/core/tests/test_storage_monitor.py`, `apps/core/tests/test_chat_que
 
 ## 5. Human-judgment items recorded
 
+- **Operational Disposition Model (2026-07-13, ADR-28):** every investigated condition now ends in exactly one of **FIX / RETIRE / RECONFIGURE / ACCEPT** (Detect→Investigate→Disposition→Verify→Close). Governing definition + the live Disposition Ledger live in `WLJ_OPERATIONS_VISION.md §5a / §15.1`. First application: `sports.sync_games_from_provider` **RETIRED** from `CELERY_BEAT_SCHEDULE` (dormant default-OFF feature) — OPS-1 no longer monitors it (the reconciler derives from the Beat schedule), and the task stays registered for on-demand self-heal. This *reduces monitored surface for a dormant job* — it is not monitor suppression of an active subsystem.
 - **`/_health/` split:** DB/Redis/scheduler liveness IS checked at `/_health/` (Railway + uptime monitors) but is not on the Ops Wall. Decision pending: mirror infra liveness onto the wall, or accept the split (Ops Wall = intelligence/execution; `/_health/` = infra).
 - **"Engine ran" vs "service healthy":** many logical services are "partial" because the underlying engine heartbeat is monitored but output correctness is not. Whether heartbeat satisfies "healthy" for a given service is a per-service call.
 - **Some logical names are conceptual** (Current Action = 2 files, Mission Link = 7 files) — confirm which warrant a dedicated card vs. which are internal terms before treating each as a hard gap.

@@ -1,5 +1,5 @@
 # ==============================================================================
-# File: apps/health/services/body_story.py
+# File: apps/health/services/body_story_builder.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: "Your Body Story" — the deterministic Chief-of-Staff executive briefing
 #              that sits atop Body Intelligence. Interpretation (Layer 1) over the
@@ -89,6 +89,23 @@ class BodyStorySignal:
 
 
 _TONE_RANK = {"critical": 4, "caution": 3, "unknown": 2, "steady": 1, "positive": 0}
+
+# Stable tie-break order when two signals carry the same weight/tone. Composition is the
+# richest lens, so it leads; the rest follow a sensible executive priority. Order is used
+# ONLY to break ties deterministically — weight/tone always dominate.
+_DOMAIN_ORDER = {"composition": 0, "weight": 1, "goal": 2, "measurements": 3}
+
+
+def _win_sort_key(s: "BodyStorySignal"):
+    """Wins ranked so the FIRST item is THE biggest: weight desc, then a stable domain
+    order, then title. Order is priority."""
+    return (-s.weight, _DOMAIN_ORDER.get(s.domain, 9), s.title)
+
+
+def _watch_sort_key(s: "BodyStorySignal"):
+    """Watch items ranked so the FIRST deserves the MOST attention: severity (tone) first,
+    then weight desc, then a stable domain order, then title."""
+    return (-_TONE_RANK.get(s.tone, 0), -s.weight, _DOMAIN_ORDER.get(s.domain, 9), s.title)
 
 
 # ── Small helpers ───────────────────────────────────────────────────────────
@@ -372,7 +389,7 @@ def build_body_story(bi: dict) -> dict:
     empty = {
         "status": {"label": "Building your baseline", "tone": "unknown",
                    "detail": "Log a weigh-in, a measurement, or a check-in to begin."},
-        "confidence": {"level": "low", "basis": "Not enough data yet."},
+        "confidence": {"level": "low", "basis": "Not enough data yet.", "factors": []},
         "narrative": ["You've just started tracking. As your weigh-ins, measurements, and "
                       "check-ins build up, this is where your body's story will be told."],
         "wins": [], "watch_items": [], "recommendation": {
@@ -394,9 +411,11 @@ def build_body_story(bi: dict) -> dict:
             logger.warning("body_story: contributor %s failed",
                            getattr(contributor, "__name__", "?"), exc_info=True)
 
-    wins = sorted([s for s in signals if s.kind == "win"], key=lambda s: -s.weight)
-    watch = sorted([s for s in signals if s.kind == "watch"],
-                   key=lambda s: (-_TONE_RANK.get(s.tone, 0), -s.weight))
+    # Rank — order IS the message. The first win is THE biggest; the first watch item
+    # deserves the most attention. Deterministic: identical truth always yields the same
+    # hierarchy (see _win_sort_key / _watch_sort_key).
+    wins = sorted((s for s in signals if s.kind == "win"), key=_win_sort_key)
+    watch = sorted((s for s in signals if s.kind == "watch"), key=_watch_sort_key)
 
     if not signals:
         # Has data but nothing composed a signal (e.g. a single weigh-in). Give an honest,
@@ -463,20 +482,45 @@ def _derive_status(wins, watch) -> dict:
 
 def _derive_confidence(bi: dict, signals) -> dict:
     """How much WLJ trusts this read — grounded in data density, never inflated by a
-    single confident signal. Basis is a plain-language 'why'."""
+    single confident signal.
+
+    Returns ``{level, basis, factors}``:
+      * ``basis`` — the plain-language 'why' the hero renders today.
+      * ``factors`` — the itemized evidence behind the level, as ``[{label, count}]``.
+        Not rendered yet; structured now so the UI can evolve into an expandable
+        "Based on: 58 weigh-ins · 11 body-composition readings · 4 check-ins · 9 weeks
+        of history" without reworking this function. Add a new factor by appending here.
+    """
     weight = bi.get("weight") or {}
     sessions = bi.get("sessions") or {}
-    has_comp = bool(bi.get("body_comp"))
+    bc = bi.get("body_comp") or {}
+    has_comp = bool(bc)
 
     weigh_ins = weight.get("count") or 0
     checkins = sessions.get("count") or 0
+    # Composition readings actually available in the 56-day window (each trend point is a
+    # day WLJ had fat-mass truth). A real, request-path-safe count already in the dict.
+    comp_readings = len(bc.get("fat_mass_trend_56d") or [])
+    weeks = _history_weeks(weight)
 
-    parts = []
+    # Itemized factors — the future expandable list. Facts only; never a verdict.
+    factors: list[dict] = []
     if weigh_ins:
-        parts.append(f"{weigh_ins} weigh-in{'s' if weigh_ins != 1 else ''}")
+        factors.append({"label": f"{weigh_ins} weigh-in{'s' if weigh_ins != 1 else ''}",
+                        "count": weigh_ins})
+    if comp_readings:
+        factors.append({"label": f"{comp_readings} body-composition reading"
+                        f"{'s' if comp_readings != 1 else ''}", "count": comp_readings})
     if checkins:
-        parts.append(f"{checkins} check-in{'s' if checkins != 1 else ''}")
-    basis = ", ".join(parts) if parts else "limited history"
+        factors.append({"label": f"{checkins} body check-in{'s' if checkins != 1 else ''}",
+                        "count": checkins})
+    if weeks:
+        factors.append({"label": f"{weeks} week{'s' if weeks != 1 else ''} of history",
+                        "count": weeks})
+
+    # The one-line basis the hero shows today (leading factors, kept short).
+    parts = [f["label"] for f in factors[:2]] or ["limited history"]
+    basis_lead = ", ".join(parts)
 
     # Floor from density.
     if weigh_ins >= 20 and has_comp:
@@ -494,7 +538,18 @@ def _derive_confidence(bi: dict, signals) -> dict:
 
     tail = {"high": "a solid read", "medium": "a reasonable read",
             "low": "still forming"}[level]
-    return {"level": level, "basis": f"Based on {basis} — {tail}."}
+    return {"level": level, "basis": f"Based on {basis_lead} — {tail}.", "factors": factors}
+
+
+def _history_weeks(weight: dict) -> int:
+    """Whole weeks spanned by the weight history (first → latest). 0 when unknown."""
+    first, last = weight.get("first_at"), weight.get("current_at")
+    if not first or not last:
+        return 0
+    try:
+        return max(0, (last - first).days // 7)
+    except (TypeError, AttributeError):
+        return 0
 
 
 def _compose_narrative(bi, status, wins, watch, confidence) -> list[str]:

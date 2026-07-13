@@ -5,11 +5,11 @@
 #              and graceful degradation. The composer is pure (operates on the
 #              pre-computed build_body_intelligence dict), so these run without a DB.
 # ==============================================================================
-from datetime import date
+from datetime import date, datetime, timezone
 
 from django.test import SimpleTestCase
 
-from apps.health.services.body_story import build_body_story
+from apps.health.services.body_story_builder import build_body_story
 
 
 def _bi(**over):
@@ -17,7 +17,9 @@ def _bi(**over):
     base = {
         "as_of": date(2026, 7, 13),
         "has_any_data": True,
-        "weight": {"count": 30, "current_lb": 185.0, "total_change_lb": -12.0},
+        "weight": {"count": 30, "current_lb": 185.0, "total_change_lb": -12.0,
+                   "first_at": datetime(2026, 5, 11, tzinfo=timezone.utc),
+                   "current_at": datetime(2026, 7, 13, tzinfo=timezone.utc)},
         "goal": {"goal": 175.0, "current_weight": 185.0, "remaining": 10.0,
                  "unit": "lb", "progress_percent": 55.0},
         "body_comp": {},
@@ -115,6 +117,61 @@ class BodyStoryConfidenceTests(SimpleTestCase):
     def test_confidence_basis_names_the_evidence(self):
         story = build_body_story(_bi())
         self.assertIn("weigh-in", story["confidence"]["basis"])
+
+    def test_confidence_exposes_itemized_factors(self):
+        # Structured for the future "Based on: …" expandable list — computed now, not yet
+        # rendered. Weigh-ins, composition readings, check-ins, and history span.
+        story = build_body_story(_bi(
+            weight={"count": 58, "current_lb": 185.0, "total_change_lb": -12.0,
+                    "first_at": datetime(2026, 5, 11, tzinfo=timezone.utc),
+                    "current_at": datetime(2026, 7, 13, tzinfo=timezone.utc)},
+            body_comp={"fat_loss_quality_label": "EXCELLENT", "phase_confidence": 82,
+                       "weight_delta_14d": -1.0,
+                       "fat_mass_trend_56d": [{"date": "2026-07-0%d" % d, "value": 60 - d}
+                                              for d in range(1, 10)]},
+            sessions={"count": 4},
+        ))
+        factors = story["confidence"]["factors"]
+        labels = " | ".join(f["label"] for f in factors)
+        self.assertIn("58 weigh-ins", labels)
+        self.assertIn("9 body-composition readings", labels)
+        self.assertIn("4 body check-ins", labels)
+        self.assertTrue(any("week" in f["label"] for f in factors))
+        # Every factor carries a machine-readable count for future UI.
+        self.assertTrue(all("count" in f for f in factors))
+
+    def test_confidence_factors_present_even_when_empty(self):
+        self.assertEqual(build_body_story({"has_any_data": False})["confidence"]["factors"], [])
+
+
+class BodyStoryRankingTests(SimpleTestCase):
+    def test_wins_ranked_biggest_first(self):
+        # Recomposition (weight 95) must outrank a goal-pace win (weight 50).
+        story = build_body_story(_bi(body_comp={
+            "recomposition_flag_14d": True, "fat_mass_delta_14d": -2.0,
+            "lean_mass_delta_14d": 0.6, "phase_confidence": 85,
+        }))
+        self.assertEqual(story["wins"][0]["title"], "Recomposition underway")
+
+    def test_watch_ranked_by_severity_first(self):
+        # A critical muscle-loss risk must sit above a caution plateau.
+        story = build_body_story(_bi(body_comp={
+            "muscle_loss_risk_level": "HIGH", "muscle_loss_risk_score": 70,
+            "plateau_status": "TRUE_PLATEAU", "phase_confidence": 80,
+            "weight_delta_14d": 0.0,
+        }))
+        self.assertIn("muscle-loss risk", story["watch_items"][0]["title"].lower())
+        self.assertEqual(story["watch_items"][0]["tone"], "critical")
+
+    def test_ranking_is_deterministic(self):
+        payload = _bi(body_comp={
+            "recomposition_flag_14d": True, "fat_loss_quality_label": "EXCELLENT",
+            "fat_mass_delta_14d": -2.0, "lean_mass_delta_14d": 0.6,
+            "fat_loss_ratio_14d": 0.9, "phase_confidence": 85,
+        })
+        a = [w["title"] for w in build_body_story(dict(payload))["wins"]]
+        b = [w["title"] for w in build_body_story(dict(payload))["wins"]]
+        self.assertEqual(a, b)
 
 
 class BodyStoryDeterminismTests(SimpleTestCase):

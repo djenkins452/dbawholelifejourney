@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (polish(rte): product-review pass — table controls, focus highlight, undo/redo states — milestone closed)
+# Last Updated: 2026-07-13 (refine(body): Body Story — _builder rename, ranked wins/watch, structured confidence factors)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — refine(body): Your Body Story — naming, ranking, confidence structure (Phase I refinements)
+
+Product-review refinements to the Body Intelligence executive briefing (no UI change beyond ordering):
+- **Naming for future consistency:** `body_story.py` → `body_story_builder.py`, matching the repo's `_builder.py`
+  convention (state_builder, daily_summary_builder, …) and the anticipated family (`faith_story_builder`,
+  `finance_story_builder`, `relationship_story_builder`). Import updated in `build_body_intelligence`.
+- **Ranked wins & watch items — order IS the message.** Wins now sort weight-desc; watch items by severity
+  (tone) then weight; both with a stable domain tie-break so the FIRST win is unambiguously the biggest and the
+  FIRST watch item deserves the most attention. Deterministic (`_win_sort_key` / `_watch_sort_key`).
+- **Confidence structured for future expansion (no UI change).** `_derive_confidence` now also returns an
+  itemized `factors` list (`[{label, count}]`) — weigh-ins, body-composition readings (56d), body check-ins,
+  weeks of history — computed from truth already in the dict. The hero still renders the one-line `basis`;
+  the factors are the seam for a future "Based on: 58 weigh-ins · 11 readings · 4 check-ins · 9 weeks" panel,
+  so we don't paint ourselves into a corner.
+
+Files: `apps/health/services/body_story_builder.py` (renamed + logic), `apps/health/services/body_intelligence.py`
+(import), `apps/health/tests/test_body_story.py` (+5 tests → 19). Verified: 41 tests green (body_story +
+body_intelligence); refinements confirmed on real account data (58 weigh-ins → high confidence, itemized factors,
+ranked lists).
 
 ## 2026-07-13 — polish(rte): editor product-review pass (table controls, focus highlight, undo/redo) — milestone closed
 

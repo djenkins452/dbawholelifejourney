@@ -238,7 +238,7 @@ def build_body_intelligence(user, *, as_of=None):
     # One authoritative Chief-of-Staff briefing (Layer 1) composed deterministically from
     # the truth assembled above. The page renders it; the model still reasons over the
     # SAME truth in chat (via the facts-only page summary). No LLM on the request path.
-    from apps.health.services.body_story import build_body_story
+    from apps.health.services.body_story_builder import build_body_story
     result["body_story"] = build_body_story(result)
     return result
 

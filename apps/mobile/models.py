@@ -427,6 +427,16 @@ class HealthIngestionRun(TimeStampedModel):
             "Drives the human-readable Health Sync summary (imported / no-change / failed)."
         ),
     )
+    client_debug = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Optional client-reported glass-box telemetry for this request: what the "
+            "iOS app fetched from HealthKit and intended to send, per type "
+            '(e.g. {"steps": {"raw_samples": 412, "built": 7, "sent": 7}}). Lets us '
+            "prove exactly where a metric disappears between Apple Health and the DB."
+        ),
+    )
 
     class Meta:
         verbose_name = "Health Ingestion Run"

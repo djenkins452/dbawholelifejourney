@@ -18,6 +18,7 @@ struct HealthSyncStatus: Codable {
     let issues: [SyncIssue]
     let dataTypes: [DataTypeHealth]
     let lastSyncSummary: SyncSummary?
+    let diagnostics: SyncDiagnostics?
 
     enum CodingKeys: String, CodingKey {
         case generatedAt = "generated_at"
@@ -29,6 +30,34 @@ struct HealthSyncStatus: Codable {
         case issues
         case dataTypes = "data_types"
         case lastSyncSummary = "last_sync_summary"
+        case diagnostics
+    }
+}
+
+// MARK: - Temporary glass-box diagnostics (locate where a metric disappears)
+
+struct SyncDiagnostics: Codable {
+    let steps: StepsDiagnostics?
+}
+
+struct StepsDiagnostics: Codable {
+    let stage: String
+    let verdict: String
+    let clientReported: [String: Int]?   // raw_samples, built, sent
+    let serverReceived: [String: Int]    // created, updated, skipped, failed
+    let serverRejectionReasons: [String]
+    let persistedTotal: Int
+    let latestPersistedDate: String?
+    let recentRunCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case stage, verdict
+        case clientReported = "client_reported"
+        case serverReceived = "server_received"
+        case serverRejectionReasons = "server_rejection_reasons"
+        case persistedTotal = "persisted_total"
+        case latestPersistedDate = "latest_persisted_date"
+        case recentRunCount = "recent_run_count"
     }
 }
 

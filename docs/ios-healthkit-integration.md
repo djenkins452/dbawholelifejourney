@@ -341,6 +341,26 @@ a human `last_sync_summary` (imported / no-change / failed).
   enables it under Apple Health → Sharing. Add a new tracked type by adding one row
   to `HEALTH_SYNC_TYPES`.
 
+## Steps pipeline glass-box (temporary diagnostic)
+
+To prove *exactly* where Steps disappear (Apple Health → device query → payload →
+Django → DB), the sync carries deterministic telemetry:
+
+- **Device** (`HealthKitManager.fetchSteps`) counts **raw step samples**
+  (`HKSampleQuery`) alongside the daily-total (`HKStatisticsCollectionQuery`)
+  result and records `lastStepsDebug = {raw_samples, built, sent}`, sent to the
+  server as `client_debug` in the ingest payload (also `print`ed with tag
+  `[STEPS_GLASSBOX]`).
+- **Server** stores it (`HealthIngestionRun.client_debug`), logs
+  `[STEPS_GLASSBOX]`, and `health_sync_status.steps_pipeline_diagnostics(user)`
+  compares device-reported vs. server-received (`metric_type_results`) vs.
+  persisted (`StepsEntry`) across the sync session's batches and returns a
+  deterministic **verdict + stage**: `healthkit_returned_zero`, `aggregation_zero`,
+  `not_received`, `server_rejected`, `not_persisted`, or `healthy`.
+- Exposed at `sync_health.diagnostics.steps`; the Health Sync page shows a
+  **Steps Diagnostics** section. **Remove this telemetry once the root cause is
+  fixed** (it is intentionally temporary).
+
 ## Key Files
 
 | File | Purpose |

@@ -513,6 +513,23 @@ def health_ingest(request):
     else:
         ingestion_run.mark_completed(created, updated, skipped, type_results=type_results)
 
+    # ---- Glass-box telemetry (temporary): store what the client reported it
+    # fetched/sent, and log the exact Steps flow through this request so we can
+    # prove where Steps disappear between Apple Health and the DB. ----
+    client_debug = data.get("client_debug") or {}
+    if client_debug:
+        ingestion_run.client_debug = client_debug
+        ingestion_run.save(update_fields=["client_debug", "updated_at"])
+    steps_in_payload = [m for m in metrics if (m.get("type", "").lower() == "steps")]
+    logger.warning(
+        "[STEPS_GLASSBOX] user=%s ingestion=%s steps_in_payload=%s steps_result=%s "
+        "steps_values=%s client_debug_steps=%s",
+        user.id, ingestion_run.id, len(steps_in_payload),
+        type_results.get("steps"),
+        [m.get("value") for m in steps_in_payload][:10],
+        client_debug.get("steps"),
+    )
+
     logger.info(
         f"Health ingestion completed: user={hash_pii(user.email, 'user')}, "
         f"created={created}, updated={updated}, skipped={skipped}, errors={len(errors)}"

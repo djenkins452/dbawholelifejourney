@@ -72,14 +72,17 @@ class APIClient {
 
     /// Submit health metrics to the server in batches.
     /// Splits large payloads into chunks of 500 to prevent request timeouts.
-    func submitHealthMetrics(_ metrics: [HealthMetric]) async throws -> IngestionResponse {
+    func submitHealthMetrics(
+        _ metrics: [HealthMetric],
+        clientDebug: [String: [String: Int]]? = nil
+    ) async throws -> IngestionResponse {
         guard KeychainManager.shared.getAPIToken() != nil else {
             throw APIError.notAuthenticated
         }
 
         // Small payloads: send in one request
         if metrics.count <= batchSize {
-            return try await submitBatch(metrics)
+            return try await submitBatch(metrics, clientDebug: clientDebug)
         }
 
         // Large payloads: split into batches and aggregate results
@@ -97,7 +100,8 @@ class APIClient {
 
         for (i, batch) in batches.enumerated() {
             print("  Batch \(i + 1)/\(batches.count): \(batch.count) metrics")
-            let response = try await submitBatch(batch)
+            // Attach the glass-box telemetry to the FIRST batch only (steps live there).
+            let response = try await submitBatch(batch, clientDebug: i == 0 ? clientDebug : nil)
             totalCreated += response.created
             totalUpdated += response.updated
             totalSkipped += response.skipped
@@ -116,7 +120,10 @@ class APIClient {
     }
 
     /// Submit a single batch of metrics to the server.
-    private func submitBatch(_ metrics: [HealthMetric]) async throws -> IngestionResponse {
+    private func submitBatch(
+        _ metrics: [HealthMetric],
+        clientDebug: [String: [String: Int]]? = nil
+    ) async throws -> IngestionResponse {
         guard let token = KeychainManager.shared.getAPIToken() else {
             throw APIError.notAuthenticated
         }
@@ -129,7 +136,8 @@ class APIClient {
 
         let body = HealthIngestionRequest(
             clientTimestamp: ISO8601DateFormatter().string(from: Date()),
-            metrics: metrics
+            metrics: metrics,
+            clientDebug: clientDebug
         )
 
         request.httpBody = try JSONEncoder().encode(body)
@@ -391,10 +399,14 @@ struct UserInfo: Codable {
 struct HealthIngestionRequest: Codable {
     let clientTimestamp: String
     let metrics: [HealthMetric]
+    // Optional glass-box telemetry: what the client fetched/sent per type
+    // (e.g. ["steps": ["raw_samples": 412, "built": 7, "sent": 7]]).
+    let clientDebug: [String: [String: Int]]?
 
     enum CodingKeys: String, CodingKey {
         case clientTimestamp = "client_timestamp"
         case metrics
+        case clientDebug = "client_debug"
     }
 }
 

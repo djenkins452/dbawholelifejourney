@@ -34,6 +34,9 @@ struct HealthSyncView: View {
             }
             dataSourcesSection
             actionsSection
+            if let diag = status?.diagnostics?.steps {
+                stepsDiagnosticsSection(diag)
+            }
             authorizationSection
             disclaimerSection
         }
@@ -219,6 +222,35 @@ struct HealthSyncView: View {
             }
         } footer: {
             Text("Apple doesn't tell apps which read permissions you granted, so a source can look connected while sending no data. That's why WLJ shows what actually arrived — if a source says “No records received”, enable it under Apple Health → Sharing.")
+        }
+    }
+
+    // MARK: - Steps Diagnostics (temporary glass-box)
+
+    private func stepsDiagnosticsSection(_ d: StepsDiagnostics) -> some View {
+        Section {
+            Text(d.verdict).font(.callout)
+            if let c = d.clientReported {
+                StatRow(label: "HealthKit raw samples", value: "\(c["raw_samples"] ?? -1)")
+                StatRow(label: "Daily totals built", value: "\(c["built"] ?? -1)")
+                StatRow(label: "Sent to server", value: "\(c["sent"] ?? -1)")
+            } else {
+                Text("No client telemetry yet — sync once with this build.")
+                    .font(.caption).foregroundColor(.secondary)
+            }
+            StatRow(label: "Server received (new/updated)",
+                    value: "\((d.serverReceived["created"] ?? 0) + (d.serverReceived["updated"] ?? 0))")
+            StatRow(label: "Server skipped / failed",
+                    value: "\(d.serverReceived["skipped"] ?? 0) / \(d.serverReceived["failed"] ?? 0)")
+            if !d.serverRejectionReasons.isEmpty {
+                StatRow(label: "Rejection reason", value: d.serverRejectionReasons.first ?? "")
+            }
+            StatRow(label: "Steps rows persisted", value: "\(d.persistedTotal)")
+            StatRow(label: "Recent sync batches", value: "\(d.recentRunCount)")
+        } header: {
+            Text("Steps Diagnostics")
+        } footer: {
+            Text("Temporary — shows exactly where Steps flow (device → server → database) so we can prove where they disappear.")
         }
     }
 

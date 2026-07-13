@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (fix(ops): flagged engines auto-surface in the Engine Health accordion)
+# Last Updated: 2026-07-13 (feat(health): Steps pipeline glass-box — deterministic verdict of where Steps disappear)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(health): Steps pipeline glass-box — prove exactly where Steps disappear
+
+Read-authorization was disproven on device (Steps IS enabled for WLJ in Apple Health), so the "permission not
+granted" hypothesis is dropped. Audited the render path — the dashboard/health reads
+(`StepsEntry.objects.filter(user=user)` with NO source filter; `daily_health_queries.steps_on` sums
+`StepsEntry.count`) mean persisted steps WOULD render, so rendering is ruled out; combined with the earlier
+trace (persistence logic is correct), the break is BEFORE Django persists. Since prod data isn't directly
+queryable, added deterministic glass-box telemetry across the whole pipeline (temporary):
+
+- **Device** (`HealthKitManager.fetchSteps`): counts raw step samples (`HKSampleQuery`) alongside the daily-total
+  (`HKStatisticsCollectionQuery`) result; records `lastStepsDebug {raw_samples, built, sent}` and sends it as
+  `client_debug` in the ingest payload (+ `[STEPS_GLASSBOX]` print).
+- **Server**: stores `HealthIngestionRun.client_debug` (migration `mobile.0005`), logs `[STEPS_GLASSBOX]`, and
+  `health_sync_status.steps_pipeline_diagnostics(user)` compares device-reported vs. server-received
+  (`metric_type_results`, aggregated across the session's batch runs) vs. persisted (`StepsEntry`) and returns a
+  deterministic **verdict + stage**: `healthkit_returned_zero` / `aggregation_zero` / `not_received` /
+  `server_rejected` (with reason) / `not_persisted` / `healthy`. Exposed at `sync_health.diagnostics.steps`.
+- **iOS**: a temporary **Steps Diagnostics** section on the Health Sync page shows HealthKit raw samples, daily
+  totals built, sent, server received/skipped/failed, rejection reason, and persisted total — with the verdict.
+
+Verified: 10 backend tests (incl. all diagnostic stages) + request-path-safety contract green; live HTTP
+glass-box confirms the verdict engine end-to-end (device "sent 7, built 7, raw 412" + server received 0 →
+"device SENT but server received none — transport/serialization"). **Next: Danny builds, taps Sync Now, and
+reads the Steps Diagnostics verdict** — it names the exact failing stage, which we then fix (and remove this
+temporary telemetry). Docs: `docs/ios-healthkit-integration.md`.
 
 ## 2026-07-13 — fix(ops): flagged engines auto-surface in the Engine Health accordion (discoverability)
 

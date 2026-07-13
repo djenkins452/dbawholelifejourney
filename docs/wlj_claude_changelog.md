@@ -3,8 +3,45 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(ops): Operational Disposition Model + retire dormant Sports Beat sync)
+# Last Updated: 2026-07-13 (feat(body): Executive Visual Story — Body Shape + Limb Development (Phase II-A))
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(body): Executive Visual Story — Body Shape + Limb Development (Phase II-A)
+
+Reorganized Body Intelligence into three deterministic zones — **Your Body Story** (interpretation) →
+**Executive Visual Story** (curated visuals) → **Evidence Explorer** (every number, nothing removed) — and added
+the first two curated visuals. Product goal: understand major shape change and left/right limb balance in ~5
+seconds without reading the table.
+
+- **Executive Visual Story** now leads with **Overall Progress** (the existing Weight·Fat·Lean chart, moved up),
+  then **Body Shape** and **Limb Development** (new).
+- **Body Shape** — "How is my shape changing?" An *explicitly illustrative* neutral torso (NOT scaled to
+  circumference — circumference ≠ visible width, not a body scan) that locates **regional change**: expanded /
+  contracted / stable / current-value-only / not-measured, with an honest comparison window.
+- **Limb Development** — "How are my limbs changing, and are my left/right sides balanced?" Mirrored L/R figure
+  surfacing measured size + asymmetry as **facts** (e.g. left calf 1.0″ larger) — no muscle-preservation claim.
+- **Evidence Explorer** preserves everything below: current snapshot, weight-change windows, body composition,
+  the measurement tables + dropdown history chart, goal, insights, photos.
+
+**Visual Truth, enforced.** New facts-only builder `apps/health/services/body_visual_stories.py` distinguishes
+"we know this changed" from "we only know the current value": states `changed` (delta clears the per-metric
+measurement-noise threshold) / `stable` / `current_only` / `missing`, plus `stale` and `low_confidence` flags,
+and left/right `different_dates`. **No mission green/yellow/red and no verdict** — change direction lives in the
+arrow + words, emphasised in neutral ink only. Snapshot gained additive per-metric dates
+(`latest_date_per_metric`, `previous_date_per_metric`) so freshness/timing are honest without re-querying.
+
+**`region_state` — design only.** Did NOT build a shared production `region_state` primitive (it risks fusing
+measurement truth, change, significance, mission direction, confidence, colour, and interpretation into a verdict
+engine). Wrote the design contract `docs/WLJ_BODY_REGION_STATE_DESIGN.md` (structured-evidence outputs; colour
+policy deferred to a reviewed Phase IV). Overlay / heat map / click-to-coach remain future phases; the photo
+wipe slider is the next II increment.
+
+Files: `apps/health/services/body_visual_stories.py` (new), `body_composition_snapshot.py` (additive per-metric
+dates), `body_intelligence.py` (wire-in), `templates/health/body_intelligence.html` (3-zone reorg + two SVG
+visuals + CSS), `apps/health/tests/test_body_visual_stories.py` (new, 14 tests), `docs/WLJ_BODY_REGION_STATE_DESIGN.md`
+(new design doc), release note PK 271 + loader reset. Verified: 37 tests green; live render confirms honest states
+on two real accounts (one with a 34-day comparison showing waist ↓2″ / chest ↓0.5″ / hips ↓1″; one current-only +
+stale + missing) and no JS/CSP errors. Phase II-A only.
 
 ## 2026-07-13 — feat(ops): Operational Disposition Model + retire dormant Sports Beat sync (first RETIRE)
 

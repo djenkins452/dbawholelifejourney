@@ -234,6 +234,16 @@ def build_body_intelligence(user, *, as_of=None):
         "has_any_data": bool(snapshot or weight or (body_comp and body_comp.get("weight"))),
     }
 
+    # ── Executive Visual Story — deterministic FACTS for Body Shape & Limb Dev ──
+    # Facts only (change/freshness/significance/missing-data); no mission color, no
+    # verdict. The template renders them neutrally; the model interprets in chat.
+    from apps.health.services.body_visual_stories import (
+        build_body_shape,
+        build_limb_development,
+    )
+    result["body_shape"] = build_body_shape(snapshot)
+    result["limb_development"] = build_limb_development(snapshot)
+
     # ── "Your Body Story" — the executive interpretation over this evidence ──
     # One authoritative Chief-of-Staff briefing (Layer 1) composed deterministically from
     # the truth assembled above. The page renders it; the model still reasons over the

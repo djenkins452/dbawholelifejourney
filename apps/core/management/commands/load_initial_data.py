@@ -1154,6 +1154,9 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for "Your Body Story" executive briefing (PK 270)
         self._reset_body_story_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload release_notes for Body Shape + Limb Development visuals (PK 271)
+        self._reset_body_visual_stories_release_note(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2500,6 +2503,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset body story release note FAILED: {e}'))
+
+    def _reset_body_visual_stories_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 271) so the What's New entry for the
+        Executive Visual Story — Body Shape + Limb Development — appears.
+        """
+        reset_tracker_name = 'reset_body_visual_stories_release_note_2026_07_13'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Body Shape + Limb Development')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Body Shape + Limb Development (Jul 2026)',
+                'command', 'One-time reset to reload the release note for the Executive Visual Story'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset body visual stories release note FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

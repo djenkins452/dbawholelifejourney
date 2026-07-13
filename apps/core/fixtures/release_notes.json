@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 271,
+    "fields": {
+      "title": "See your body change at a glance — Body Shape & Limb Development",
+      "description": "Body Intelligence now has an Executive Visual Story between Your Body Story and the full numbers. Two new visuals let you understand change in seconds: Body Shape shows which parts of your torso got smaller, larger, or held steady between check-ins, and Limb Development mirrors your left and right arms, forearms, thighs, and calves so you can see your balance at a glance. Both are honest about what they know — you can always tell the difference between \"this changed\" and \"we only have one reading so far,\" and missing measurements are shown plainly rather than guessed. The visuals are illustrative, not a body scan, and they never hide the numbers: every measurement, trend, check-in, and photo still lives in the Evidence Explorer below. Find it under Health → Body Intelligence.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-13",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/health/physical/body-intelligence/",
+      "created_at": "2026-07-13T17:00:00Z",
+      "updated_at": "2026-07-13T17:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 270,
     "fields": {
       "title": "Body Intelligence now opens with Your Body Story",

@@ -35,15 +35,67 @@
     </div>
     {% else %}
 
-    <!-- ── Headline: what is happening to my body? ─────────────────────── -->
-    <section class="bi-headline" data-testid="bi-headline">
-        <div class="bi-headline-primary">{{ bi.headline.primary }}</div>
-        {% if bi.headline.supporting %}
-        <ul class="bi-headline-support">
-            {% for item in bi.headline.supporting %}<li>{{ item }}</li>{% endfor %}
-        </ul>
+    <!-- ── Your Body Story: the one executive briefing (Layer 1 — interpretation) ── -->
+    {% with story=bi.body_story %}
+    <section class="bi-story bi-story-{{ story.status.tone|default:'unknown' }}" data-testid="bi-story">
+        <header class="bi-story-head">
+            <div class="bi-story-title-row">
+                <h2 class="bi-story-title">Your Body Story</h2>
+                <span class="bi-story-status bi-story-status-{{ story.status.tone|default:'unknown' }}" data-testid="bi-story-status">
+                    {{ story.status.label }}
+                </span>
+            </div>
+            <div class="bi-story-meta">
+                <span class="bi-story-confidence bi-story-confidence-{{ story.confidence.level }}" title="{{ story.confidence.basis }}" data-testid="bi-story-confidence">
+                    <span class="bi-conf-dot" aria-hidden="true"></span>{{ story.confidence.level|title }} confidence
+                </span>
+                {% if story.status.detail %}<span class="bi-story-status-detail">{{ story.status.detail }}</span>{% endif %}
+            </div>
+        </header>
+
+        {% if story.narrative %}
+        <div class="bi-story-narrative" data-testid="bi-story-narrative">
+            {% for sentence in story.narrative %}<p>{{ sentence }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="bi-story-cols">
+            <div class="bi-story-col">
+                <h3 class="bi-story-col-title">Biggest wins</h3>
+                {% if story.wins %}
+                <ul class="bi-story-list bi-story-list-win">
+                    {% for w in story.wins %}
+                    <li><span class="bi-story-mark" aria-hidden="true">✓</span>
+                        <span><b>{{ w.title }}</b>{% if w.detail %} — {{ w.detail }}{% endif %}</span></li>
+                    {% endfor %}
+                </ul>
+                {% else %}<p class="bi-story-empty">Wins will show here as your progress builds.</p>{% endif %}
+            </div>
+
+            <div class="bi-story-col">
+                <h3 class="bi-story-col-title">Watch items</h3>
+                {% if story.watch_items %}
+                <ul class="bi-story-list bi-story-list-watch">
+                    {% for it in story.watch_items %}
+                    <li><span class="bi-story-mark bi-story-mark-{{ it.tone }}" aria-hidden="true">{% if it.tone == 'critical' %}!{% else %}⚠{% endif %}</span>
+                        <span><b>{{ it.title }}</b>{% if it.detail %} — {{ it.detail }}{% endif %}</span></li>
+                    {% endfor %}
+                </ul>
+                {% else %}<p class="bi-story-empty bi-story-empty-ok"><span aria-hidden="true">✓</span> Nothing needs attention right now.</p>{% endif %}
+            </div>
+        </div>
+
+        {% if story.recommendation %}
+        <div class="bi-story-rec" data-testid="bi-story-rec">
+            <span class="bi-story-rec-label">Start here</span>
+            <div class="bi-story-rec-body">
+                <b class="bi-story-rec-title">{{ story.recommendation.title }}</b>
+                {% if story.recommendation.detail %}<span class="bi-story-rec-detail">{{ story.recommendation.detail }}</span>{% endif %}
+            </div>
+        </div>
         {% endif %}
     </section>
+    {% endwith %}
 
     <!-- ── Current snapshot ────────────────────────────────────────────── -->
     <h2 class="bi-section-title">Current snapshot</h2>
@@ -351,13 +403,65 @@ document.addEventListener('DOMContentLoaded', function () {
 .bi-section-note { color: var(--color-text-muted, #6b7280); font-size: var(--font-size-sm, 0.875rem); margin-bottom: var(--space-4, 1rem); }
 .bi-muted { color: var(--color-text-muted, #6b7280); }
 
-/* Headline */
-.bi-headline { background: linear-gradient(135deg, color-mix(in srgb, var(--color-accent, #6366f1) 14%, var(--color-surface, #fff)), var(--color-surface, #fff));
+/* ── Your Body Story — the executive briefing hero ──────────────────────── */
+.bi-story { position: relative; background: var(--color-surface, #fff);
     border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
-    padding: var(--space-6, 1.5rem); margin-bottom: var(--space-6, 1.5rem); }
-.bi-headline-primary { font-size: var(--font-size-xl, 1.375rem); font-weight: 700; color: var(--color-text, #111827); }
-.bi-headline-support { margin: var(--space-3, 0.75rem) 0 0; padding-left: 1.1rem; color: var(--color-text-muted, #4b5563); }
-.bi-headline-support li { margin: 0.15rem 0; }
+    padding: var(--space-6, 1.5rem); margin-bottom: var(--space-8, 2rem);
+    border-top: 4px solid var(--bi-tone, var(--color-accent, #6366f1)); }
+/* Tone accent — WLJ-computed status drives the hero's leading colour. */
+.bi-story-positive { --bi-tone: var(--color-success, #10b981); }
+.bi-story-steady   { --bi-tone: var(--color-accent, #6366f1); }
+.bi-story-caution  { --bi-tone: var(--color-warning, #f59e0b); }
+.bi-story-critical { --bi-tone: var(--color-danger, #ef4444); }
+.bi-story-unknown  { --bi-tone: var(--color-text-muted, #9ca3af); }
+
+.bi-story-head { margin-bottom: var(--space-4, 1rem); }
+.bi-story-title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3, 0.75rem); flex-wrap: wrap; }
+.bi-story-title { font-size: var(--font-size-xl, 1.375rem); font-weight: 800; color: var(--color-text, #111827); margin: 0; letter-spacing: -0.01em; }
+.bi-story-status { font-size: var(--font-size-sm, 0.875rem); font-weight: 700; padding: 0.25rem 0.7rem; border-radius: var(--radius-full, 999px);
+    color: var(--bi-tone); background: color-mix(in srgb, var(--bi-tone) 14%, transparent); white-space: nowrap; }
+.bi-story-meta { display: flex; align-items: center; gap: var(--space-3, 0.75rem); flex-wrap: wrap; margin-top: var(--space-2, 0.5rem); }
+.bi-story-confidence { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--font-size-xs, 0.75rem); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); cursor: default; }
+.bi-conf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-muted, #9ca3af); }
+.bi-story-confidence-high .bi-conf-dot { background: var(--color-success, #10b981); }
+.bi-story-confidence-medium .bi-conf-dot { background: var(--color-warning, #f59e0b); }
+.bi-story-confidence-low .bi-conf-dot { background: var(--color-text-muted, #9ca3af); }
+.bi-story-status-detail { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #6b7280); }
+
+.bi-story-narrative { margin: 0 0 var(--space-5, 1.25rem); }
+.bi-story-narrative p { font-size: var(--font-size-base, 1rem); line-height: 1.6; color: var(--color-text, #1f2937); margin: 0 0 var(--space-2, 0.5rem); }
+.bi-story-narrative p:first-child { font-size: var(--font-size-lg, 1.125rem); font-weight: 600; color: var(--color-text, #111827); }
+.bi-story-narrative p:last-child { margin-bottom: 0; }
+
+.bi-story-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5, 1.25rem);
+    padding-top: var(--space-4, 1rem); border-top: 1px solid var(--color-border, #e5e7eb); }
+.bi-story-col-title { font-size: var(--font-size-xs, 0.75rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--color-text-muted, #6b7280); margin: 0 0 var(--space-2, 0.5rem); }
+.bi-story-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2, 0.5rem); }
+.bi-story-list li { display: flex; gap: 0.5rem; align-items: flex-start; font-size: var(--font-size-sm, 0.9rem); line-height: 1.45; color: var(--color-text, #374151); }
+.bi-story-list b { color: var(--color-text, #111827); font-weight: 700; }
+.bi-story-mark { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 50%; font-size: 0.7rem; font-weight: 800; margin-top: 0.1rem; }
+.bi-story-list-win .bi-story-mark { background: color-mix(in srgb, var(--color-success, #10b981) 18%, transparent); color: var(--color-success, #10b981); }
+.bi-story-mark-caution { background: color-mix(in srgb, var(--color-warning, #f59e0b) 18%, transparent); color: var(--color-warning, #f59e0b); }
+.bi-story-mark-critical { background: color-mix(in srgb, var(--color-danger, #ef4444) 18%, transparent); color: var(--color-danger, #ef4444); }
+.bi-story-empty { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #9ca3af); margin: 0; }
+.bi-story-empty-ok { color: var(--color-success, #10b981); }
+
+.bi-story-rec { display: flex; align-items: flex-start; gap: var(--space-3, 0.75rem); margin-top: var(--space-5, 1.25rem);
+    padding: var(--space-4, 1rem); border-radius: var(--radius-md, 10px);
+    background: color-mix(in srgb, var(--bi-tone) 8%, var(--color-surface, #fff)); border: 1px solid color-mix(in srgb, var(--bi-tone) 25%, var(--color-border, #e5e7eb)); }
+.bi-story-rec-label { flex: none; font-size: var(--font-size-xs, 0.75rem); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--bi-tone); padding: 0.2rem 0.55rem; border-radius: var(--radius-full, 999px); background: color-mix(in srgb, var(--bi-tone) 15%, transparent); white-space: nowrap; margin-top: 0.1rem; }
+.bi-story-rec-body { display: flex; flex-direction: column; gap: 0.15rem; }
+.bi-story-rec-title { font-size: var(--font-size-base, 1rem); color: var(--color-text, #111827); }
+.bi-story-rec-detail { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #4b5563); line-height: 1.5; }
+
+@media (max-width: 640px) {
+    .bi-story-cols { grid-template-columns: 1fr; gap: var(--space-4, 1rem); }
+    .bi-story-rec { flex-direction: column; gap: var(--space-2, 0.5rem); }
+}
 
 /* Stat grid */
 .bi-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3, 0.75rem); }

@@ -215,7 +215,7 @@ def build_body_intelligence(user, *, as_of=None):
     # ── Deterministic headline (facts only) ────────────────────────────────
     headline = _build_headline(weight, goal, snapshot, body_comp)
 
-    return {
+    result = {
         "as_of": target,
         "headline": headline,
         "snapshot": snapshot,
@@ -233,6 +233,14 @@ def build_body_intelligence(user, *, as_of=None):
         "composition_metrics": COMPOSITION_METRICS,
         "has_any_data": bool(snapshot or weight or (body_comp and body_comp.get("weight"))),
     }
+
+    # ── "Your Body Story" — the executive interpretation over this evidence ──
+    # One authoritative Chief-of-Staff briefing (Layer 1) composed deterministically from
+    # the truth assembled above. The page renders it; the model still reasons over the
+    # SAME truth in chat (via the facts-only page summary). No LLM on the request path.
+    from apps.health.services.body_story import build_body_story
+    result["body_story"] = build_body_story(result)
+    return result
 
 
 # ── Internals ─────────────────────────────────────────────────────────────

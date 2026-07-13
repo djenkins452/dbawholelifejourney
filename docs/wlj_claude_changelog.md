@@ -3,8 +3,41 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Purpose LifeGoals)
+# Last Updated: 2026-07-13 (feat(body): "Your Body Story" executive briefing — Body Intelligence Phase I)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(body): "Your Body Story" — the executive briefing hero for Body Intelligence (Phase I)
+
+Replaced the one-line Body Intelligence headline with a single authoritative Chief-of-Staff executive
+briefing — **"Your Body Story"** — mirroring the Home Dashboard's deterministic `build_executive_summary`
+pattern. It is the *interpretation* layer (Layer 1) over the evidence (Layer 2 — every chart/measurement/
+photo/check-in, all retained unchanged below it). Six modular blocks: **Overall Status · Confidence · Body
+Story (narrative) · Biggest Wins · Watch Items · Highest-Leverage Recommendation**. One briefing at the top,
+never stacked summaries.
+
+**Deterministic + request-path-safe by construction.** New composer `apps/health/services/body_story.py ::
+build_body_story(bi)` — zero inline LLM, no invented causes. Every sentence/verdict is composed from truth WLJ
+already computed at rollup time (fat-loss quality, recomposition, plateau, muscle-loss risk, pace, phase +
+`phase_confidence`, goal pace, largest measurement change). The frontier model still reasons over the SAME
+truth in chat via the unchanged **facts-only** `health.body_intelligence` page summary. Wired into
+`build_body_intelligence` as `result["body_story"]` so the page and the assistant share ONE source (no drift).
+
+**Built for two years out (domain-agnostic framework).** The briefing is assembled from typed
+`BodyStorySignal`s emitted by independent *contributors* (`_composition_contributor`, `_weight_contributor`,
+`_measurement_contributor`, registered in `_CONTRIBUTORS`). Future domains — Sleep, Glucose, Recovery,
+Nutrition, Workouts, Medications, Labs, Biomarkers — join by shipping a new contributor emitting the same
+signal type; the status/confidence/narrative/wins/watch/recommendation pipeline and the template are NOT
+redesigned. Only content evolves. Status tone (positive/steady/caution/critical/unknown) drives the hero's
+leading colour from WLJ-computed truth only; confidence is floored by data density, never inflated by one
+confident signal.
+
+Files: `apps/health/services/body_story.py` (new), `apps/health/services/body_intelligence.py` (wire-in),
+`templates/health/body_intelligence.html` (hero markup + CSS; old `.bi-headline` removed),
+`apps/health/tests/test_body_story.py` (new, 14 tests), `apps/core/fixtures/release_notes.json` (PK 270) +
+`load_initial_data.py` reset. Verified: 70 tests green (body_story + body_intelligence + snapshot +
+weight-current-context); live render (200) shows exactly one hero, old headline gone, all 7 evidence sections
+intact, no console/CSP errors. **Phase I only** — overlay/silhouette/heat-map/graph-redesign/interactive-coaching
+intentionally NOT built (future phases II–VI).
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Purpose LifeGoals
 

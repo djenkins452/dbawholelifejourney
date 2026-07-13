@@ -418,6 +418,15 @@ class HealthIngestionRun(TimeStampedModel):
         blank=True,
         help_text="List of validation errors for individual metrics",
     )
+    metric_type_results = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Deterministic per-metric-type outcome of this run: "
+            '{"steps": {"created": 1, "updated": 0, "skipped": 6, "failed": 0}, ...}. '
+            "Drives the human-readable Health Sync summary (imported / no-change / failed)."
+        ),
+    )
 
     class Meta:
         verbose_name = "Health Ingestion Run"
@@ -438,19 +447,21 @@ class HealthIngestionRun(TimeStampedModel):
         self.started_at = timezone.now()
         self.save(update_fields=["status", "started_at", "updated_at"])
 
-    def mark_completed(self, created=0, updated=0, skipped=0):
+    def mark_completed(self, created=0, updated=0, skipped=0, type_results=None):
         """Mark run as completed with stats."""
         self.status = "completed"
         self.completed_at = timezone.now()
         self.metrics_created = created
         self.metrics_updated = updated
         self.metrics_skipped = skipped
+        if type_results is not None:
+            self.metric_type_results = type_results
         self.save(update_fields=[
             "status", "completed_at", "metrics_created",
-            "metrics_updated", "metrics_skipped", "updated_at"
+            "metrics_updated", "metrics_skipped", "metric_type_results", "updated_at"
         ])
 
-    def mark_partial(self, created=0, updated=0, skipped=0, errors=None):
+    def mark_partial(self, created=0, updated=0, skipped=0, errors=None, type_results=None):
         """Mark run as partial success."""
         self.status = "partial"
         self.completed_at = timezone.now()
@@ -459,9 +470,12 @@ class HealthIngestionRun(TimeStampedModel):
         self.metrics_skipped = skipped
         if errors:
             self.validation_errors = errors
+        if type_results is not None:
+            self.metric_type_results = type_results
         self.save(update_fields=[
             "status", "completed_at", "metrics_created",
-            "metrics_updated", "metrics_skipped", "validation_errors", "updated_at"
+            "metrics_updated", "metrics_skipped", "validation_errors",
+            "metric_type_results", "updated_at"
         ])
 
     def mark_failed(self, error_message):

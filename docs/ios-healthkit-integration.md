@@ -303,16 +303,56 @@ All queries use async/await with proper error propagation. Individual type failu
 4. **Secure transmission**: HTTPS only, Bearer token auth
 5. **Audit logging**: All ingestion runs logged server-side with HealthIngestionRun
 
+## The HealthKit read-authorization trap (why a source can look "enabled" but send nothing)
+
+WLJ requests **read-only** access (`requestAuthorization(toShare: [], read: …)`).
+Apple **deliberately never reveals read-authorization status** (privacy):
+`authorizationStatus(for:)` reflects only *write/share* permission — which this app
+never requests. So the app **cannot know** whether a specific type's *read* was
+granted. If the user leaves a per-type toggle off (e.g. **Steps**) in the Health
+permission sheet, the corresponding query (`HKStatisticsCollectionQuery` etc.)
+returns **zero samples with no error** — nothing is sent, nothing persists, and
+the app has no local way to detect it.
+
+**Consequences fixed (2026-07-13):**
+- `HealthKitManager.isAuthorized` used to check `.sharingAuthorized` (write) — always
+  false for a read-only app, so it under-reported "connected" on relaunch and stopped
+  background delivery from re-enabling. It now persists "user completed the auth
+  request" (`wlj.healthkit.connected`) — the only honest signal we own.
+- The Health Sync page no longer *claims* per-type authorization it cannot verify.
+
+## Health Sync Status — deterministic per-type truth (the platform source)
+
+Because read-authorization is unknowable, the **only** trustworthy signal that a
+source is healthy is **whether records actually reached the backend**. That truth
+is computed by **`apps/health/services/health_sync_status.py ::
+build_health_sync_status(user)`** — the single canonical source for the Health Sync
+page *and* any future Health Operations / diagnostic view. It returns, per data type:
+last record instant, recent/total counts, status (`healthy` / `idle` / `stale` /
+`no_data`), plus account-level `issues`, `newest_data`, `oldest_active_source`, and
+a human `last_sync_summary` (imported / no-change / failed).
+
+- Per-type sync results are persisted on each run (`HealthIngestionRun.metric_type_results`,
+  populated in `mobile/views.health_ingest`).
+- Exposed additively on `GET /api/mobile/health/sync-status/` under `sync_health`.
+- The iOS `HealthSyncView` renders entirely from this — answering "Did it sync? What
+  synced? What didn't? Is anything broken? What next?". A source that shows
+  **"No records received"** (e.g. Steps) is the real, actionable signal → the user
+  enables it under Apple Health → Sharing. Add a new tracked type by adding one row
+  to `HEALTH_SYNC_TYPES`.
+
 ## Key Files
 
 | File | Purpose |
 |------|---------|
 | `ios/.../Services/HealthKitManager.swift` | HK authorization, data queries, sync orchestration |
 | `ios/.../Models/HealthMetric.swift` | Data model for metrics sent to API |
-| `apps/mobile/views.py` | Ingest endpoint + 37 metric handlers |
-| `apps/health/models.py` | Django models (StepsEntry, MobilityEntry, etc.) |
-| `apps/mobile/models.py` | HealthIngestionRun audit model |
+| `ios/.../Models/HealthSyncStatus.swift` | Decodes the deterministic per-type sync truth |
+| `ios/.../Views/HealthSyncView.swift` | Redesigned trust-focused Health Sync page |
+| `apps/mobile/views.py` | Ingest endpoint (+ per-type results) & sync-status endpoint |
+| `apps/health/services/health_sync_status.py` | **Canonical** per-type Health Sync truth |
+| `apps/mobile/models.py` | `HealthIngestionRun` audit + `metric_type_results` |
 
 ---
 
-*Last updated: 2026-02-21*
+*Last updated: 2026-07-13 (Health Sync redesign: deterministic per-type truth; read-auth trap fix)*

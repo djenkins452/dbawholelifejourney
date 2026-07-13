@@ -446,6 +446,15 @@ def health_ingest(request):
     skipped = 0
     errors = []
     changed_types = set()
+    # Deterministic per-type outcome for this run (drives the Health Sync summary).
+    type_results = {}
+
+    def _record_type(mtype, outcome):
+        r = type_results.setdefault(
+            (mtype or "unknown").lower(),
+            {"created": 0, "updated": 0, "skipped": 0, "failed": 0},
+        )
+        r[outcome] += 1
 
     for i, metric in enumerate(metrics):
         if _metric_has_nan(metric):
@@ -461,41 +470,48 @@ def health_ingest(request):
                 metric.get("type", "unknown"),
             )
             skipped += 1
+            _record_type(metric.get("type"), "skipped")
             continue
+        mtype = metric.get("type", "unknown")
         try:
             result = process_health_metric(user, metric, existing_glucose_sync_ids)
             if result == "created":
                 created += 1
-                changed_types.add(metric.get("type", "unknown"))
+                changed_types.add(mtype)
+                _record_type(mtype, "created")
             elif result in ("updated", "merged"):
                 updated += 1
-                changed_types.add(metric.get("type", "unknown"))
+                changed_types.add(mtype)
+                _record_type(mtype, "updated")
             elif result == "skipped":
                 skipped += 1
+                _record_type(mtype, "skipped")
         except ValueError as e:
             errors.append({
                 "index": i,
-                "type": metric.get("type", "unknown"),
+                "type": mtype,
                 "error": str(e),
             })
             skipped += 1
+            _record_type(mtype, "failed")
         except Exception as e:
             logger.exception(
                 f"Unexpected error processing metric {i} "
-                f"(type={metric.get('type', 'unknown')})"
+                f"(type={mtype})"
             )
             errors.append({
                 "index": i,
-                "type": metric.get("type", "unknown"),
+                "type": mtype,
                 "error": f"Internal error: {type(e).__name__}: {e}",
             })
             skipped += 1
+            _record_type(mtype, "failed")
 
     # Update ingestion run
     if errors:
-        ingestion_run.mark_partial(created, updated, skipped, errors)
+        ingestion_run.mark_partial(created, updated, skipped, errors, type_results=type_results)
     else:
-        ingestion_run.mark_completed(created, updated, skipped)
+        ingestion_run.mark_completed(created, updated, skipped, type_results=type_results)
 
     logger.info(
         f"Health ingestion completed: user={hash_pii(user.email, 'user')}, "
@@ -2935,6 +2951,15 @@ def sync_status(request):
             logger.warning("sync_status: reimport directive failed", exc_info=True)
             reimport = None
 
+        # Deterministic, reusable per-type Health Sync truth (the canonical source
+        # for the redesigned Health Sync page and future Health Ops views).
+        try:
+            from apps.health.services.health_sync_status import build_health_sync_status
+            sync_health = build_health_sync_status(user)
+        except Exception:
+            logger.exception("sync_status: build_health_sync_status failed")
+            sync_health = None
+
         return JsonResponse({
             "last_sync": last_run.created_at.isoformat() if last_run else None,
             "last_sync_status": last_run.status if last_run else None,
@@ -2950,6 +2975,8 @@ def sync_status(request):
                 "name": device.device_name or device.device_model or "Unknown",
                 "last_seen": device.last_seen_at.isoformat() if device.last_seen_at else None,
             },
+            # Rich per-type health for the redesigned Health Sync experience.
+            "sync_health": sync_health,
         })
     except Exception as e:
         logger.exception("sync_status error")

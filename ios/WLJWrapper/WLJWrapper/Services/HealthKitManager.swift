@@ -239,19 +239,22 @@ class HealthKitManager {
         return types
     }()
 
+    /// Key persisting that the user completed the HealthKit authorization request.
+    private static let connectedKey = "wlj.healthkit.connected"
+
+    /// Whether WLJ is connected to Apple Health.
+    ///
+    /// IMPORTANT: this is a read-only integration (`toShare: []`), and Apple
+    /// deliberately does NOT reveal read-authorization status —
+    /// `authorizationStatus(for:)` reflects *write* permission we never request,
+    /// so it is meaningless here (it would falsely read "not authorized" after
+    /// every relaunch, which also prevented background delivery from re-enabling).
+    /// The only honest signal we own is "did the user complete the auth request",
+    /// which we persist. Per-source truth ("is Steps actually flowing?") comes
+    /// from the backend sync status, not from here.
     var isAuthorized: Bool {
-        // Check if HealthKit is available
-        guard HKHealthStore.isHealthDataAvailable() else {
-            return false
-        }
-
-        // Check authorization status for at least one type
-        if let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) {
-            let status = healthStore.authorizationStatus(for: stepType)
-            return status == .sharingAuthorized
-        }
-
-        return false
+        guard HKHealthStore.isHealthDataAvailable() else { return false }
+        return UserDefaults.standard.bool(forKey: Self.connectedKey)
     }
 
     private init() {}
@@ -277,6 +280,10 @@ class HealthKitManager {
             try await group.next()
             group.cancelAll()
         }
+
+        // Remember that the user completed the request. Read grants remain
+        // invisible to us, so backend sync status is the source of per-type truth.
+        UserDefaults.standard.set(true, forKey: Self.connectedKey)
     }
 
     // MARK: - Sync Health Data

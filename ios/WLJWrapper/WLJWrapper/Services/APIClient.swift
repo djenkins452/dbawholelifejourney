@@ -428,6 +428,8 @@ struct SyncStatusResponse: Codable {
     let metricsSynced: MetricsSynced
     let reimport: ReimportDirective?
     let device: DeviceInfo
+    // Deterministic per-type Health Sync truth (drives the redesigned Health Sync page).
+    let syncHealth: HealthSyncStatus?
 
     enum CodingKeys: String, CodingKey {
         case lastSync = "last_sync"
@@ -435,6 +437,7 @@ struct SyncStatusResponse: Codable {
         case metricsSynced = "metrics_synced"
         case reimport
         case device
+        case syncHealth = "sync_health"
     }
 }
 

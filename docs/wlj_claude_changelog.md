@@ -3,8 +3,50 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(ops): engine cards self-describe cadence false-positives — investigate WLJ using WLJ)
+# Last Updated: 2026-07-13 (feat(health): Health Sync redesign — deterministic per-type truth + Steps root cause)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(health): Health Sync redesign — deterministic per-type sync truth (+ Steps root cause)
+
+Investigated "Steps never appears" end-to-end (iOS → ingest → persist → render) and redesigned the Health Sync
+experience around user trust.
+
+**Root cause of missing Steps (proven by code trace, not guessed):** every code stage is correct — the app
+requests `.stepCount`, `fetchSteps` uses a daily `.cumulativeSum` query, builds a well-formed
+`{type:"steps", value, date, source, sync_id}` metric; `process_steps_metric` persists `StepsEntry`;
+`steps_on` sums it for render. The failure is the **HealthKit read-authorization trap**: WLJ is read-only
+(`toShare: []`), and Apple deliberately never reveals read-auth status, so the app cannot know if Steps *read*
+was granted. If it wasn't (a per-type toggle the user can miss), `fetchSteps` returns **zero samples with no
+error** → nothing sent/persisted → nothing renders, while the old static UI still listed Steps as "enabled".
+
+**Deterministic platform truth (reusable — not page-specific):** new
+`apps/health/services/health_sync_status.py :: build_health_sync_status(user)` — the canonical per-type Health
+Sync truth for the Health Sync page and any future Health Operations/diagnostic view. Per data type: last record
+instant, recent/total counts, status (`healthy`/`idle`/`stale`/`no_data`), + account `issues`, `newest_data`,
+`oldest_active_source`, and a human `last_sync_summary` (imported/no-change/failed). A source is "healthy" only
+when records actually reached the backend — so Steps now shows the real, actionable **"No records received →
+grant Steps in Apple Health → Sharing"** instead of a fake "enabled". Driven by a data-driven registry
+(`HEALTH_SYNC_TYPES`) — add a type in one line. Request-path safe (bounded indexed lookups).
+
+- **Per-type telemetry:** `HealthIngestionRun.metric_type_results` (migration `mobile.0004`) populated by
+  `health_ingest`; `mark_completed`/`mark_partial` thread it through. Replaces the meaningless
+  "N created / N updated" with real per-type results.
+- **Endpoint:** `GET /api/mobile/health/sync-status/` returns the rich truth additively under `sync_health`
+  (old keys kept for the reimport flow).
+- **iOS redesign** (`Views/HealthSyncView.swift` + new `Models/HealthSyncStatus.swift`): a trust-focused page —
+  a **Health Sync status** header (last successful sync, active sources, newest data, oldest active source,
+  issues), a human **Last Sync** summary (Imported / No Changes / Needs Attention), and **Data Sources** rows
+  showing each source's real health with a tap-through **detail sheet** (replaces the non-functional `plus.circle`
+  "+" that looked expandable but did nothing). Also fixed `HealthKitManager.isAuthorized` (was checking *write*
+  status the read-only app never requests → falsely "disconnected" on relaunch + background delivery never
+  re-enabled) to persist that the user connected Health.
+
+**Verified deterministically:** backend unit tests (`apps/mobile/tests/test_health_sync_status.py`, 8) +
+request-path-safety contract green; live HTTP glass-box on `/api/mobile/health/sync-status/` with a real Bearer
+token confirms Steps→"No records received" (single actionable issue), Weight→"idle/today", Heart Rate→"healthy",
+summary Weight (1)/Heart Rate (1). Swift models parse-checked + brace-balanced (SwiftUI/HealthKit compile on
+device). **Device verification (Danny):** grant Steps in Apple Health → Sharing, Sync Now, confirm Steps flips to
+healthy and the page reflects reality. Docs: `docs/ios-healthkit-integration.md`.
 
 ## 2026-07-13 — feat(ops): engine cards self-describe cadence tolerance — an operator can diagnose a false-MISSED on the wall
 

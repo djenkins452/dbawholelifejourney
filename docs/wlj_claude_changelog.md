@@ -3,8 +3,43 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(health): Steps pipeline glass-box — deterministic verdict of where Steps disappear)
+# Last Updated: 2026-07-13 (feat(body): "How Your Body Changed" — animate-the-difference Change Map (production candidate))
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(body): "How Your Body Changed" — the Change Map (animate the difference)
+
+Shipped the signature Body Intelligence interaction as the lead of the Executive Visual Story, directly beneath
+Your Body Story. It embodies a new WLJ **product/motion language**: *Your Story → How You Changed → How Much →
+Evidence Explorer*, and the principle **"animate the difference, not information."**
+
+- **The current body is a fixed anchor**; only the **historical difference animates** — a soft ghost of where each
+  region used to be appears around the current region and dissolves. Runs **once**, **largest-first** (waist →
+  hips → chest), then the visual is permanently static. The movement is the explanation.
+- **Honest by state** (from the shipped `build_body_shape` facts — no new truth): `changed` regions animate;
+  `stable` holds with a "steady" mark; `current_only` shows a hollow marker + "one reading" (no ghost, no motion);
+  `missing` is dashed "not measured"; `stale`/`low_confidence` are flagged in the panel.
+- **Factual detail panel with real measurement dates** — Current · <date>, Previous · <date>, Difference, Over
+  <N> days. **Never says "Today"** unless it truly is. Default state is the **Largest Change** callout (max
+  |delta| — factual magnitude/direction, NOT "improvement"; that verdict awaits a reviewed target-direction
+  contract). Hover/keyboard focus dims everything else and cross-highlights the matching Change Bar.
+- **Ranked Change Bars** ("how much") sit directly beneath, largest-first, honest rows for stable/one-reading/
+  not-measured. **Click a region → scrolls to the Evidence Explorer** (a clean existing anchor).
+- **prefers-reduced-motion**: same information, no animation — the historical ghosts render statically.
+- Self-healing entrance (a hover mid-animation snaps to final; safety timer guarantees the end state).
+
+No mission color, no heat map, no coaching, no mass flow, no photo comparison, no new region_state abstraction,
+**no model or migration**. Backend change is one additive factual field: `build_body_shape` now returns
+`largest_change`. Replaces the Phase II-A static "Body Shape" visual with this animated hero (Overall Progress
+and Limb Development retained; Evidence Explorer unchanged).
+
+Files: `apps/health/services/body_visual_stories.py` (+`largest_change`), `templates/health/body_intelligence.html`
+(Change Map markup + renderer + CSS; old Body Shape removed), `apps/health/tests/test_body_visual_stories.py`
+(+2 tests). Verified end-to-end through the real pipeline on a two-check-in fixture: sequenced animation
+(waist@150ms → hips@360 → chest@570, &lt;1s), panel dates correct with no "Today", stable/missing honest,
+cross-highlight + click-to-Evidence working; 61 tests green; `has_any` current-only account degrades to a
+static "current values only" state. Release note PK 272 + loader reset.
+
+## 2026-07-13 — feat(health): Steps pipeline glass-box — deterministic verdict of where Steps disappear
 
 ## 2026-07-13 — feat(health): Steps pipeline glass-box — prove exactly where Steps disappear
 

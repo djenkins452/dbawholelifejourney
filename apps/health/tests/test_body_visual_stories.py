@@ -93,6 +93,28 @@ class BodyShapeTests(SimpleTestCase):
         self.assertEqual([r["metric"] for r in bs["regions"]],
                          ["neck", "shoulders", "chest", "waist", "hips"])
 
+    def test_largest_change_is_max_absolute_delta(self):
+        # Factual: the region that moved most by |delta|, NOT a verdict about "improvement".
+        s = _snap(
+            latest={"chest": 42.0, "waist": 34.0, "hips": 40.0},
+            previous={"chest": 42.6, "waist": 36.0, "hips": 41.0},
+            delta={"chest": -0.6, "waist": -2.0, "hips": -1.0},
+            units={"chest": "in", "waist": "in", "hips": "in"},
+            latest_date_per_metric={"chest": date(2026, 7, 10), "waist": date(2026, 7, 10),
+                                    "hips": date(2026, 7, 10)},
+            previous_date_per_metric={"chest": date(2026, 6, 10), "waist": date(2026, 6, 10),
+                                      "hips": date(2026, 6, 10)},
+        )
+        lc = build_body_shape(s)["largest_change"]
+        self.assertEqual(lc["metric"], "waist")
+        self.assertEqual(lc["magnitude"], 2.0)
+        self.assertEqual(lc["direction"], "down")
+
+    def test_largest_change_none_when_nothing_changed(self):
+        s = _snap(latest={"waist": 34.0}, previous={"waist": None}, delta={"waist": None},
+                  units={"waist": "in"}, latest_date_per_metric={"waist": date(2026, 7, 10)})
+        self.assertIsNone(build_body_shape(s)["largest_change"])
+
     def test_mixed_states_reported_honestly(self):
         s = _snap(
             latest={"neck": 15.0, "chest": 42.0, "waist": 34.0},

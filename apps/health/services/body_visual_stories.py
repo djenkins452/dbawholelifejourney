@@ -126,12 +126,13 @@ def _counts(facts) -> dict:
 def build_body_shape(snapshot: dict | None) -> dict:
     """Body Shape facts — one entry per torso region, in silhouette order.
 
-    Returns ``{regions, comparison_window, counts, has_comparison, has_any}``. Empty-safe.
+    Returns ``{regions, comparison_window, counts, largest_change, has_comparison,
+    has_any}``. Empty-safe.
     """
     if not snapshot:
         return {"regions": [], "comparison_window": None,
                 "counts": {"changed": 0, "stable": 0, "current_only": 0, "missing": 5},
-                "has_comparison": False, "has_any": False}
+                "largest_change": None, "has_comparison": False, "has_any": False}
 
     regions = [region_fact(snapshot, m) for m in BODY_SHAPE_REGIONS]
     counts = _counts(regions)
@@ -141,8 +142,20 @@ def build_body_shape(snapshot: dict | None) -> dict:
         window = {"latest_date": _iso(snapshot["latest_date"]),
                   "previous_date": _iso(snapshot["previous_date"]),
                   "days_between": snapshot.get("days_between")}
+
+    # Largest CHANGE — the region that moved most by absolute delta. Factual only:
+    # magnitude + direction, NOT a verdict about whether the change is "good" (that
+    # needs a reviewed target-direction contract, deferred). None when nothing changed.
+    changed = [r for r in regions if r["state"] == "changed"]
+    largest_change = None
+    if changed:
+        top = max(changed, key=lambda r: r["magnitude"] or 0)
+        largest_change = {"metric": top["metric"], "label": top["label"],
+                          "delta": top["delta"], "magnitude": top["magnitude"],
+                          "direction": top["direction"], "unit": top["unit"]}
+
     return {"regions": regions, "comparison_window": window, "counts": counts,
-            "has_comparison": has_comparison,
+            "largest_change": largest_change, "has_comparison": has_comparison,
             "has_any": counts["missing"] < len(BODY_SHAPE_REGIONS)}
 
 

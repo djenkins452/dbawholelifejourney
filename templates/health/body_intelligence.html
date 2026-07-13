@@ -103,7 +103,38 @@
         <p class="bi-zone-note">See the change in seconds. Each visual answers one question — the complete numbers are always in the Evidence Explorer below.</p>
     </div>
 
-    <!-- Visual 1 · Overall Progress -->
+    <!-- Visual 1 · How Your Body Changed (the Change Map) -->
+    {% if bi.body_shape.has_any %}
+    <div class="bi-visual" data-testid="bi-change-map">
+        <p class="bi-visual-q">How your body changed</p>
+        <p class="bi-visual-sub">Illustrative — the body is a diagram, not a scan. Your current body stays put; only the historical difference moves. Circumference is not the same as visible width.</p>
+        <div class="bi-cm">
+            <div class="bi-cm-figwrap">
+                <svg id="biCMFig" class="bi-cm-fig" viewBox="0 0 240 300" role="img" aria-label="Your current body; a ghost outline shows where each region used to be."></svg>
+                <button type="button" class="bi-cm-replay" id="biCMReplay" data-testid="bi-cm-replay">&#9654; Replay</button>
+            </div>
+            <div class="bi-cm-detail" id="biCMDetail" aria-live="polite">
+                <div id="biCMDefault"></div>
+                <div id="biCMFull" style="display:none">
+                    <div class="bi-cm-regionrow"><h3 id="biCMName"></h3><span class="bi-cm-badge" id="biCMBadge" style="display:none">Largest change</span></div>
+                    <div class="bi-cm-delta" id="biCMDelta"></div>
+                    <div class="bi-cm-dir" id="biCMDir"></div>
+                    <div class="bi-cm-rows" id="biCMRows"></div>
+                    <button type="button" class="bi-cm-evidence" id="biCMEvidence">See its full history in the Evidence Explorer &rarr;</button>
+                </div>
+            </div>
+        </div>
+        <p class="sr" id="biCMSr"></p>
+
+        <div class="bi-cm-bars-head">
+            <h3>How much did each region change?</h3><span>largest first</span>
+        </div>
+        <div class="bi-cm-bars" id="biCMBars"></div>
+        <div class="bi-cm-scale"><span class="l">&larr; smaller</span><span class="r">larger &rarr;</span></div>
+    </div>
+    {% endif %}
+
+    <!-- Visual 2 · Overall Progress -->
     <div class="bi-visual">
         <p class="bi-visual-q">How is my overall progress?</p>
         <div class="bi-chart-card">
@@ -111,24 +142,6 @@
             <div class="bi-chart-wrap"><canvas id="biTrendChart"></canvas></div>
         </div>
     </div>
-
-    <!-- Visual 2 · Body Shape -->
-    {% if bi.body_shape.has_any %}
-    <div class="bi-visual" data-testid="bi-body-shape">
-        <p class="bi-visual-q">How is my shape changing?</p>
-        <p class="bi-visual-sub">Illustrative — this locates change on the body; it is not a body scan or an anatomically exact silhouette. Circumference is not the same as visible width.</p>
-        <div class="bi-shape-wrap">
-            <div class="bi-shape-figure">
-                <svg id="biShapeFig" viewBox="0 0 240 330" role="img" aria-label="Torso regions and how each is changing between check-ins"></svg>
-            </div>
-            <div class="bi-shape-side">
-                <div id="biShapeWindow" class="bi-window"></div>
-                <ul id="biShapeList" class="bi-region-list" aria-label="Region changes"></ul>
-            </div>
-        </div>
-        <div class="bi-state-legend" id="biShapeLegend"></div>
-    </div>
-    {% endif %}
 
     <!-- Visual 3 · Limb Development -->
     {% if bi.limb_development.has_any %}
@@ -449,97 +462,217 @@ document.addEventListener('DOMContentLoaded', function () {
     var borderc = (css.getPropertyValue('--color-border') || '#e5e7eb').trim();
     var surfc = (css.getPropertyValue('--color-surface') || '#ffffff').trim();
     function svgEl(n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; }
-    function stateColor(state) {
-        // NEUTRAL emphasis only — every change is the same ink colour regardless of
-        // direction. No good/bad, no mission alignment (that colour policy is deferred).
-        if (state === 'changed') return textc;
-        if (state === 'missing') return faint;
-        return muted; // stable, current_only
-    }
-    var STATE_LABEL = { changed: 'Changed', stable: 'Stable', current_only: 'Current value only', missing: 'Not measured' };
 
-    // ---- Body Shape ----
-    var shape = parseJSON('bi-shape-data');
-    var shapeFig = document.getElementById('biShapeFig');
-    if (shape && shapeFig) {
-        var cx = 120;
-        // Fixed, illustrative torso outline — NOT scaled to any measurement.
-        shapeFig.appendChild(svgEl('path', {
-            d: 'M120 46 C130 48 135 60 134 74 C150 82 172 90 176 106 C172 128 152 140 150 152 '
-             + 'C146 176 138 196 140 214 C142 240 158 262 166 282 C150 296 132 300 120 300 '
-             + 'C108 300 90 296 74 282 C82 262 98 240 100 214 C102 196 94 176 90 152 '
-             + 'C88 140 68 128 64 106 C68 90 90 82 106 74 C105 60 110 48 120 46 Z',
-            fill: surfc, stroke: borderc, 'stroke-width': '2'
-        }));
-        var yById = { neck: 74, shoulders: 106, chest: 152, waist: 214, hips: 282 };
-        (shape.regions || []).forEach(function (r) {
-            var y = yById[r.metric]; if (y == null) return;
-            var col = stateColor(r.state);
-            var node;
-            if (r.state === 'changed') {
-                node = svgEl('circle', { cx: cx, cy: y, r: 7, fill: col });
-                shapeFig.appendChild(node);
-                // direction arrow: up = larger/expanded, down = smaller/contracted (facts).
-                var ar = svgEl('path', {
-                    d: r.direction === 'down'
-                        ? ('M' + cx + ' ' + (y + 3) + ' l-3 -4 l6 0 Z')
-                        : ('M' + cx + ' ' + (y - 3) + ' l-3 4 l6 0 Z'),
-                    fill: surfc
-                });
-                shapeFig.appendChild(ar);
-            } else if (r.state === 'missing') {
-                node = svgEl('circle', { cx: cx, cy: y, r: 6, fill: 'none', stroke: col, 'stroke-width': '1.6', 'stroke-dasharray': '3 2' });
-                shapeFig.appendChild(node);
-            } else if (r.state === 'current_only') {
-                node = svgEl('circle', { cx: cx, cy: y, r: 6, fill: surfc, stroke: col, 'stroke-width': '2' });
-                shapeFig.appendChild(node);
-            } else { // stable
-                node = svgEl('circle', { cx: cx, cy: y, r: 5, fill: col });
-                shapeFig.appendChild(node);
-            }
-            var lbl = svgEl('text', { x: cx + 16, y: y + 3.5, 'font-size': '9', fill: faint });
-            lbl.textContent = r.label; shapeFig.appendChild(lbl);
-        });
-
-        // Window header (honest about whether change is actually known).
-        var win = document.getElementById('biShapeWindow');
-        if (shape.has_comparison && shape.comparison_window) {
-            var w = shape.comparison_window;
-            win.textContent = 'Compared ' + w.previous_date + ' → ' + w.latest_date
-                + (w.days_between != null ? ' (' + w.days_between + ' day' + (w.days_between === 1 ? '' : 's') + ')' : '');
-        } else {
-            win.textContent = 'Current values from your latest check-in — not enough history yet to show change.';
-            win.className = 'bi-window bi-window-note';
+    // ---- How Your Body Changed (the Change Map) — animate the DIFFERENCE ----
+    // The current body is fixed; only the historical difference animates, once,
+    // largest-first. Honest by state: stable holds, current-only shows no ghost,
+    // missing is dashed. Reduced-motion shows the same differences statically.
+    (function () {
+        var shape = parseJSON('bi-shape-data');
+        var figSvg = document.getElementById('biCMFig');
+        if (!shape || !figSvg || !shape.regions || !shape.regions.length) return;
+        var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        var A = (css.getPropertyValue('--color-accent') || '#6366f1').trim();  // interaction only
+        var CX = 120, K = 7, MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var LAY = { neck:{y:78,hw:16,band:12}, shoulders:{y:104,hw:58,band:14}, chest:{y:142,hw:48,band:20}, waist:{y:205,hw:40,band:22}, hips:{y:256,hw:46,band:20} };
+        function fmt(iso){ if(!iso) return ''; var p=(''+iso).split('-'); return p.length<3 ? iso : MON[(+p[1])-1]+' '+(+p[2]); }
+        function hwOf(id){ return (LAY[id]||{hw:20}).hw; }
+        function sgn(r){ return (r.delta>0?'+':'-')+Math.abs(r.delta).toFixed(1)+(r.unit||''); }
+        function ariaFor(r){
+            if(r.state==='changed') return r.label+' '+(r.delta<0?'down ':'up ')+Math.abs(r.delta).toFixed(1)+' inches, now '+r.current+' as of '+fmt(r.latest_date)+'.';
+            if(r.state==='stable') return r.label+' unchanged at '+r.current+' inches as of '+fmt(r.latest_date)+'.';
+            if(r.state==='current_only') return r.label+' '+r.current+' inches as of '+fmt(r.latest_date)+'; no previous measurement to compare yet.';
+            return r.label+' not measured.';
+        }
+        function bodyPath(){
+            function Rr(id){return CX+hwOf(id);} function Ll(id){return CX-hwOf(id);}
+            var yN=78,yS=104,yC=142,yW=205,yH=256,yB=286;
+            return 'M '+CX+' '+(yN-3)
+              +' C '+Rr('neck')+' '+(yN-1)+' '+(Rr('neck')+3)+' '+(yN+3)+' '+(Rr('shoulders')-8)+' '+(yS-8)
+              +' C '+Rr('shoulders')+' '+(yS-2)+' '+Rr('shoulders')+' '+(yS+5)+' '+Rr('chest')+' '+yC
+              +' C '+Rr('chest')+' '+(yC+20)+' '+(Rr('waist')+5)+' '+(yW-26)+' '+Rr('waist')+' '+yW
+              +' C '+(Rr('waist')-3)+' '+(yW+24)+' '+Rr('hips')+' '+(yH-18)+' '+Rr('hips')+' '+yH
+              +' C '+Rr('hips')+' '+(yH+18)+' '+(CX+hwOf('hips')*0.42)+' '+(yB-6)+' '+(CX+9)+' '+yB
+              +' L '+(CX-9)+' '+yB
+              +' C '+(CX-hwOf('hips')*0.42)+' '+(yB-6)+' '+Ll('hips')+' '+(yH+18)+' '+Ll('hips')+' '+yH
+              +' C '+Ll('hips')+' '+(yH-18)+' '+(Ll('waist')-3)+' '+(yW+24)+' '+Ll('waist')+' '+yW
+              +' C '+(Ll('waist')+5)+' '+(yW-26)+' '+Ll('chest')+' '+(yC+20)+' '+Ll('chest')+' '+yC
+              +' C '+Ll('chest')+' '+(yS+5)+' '+Ll('shoulders')+' '+(yS-2)+' '+(Ll('shoulders')+8)+' '+(yS-8)
+              +' C '+(Ll('neck')-3)+' '+(yN+3)+' '+Ll('neck')+' '+(yN-1)+' '+CX+' '+(yN-3)+' Z';
+        }
+        function ghostLens(r){
+            var cw=hwOf(r.metric), pw=cw+(-(r.delta||0))*K, L=LAY[r.metric], yT=r.y-L.band, yB=r.y+L.band, d='';
+            [1,-1].forEach(function(s){
+                var ci=CX+s*cw, po=CX+s*pw;
+                d+=' M '+ci+' '+yT+' Q '+(CX+s*(cw+2))+' '+r.y+' '+ci+' '+yB+' L '+po+' '+yB+' Q '+(CX+s*(pw+2))+' '+r.y+' '+po+' '+yT+' Z';
+            });
+            return d.trim();
         }
 
-        // Per-region honest fact list.
-        var list = document.getElementById('biShapeList');
-        (shape.regions || []).forEach(function (r) {
-            var li = document.createElement('li');
-            li.className = 'bi-region bi-region-' + r.state;
-            var name = document.createElement('span'); name.className = 'bi-region-name'; name.textContent = r.label;
-            var val = document.createElement('span'); val.className = 'bi-region-val';
-            val.textContent = r.current != null ? (r.current + (r.unit || '')) : '—';
-            var tag = document.createElement('span'); tag.className = 'bi-region-tag bi-tag-' + r.state;
-            if (r.state === 'changed') {
-                tag.textContent = (r.direction === 'down' ? '↓ ' : '↑ ') + r.magnitude + (r.unit || '')
-                    + (r.direction === 'down' ? ' smaller' : ' larger') + (r.low_confidence ? ' · low confidence' : '');
-            } else if (r.state === 'stable') { tag.textContent = 'stable'; }
-            else if (r.state === 'current_only') { tag.textContent = 'current only' + (r.stale ? ' · stale' : ''); }
-            else { tag.textContent = 'not measured'; }
-            li.appendChild(name); li.appendChild(val); li.appendChild(tag);
-            list.appendChild(li);
+        var gBody=svgEl('g',{class:'bi-cm-figbody'}), gGhost=svgEl('g',{}), gHil=svgEl('g',{}), gLab=svgEl('g',{}), gHot=svgEl('g',{});
+        [gBody,gGhost,gHil,gLab,gHot].forEach(function(g){figSvg.appendChild(g);});
+        // head + neck (schematic, static)
+        gBody.appendChild(svgEl('circle',{cx:CX,cy:48,r:18,fill:'none',stroke:borderc,'stroke-width':'2'}));
+        gBody.appendChild(svgEl('line',{x1:CX-9,y1:64,x2:CX-9,y2:76,stroke:borderc,'stroke-width':'2'}));
+        gBody.appendChild(svgEl('line',{x1:CX+9,y1:64,x2:CX+9,y2:76,stroke:borderc,'stroke-width':'2'}));
+        // CURRENT body — present immediately, fixed
+        gBody.appendChild(svgEl('path',{d:bodyPath(),fill:'color-mix(in srgb,'+textc+' 5%,transparent)',stroke:textc,'stroke-width':'2.4','stroke-linejoin':'round'}));
+
+        var changed=[];
+        shape.regions.forEach(function(r){
+            var L=LAY[r.metric]; if(!L) return; r.y=L.y;
+            if(r.state==='missing'){
+                gBody.appendChild(svgEl('line',{x1:CX-L.hw+6,y1:L.y,x2:CX+L.hw-6,y2:L.y,stroke:faint,'stroke-width':'1.3','stroke-dasharray':'4 3'}));
+                var mt=svgEl('text',{x:CX,y:L.y-7,'text-anchor':'middle','font-size':'7.5',fill:faint});
+                mt.textContent=r.label.toLowerCase()+' · not measured'; gBody.appendChild(mt); return;
+            }
+            if(r.state==='changed'){
+                changed.push(r);
+                gGhost.appendChild(svgEl('path',{d:ghostLens(r),class:'bi-cm-ghost','data-ghost':r.metric,fill:muted,stroke:muted,'stroke-width':'1','stroke-dasharray':'3 2.5','fill-opacity':'0.5'}));
+                gHil.appendChild(svgEl('rect',{x:CX-L.hw-6,y:L.y-13,width:(L.hw+6)*2,height:26,rx:13,fill:'none',stroke:A,'stroke-width':'2',class:'bi-cm-hilite','data-cap':r.metric}));
+                var lab=svgEl('text',{x:CX+L.hw+10,y:L.y+3,class:'bi-cm-dlabel','data-lab':r.metric,'font-size':'9',fill:textc});
+                lab.textContent=sgn(r); gLab.appendChild(lab);
+            } else if(r.state==='stable'){
+                var stt=svgEl('text',{x:CX+L.hw+9,y:L.y+3,'font-size':'7.5',fill:faint}); stt.textContent='steady'; gLab.appendChild(stt);
+            } else if(r.state==='current_only'){
+                gBody.appendChild(svgEl('circle',{cx:CX+L.hw+7,cy:L.y,r:2.2,fill:'none',stroke:muted,'stroke-width':'1.4'}));
+            }
+            var hot=svgEl('rect',{x:CX-70,y:L.y-16,width:140,height:32,class:'bi-cm-hot',tabindex:'0',role:'button','aria-label':ariaFor(r),'data-region':r.metric});
+            gHot.appendChild(hot);
+            hot.addEventListener('mouseenter',function(){setF(r.metric);});
+            hot.addEventListener('mouseleave',function(){setF(null);});
+            hot.addEventListener('focus',function(){setF(r.metric);});
+            hot.addEventListener('blur',function(){setF(null);});
+            hot.addEventListener('click',function(){goEvidence();});
         });
 
-        // Legend — the state vocabulary.
-        var legend = document.getElementById('biShapeLegend');
-        ['changed', 'stable', 'current_only', 'missing'].forEach(function (s) {
-            var sp = document.createElement('span'); sp.className = 'bi-legend-item';
-            var dot = document.createElement('i'); dot.className = 'bi-legend-dot bi-tag-' + s;
-            sp.appendChild(dot); sp.appendChild(document.createTextNode(STATE_LABEL[s]));
-            legend.appendChild(sp);
-        });
-    }
+        // SR summary
+        var srBits=shape.regions.filter(function(r){return r.state!=='missing';}).map(function(r){
+            return r.label+' '+(r.state==='changed'?(r.delta<0?'down ':'up ')+Math.abs(r.delta).toFixed(1)+' in':r.state==='stable'?'unchanged':'current only');});
+        document.getElementById('biCMSr').textContent='How your body changed: '+srBits.join('; ')+'.';
+
+        // ---- detail panel ----
+        var detail=document.getElementById('biCMDetail'),
+            dDef=document.getElementById('biCMDefault'), dFull=document.getElementById('biCMFull');
+        function buildDefault(){
+            dDef.innerHTML='';
+            var lc=shape.largest_change;
+            if(lc){
+                var win=shape.comparison_window||{};
+                dDef.innerHTML='<div class="bi-cm-licap">Largest change</div>'
+                  +'<div class="bi-cm-liregion">'+lc.label+'</div>'
+                  +'<div class="bi-cm-lidelta">'+((lc.delta>0?'+':'-')+Math.abs(lc.delta).toFixed(1)+(lc.unit||''))+'</div>'
+                  +'<div class="bi-cm-liwin">'+(win.days_between!=null?win.days_between+'-day comparison':'')+'</div>'
+                  +'<div class="bi-cm-lihint">Hover any region for its detail.</div>';
+            }else{
+                dDef.innerHTML='<div class="bi-cm-liwin" style="font-weight:600;color:var(--color-text)">Current values only.</div>'
+                  +'<div class="bi-cm-lihint">Not enough history yet to show change — log another check-in to compare. Hover any region for its current value.</div>';
+            }
+        }
+        buildDefault();
+        function setF(id){
+            if(id && !introDone) finalize();
+            var caps=gHil.querySelectorAll('.bi-cm-hilite'), labs=gLab.querySelectorAll('.bi-cm-dlabel');
+            caps.forEach(function(c){c.classList.toggle('on',c.getAttribute('data-cap')===id);});
+            labs.forEach(function(l){l.classList.toggle('on',l.getAttribute('data-lab')===id);});
+            figSvg.classList.toggle('focused',!!id);
+            document.querySelectorAll('.bi-cm-brow').forEach(function(b){b.classList.toggle('hot-on',b.getAttribute('data-region')===id);});
+            if(!id){detail.classList.remove('active');dDef.style.display='';dFull.style.display='none';return;}
+            var r=null; shape.regions.forEach(function(x){if(x.metric===id)r=x;}); if(!r) return;
+            detail.classList.add('active');dDef.style.display='none';dFull.style.display='';
+            document.getElementById('biCMName').textContent=r.label;
+            document.getElementById('biCMBadge').style.display=(shape.largest_change && shape.largest_change.metric===id)?'':'none';
+            var rows=document.getElementById('biCMRows'), dq=document.getElementById('biCMDelta'), dr=document.getElementById('biCMDir');
+            if(r.state==='changed'){
+                dq.textContent=sgn(r);
+                dr.textContent=(r.delta<0?'smaller':'larger')+' since '+fmt(r.previous_date)+(r.low_confidence?' · low confidence':'');
+                rows.innerHTML=row('Current '+dt(fmt(r.latest_date)),r.current+(r.unit||''))
+                  +row('Previous '+dt(fmt(r.previous_date)),r.comparison+(r.unit||''))
+                  +row('Difference',sgn(r))
+                  +(r.days_between!=null?row('Over',r.days_between+' days'):'');
+            } else if(r.state==='stable'){
+                dq.textContent='0.0'+(r.unit||''); dr.textContent='held steady since '+fmt(r.previous_date);
+                rows.innerHTML=row('Current '+dt(fmt(r.latest_date)),r.current+(r.unit||''))
+                  +row('Previous '+dt(fmt(r.previous_date)),(r.comparison!=null?r.comparison:r.current)+(r.unit||''))
+                  +row('Difference','within measurement noise');
+            } else { // current_only
+                dq.textContent=r.current+(r.unit||''); dr.textContent='current value'+(r.stale?' · as of '+fmt(r.latest_date)+' (stale)':'');
+                rows.innerHTML=row('Current '+dt(fmt(r.latest_date)),r.current+(r.unit||''))
+                  +row('Previous','no earlier reading yet');
+            }
+        }
+        function row(k,v){return '<span class="k">'+k+'</span><span class="v">'+v+'</span>';}
+        function dt(s){return s?'<span class="dt">'+s+'</span>':'';}
+        function goEvidence(){ var ev=document.querySelector('[data-testid=bi-evidence]'); if(ev)ev.scrollIntoView({behavior:reduce?'auto':'smooth',block:'start'}); }
+        document.getElementById('biCMEvidence').addEventListener('click',goEvidence);
+
+        // ---- change bars ----
+        function buildBars(){
+            var box=document.getElementById('biCMBars'); box.innerHTML='';
+            var maxD=1; shape.regions.forEach(function(r){if(r.state==='changed')maxD=Math.max(maxD,Math.abs(r.delta));});
+            var order=shape.regions.filter(function(r){return r.state==='changed';}).sort(function(a,b){return Math.abs(b.delta)-Math.abs(a.delta);})
+              .concat(shape.regions.filter(function(r){return r.state==='stable';}))
+              .concat(shape.regions.filter(function(r){return r.state==='current_only';}))
+              .concat(shape.regions.filter(function(r){return r.state==='missing';}));
+            if(!changed.length){ box.innerHTML='<p class="bi-cm-nochange">No measured change yet — a second check-in will show how much each region moved.</p>'; return; }
+            order.forEach(function(r){
+                var row=document.createElement('div'); row.className='bi-cm-brow state-'+r.state; row.setAttribute('data-region',r.metric);
+                if(r.state!=='missing'){row.setAttribute('tabindex','0');row.setAttribute('role','button');row.setAttribute('aria-label',ariaFor(r));}
+                var lab='<div class="rlab">'+r.label+'</div>';
+                var cell='<div class="barcell"><div class="zero"></div>';
+                if(r.state==='changed'){
+                    var pct=Math.min(48,Math.abs(r.delta)/maxD*48), dir=r.delta<0?-1:1;
+                    var left=dir<0?(50-pct):50;
+                    cell+='<div class="bar" style="left:'+left+'%;width:0"></div>'
+                        +'<div class="bval" style="'+(dir<0?'right:calc('+(50+pct)+'%'+' + 6px)':'left:calc('+(50+pct)+'% + 6px)')+'">'+sgn(r)+'</div>';
+                    row.setAttribute('data-pct',pct); row.setAttribute('data-dir',dir);
+                } else if(r.state==='stable'){ cell+='<div class="dot"></div>'; }
+                cell+='</div>';
+                row.innerHTML=lab+cell; box.appendChild(row);
+                if(r.state==='changed'){
+                    var bar=row.querySelector('.bar'), bval=row.querySelector('.bval');
+                    requestAnimationFrame(function(){ var pct=+row.getAttribute('data-pct'), dir=+row.getAttribute('data-dir');
+                        bar.style.width=pct+'%'; bar.style.left=(dir<0?(50-pct):50)+'%';
+                        if(reduce)bval.style.opacity='1'; else timers.push(setTimeout(function(){bval.style.opacity='1';},460)); });
+                }
+                if(r.state!=='missing'){
+                    row.addEventListener('mouseenter',function(){setF(r.metric);});
+                    row.addEventListener('mouseleave',function(){setF(null);});
+                    row.addEventListener('focus',function(){setF(r.metric);});
+                    row.addEventListener('blur',function(){setF(null);});
+                    row.addEventListener('click',function(){goEvidence();});
+                }
+            });
+        }
+
+        // ---- one-time difference animation (self-healing) ----
+        var introDone=true, timers=[], anims=[];
+        function stopIntro(){timers.forEach(clearTimeout);timers=[];anims.forEach(function(a){try{a.cancel();}catch(e){}});anims=[];}
+        function finalize(){ stopIntro(); gGhost.querySelectorAll('.bi-cm-ghost').forEach(function(g){g.style.opacity='0';});
+            gLab.querySelectorAll('.bi-cm-dlabel').forEach(function(l){l.classList.add('revealed');}); introDone=true; }
+        function play(){
+            stopIntro(); introDone=false; figSvg.classList.remove('focused');
+            gGhost.querySelectorAll('.bi-cm-ghost').forEach(function(g){g.style.opacity='0';});
+            gLab.querySelectorAll('.bi-cm-dlabel').forEach(function(l){l.classList.remove('revealed');});
+            if(!changed.length){ introDone=true; return; }
+            if(reduce){ gGhost.querySelectorAll('.bi-cm-ghost').forEach(function(g){g.style.opacity='0.5';});
+                gLab.querySelectorAll('.bi-cm-dlabel').forEach(function(l){l.classList.add('revealed');}); introDone=true; return; }
+            var seq=changed.slice().sort(function(a,b){return Math.abs(b.delta)-Math.abs(a.delta);});
+            var start=150, step=210, total=start;
+            seq.forEach(function(r,i){
+                var g=gGhost.querySelector('.bi-cm-ghost[data-ghost="'+r.metric+'"]');
+                var l=gLab.querySelector('.bi-cm-dlabel[data-lab="'+r.metric+'"]');
+                var delay=start+i*step;
+                anims.push(g.animate([{opacity:0},{opacity:0.85,offset:.34},{opacity:0.85,offset:.5},{opacity:0}],{duration:340,delay:delay,easing:'ease-in-out',fill:'none'}));
+                timers.push(setTimeout(function(){ l.classList.add('revealed'); }, delay+230));
+                total=delay+410;
+            });
+            timers.push(setTimeout(finalize, total+150));
+        }
+
+        buildBars(); play();
+        document.getElementById('biCMReplay').addEventListener('click',function(){ setF(null); buildBars(); play(); });
+    })();
 
     // ---- Limb Development (mirrored L/R) ----
     var limb = parseJSON('bi-limb-data-src');
@@ -737,36 +870,70 @@ document.addEventListener('DOMContentLoaded', function () {
 .bi-visual-q { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; color: var(--color-text, #111827); margin: 0 0 0.15rem; }
 .bi-visual-sub { font-size: var(--font-size-xs, 0.78rem); color: var(--color-text-muted, #6b7280); margin: 0 0 var(--space-3, 0.75rem); max-width: 70ch; font-style: italic; }
 
-/* Body Shape */
-.bi-shape-wrap { display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: var(--space-5, 1.25rem); align-items: center;
+/* How Your Body Changed — the Change Map. Motion animates the DIFFERENCE only. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.bi-cm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-5, 1.25rem); align-items: center;
     background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-5, 1.25rem); }
-.bi-shape-figure { display: flex; justify-content: center; }
-.bi-shape-figure svg { width: 100%; max-width: 200px; height: auto; }
-.bi-shape-side { min-width: 0; }
-.bi-window { font-size: var(--font-size-sm, 0.875rem); font-weight: 600; color: var(--color-text, #111827); margin-bottom: var(--space-3, 0.75rem); }
-.bi-window-note { font-weight: 500; color: var(--color-text-muted, #6b7280); }
-.bi-region-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.bi-region { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 0.6rem;
-    padding: 0.4rem 0.6rem; border-radius: var(--radius-sm, 8px); background: var(--color-bg, #f9fafb); }
-.bi-region-name { font-size: var(--font-size-sm, 0.875rem); font-weight: 600; color: var(--color-text, #111827); }
-.bi-region-val { font-size: var(--font-size-sm, 0.875rem); font-variant-numeric: tabular-nums; color: var(--color-text, #374151); }
-.bi-region-tag { font-size: var(--font-size-xs, 0.72rem); font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; white-space: nowrap; }
-.bi-region-missing { opacity: 0.7; }
+.bi-cm-figwrap { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.bi-cm-fig { width: 100%; max-width: 260px; height: auto; overflow: visible; }
+.bi-cm-figbody { transition: opacity 0.3s ease; }
+.bi-cm-fig.focused .bi-cm-figbody { opacity: 0.34; }
+.bi-cm-hot { fill: transparent; cursor: pointer; outline: none; }
+.bi-cm-hot:focus-visible { outline: 2px solid var(--color-accent, #6366f1); }
+.bi-cm-hilite { opacity: 0; transition: opacity 0.26s ease; pointer-events: none; }
+.bi-cm-hilite.on { opacity: 1; }
+.bi-cm-ghost { opacity: 0; }
+.bi-cm-dlabel { font-family: var(--font-mono, ui-monospace, monospace); opacity: 0; transition: opacity 0.26s ease; }
+.bi-cm-dlabel.revealed { opacity: 1; }
+.bi-cm-fig.focused .bi-cm-dlabel.revealed { opacity: 0.26; }
+.bi-cm-fig.focused .bi-cm-dlabel.on { opacity: 1; }
+.bi-cm-replay { font-size: var(--font-size-xs, 0.75rem); font-weight: 600; color: var(--color-accent, #6366f1); background: var(--color-surface, #fff);
+    border: 1px solid var(--color-border-strong, #cbd5e1); border-radius: 999px; padding: 0.25rem 0.75rem; cursor: pointer; }
+.bi-cm-replay:focus-visible { outline: 2px solid var(--color-accent, #6366f1); outline-offset: 2px; }
 
-/* State vocabulary — NEUTRAL (no good/bad, no mission color). "Changed" uses high-
-   contrast ink emphasis; direction lives in the arrow + words, never in the colour. */
-.bi-tag-changed { color: var(--color-text, #111827); background: color-mix(in srgb, var(--color-text, #111827) 9%, transparent); font-weight: 700; }
-.bi-tag-stable { color: var(--color-text-muted, #6b7280); background: color-mix(in srgb, var(--color-text-muted, #6b7280) 14%, transparent); }
-.bi-tag-current_only { color: var(--color-text-muted, #6b7280); background: transparent; border: 1px dashed var(--color-border-strong, #cbd5e1); }
-.bi-tag-missing { color: var(--color-text-muted, #9ca3af); background: transparent; border: 1px dashed var(--color-border, #e5e7eb); }
+.bi-cm-detail { background: var(--color-bg, #f9fafb); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-md, 10px);
+    padding: var(--space-4, 1rem) var(--space-5, 1.1rem); min-height: 180px; display: flex; flex-direction: column; justify-content: center;
+    transition: box-shadow 0.24s ease, border-color 0.24s ease, background 0.24s ease; }
+.bi-cm-detail.active { background: var(--color-surface, #fff); border-color: var(--color-accent, #6366f1); box-shadow: 0 8px 26px rgba(20,22,34,.10); }
+.bi-cm-licap { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent, #6366f1); font-weight: 700; margin-bottom: 0.3rem; }
+.bi-cm-liregion { font-size: 1.1rem; font-weight: 800; color: var(--color-text, #111827); }
+.bi-cm-lidelta { font-family: var(--font-mono, ui-monospace, monospace); font-size: 1.9rem; font-weight: 700; color: var(--color-text, #111827); letter-spacing: -0.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.bi-cm-liwin { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
+.bi-cm-lihint { margin-top: 0.7rem; font-size: 0.76rem; color: var(--color-text-muted, #9ca3af); }
+.bi-cm-regionrow { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.bi-cm-regionrow h3 { font-size: 1.1rem; font-weight: 800; color: var(--color-text, #111827); margin: 0; }
+.bi-cm-badge { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-accent, #6366f1);
+    background: color-mix(in srgb, var(--color-accent, #6366f1) 15%, transparent); border-radius: 999px; padding: 0.14rem 0.5rem; }
+.bi-cm-delta { font-family: var(--font-mono, ui-monospace, monospace); font-size: 1.7rem; font-weight: 700; color: var(--color-text, #111827); letter-spacing: -0.02em; line-height: 1; margin-bottom: 0.1rem; font-variant-numeric: tabular-nums; }
+.bi-cm-dir { font-size: 0.82rem; color: var(--color-text-muted, #6b7280); margin-bottom: 0.7rem; }
+.bi-cm-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.26rem 0.8rem; font-size: 0.85rem; }
+.bi-cm-rows .k { color: var(--color-text-muted, #6b7280); }
+.bi-cm-rows .dt { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.72rem; color: var(--color-text-muted, #9ca3af); }
+.bi-cm-rows .v { color: var(--color-text, #111827); font-variant-numeric: tabular-nums; text-align: right; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.82rem; font-weight: 600; }
+.bi-cm-evidence { margin-top: 0.8rem; font-size: 0.78rem; color: var(--color-accent, #6366f1); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.bi-cm-evidence:focus-visible { outline: 2px solid var(--color-accent, #6366f1); outline-offset: 2px; }
 
-.bi-state-legend { display: flex; flex-wrap: wrap; gap: 0.9rem; margin-top: var(--space-3, 0.75rem); font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
-.bi-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
-.bi-legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.bi-legend-dot.bi-tag-changed { background: var(--color-text, #111827); border: 0; }
-.bi-legend-dot.bi-tag-stable { background: var(--color-text-muted, #9ca3af); border: 0; }
-.bi-legend-dot.bi-tag-current_only { background: transparent; border: 2px solid var(--color-text-muted, #9ca3af); }
-.bi-legend-dot.bi-tag-missing { background: transparent; border: 1.5px dashed var(--color-text-muted, #9ca3af); }
+.bi-cm-bars-head { display: flex; align-items: baseline; justify-content: space-between; margin: var(--space-5, 1.3rem) 0 0.2rem; }
+.bi-cm-bars-head h3 { font-size: var(--font-size-base, 1rem); font-weight: 700; color: var(--color-text, #111827); margin: 0; }
+.bi-cm-bars-head span { font-size: 0.8rem; color: var(--color-text-muted, #6b7280); }
+.bi-cm-bars { border-top: 1px solid var(--color-border, #e5e7eb); }
+.bi-cm-nochange { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #6b7280); padding: 0.7rem 0.2rem; margin: 0; }
+.bi-cm-brow { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border, #e5e7eb); cursor: pointer; transition: background 0.2s ease; border-radius: 8px; }
+.bi-cm-brow:hover, .bi-cm-brow.hot-on { background: var(--color-bg, #f9fafb); }
+.bi-cm-brow .rlab { font-size: 0.84rem; font-weight: 600; color: var(--color-text, #111827); padding-left: 0.4rem; }
+.bi-cm-brow .barcell { position: relative; height: 26px; }
+.bi-cm-brow .zero { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--color-border-strong, #cbd5e1); }
+.bi-cm-brow .bar { position: absolute; top: 4px; height: 18px; border-radius: 5px; background: color-mix(in srgb, var(--color-text, #111827) 12%, transparent); border: 1.5px solid var(--color-text, #111827); transition: width 0.6s ease, left 0.6s ease; width: 0; }
+.bi-cm-brow .bval { position: absolute; top: 5px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.76rem; color: var(--color-text, #111827); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity 0.5s ease; }
+.bi-cm-brow .dot { position: absolute; left: calc(50% - 4px); top: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-muted, #9ca3af); }
+.bi-cm-brow.state-stable .barcell::after { content: "steady"; position: absolute; left: calc(50% + 10px); top: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.72rem; color: var(--color-text-muted, #6b7280); }
+.bi-cm-brow.state-current_only .barcell::after { content: "one reading"; position: absolute; left: 50%; transform: translateX(-50%); top: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.72rem; color: var(--color-text-muted, #9ca3af); }
+.bi-cm-brow.state-missing { opacity: 0.6; cursor: default; }
+.bi-cm-brow.state-missing .barcell::after { content: "not measured"; position: absolute; left: 50%; transform: translateX(-50%); top: 6px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.72rem; color: var(--color-text-muted, #9ca3af); }
+.bi-cm-scale { display: grid; grid-template-columns: 74px 1fr; gap: 0.6rem; margin-top: 0.35rem; }
+.bi-cm-scale .l { grid-column: 2; justify-self: start; }
+.bi-cm-scale span { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.66rem; color: var(--color-text-muted, #9ca3af); }
+.bi-cm-scale .r { grid-column: 2; justify-self: end; margin-top: -1rem; }
 
 /* Limb Development */
 .bi-limb-wrap { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
@@ -775,8 +942,8 @@ document.addEventListener('DOMContentLoaded', function () {
 .bi-limb-note { font-size: var(--font-size-sm, 0.85rem); color: var(--color-text-muted, #6b7280); text-align: center; max-width: 60ch; }
 
 @media (max-width: 640px) {
-    .bi-shape-wrap { grid-template-columns: 1fr; }
-    .bi-shape-figure svg { max-width: 160px; }
+    .bi-cm { grid-template-columns: 1fr; }
+    .bi-cm-fig { max-width: 220px; margin: 0 auto; }
 }
 @media (max-width: 480px) {
     .bi-header-actions { width: 100%; }

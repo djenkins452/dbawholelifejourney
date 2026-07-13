@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 272,
+    "fields": {
+      "title": "See where your body changed — in a single glance",
+      "description": "Body Intelligence now opens its visuals with How Your Body Changed. Your current body sits still as an anchor, and only the parts that actually changed gently animate — a soft outline shows where each region used to be, largest change first, then it settles and stays still. In about a second you can see where you changed without reading a single number. Hover any region for the exact detail: its current measurement and date, the previous measurement and date, the difference, and how many days the comparison covers — always with the real dates, never pretending a reading was taken today. Beneath it, ranked bars show how much each region moved. Regions that held steady, that only have one reading, or that haven't been measured are all shown honestly, so you can always tell what changed from what we simply don't know yet. Find it under Health → Body Intelligence.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-13",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/health/physical/body-intelligence/",
+      "created_at": "2026-07-13T19:00:00Z",
+      "updated_at": "2026-07-13T19:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 271,
     "fields": {
       "title": "See your body change at a glance — Body Shape & Limb Development",

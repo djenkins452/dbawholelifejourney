@@ -171,6 +171,15 @@ detail (reason, action, verification, duration, incident, attempts, escalation, 
 **acknowledgeable** via `localStorage` (ephemeral client state — no backend write, no new model/endpoint; events
 expire out of the 24h window). No new notification framework; recovery still never writes incident state.
 
+**Recovery Events UX refinement (2026-07-12, ADR-27).** Production surfaced "Recovery Failed" for a `DNE`
+incident that was actually an **observe-only (R0) skip** (no handler ran). Fixed the operator-facing semantics
+(audit rows unchanged): a `phase=SKIPPED_UNSAFE` row now renders as a distinct **"Recovery Skipped"** event
+(neutral grey, `⊘`), verification **"Not applicable"**, action "No recovery performed… observe-only (R0)"; it is
+excluded from `failed_24h` and counted in a new `skipped_24h`. Entity labels are now truthful — an
+engine-heartbeat `MISSED_RUN` shows **"Delivery Notification Engine (DNE)"** + "Engine heartbeat missed…" (via
+the engine registry), not "Beat task 'DNE'". Expanding an event now `scrollIntoView`s it (block:'nearest') so
+details near the wall bottom stay readable.
+
 **OPS-1 as-built (2026-07-11):** implemented the **generic Beat-schedule-vs-actual-run reconciler** (the cleaner of the two options — no per-task registration, future Beat tasks are covered automatically). `apps/core/ai_observability/scheduled_task_monitor.py`:
 - **Expected cadence** is derived directly from `settings.CELERY_BEAT_SCHEDULE` (interval numbers used as-is; crontabs estimated to a nominal period). The two scheduler *cycle* tasks (SAME/ISE) are excluded — already covered by `SchedulerHeartbeat`.
 - **Actual runs** are recorded by Celery `task_prerun`/`task_postrun` signals (connected in `apps/core/apps.py::ready()`), each UPSERTing one current-state `ScheduledTaskRun` row per task (bounded storage even for the 30s `cos_keepalive`).

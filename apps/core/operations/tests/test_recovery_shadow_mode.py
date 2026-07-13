@@ -443,6 +443,53 @@ class RecoveryEventsTelemetryTests(TestCase):
                   mode=RecoveryAttempt.MODE_SHADOW)
         self.assertEqual(build_recovery_telemetry()["events"], [])
 
+    # ── Recovery Events UX refinement: observe-only (R0) is NOT a failure ──────
+
+    def test_observe_only_skip_is_a_distinct_skipped_event_not_failed(self):
+        """A SKIPPED_UNSAFE (R0) row surfaces as 'Recovery Skipped', never 'Failed'.
+
+        Reproduces the production DNE event: an engine-heartbeat MISSED_RUN that the
+        Beat handler observed-only. No recovery ran → verification is Not applicable.
+        """
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+
+        self._row(phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE,
+                  outcome=RecoveryAttempt.OUTCOME_FAILED, engine="DNE")
+
+        events = build_recovery_telemetry()["events"]
+        self.assertEqual(len(events), 1)
+        e = events[0]
+        self.assertEqual(e["kind"], "skipped")
+        self.assertEqual(e["headline"], "Recovery Skipped")
+        self.assertEqual(e["verification"], "Not applicable")
+        self.assertIn("No recovery performed", e["action"])
+        self.assertIn("R0", e["action"])
+        # Priority 2 — correct entity + reason (engine, not "Beat task").
+        self.assertEqual(e["title"], "Delivery Notification Engine (DNE)")
+        self.assertEqual(e["reason"], "Engine heartbeat missed its expected cadence.")
+        # It must NOT be classified as a failure.
+        self.assertNotEqual(e["kind"], "failed")
+
+    def test_skip_excluded_from_failed_count_and_counted_as_skipped(self):
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+
+        self._row(phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE,
+                  outcome=RecoveryAttempt.OUTCOME_FAILED, engine="DNE")
+        counts = build_recovery_telemetry()["counts"]
+        self.assertEqual(counts["failed_24h"], 0)      # a skip is not a failure
+        self.assertEqual(counts["skipped_24h"], 1)
+
+    def test_beat_task_missed_run_reason_names_scheduled_task(self):
+        """A genuine Beat-task MISSED_RUN (dotted path) keeps scheduled-task wording."""
+        from apps.core.operations.recovery.telemetry import build_recovery_telemetry
+
+        # Default engine is the health-briefing Beat task path (not an engine code).
+        self._row(phase=RecoveryAttempt.PHASE_RECOVER_ATTEMPTED,
+                  outcome=RecoveryAttempt.OUTCOME_FAILED)
+        e = next(x for x in build_recovery_telemetry()["events"] if x["kind"] == "failed")
+        self.assertEqual(e["reason"], "Scheduled task missed its expected cadence.")
+        self.assertEqual(e["title"], "Recompute All Health Briefings")
+
 
 # ── SAME enqueue mirror stays in exact sync with the canonical resolver ─────
 class MirrorSyncTests(TestCase):

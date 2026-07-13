@@ -3,8 +3,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (chore(ops): OPS-11 remove inert autonomous remediation + add expired-image cleanup)
+# Last Updated: 2026-07-12 (feat(ops): Recovery Events UX — observe-only ≠ failed, correct entity labels, scroll-into-view)
 # ================================================================# WLJ Change History
+
+## 2026-07-12 — feat(ops): Recovery Events UX — observe-only (R0) is not a failure; correct entity labels; scroll-into-view
+
+**Origin:** production surfaced three "Recovery Failed" events (a `DNE` incident). Investigation proved the
+Recovery Engine behaved **correctly** — it chose observe-only (R0) and took no action — but the operator-facing
+event **misrepresented** that as a failed recovery. This is a presentation/semantics refinement only; the
+Recovery Engine, its lifecycle, and all `RecoveryAttempt` audit rows are UNCHANGED (audit truth preserved).
+
+**Priority 1 — observe-only ≠ failed.** A `phase=SKIPPED_UNSAFE` row (recovery deliberately did nothing —
+target not allowlisted/enabled) carries `outcome=FAILED` in the audit but is NOT a recovery failure: no handler
+executed, no `recover()`, no `verify()`. `_build_recovery_events` now maps it to a **distinct** event kind
+`skipped` — headline **"Recovery Skipped"**, verification **"Not applicable"**, action **"No recovery performed.
+Incident is observe-only (R0) — not allowlisted or enabled for autonomous recovery."** — instead of the generic
+`outcome==FAILED` → "Recovery Failed" branch. `failed_24h` now EXCLUDES these skips (truthful count) and a new
+`skipped_24h` counts them. (`apps/core/operations/recovery/telemetry.py`)
+
+**Priority 2 — correct entity labels.** A `MISSED_RUN` incident's `engine_name` is either a short engine code
+(engine-heartbeat miss, e.g. `DNE`) or a dotted Beat-task path. New `_entity_label` / `_event_reason` resolve
+the truth via the engine registry: `DNE` now renders **"Delivery Notification Engine (DNE)"** with reason
+**"Engine heartbeat missed its expected cadence."** (was the misleading "Dne" / "Scheduled task…"); a real Beat
+task keeps the humanised task name + "Scheduled task missed…". Other handlers reviewed — ENGINE_STARVATION /
+MATURITY_SNAPSHOT_STALE wording was already entity-correct.
+
+**Priority 3 — expanded-event readability.** Expanding a Recovery Event near the bottom of the wall could push
+its details below the viewport. The toggle handler now calls `scrollIntoView({behavior:'smooth',
+block:'nearest'})` on expand only (never moves an already-visible card; no layout/whitespace change).
+(`templates/admin_console/operations_wall.html`)
+
+**UI:** new neutral `kind-skipped` style (grey rail, no red, no pulse, `⊘` icon); the Verification line renders
+dim for "Not applicable" (green only for Passed, red only for Failed); `skipped` sorts last (least urgent).
+
+**Verification:** 34/34 recovery + import-boundary tests pass, incl. 3 new — a `SKIPPED_UNSAFE`/`DNE` row →
+`kind=skipped`/"Recovery Skipped"/"Not applicable"/entity "Delivery Notification Engine (DNE)"/engine-heartbeat
+reason (never `failed`); skip excluded from `failed_24h` and counted in `skipped_24h`; a real Beat-task
+`MISSED_RUN` keeps scheduled-task wording. `manage.py check` clean; no model change / no migration.
+**Files:** `apps/core/operations/recovery/telemetry.py`, `templates/admin_console/operations_wall.html`,
+`apps/core/operations/tests/test_recovery_shadow_mode.py`, `docs/WLJ_OPERATIONS_VISION.md` (ADR-27),
+`docs/WLJ_OPS_WALL_COVERAGE.md`.
 
 ## 2026-07-12 — polish(dashboard): Phase I — public-launch product-craft pass (presentation only)
 

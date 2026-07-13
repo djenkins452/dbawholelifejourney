@@ -2591,6 +2591,7 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
     box-shadow: 0 2px 10px rgba(0,0,0,0.25);
 }
 .ops-recovery-event.kind-success { border-left-color: #3fd07a; }
+.ops-recovery-event.kind-skipped { border-left-color: var(--ops-text-dim, #8a94a6); }
 .ops-recovery-event.kind-failed {
     border-left-color: #ff5a5a;
     background: rgba(255,90,90,0.06);
@@ -2608,6 +2609,8 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .ops-recovery-event-headline { font-weight: 700; font-size: 14px; }
 .kind-success .ops-recovery-event-headline { color: #3fd07a; }
 .kind-failed .ops-recovery-event-headline, .kind-escalated .ops-recovery-event-headline { color: #ff6b6b; }
+.kind-skipped .ops-recovery-event-headline { color: var(--ops-text, #c7cfdb); }
+.kind-skipped .ops-recovery-event-icon { color: var(--ops-text-dim, #8a94a6); }
 .ops-recovery-event-sub { color: var(--ops-text); font-weight: 600; font-size: 13px; }
 .ops-recovery-event-time { margin-left: auto; color: var(--ops-text-dim); font-size: 12px; white-space: nowrap; }
 .ops-recovery-event-chevron { color: var(--ops-text-dim); font-size: 11px; transition: transform 0.15s; }
@@ -6544,8 +6547,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var events = (rec && rec.events) || [];
         var acked = recoveryAckedIds();
         var visible = events.filter(function(e) { return acked.indexOf(e.id) === -1; });
-        // Most prominent first: escalated, then failed, then success; newest within.
-        var order = { escalated: 1, failed: 2, success: 3 };
+        // Most prominent first: escalated, then failed, then success, then skipped
+        // (observe-only, informational); newest within.
+        var order = { escalated: 1, failed: 2, success: 3, skipped: 4 };
         function rank(k) { return order[k] || 9; }
         visible.sort(function(a, b) {
             var d = rank(a.kind) - rank(b.kind);
@@ -6554,7 +6558,12 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         if (!visible.length) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
         banner.style.display = 'flex';
 
-        function icon(kind) { return kind === 'success' ? '✔' : (kind === 'escalated' ? '⚠' : '✖'); }
+        function icon(kind) {
+            if (kind === 'success') return '✔';
+            if (kind === 'escalated') return '⚠';
+            if (kind === 'skipped') return '⊘';
+            return '✖';
+        }
         function fmtDur(s) {
             if (s == null) return '—';
             if (s < 90) return s + ' seconds';
@@ -6578,7 +6587,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             var body =
                 row('Reason', escapeHtml(e.reason || '')) +
                 row('Action Taken', escapeHtml(e.action || '')) +
-                row('Verification', '<strong style="color:' + (e.verification === 'Passed' ? '#3fd07a' : '#ff6b6b') + '">' + escapeHtml(e.verification || '') + '</strong>') +
+                row('Verification', '<strong style="color:' + (e.verification === 'Passed' ? '#3fd07a' : (e.verification === 'Failed' ? '#ff6b6b' : 'var(--ops-text-dim)')) + '">' + escapeHtml(e.verification || '') + '</strong>') +
                 row('Recovery Duration', escapeHtml(fmtDur(e.duration_seconds))) +
                 row('Incident', escapeHtml((e.anomaly_type || '') + ' · ' + (e.task || ''))) +
                 row('Monitor', escapeHtml(e.monitor_key || '')) +
@@ -6620,7 +6629,17 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var head = ev.target.closest('[data-recovery-toggle]');
         if (head) {
             var c = head.closest('.ops-recovery-event');
-            if (c) c.classList.toggle('expanded');
+            if (c) {
+                var nowExpanded = c.classList.toggle('expanded');
+                // When expanding a card near the bottom of the wall, its details can
+                // extend below the viewport. Scroll the minimum needed to reveal it
+                // fully (block:'nearest' never moves an already-visible card).
+                if (nowExpanded) {
+                    requestAnimationFrame(function () {
+                        c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
+                }
+            }
         }
     });
 

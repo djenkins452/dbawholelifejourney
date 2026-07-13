@@ -45,6 +45,48 @@ def _friendly_title(engine_name: str) -> str:
     return words.title() if words else engine_name
 
 
+def _engine_meta(engine_name: str):
+    """Return canonical engine metadata for a short engine code, else None.
+
+    A MISSED_RUN incident's ``engine_name`` is EITHER a short engine code (an
+    intelligence-engine heartbeat miss, e.g. ``DNE``) OR a dotted Celery Beat task
+    path (a scheduled-task miss). The registry lookup is the deterministic test for
+    "is this a monitored engine?" — used to label the entity truthfully.
+    """
+    if not engine_name:
+        return None
+    try:
+        from apps.core.ai_observability.engine_registry import get_engine_meta
+        return get_engine_meta(engine_name)
+    except Exception:  # pragma: no cover - defensive; never break telemetry
+        return None
+
+
+def _entity_label(engine_name: str) -> str:
+    """The correct monitored-entity name for the operator (facts only).
+
+    Engine heartbeat → full engine name + code (``Delivery Notification Engine
+    (DNE)``); Beat task → humanised task path; neither → the raw value.
+    """
+    meta = _engine_meta(engine_name)
+    if meta and meta.get("label"):
+        return f"{meta['label']} ({engine_name})"
+    return _friendly_title(engine_name)
+
+
+def _event_reason(anomaly_type: str, engine_name: str) -> str:
+    """Deterministic, entity-accurate reason line (never a verdict).
+
+    MISSED_RUN is emitted by TWO detectors — engine heartbeats (short code) and the
+    Beat-task monitor (task path) — so its reason must name the right resource kind.
+    """
+    if anomaly_type == "MISSED_RUN":
+        if _engine_meta(engine_name):
+            return "Engine heartbeat missed its expected cadence."
+        return "Scheduled task missed its expected cadence."
+    return _EVENT_REASONS.get(anomaly_type, f"{anomaly_type} incident.")
+
+
 def _duration_seconds(row):
     """Deterministic recovery duration = resolution time − attempt time.
 
@@ -89,7 +131,13 @@ def _build_recovery_events(window_start, now):
 
     events = []
     for r in rows:
-        if r.phase == RecoveryAttempt.PHASE_ESCALATED:
+        # An observe-only (R0) SKIP is NOT a failed recovery: no handler executed,
+        # no recovery was attempted, no verification ran. It is a distinct operator
+        # state — surface it truthfully, never as "Recovery Failed". (The audit row
+        # keeps its raw OUTCOME_FAILED + reason; only the operator EVENT is reframed.)
+        if r.phase == RecoveryAttempt.PHASE_SKIPPED_UNSAFE:
+            kind, headline, verification = "skipped", "Recovery Skipped", "Not applicable"
+        elif r.phase == RecoveryAttempt.PHASE_ESCALATED:
             kind, headline, verification = "escalated", "Recovery Escalated", "Failed"
         elif r.outcome == RecoveryAttempt.OUTCOME_FAILED:
             kind, headline, verification = "failed", "Recovery Failed", "Failed"
@@ -109,18 +157,26 @@ def _build_recovery_events(window_start, now):
         else:
             next_retry = None
 
+        # For a skip, the operator-facing action states plainly that nothing ran and
+        # why (observe-only R0). The precise diagnose reason stays in the audit row.
+        if kind == "skipped":
+            action = ("No recovery performed. Incident is observe-only (R0) — "
+                      "not allowlisted or enabled for autonomous recovery.")
+        else:
+            action = r.action_taken
+
         events.append({
             "id": r.id,
-            "kind": kind,                       # success | failed | escalated
+            "kind": kind,                       # success | failed | escalated | skipped
             "headline": headline,
-            "title": _friendly_title(r.engine_name),
+            "title": _entity_label(r.engine_name),
             "task": r.engine_name,
             "monitor_key": r.monitor_key,
             "anomaly_type": r.anomaly_type,
             "classification": r.classification,
-            "reason": _EVENT_REASONS.get(r.anomaly_type, f"{r.anomaly_type} incident."),
-            "action": r.action_taken,
-            "verification": verification,       # Passed | Failed
+            "reason": _event_reason(r.anomaly_type, r.engine_name),
+            "action": action,
+            "verification": verification,       # Passed | Failed | Not applicable
             "duration_seconds": _duration_seconds(r),
             "attempt_number": r.attempt_number,
             "retry_count": len(attempts),
@@ -174,7 +230,13 @@ def build_recovery_telemetry(now=None) -> dict:
                                      outcome=RecoveryAttempt.OUTCOME_SUCCESS).count()
     recovered_24h = all_window.filter(phase=RecoveryAttempt.PHASE_RECOVER_ATTEMPTED).count()
     escalated_24h = all_window.filter(phase=RecoveryAttempt.PHASE_ESCALATED).count()
-    failed_24h = all_window.filter(outcome=RecoveryAttempt.OUTCOME_FAILED).count()
+    # Observe-only (R0) skips carry OUTCOME_FAILED in the audit but are NOT recovery
+    # failures — exclude them so the operator's failure count is truthful, and count
+    # them separately.
+    failed_24h = all_window.filter(
+        outcome=RecoveryAttempt.OUTCOME_FAILED
+    ).exclude(phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE).count()
+    skipped_24h = all_window.filter(phase=RecoveryAttempt.PHASE_SKIPPED_UNSAFE).count()
     pending = RecoveryAttempt.objects.filter(outcome=RecoveryAttempt.OUTCOME_PENDING).count()
     # Shadow-mode simulated decisions (never executed) — kept in their OWN counters
     # so a simulated "would recover" can never be counted as a real recovery.
@@ -206,6 +268,7 @@ def build_recovery_telemetry(now=None) -> dict:
             "verified_24h": verified_24h,
             "escalated_24h": escalated_24h,
             "failed_24h": failed_24h,
+            "skipped_24h": skipped_24h,
             "pending": pending,
             "shadowed_24h": shadowed_24h,
             "would_recover_24h": would_recover_24h,

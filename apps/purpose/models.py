@@ -25,6 +25,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.rich_text import RichTextMixin
 from apps.core.utils import get_user_today
 
 
@@ -187,7 +188,7 @@ class AnnualDirection(UserOwnedModel):
 # Life Goals
 # =============================================================================
 
-class LifeGoal(UserOwnedModel):
+class LifeGoal(RichTextMixin, UserOwnedModel):
     """
     Medium to long-term life goals (12-36 month view).
     
@@ -195,7 +196,7 @@ class LifeGoal(UserOwnedModel):
     This is NOT a task list - no daily checkboxes.
     """
     # Current Context Contract — the text Beth narrates when this goal is in focus.
-    CONTEXT_FIELDS = ("description", "why_it_matters", "success_looks_like")
+    CONTEXT_FIELDS = ("description_plain", "why_it_matters_plain", "success_looks_like_plain")
 
     STATUS_CHOICES = [
         ('active', 'Active'),
@@ -217,18 +218,21 @@ class LifeGoal(UserOwnedModel):
         blank=True,
         help_text="What is this goal about?"
     )
+    description_plain = models.TextField(blank=True, default="", editable=False)
 
     # Why it matters
     why_it_matters = models.TextField(
         blank=True,
         help_text="Why is this goal important to you?"
     )
+    why_it_matters_plain = models.TextField(blank=True, default="", editable=False)
 
     # Success definition
     success_looks_like = models.TextField(
         blank=True,
         help_text="What does success look like? How will you know you've achieved this?"
     )
+    success_looks_like_plain = models.TextField(blank=True, default="", editable=False)
 
     # Organization
     domain = models.ForeignKey(
@@ -307,12 +311,22 @@ class LifeGoal(UserOwnedModel):
         help_text="A short personal note about why this mission matters right "
                   "now — read back to you in the Goal Inspiration section.",
     )
+    motivation_note_plain = models.TextField(blank=True, default="", editable=False)
 
     # Reflection on completion or release
     reflection = models.TextField(
         blank=True,
         help_text="Reflection after completing or releasing this goal"
     )
+    reflection_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {
+        "description": "description_plain",
+        "why_it_matters": "why_it_matters_plain",
+        "success_looks_like": "success_looks_like_plain",
+        "motivation_note": "motivation_note_plain",
+        "reflection": "reflection_plain",
+    }
 
     # Link to annual direction
     annual_direction = models.ForeignKey(

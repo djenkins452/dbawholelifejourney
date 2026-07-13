@@ -3,6 +3,7 @@
 {% block title %}{% if form.instance.pk %}Edit{% else %}Add{% endif %} Goal - Goals{% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'purpose:home' %}">Goals</a>
@@ -38,21 +39,18 @@
 
             <div class="form-group">
                 <label for="id_description" class="form-label">Description</label>
-                <textarea name="description" id="id_description" class="form-textarea" rows="3" data-testid="goal-description-input"
-                          placeholder="Describe this goal...">{{ form.description.value|default:'' }}</textarea>
+                {{ form.description }}
             </div>
             
             <div class="form-group">
                 <label for="id_why_it_matters" class="form-label">Why It Matters</label>
-                <textarea name="why_it_matters" id="id_why_it_matters" class="form-textarea" rows="3"
-                          placeholder="Why is this goal important to you?">{{ form.why_it_matters.value|default:'' }}</textarea>
+                {{ form.why_it_matters }}
                 <p class="form-help">Understanding your "why" keeps you motivated.</p>
             </div>
             
             <div class="form-group">
                 <label for="id_success_looks_like" class="form-label">What Success Looks Like</label>
-                <textarea name="success_looks_like" id="id_success_looks_like" class="form-textarea" rows="3"
-                          placeholder="How will you know you've achieved this?">{{ form.success_looks_like.value|default:'' }}</textarea>
+                {{ form.success_looks_like }}
             </div>
             
             <div class="form-row">
@@ -134,14 +132,12 @@
             
             <div class="form-group">
                 <label for="id_reflection" class="form-label">Reflection <span class="optional-badge">For completed/released goals</span></label>
-                <textarea name="reflection" id="id_reflection" class="form-textarea" rows="3"
-                          placeholder="What did you learn? How did it go?">{{ form.reflection.value|default:'' }}</textarea>
+                {{ form.reflection }}
             </div>
 
             <div class="form-group">
                 <label for="id_motivation_note" class="form-label">Motivation Note <span class="optional-badge">Optional</span></label>
-                <textarea name="motivation_note" id="id_motivation_note" class="form-textarea" rows="3"
-                          placeholder="A short personal note about why this matters right now...">{{ form.motivation_note.value|default:'' }}</textarea>
+                {{ form.motivation_note }}
                 <p class="form-help">Read back to you in the Mission Inspiration section on this goal's page.</p>
             </div>
 

@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (fix(ops): expanded Recovery Events stay open across the poll re-render)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Purpose LifeGoals)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Purpose LifeGoals
+
+Adopted the shared editor for the core Purpose goals surface: `LifeGoal.description`, `why_it_matters`,
+`success_looks_like`, `motivation_note`, `reflection`. Purpose has no `forms.py` (fully CBV-driven), so this
+uses the reusable `apps.core.widgets.apply_rich_text_widgets(form, *fields)` helper (new) inside the existing
+`GoalCreateView`/`GoalUpdateView` `get_form` overrides — the clean pattern for any generic CBV. Model is
+`RichTextMixin` with five `*_plain` shadows; `CONTEXT_FIELDS` now point at the shadows (assistant narrates clean
+text); goal form template renders `{{ form.x }}` (was five hardcoded textareas) + loads editor assets; goal
+detail renders `.wlj-rich |safe` for all five (four were raw, motivation_note was `|linebreaksbr`); list preview
+uses `description_plain`/`why_it_matters_plain`. Migrations `purpose.0020…` + backfill
+`purpose.0021_backfill_lifegoal_richtext` (shared helper; lossless). Verified live: goal form mounts 3 editors
+(create fields) via the CBV injection; sanitization + shadows correct; `apps.purpose` suite (223) green.
+Secondary Purpose fields (HabitGoal/ChangeIntention/ReflectionResponse/AnnualDirection) documented as the next
+pass following the same recipe.
 
 ## 2026-07-13 — fix(ops): expanded Recovery Events no longer auto-collapse on the 10s poll re-render
 

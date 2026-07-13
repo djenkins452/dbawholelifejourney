@@ -157,3 +157,19 @@ class WLJRichTextWidget(forms.Textarea):
         else:
             attrs["data-wlj-rte-upload-url"] = ""
         return attrs
+
+
+def apply_rich_text_widgets(form, *field_names, min_height=160):
+    """Swap the given fields' widgets to WLJRichTextWidget on an already-built form.
+
+    The reusable pattern for adopting the editor on a generic CBV that has no
+    ModelForm: call this inside the view's ``get_form()`` override. Missing fields
+    are skipped, so it is safe to pass a superset (e.g. fields only on the update
+    form). Returns the form for chaining.
+    """
+    for name in field_names:
+        field = form.fields.get(name)
+        if field is not None:
+            field.widget = WLJRichTextWidget(
+                placeholder=str(field.help_text or ""), min_height=min_height)
+    return form

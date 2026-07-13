@@ -83,13 +83,13 @@
                     </div>
                     
                     {% if goal.description %}
-                    <p class="goal-description">{{ goal.description|truncatewords:25 }}</p>
+                    <p class="goal-description">{{ goal.description_plain|truncatewords:25 }}</p>
                     {% endif %}
                     
                     {% if goal.why_it_matters %}
                     <div class="goal-why">
                         <span class="why-label">Why it matters:</span>
-                        <span class="why-text">{{ goal.why_it_matters|truncatewords:15 }}</span>
+                        <span class="why-text">{{ goal.why_it_matters_plain|truncatewords:15 }}</span>
                     </div>
                     {% endif %}
 

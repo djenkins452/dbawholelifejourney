@@ -66,7 +66,7 @@
             {% endif %}
 
             {% if goal.motivation_note %}
-            <p class="inspiration-note">{{ goal.motivation_note|linebreaksbr }}</p>
+            <div class="inspiration-note wlj-rich">{{ goal.motivation_note|safe }}</div>
             {% endif %}
 
             {% if goal.motivation_links.all %}
@@ -148,21 +148,21 @@
         {% if goal.description %}
         <div class="content-section" data-testid="goal-description-section">
             <h3>Description</h3>
-            <p>{{ goal.description }}</p>
+            <div class="wlj-rich">{{ goal.description|safe }}</div>
         </div>
         {% endif %}
         
         {% if goal.why_it_matters %}
         <div class="content-section highlight">
             <h3>Why It Matters</h3>
-            <p>{{ goal.why_it_matters }}</p>
+            <div class="wlj-rich">{{ goal.why_it_matters|safe }}</div>
         </div>
         {% endif %}
         
         {% if goal.success_looks_like %}
         <div class="content-section">
             <h3>What Success Looks Like</h3>
-            <p>{{ goal.success_looks_like }}</p>
+            <div class="wlj-rich">{{ goal.success_looks_like|safe }}</div>
         </div>
         {% endif %}
         
@@ -197,7 +197,7 @@
         {% if goal.reflection %}
         <div class="content-section">
             <h3>Reflection</h3>
-            <p>{{ goal.reflection }}</p>
+            <div class="wlj-rich">{{ goal.reflection|safe }}</div>
         </div>
         {% endif %}
 

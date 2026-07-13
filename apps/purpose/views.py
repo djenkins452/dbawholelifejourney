@@ -25,6 +25,7 @@ from django.views.generic import (
 )
 
 from apps.core.current_context import CurrentContextMixin
+from apps.core.widgets import apply_rich_text_widgets
 from apps.core.utils import get_user_today
 from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
@@ -371,6 +372,9 @@ class GoalCreateView(SaveAddAnotherMixin, PurposeAccessMixin, CreateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
+        apply_rich_text_widgets(
+            form, 'description', 'why_it_matters', 'success_looks_like',
+            'motivation_note', 'reflection')
         return form
 
     def form_valid(self, form):
@@ -409,6 +413,9 @@ class GoalUpdateView(PurposeAccessMixin, UpdateView):
         form.fields['annual_direction'].queryset = AnnualDirection.objects.filter(
             user=self.request.user
         ).order_by('-year')
+        apply_rich_text_widgets(
+            form, 'description', 'why_it_matters', 'success_looks_like',
+            'motivation_note', 'reflection')
         return form
 
     def form_valid(self, form):

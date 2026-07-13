@@ -113,7 +113,9 @@ typically one or two sentences, an annotation, or operational metadata, it stays
   Faith `PrayerRequest.description`/`answer_notes`, `FaithMilestone.description`, `BibleStudyNote.content`;
   Legacy `Person.bio`, `Place.description`, `LifeMilestone.description`, `Relationship.notes`;
   Life `Project.description`/`purpose`/`reflection` (via a `get_form` widget injection on the Project CBVs —
-  the pattern for adopting a generic CBV without a ModelForm; see `_ProjectRichTextFormMixin`).
+  the pattern for adopting a generic CBV without a ModelForm; see `_ProjectRichTextFormMixin`);
+  Purpose `LifeGoal.description`/`why_it_matters`/`success_looks_like`/`motivation_note`/`reflection` (Goal CBVs
+  via the shared `apps.core.widgets.apply_rich_text_widgets(form, *fields)` helper inside `get_form`).
 
 **Intentionally left plain (with reasoning):**
 - **Legacy `Memory.body`** — *deferred, not declined.* It is the highest-value legacy narrative, but it also
@@ -131,11 +133,12 @@ typically one or two sentences, an annotation, or operational metadata, it stays
   it is data-for-the-model more than a document, and rich markup would leak into prompts. Kept plain.
 - **Billing `FeatureSuggestion.suggestion_text`** — feeds plain-text notification emails; rich HTML would
   degrade there. Kept plain.
-- **Purpose** goal/intention descriptions & reflections (`LifeGoal`, `HabitGoal`, `ChangeIntention`,
-  `ReflectionResponse`) are genuine paragraph surfaces and the main remaining adopter. Purpose has **no
-  `forms.py` at all** (entirely generic CBV `fields = [...]`), so adopting it means adding the `get_form`
-  widget-injection pattern (see Life's `_ProjectRichTextFormMixin`) to each Goal/Intention/Reflection CBV,
-  plus the shadow fields, detail-render, and backfill. Queued as the next pass.
+- **Purpose** — `LifeGoal` (the core goals surface) is **done**. The secondary Purpose paragraph fields —
+  `HabitGoal.purpose`/`description`, `ChangeIntention.description`/`motivation`, `ReflectionResponse.response`,
+  `AnnualDirection.word_explanation`/`theme_description` — are good future adopters and follow the exact same
+  recipe now proven for `LifeGoal`: model shadows + `RICH_TEXT_FIELDS`, `apply_rich_text_widgets` in each CBV's
+  `get_form`, `{{ form.x }}` + assets in the form template, `.wlj-rich` detail render, `*_plain` previews, and a
+  `backfill_rich_text` migration. Queued as the next pass.
 
 Any future field adopts the editor by following “How to adopt a field” above — the pattern and the
 `backfill_rich_text` migration helper make it a small change.

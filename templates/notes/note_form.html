@@ -3,6 +3,7 @@
 {% block title %}{% if object %}Edit Note{% else %}New Note{% endif %} - Notes{% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="container" style="max-width: var(--content-max-width);">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'notes:note_list' %}">Notes</a>

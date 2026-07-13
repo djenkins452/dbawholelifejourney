@@ -56,7 +56,7 @@
 
         <!-- Note body -->
         <div class="note-detail-body {% if note.color != 'default' %}note-color-{{ note.color }}{% endif %}">
-            {{ note.body|linebreaksbr }}
+            <div class="wlj-rich">{{ note.body|safe }}</div>
         </div>
 
         <!-- Images -->

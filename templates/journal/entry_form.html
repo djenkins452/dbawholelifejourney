@@ -3,6 +3,7 @@
 {% block title %}{% if is_edit %}Edit Entry{% else %}New Journal Entry{% endif %} - Whole Life Journey{% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="content-container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'journal:entry_list' %}">Journal</a>
@@ -73,18 +74,7 @@
         
         <div class="form-group">
             <label for="id_body" class="form-label">Your thoughts</label>
-            <textarea
-                name="body"
-                id="id_body"
-                class="form-textarea"
-                placeholder="Write freely. This is your safe space..."
-                rows="12"
-                required
-                data-testid="journal-entry-body-textarea"
-            >{{ form.body.value|default:'' }}</textarea>
-            <div class="form-footer">
-                <span id="word-count" class="text-muted text-sm">0 words</span>
-            </div>
+            {{ form.body }}
             {% if form.body.errors %}
                 <p class="form-error">{{ form.body.errors.0 }}</p>
             {% endif %}
@@ -389,15 +379,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Word count
+    // Word count (defensive: the rich text editor hides the source textarea and
+    // the inline counter was removed; keep this a no-op if either is absent).
     function updateWordCount() {
+        if (!bodyInput || !wordCount) return;
         const text = bodyInput.value.trim();
         const words = text ? text.split(/\s+/).length : 0;
         wordCount.textContent = words + ' word' + (words !== 1 ? 's' : '');
     }
-    
-    bodyInput.addEventListener('input', updateWordCount);
-    updateWordCount(); // Initial count
+
+    if (bodyInput && wordCount) {
+        bodyInput.addEventListener('input', updateWordCount);
+        updateWordCount(); // Initial count
+    }
 });
 </script>
 {% endblock %}

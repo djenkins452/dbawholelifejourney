@@ -28,6 +28,8 @@ Copyright:
 
 from django.db import models
 from django.urls import reverse
+
+from apps.core.rich_text import RichTextMixin
 from django.utils import timezone
 
 from apps.core.models import Category, Tag, UserOwnedModel
@@ -90,18 +92,25 @@ class JournalPrompt(models.Model):
         return f"{preview}..."
 
 
-class JournalEntry(UserOwnedModel):
+class JournalEntry(RichTextMixin, UserOwnedModel):
     """
     A journal entry - the core content model.
-    
+
     Entries belong to a user and can be:
     - Tagged with multiple categories
     - Associated with custom tags
     - Linked to other entries (cross-module)
     - Archived or deleted
+
+    `body` stores sanitized rich-text HTML (the WLJ Rich Text Editor); `body_plain`
+    is its auto-derived plain-text shadow (via RichTextMixin) used for word counts,
+    previews, search, exports, and assistant narration — never edited directly.
     """
-    # Current Context Contract — the text Beth narrates when this entry is in focus.
-    CONTEXT_FIELDS = ("body",)
+    # Current Context Contract — the assistant narrates the PLAIN shadow, not HTML.
+    CONTEXT_FIELDS = ("body_plain",)
+
+    # RichTextMixin: sanitize `body` on save and regenerate the plain shadow.
+    RICH_TEXT_FIELDS = {"body": "body_plain"}
 
     MOOD_CHOICES = [
         ("great", "Great"),
@@ -114,6 +123,9 @@ class JournalEntry(UserOwnedModel):
     # Core content
     title = models.CharField(max_length=200)
     body = models.TextField()
+    # Auto-derived plain-text shadow of `body` (search / preview / word count /
+    # export / narration). Never edited directly — RichTextMixin regenerates it.
+    body_plain = models.TextField(blank=True, default="", editable=False)
 
     # The date this entry is "about" (may differ from created_at)
     entry_date = models.DateField(default=timezone.now)
@@ -168,9 +180,12 @@ class JournalEntry(UserOwnedModel):
         return f"{self.title} ({self.entry_date})"
 
     def save(self, *args, **kwargs):
-        # Compute word count
-        if self.body:
-            self.word_count = len(self.body.split())
+        # Sanitize `body` HTML and (re)derive the `body_plain` shadow first, so
+        # word count / title default read the clean plain text, not markup.
+        self.sync_rich_text_fields()
+
+        # Word count from the plain-text shadow (never counts HTML tags).
+        self.word_count = len((self.body_plain or "").split())
 
         # Set default title if not provided
         if not self.title:
@@ -183,10 +198,11 @@ class JournalEntry(UserOwnedModel):
 
     @property
     def body_preview(self):
-        """Return first 150 characters of body for list views."""
-        if len(self.body) <= 150:
-            return self.body
-        return self.body[:150].rsplit(" ", 1)[0] + "..."
+        """First ~150 characters of the PLAIN-text body for list views."""
+        plain = self.body_plain or ""
+        if len(plain) <= 150:
+            return plain
+        return plain[:150].rsplit(" ", 1)[0] + "..."
 
     @property
     def mood_emoji(self):

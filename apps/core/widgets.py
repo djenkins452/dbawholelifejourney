@@ -92,3 +92,68 @@ def _is_decimal_step(step):
         return float(step) < 1
     except (ValueError, TypeError):
         return False
+
+
+class WLJRichTextWidget(forms.Textarea):
+    """The single WLJ Rich Text Editor widget — drop-in for any narrative field.
+
+    Renders a hidden `<textarea>` that holds sanitized HTML (the canonical value
+    posted with the form). `static/js/wlj-rich-text.js` finds the textarea via
+    the ``data-wlj-rte`` marker, mounts a TipTap editor + toolbar around it, and
+    mirrors the editor HTML back into the textarea on every change so normal form
+    submission just works — no per-form JavaScript.
+
+    Usage in a ModelForm::
+
+        from apps.core.widgets import WLJRichTextWidget
+        class Meta:
+            widgets = {"body": WLJRichTextWidget(placeholder="Write freely…")}
+
+    Every page that renders the widget must load the editor assets once via
+    ``{% include "components/_rich_text_editor_assets.html" %}`` (the widget's
+    ``Media`` also declares them for templates that emit ``{{ form.media }}``).
+    """
+
+    #: default endpoint name for image uploads (resolved lazily in render)
+    upload_url_name = "core:rich_text_image_upload"
+
+    def __init__(self, attrs=None, *, placeholder="", min_height=220,
+                 upload_enabled=True):
+        self.placeholder = placeholder
+        self.min_height = min_height
+        self.upload_enabled = upload_enabled
+        super().__init__(attrs)
+
+    @property
+    def media(self):
+        from django.forms import Media
+        return Media(
+            css={"all": ["css/wlj-rich-text.css"]},
+            js=["vendor/tiptap/tiptap.bundle.js", "js/wlj-rich-text.js"],
+        )
+
+    def use_required_attribute(self, initial):
+        # The source textarea is hidden; a hidden + `required` control triggers a
+        # non-focusable browser validation error. Required is enforced server-side.
+        return False
+
+    def build_attrs(self, base_attrs, extra_attrs=None):
+        attrs = super().build_attrs(base_attrs, extra_attrs)
+        attrs["data-wlj-rte"] = "true"
+        attrs["data-wlj-rte-placeholder"] = self.placeholder or ""
+        attrs["data-wlj-rte-min-height"] = str(self.min_height)
+        existing = attrs.get("class", "")
+        attrs["class"] = (existing + " wlj-rte-source").strip()
+        # The visible editor is contenteditable; the source textarea is hidden.
+        attrs["hidden"] = "hidden"
+        attrs["aria-hidden"] = "true"
+        if self.upload_enabled:
+            try:
+                from django.urls import reverse
+                attrs["data-wlj-rte-upload-url"] = reverse(self.upload_url_name)
+            except Exception:
+                # Endpoint not wired yet / reversal failed — degrade to no upload.
+                attrs["data-wlj-rte-upload-url"] = ""
+        else:
+            attrs["data-wlj-rte-upload-url"] = ""
+        return attrs

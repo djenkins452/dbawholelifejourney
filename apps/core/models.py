@@ -2359,6 +2359,34 @@ from apps.core.ai_governance.models import (  # noqa: E402, F401
     GovernanceProfile,
 )
 
+class RichTextImage(TimeStampedModel):
+    """An image embedded in a WLJ Rich Text Editor field.
+
+    Uploaded via `core:rich_text_image_upload`, stored on the default file
+    storage (Cloudinary in prod, local FS in dev) and embedded as an
+    ``<img src=…>`` inside the sanitized HTML. Rows are user-scoped so uploads
+    are permission-checked; keeping a record also lets us audit / garbage-collect
+    later. This is the ONE image path for every module's editor.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="rich_text_images",
+    )
+    image = models.ImageField(upload_to="rich_text/images/%Y/%m/")
+    # Optional provenance: where the editor lives (e.g. "journal.JournalEntry").
+    source_label = models.CharField(max_length=100, blank=True, default="")
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Rich Text Image"
+        verbose_name_plural = "Rich Text Images"
+
+    def __str__(self):
+        return f"RichTextImage {self.pk} (user {self.user_id})"
+
+
 # Import ai_arbitration models so Django discovers them for migrations
 from apps.core.ai_arbitration.models import (  # noqa: E402, F401
     ArbitrationDecisionLog,

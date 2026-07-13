@@ -34,8 +34,8 @@
                 {% endif %}
             </header>
             
-            <div class="page-entry-body">
-                {{ entry.body|linebreaks }}
+            <div class="page-entry-body wlj-rich">
+                {{ entry.body|safe }}
             </div>
             
             {% if entry.categories.exists or entry.tags.exists %}

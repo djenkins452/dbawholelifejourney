@@ -3,8 +3,50 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-12 (feat(ops): Recovery Events UX — observe-only ≠ failed, correct entity labels, scroll-into-view)
+# Last Updated: 2026-07-13 (feat(platform): WLJ Rich Text Editor — Phase 1 platform + Journal reference integration)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(platform): WLJ Rich Text Editor — Phase 1 (platform capability + Journal reference)
+
+Introduced ONE reusable Rich Text Editor for all narrative writing in WLJ (not a Journal feature). Phase 1
+ships the whole platform and integrates it fully into Journal as the reference; the remaining fields roll out
+next against the same component (no fork).
+
+- **Self-hosted TipTap bundle (no CDN).** New build source `frontend/tiptap/` (npm + esbuild) produces a single
+  IIFE `static/vendor/tiptap/tiptap.bundle.js` exposing `window.WLJTipTap` — only the extensions WLJ uses
+  (StarterKit sans code-block, Underline, Link w/ autolink+paste, a resizable Image, TextAlign as a safe
+  `data-text-align` attribute, TaskList/TaskItem, simple Tables, Placeholder). `node_modules` git-ignored; the
+  built file + lockfile are committed. Build/upgrade documented in `frontend/tiptap/README.md`.
+- **One component.** `static/js/wlj-rich-text.js` mounts a TipTap editor + toolbar on any
+  `<textarea data-wlj-rte>` and mirrors HTML back into the textarea (normal form submit; no per-form JS);
+  `static/css/wlj-rich-text.css` styles editor chrome + rendered `.wlj-rich` using WLJ tokens (theme-aware,
+  responsive toolbar wrap, print-clean). Features: bold/italic/underline/strike/inline-code, H1–H3,
+  bullet/numbered/task lists, quote, divider, links (Ctrl+K + pasted-URL recognition), image upload
+  (pick/drag/paste, resize), tables, align L/C/R, undo/redo. CSP-safe (external file, `addEventListener`, no
+  inline handlers). Drop-in `WLJRichTextWidget` (`apps/core/widgets.py`); assets partial
+  `templates/components/_rich_text_editor_assets.html`.
+- **Storage = sanitized HTML + auto plain-text shadow.** `apps/core/rich_text.py` adds `sanitize_rich_html`
+  (nh3 allow-list — strips scripts/handlers/`javascript:`/iframes/`style`; alignment via `data-text-align`),
+  `rich_text_to_plaintext`, `plaintext_to_html` (always escapes legacy text — lossless), and the reusable
+  `RichTextMixin` (`RICH_TEXT_FIELDS` map → sanitize each HTML field + regenerate its `*_plain` shadow on
+  save). The shadow keeps search / preview / word count / exports / assistant narration working unchanged.
+  `nh3` added to requirements.
+- **Shared image path.** `RichTextImage` model + `core:rich_text_image_upload` endpoint (login-gated,
+  user-scoped, PIL-verified, ≤10 MB, request-path-safe) → default storage (Cloudinary/local); images embed as
+  `<img>` in the document.
+- **Journal reference integration.** `JournalEntry` now `RichTextMixin` with `body` (HTML) + `body_plain`
+  (shadow); `save()`/`word_count`/`body_preview`/`CONTEXT_FIELDS`/search/book-view/AI-text now read the shadow;
+  form uses the widget; detail & page views render `.wlj-rich` `|safe`; home preview uses `body_plain`.
+  Migrations: `core.0134_richtextimage`, `journal.0011_journalentry_body_plain`, and data migration
+  `journal.0012_backfill_journal_richtext` (legacy plain text → escaped/wrapped HTML + shadow, no data loss).
+  `current_context` treats `*_plain` shadows as generic (no label). Rich-render CSS loaded globally in
+  `base.html`.
+- **Verified live** (authenticated, desktop): editor mounts (21 controls), Bold command round-trips to the
+  hidden textarea, form submit persists sanitized HTML + derived shadow + word count, detail renders formatting,
+  edit reloads content, existing entries backfilled render correctly. Image endpoint verified (valid→url,
+  bad-type/fake-image→400, anon→302). Tests: `apps/core/tests/test_rich_text.py` (22) + full `apps.journal`
+  suite (125) + request-path-safety contract — all pass. `collectstatic` 0 errors. Standard documented in
+  `docs/WLJ_RICH_TEXT_EDITOR.md` (+ CLAUDE.md reference row).
 
 ## 2026-07-12 — feat(ops): Recovery Events UX — observe-only (R0) is not a failure; correct entity labels; scroll-into-view
 

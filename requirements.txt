@@ -29,6 +29,9 @@ django-htmx>=1.19.0
 # Markdown Support (for help system)
 markdown>=3.7
 
+# HTML sanitization for the WLJ Rich Text Editor (server-side, never trust client HTML)
+nh3>=0.2.15
+
 # Time Zone Support
 pytz>=2024.1
 

@@ -1149,6 +1149,7 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for Day Continuity (PK 266)
         self._reset_day_continuity_release_note(DataLoadConfig, force, verbosity)
         self._reset_persistent_header_release_note(DataLoadConfig, force, verbosity)
+        self._reset_rich_text_editor_release_note(DataLoadConfig, force, verbosity)
 
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
@@ -2436,6 +2437,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset persistent header release note FAILED: {e}'))
+
+    def _reset_rich_text_editor_release_note(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 269) so the What's New entry for
+        the WLJ Rich Text Editor (rich formatting, checklists, images, links, tables
+        in Journal — rolling out platform-wide) appears.
+        """
+        reset_tracker_name = 'reset_rich_text_editor_release_note_2026_07_13'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for rich text editor')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for rich text editor (Jul 2026)',
+                'command', 'One-time reset to reload the release note for the WLJ Rich Text Editor'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset rich text editor release note FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

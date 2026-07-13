@@ -98,7 +98,7 @@ class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
         if search:
             queryset = queryset.filter(
                 models.Q(title__icontains=search) |
-                models.Q(body__icontains=search)
+                models.Q(body_plain__icontains=search)
             )
 
         return queryset.distinct()
@@ -154,7 +154,7 @@ class BookView(LoginRequiredMixin, ListView):
                 "id": e.pk,
                 "title": e.title,
                 "date": e.entry_date.strftime("%B %d, %Y"),
-                "body": e.body,
+                "body": e.body_plain,  # book view renders as textContent (plain)
                 "mood": e.get_mood_display() if e.mood else None,
                 "mood_emoji": e.mood_emoji if e.mood else None,
             }
@@ -440,7 +440,7 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             ]
 
             # Get entry content
-            entry_text = f"{entry.title}\n\n{entry.body}" if entry.body else entry.title
+            entry_text = f"{entry.title}\n\n{entry.body_plain}" if entry.body_plain else entry.title
 
             # Use AI service to detect milestone completion
             from apps.ai.services import AIService

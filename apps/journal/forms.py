@@ -14,6 +14,7 @@ from django import forms
 
 from apps.core.models import Tag
 from apps.core.utils import get_user_today
+from apps.core.widgets import WLJRichTextWidget
 
 from .models import Emotion, JournalEntry
 
@@ -38,11 +39,10 @@ class JournalEntryForm(forms.ModelForm):
                 "class": "form-input",
                 "placeholder": "Leave blank to use the date",
             }),
-            "body": forms.Textarea(attrs={
-                "class": "form-textarea",
-                "placeholder": "Write your thoughts...",
-                "rows": 12,
-            }),
+            "body": WLJRichTextWidget(
+                placeholder="Write your thoughts...",
+                min_height=280,
+            ),
             "entry_date": forms.DateInput(attrs={
                 "class": "form-input",
                 "type": "date",

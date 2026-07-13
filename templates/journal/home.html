@@ -106,7 +106,7 @@
                         {% if entry.mood %}
                         <span class="entry-mood mood-{{ entry.mood }}">{{ entry.get_mood_display }}</span>
                         {% endif %}
-                        <p class="entry-preview">{{ entry.body|truncatewords:20 }}</p>
+                        <p class="entry-preview">{{ entry.body_plain|truncatewords:20 }}</p>
                     </div>
                 </a>
                 {% endfor %}

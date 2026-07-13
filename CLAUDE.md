@@ -310,6 +310,7 @@ Every operational feature review must end by answering these five. If any obviou
 | `docs/WLJ_LEGACY_DOMAIN_ARCHITECTURE.md` | **Any Legacy domain work — the preservation-truth architecture baseline (Attestation→Assertion→Projection, significance, loss-risk, conflict sets). Read before any Legacy feature.** |
 | `docs/WLJ_LEGACY_PLACES.md` | **Places domain (as-built) — canonical Place model + coordinate provenance, the interactive Esri map, geocoding pipeline, and the location-review tool. Read before any map/coordinate/geocoding work.** |
 | `docs/WLJ_LEGACY_MAP_TILES.md` | **Map/geocoder provider decision record (why Esri; OSM + Nominatim retired).** |
+| `docs/WLJ_RICH_TEXT_EDITOR.md` | **ANY free-form / narrative writing field (journal, notes, reflections, descriptions, comments). The ONE platform Rich Text Editor — never build a second editor or per-module fork. Sanitized-HTML canonical + auto-derived plain-text shadow (`RichTextMixin`); self-hosted TipTap bundle; shared image upload. Adopt via `WLJRichTextWidget`.** |
 | `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` | **Any homepage/Action Center CSS or template change** |
 | `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md` | **ANY new/changed page — declare its Current Context (detail→object `app.model:pk`; overview→`summary:<key>` via `PageSummaryMixin`). The two-pattern standard + rollout backlog.** |
 | `docs/ENGINE_COS_REFERENCE.md` | **Engine/CoS changes — AUTO-MAINTAIN (see below)** |

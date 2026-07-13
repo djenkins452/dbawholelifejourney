@@ -26,13 +26,20 @@ Copyright:
 
 from django.urls import include, path
 
-from . import views
+from . import rich_text_views, views
 
 app_name = "core"
 
 urlpatterns = [
     # Blueprint API
     path("api/blueprint/", include("apps.core.blueprint.urls")),
+
+    # WLJ Rich Text Editor — shared image upload endpoint (all modules)
+    path(
+        "rich-text/image-upload/",
+        rich_text_views.rich_text_image_upload,
+        name="rich_text_image_upload",
+    ),
 
     path("", views.LandingPageView.as_view(), name="landing"),
     path("_health/", views.HealthCheckView.as_view(), name="health_check"),

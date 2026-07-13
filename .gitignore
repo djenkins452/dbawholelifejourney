@@ -110,3 +110,6 @@ sigtest_settings.py
 
 # Local Claude Code agent worktrees (never commit — they are gitlinks)
 .claude/worktrees/
+
+# Node build deps for the vendored TipTap bundle (the built file IS committed)
+frontend/tiptap/node_modules/

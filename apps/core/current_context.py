@@ -183,7 +183,7 @@ class NarratableMixin:
             val = getattr(self, f, "")
             if isinstance(val, str) and val.strip():
                 label = ""
-                if f not in _GENERIC_FIELDS:
+                if f not in _GENERIC_FIELDS and not f.endswith("_plain"):
                     try:
                         label = f"{str(self._meta.get_field(f).verbose_name).capitalize()}: "
                     except Exception:

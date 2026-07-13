@@ -74,8 +74,8 @@
             </div>
         {% endif %}
         
-        <div class="entry-detail-body" data-testid="journal-entry-detail-body">
-            {{ entry.body|linebreaks }}
+        <div class="entry-detail-body wlj-rich" data-testid="journal-entry-detail-body">
+            {{ entry.body|safe }}
         </div>
         
         {% if entry.prompt %}

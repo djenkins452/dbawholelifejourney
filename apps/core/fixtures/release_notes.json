@@ -4278,5 +4278,21 @@
       "created_at": "2026-07-12T21:30:00Z",
       "updated_at": "2026-07-12T21:30:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 269,
+    "fields": {
+      "title": "A richer way to write — formatting, checklists, images and more",
+      "description": "Writing in WLJ just grew up. Journal entries now use a modern editor: make text bold, italic, or underlined; add headings, bullet, numbered, and checkbox lists; drop in quotes, dividers, links, and simple tables; and align your text. You can add images by clicking, dragging, or pasting a screenshot — and resize them right in the page. It works with the keyboard shortcuts you already know (Ctrl+B, Ctrl+I, Ctrl+K for links, and more). Everything you've already written is preserved exactly. This is the same editor coming to notes, reflections, and other writing spaces across WLJ.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-13",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/journal/new/",
+      "created_at": "2026-07-13T02:00:00Z",
+      "updated_at": "2026-07-13T02:00:00Z"
+    }
   }
 ]

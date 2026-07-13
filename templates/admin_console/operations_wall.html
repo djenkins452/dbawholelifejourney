@@ -6551,6 +6551,11 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         } catch (e) {}
     }
 
+    // Which events the operator has expanded (ephemeral, in-memory — survives the
+    // 10s poll re-render so an open event stays open until explicitly collapsed;
+    // NOT persisted across reloads, and never a timer). Keyed by attempt id.
+    var recoveryExpandedIds = {};
+
     function renderRecoveryEvents(rec) {
         var banner = document.getElementById('recoveryEventsBanner');
         if (!banner) return;
@@ -6610,8 +6615,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 row('Attempt ID', '#' + escapeHtml(String(e.id))) +
                 retriesHtml +
                 '<div class="ops-recovery-event-actions"><button class="ops-recovery-ack-btn" data-ack-recovery="' + escapeHtml(String(e.id)) + '">Acknowledge</button></div>';
+            var expandedCls = recoveryExpandedIds[e.id] ? ' expanded' : '';
             return '' +
-                '<div class="ops-recovery-event kind-' + escapeHtml(e.kind) + '" data-recovery-event="' + escapeHtml(String(e.id)) + '">' +
+                '<div class="ops-recovery-event kind-' + escapeHtml(e.kind) + expandedCls + '" data-recovery-event="' + escapeHtml(String(e.id)) + '">' +
                     '<div class="ops-recovery-event-head" data-recovery-toggle="' + escapeHtml(String(e.id)) + '">' +
                         '<span class="ops-recovery-event-icon">' + icon(e.kind) + '</span>' +
                         '<span class="ops-recovery-event-headline">' + escapeHtml(e.headline || '') + '</span>' +
@@ -6629,7 +6635,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var ackBtn = ev.target.closest('[data-ack-recovery]');
         if (ackBtn) {
             ev.stopPropagation();
-            ackRecoveryEvent(parseInt(ackBtn.getAttribute('data-ack-recovery'), 10));
+            var ackId = parseInt(ackBtn.getAttribute('data-ack-recovery'), 10);
+            ackRecoveryEvent(ackId);
+            delete recoveryExpandedIds[ackId];
             var card = ackBtn.closest('.ops-recovery-event');
             if (card) card.remove();
             var banner = document.getElementById('recoveryEventsBanner');
@@ -6641,13 +6649,19 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             var c = head.closest('.ops-recovery-event');
             if (c) {
                 var nowExpanded = c.classList.toggle('expanded');
-                // When expanding a card near the bottom of the wall, its details can
-                // extend below the viewport. Scroll the minimum needed to reveal it
-                // fully (block:'nearest' never moves an already-visible card).
+                // Persist the open/closed choice so the 10s poll re-render keeps it
+                // (the class alone would be wiped when innerHTML is rebuilt).
+                var eid = parseInt(head.getAttribute('data-recovery-toggle'), 10);
                 if (nowExpanded) {
+                    recoveryExpandedIds[eid] = true;
+                    // When expanding a card near the bottom of the wall, its details
+                    // can extend below the viewport. Scroll the minimum needed to
+                    // reveal it (block:'nearest' never moves an already-visible card).
                     requestAnimationFrame(function () {
                         c.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                     });
+                } else {
+                    delete recoveryExpandedIds[eid];
                 }
             }
         }

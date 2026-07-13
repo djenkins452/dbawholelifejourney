@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Life Projects)
+# Last Updated: 2026-07-13 (fix(ops): expanded Recovery Events stay open across the poll re-render)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — fix(ops): expanded Recovery Events no longer auto-collapse on the 10s poll re-render
+
+**Symptom:** an expanded Recovery Event collapsed on its own after ~5s. **Root cause (proven):** the Ops Wall
+polls every 10s (`POLL_INTERVAL_MS=10000`) → `poll()` → `renderRecoveryEvents(data.recovery)` **rebuilds
+`banner.innerHTML`**, and the expanded state lived ONLY as an `expanded` CSS class on the DOM node — so each
+re-render wiped it. Expanding mid-cycle collapses on the next poll (0–10s later ≈ "about five seconds"). Not a
+timer.
+
+**Fix (smallest safe, no timers, no backend):** persist the operator's open/closed choice in an ephemeral
+in-memory map `recoveryExpandedIds` (keyed by attempt id). The toggle handler records/clears it; the ack handler
+clears it; and `renderRecoveryEvents` re-applies the `expanded` class from it on every render, so a poll
+re-render keeps open events open (and closed events closed) until the operator explicitly changes them. Ephemeral
+(not persisted across reloads) and never a timer; multi-open preserved; the expand-time `scrollIntoView` still
+fires only on an explicit click, never on the poll re-render. (`templates/admin_console/operations_wall.html`)
+
+**Verification:** reproduced the exact render→expand→10s-poll-re-render cycle in a browser harness mirroring the
+wall's render/toggle logic — expanded stays open after the poll, an explicit collapse also persists, and other
+events are unaffected (afterClick / afterPoll / otherCollapsed / collapsePersists all PASS). No model/migration.
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Life Projects (CBV get_form pattern)
 

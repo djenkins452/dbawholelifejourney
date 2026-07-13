@@ -33,7 +33,7 @@
         </header>
 
         <div class="note-content">
-            {{ note.content|linebreaks }}
+            <div class="wlj-rich">{{ note.content|safe }}</div>
         </div>
 
         <footer class="note-footer">

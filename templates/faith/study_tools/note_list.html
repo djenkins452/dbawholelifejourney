@@ -76,7 +76,7 @@
                     </div>
                     <span class="note-translation">{{ note.translation }}</span>
                 </div>
-                <p class="note-excerpt">{{ note.content|truncatewords:30 }}</p>
+                <p class="note-excerpt">{{ note.content_plain|truncatewords:30 }}</p>
                 {% if note.tags %}
                 <div class="note-tags">
                     {% for tag in note.tags %}

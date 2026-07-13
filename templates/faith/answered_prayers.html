@@ -30,7 +30,7 @@
                     {% if prayer.answer_notes %}
                         <div class="answer-notes">
                             <strong>How God answered:</strong>
-                            <p>{{ prayer.answer_notes }}</p>
+                            <div class="wlj-rich">{{ prayer.answer_notes|safe }}</div>
                         </div>
                     {% endif %}
                     

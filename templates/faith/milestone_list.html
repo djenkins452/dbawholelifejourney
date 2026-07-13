@@ -35,7 +35,7 @@
                         <h2 class="milestone-title">{{ milestone.title }}</h2>
                         <time class="milestone-date">{{ milestone.date|date:"F j, Y" }}</time>
                         {% if milestone.description %}
-                            <p class="milestone-description">{{ milestone.description|truncatewords:30 }}</p>
+                            <p class="milestone-description">{{ milestone.description_plain|truncatewords:30 }}</p>
                         {% endif %}
                         <div class="milestone-actions">
                             <a href="{% url 'faith:milestone_detail' milestone.pk %}" class="btn btn-ghost btn-sm">View</a>

@@ -23,6 +23,7 @@ from django.db import models
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.rich_text import RichTextMixin
 
 
 # =============================================================================
@@ -148,7 +149,7 @@ class DailyVerse(models.Model):
         return f"{self.date}: {self.verse.reference}"
 
 
-class PrayerRequest(UserOwnedModel):
+class PrayerRequest(RichTextMixin, UserOwnedModel):
     """
     Prayer request tracking.
     
@@ -163,6 +164,12 @@ class PrayerRequest(UserOwnedModel):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    description_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {
+        "description": "description_plain",
+        "answer_notes": "answer_notes_plain",
+    }
 
     # Prayer categories
     is_personal = models.BooleanField(
@@ -188,6 +195,7 @@ class PrayerRequest(UserOwnedModel):
         blank=True,
         help_text="How God answered this prayer",
     )
+    answer_notes_plain = models.TextField(blank=True, default="", editable=False)
 
     # Reminders
     remind_daily = models.BooleanField(
@@ -274,7 +282,7 @@ class SavedVerse(UserOwnedModel):
         return f"{self.reference} ({self.translation})"
 
 
-class FaithMilestone(UserOwnedModel):
+class FaithMilestone(RichTextMixin, UserOwnedModel):
     """
     Significant moments in the user's faith journey.
 
@@ -303,6 +311,10 @@ class FaithMilestone(UserOwnedModel):
     )
     date = models.DateField()
     description = models.TextField(blank=True)
+    description_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"description": "description_plain"}
+
     scripture_reference = models.CharField(
         max_length=100,
         blank=True,
@@ -987,7 +999,7 @@ class BibleBookmark(UserOwnedModel):
         return self.reference
 
 
-class BibleStudyNote(UserOwnedModel):
+class BibleStudyNote(RichTextMixin, UserOwnedModel):
     """
     Study notes attached to specific Scripture passages.
 
@@ -1024,6 +1036,9 @@ class BibleStudyNote(UserOwnedModel):
     content = models.TextField(
         help_text="Your study notes",
     )
+    content_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"content": "content_plain"}
 
     # Optional categorization
     tags = models.JSONField(

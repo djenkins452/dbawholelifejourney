@@ -15,6 +15,7 @@ and Bible study tools (highlights, bookmarks, notes).
 from django import forms
 
 from apps.core.utils import get_user_today
+from apps.core.widgets import WLJRichTextWidget
 
 from .models import (
     BibleBookmark,
@@ -47,11 +48,8 @@ class PrayerRequestForm(forms.ModelForm):
                 "class": "form-input",
                 "placeholder": "What would you like to pray for?",
             }),
-            "description": forms.Textarea(attrs={
-                "class": "form-textarea",
-                "placeholder": "Add details about this prayer request...",
-                "rows": 4,
-            }),
+            "description": WLJRichTextWidget(
+                placeholder="Add details about this prayer request...", min_height=160),
             "is_personal": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
@@ -79,11 +77,8 @@ class MarkAnsweredForm(forms.Form):
 
     notes = forms.CharField(
         required=False,
-        widget=forms.Textarea(attrs={
-            "class": "form-textarea",
-            "placeholder": "How did God answer this prayer?",
-            "rows": 4,
-        }),
+        widget=WLJRichTextWidget(
+            placeholder="How did God answer this prayer?", min_height=140),
         label="Answer Notes",
     )
 
@@ -114,11 +109,8 @@ class FaithMilestoneForm(forms.ModelForm):
                 "class": "form-input",
                 "type": "date",
             }),
-            "description": forms.Textarea(attrs={
-                "class": "form-textarea",
-                "placeholder": "Describe this moment in your faith journey...",
-                "rows": 6,
-            }),
+            "description": WLJRichTextWidget(
+                placeholder="Describe this moment in your faith journey...", min_height=180),
             "scripture_reference": forms.TextInput(attrs={
                 "class": "form-input",
                 "placeholder": "e.g., Romans 8:28",
@@ -340,11 +332,7 @@ class BibleStudyNoteForm(forms.ModelForm):
                 "class": "form-input",
                 "placeholder": "Optional title for this note",
             }),
-            "content": forms.Textarea(attrs={
-                "class": "form-textarea",
-                "placeholder": "Your study notes...",
-                "rows": 8,
-            }),
+            "content": WLJRichTextWidget(placeholder="Your study notes...", min_height=220),
         }
 
     def __init__(self, *args, **kwargs):

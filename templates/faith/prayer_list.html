@@ -58,7 +58,7 @@
                     </div>
                     
                     {% if prayer.description %}
-                        <p class="prayer-description">{{ prayer.description|truncatewords:30 }}</p>
+                        <p class="prayer-description">{{ prayer.description_plain|truncatewords:30 }}</p>
                     {% endif %}
                     
                     {% if prayer.person_or_situation %}

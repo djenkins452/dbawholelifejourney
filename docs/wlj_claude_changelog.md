@@ -3,8 +3,19 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Relationships)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Faith reflections)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Faith reflections
+
+Adopted the shared editor for the Faith reflection surfaces (same component). `PrayerRequest.description` +
+`answer_notes`, `FaithMilestone.description`, and `BibleStudyNote.content` are now `RichTextMixin` HTML +
+`*_plain` shadows. Forms use `WLJRichTextWidget` (prayer/milestone forms de-hardcoded to `{{ form.x }}`; the
+mark-answered modal textarea richified via `data-wlj-rte`); detail views render `.wlj-rich |safe`
+(prayer/milestone/study-note detail + answered-prayers); list previews use the `*_plain` shadow. Migrations
+`faith.0022…` + backfill `faith.0023_backfill_faith_richtext` (uses the shared `backfill_rich_text` helper;
+lossless). Verified: sanitization + shadows correct; full `apps.faith` suite (247) green. (Secondary short
+annotation fields — SavedVerse/BibleBookmark/ReadingProgress `notes` — intentionally left plain for now.)
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Relationships
 

@@ -21,7 +21,7 @@
         
         {% if milestone.description %}
             <div class="milestone-body">
-                {{ milestone.description|linebreaks }}
+                <div class="wlj-rich">{{ milestone.description|safe }}</div>
             </div>
         {% endif %}
         

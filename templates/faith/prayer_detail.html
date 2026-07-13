@@ -3,6 +3,7 @@
 {% block title %}{{ prayer.title }} - Prayer Request - Whole Life Journey{% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="content-container" data-testid="faith-prayer-detail">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'faith:home' %}">Faith</a>
@@ -28,7 +29,7 @@
         
         {% if prayer.description %}
             <div class="prayer-body">
-                {{ prayer.description|linebreaks }}
+                <div class="wlj-rich">{{ prayer.description|safe }}</div>
             </div>
         {% endif %}
         
@@ -69,9 +70,11 @@
                 <div class="form-group">
                     <textarea
                         name="notes"
-                        class="form-textarea"
-                        placeholder="Describe how God answered this prayer... (optional)"
-                        rows="4"
+                        data-wlj-rte="true"
+                        data-wlj-rte-placeholder="Describe how God answered this prayer... (optional)"
+                        data-wlj-rte-min-height="140"
+                        data-wlj-rte-upload-url="{% url 'core:rich_text_image_upload' %}"
+                        hidden
                     ></textarea>
                 </div>
 

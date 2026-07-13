@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(health): Health Sync redesign — deterministic per-type truth + Steps root cause)
+# Last Updated: 2026-07-13 (fix(ops): flagged engines auto-surface in the Engine Health accordion)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — fix(ops): flagged engines auto-surface in the Engine Health accordion (discoverability)
+
+**Problem (operator-reported):** you could not find the DNE engine on the wall. Traced the actual DOM: engines
+live in the **"Engine Health"** panel (Zone 3, right) as a category accordion (SYSTEM / INTERPRET / EXECUTE /
+POST-EXEC), and **every category is collapsed by default** (`.ops-engine-cat-expanded { display:none }` until
+`.visible` is added on click, `operations_wall.html:3159`). DNE is under the **SYSTEM** category
+(`ENGINE_META['DNE'].category = 'System'`, :4684). So DNE *was* exposed but hidden behind a collapsed category
+with no way to know which one — a **discoverability oversight** (not intentionally hidden, not unimplemented).
+The accordion also full-rebuilds every 10s poll, so a manual expand didn't persist.
+
+**Smallest safe fix (`renderEngineAccordion`):** on render, auto-expand any category that contains a flagged
+(DEGRADED/ERROR/MISSED) engine — add `active`/`visible` when `degraded+error > 0`. A degraded engine now
+**surfaces itself**: DNE's SYSTEM category opens by default and shows the cadence diagnostic line
+(`expected ~10m ±1m · 4m late · N runs/30m`) from the prior commit. Healthy categories stay collapsed
+(clutter-free); the manual toggle is unchanged. No data/threshold/monitoring change — pure discoverability.
+
+**Verified:** browser harness — a category with a flagged engine renders expanded+visible; an all-healthy
+category stays collapsed. `manage.py check` clean; no model/migration. **File:**
+`templates/admin_console/operations_wall.html`.
 
 ## 2026-07-13 — feat(health): Health Sync redesign — deterministic per-type sync truth (+ Steps root cause)
 

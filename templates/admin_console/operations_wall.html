@@ -6103,7 +6103,14 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             if (!info) return;
             var total = info.engines.length;
 
-            html += '<div class="ops-engine-cat-row" data-category="' + cat + '">';
+            // Auto-expand any category that has a flagged (DEGRADED/ERROR/MISSED) engine so a
+            // degraded engine SURFACES ITSELF — an operator can find e.g. DNE without knowing
+            // which category it lives in. Healthy categories stay collapsed (clutter-free).
+            var flagged = (info.degraded + info.error) > 0;
+            var rowCls = 'ops-engine-cat-row' + (flagged ? ' active' : '');
+            var bodyCls = 'ops-engine-cat-expanded' + (flagged ? ' visible' : '');
+
+            html += '<div class="' + rowCls + '" data-category="' + cat + '">';
             html += '<span class="ops-engine-cat-name">' + cat.toUpperCase() + '</span>';
             html += '<span class="ops-engine-cat-summary">';
             html += '<span class="ops-engine-cat-ok">' + info.ok + ' OK</span>';
@@ -6113,7 +6120,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             html += '</span>';
             html += '<span class="ops-engine-cat-chevron">&#9656;</span>';
             html += '</div>';
-            html += '<div class="ops-engine-cat-expanded" data-category-body="' + cat + '">';
+            html += '<div class="' + bodyCls + '" data-category-body="' + cat + '">';
 
             info.engines.forEach(function(eng) {
                 var sColor = STATUS_COLORS[eng.status] || '#888';

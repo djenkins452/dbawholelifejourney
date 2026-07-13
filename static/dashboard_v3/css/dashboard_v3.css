@@ -47,6 +47,17 @@
     gap: 12px;
 }
 
+/* Section rhythm — the live region stacked its sections flush (gap:0), so the
+   page read as one dense block separated only by card shadows. Give the major
+   ideas real breathing room, with a little extra air after the Mission hero so
+   it reads as the page's centerpiece rather than just another row. */
+#v3-live {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+#v3-live > .v3-mission { margin-bottom: 8px; }
+
 .v3-topbar {
     display: flex;
     align-items: center;
@@ -1853,31 +1864,39 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     color: var(--v3-ink);
 }
 
-/* ── Phase I typography — calm labels ──────────────────────────
-   Uppercase was removed from every label except the FOUNDATION ring word
-   and the small status badges. The wide letter-spacing that only read well
-   in all-caps is relaxed here so the now-sentence-case labels feel calm and
-   intentional rather than tracked-out. One place, easy to retune. */
+/* ── Phase I typography (refined) — uppercase serves hierarchy ──────
+   Reviewed label-by-label. A small structural EYEBROW or stat label reads
+   BETTER in uppercase — it marks a section/slot/stat without competing with
+   real headings ("Primary Mission", "Current Weight", "Next Milestone", the
+   driver columns, the exec/card slot labels). These keep the caps treatment,
+   at a calmer tracking than the original. Real headings (.v3-h2), phrase-leads
+   ("How things are going"), data-row labels, and word-pills ("Steady") stay
+   sentence/title case because uppercase there hurts readability. */
 .v3-h4,
 .v3-callout-label,
 .v3-card-slot-label,
 .v3-rhythm-open-label,
 .v3-utility-label,
 .v3-focus-grid-row dt,
-.v3-focus-tag,
-.v3-trajectory,
 .v3-mission-kicker,
 .v3-mission-countdown-cap,
-.v3-mission-ring-phase,
-.v3-mission-ring-frac,
-.v3-mission-ring-cap,
-.v3-mission-going-label,
 .v3-mission-weight-label,
 .v3-mission-weight-stat-k,
 .v3-mission-milestone-label,
 .v3-mission-drivers-label,
-.v3-mission-driver-label,
 .v3-mission-why-label {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* Phrase-leads, ring captions, data rows and word-pills read as prose. */
+.v3-focus-tag,
+.v3-trajectory,
+.v3-mission-ring-phase,
+.v3-mission-ring-frac,
+.v3-mission-ring-cap,
+.v3-mission-going-label,
+.v3-mission-driver-label {
     letter-spacing: 0.01em;
 }
 

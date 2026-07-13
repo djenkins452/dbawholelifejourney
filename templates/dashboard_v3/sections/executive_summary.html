@@ -25,7 +25,7 @@
                         <li><span class="v3-mark" aria-hidden="true">✓</span>{{ item.title }}</li>
                     {% endfor %}
                 </ul>
-            {% else %}<p class="v3-empty-line">Wins will land here as your week builds.</p>{% endif %}
+            {% else %}<p class="v3-empty-line">Nothing to highlight yet.</p>{% endif %}
         </div>
 
         <div class="v3-exec-col">
@@ -58,7 +58,7 @@
             {% if not summary.biggest_risk and not summary.biggest_opportunity %}
                 <div class="v3-callout v3-callout-neutral">
                     <span class="v3-callout-label">Steady State</span>
-                    <p class="v3-callout-title">No critical risks or breakout opportunities right now.</p>
+                    <p class="v3-callout-title">No pressing risks or opportunities.</p>
                 </div>
             {% endif %}
         </div>

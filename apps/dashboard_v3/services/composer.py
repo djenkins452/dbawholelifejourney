@@ -2221,13 +2221,15 @@ def _purpose_mission_recommendation(user) -> dict | None:
                        or {}).get("weight_current")
         except Exception:
             pass
+        # Message stays lean: the card title already names the milestone, so the
+        # recommendation adds only the one thing to do — no repeated milestone name.
         if target is not None and current is not None:
             remaining = round(max(0.0, float(current) - target), 1)
-            message = (f"Keep working toward {nm.title} — about {remaining:g} lb to go."
+            message = (f"About {remaining:g} lb to go."
                        if remaining > 0
-                       else f"You're at {nm.title} — log the weigh-in to lock in the milestone.")
+                       else "Log the weigh-in to lock it in.")
         else:
-            message = f"Keep working toward {nm.title}."
+            message = "Keep the momentum going."
         return {
             "id": None,
             "title": f"Next milestone: {nm.title}",

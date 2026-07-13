@@ -6,6 +6,49 @@
 # Last Updated: 2026-07-13 (feat(platform): WLJ Rich Text Editor — Phase 1 platform + Journal reference integration)
 # ================================================================# WLJ Change History
 
+## 2026-07-12 — polish(dashboard): Phase I final refinement — typography rebalance, spacing rhythm, honest empty-state tone (presentation only)
+
+Final craftsmanship pass closing Dashboard Product Polish. Presentation only — no architecture, no CoS reasoning,
+no deterministic-truth changes, no new calculations. Validated live (desktop 1280 + mobile 375).
+
+**Typography rebalance (the prior pass went too far).** Reviewed every label individually. Uppercase serves
+hierarchy, so the small structural EYEBROW/stat labels are back in caps at a calmer 0.06em tracking — Primary
+Mission, Current Weight, Active Target, Remaining, Next Milestone, Days Left, the Helping/Watching/Needs driver
+columns, Why This Matters, and the exec/card slot labels (What's Improving, Needs Attention, Recommendation,
+Biggest Risk, Steady State, Start Here). Kept sentence/title case only where uppercase genuinely hurt readability:
+real section headings (`.v3-h2`: Executive Briefing / Domain Accountability / Today's Rhythm), the phrase-lead "How
+things are going", data-row labels (Workouts / Journal / …), and word-pills (Steady). Result: big ink headings →
+small caps eyebrows → calm content — clear hierarchy without shouting. (dashboard_v3.css)
+
+**Section spacing / rhythm.** The live region stacked its sections FLUSH (`gap: 0`) — separated only by card
+shadows, which is why the page read as one dense block. Gave `#v3-live` a 20px flex gap with a little extra air
+after the Mission hero (28px) so the centerpiece reads as its own idea rather than another row. (dashboard_v3.css)
+
+**Executive Briefing concision.** Steady-State callout "No critical risks or breakout opportunities right now." →
+"No pressing risks or opportunities." (shared CoS composer untouched; only the template literal changed.)
+
+**Empty-state tone — honest, not uniformly encouraging.** Matched tone to situation: "caught up" stays warm but
+brief ("✓ Caught up" / "Nothing needs you right now." / "You're clear for the current block."); a nothing-scheduled
+block is now simply the honest "Nothing scheduled." (was "Open block — nothing scheduled here."); "Coming Up" →
+"Nothing coming up."; exec no-wins → the neutral "Nothing to highlight yet." (waiting, not falsely upbeat);
+accountability-empty sub trimmed to "Cards appear when a domain needs a decision." (focus_now / rhythm /
+executive_summary / accountability_cards)
+
+**Domain Accountability — one action, no repeated words.** The Purpose recommendation title already names the
+milestone, so the message dropped the redundant restatement: "Next milestone: Goal Weight 202 — Keep working
+toward Goal Weight 202 — about 2.2 lb to go" → "Next milestone: Goal Weight 202 — About 2.2 lb to go." (the
+`remaining` calculation is identical — wording only; `_purpose_mission_recommendation` in the v3 composer, not
+shared CoS). (composer.py)
+
+Intentionally NOT changed (diminishing-returns call): the Mission hero density — the milestone panel was already
+de-boxed last pass; the remaining "How things are going" and "Current Weight" panels carry tonal truth signals and
+read as intentional sections, so further box-removal would risk harm for no real gain. The module name "Life
+Execution" and the two side-by-side "No score yet" tiles are data/naming, out of scope. Validated: `manage.py
+check` clean; collectstatic 0 errors; `apps.dashboard_v3` composer/accountability/exec-coherence suites green
+except one failure confirmed pre-existing via clean-tree stash
+(`test_preview_mode_groups_future_items_by_time_no_checkboxes`, from another session's rich-text commit); mobile
+375 = 0 horizontal-overflow.
+
 ## 2026-07-13 — feat(platform): WLJ Rich Text Editor — Phase 1 (platform capability + Journal reference)
 
 Introduced ONE reusable Rich Text Editor for all narrative writing in WLJ (not a Journal feature). Phase 1

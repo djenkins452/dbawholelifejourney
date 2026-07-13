@@ -257,7 +257,26 @@ class ProjectDetailView(LifeAccessMixin, DetailView):
         return context
 
 
-class ProjectCreateView(LifeAccessMixin, CreateView):
+class _ProjectRichTextFormMixin:
+    """Inject the shared WLJ Rich Text Editor into the Project CBV forms.
+
+    Project uses generic Create/UpdateViews (no ModelForm), so we swap the
+    narrative fields' widgets on the generated form rather than in a Meta.widgets.
+    """
+    RICH_TEXT_FORM_FIELDS = ("description", "purpose", "reflection")
+
+    def get_form(self, form_class=None):
+        from apps.core.widgets import WLJRichTextWidget
+        form = super().get_form(form_class)
+        for name in self.RICH_TEXT_FORM_FIELDS:
+            field = form.fields.get(name)
+            if field is not None:
+                field.widget = WLJRichTextWidget(
+                    placeholder=str(field.help_text or ""), min_height=160)
+        return form
+
+
+class ProjectCreateView(_ProjectRichTextFormMixin, LifeAccessMixin, CreateView):
     """Create a new project."""
     model = Project
     template_name = "life/project_form.html"
@@ -278,7 +297,7 @@ class ProjectCreateView(LifeAccessMixin, CreateView):
         return super().form_valid(form)
 
 
-class ProjectUpdateView(LifeAccessMixin, UpdateView):
+class ProjectUpdateView(_ProjectRichTextFormMixin, LifeAccessMixin, UpdateView):
     """Edit a project."""
     model = Project
     template_name = "life/project_form.html"

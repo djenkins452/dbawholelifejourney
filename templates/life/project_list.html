@@ -55,7 +55,7 @@
                 </div>
                 
                 {% if project.description %}
-                <p class="project-description">{{ project.description|truncatewords:20 }}</p>
+                <p class="project-description">{{ project.description_plain|truncatewords:20 }}</p>
                 {% endif %}
                 
                 <div class="project-meta">

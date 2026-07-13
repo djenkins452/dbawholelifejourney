@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Legacy narratives)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Life Projects)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Life Projects (CBV get_form pattern)
+
+Adopted the shared editor for `Project.description`, `purpose`, and `reflection` (the genuine project-writing
+surfaces). Project uses generic Create/UpdateViews with no ModelForm, so this establishes the reusable
+**CBV adoption pattern**: `_ProjectRichTextFormMixin.get_form()` swaps those fields' widgets to
+`WLJRichTextWidget` on the generated form (no ModelForm needed). Model is `RichTextMixin` with three `*_plain`
+shadows; the form template renders `{{ form.x }}` (was hardcoded textareas) + loads editor assets; detail view
+renders `.wlj-rich |safe` for all three (purpose was previously raw `{{ project.purpose }}`); list preview uses
+`description_plain`. Migrations `life.0057…` + backfill `life.0058_backfill_project_richtext` (shared helper;
+lossless). Left the other Life models' `description__icontains` searches untouched (those models keep plain
+text). Verified: sanitization + shadows + CBV widget injection correct; `apps.life` suite green.
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Legacy narratives
 

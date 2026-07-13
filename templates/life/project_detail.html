@@ -45,14 +45,14 @@
                 {% if project.purpose %}
                 <section class="project-section">
                     <h2>Purpose</h2>
-                    <p class="project-purpose">{{ project.purpose }}</p>
+                    <div class="project-purpose wlj-rich">{{ project.purpose|safe }}</div>
                 </section>
                 {% endif %}
                 
                 {% if project.description %}
                 <section class="project-section">
                     <h2>Description</h2>
-                    <p>{{ project.description|linebreaks }}</p>
+                    <div class="wlj-rich">{{ project.description|safe }}</div>
                 </section>
                 {% endif %}
                 
@@ -109,7 +109,7 @@
                 <section class="project-section">
                     <h2>Reflection</h2>
                     {% if project.reflection %}
-                    <p>{{ project.reflection|linebreaks }}</p>
+                    <div class="wlj-rich">{{ project.reflection|safe }}</div>
                     {% else %}
                     <p class="text-muted">No reflection added yet. <a href="{% url 'life:project_update' project.pk %}">Add your thoughts</a></p>
                     {% endif %}

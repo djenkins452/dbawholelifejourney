@@ -111,7 +111,9 @@ typically one or two sentences, an annotation, or operational metadata, it stays
 **Adopted (rich text):**
 - Journal `body`; Notes `body`; Relationships `Person.notes`, `PersonGroup.description`;
   Faith `PrayerRequest.description`/`answer_notes`, `FaithMilestone.description`, `BibleStudyNote.content`;
-  Legacy `Person.bio`, `Place.description`, `LifeMilestone.description`, `Relationship.notes`.
+  Legacy `Person.bio`, `Place.description`, `LifeMilestone.description`, `Relationship.notes`;
+  Life `Project.description`/`purpose`/`reflection` (via a `get_form` widget injection on the Project CBVs —
+  the pattern for adopting a generic CBV without a ModelForm; see `_ProjectRichTextFormMixin`).
 
 **Intentionally left plain (with reasoning):**
 - **Legacy `Memory.body`** — *deferred, not declined.* It is the highest-value legacy narrative, but it also
@@ -130,9 +132,10 @@ typically one or two sentences, an annotation, or operational metadata, it stays
 - **Billing `FeatureSuggestion.suggestion_text`** — feeds plain-text notification emails; rich HTML would
   degrade there. Kept plain.
 - **Purpose** goal/intention descriptions & reflections (`LifeGoal`, `HabitGoal`, `ChangeIntention`,
-  `ReflectionResponse`) and **Life** `Project` description/purpose/reflection are genuine paragraph surfaces and
-  are good future adopters — they use **generic CBVs without ModelForms**, so adopting them needs a
-  `form_class`/`get_form` override (a different wiring than the ModelForm apps). Queued as the next pass.
+  `ReflectionResponse`) are genuine paragraph surfaces and the main remaining adopter. Purpose has **no
+  `forms.py` at all** (entirely generic CBV `fields = [...]`), so adopting it means adding the `get_form`
+  widget-injection pattern (see Life's `_ProjectRichTextFormMixin`) to each Goal/Intention/Reflection CBV,
+  plus the shadow fields, detail-render, and backfill. Queued as the next pass.
 
 Any future field adopts the editor by following “How to adopt a field” above — the pattern and the
 `backfill_rich_text` migration helper make it a small change.

@@ -12,6 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import UserOwnedModel
+from apps.core.rich_text import RichTextMixin
 from apps.core.utils import get_user_today
 
 import json
@@ -44,7 +45,7 @@ def get_document_storage():
 # Projects
 # =============================================================================
 
-class Project(UserOwnedModel):
+class Project(RichTextMixin, UserOwnedModel):
     """
     Long-running, meaningful efforts.
     
@@ -70,10 +71,12 @@ class Project(UserOwnedModel):
         blank=True,
         help_text="What is this project about?"
     )
+    description_plain = models.TextField(blank=True, default="", editable=False)
     purpose = models.TextField(
         blank=True,
         help_text="Why does this project matter to you?"
     )
+    purpose_plain = models.TextField(blank=True, default="", editable=False)
 
     status = models.CharField(
         max_length=20,
@@ -119,6 +122,13 @@ class Project(UserOwnedModel):
         blank=True,
         help_text="What did you learn? How did it go?"
     )
+    reflection_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {
+        "description": "description_plain",
+        "purpose": "purpose_plain",
+        "reflection": "reflection_plain",
+    }
 
     class Meta:
         ordering = ['-created_at']

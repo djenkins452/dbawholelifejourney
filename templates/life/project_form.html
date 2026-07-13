@@ -3,6 +3,7 @@
 {% block title %}{% if object %}Edit Project{% else %}New Project{% endif %} - Organize{% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="container" data-testid="life-project-form">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'life:home' %}">Organize</a>
@@ -31,14 +32,12 @@
                 
                 <div class="form-group">
                     <label for="id_description" class="form-label">Description</label>
-                    <textarea name="description" id="id_description" class="form-textarea" rows="3"
-                              placeholder="What is this project about?">{{ form.description.value|default:'' }}</textarea>
+                    {{ form.description }}
                 </div>
-                
+
                 <div class="form-group">
                     <label for="id_purpose" class="form-label">Purpose</label>
-                    <textarea name="purpose" id="id_purpose" class="form-textarea" rows="2"
-                              placeholder="Why does this project matter to you?">{{ form.purpose.value|default:'' }}</textarea>
+                    {{ form.purpose }}
                     <p class="form-help">Understanding your "why" helps maintain focus</p>
                 </div>
             </div>
@@ -139,8 +138,7 @@
                 
                 <div class="form-group">
                     <label for="id_reflection" class="form-label">What did you learn?</label>
-                    <textarea name="reflection" id="id_reflection" class="form-textarea" rows="4"
-                              placeholder="How did the project go? What would you do differently?">{{ form.reflection.value|default:'' }}</textarea>
+                    {{ form.reflection }}
                     <p class="form-help">Take a moment to reflect on your completed project</p>
                 </div>
             </div>

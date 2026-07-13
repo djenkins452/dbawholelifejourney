@@ -184,6 +184,55 @@ def plaintext_to_html(value: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
+def backfill_rich_text(model, field_pairs, batch_size=500):
+    """Convert legacy plain-text field(s) to HTML + derive shadows, in a migration.
+
+    ``field_pairs`` is an iterable of ``(html_field, plain_field)``. Legacy values
+    are treated as plain text (escaped + wrapped — lossless) and each shadow is
+    derived from the resulting HTML. Uses ``bulk_update`` (no signals/side effects),
+    safe to call from a ``RunPython`` with a historical model.
+    """
+    field_pairs = list(field_pairs)
+    only_fields = ["id"]
+    update_fields = []
+    for html_field, plain_field in field_pairs:
+        only_fields += [html_field, plain_field]
+        update_fields += [html_field, plain_field]
+
+    batch = []
+    for obj in model.objects.all().only(*only_fields).iterator():
+        for html_field, plain_field in field_pairs:
+            html = plaintext_to_html(getattr(obj, html_field, "") or "")
+            setattr(obj, html_field, html)
+            setattr(obj, plain_field, rich_text_to_plaintext(html))
+        batch.append(obj)
+        if len(batch) >= batch_size:
+            model.objects.bulk_update(batch, update_fields)
+            batch = []
+    if batch:
+        model.objects.bulk_update(batch, update_fields)
+
+
+def restore_plain_from_shadow(model, field_pairs, batch_size=500):
+    """Reverse of ``backfill_rich_text``: set each HTML field back to its shadow."""
+    field_pairs = list(field_pairs)
+    only_fields = ["id"]
+    update_fields = []
+    for html_field, plain_field in field_pairs:
+        only_fields += [html_field, plain_field]
+        update_fields.append(html_field)
+    batch = []
+    for obj in model.objects.all().only(*only_fields).iterator():
+        for html_field, plain_field in field_pairs:
+            setattr(obj, html_field, getattr(obj, plain_field, "") or "")
+        batch.append(obj)
+        if len(batch) >= batch_size:
+            model.objects.bulk_update(batch, update_fields)
+            batch = []
+    if batch:
+        model.objects.bulk_update(batch, update_fields)
+
+
 class RichTextMixin(models.Model):
     """Give a model one or more sanitized-HTML fields with plain-text shadows.
 

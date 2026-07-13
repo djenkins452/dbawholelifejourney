@@ -11,6 +11,8 @@ Copyright:
 
 from django import forms
 
+from apps.core.widgets import WLJRichTextWidget
+
 from .models import Person, PersonGroup
 
 
@@ -37,10 +39,7 @@ class PersonForm(forms.ModelForm):
             'phone': forms.TextInput(attrs={
                 'placeholder': 'Phone (optional)',
             }),
-            'notes': forms.Textarea(attrs={
-                'placeholder': 'Notes about this person...',
-                'rows': 3,
-            }),
+            'notes': WLJRichTextWidget(placeholder='Notes about this person...', min_height=160),
         }
 
     def __init__(self, *args, user=None, **kwargs):
@@ -91,10 +90,7 @@ class PersonGroupForm(forms.ModelForm):
                 'placeholder': 'Group name',
                 'autofocus': True,
             }),
-            'description': forms.Textarea(attrs={
-                'placeholder': 'Description (optional)',
-                'rows': 2,
-            }),
+            'description': WLJRichTextWidget(placeholder='Description (optional)', min_height=140),
         }
 
     def __init__(self, *args, user=None, **kwargs):

@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="content-container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
@@ -102,8 +103,8 @@
 
         <div class="form-group">
             <label for="id_notes" class="form-label">Notes</label>
-            <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
-                      placeholder="Notes about this person...">{{ form.notes.value|default:'' }}</textarea>
+            {{ form.notes }}
+            {% if form.notes.errors %}<p class="form-error">{{ form.notes.errors.0 }}</p>{% endif %}
         </div>
 
         {% include "components/form_actions.html" with cancel_url=cancel_url|default:"/relationships/" is_edit=object %}

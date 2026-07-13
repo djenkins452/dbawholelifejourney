@@ -5,6 +5,7 @@
 {% endblock %}
 
 {% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
 <div class="content-container">
     <nav class="breadcrumb mb-4">
         <a href="{% url 'dashboard:home' %}">Dashboard</a>
@@ -37,8 +38,7 @@
 
         <div class="form-group">
             <label for="id_description" class="form-label">Description</label>
-            <textarea name="description" id="id_description" class="form-textarea" rows="2"
-                      placeholder="Description (optional)">{{ form.description.value|default:'' }}</textarea>
+            {{ form.description }}
             {% if form.description.errors %}
                 <p class="form-error">{{ form.description.errors.0 }}</p>
             {% endif %}

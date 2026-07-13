@@ -37,7 +37,7 @@
 
     {% if person.notes %}
         <div class="card mb-6">
-            <p class="text-muted">{{ person.notes }}</p>
+            <div class="wlj-rich text-muted">{{ person.notes|safe }}</div>
         </div>
     {% endif %}
 

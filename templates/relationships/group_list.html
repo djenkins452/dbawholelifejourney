@@ -33,7 +33,7 @@
                 </div>
                 {% if group.description %}
                 <div class="entry-meta">
-                    <span class="text-muted text-sm">{{ group.description|truncatewords:20 }}</span>
+                    <span class="text-muted text-sm">{{ group.description_plain|truncatewords:20 }}</span>
                 </div>
                 {% endif %}
                 {% if group.members.all %}

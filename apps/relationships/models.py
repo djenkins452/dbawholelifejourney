@@ -25,6 +25,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.models import SoftDeleteManager, SoftDeleteModel, TimeStampedModel
+from apps.core.rich_text import RichTextMixin
 
 
 # =============================================================================
@@ -32,7 +33,7 @@ from apps.core.models import SoftDeleteManager, SoftDeleteModel, TimeStampedMode
 # =============================================================================
 
 
-class Person(SoftDeleteModel):
+class Person(RichTextMixin, SoftDeleteModel):
     """
     A person in the user's life.
 
@@ -109,6 +110,9 @@ class Person(SoftDeleteModel):
         blank=True,
         help_text="Private notes about this person",
     )
+    notes_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"notes": "notes_plain"}
 
     # Optional household link for shared contacts
     household = models.ForeignKey(
@@ -176,7 +180,7 @@ class Person(SoftDeleteModel):
 # =============================================================================
 
 
-class PersonGroup(SoftDeleteModel):
+class PersonGroup(RichTextMixin, SoftDeleteModel):
     """
     A user-defined group of contacts.
 
@@ -198,6 +202,10 @@ class PersonGroup(SoftDeleteModel):
         blank=True,
         help_text="Optional description of this group",
     )
+    description_plain = models.TextField(blank=True, default="", editable=False)
+
+    RICH_TEXT_FIELDS = {"description": "description_plain"}
+
     members = models.ManyToManyField(
         Person,
         blank=True,

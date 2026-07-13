@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Notes)
+# Last Updated: 2026-07-13 (feat(rte): Rich Text Editor rollout — Relationships)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(rte): Rich Text Editor rollout — Relationships
+
+Adopted the shared editor for Relationships (same component). `Person.notes` and `PersonGroup.description` are
+now `RichTextMixin` HTML + `*_plain` shadows; forms use `WLJRichTextWidget`; `person_detail` renders
+`.wlj-rich |safe` (previously raw `{{ person.notes }}` — also closes a latent unescaped-render gap);
+`group_list` preview uses `description_plain`; both form templates load the editor assets and render the
+widget. Migrations `relationships.0004…` + backfill `0005_backfill_relationships_richtext`. Added reusable
+migration helpers `backfill_rich_text` / `restore_plain_from_shadow` in `apps/core/rich_text.py` to keep
+per-app backfills one-liners for the rest of the rollout. `apps.relationships` tests green.
 
 ## 2026-07-13 — feat(rte): Rich Text Editor rollout — Notes
 

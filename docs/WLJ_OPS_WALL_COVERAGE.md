@@ -201,6 +201,14 @@ Tests: `apps/core/tests/test_storage_monitor.py`, `apps/core/tests/test_chat_que
 
 ## 5. Human-judgment items recorded
 
+- **Signal-health detectors measure the eligible population (2026-07-13, ADR-29):** the drought + diversity
+  detectors now operate only on **signal-eligible** domains (the seed's BEHAVIORAL + non-stubbed set), so
+  coming-soon domains (`finance`) and engine-output modules (`cross_domain`) that leak in via `_merge_domain`
+  no longer generate incidents. `compute_signal_health` stamps each domain `signal_eligible`; non-eligible
+  domains are also excluded from the silent/active/stalest aggregates. No thresholds changed, no alerts
+  suppressed — the monitor measures the population it is meant to. Marks the platform's shift from exposing
+  *infrastructure* failure to exposing *product* truth. **Relationships** stays eligible/monitored (disposition
+  **ACCEPT** + product-evolution pointer → `docs/WLJ_PASSIVE_SIGNAL_ARCHITECTURE.md`).
 - **Self-describing engine cards (2026-07-13):** a flagged engine (status ≠ OK) now renders its cadence
   diagnostic inline — `expected ~<cadence> ±<jitter> · <lateness> late · <recent_runs>/30m` — so a cadence
   *false-positive* (ran recently, modestly late, but jitter tighter than real dispatch spacing) is diagnosable

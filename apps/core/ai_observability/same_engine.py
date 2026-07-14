@@ -594,6 +594,14 @@ def _detect_signal_drought(now, signal_health=None):
 
         drought_domains = []
         for domain, data in domains.items():
+            # Only signal-ELIGIBLE domains (the seed's BEHAVIORAL + non-stubbed set)
+            # participate in drought detection. Coming-soon domains like finance are
+            # excluded — they are not meant to produce signals, so silence is not a
+            # drought. (Not a threshold change and not a finance special-case: the
+            # detector simply measures the deterministic population the seed defines.)
+            if not data.get("signal_eligible", True):
+                continue
+
             freshness_hours = data.get("freshness_hours")
             volume_7d = data.get("volume_7d", 0)
 
@@ -692,6 +700,14 @@ def _detect_signal_low_diversity(now, signal_health=None):
             pass
 
         for domain, data in domains.items():
+            # Only signal-ELIGIBLE behavioral domains participate in diversity
+            # monitoring. Engine-output modules like 'cross_domain' (the correlation
+            # rules engine) are excluded — a correlation engine producing few insight
+            # types at volume is normal, not a diversity collapse. (Measure the
+            # correct population; not a suppression and not a threshold change.)
+            if not data.get("signal_eligible", True):
+                continue
+
             distinct = data.get("distinct_types_7d", 0)
             volume_7d = data.get("volume_7d", 0)
             status = data.get("status", "")

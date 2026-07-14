@@ -455,3 +455,50 @@ class CacheSignalHealthTests(SignalHealthTestMixin, TestCase):
 
         result = _get_signal_health()
         self.assertIsNone(result)
+
+
+class SignalEligibilityFilterTests(TestCase):
+    """RECONFIGURE (2026-07-13): only signal-ELIGIBLE domains participate in the
+    drought / diversity detectors. Coming-soon domains (finance) and engine-output
+    modules (cross_domain) leak into compute_signal_health via _merge_domain but must
+    NOT generate incidents — the monitor measures only the population it is meant to.
+    """
+
+    def setUp(self):
+        self.now = timezone.now()
+
+    def test_drought_skips_non_eligible_domain(self):
+        from apps.core.ai_observability.same_engine import _detect_signal_drought
+        health = {"domains": {
+            "finance": {"freshness_hours": 1008.0, "volume_7d": 1,
+                        "signal_eligible": False, "last_signal_at": None},
+        }}
+        self.assertEqual(_detect_signal_drought(self.now, signal_health=health), [])
+
+    def test_drought_still_flags_eligible_domain(self):
+        from apps.core.ai_observability.same_engine import _detect_signal_drought
+        health = {"domains": {
+            "relationships": {"freshness_hours": 1008.0, "volume_7d": 1,
+                              "signal_eligible": True, "last_signal_at": None},
+        }}
+        anomalies = _detect_signal_drought(self.now, signal_health=health)
+        self.assertEqual(len(anomalies), 1)
+        self.assertEqual(anomalies[0]["anomaly_type"], "SIGNAL_DROUGHT")
+
+    def test_diversity_skips_non_eligible_engine_module(self):
+        from apps.core.ai_observability.same_engine import _detect_signal_low_diversity
+        health = {"domains": {
+            "cross_domain": {"distinct_types_7d": 2, "volume_7d": 1475,
+                             "status": "healthy", "signal_eligible": False},
+        }}
+        self.assertEqual(_detect_signal_low_diversity(self.now, signal_health=health), [])
+
+    def test_diversity_still_flags_eligible_domain(self):
+        from apps.core.ai_observability.same_engine import _detect_signal_low_diversity
+        health = {"domains": {
+            "eligibletestdomain": {"distinct_types_7d": 1, "volume_7d": 15,
+                                   "status": "stale", "signal_eligible": True},
+        }}
+        anomalies = _detect_signal_low_diversity(self.now, signal_health=health)
+        self.assertEqual(len(anomalies), 1)
+        self.assertEqual(anomalies[0]["anomaly_type"], "SIGNAL_LOW_DIVERSITY")

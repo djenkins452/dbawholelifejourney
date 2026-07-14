@@ -1604,6 +1604,15 @@ def compute_signal_health():
     except Exception as e:
         logger.debug("Signal health: domain registry seed failed: %s", e)
 
+    # The deterministic signal-eligible set the SEED established (BEHAVIORAL domains
+    # with at least one non-stubbed expected signal type). Captured BEFORE
+    # _merge_domain, which pulls in ANY module present in the data — coming-soon
+    # domains like finance (via a stray historical signal) and engine-output modules
+    # like cross_domain. Only these eligible domains participate in the drought /
+    # diversity anomaly detectors, so each monitor measures the population it is
+    # meant to — not whatever leaked into the signal data.
+    signal_eligible_domains = set(domain_data.keys())
+
     def _merge_domain(domain, last_at, count_24h, count_7d, types_7d):
         """Merge a model's aggregation into the domain_data dict."""
         if not domain:
@@ -1726,14 +1735,20 @@ def compute_signal_health():
         else:
             status = "healthy"
 
-        if status == "silent":
-            domains_silent += 1
-        elif status != "never_active":
-            domains_active += 1
-        # never_active domains excluded from both counts
+        is_eligible = domain in signal_eligible_domains
 
-        # Track stalest domain
-        if freshness_hours is not None and freshness_hours > stalest_hours:
+        # never_active AND non-eligible domains (coming-soon / engine-output that
+        # leaked in via _merge_domain) are excluded from both counts — the aggregate
+        # health reflects only domains actually meant to produce signals.
+        if is_eligible:
+            if status == "silent":
+                domains_silent += 1
+            elif status != "never_active":
+                domains_active += 1
+
+        # Track stalest domain (eligible only — a stray coming-soon signal must not
+        # masquerade as the "stalest domain").
+        if is_eligible and freshness_hours is not None and freshness_hours > stalest_hours:
             stalest_hours = freshness_hours
             stalest_domain = domain
 
@@ -1744,6 +1759,7 @@ def compute_signal_health():
             "volume_7d": volume_7d,
             "distinct_types_7d": distinct_types,
             "status": status,
+            "signal_eligible": is_eligible,
         }
 
     # Compute total volume (7d) across all domains

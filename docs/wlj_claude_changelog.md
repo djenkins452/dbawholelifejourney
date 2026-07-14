@@ -3,8 +3,47 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(body): "How Your Body Changed" — animate-the-difference Change Map (production candidate))
+# Last Updated: 2026-07-13 (feat(ops): Signal Health RECONFIGURE — measure the eligible population + passive-signal whitepaper)
 # ================================================================# WLJ Change History
+
+## 2026-07-13 — feat(ops): Signal Health RECONFIGURE (finance + cross_domain) + relationships ACCEPT + passive-signal architecture research
+
+Operations has matured from exposing infrastructure failure to exposing **product truth**. Two proven
+RECONFIGUREs implemented; relationships dispositioned; the future direction captured as architecture research.
+
+**RECONFIGURE — signal-health detectors now measure only the signal-ELIGIBLE population (ADR-29).**
+`compute_signal_health` seeds a deterministic eligible set (BEHAVIORAL domains with ≥1 non-stubbed expected
+signal type), but `_merge_domain` re-adds ANY module found in the data — coming-soon domains (`finance`, via a
+stray ~42-day-old signal) and engine-output modules (`cross_domain`, the correlation-rules engine). Those leaked
+"domains" were being flagged SIGNAL_DROUGHT / SIGNAL_LOW_DIVERSITY though neither is a population these monitors
+are meant to measure.
+- `compute_signal_health` now stamps each domain `signal_eligible` (captured from the seed, **before**
+  `_merge_domain`) and excludes non-eligible domains from the silent/active/stalest aggregates.
+- `_detect_signal_drought` and `_detect_signal_low_diversity` skip `signal_eligible == False`.
+- **No threshold changed, no finance/cross_domain special-case, no alert suppressed** — the detectors operate on
+  the deterministic set the seed already defines. `relationships` stays eligible and correctly monitored.
+- Files: `apps/core/ai_observability/ops_telemetry.py`, `apps/core/ai_observability/same_engine.py`. Tests:
+  `tests_signal_health.py::SignalEligibilityFilterTests` (+4; 29 total pass).
+
+**Relationships → ACCEPT + evolution pointer (NOT a fifth disposition).** The producer
+`_compute_relational_engagement` is correct — it emits a signal only when a `RelationshipInteraction` is logged
+(`signal_aggregation.py:929-930`), so silence is genuine user inactivity, not a fault. Recommendation (challenging
+the "EVOLVE" idea): keep the disposition set **closed and terminal** (FIX/RETIRE/RECONFIGURE/ACCEPT); an ACCEPT
+may carry a **product-evolution pointer** into the roadmap artifact instead. Rationale added to Vision §5a
+("On EVOLVE — why there is no fifth disposition"). The relationships ledger entry points to the whitepaper.
+
+**Architecture research — passive deterministic signal generation.** New whitepaper
+`docs/WLJ_PASSIVE_SIGNAL_ARCHITECTURE.md`: WLJ's intelligence is gated by signal density, today gated by
+explicit user logging; the next evolution is deriving the SAME deterministic signals **passively** from data the
+user already generates (journal/capture/calendar/transactions/reading-plans) — as Health already does. Covers
+the pattern ("the model PERCEIVES; WLJ COMPUTES; WLJ KNOWS"), the determinism boundary, Constitution fit
+(model-perceives/WLJ-computes/WLJ-gets-simpler), and the effects on Layer 1 Truth (multi-source resolver +
+provenance), Signal Health (dissolves the drought class; eligibility = "≥1 non-stubbed source"), and Mission
+Intelligence (continuous progress, denser Mission Link). **Research only — no implementation.**
+
+**Docs updated:** `WLJ_OPERATIONS_VISION.md` (§5a EVOLVE rationale, §15.1 ledger ×3, ADR-29),
+`WLJ_OPS_WALL_COVERAGE.md`, `WLJ_PASSIVE_SIGNAL_ARCHITECTURE.md` (new). **Verified:** `manage.py check` clean;
+`tests_payload_builder` + `tests_signal_health` = 39 pass; no model/migration.
 
 ## 2026-07-13 — feat(body): "How Your Body Changed" — the Change Map (animate the difference)
 

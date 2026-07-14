@@ -3,8 +3,51 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (chore(body): remove the Executive Visual Story visualization experiment — Body Story remains)
+# Last Updated: 2026-07-14 (fix(dashboard): Executive Action card for a task navigated to Nutrition — root-caused a substring keyword match)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — fix(dashboard): Executive Action "Do this now" card for a TASK navigated to Nutrition instead of the task
+
+**Reported:** The dashboard "Do this now" Executive Action card for the task *"Great Backyard Coming to
+check on lights."* opened the **Nutrition** page instead of the task.
+
+**Runtime trace (proved, not guessed):** Executive Decision Authority selected the correct OBJECT upstream —
+`get_next_action(state).primary_action` carried `source_type="task"`, the right `source_id`, and title. The
+card renders `data-v3-nav="{{ focus.destination_url }}"`, where `destination_url =
+executive_summary._resolve_destination(primary) = action_routing.resolve_action_destination(primary)`. So the
+**right object was chosen but the wrong URL was attached** — the failure was entirely in the resolver.
+
+**Root cause (a whole CLASS, not one title):** For a `task` item, `resolve_action_destination` fell through to
+`derive_capability` → `_keyword_capability`, which matched keywords as **substrings** (`kw in title.lower()`).
+The nutrition keyword group contains `"eat"`, and `"eat"` is a substring of `"Gr(eat) Backyard…"` → capability
+`log_nutrition` → `/health/physical/nutrition/`. Any task whose title merely *contained* a workflow keyword was
+mis-routed (create/wheat/seat/theater/…).
+
+**Fix (eliminate the class, two levels):**
+1. **Tasks route to the task object, never to a workflow guessed from wording.** `resolve_action_destination`
+   now short-circuits `source_type == "task"` to `_task_destination` → `/life/tasks/<source_id>/edit/`
+   (`life:task_update`), falling back to the task list when there is no `source_id`. Per the navigation rule:
+   a task card opens THAT task; a meal opens the meal; a workout opens the workout — the destination is never
+   inherited from unrelated recommendation metadata.
+2. **The keyword bridge is now word-boundary** (`\b` via `re.search`) instead of substring, so `"eat"` can
+   never match inside `"Great"`. `"eat breakfast"`, `"eating dinner"`, `"morning run"` still match.
+
+**Latent bug fixed in passing:** `Task.get_absolute_url()` reversed `life:task_detail`, which **does not exist**
+(always raised `NoReverseMatch`), so `_task_to_item.detail_url` was always empty. Repointed to `life:task_update`
+(`/life/tasks/<pk>/edit/`) — the real task page. (The `dashboard_v3` detail-link test now actively asserts the
+task URL renders, which this fix enabled.)
+
+**Files:** `apps/core/execution/action_routing.py` (task short-circuit + `_task_destination` + word-boundary
+`_keyword_capability`), `apps/life/models.py` (`Task.get_absolute_url` → `life:task_update`),
+`apps/core/execution/tests/test_action_routing.py` (rewrote 2 tests that encoded the old task-by-capability
+behavior; added regression tests: substring must not route to a workflow, keyword bridge is word-boundary,
+task-without-source_id falls back to task list).
+
+**Verification:** `apps.core.execution`, `apps.dashboard_v3` (composer + views), and
+`test_request_path_safety_contract` — **352 tests OK**. Deterministic end-to-end check: the exact card
+`destination_url` for the reported task now resolves to `/life/tasks/<id>/edit/` (was
+`/health/physical/nutrition/`). Multiple types verified: task→task page, workout/journal/bible routines→their
+workflows, medication→intake, and word-boundary rejects Great/create/wheat/seat/theater.
 
 ## 2026-07-14 — chore(body): remove the Executive Visual Story visualization from Body Intelligence (intentional product decision, not a rollback)
 

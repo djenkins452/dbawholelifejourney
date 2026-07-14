@@ -36,6 +36,7 @@ never produces a dead link.
 from __future__ import annotations
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,15 @@ def _dest(url_name: str, literal: str) -> str:
     try:
         from django.urls import reverse
         return reverse(url_name)
+    except Exception:
+        return literal
+
+
+def _dest_pk(url_name: str, pk, literal: str) -> str:
+    """Resolve a named route that takes a `pk`, falling back to a literal path."""
+    try:
+        from django.urls import reverse
+        return reverse(url_name, kwargs={"pk": pk})
     except Exception:
         return literal
 
@@ -163,9 +173,15 @@ def _keyword_capability(title: str | None) -> str | None:
     t = (title or "").lower()
     if not t:
         return None
+    # WORD-BOUNDARY match, not naive substring. A substring match wrongly
+    # classified any title CONTAINING a keyword mid-word — e.g. "Gr(eat) Backyard"
+    # matched "eat" → nutrition (2026-07 nav bug). The leading `\b` still allows
+    # stems ("eat" matches "eating"/"eaten") while rejecting mid-word hits
+    # ("great", "create", "wheat", "seat", "theater").
     for keywords, cap in _KEYWORD_BRIDGE:
-        if any(kw in t for kw in keywords):
-            return cap
+        for kw in keywords:
+            if re.search(r"\b" + re.escape(kw), t):
+                return cap
     return None
 
 
@@ -246,13 +262,36 @@ def derive_capability(item: dict) -> str | None:
     return _keyword_capability(title) or CAP_OPEN_LIFE
 
 
+def _task_destination(item: dict) -> str:
+    """A task is an OBJECT — navigate to the task ITSELF, never a workflow guessed
+    from its title. Its wording is display text, not a routing signal.
+
+    No dedicated read-only task-detail route exists, so the canonical "that task"
+    page is its per-object edit view (`life:task_update`); fall back to the task
+    list. This is the rule: an Executive Action card for a task opens that task.
+    """
+    src_id = item.get("source_id")
+    if src_id:
+        return _dest_pk("life:task_update", src_id, f"/life/tasks/{src_id}/edit/")
+    return _dest("life:task_list", "/life/tasks/")
+
+
 def resolve_action_destination(item: dict) -> str:
-    """Resolve the canonical WLJ destination URL for an execution item/action,
-    from its deterministic CAPABILITY (never its displayed wording).
+    """Resolve the canonical WLJ destination URL for an execution item/action.
+
+    Routing originates from the ACTION's IDENTITY, never its displayed wording:
+      * a task → the task object (its own page), and
+      * a workflow item (routine anchors, domain summaries) → its deterministic
+        CAPABILITY's workflow page.
 
     Returns a real, verified URL string. Never a dead link.
     """
     try:
+        # A task is a concrete object the user must act on → open the task itself.
+        # (Guessing a workflow from a task's title is what mis-sent "Great Backyard…"
+        # to Nutrition. Only genuine workflow items are capability-routed.)
+        if item.get("source_type") == "task":
+            return _task_destination(item)
         url = capability_to_url(derive_capability(item))
         return url or _dest("life:home", "/life/")
     except Exception:

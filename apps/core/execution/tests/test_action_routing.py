@@ -76,11 +76,35 @@ class ActionRoutingTests(TestCase):
         item = {"source_type": "routine_item", "source_id": sched.pk, "title": "Tidy Desk"}
         self.assertEqual(resolve_action_destination(item), "/life/routines/")
 
-    # ── task module (canonical) ──
-    def test_faith_task_routes_to_faith(self):
+    # ── task → the TASK OBJECT (never a workflow guessed from its title/module) ──
+    def test_task_routes_to_the_task_object(self):
+        """Rule: an Executive Action card for a task opens THAT task, never a
+        workflow inferred from its wording or module."""
         t = self._task("Read Proverbs", module="faith")
         item = {"source_type": "task", "source_id": t.pk, "title": "Read Proverbs", "domain": "faith"}
-        self.assertEqual(resolve_action_destination(item), "/faith/")
+        self.assertEqual(resolve_action_destination(item), f"/life/tasks/{t.pk}/edit/")
+
+    def test_task_title_substring_does_not_route_to_workflow(self):
+        """Regression (2026-07 nav bug): the household task 'Great Backyard …'
+        navigated to Nutrition because 'eat' is a SUBSTRING of 'Gr(eat)'. A task
+        must open the task; and even the keyword bridge must be word-boundary."""
+        t = self._task("Great Backyard Coming to check on lights.")
+        item = {"source_type": "task", "source_id": t.pk,
+                "title": "Great Backyard Coming to check on lights.", "domain": None}
+        dest = resolve_action_destination(item)
+        self.assertEqual(dest, f"/life/tasks/{t.pk}/edit/")
+        self.assertNotEqual(dest, "/health/physical/nutrition/")
+
+    def test_keyword_bridge_is_word_boundary(self):
+        from apps.core.execution.action_routing import _keyword_capability
+        # Mid-word false positives must NOT match:
+        for title in ("Great backyard", "create a plan", "wheat toast",
+                      "have a seat", "theater night"):
+            self.assertIsNone(_keyword_capability(title), title)
+        # Real word / stem matches still work:
+        self.assertEqual(_keyword_capability("eat breakfast"), "log_nutrition")
+        self.assertEqual(_keyword_capability("eating dinner"), "log_nutrition")
+        self.assertEqual(_keyword_capability("morning run"), "log_workout")
 
     def test_nutrition_routine_via_keyword_bridge(self):
         # No nutrition activity_type exists; keyword bridge upgrades it.
@@ -141,9 +165,13 @@ class ActionRoutingTests(TestCase):
                              f"activity_type={activity!r} must route to {expected}")
 
     # ── safe fallback ──
-    def test_unknown_falls_back_to_life(self):
+    def test_task_routes_to_task_object_even_when_title_is_opaque(self):
         item = {"source_type": "task", "source_id": 999999, "title": "Mystery thing"}
-        self.assertEqual(resolve_action_destination(item), "/life/")
+        self.assertEqual(resolve_action_destination(item), "/life/tasks/999999/edit/")
+
+    def test_task_without_source_id_falls_back_to_task_list(self):
+        item = {"source_type": "task", "source_id": None, "title": "Mystery thing"}
+        self.assertEqual(resolve_action_destination(item), "/life/tasks/")
 
     def test_no_dead_link_ever(self):
         # Empty/garbage item → still a real URL, never empty.

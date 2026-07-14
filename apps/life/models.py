@@ -396,7 +396,11 @@ class Task(UserOwnedModel):
         return self.title
 
     def get_absolute_url(self):
-        return reverse('life:task_detail', kwargs={'pk': self.pk})
+        # There is no dedicated read-only task detail route; the per-object task
+        # page is its edit view. (The old `life:task_detail` name never existed,
+        # so this method always raised NoReverseMatch — every caller saw an empty
+        # URL. Point it at the real per-object page so a task has a canonical URL.)
+        return reverse('life:task_update', kwargs={'pk': self.pk})
 
     @property
     def is_completed(self):

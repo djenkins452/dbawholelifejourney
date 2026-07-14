@@ -170,7 +170,6 @@ def _collect_domain_signals(user):
         'habits': state.get('habits', {}),
         'journal': state.get('journal', {}),
         'faith': state.get('faith', {}),
-        'nutrition': state.get('nutrition', {}),
         'fasting': state.get('fasting', {}),
         'fitness': state.get('fitness', {}),
         'transformation': state.get('transformation', {}),
@@ -731,96 +730,6 @@ def detect_fasting_fitness(user, signals):
     return []
 
 
-def detect_nutrition_energy(user, signals):
-    """
-    Detect: Nutrition compliance correlates with transformation momentum.
-
-    When macro compliance drops, overall transformation score follows.
-
-    Phase 1: gated on health enabled (nutrition is a sub-domain of health).
-    None scores are treated as "unknown" rather than coerced to 0.
-    """
-    if not _domains_enabled(user, 'health'):
-        return []
-    nutrition = signals.get('nutrition', {})
-    transformation = signals.get('transformation', {})
-
-    macro_score = nutrition.get('macro_compliance_score')
-    transform_score = transformation.get('transformation_score')
-    food_entries_7d = nutrition.get('food_entries_7d', 0)
-
-    if food_entries_7d < 3:
-        return []
-    # Phase 1: refuse to correlate on unknown scores.
-    if macro_score is None or transform_score is None:
-        return []
-    if macro_score == 0 and transform_score == 0:
-        return []
-
-    # Both strong — nutrition is fueling transformation
-    if macro_score >= 70 and transform_score >= 60:
-        score = min(macro_score, transform_score) / 100
-        strength = _classify_strength(score)
-        if not strength:
-            return []
-        return [{
-            'domain_a': 'health',
-            'domain_b': 'health',
-            'correlation_type': 'nutrition_transformation',
-            'strength': strength,
-            'strength_score': round(score, 3),
-            'direction': 'positive',
-            'narrative': (
-                f"Nutrition compliance ({macro_score:.0f}%) is supporting your "
-                f"transformation score ({transform_score}/100). Stay consistent."
-            ),
-            'evidence_summary': (
-                f"Macro compliance {macro_score:.0f}% with transformation score "
-                f"{transform_score}/100 from {food_entries_7d} tracked meals this week."
-            ),
-            'evidence': {
-                'macro_compliance': round(macro_score, 1),
-                'transformation_score': transform_score,
-                'food_entries_7d': food_entries_7d,
-            },
-            'data_points': food_entries_7d,
-            'window_label': '7d',
-        }]
-
-    # Nutrition dropped — transformation struggling
-    if macro_score < 40 and transform_score < 40 and food_entries_7d >= 3:
-        score = 1.0 - (max(macro_score, transform_score) / 100)
-        strength = _classify_strength(score)
-        if not strength:
-            return []
-        return [{
-            'domain_a': 'health',
-            'domain_b': 'health',
-            'correlation_type': 'nutrition_transformation',
-            'strength': strength,
-            'strength_score': round(score, 3),
-            'direction': 'positive',
-            'narrative': (
-                f"Nutrition compliance ({macro_score:.0f}%) and transformation score "
-                f"({transform_score}/100) are both low. Nutrition is often the "
-                f"keystone — fixing it tends to lift everything else."
-            ),
-            'evidence_summary': (
-                f"Macro compliance {macro_score:.0f}% with transformation score "
-                f"{transform_score}/100."
-            ),
-            'evidence': {
-                'macro_compliance': round(macro_score, 1),
-                'transformation_score': transform_score,
-                'food_entries_7d': food_entries_7d,
-            },
-            'data_points': food_entries_7d,
-            'window_label': '7d',
-        }]
-
-    return []
-
-
 def detect_momentum_engagement(user, signals):
     """
     Detect: Multi-domain engagement (momentum) correlates with mood.
@@ -896,7 +805,6 @@ CORRELATION_DETECTORS = [
     detect_habit_goal_alignment,
     detect_faith_consistency,
     detect_fasting_fitness,
-    detect_nutrition_energy,
     detect_momentum_engagement,
 ]
 

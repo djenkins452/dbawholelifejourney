@@ -673,7 +673,7 @@ Auto-discovered at startup via `CoreConfig.ready()` → `autodiscover()`. Each d
 - Data migration `apps/core/migrations/0123_purge_stale_fasting_correlations.py` deletes existing `fasting_fitness` `DomainCorrelation` rows for users with fasting disabled.
 - Regression suite `apps/core/ai_cross_domain/tests.py::FastingFitnessGatingTests` (7 tests) covers all four gating paths.
 
-**Watch-list:** The `signals.get(key, 0)` anti-pattern that caused this lives in other CDCE detectors too — same audit recommended for `detect_nutrition_energy`, `detect_habit_goal_alignment`, etc., before adding new domains.
+**Watch-list:** The `signals.get(key, 0)` anti-pattern that caused this lives in other CDCE detectors too — same audit recommended for `detect_habit_goal_alignment`, etc., before adding new domains. (`detect_nutrition_energy` was RETIRED 2026-07-14 — it produced a circular same-domain `nutrition_transformation` correlation; existing rows expired by migration `core/0135`.)
 
 ### BUG 1: Medicine Names Not Passed to CoS — FIXED (2026-03-06)
 

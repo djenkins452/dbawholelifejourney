@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-14 (docs(ops): Operations closeout — initial initiative complete; evidence-first evolution)
 # ================================================================# WLJ Change History
 
+## 2026-07-14 — fix(cos): Retire circular `nutrition_transformation` CDCE detector (no more "nutrition is supporting your transformation score")
+
+**Root cause:** CDCE's `detect_nutrition_energy()` emitted a `nutrition_transformation` correlation and a proactive check-in — *"Nutrition compliance (89%) is supporting your transformation score (70/100). Stay consistent."* — whenever macro-compliance and the transformation_score were both high (or both low). But the transformation_score is a composite that ALREADY contains macro-compliance as its largest weighted component (~0.25 weight; `build_transformation_state`, `apps/core/ai_state/state_builder.py:2921-2999`). So the "pattern" was mathematically circular: a component "supporting" the aggregate that contains it. It is same-domain (`health→health`), non-temporal, non-statistical (`strength = min(macro,transform)/100` — threshold coexistence, not a correlation), and is the EXACT class already barred from the executive-pattern lane (`_is_metric_jargon`, commit `b56ce76a`) — but the proactive check-in path never applied that guard, so it kept surfacing. Not a cross-domain discovery, which is CDCE's charter, and cannot be one for this pair.
+
+**Fix (surgical removal — no redesign, no replacement):**
+- Deleted `detect_nutrition_energy` entirely (function + its `CORRELATION_DETECTORS` entry + its now-unused `'nutrition'` signal-collection line) — no new `nutrition_transformation` correlations can be generated. Git history preserves the implementation if the concept is ever revisited (`apps/core/ai_cross_domain/cdce_engine.py`).
+- New data migration expires any existing active rows so they stop surfacing (every consumer filters `status='active'`); rows are EXPIRED not deleted, preserving history — mirrors `expire_stale_correlations()` and the `0123` precedent (`apps/core/migrations/0135_expire_nutrition_transformation_correlations.py`).
+- No tests expected this detector to produce output (the CDCE suite covers sleep_mood/exercise_mood/habit_goal/faith/fasting_fitness/momentum_mood only), so none were removed.
+
+**Scope note:** Explaining the Transformation Score or reinforcing nutrition success is intentionally deferred to a future product-design review — this change only stops the low-value circular insight. No other detector changed; CDCE not refactored.
+
+**Verification:** `python3 manage.py makemigrations --check --dry-run core` → no model changes. `apps.core.ai_cross_domain` + `apps.ai.tests.test_executive_pattern` — 49 tests green (`--keepdb`). Registry import confirms the 6 remaining detectors, `nutrition_energy` gone.
+
+**Files:** `apps/core/ai_cross_domain/cdce_engine.py`, `apps/core/migrations/0135_expire_nutrition_transformation_correlations.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-14 — docs(ops): Operations Vision closeout — initial initiative COMPLETE; Operations now evolves evidence-first
 
 Formally closes the initial WLJ Operations initiative (docs-only; no code, no Constitutional/architectural

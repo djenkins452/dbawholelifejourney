@@ -2621,6 +2621,12 @@ body.wall-mode .ops-topbar { margin-bottom: 10px; }
 .kind-failed .ops-recovery-event-headline, .kind-escalated .ops-recovery-event-headline { color: #ff6b6b; }
 .kind-skipped .ops-recovery-event-headline { color: var(--ops-text, #c7cfdb); }
 .kind-skipped .ops-recovery-event-icon { color: var(--ops-text-dim, #8a94a6); }
+/* Informational summary — the calm "no action needed" roll-up of observe-only +
+   successful recoveries. Neutral card, green check: a healthy system reads healthy. */
+.ops-recovery-event.kind-informational { border-left-color: #3fd07a; }
+.kind-informational .ops-recovery-event-headline { color: var(--ops-text, #c7cfdb); }
+.kind-informational .ops-recovery-event-icon { color: #3fd07a; }
+.ops-recovery-summary-note { font-size: 11px; color: var(--ops-text-dim); margin-bottom: 8px; line-height: 1.45; }
 .ops-recovery-event-sub { color: var(--ops-text); font-weight: 600; font-size: 13px; }
 .ops-recovery-event-time { margin-left: auto; color: var(--ops-text-dim); font-size: 12px; white-space: nowrap; }
 .ops-recovery-event-chevron { color: var(--ops-text-dim); font-size: 11px; transition: transform 0.15s; }
@@ -6615,7 +6621,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             return '<div class="ops-recovery-event-row"><span class="k">' + escapeHtml(k) + '</span><span class="v">' + v + '</span></div>';
         }
 
-        banner.innerHTML = visible.map(function(e) {
+        function buildEventCard(e) {
             var when = e.time ? new Date(e.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
             var retriesHtml = '';
             if (e.retries && e.retries.length > 1) {
@@ -6652,7 +6658,44 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                     '</div>' +
                     '<div class="ops-recovery-event-body">' + body + '</div>' +
                 '</div>';
-        }).join('');
+        }
+
+        // Focus the primary view on "what needs attention right now." Escalated/failed
+        // are ACTIONABLE → prominent cards. Success/skipped (observe-only) are
+        // INFORMATIONAL audit records → collapse them into ONE calm, expandable summary
+        // so a healthy system reads as healthy instead of a stack of "Recovery Skipped".
+        // Full audit is preserved: the summary expands to the individual cards, and
+        // every RecoveryAttempt row is untouched in the DB (nothing is deleted).
+        var actionable = visible.filter(function(e) { return e.kind === 'escalated' || e.kind === 'failed'; });
+        var informational = visible.filter(function(e) { return e.kind === 'success' || e.kind === 'skipped'; });
+        var html = actionable.map(buildEventCard).join('');
+        if (informational.length) {
+            var counts = (rec && rec.counts) || {};
+            var recovered = counts.verified_24h != null ? counts.verified_24h
+                : informational.filter(function(e) { return e.kind === 'success'; }).length;
+            var observed = counts.skipped_24h != null ? counts.skipped_24h
+                : informational.filter(function(e) { return e.kind === 'skipped'; }).length;
+            var parts = [];
+            if (recovered) parts.push('✔ ' + recovered + ' recovered');
+            if (observed) parts.push('⊘ ' + observed + ' observed · no action');
+            var summaryLabel = (parts.join(' · ') || (informational.length + ' events')) + ' · 24h';
+            var sExpanded = recoveryExpandedIds['__informational__'] ? ' expanded' : '';
+            html +=
+                '<div class="ops-recovery-event kind-informational' + sExpanded + '" data-recovery-event="__informational__">' +
+                    '<div class="ops-recovery-event-head" data-recovery-toggle="__informational__">' +
+                        '<span class="ops-recovery-event-icon">✓</span>' +
+                        '<span class="ops-recovery-event-headline">No action needed</span>' +
+                        '<span class="ops-recovery-event-sub">' + escapeHtml(summaryLabel) + '</span>' +
+                        '<span class="ops-recovery-event-time">recovery audit</span>' +
+                        '<span class="ops-recovery-event-chevron">▸</span>' +
+                    '</div>' +
+                    '<div class="ops-recovery-event-body">' +
+                        '<div class="ops-recovery-summary-note">Observe-only decisions and successful recoveries from the last 24h — informational only; nothing requires attention. Complete history is retained in the recovery audit.</div>' +
+                        informational.map(buildEventCard).join('') +
+                    '</div>' +
+                '</div>';
+        }
+        banner.innerHTML = html;
     }
 
     // Delegated: expand/collapse + acknowledge for recovery events (CSP-safe).
@@ -6675,8 +6718,9 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
             if (c) {
                 var nowExpanded = c.classList.toggle('expanded');
                 // Persist the open/closed choice so the 10s poll re-render keeps it
-                // (the class alone would be wiped when innerHTML is rebuilt).
-                var eid = parseInt(head.getAttribute('data-recovery-toggle'), 10);
+                // (the class alone would be wiped when innerHTML is rebuilt). Keyed by
+                // the RAW id string so the '__informational__' summary persists too.
+                var eid = head.getAttribute('data-recovery-toggle');
                 if (nowExpanded) {
                     recoveryExpandedIds[eid] = true;
                     // When expanding a card near the bottom of the wall, its details

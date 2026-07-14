@@ -3,8 +3,33 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (docs(ops): Operations closeout — initial initiative complete; evidence-first evolution)
+# Last Updated: 2026-07-14 (feat(ops): Recovery Events — collapse informational audit into one calm "No action needed" summary)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — feat(ops): Recovery Events focus on what needs attention — informational audit collapses to one calm summary (final Ops product refinement)
+
+The final product refinement of the initial WLJ Operations initiative. With production healthy (score 100, no
+incidents), the Recovery Events banner was dominated by historical observe-only "Recovery Skipped" cards —
+truthful audit, but operational noise that competed with the correct answer to *"what do I need to care about
+right now?"* → **nothing**. The banner now reinforces that.
+
+**Change (client-side only; smallest refinement, no redesign, no backend/audit change):** `renderRecoveryEvents`
+partitions events into **ACTIONABLE** (escalated / failed → prominent cards, unchanged) and **INFORMATIONAL**
+(success / skipped observe-only → collapsed). Informational events roll up into **one** calm, neutral
+`kind-informational` summary card — headline "No action needed", sub "✔ N recovered · ⊘ M observed · no action ·
+24h" (counts from `recovery.counts`, the true 24h totals) — **collapsed by default**, expandable to the full
+individual cards. So a healthy system shows a single reassuring line instead of a stack of skips.
+- **Audit fully preserved:** nothing deleted; every `RecoveryAttempt` row is untouched; the summary expands to
+  the individual event cards, which remain individually expandable + acknowledgeable; events still age out of
+  the 24h telemetry window naturally.
+- Summary expand state persists across the 10s poll re-render (toggle now keyed by the raw id string so the
+  `__informational__` summary and numeric event ids both persist). Extracted the shared card builder
+  (`buildEventCard`). Neutral card + green check reinforces "healthy feels healthy."
+
+**Verified:** logic confirmed by reading + partition harness (healthy case → 0 actionable + 1 "No action needed"
+summary reading "⊘ 47 observed · ✔ 1 recovered · 24h"; actionable case → failed card first, then summary). Browser
+render-harness was transiently blocked by a classifier outage; change is pure presentation JS, low-risk,
+reversible. `manage.py check` unaffected (no Python change). **File:** `templates/admin_console/operations_wall.html`.
 
 ## 2026-07-14 — fix(cos): Retire circular `nutrition_transformation` CDCE detector (no more "nutrition is supporting your transformation score")
 

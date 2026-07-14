@@ -3,8 +3,49 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (feat(ops): Recovery Events — collapse informational audit into one calm "No action needed" summary)
+# Last Updated: 2026-07-14 (chore(body): remove the Executive Visual Story visualization experiment — Body Story remains)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — chore(body): remove the Executive Visual Story visualization from Body Intelligence (intentional product decision, not a rollback)
+
+Deliberate product removal on `/health/physical/body-intelligence/`. The "Executive Visual Story" visualization
+experiment — the silhouette/body Change Map (regional change, replay, "Largest Change" card, hover interaction,
+"How much did each region change?" bars) **and** the Limb Development visual — has not yet earned its place, so it
+is removed. **This is an intentional product decision, NOT a rollback due to a bug.** The narrative "Your Body
+Story" hero stays; the visualization experiment does not. We'll revisit body visualization later from a different
+direction. The remaining sections flow naturally upward — no placeholder, no replacement feature.
+
+**Kept, unchanged:** Your Body Story, the "Overall Progress" Weight · Fat · Lean chart (`biTrendChart`), and the
+entire Evidence Explorer (Current Snapshot, Weight Trend, Body Composition, Body Measurements, Measurement
+History, Insights, Progress Photos, Check-ins).
+
+**Removed (no orphans left behind):**
+- Template `templates/health/body_intelligence.html` — the Change Map + Limb Development markup, their
+  `json_script` payloads (`bi-shape-data`, `bi-limb-data-src`), all supporting nonce'd JS (`biCMFig`, `biLimbFig`,
+  shared SVG helpers) and all supporting CSS (`.bi-cm-*`, `.bi-limb-*`, `.bi-visual-sub`, `.sr`, the viz media
+  query). The kept chart JS/CSS is intact.
+- Backend builders that existed solely for the visualization: deleted `apps/health/services/body_visual_stories.py`
+  (`build_body_shape` / `build_limb_development` / `region_fact` / `largest_change`) and its test
+  `apps/health/tests/test_body_visual_stories.py`. Removed the import + `body_shape` / `limb_development` wire-in
+  from `apps/health/services/body_intelligence.py`.
+- Pruned the now-unused `latest_date_per_metric` / `previous_date_per_metric` output keys from
+  `apps/health/services/body_composition_snapshot.py` (kept the internal `previous_date_per_metric` local that
+  still feeds the canonical top-level `previous_date`).
+
+**Files:** `templates/health/body_intelligence.html`, `apps/health/services/body_intelligence.py`,
+`apps/health/services/body_composition_snapshot.py`, and the two deleted files above.
+
+**Verified:** `manage.py check` clean; `makemigrations --check` → no changes; 75 targeted tests pass
+(`test_body_intelligence`, `test_body_composition_snapshot`, `test_body_story`, `test_weight_current_context`);
+authenticated render returns 200 with every removed marker absent and every kept section present; browser console
+shows no SyntaxError from the inline script (kept chart JS parses cleanly). Grep confirms zero orphan references
+(`bi-cm`/`bi-limb`/`biCM`/`biLimb`/`body_shape`/`limb_development`/"Change Map"/"Executive Visual Story").
+
+**Note / follow-up (not changed here — "nothing else should change"):** two "What's New" release notes (PK 271
+"Body Shape + Limb Development", PK 272 "How Your Body Changed") in `apps/core/fixtures/release_notes.json` still
+advertise the removed visualization, with matching reset helpers in `load_initial_data.py`. Left in place; can be
+retired separately (fixture edit + data migration to delete the two `ReleaseNote` rows + drop the two reset
+helpers).
 
 ## 2026-07-14 — feat(ops): Recovery Events focus on what needs attention — informational audit collapses to one calm summary (final Ops product refinement)
 

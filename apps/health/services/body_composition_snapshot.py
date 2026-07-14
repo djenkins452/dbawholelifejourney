@@ -209,12 +209,10 @@ def build_body_composition_snapshot(user) -> dict | None:
     delta_map: dict[str, float | None] = {}
     delta_pct_map: dict[str, float | None] = {}
     previous_date_per_metric: dict[str, date] = {}
-    latest_date_per_metric: dict[str, date] = {}
 
     for metric, entries in by_metric.items():
         latest_date, latest_val, latest_unit = entries[0]
         latest_map[metric] = round(latest_val, 2)
-        latest_date_per_metric[metric] = latest_date
         units_map[metric] = latest_unit
         prior = next(
             (e for e in entries[1:] if e[0] < latest_date), None
@@ -296,11 +294,6 @@ def build_body_composition_snapshot(user) -> dict | None:
         "delta": delta_map,
         "delta_pct": delta_pct_map,
         "metric_labels": {m: METRIC_LABELS.get(m, m) for m in latest_map},
-        # Per-metric dates (additive) — let consumers judge freshness and
-        # left/right date mismatch per region without re-querying. Honest truth
-        # for the Visual Truth states; never fabricated.
-        "latest_date_per_metric": dict(latest_date_per_metric),
-        "previous_date_per_metric": dict(previous_date_per_metric),
         "largest_improvement": largest_improvement,
         "largest_regression": largest_regression,
         "trend_summary": trend_summary,

@@ -3,8 +3,38 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-13 (feat(ops): Signal Health RECONFIGURE — measure the eligible population + passive-signal whitepaper)
+# Last Updated: 2026-07-14 (docs(ops): Operations closeout — initial initiative complete; evidence-first evolution)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — docs(ops): Operations Vision closeout — initial initiative COMPLETE; Operations now evolves evidence-first
+
+Formally closes the initial WLJ Operations initiative (docs-only; no code, no Constitutional/architectural
+change). Operations has become what it was built to be — the platform that monitors and improves WLJ itself —
+so the BUILD initiative is complete and the subsystem transitions to **evidence-driven** evolution.
+
+- **Closeout banner (top of `WLJ_OPERATIONS_VISION.md`):** the initial initiative is complete; future
+  Operations engineering is triggered by production evidence classified via the Operational Disposition Model
+  (§5a), not by speculatively building remaining phases ("do not manufacture Operations work simply because the
+  subsystem exists"). The next PRIMARY initiative is **Passive Signal Architecture**, which Operations surfaced —
+  a product/intelligence effort, not a further Operations phase.
+- **Corrected stale roadmap (§14):** Phase II was marked "Planned — not started, no recovery code exists yet";
+  it is in fact **built & shipped** (recovery framework in `apps/core/operations/recovery/`, Shadow Mode, first
+  ACTIVE R1 pilot, Recovery Events, ADRs 13–27) → **O2-armed** (not yet O2-certified — no production recovery has
+  executed+verified yet; events to date were correct observe-only R0). Phases III–IX reframed as an
+  **evidence-gated capability ladder**, not scheduled work.
+- **Maturity (§6):** honest current state — **O1 (Observable) complete; O2 (Recoverable) armed, not certified** —
+  plus a capability the O0–O5 infra ladder doesn't name: Operations as a **product-truth** surface (Signal Health
+  → ADR-29 → Passive Signal Architecture). That product-intelligence role is why the *initiative* is complete
+  even though the infra ladder isn't maxed.
+- **§18.1** supersedes the historical "next chat begins Phase II implementation" readiness note (ADRs now 29,
+  not 15); closing "Last updated" line refreshed.
+
+**Recommendations delivered in-chat (not doc-committed):** (1) keep the disposition set closed/terminal — no
+fifth "EVOLVE" (ACCEPT carries an evolution pointer instead); (2) Passive Signal Architecture is mature enough to
+become the flagship, first milestone = a Relationships reference implementation (journal-`Mention` → deterministic
+`relational_engagement`, multi-source resolver + provenance). No implementation performed.
+
+**Files:** `docs/WLJ_OPERATIONS_VISION.md` (closeout banner, §6, §14, §18.1, ledger already updated).
 
 ## 2026-07-13 — feat(ops): Signal Health RECONFIGURE (finance + cross_domain) + relationships ACCEPT + passive-signal architecture research
 

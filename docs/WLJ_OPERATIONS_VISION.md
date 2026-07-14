@@ -18,6 +18,29 @@
 
 ---
 
+> **⭐ INITIATIVE CLOSEOUT (2026-07-14): the initial WLJ Operations initiative is COMPLETE — and the subsystem now evolves EVIDENCE-FIRST, not roadmap-first.**
+>
+> Operations has become what it was built to be: the platform that **monitors and improves WLJ itself**.
+> Phase I (Observability) is complete; the Phase II recovery framework is built, shadow-validated, and
+> shipped **ACTIVE** (O2-**armed**, pending a production-*demonstrated* recovery). Most importantly, Operations
+> is now surfacing **product truth**, not just infrastructure failure — the Signal Health investigation turned
+> monitoring accuracy into a product direction (`WLJ_PASSIVE_SIGNAL_ARCHITECTURE.md`).
+>
+> **This does NOT mean Operations is finished — it means the build initiative is.** From here:
+> - **Future Operations engineering is triggered by real production evidence**, classified through the
+>   Operational Disposition Model (§5a: FIX / RETIRE / RECONFIGURE / ACCEPT), **not** by speculatively building
+>   the remaining phases. *"Do not manufacture Operations work simply because the subsystem exists."*
+> - **Phases III–IX (§14) are retained as an EVIDENCE-GATED capability ladder**, not scheduled work: each
+>   advances only when production evidence proves the capability is needed (e.g. a full declarative recovery
+>   framework is justified only once there are enough real recovery classes to warrant it).
+> - **The next PRIMARY engineering initiative is NOT a further Operations phase.** It is **Passive Signal
+>   Architecture** — a PRODUCT/intelligence initiative that Operations *surfaced*. Operations succeeding means
+>   the flagship work moves back into WLJ itself.
+>
+> Detailed closeout assessment: §18. Live disposition-driven work: §15.1 ledger.
+
+---
+
 ## 1. What WLJ Operations Is
 
 **WLJ Operations is a new Layer 1 Truth Domain.**
@@ -328,6 +351,17 @@ its critical monitors, not the maximum any one has reached. **O5** is deliberate
 (§7) — deterministic operational history rich enough to tell the subsystem which recoveries work and
 which permanent fixes ended a recurring class.
 
+**Closeout assessment (2026-07-14): O1 (Observable) — COMPLETE; O2 (Recoverable) — ARMED, not certified.**
+The infra ladder is honestly at O1: the platform is comprehensively observable and the recovery framework is
+built, shadow-validated, and shipped ACTIVE, but no recovery has been *executed and verified in production*
+yet (production events to date were correct observe-only R0 decisions), so O2 is not certified. **A capability
+the O0–O5 ladder does not name has, however, been demonstrated: Operations as a *product-truth* surface.** The
+Signal Health work proved the platform can distinguish a monitoring artifact from a genuine product limitation
+and drive a product initiative (Passive Signal Architecture). That is not "more infra maturity"; it is
+Operations fulfilling its actual mission (§2) — improving WLJ, not just watching it. The maturity ladder stays
+the infra scale; this product-intelligence role is recorded as the reason the *initiative* is complete even
+though the infra ladder is not maxed.
+
 ---
 
 ## 7. Operations Memory (Future Capability)
@@ -601,6 +635,15 @@ platform. Each phase below records **Purpose · Goals · Capabilities · Deliver
 Dependencies · Future Expansion · Completion Status**. The authoritative checklist with dates, SHAs,
 and test references is the **Living Status Section (§15)** — this section is the narrative; §15 is the ledger.
 
+> **⚠️ POST-CLOSEOUT STATUS (2026-07-14): this is now an EVIDENCE-GATED capability ladder, not a build schedule.**
+> Phase I is complete and Phase II is built & shipped (O2-armed). **Phases III–IX are no longer scheduled
+> work** — they are a reference ladder of capabilities the subsystem *may* grow into, each **gated on real
+> production evidence** that the capability is needed. Do not build ahead of evidence: a declarative recovery
+> framework (III), autonomy (VI), or prediction (VII) is justified only when production surfaces enough real
+> instances to warrant it, discovered and classified through the Operational Disposition Model (§5a). The
+> subsystem's forward energy now flows into the **product truth it exposes** (see the closeout banner at the
+> top and §18), not into completing this ladder for its own sake.
+
 ---
 
 ### Phase I — Operations Visibility
@@ -682,8 +725,16 @@ silently closing.
 
 **Future Expansion:** Feeds Phase III (standardization) and Phase VI (self-healing metrics).
 
-**Completion Status:** **Planned** — not started. This milestone is documentation-only; no recovery
-code exists yet.
+**Completion Status:** ✅ **BUILT & SHIPPED (2026-07-12).** The deterministic recovery framework is live in
+`apps/core/operations/recovery/` (engine, per-handler `detect/diagnose/recover/verify/escalate` lifecycle,
+`RecoveryPolicy` R0–R4 classification, `RecoveryAttempt` audit model + migration, three R1 handlers, the
+`OPS_RECOVERY_MODE` Disabled/Shadow/Active resolver, ship-dark kill switches, worker-only execution, and
+CI-enforced import/request-path boundaries). Shadow Mode validated end-to-end; the first **ACTIVE** R1 pilot
+(allowlisted Beat-retry) shipped. Recovery outcomes surface as operator **Recovery Events** on the wall
+(ADRs 13–27). **Maturity caveat:** this makes the subsystem **O2-armed**, not yet O2-*certified* — O2
+(Recoverable) is reached only when the framework **recovers a real production condition and verifies it**;
+observed production events to date have been correct **observe-only (R0)** decisions, not executed recoveries
+(§6). Remaining Phase II work is therefore *observation*, not construction.
 
 ---
 
@@ -1148,7 +1199,20 @@ CI-enforced boundaries, ship-dark kill switch). The three deferred items above a
 > implementation rather than architectural redesign.**
 
 Changes to a frozen section (§§1–16) now require an ADR entry; a change touching a Constitution Article
-additionally requires a Constitutional Review. The next chat begins **Phase II implementation**.
+additionally requires a Constitutional Review.
+
+**§18.1 Initiative Closeout Review (2026-07-14) — supersedes the "next chat begins Phase II" note above.**
+That readiness review was written at the close of the *architecture* phase and is now historical: Phase II was
+subsequently **built and shipped** (recovery framework, Shadow Mode, first ACTIVE R1 pilot, Recovery Events),
+the Operational Disposition Model was added (§5a, ADR-28), and the decision log has grown from 15 to **29 ADRs**
+(§16). The initial Operations **build initiative is complete** (Phase I done; Phase II shipped/O2-armed).
+Operations is now a working platform that has begun **exposing product truth** (Signal Health → ADR-29 → the
+Passive Signal Architecture initiative). Per the closeout banner (top): the subsystem now evolves
+**evidence-first** — future work is triggered by production observations classified via §5a, and Phases III–IX
+(§14) are an evidence-gated ladder, not a schedule. The next *primary* engineering initiative is **Passive
+Signal Architecture** (`WLJ_PASSIVE_SIGNAL_ARCHITECTURE.md`), a product/intelligence effort Operations surfaced —
+not a further Operations phase. **Nothing here is a Constitutional or architectural change** — it records that
+reality advanced past the readiness review and reframes remaining phases as evidence-gated.
 
 ---
 
@@ -1164,7 +1228,16 @@ additionally requires a Constitutional Review. The next chat begins **Phase II i
 
 ---
 
-*Last updated: 2026-07-12 — **PHASE I CLOSED (COMPLETE) + roadmap reorganized.** Marked Phase I —
+*Last updated: 2026-07-14 — **INITIAL OPERATIONS INITIATIVE CLOSED (COMPLETE).** Added the closeout banner
+(top): the build initiative is done (Phase I complete; Phase II built & shipped / O2-armed), and Operations
+now evolves **evidence-first** via the Disposition Model (§5a) rather than roadmap-first. Corrected stale
+status: §14 Phase II ✅ built & shipped (was "not started"); §14 intro + Phases III–IX reframed as an
+**evidence-gated ladder**, not a schedule; §6 records O1-complete / O2-armed + the un-modeled **product-truth**
+capability; §18.1 supersedes the historical "next chat begins Phase II" note (ADRs now 29, not 15). Next
+PRIMARY initiative = **Passive Signal Architecture** (product/intelligence, not a further Operations phase).
+Docs-only; no Constitutional/architectural change. Prior line ↓.*
+
+*2026-07-12 — **PHASE I CLOSED (COMPLETE) + roadmap reorganized.** Marked Phase I —
 Operations Visibility ✅ complete (mission achieved: critical infra + execution surface comprehensively
 observable, OPS-1…5,7). The residual OPS backlog is reclassified out of Phase I by category (Operational
 Hardening / Administrative / Infrastructure / Technical Debt — see §15 + `WLJ_OPS_WALL_COVERAGE.md §4`).

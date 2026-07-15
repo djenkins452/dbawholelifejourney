@@ -274,6 +274,7 @@ class HealthKitManager {
 
     /// Key persisting that the user completed the HealthKit authorization request.
     private static let connectedKey = "wlj.healthkit.connected"
+    private static let requestedTypesKey = "wlj.healthkit.requested_type_ids"
 
     /// Whether WLJ is connected to Apple Health.
     ///
@@ -288,6 +289,32 @@ class HealthKitManager {
     var isAuthorized: Bool {
         guard HKHealthStore.isHealthDataAvailable() else { return false }
         return UserDefaults.standard.bool(forKey: Self.connectedKey)
+    }
+
+    /// Stable identifier strings for the CURRENT read-authorization set (this grows as
+    /// the app adds HealthKit types across updates).
+    var currentReadTypeIdentifiers: Set<String> {
+        Set(readTypes.map { $0.identifier })
+    }
+
+    /// Read types ADDED since the last authorization the user completed — i.e. types iOS
+    /// has never prompted for, which therefore remain "not determined" and get skipped
+    /// during sync. Deterministic (based on what we REQUESTED) because HealthKit hides
+    /// per-type READ authorization status (see the isAuthorized note above).
+    var pendingAuthorizationTypeIdentifiers: Set<String> {
+        // No record yet (pre-tracking build, or an already-connected user updating into
+        // this build) → the whole current set is "unreviewed".
+        guard let requested = UserDefaults.standard.stringArray(forKey: Self.requestedTypesKey) else {
+            return currentReadTypeIdentifiers
+        }
+        return currentReadTypeIdentifiers.subtracting(requested)
+    }
+
+    /// True when the app's read registry has expanded beyond the set the user last
+    /// granted — so Health Sync should offer "Review Health Permissions". Only for a user
+    /// who has already connected once (the Connect flow covers the first-time grant).
+    var needsPermissionReview: Bool {
+        isAuthorized && !pendingAuthorizationTypeIdentifiers.isEmpty
     }
 
     private init() {}
@@ -314,9 +341,12 @@ class HealthKitManager {
             group.cancelAll()
         }
 
-        // Remember that the user completed the request. Read grants remain
-        // invisible to us, so backend sync status is the source of per-type truth.
+        // Remember that the user completed the request, AND the exact read set we asked
+        // for. Read grants stay invisible to us (backend sync status is the per-type
+        // truth), but recording the REQUESTED set lets us detect later when the app adds
+        // types the user was never prompted for → the "Review Health Permissions" nudge.
         UserDefaults.standard.set(true, forKey: Self.connectedKey)
+        UserDefaults.standard.set(Array(currentReadTypeIdentifiers), forKey: Self.requestedTypesKey)
     }
 
     // MARK: - Sync Health Data
@@ -332,6 +362,7 @@ class HealthKitManager {
         do {
             return try await fetch()
         } catch {
+            lastSyncSkippedTypes.append(type)
             print("[HEALTH_SYNC] fetch '\(type)' failed: \(error.localizedDescription) — skipped; sync continues")
             return []
         }
@@ -343,6 +374,7 @@ class HealthKitManager {
         }
 
         var metrics: [HealthMetric] = []
+        lastSyncSkippedTypes = []   // reset per-sync skipped-type telemetry
 
         // Get date range: last 7 days
         let calendar = Calendar.current
@@ -594,6 +626,10 @@ class HealthKitManager {
     /// ["raw_samples": N, "built": daily-totals, "sent": metrics-queued]. Read by
     /// syncHealthData and sent to the server so we can prove where Steps disappear.
     private(set) var lastStepsDebug: [String: Int] = [:]
+
+    /// Types skipped during the LAST sync because their fetch failed (most often an
+    /// unauthorized / not-determined type). Surfaced to the user as "needs permission".
+    private(set) var lastSyncSkippedTypes: [String] = []
 
     /// Count raw samples of a type in a window (proves HealthKit is returning data).
     private func countRawSamples(_ type: HKSampleType, predicate: NSPredicate) async throws -> Int {

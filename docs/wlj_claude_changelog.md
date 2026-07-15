@@ -3,8 +3,52 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (fix(ios): Steps ROOT CAUSE — one unauthorized fetch (Code=5) aborted the whole sync)
+# Last Updated: 2026-07-15 (feat(ios): HealthKit authorization lifecycle — Review Health Permissions when the registry expands)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(ios): HealthKit authorization lifecycle — "Review Health Permissions" for newly-added types
+
+**Investigation (the 5 questions).** After the resilient-sync fix, newly-added read types (height, waist, cycling/
+swimming/wheelchair/snow distance, swim strokes, Move time, push count) reported "Authorization not determined" and
+were skipped. Root cause in the authorization lifecycle:
+1. **Re-requested on expansion?** No. `isAuthorized` is a single persisted bool (`connectedKey`); once connected,
+   the UI only offered "Sync Now" and never called `requestAuthorization` again.
+2. **Only at onboarding?** Effectively yes — once `connectedKey=true` (first connect), authorization never refreshed.
+3. **Does the Authorize action request the complete registry?** `requestAuthorization()` *does* request the full
+   current `readTypes`, but the UI only surfaced it while `!authorized`, so after the first connect it was
+   unreachable — new types were never presented to iOS, so they stayed `.notDetermined`.
+4. **Cached incorrectly?** Yes — one boolean meaning "has ever connected," silently conflated with "all current
+   types authorized."
+5. **Need a deliberate review action?** Yes.
+
+**Product behavior implemented.**
+- **Detect registry expansion** (`HealthKitManager`): on each successful `requestAuthorization` we now persist the
+  exact requested read-set (`requestedTypesKey`). `pendingAuthorizationTypeIdentifiers = currentReadTypeIdentifiers −
+  requested`, and `needsPermissionReview` is true when a connected user has any pending (never-requested) types.
+  This is deterministic — HealthKit hides per-type READ authorization, so "what we asked for" is the only honest
+  signal.
+- **"Review Health Permissions"** on the Health Sync screen — a permanent action in the connection card *and* a
+  prominent nudge card (`ReviewPermissionsCard`) when the registry has expanded. It re-calls `requestAuthorization`
+  with the full set; **iOS prompts only for the still-undetermined types**, then we record the new set so the nudge
+  clears until the next expansion, and we immediately sync so granted types flow.
+- **No false "all authorized"** — the connection card shows "Connected" with the honest read-privacy note and the
+  always-available Review action; it never implies every type is granted.
+- **Surface skipped types** — `safeFetch` now records `lastSyncSkippedTypes`; the review card lists what the last
+  sync skipped, with the Review action. (Per-type `no_data` status in the category cards remains the deterministic
+  per-source truth.)
+- **Graceful failure preserved** — unchanged; a skipped type never aborts the sync.
+
+**Batch telemetry** (`APIClient.submitHealthMetrics`): each batch now logs its result
+(`[HEALTH_SYNC] batch i/N: n sent → created/updated/skipped/errors`) plus a final overall line
+(`submission complete: M metrics in N batches (ok/failed) → totals`). The batch loop is now **resilient** too — a
+single batch failing logs and continues instead of aborting the remaining batches.
+
+**Verification:** iOS **compiles clean** (BUILD SUCCEEDED, 0 errors/warnings). Device-only (HealthKit auth prompt)
+per the checklist below. No backend/model change; no new metrics.
+
+**iPhone test:** (1) Open Health Sync — expect the "New Health Data Available" card. (2) Tap **Review Health
+Permissions**. (3) Grant the newly listed types in the iOS sheet. (4) Run a manual sync. (5) Confirm the previously
+skipped types now either sync (show healthy) or truthfully show **No data** — and the review nudge is gone.
 
 ## 2026-07-15 — feat(model-interface): Truth Resolution Layer surface-complete — the ENTITY branch (get_entity)
 

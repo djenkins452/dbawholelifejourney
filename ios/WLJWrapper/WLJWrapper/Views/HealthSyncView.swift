@@ -27,6 +27,8 @@ struct HealthSyncView: View {
     @State private var showPermissionAlert = false
     @State private var selectedType: DataTypeHealth?
     @State private var expandedCategories: Set<String> = []
+    @State private var needsReview = false
+    @State private var skippedTypes: [String] = []
 
     var body: some View {
         ScrollView {
@@ -38,6 +40,12 @@ struct HealthSyncView: View {
                              isSyncing: isSyncing,
                              canSync: appState.healthKitAuthorized,
                              onSync: syncNow)
+
+                    if needsReview || !skippedTypes.isEmpty {
+                        ReviewPermissionsCard(skipped: skippedTypes,
+                                              isWorking: isRequestingPermission,
+                                              onReview: reviewPermissions)
+                    }
 
                     if !s.issues.isEmpty {
                         AttentionCard(issues: s.issues, onFix: openHealthSettings)
@@ -119,8 +127,23 @@ struct HealthSyncView: View {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                     Text("Apple Health connected").font(.subheadline.weight(.medium))
                     Spacer()
-                    Button("Manage") { openHealthSettings() }.font(.subheadline)
+                    Button("Settings") { openHealthSettings() }.font(.subheadline)
                 }
+                // Always available — a connected user can re-review anytime (e.g. after the
+                // app adds new types, or after changing a grant in Settings). We never imply
+                // every type is authorized just because the user connected once.
+                Button(action: reviewPermissions) {
+                    HStack(spacing: 6) {
+                        if isRequestingPermission { ProgressView().scaleEffect(0.8) }
+                        else { Image(systemName: "checkmark.shield") }
+                        Text("Review Health Permissions")
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .font(.subheadline)
+                }
+                .buttonStyle(.plain)
+                .disabled(isRequestingPermission)
             } else {
                 Button(action: requestPermission) {
                     HStack(spacing: 8) {
@@ -208,12 +231,40 @@ struct HealthSyncView: View {
     }
 
     private func loadStatus() async {
-        await MainActor.run { isLoadingStatus = true; loadError = nil }
+        await MainActor.run {
+            isLoadingStatus = true
+            loadError = nil
+            needsReview = HealthKitManager.shared.needsPermissionReview
+        }
         do {
             let resp = try await APIClient.shared.getSyncStatus()
             await MainActor.run { status = resp.syncHealth; isLoadingStatus = false }
         } catch {
             await MainActor.run { loadError = "Couldn't load sync status."; isLoadingStatus = false }
+        }
+    }
+
+    private func reviewPermissions() {
+        isRequestingPermission = true
+        Task {
+            do {
+                // Re-request the FULL current read set. iOS only prompts for types that
+                // are still "not determined" (the newly-added ones); already-decided
+                // types are untouched. On success we record the requested set, so the
+                // review nudge clears until the registry expands again.
+                try await HealthKitManager.shared.requestAuthorization()
+                await MainActor.run {
+                    appState.onHealthKitAuthorized()
+                    needsReview = HealthKitManager.shared.needsPermissionReview
+                    isRequestingPermission = false
+                }
+                await syncAndReload()   // sync now so newly-granted types flow immediately
+            } catch {
+                await MainActor.run {
+                    isRequestingPermission = false
+                    showPermissionAlert = true
+                }
+            }
         }
     }
 
@@ -246,6 +297,9 @@ struct HealthSyncView: View {
         } catch {
             // Even on error, reload — the backend truth still tells the story.
         }
+        // Surface the types this sync skipped (unauthorized / not-determined) so the
+        // user has an honest, actionable signal, not a silent gap.
+        await MainActor.run { skippedTypes = HealthKitManager.shared.lastSyncSkippedTypes }
         await loadStatus()
         await MainActor.run { isSyncing = false }
     }
@@ -375,6 +429,48 @@ private struct AttentionCard: View {
             .padding(.top, 2)
         }
         .wljCard(tint: .orange)
+    }
+}
+
+// MARK: - Review permissions (registry expanded → new types await granting)
+
+private struct ReviewPermissionsCard: View {
+    let skipped: [String]
+    let isWorking: Bool
+    let onReview: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles").foregroundStyle(Color.accentColor)
+                Text("New Health Data Available").font(.headline)
+            }
+            Text("Whole Life Journey can now sync additional Apple Health types you haven't granted yet. Review permissions so they can start flowing — already-granted sources are untouched.")
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !skipped.isEmpty {
+                Text("Waiting on permission: \(skippedSummary)")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button(action: onReview) {
+                HStack(spacing: 8) {
+                    if isWorking { ProgressView().tint(.white) }
+                    else { Image(systemName: "checkmark.shield.fill") }
+                    Text("Review Health Permissions").fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity).padding(.vertical, 12)
+                .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .foregroundStyle(.white)
+            }
+            .disabled(isWorking)
+        }
+        .wljCard(tint: .accentColor)
+    }
+
+    private var skippedSummary: String {
+        let names = skipped.prefix(6).map { $0.replacingOccurrences(of: "_", with: " ").capitalized }
+        return names.joined(separator: ", ") + (skipped.count > 6 ? "…" : "")
     }
 }
 

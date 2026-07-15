@@ -98,19 +98,36 @@ class APIClient {
 
         print("Submitting \(metrics.count) metrics in \(batches.count) batches of ≤\(batchSize)")
 
+        var batchesSucceeded = 0
+        var batchesFailed = 0
         for (i, batch) in batches.enumerated() {
-            print("  Batch \(i + 1)/\(batches.count): \(batch.count) metrics")
-            // Attach the glass-box telemetry to the FIRST batch only (steps live there).
-            let response = try await submitBatch(batch, clientDebug: i == 0 ? clientDebug : nil)
-            totalCreated += response.created
-            totalUpdated += response.updated
-            totalSkipped += response.skipped
-            totalErrors.append(contentsOf: response.errors)
-            lastIngestionId = response.ingestionId
+            do {
+                // Attach the glass-box telemetry to the FIRST batch only (steps live there).
+                let response = try await submitBatch(batch, clientDebug: i == 0 ? clientDebug : nil)
+                totalCreated += response.created
+                totalUpdated += response.updated
+                totalSkipped += response.skipped
+                totalErrors.append(contentsOf: response.errors)
+                lastIngestionId = response.ingestionId
+                batchesSucceeded += 1
+                print("[HEALTH_SYNC] batch \(i + 1)/\(batches.count): \(batch.count) sent → "
+                      + "created \(response.created), updated \(response.updated), "
+                      + "skipped \(response.skipped), errors \(response.errors.count)")
+            } catch {
+                // A single batch failing must not abort the rest (resilient submission,
+                // same principle as the per-fetch resilience on the device side).
+                batchesFailed += 1
+                print("[HEALTH_SYNC] batch \(i + 1)/\(batches.count): \(batch.count) FAILED — "
+                      + "\(error.localizedDescription); continuing with remaining batches")
+            }
         }
 
+        print("[HEALTH_SYNC] submission complete: \(metrics.count) metrics in \(batches.count) "
+              + "batches (\(batchesSucceeded) ok, \(batchesFailed) failed) → created \(totalCreated), "
+              + "updated \(totalUpdated), skipped \(totalSkipped), errors \(totalErrors.count)")
+
         return IngestionResponse(
-            success: totalErrors.isEmpty,
+            success: batchesFailed == 0 && totalErrors.isEmpty,
             ingestionId: lastIngestionId,
             created: totalCreated,
             updated: totalUpdated,

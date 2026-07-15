@@ -109,6 +109,20 @@ class HealthKitManager {
             types.insert(waistType)
         }
 
+        // Additional activity distances / move time (generic HealthKitDailyMetric store)
+        if let cyclingType = HKQuantityType.quantityType(forIdentifier: .distanceCycling) {
+            types.insert(cyclingType)
+        }
+        if let swimDistType = HKQuantityType.quantityType(forIdentifier: .distanceSwimming) {
+            types.insert(swimDistType)
+        }
+        if let swimStrokeType = HKQuantityType.quantityType(forIdentifier: .swimmingStrokeCount) {
+            types.insert(swimStrokeType)
+        }
+        if let moveTimeType = HKQuantityType.quantityType(forIdentifier: .appleMoveTime) {
+            types.insert(moveTimeType)
+        }
+
         // Respiratory Rate
         if let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) {
             types.insert(respRateType)
@@ -379,6 +393,12 @@ class HealthKitManager {
         let environmentalAudio = try await fetchEnvironmentalAudio(from: startDate, to: endDate)
         let dietaryNutrients = try await fetchDietaryNutrients(from: startDate, to: endDate)
 
+        // Generic fact-store activity types (cumulative daily sum → HealthKitDailyMetric)
+        let cyclingDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceCycling, unit: .mile(), unitLabel: "mi", metricType: "cycling_distance", syncPrefix: "cycdist")
+        let swimmingDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceSwimming, unit: .meter(), unitLabel: "m", metricType: "swimming_distance", syncPrefix: "swimdist")
+        let swimmingStrokes = try await fetchDailySum(from: startDate, to: endDate, identifier: .swimmingStrokeCount, unit: .count(), unitLabel: "strokes", metricType: "swimming_strokes", syncPrefix: "swimstroke")
+        let moveMinutes = try await fetchDailySum(from: startDate, to: endDate, identifier: .appleMoveTime, unit: .minute(), unitLabel: "min", metricType: "move_minutes", syncPrefix: "movemin")
+
         metrics.append(contentsOf: walkingAsymmetry)
         metrics.append(contentsOf: walkingSteadiness)
         metrics.append(contentsOf: walkingSpeed)
@@ -391,6 +411,10 @@ class HealthKitManager {
         metrics.append(contentsOf: headphoneAudio)
         metrics.append(contentsOf: environmentalAudio)
         metrics.append(contentsOf: dietaryNutrients)
+        metrics.append(contentsOf: cyclingDistance)
+        metrics.append(contentsOf: swimmingDistance)
+        metrics.append(contentsOf: swimmingStrokes)
+        metrics.append(contentsOf: moveMinutes)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
@@ -1516,6 +1540,66 @@ class HealthKitManager {
             from: startDate, to: endDate,
             identifier: .waistCircumference, metricType: "waist", syncPrefix: "waist"
         )
+    }
+
+    // MARK: - Fetch Generic Daily Sum (cycling/swimming distance, strokes, move minutes)
+
+    /// Daily cumulative sum of a quantity type → one value+unit HealthMetric per day.
+    /// The governed path for HealthKit's long tail: the server stores these in the
+    /// generic HealthKitDailyMetric fact store keyed by `metricType`. Returns [] if the
+    /// identifier is unavailable on this OS/device, so it never crashes auth or sync.
+    private func fetchDailySum(
+        from startDate: Date, to endDate: Date,
+        identifier: HKQuantityTypeIdentifier, unit: HKUnit, unitLabel: String,
+        metricType: String, syncPrefix: String
+    ) async throws -> [HealthMetric] {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
+        let interval = DateComponents(day: 1)
+        let query = HKStatisticsCollectionQuery(
+            quantityType: quantityType,
+            quantitySamplePredicate: predicate,
+            options: .cumulativeSum,
+            anchorDate: Calendar.current.startOfDay(for: startDate),
+            intervalComponents: interval
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            query.initialResultsHandler = { _, results, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                var metrics: [HealthMetric] = []
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                results?.enumerateStatistics(from: startDate, to: endDate) { statistics, _ in
+                    if let sum = statistics.sumQuantity() {
+                        let value = sum.doubleValue(for: unit)
+                        let dateStr = dateFormatter.string(from: statistics.startDate)
+                        if value > 0 {
+                            metrics.append(HealthMetric(
+                                type: metricType,
+                                date: dateStr,
+                                value: value,
+                                unit: unitLabel,
+                                source: "apple_health",
+                                syncId: "\(syncPrefix)-\(dateStr)"
+                            ))
+                        }
+                    }
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
     }
 
     // MARK: - Fetch Workouts

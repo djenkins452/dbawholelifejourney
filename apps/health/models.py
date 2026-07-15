@@ -6636,6 +6636,73 @@ class AudioExposureEntry(UserOwnedModel):
             return "high"
 
 
+class HealthKitDailyMetric(UserOwnedModel):
+    """
+    Generic daily-aggregate store for HealthKit quantity types that do NOT warrant a
+    bespoke domain model (e.g. cycling/swimming distance, swim strokes, move minutes,
+    walking heart rate). One row per (user, metric_key, metric_date, source). Keeps
+    HealthKit's long tail as deterministic truth — with full provenance (source,
+    sync_id, recorded_at) and idempotent upsert — without proliferating one model per
+    metric.
+
+    Governed by the canonical registry (apps/health/healthkit_registry.py): a registry
+    row whose model_path points here, discriminated by ``metric_key`` (presence_filter
+    ``{"metric_key": "<key>"}``). Prefer a canonical domain model when one exists
+    (weight, sleep, glucose, mobility…); this is the home for everything that
+    legitimately has none, so "ingest everything readable" never means "one model per
+    metric."
+    """
+
+    SOURCE_CHOICES = [
+        ("manual", "Manual Entry"),
+        ("apple_health", "Apple Health"),
+        ("imported", "Imported"),
+    ]
+
+    metric_key = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text="Canonical registry key, e.g. 'cycling_distance', 'move_minutes'",
+    )
+    value = models.DecimalField(
+        max_digits=12,
+        decimal_places=3,
+        help_text="The metric value, expressed in `unit`",
+    )
+    unit = models.CharField(max_length=20, blank=True)
+    metric_date = models.DateField(
+        help_text="Local day this daily aggregate is for",
+    )
+    recorded_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="Real sample instant (preserved from HealthKit when available)",
+    )
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default="apple_health",
+    )
+    sync_id = models.CharField(
+        max_length=100, blank=True, db_index=True,
+        help_text="External ID from the synced source to prevent duplicates",
+    )
+
+    class Meta:
+        ordering = ["-metric_date"]
+        verbose_name = "HealthKit daily metric"
+        verbose_name_plural = "HealthKit daily metrics"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "metric_key", "metric_date", "source"],
+                name="unique_hk_daily_metric_per_day_per_source",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "metric_key", "-metric_date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.metric_key}={self.value}{self.unit} on {self.metric_date}"
+
+
 class DietaryNutrientEntry(UserOwnedModel):
     """
     Dietary nutrient data from Apple HealthKit.

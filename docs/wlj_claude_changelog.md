@@ -3,8 +3,37 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(truth): Lifecycle Truth — Dimension 2 of the Truth Presentation Contract)
+# Last Updated: 2026-07-15 (feat(health): HealthKitDailyMetric — governed generic fact store for HealthKit's long tail)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): HealthKitDailyMetric — governed generic fact store for HealthKit's long tail
+
+Establishes the architecture that lets "ingest every meaningful HealthKit read type" NOT mean "one Django model per
+metric." Many HealthKit quantity types (cycling/swimming distance, swim strokes, Apple Move time, walking heart
+rate, …) carry no domain semantics that warrant a bespoke model. `HealthKitDailyMetric` (`apps/health/models.py`,
+migration `0103`) is their governed home: `UserOwnedModel`, one row per `(user, metric_key, metric_date, source)`,
+carrying `value` + `unit` + `recorded_at` (real sample instant) + `source` + `sync_id`. Idempotency is enforced at
+the DB (`UniqueConstraint` on those four fields) with a covering index for `(user, metric_key, -metric_date)` reads.
+
+**One authority per truth domain preserved:** the canonical registry (`apps/health/healthkit_registry.py`) decides
+where each type lands — a bespoke domain model when one legitimately exists (weight, sleep, glucose, mobility…),
+this fact store only for types that genuinely have none. Registry rows whose `model_path` is `HealthKitDailyMetric`
+are discriminated by `metric_key` (`presence_filter {"metric_key": "<key>"}`), so Health Sync status, provenance,
+and the Swift↔Django agreement contract all treat them like any other governed type — no special-casing.
+
+**Ingest** (`apps/mobile/views.py :: process_generic_daily_metric`): deterministic idempotent upsert keyed by the
+registry `metric_key` (== payload `type`), with value validation + range guard, central unit normalization
+(`normalize_for_storage`), provenance (`sync_id`, preserved sample instant), and `created / updated / skipped`
+results threaded into the existing per-type sync telemetry. Registered in the handler dispatch map.
+
+**iOS producers** (`HealthKitManager.swift`): authorization reads + fetch for the first four activity long-tail
+types — cycling distance, swimming distance, swimming strokes, Apple Move time — using the correct
+cumulative-sum statistics semantics, serialized with units and source timestamps.
+
+Additive, reversible migration; `manage.py check` clean; no migration drift. Registry-agreement, idempotency,
+reimport/dedup, movement-type, and mobile sync-status suites green. **Backend + code complete; final HealthKit
+read-authorization + on-device sample flow require iPhone verification** (see the device checklist in
+`docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md`).
 
 ## 2026-07-15 — feat(truth): Lifecycle Truth — Dimension 2 of the Truth Presentation Contract
 

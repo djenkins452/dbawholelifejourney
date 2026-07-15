@@ -2891,6 +2891,65 @@ def process_dietary_nutrient_metric(user, metric_date, source, sync_id, data):
     return "created"
 
 
+def process_generic_daily_metric(user, metric_date, source, sync_id, data):
+    """
+    Deterministic ingest for HealthKit quantity types that have no bespoke domain model
+    (cycling/swimming distance, swim strokes, move minutes, walking heart rate, …).
+
+    Stored in the generic ``HealthKitDailyMetric`` fact store, keyed by the canonical
+    registry ``metric_key`` (== the payload ``type``). Idempotent per
+    (user, metric_key, metric_date, source); provenance (source, sync_id, real sample
+    instant) preserved. This is the governed home for HealthKit's long tail — see
+    apps/health/healthkit_registry.py (rows whose model_path is HealthKitDailyMetric).
+    """
+    from apps.health.models import HealthKitDailyMetric
+
+    metric_key = (data.get("type") or "").lower()
+    if not metric_key:
+        raise ValueError("type is required")
+
+    raw = data.get("value")
+    if raw is None:
+        raise ValueError(f"value is required for {metric_key}")
+    try:
+        value = Decimal(str(raw))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid value for {metric_key}: {raw}")
+    if value < 0 or value > Decimal("100000000"):
+        raise ValueError(f"{metric_key} value out of range: {value}")
+
+    unit = (data.get("unit") or "")[:20]
+    value = normalize_for_storage(value, HealthKitDailyMetric, "value")
+    sample_dt = data.get("_sample_dt")
+
+    defaults = {"value": value, "unit": unit, "sync_id": sync_id}
+    if sample_dt is not None:
+        defaults["recorded_at"] = sample_dt
+
+    obj, created = HealthKitDailyMetric.objects.get_or_create(
+        user=user, metric_key=metric_key, metric_date=metric_date, source=source,
+        defaults=defaults,
+    )
+    if created:
+        return "created"
+
+    changed = False
+    if obj.value != value or obj.unit != unit:
+        obj.value = value
+        obj.unit = unit
+        changed = True
+    if sync_id and not obj.sync_id:
+        obj.sync_id = sync_id
+        changed = True
+    if sample_dt is not None and obj.recorded_at != sample_dt:
+        obj.recorded_at = sample_dt
+        changed = True
+    if changed:
+        obj.save()
+        return "updated"
+    return "skipped"
+
+
 # =============================================================================
 # Canonical metric_type -> handler map
 # =============================================================================
@@ -2941,6 +3000,11 @@ HEALTH_METRIC_HANDLERS = {
     "headphone_audio": process_audio_exposure_metric,
     "environmental_audio": process_audio_exposure_metric,
     "dietary_nutrients": process_dietary_nutrient_metric,
+    # Generic fact-store types (no bespoke domain model) → HealthKitDailyMetric.
+    "cycling_distance": process_generic_daily_metric,
+    "swimming_distance": process_generic_daily_metric,
+    "swimming_strokes": process_generic_daily_metric,
+    "move_minutes": process_generic_daily_metric,
 }
 
 

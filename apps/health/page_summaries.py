@@ -91,5 +91,13 @@ def body_intelligence_page_summary(user, params):
             lines.append(f"{w['label']} weight change: "
                          f"{'+' if ch['delta'] > 0 else ''}{ch['delta']:g} lb")
 
+    # Derived-truth freshness (Truth Presentation Contract, Dimension 2). If the
+    # summaries these trends read from are still catching up with a recent sync,
+    # state that as a fact so the model never presents them as fully current.
+    fresh = bi.get("freshness") or {}
+    if fresh.get("is_updating"):
+        lines.append("Note: these trends/scores are still updating from a recent "
+                     "sync and may not yet reflect the latest data.")
+
     return {"title": "Body Intelligence", "kind": "body intelligence overview",
             "content": "Body Intelligence overview\n" + "\n".join(lines)}

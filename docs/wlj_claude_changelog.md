@@ -3,8 +3,39 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): canonical HealthKit registry — single authority + Swift↔Django agreement contract)
+# Last Updated: 2026-07-15 (feat(truth): Lifecycle Truth — Dimension 2 of the Truth Presentation Contract)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(truth): Lifecycle Truth — Dimension 2 of the Truth Presentation Contract
+
+Formalizes the temporal half of the Truth Presentation Contract as a shared, pure, deterministic platform
+capability. The Contract's one rule — *"the customer must never be shown a state that claims more certainty than
+WLJ has actually established"* — already had a spatial dimension (Visual Truth: only real completion may LOOK
+complete, `test_visual_truth_contract.py`). This adds the temporal dimension.
+
+**New:** `apps/core/truth/lifecycle.py` — the ONE shared lifecycle vocabulary + product RULE for asynchronous
+work: `INITIATED → RECEIVED → PERSISTED → DERIVED → CURRENT`, with blocking qualifiers `PARTIAL / FAILED / STALE`.
+It is pure and stores no state — it INTERPRETS truth other subsystems already own (ingestion-run counts, summary
+build times, freshness verdicts) and composes with `apps.core.truth.freshness` (terminal `CURRENT` == the point
+the derived layer's freshness verdict is `CURRENT`). Gates: `may_claim_complete()` (only at `CURRENT`, never with
+a blocking qualifier), `may_claim_saved()` (honest at `PERSISTED`), `derived_state()`, `claim_key()`. Domains keep
+their own persisted status enums and MAP onto these conceptual stages when they speak to the customer — not forced
+into identical enums.
+
+**Enforced:** `apps/core/tests/test_truth_presentation_contract.py` pins the rule so a future change cannot let
+"complete/up-to-date" be claimed from a transmission/initiation event, or let partial/stale round up to success.
+
+**First consumer — Body Intelligence:** trends/scores are DERIVED from `DailyHealthSummary`. When a recent sync has
+persisted data the summaries haven't folded in yet, the page now shows a calm, non-completion "still updating" note
+(never green/checked — the opposite of done) instead of presenting stale figures as current. The page summary
+provider states the same as a fact so the model never narrates catching-up data as fully current. Freshness is one
+cheap indexed read (`HealthIngestionRun` latest persistence vs `summary.updated_at`) — request-path safe, facts
+only. Also removed the now-superseded inline `_sync_lifecycle_fact` shim from `health_sync_status.py` (no consumer).
+
+**Files:** `apps/core/truth/lifecycle.py` (new), `apps/core/tests/test_truth_presentation_contract.py` (new),
+`apps/health/services/body_intelligence.py` (derived-freshness), `apps/health/page_summaries.py` (fact line),
+`templates/health/body_intelligence.html` (updating note + calm CSS), `apps/health/services/health_sync_status.py`
+(remove superseded shim). Tests: contract suite + body/movement suites green.
 
 ## 2026-07-15 — feat(health): canonical HealthKit registry (single authority) + Swift↔Django agreement contract
 

@@ -328,10 +328,6 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
             {"at": run.created_at.isoformat(), "status": run.status, "ingestion_id": run.id}
             if run else None
         ),
-        # Truth Presentation Contract (Dimension 2 — Lifecycle). The highest VERIFIED
-        # stage the most recent sync reached, as facts. The page and the model both
-        # read THIS instead of interpreting a transmission event as completion.
-        "lifecycle": _sync_lifecycle_fact(run),
         "active_types_count": len(active),
         "total_types_count": len(data_types),
         "newest_data": (

@@ -216,9 +216,29 @@ def build_body_intelligence(user, *, as_of=None):
     # ── Deterministic headline (facts only) ────────────────────────────────
     headline = _build_headline(weight, goal, snapshot, body_comp)
 
+    # ── Derived-truth freshness (Truth Presentation Contract, Dimension 2) ───
+    # Body Intelligence trends/scores are DERIVED from DailyHealthSummary. If a
+    # sync has persisted new data since the target-date summary was last built,
+    # the derived layer is still catching up — surface that as "updating", never
+    # as current. Facts only, consuming existing truth (summary.updated_at vs the
+    # latest persistence event); one cheap indexed read, request-path safe.
+    from apps.core.truth import lifecycle as _lifecycle
+    _derived_at = getattr(today, "updated_at", None) if today else None
+    _persisted_at = _latest_health_persistence_at(user)
+    _fresh = _lifecycle.derived_state(persisted_at=_persisted_at, derived_at=_derived_at)
+    freshness = {
+        "state": _fresh["verdict"],                      # current | stale | pending
+        "claim": _lifecycle.claim_key(_fresh["stage"], qualifier=_fresh["qualifier"]),
+        "is_current": _fresh["stage"] == _lifecycle.CURRENT,
+        "is_updating": _fresh["qualifier"] == _lifecycle.STALE,
+        "derived_at": _derived_at.isoformat() if _derived_at else None,
+        "persisted_at": _persisted_at.isoformat() if _persisted_at else None,
+    }
+
     result = {
         "as_of": target,
         "headline": headline,
+        "freshness": freshness,
         "snapshot": snapshot,
         "weight": weight,
         "goal": goal,
@@ -246,6 +266,23 @@ def build_body_intelligence(user, *, as_of=None):
 
 
 # ── Internals ─────────────────────────────────────────────────────────────
+
+
+def _latest_health_persistence_at(user):
+    """Timestamp of the most recent health persistence event (Apple Health sync),
+    used ONLY to detect whether DERIVED summaries have caught up with newly
+    persisted data. Cheap: one indexed read over ``HealthIngestionRun``.
+    Request-path safe. Returns None when the user has never synced."""
+    from apps.mobile.models import HealthIngestionRun
+    row = (HealthIngestionRun.objects
+           .filter(user=user, status__in=("completed", "partial"))
+           .order_by("-created_at")
+           .values_list("completed_at", "created_at")
+           .first())
+    if not row:
+        return None
+    completed_at, created_at = row
+    return completed_at or created_at
 
 
 def _window_change(series, days, target):

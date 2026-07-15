@@ -35,6 +35,18 @@
     </div>
     {% else %}
 
+    {# ── Truth Presentation Contract (Dimension 2 — Lifecycle) ──────────────────
+       These trends/scores are DERIVED from daily summaries. When a recent sync has
+       persisted data the summaries haven't folded in yet, we say so plainly rather
+       than presenting stale figures as current. Facts only (bi.freshness). #}
+    {% if bi.freshness.is_updating %}
+    <div class="bi-freshness-updating" role="status" data-testid="bi-freshness-updating">
+        <span class="bi-freshness-dot" aria-hidden="true"></span>
+        Your latest sync is still being folded into these trends — a few figures may
+        update shortly.
+    </div>
+    {% endif %}
+
     <!-- ── Your Body Story: the one executive briefing (Layer 1 — interpretation) ── -->
     {% with story=bi.body_story %}
     <section class="bi-story bi-story-{{ story.status.tone|default:'unknown' }}" data-testid="bi-story">
@@ -406,6 +418,17 @@ document.addEventListener('DOMContentLoaded', function () {
 .bi-section-title { font-size: var(--font-size-lg, 1.125rem); font-weight: 700; margin: var(--space-8, 2rem) 0 var(--space-2, 0.5rem); }
 .bi-section-note { color: var(--color-text-muted, #6b7280); font-size: var(--font-size-sm, 0.875rem); margin-bottom: var(--space-4, 1rem); }
 .bi-muted { color: var(--color-text-muted, #6b7280); }
+
+/* ── Truth Presentation Contract (Dimension 2): derived-data "updating" note ──
+   A calm, non-completion signal. Never green/checked — it communicates "not yet
+   current", the opposite of done. */
+.bi-freshness-updating { display: flex; align-items: center; gap: var(--space-2, 0.5rem);
+    background: var(--color-surface-alt, #f8fafc); color: var(--color-text-muted, #6b7280);
+    border: 1px solid var(--color-border, #e5e7eb); border-left: 3px solid var(--color-warning, #d97706);
+    border-radius: var(--radius-md, 8px); padding: var(--space-2, 0.5rem) var(--space-3, 0.75rem);
+    font-size: var(--font-size-sm, 0.875rem); margin-bottom: var(--space-4, 1rem); }
+.bi-freshness-dot { width: 8px; height: 8px; border-radius: 50%;
+    background: var(--color-warning, #d97706); flex: 0 0 auto; }
 
 /* ── Your Body Story — the executive briefing hero ──────────────────────── */
 .bi-story { position: relative; background: var(--color-surface, #fff);

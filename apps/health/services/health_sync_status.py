@@ -57,6 +57,9 @@ class HealthSyncType:
     # sources a given user simply doesn't have. Every type still shows its status
     # in the data-type list; only issue-surfacing is gated by this flag.
     core: bool = False
+    # Grouping key for the Health Sync UI (see CATEGORY_ORDER). Purely
+    # presentational — never affects ingestion or status computation.
+    category: str = "other"
 
     def get_model(self):
         from django.apps import apps as django_apps
@@ -65,35 +68,169 @@ class HealthSyncType:
 
 
 # --------------------------------------------------------------------------- #
+# Categories — the grouping the Health Sync UI renders (ordered).             #
+# Purely presentational; add a category here + tag types below.               #
+# --------------------------------------------------------------------------- #
+CATEGORY_ORDER: list[tuple[str, str]] = [
+    ("activity", "Activity"),
+    ("heart_vitals", "Heart & Vitals"),
+    ("respiratory", "Respiratory"),
+    ("sleep", "Sleep & Recovery"),
+    ("body", "Body Measurements"),
+    ("mobility", "Mobility"),
+    ("nutrition", "Nutrition"),
+    ("hearing", "Hearing"),
+    ("mental", "Mental Wellbeing"),
+    ("workouts", "Workouts"),
+    ("other", "Other"),
+]
+CATEGORY_LABELS = dict(CATEGORY_ORDER)
+
+
+# --------------------------------------------------------------------------- #
 # The registry — the canonical list of Apple-Health-synced data types.        #
-# Add a type by adding a row here; every consumer updates automatically.       #
+# ONE row per metric type the ingest layer accepts                            #
+# (apps/mobile/views.process_health_metric ``handlers``). This list and that  #
+# dict must stay in agreement — enforced by                                   #
+# apps/health/tests/test_health_sync_registry_contract.py.                    #
+#                                                                             #
+# Types that share a model are distinguished by ``presence_filter`` (e.g.     #
+# StepsEntry holds steps/active_calories/distance/…; SleepEntry holds the      #
+# nightly rollup fields; MobilityEntry/HeartRateEventEntry/BodyCompositionEntry #
+# are field- or discriminator-keyed). Add a type by adding a row here; every  #
+# consumer (status, grouping, telemetry) updates automatically.               #
 # --------------------------------------------------------------------------- #
 HEALTH_SYNC_TYPES: list[HealthSyncType] = [
+    # ── Activity (StepsEntry daily rollup + fields) ───────────────────────── #
     HealthSyncType("steps", "Steps", "apps.health.models.StepsEntry", "logged_date",
                    unit="steps", presence_filter={"count__gt": 0}, stale_after_days=2,
-                   core=True),  # phone-native — should always be present
+                   core=True, category="activity"),  # phone-native — should always be present
     HealthSyncType("active_calories", "Active Calories", "apps.health.models.StepsEntry",
-                   "logged_date", unit="kcal", presence_filter={"calories_burned__gt": 0}, stale_after_days=2),
+                   "logged_date", unit="kcal", presence_filter={"calories_burned__gt": 0},
+                   stale_after_days=2, category="activity"),
+    HealthSyncType("resting_calories", "Resting Calories", "apps.health.models.StepsEntry",
+                   "logged_date", unit="kcal", presence_filter={"resting_calories__gt": 0},
+                   stale_after_days=2, category="activity"),
     HealthSyncType("distance", "Distance", "apps.health.models.StepsEntry", "logged_date",
-                   unit="mi", presence_filter={"distance_miles__gt": 0}, stale_after_days=2),
-    HealthSyncType("weight", "Weight", "apps.health.models.WeightEntry", "recorded_at",
-                   unit="lbs", stale_after_days=None),
-    HealthSyncType("sleep", "Sleep", "apps.health.models.SleepEntry", "sleep_date",
-                   unit="nights", stale_after_days=2),
+                   unit="mi", presence_filter={"distance_miles__gt": 0}, stale_after_days=2,
+                   category="activity"),
+    HealthSyncType("flights_climbed", "Flights Climbed", "apps.health.models.StepsEntry",
+                   "logged_date", unit="flights", presence_filter={"flights_climbed__gt": 0},
+                   stale_after_days=2, category="activity"),
+    HealthSyncType("exercise_minutes", "Exercise Minutes", "apps.health.models.StepsEntry",
+                   "logged_date", unit="min", presence_filter={"exercise_minutes__gt": 0},
+                   stale_after_days=2, category="activity"),
+    HealthSyncType("stand_hours", "Stand Hours", "apps.health.models.StepsEntry",
+                   "logged_date", unit="hours", presence_filter={"stand_hours__gt": 0},
+                   stale_after_days=2, category="activity"),
+
+    # ── Heart & Vitals ────────────────────────────────────────────────────── #
     HealthSyncType("heart_rate", "Heart Rate", "apps.health.models.HeartRateEntry", "recorded_at",
-                   unit="bpm", stale_after_days=2),
-    HealthSyncType("blood_glucose", "Blood Glucose", "apps.health.models.GlucoseEntry", "recorded_at",
-                   unit="mg/dL", stale_after_days=2),
-    HealthSyncType("blood_oxygen", "Blood Oxygen", "apps.health.models.BloodOxygenEntry", "recorded_at",
-                   unit="%", stale_after_days=3),
-    HealthSyncType("water", "Water", "apps.health.models.WaterEntry", "logged_date",
-                   unit="fl oz", stale_after_days=None),
+                   unit="bpm", stale_after_days=2, category="heart_vitals"),
+    HealthSyncType("hrv", "Heart Rate Variability", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="ms", presence_filter={"hrv_value__isnull": False}, stale_after_days=3,
+                   category="heart_vitals"),
+    HealthSyncType("vo2_max", "VO₂ Max", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="mL/kg/min", presence_filter={"vo2_max__isnull": False}, stale_after_days=None,
+                   category="heart_vitals"),
     HealthSyncType("blood_pressure", "Blood Pressure", "apps.health.models.BloodPressureEntry",
-                   "recorded_at", unit="mmHg", stale_after_days=None),
+                   "recorded_at", unit="mmHg", stale_after_days=None, category="heart_vitals"),
+    HealthSyncType("blood_oxygen", "Blood Oxygen", "apps.health.models.BloodOxygenEntry", "recorded_at",
+                   unit="%", stale_after_days=3, category="heart_vitals"),
+    HealthSyncType("blood_glucose", "Blood Glucose", "apps.health.models.GlucoseEntry", "recorded_at",
+                   unit="mg/dL", stale_after_days=2, category="heart_vitals"),
     HealthSyncType("body_temperature", "Body Temperature", "apps.health.models.BodyTemperatureEntry",
-                   "recorded_at", unit="°F", stale_after_days=None),
+                   "recorded_at", unit="°F", stale_after_days=None, category="heart_vitals"),
+    HealthSyncType("high_heart_rate_event", "High Heart Rate Events",
+                   "apps.health.models.HeartRateEventEntry", "recorded_at", unit="events",
+                   presence_filter={"event_type": "high_hr"}, stale_after_days=None,
+                   category="heart_vitals"),
+    HealthSyncType("low_heart_rate_event", "Low Heart Rate Events",
+                   "apps.health.models.HeartRateEventEntry", "recorded_at", unit="events",
+                   presence_filter={"event_type": "low_hr"}, stale_after_days=None,
+                   category="heart_vitals"),
+    HealthSyncType("irregular_rhythm_event", "Irregular Rhythm Events",
+                   "apps.health.models.HeartRateEventEntry", "recorded_at", unit="events",
+                   presence_filter={"event_type": "irregular_rhythm"}, stale_after_days=None,
+                   category="heart_vitals"),
+
+    # ── Respiratory ───────────────────────────────────────────────────────── #
+    HealthSyncType("respiratory_rate", "Respiratory Rate", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="breaths/min", presence_filter={"respiratory_rate__isnull": False},
+                   stale_after_days=3, category="respiratory"),
+
+    # ── Sleep & Recovery ──────────────────────────────────────────────────── #
+    HealthSyncType("sleep", "Sleep", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="nights", stale_after_days=2, category="sleep"),
+
+    # ── Body Measurements ─────────────────────────────────────────────────── #
+    HealthSyncType("weight", "Weight", "apps.health.models.WeightEntry", "recorded_at",
+                   unit="lbs", stale_after_days=None, category="body"),
+    HealthSyncType("body_fat", "Body Fat", "apps.health.models.WeightEntry", "recorded_at",
+                   unit="%", presence_filter={"body_fat_percentage__isnull": False},
+                   stale_after_days=None, category="body"),
+    HealthSyncType("lean_body_mass", "Lean Body Mass", "apps.health.models.WeightEntry", "recorded_at",
+                   unit="lbs", presence_filter={"lean_body_mass__isnull": False},
+                   stale_after_days=None, category="body"),
+    HealthSyncType("bmi", "Body Mass Index", "apps.health.models.BodyCompositionEntry",
+                   "measurement_date", unit="", presence_filter={"metric_name": "bmi"},
+                   stale_after_days=None, category="body"),
+    HealthSyncType("waist", "Waist Circumference", "apps.health.models.BodyCompositionEntry",
+                   "measurement_date", unit="in", presence_filter={"metric_name": "waist"},
+                   stale_after_days=None, category="body"),
+
+    # ── Mobility (MobilityEntry — field-keyed) ────────────────────────────── #
+    HealthSyncType("walking_speed", "Walking Speed", "apps.health.models.MobilityEntry", "metric_date",
+                   unit="mph", presence_filter={"walking_speed__isnull": False}, stale_after_days=None,
+                   category="mobility"),
+    HealthSyncType("step_length", "Step Length", "apps.health.models.MobilityEntry", "metric_date",
+                   unit="in", presence_filter={"step_length__isnull": False}, stale_after_days=None,
+                   category="mobility"),
+    HealthSyncType("walking_asymmetry", "Walking Asymmetry", "apps.health.models.MobilityEntry",
+                   "metric_date", unit="%", presence_filter={"walking_asymmetry__isnull": False},
+                   stale_after_days=None, category="mobility"),
+    HealthSyncType("double_support_time", "Double Support Time", "apps.health.models.MobilityEntry",
+                   "metric_date", unit="%", presence_filter={"double_support_time__isnull": False},
+                   stale_after_days=None, category="mobility"),
+    HealthSyncType("walking_steadiness", "Walking Steadiness", "apps.health.models.MobilityEntry",
+                   "metric_date", unit="", presence_filter={"walking_steadiness__gt": ""},
+                   stale_after_days=None, category="mobility"),
+    HealthSyncType("stair_ascent_speed", "Stair Ascent Speed", "apps.health.models.MobilityEntry",
+                   "metric_date", unit="ft/s", presence_filter={"stair_ascent_speed__isnull": False},
+                   stale_after_days=None, category="mobility"),
+    HealthSyncType("stair_descent_speed", "Stair Descent Speed", "apps.health.models.MobilityEntry",
+                   "metric_date", unit="ft/s", presence_filter={"stair_descent_speed__isnull": False},
+                   stale_after_days=None, category="mobility"),
+    HealthSyncType("six_min_walk", "Six-Minute Walk", "apps.health.models.MobilityEntry", "metric_date",
+                   unit="m", presence_filter={"six_min_walk_distance__isnull": False},
+                   stale_after_days=None, category="mobility"),
+
+    # ── Nutrition ─────────────────────────────────────────────────────────── #
+    HealthSyncType("water", "Water", "apps.health.models.WaterEntry", "logged_date",
+                   unit="fl oz", stale_after_days=None, category="nutrition"),
+    HealthSyncType("caffeine", "Caffeine", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="mg", presence_filter={"caffeine_mg__isnull": False}, stale_after_days=None,
+                   category="nutrition"),
+    HealthSyncType("dietary_nutrients", "Nutrition (Macros & Micros)",
+                   "apps.health.models.DietaryNutrientEntry", "metric_date", unit="",
+                   stale_after_days=None, category="nutrition"),
+
+    # ── Hearing ───────────────────────────────────────────────────────────── #
+    HealthSyncType("headphone_audio", "Headphone Audio", "apps.health.models.AudioExposureEntry",
+                   "metric_date", unit="dB", presence_filter={"headphone_level_db__isnull": False},
+                   stale_after_days=None, category="hearing"),
+    HealthSyncType("environmental_audio", "Environmental Audio", "apps.health.models.AudioExposureEntry",
+                   "metric_date", unit="dB", presence_filter={"environmental_level_db__isnull": False},
+                   stale_after_days=None, category="hearing"),
+
+    # ── Mental Wellbeing ──────────────────────────────────────────────────── #
+    HealthSyncType("mindful_minutes", "Mindful Minutes", "apps.health.models.SleepEntry", "sleep_date",
+                   unit="min", presence_filter={"mindful_minutes__isnull": False}, stale_after_days=None,
+                   category="mental"),
+
+    # ── Workouts ──────────────────────────────────────────────────────────── #
     HealthSyncType("workout", "Workouts", "apps.health.models.WorkoutSession", "date",
-                   unit="workouts", stale_after_days=None),
+                   unit="workouts", stale_after_days=None, category="workouts"),
 ]
 
 HEALTH_SYNC_TYPES_BY_KEY = {t.key: t for t in HEALTH_SYNC_TYPES}
@@ -130,7 +267,7 @@ def _type_status(user, t: HealthSyncType, now: datetime) -> dict:
 
     if latest is None or total == 0:
         return {
-            "key": t.key, "label": t.label, "unit": t.unit,
+            "key": t.key, "label": t.label, "unit": t.unit, "category": t.category,
             "status": STATUS_NO_DATA, "last_record_at": None,
             "recent_count": 0, "total_count": 0, "stale_days": None,
             "message": "No records received",
@@ -150,7 +287,7 @@ def _type_status(user, t: HealthSyncType, now: datetime) -> dict:
         message = f"{recent} record{'s' if recent != 1 else ''} in the last {RECENT_WINDOW_DAYS} days"
 
     return {
-        "key": t.key, "label": t.label, "unit": t.unit,
+        "key": t.key, "label": t.label, "unit": t.unit, "category": t.category,
         "status": status,
         "last_record_at": last_dt.isoformat() if last_dt else None,
         "recent_count": recent, "total_count": total,
@@ -319,6 +456,23 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
     data_types = [_type_status(user, t, now) for t in HEALTH_SYNC_TYPES]
     by_key = {d["key"]: d for d in data_types}
 
+    # Grouped by category for the redesigned Health Sync UI (ordered; a category
+    # with no registered types is omitted). Presentational only — the flat
+    # ``data_types`` list remains the source of truth for existing consumers.
+    categories = []
+    for cat_key, cat_label in CATEGORY_ORDER:
+        cat_types = [d for d in data_types if d.get("category") == cat_key]
+        if not cat_types:
+            continue
+        categories.append({
+            "key": cat_key,
+            "label": cat_label,
+            "types": cat_types,
+            "active_count": sum(1 for d in cat_types if d["status"] != STATUS_NO_DATA),
+            "total_count": len(cat_types),
+            "stale_count": sum(1 for d in cat_types if d["status"] == STATUS_STALE),
+        })
+
     # Active = any type that has ever produced Apple-Health data.
     active = [d for d in data_types if d["status"] != STATUS_NO_DATA]
 
@@ -373,6 +527,7 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
         ),
         "issues": issues,
         "data_types": data_types,
+        "categories": categories,
         "last_sync_summary": _last_sync_summary(run),
         # Temporary glass-box: pinpoint exactly where Steps disappear.
         "diagnostics": {"steps": steps_pipeline_diagnostics(user, now)},

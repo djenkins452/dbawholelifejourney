@@ -1,7 +1,15 @@
 # WLJ HealthKit Coverage Audit & Roadmap
 
-**Status:** Investigation / decision input — *no implementation performed.*
+**Status:** Investigation → **Phase A in progress.** Telemetry parity + CI agreement contract landed 2026-07-15.
 **Date:** 2026-07-15
+
+> **As-built progress log**
+> - **2026-07-15 — Phase A #1 (telemetry parity + categories + CI contract):** `HEALTH_SYNC_TYPES` expanded
+>   12 → 37 so every ingested type has freshness/health telemetry; added category grouping (10 categories) as the
+>   Health Sync UI foundation; hoisted the canonical `HEALTH_METRIC_HANDLERS` map; added
+>   `test_health_sync_registry_contract` enforcing handler-map ↔ registry agreement in CI. Closes §2c gap #1.
+>   *Remaining Phase A:* iOS producer gaps (waist, height), characteristic reads (DOB/sex/blood type), sleep-stage
+>   end-to-end proof, grouped Health Sync UI rendering.
 **Author:** Chief Architect (audit)
 **Architectural goal (stated):** *"WLJ should ingest every meaningful HealthKit data type that HealthKit allows for read access."* The product may choose not to surface or actively use a metric today, but it should be available as **deterministic truth** for future capabilities whenever practical.
 

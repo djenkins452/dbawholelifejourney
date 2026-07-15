@@ -700,50 +700,12 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
                     continue
         metric["_sample_dt"] = sample_dt
 
-    # Route to appropriate handler
-    handlers = {
-        "steps": process_steps_metric,
-        "weight": process_weight_metric,
-        "sleep": process_sleep_metric,
-        "heart_rate": process_heart_rate_metric,
-        "blood_glucose": process_blood_glucose_metric,
-        "blood_oxygen": process_blood_oxygen_metric,
-        "water": process_water_metric,
-        "active_calories": process_active_calories_metric,
-        "distance": process_distance_metric,
-        "resting_calories": process_resting_calories_metric,
-        "flights_climbed": process_flights_climbed_metric,
-        "exercise_minutes": process_exercise_minutes_metric,
-        "stand_hours": process_stand_hours_metric,
-        "body_fat": process_body_fat_metric,
-        "bmi": process_bmi_metric,
-        "waist": process_waist_metric,
-        "workout": process_workout_metric,
-        "lean_body_mass": process_lean_body_mass_metric,
-        "respiratory_rate": process_respiratory_rate_metric,
-        "hrv": process_hrv_metric,
-        "vo2_max": process_vo2_max_metric,
-        "caffeine": process_caffeine_metric,
-        "mindful_minutes": process_mindful_minutes_metric,
-        "blood_pressure": process_blood_pressure_metric,
-        "body_temperature": process_body_temperature_metric,
-        "walking_asymmetry": process_mobility_metric,
-        "walking_steadiness": process_mobility_metric,
-        "walking_speed": process_mobility_metric,
-        "step_length": process_mobility_metric,
-        "double_support_time": process_mobility_metric,
-        "stair_ascent_speed": process_mobility_metric,
-        "stair_descent_speed": process_mobility_metric,
-        "six_min_walk": process_mobility_metric,
-        "high_heart_rate_event": process_heart_rate_event_metric,
-        "low_heart_rate_event": process_heart_rate_event_metric,
-        "irregular_rhythm_event": process_heart_rate_event_metric,
-        "headphone_audio": process_audio_exposure_metric,
-        "environmental_audio": process_audio_exposure_metric,
-        "dietary_nutrients": process_dietary_nutrient_metric,
-    }
-
-    handler = handlers.get(metric_type)
+    # Route to appropriate handler. The canonical metric_type -> handler map is
+    # HEALTH_METRIC_HANDLERS (module level, defined after the handlers). It is kept
+    # in agreement with the Health Sync registry (HEALTH_SYNC_TYPES) by
+    # apps/health/tests/test_health_sync_registry_contract.py — a new metric type
+    # must be added to BOTH or CI fails.
+    handler = HEALTH_METRIC_HANDLERS.get(metric_type)
     if not handler:
         raise ValueError(f"Unknown metric type: {metric_type}")
 
@@ -2898,6 +2860,58 @@ def process_dietary_nutrient_metric(user, metric_date, source, sync_id, data):
         **field_updates,
     )
     return "created"
+
+
+# =============================================================================
+# Canonical metric_type -> handler map
+# =============================================================================
+# THE single source of truth for which HealthKit metric types the ingest layer
+# accepts. process_health_metric() dispatches through this. It must stay in
+# agreement with the Health Sync registry (apps.health.services.health_sync_status
+# .HEALTH_SYNC_TYPES) — enforced by
+# apps/health/tests/test_health_sync_registry_contract.py. Add a new metric type
+# to BOTH this map and that registry (and the iOS producer) in the same change.
+HEALTH_METRIC_HANDLERS = {
+    "steps": process_steps_metric,
+    "weight": process_weight_metric,
+    "sleep": process_sleep_metric,
+    "heart_rate": process_heart_rate_metric,
+    "blood_glucose": process_blood_glucose_metric,
+    "blood_oxygen": process_blood_oxygen_metric,
+    "water": process_water_metric,
+    "active_calories": process_active_calories_metric,
+    "distance": process_distance_metric,
+    "resting_calories": process_resting_calories_metric,
+    "flights_climbed": process_flights_climbed_metric,
+    "exercise_minutes": process_exercise_minutes_metric,
+    "stand_hours": process_stand_hours_metric,
+    "body_fat": process_body_fat_metric,
+    "bmi": process_bmi_metric,
+    "waist": process_waist_metric,
+    "workout": process_workout_metric,
+    "lean_body_mass": process_lean_body_mass_metric,
+    "respiratory_rate": process_respiratory_rate_metric,
+    "hrv": process_hrv_metric,
+    "vo2_max": process_vo2_max_metric,
+    "caffeine": process_caffeine_metric,
+    "mindful_minutes": process_mindful_minutes_metric,
+    "blood_pressure": process_blood_pressure_metric,
+    "body_temperature": process_body_temperature_metric,
+    "walking_asymmetry": process_mobility_metric,
+    "walking_steadiness": process_mobility_metric,
+    "walking_speed": process_mobility_metric,
+    "step_length": process_mobility_metric,
+    "double_support_time": process_mobility_metric,
+    "stair_ascent_speed": process_mobility_metric,
+    "stair_descent_speed": process_mobility_metric,
+    "six_min_walk": process_mobility_metric,
+    "high_heart_rate_event": process_heart_rate_event_metric,
+    "low_heart_rate_event": process_heart_rate_event_metric,
+    "irregular_rhythm_event": process_heart_rate_event_metric,
+    "headphone_audio": process_audio_exposure_metric,
+    "environmental_audio": process_audio_exposure_metric,
+    "dietary_nutrients": process_dietary_nutrient_metric,
+}
 
 
 # =============================================================================

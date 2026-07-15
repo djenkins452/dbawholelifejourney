@@ -3,8 +3,39 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (docs(health): HealthKit coverage audit + roadmap — investigation only, no data types added)
+# Last Updated: 2026-07-15 (feat(health): Phase A — HealthKit telemetry parity + categories + CI agreement contract)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): Phase A — HealthKit Sync telemetry parity, categories & CI agreement contract
+
+**Closes the #1 gap from the coverage audit:** ~27 ingested HealthKit metric types had NO freshness/health
+telemetry — the same blind-spot class as the Steps investigation. The Health Sync registry now covers **every**
+ingested type.
+
+- **`HEALTH_SYNC_TYPES` expanded 12 → 37** (`apps/health/services/health_sync_status.py`) — one row per accepted
+  ingest `metric_type`. Types sharing a model are distinguished by `presence_filter` (StepsEntry rollup fields;
+  SleepEntry nightly rollup for hrv/vo2/respiratory/caffeine/mindful; MobilityEntry field-keyed; HeartRateEventEntry
+  by `event_type`; BodyCompositionEntry by `metric_name`). Every row carries a `category`.
+- **Category grouping** — new `CATEGORY_ORDER` (Activity, Heart & Vitals, Respiratory, Sleep & Recovery, Body
+  Measurements, Mobility, Nutrition, Hearing, Mental Wellbeing, Workouts). `build_health_sync_status` now returns a
+  grouped `categories` structure (additive; the flat `data_types` list is unchanged for existing consumers). This
+  is the data-driven foundation for the redesigned Health Sync UI.
+- **Canonical handler map hoisted** — the per-request `handlers` dict in `process_health_metric` is now the
+  module-level `HEALTH_METRIC_HANDLERS` (`apps/mobile/views.py`), the single source of truth for accepted types.
+- **CI agreement contract** — `apps/health/tests/test_health_sync_registry_contract.py`: asserts
+  `HEALTH_METRIC_HANDLERS` ↔ `HEALTH_SYNC_TYPES` are the SAME set, every registry row resolves against its real
+  model (model/date_field/presence_filter/category), and `build_health_sync_status` executes across all 37 types
+  for a real user. Future drift now fails CI — a new metric type must be added to both the handler map and the
+  registry.
+
+Every source truthfully reports healthy / idle / stale / no_data (per-type persisted status) and
+imported / no_changes / failed (per-run results) — no fabricated state.
+
+**Verification:** `test_health_sync_registry_contract` + `test_health_sync_status` (14) OK;
+`test_request_path_safety_contract` (4) OK; `manage.py check` clean; no migration (pure Python, no model change).
+
+**Files:** `apps/health/services/health_sync_status.py`, `apps/mobile/views.py`,
+`apps/health/tests/test_health_sync_registry_contract.py`.
 
 ## 2026-07-14 — fix(ios): add HealthSyncStatus.swift to the Xcode build target (compile fix)
 

@@ -234,15 +234,19 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
 **Truth states:** every source reports `healthy / idle / stale / no_data` (per-type persisted status) and
 `imported / no_changes / failed` (per-run results). No fabricated state; absence is never reported as healthy.
 
-### Code-complete, awaiting **on-device** verification
-- **iOS height + waist** producers (`HealthKitManager.swift`). Server side is tested; the Swift mirrors the
-  existing `fetchBMI` pattern and the `value`+`unit` init but has **not been compiled/run on device** (no Xcode
-  in this environment). See §9 checklist.
+### Compiles clean; awaiting **on-device HealthKit runtime** verification
+> **Swift IS verifiable in this environment** (correcting an earlier note): the full app builds via
+> `xcodebuild -scheme WLJWrapper -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO`
+> → **BUILD SUCCEEDED**. So all producers below are **compile-verified** (identifiers, availability at the
+> iOS-17 target, and syntax are correct). What genuinely still needs a device is the HealthKit *runtime*:
+> the authorization prompt and whether real samples flow (HealthKit read-authorization is intentionally opaque
+> and cannot be asserted off-device). Every new iOS producer from here is simulator-built before commit.
+- **iOS height + waist** producers (`HealthKitManager.swift`) — compile clean; mirror the `fetchBMI` pattern.
 - **iOS activity long-tail** producers (cycling / swimming / wheelchair / snow-sports distance, swim strokes,
-  Move time, wheelchair pushes). Each reuses the proven `fetchDailySum` helper (one line + a read-type insert),
-  all identifiers ≤ iOS 11.2 so no `#available` guard is needed at the iOS-17 deployment target. Server ingest is
-  tested; the Swift is **not device-compiled here**. Deterministically verified: the Django↔Swift agreement
-  contract confirms every registry identifier is read by the app.
+  Move time, wheelchair pushes) — compile clean. Each reuses the proven `fetchDailySum` helper (one line + a
+  read-type insert); all identifiers ≤ iOS 11.2 so no `#available` guard is needed at the iOS-17 target. Also
+  deterministically guarded by the Django↔Swift agreement + producer contracts (every registry identifier is
+  authorized AND has a `metricType` producer).
 
 ### Remaining (not yet implemented — honest status)
 - **Characteristics (DOB/sex/blood type):** needs a profile destination + additive migration + a small ingest

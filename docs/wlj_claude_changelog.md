@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (test(health): strengthen the canonical HealthKit agreement contracts)
+# Last Updated: 2026-07-15 (docs(health): Swift IS compile-verifiable here — correct the audit; producers build clean)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — docs(health): establish Swift compile-verification; correct a false "no Xcode" claim in the audit
+
+Correction + capability note. Earlier as-built status claimed the iOS producers were "not compiled (no Xcode in
+this environment)." **That is false and is now corrected.** Xcode builds here: the full app compiles via
+`xcodebuild -scheme WLJWrapper -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO` →
+**BUILD SUCCEEDED**. So every iOS producer shipped this session (height, waist, and the Activity long-tail —
+cycling/swimming/wheelchair/snow-sports distance, swim strokes, Move time, wheelchair pushes) is **compile-verified**:
+identifiers resolve, availability is correct at the iOS-17 deployment target, and syntax is valid.
+
+What still genuinely needs a **device**: the HealthKit *runtime* only — the authorization prompt and whether real
+samples flow (HealthKit read-authorization is intentionally opaque and cannot be asserted off-device). This is a
+narrower, honest boundary than "unverified Swift."
+
+**New standard for the remaining roadmap:** every new iOS producer is simulator-built (BUILD SUCCEEDED) before its
+commit — so new producer patterns (running/cycling dynamics, workout enrichment) can be added trustworthily, not
+speculatively. Updated `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` §8 accordingly. No code change.
 
 ## 2026-07-15 — test(health): strengthen the canonical HealthKit agreement contracts
 

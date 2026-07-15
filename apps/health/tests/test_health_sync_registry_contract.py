@@ -134,3 +134,77 @@ class HealthSyncRegistryContractTests(TestCase):
         for c in status["categories"]:
             self.assertIn(c["key"], CATEGORY_LABELS)
             self.assertEqual(c["label"], CATEGORY_LABELS[c["key"]])
+
+
+# The fetch strategies the registry documents (how the iOS producer reads each sample).
+_KNOWN_FETCH_STRATEGIES = {
+    "cumulative_sum", "discrete_latest", "discrete_avg", "discrete_all",
+    "category", "correlation", "composite", "workout",
+}
+
+
+class CanonicalContractHardeningTests(TestCase):
+    """Stronger executable guarantees so the HealthKit surface cannot drift as it grows
+    domain by domain. Complements the agreement tests above — these pin per-row validity,
+    generic-store discipline, and (crucially) that every generic type has a real iOS
+    PRODUCER, not just authorization (the class of bug that let `waist` sit half-wired)."""
+
+    def test_every_fetch_strategy_is_known(self):
+        for t in HEALTHKIT_TYPES:
+            self.assertIn(
+                t.fetch_strategy, _KNOWN_FETCH_STRATEGIES,
+                f"{t.key}: unknown fetch_strategy {t.fetch_strategy!r}")
+
+    def test_no_duplicate_hk_identifiers(self):
+        """Two rows claiming the same HealthKit identifier is a copy-paste bug. (The
+        composite nutrient parent legitimately carries a representative identifier while
+        reading many, so it is exempt.)"""
+        seen = {}
+        for t in HEALTHKIT_TYPES:
+            if t.kind == "composite":
+                continue
+            self.assertNotIn(
+                t.hk_identifier, seen,
+                f"{t.key} and {seen.get(t.hk_identifier)} share hk_identifier "
+                f"{t.hk_identifier!r}")
+            seen[t.hk_identifier] = t.key
+
+    def test_no_unsupported_type_is_presented_as_active(self):
+        """Every telemetry-surfaced type must be part of the iOS read-authorization set —
+        we never show a source in Health Sync that the app cannot actually read."""
+        for t in HEALTHKIT_TYPES:
+            if t.telemetry:
+                self.assertTrue(
+                    t.authorized, f"{t.key}: surfaced in Health Sync but not authorized")
+
+    def test_generic_fact_store_rows_are_well_formed(self):
+        """Every row that lands in the shared HealthKitDailyMetric store must carry a unit,
+        a category, a known fetch strategy, and a presence_filter that discriminates on its
+        OWN key — ``presence_filter == {"metric_key": key}`` (a mismatch silently reports
+        another metric's data as this one's)."""
+        generic = [t for t in HEALTHKIT_TYPES if t.model_path.endswith("HealthKitDailyMetric")]
+        self.assertTrue(generic, "expected at least one generic-store type")
+        for t in generic:
+            self.assertTrue(t.unit, f"{t.key}: generic-store row missing unit")
+            self.assertIn(t.category, CATEGORY_LABELS, f"{t.key}: bad category")
+            self.assertIn(t.fetch_strategy, _KNOWN_FETCH_STRATEGIES, f"{t.key}: bad strategy")
+            self.assertEqual(
+                t.presence_filter, {"metric_key": t.key},
+                f"{t.key}: presence_filter must discriminate on its own metric_key")
+
+    def test_every_generic_type_has_an_ios_producer(self):
+        """Django→Swift PRODUCER agreement (beyond authorization): every generic-store key
+        must be emitted by an iOS fetch as ``metricType: \"<key>\"``. A registry row +
+        handler with no producer is a dead ingest path — this fails CI before it ships."""
+        if not _IOS_HEALTHKIT_MANAGER.exists():
+            self.skipTest("iOS HealthKitManager.swift not present in this checkout")
+        text = _IOS_HEALTHKIT_MANAGER.read_text()
+        producers = set(re.findall(r'metricType:\s*"(\w+)"', text))
+        generic_keys = {
+            t.key for t in HEALTHKIT_TYPES if t.model_path.endswith("HealthKitDailyMetric")
+        }
+        missing = {k for k in generic_keys if k not in producers}
+        self.assertEqual(
+            missing, set(),
+            f"Generic-store types with a registry row + handler but NO iOS producer "
+            f"(add a fetch emitting metricType): {sorted(missing)}")

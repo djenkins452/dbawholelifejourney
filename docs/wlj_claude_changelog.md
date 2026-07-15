@@ -3,8 +3,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Activity long-tail — wheelchair + snow-sports distance & wheelchair pushes)
+# Last Updated: 2026-07-15 (test(health): strengthen the canonical HealthKit agreement contracts)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — test(health): strengthen the canonical HealthKit agreement contracts
+
+Hardens the executable CI contracts that keep the HealthKit surface from drifting as it expands domain by domain
+(the "CANONICAL CONTRACTS" guarantees). New `CanonicalContractHardeningTests` in
+`apps/health/tests/test_health_sync_registry_contract.py`, all pure registry/file checks:
+
+- **`test_every_generic_type_has_an_ios_producer`** — the important one. Beyond *authorization*, every generic
+  fact-store key must be emitted by an iOS fetch as `metricType: "<key>"`. A registry row + handler with no
+  producer is a dead ingest path — exactly the half-wired class that let `waist` sit unused before. Now CI-caught.
+- **`test_generic_fact_store_rows_are_well_formed`** — every `HealthKitDailyMetric` row carries a unit, valid
+  category, known fetch strategy, and `presence_filter == {"metric_key": key}` (a mismatch would silently report
+  another metric's data as this one's).
+- **`test_no_duplicate_hk_identifiers`** — two rows claiming the same HealthKit identifier is a copy-paste bug
+  (composite nutrient parent exempt).
+- **`test_no_unsupported_type_is_presented_as_active`** — every telemetry-surfaced type is in the iOS
+  read-authorization set; never show a Health Sync source the app cannot read.
+- **`test_every_fetch_strategy_is_known`** — no row carries an unrecognized `fetch_strategy`.
+
+These guard every future domain addition (Vitals, Body, Nutrition, …) so a missing producer, malformed generic
+row, or drift fails CI rather than shipping. 11 contract tests green; no code/model change. This is the
+foundation the remaining iOS-producer work plugs into once compiled on device.
 
 ## 2026-07-15 — feat(health): Activity domain — wheelchair distance, wheelchair pushes, snow-sports distance
 

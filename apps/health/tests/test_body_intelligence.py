@@ -257,8 +257,9 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
     """A Current Snapshot card either shows the latest deterministic truth OR a read-only
     state explaining why it's empty and where the value comes from — never a bare dash that
     reads as "broken". The rule is uniform across every metric (no per-metric special-case),
-    and the provenance is accurate to WLJ's actual ingestion (Apple Health syncs weight /
-    body fat / lean mass / waist; NOT fat mass or skeletal muscle)."""
+    and the wording is PLATFORM-NEUTRAL — it describes WLJ's current knowledge, never one
+    vendor. Metrics a connected health source can deliver (weight / body fat / lean mass /
+    waist) read differently from manual-only metrics (fat mass / skeletal muscle)."""
 
     def setUp(self):
         self.user = create_test_user(email="emptystate@example.com")
@@ -297,27 +298,42 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
         self.assertIsNone(card["value"])
         self.assertIsNotNone(card["empty"])
         self.assertEqual(card["empty"]["headline"], "Not yet logged")
-        self.assertIn("isn't available from Apple Health", card["empty"]["source_note"])
+        self.assertEqual(
+            card["empty"]["source_note"],
+            "None of your connected health sources currently provide this measurement.",
+        )
         self.assertEqual(
             card["empty"]["entry_paths"],
             ["Manual Body Composition entry", "Your Chief of Staff"],
         )
 
-    def test_fat_mass_empty_state_marks_apple_health_unavailable(self):
-        """Fat mass has no Apple Health quantity either — same honest note, not special-cased."""
+    def test_manual_only_metric_note_is_platform_neutral(self):
+        """Fat mass is manual-only too — same honest note, not special-cased, and it names NO
+        vendor (platform-neutral)."""
         by_key, _ = self._cards_by_key()
         card = by_key["fat_mass"]
         self.assertIsNotNone(card["empty"])
-        self.assertIn("isn't available from Apple Health", card["empty"]["source_note"])
+        self.assertEqual(
+            card["empty"]["source_note"],
+            "None of your connected health sources currently provide this measurement.",
+        )
 
-    def test_apple_health_metric_empty_state_says_it_syncs(self):
-        """An unlogged metric Apple Health DOES provide (lean mass) explains it usually syncs
-        — proving the provenance is per-metric-accurate, not a blanket message."""
+    def test_connected_source_metric_note_is_platform_neutral(self):
+        """An unlogged metric a connected source CAN provide (lean mass) reads differently —
+        proving the note is per-metric-accurate — and still names no specific ecosystem."""
         by_key, _ = self._cards_by_key()  # nothing logged → lean_mass empty
         card = by_key["lean_mass"]
         self.assertIsNotNone(card["empty"])
-        self.assertIn("syncs from Apple Health", card["empty"]["source_note"])
-        self.assertNotIn("not available", card["empty"]["source_note"])
+        self.assertEqual(card["empty"]["source_note"], "No reading available yet.")
+
+    def test_no_apple_or_vendor_wording_anywhere(self):
+        """Platform neutrality guard: no Current Snapshot empty state names a specific vendor."""
+        _, cards = self._cards_by_key()
+        banned = ["apple", "healthkit", "google", "samsung", "fitbit", "garmin", "oura", "whoop"]
+        for card in cards:
+            note = ((card["empty"] or {}).get("source_note") or "").lower()
+            for word in banned:
+                self.assertNotIn(word, note, f"{card['key']} note names a vendor: {note!r}")
 
     def test_logged_metric_flips_out_of_empty_state(self):
         today = timezone.now().date()
@@ -336,7 +352,8 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
         resp = c.get(reverse("health:body_intelligence"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Not yet logged")
-        self.assertContains(resp, "available from Apple Health")
+        self.assertContains(resp, "None of your connected health sources currently provide")
+        self.assertNotContains(resp, "Apple Health")
         self.assertContains(resp, "Manual Body Composition entry")
         self.assertContains(resp, "Your Chief of Staff")
         # Populated waist card still renders its value + unit unchanged.

@@ -3,8 +3,32 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Phase A gap closure — Height + Waist HealthKit producers + Height ingest)
+# Last Updated: 2026-07-15 (refactor(body): Current Snapshot empty-state wording is platform-neutral)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — refactor(body): Current Snapshot empty-state wording is platform-neutral (no vendor names)
+
+Follow-up to the Current Snapshot empty-state feature: the read-only "why is this empty?" wording no longer names
+a specific health platform. WLJ is platform-neutral — a user may connect Apple Health, Google Health Connect,
+Samsung Health, Fitbit, Garmin, Oura, Whoop, a direct integration, or a future WLJ source — so a card must describe
+**WLJ's own current knowledge**, never one vendor's capabilities.
+
+**Wording change (`apps/health/services/body_intelligence.py`):**
+- "Usually syncs from Apple Health — none has synced yet." → **"No reading available yet."**
+- "This metric isn't available from Apple Health." → **"None of your connected health sources currently provide this measurement."**
+- Renamed the provenance flag `apple_health` → `from_connected_source` (whether ANY connected health source can
+  deliver the metric today) and updated the doc comment to be ecosystem-agnostic. The per-metric distinction is
+  unchanged (weight / body fat / lean mass / waist can arrive from a connected source; fat mass + skeletal muscle
+  are manual/CoS-only). No behavior change beyond the copy; the deterministic card structure is identical.
+
+**Tests (`apps/health/tests/test_body_intelligence.py`):** updated the empty-state assertions to the neutral copy
+and added a **platform-neutrality guard** (`test_no_apple_or_vendor_wording_anywhere`) that fails if any Current
+Snapshot empty-state note contains a vendor name (apple/healthkit/google/samsung/fitbit/garmin/oura/whoop). The
+view-render test now also asserts the page contains no "Apple Health" wording.
+
+**Verified:** live trace shows Skeletal Muscle → "None of your connected health sources currently provide this
+measurement."; `manage.py check` clean; `makemigrations --check` → no changes; 77 targeted tests pass
+(`test_body_intelligence`, `test_body_composition_snapshot`, `test_body_story`).
 
 ## 2026-07-15 — feat(health): Phase A gap closure — Height + Waist Circumference HealthKit ingestion
 

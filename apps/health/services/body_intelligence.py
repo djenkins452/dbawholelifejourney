@@ -478,19 +478,23 @@ CURRENT_SNAPSHOT_CARDS = [
 ]
 
 #: Per-metric provenance — the ONE place that answers "where does this value come from?" for
-#: an unlogged card. Facts about WLJ's OWN ingestion, verified against the HealthKit handler
-#: map (``apps/mobile/views.py`` ``process_health_metric``) and the manual Body Composition
-#: form. ``apple_health`` = whether Apple Health/HealthKit actually syncs the metric: weight,
-#: body_fat, lean_body_mass, and waist have handlers; ``fat_mass`` and ``skeletal_muscle_mass``
-#: have NONE — Apple Health exposes no such quantity (fat mass is derived; skeletal muscle mass
-#: is not a HealthKit type). ``entry_paths`` = the ways a user can supply the value TODAY.
+#: an unlogged card. Facts about WLJ's OWN ingestion, PLATFORM-NEUTRAL: the wording describes
+#: the state of WLJ's truth, never one vendor's capabilities (a user may connect Apple Health,
+#: Google Health Connect, Samsung Health, Fitbit, Garmin, Oura, Whoop, a direct integration, or
+#: a future WLJ source). ``from_connected_source`` = whether ANY connected health source can
+#: deliver this metric to WLJ today. Verified against the current sync handler map
+#: (``apps/mobile/views.py`` ``process_health_metric``) + the manual Body Composition form:
+#: weight / body fat / lean mass / waist can arrive from a connected source; ``fat_mass`` and
+#: ``skeletal_muscle_mass`` cannot (no connected ecosystem exposes them — fat mass is derived,
+#: skeletal muscle mass is not a standard synced quantity), so they are manual/CoS-only today.
+#: ``entry_paths`` = the ways a user can supply the value TODAY.
 CURRENT_SNAPSHOT_PROVENANCE = {
-    "weight": {"apple_health": True, "entry_paths": ["Manual weigh-in", "Your Chief of Staff"]},
-    "body_fat_pct": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
-    "fat_mass": {"apple_health": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
-    "lean_mass": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
-    "skeletal_muscle_mass": {"apple_health": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
-    "waist": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "weight": {"from_connected_source": True, "entry_paths": ["Manual weigh-in", "Your Chief of Staff"]},
+    "body_fat_pct": {"from_connected_source": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "fat_mass": {"from_connected_source": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "lean_mass": {"from_connected_source": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "skeletal_muscle_mass": {"from_connected_source": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "waist": {"from_connected_source": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
 }
 
 
@@ -499,9 +503,9 @@ def _current_snapshot_cards(current):
 
     Each card is either POPULATED (``value`` is set → the template renders value + unit,
     unchanged from before) or EMPTY (``value is None`` → ``empty`` carries a deterministic,
-    read-only explanation: a "Not yet logged" headline, whether Apple Health provides the
-    metric, and the entry paths that CAN supply it today). No per-metric special-casing; the
-    same rule produces every card.
+    read-only explanation: a "Not yet logged" headline, a PLATFORM-NEUTRAL note about WLJ's
+    current knowledge, and the entry paths that CAN supply it today). No per-metric
+    special-casing; the same rule produces every card.
     """
     cur = current or {}
     cards = []
@@ -511,14 +515,15 @@ def _current_snapshot_cards(current):
         empty = None
         if value is None:
             prov = CURRENT_SNAPSHOT_PROVENANCE.get(
-                key, {"apple_health": False, "entry_paths": []}
+                key, {"from_connected_source": False, "entry_paths": []}
             )
             empty = {
                 "headline": "Not yet logged",
+                # Platform-neutral: describe WLJ's truth, not any one ecosystem's capability.
                 "source_note": (
-                    "Usually syncs from Apple Health — none has synced yet."
-                    if prov["apple_health"]
-                    else "This metric isn't available from Apple Health."
+                    "No reading available yet."
+                    if prov["from_connected_source"]
+                    else "None of your connected health sources currently provide this measurement."
                 ),
                 "entry_paths": prov["entry_paths"],
             }

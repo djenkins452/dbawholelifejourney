@@ -260,11 +260,31 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
   `source`. Whether that is desired (scale precision) or a defect (clobbering a user correction) is a genuine
   product+data call with real blast radius on weight history — **investigate and decide before mutating**
   (do not speculatively change health-data dedup). Characterization test + decision needed.
+- **Workouts — safe enrichment (ready, no decision needed):** the workout ingest already captures activity type,
+  duration, energy, distance, avg HR, start/end, `sync_id` dedup, AND manual-overlap merge. Two **additive**
+  fields remain (compile-verifiable now): `is_indoor` (from `HKMetadataKeyIndoorWorkout`) and `provenance_source`
+  (the real `workout.sourceRevision.source.name` — "Apple Watch" / "Strava" / "Nike Run Club" — instead of the
+  hardcoded `"apple_health"`). Purely additive (nullable field + Swift read + handler store); **does not change
+  dedup behavior**, so no blast radius. Next Workouts milestone.
+- **Workouts — cross-source dedup (OPEN PRODUCT DECISION — Danny):** `sync_id` is `workout-<startEpoch>`, deduped
+  per `(user, sync_id)`. When the SAME real run is written to HealthKit by more than one source (Apple Watch **and**
+  Strava/Nike), those are distinct HKWorkout samples. Depending on start-time collision they either overwrite each
+  other or create **duplicate** sessions. Deterministically resolving this requires a **source-precedence rule**
+  (which source wins) or a merge policy — a product call with real blast radius on workout history, directly
+  analogous to the weight source-precedence decision (commit `43b70b21`). **Options:** (a) prefer Apple Watch over
+  third-party, first-writer wins; (b) prefer the richest record (has distance/HR/route); (c) keep all, tag
+  provenance, dedupe only exact `HKWorkout.uuid`. **Recommendation:** ship `provenance_source` first (above) so the
+  data to decide exists, then choose (a) or (b). **Not implemented — awaiting decision** (do not silently drop a
+  user's workouts). Note: switching `sync_id` to `HKWorkout.uuid` would re-duplicate existing history on next sync,
+  so any change needs a reconciliation migration.
 - **Activity dynamics (running/cycling form):** running speed/power/stride/vertical-oscillation/ground-contact
-  (iOS 16+) and cycling speed/power/cadence + physical-effort (iOS 17+) are all readable at the iOS-17 target with
-  no `#available` guard, and fit the generic store. They are **discrete daily-average** metrics, so they need a
-  generic `fetchDailyAverage` iOS helper (the analogue of `fetchDailySum`) — the next Activity batch. Deferred from
-  this milestone only to keep it to the already-proven cumulative-sum producer path (trustworthy over speculative).
+  (iOS 16+) and cycling speed/power/cadence + physical-effort (iOS 17+) are readable at the iOS-17 target with no
+  `#available` guard. **Architecture caveat:** these are largely **workout-scoped**, high-frequency samples — a
+  daily average is lossy and risks the "force every type into the generic store" anti-pattern. Correct home is
+  per-workout (with the Workouts enrichment), not a daily `HealthKitDailyMetric` fact. A daily generic representation
+  is acceptable only for the few that occur outside workouts (e.g. ambient running speed from the phone). Decide
+  per-metric during the Workouts milestone; needs either per-workout series storage or a generic `fetchDailyAverage`
+  helper for the genuinely-daily subset. Deferred deliberately, not skipped.
 - **Phases B–E:** each new type needs a **paired iOS producer**; a Django-only handler would be a dead path
   (exactly how `waist` sat before this work). Best executed as batched domain phases per §5, each a single
   deliberate iOS auth-set revision + registry rows + tests. The registry + contract + category infra built here

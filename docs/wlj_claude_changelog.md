@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (docs(health): Swift IS compile-verifiable here — correct the audit; producers build clean)
+# Last Updated: 2026-07-15 (docs(health): Workouts domain — scope enrichment + surface cross-source dedup decision)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — docs(health): Workouts domain — enrichment scope + cross-source dedup product decision
+
+Investigation of the Workouts portion of Domain 1 (traced Swift `fetchWorkouts` → `process_workout_metric` →
+`WorkoutSession`). Finding: workout ingest is already substantial — activity type, duration, energy, distance, avg
+HR, start/end, `sync_id` dedup, and a manual-overlap merge (the Apple-Health-vs-WLJ-created case). Documented in
+`WLJ_HEALTHKIT_COVERAGE_AUDIT.md` §8:
+
+- **Ready, additive (no decision):** `is_indoor` (`HKMetadataKeyIndoorWorkout`) + `provenance_source` (the real
+  `sourceRevision.source.name` — "Apple Watch"/"Strava" — vs the hardcoded `"apple_health"`). Nullable field + Swift
+  read + handler store; no dedup-behavior change → no blast radius. Queued as the next Workouts milestone.
+- **OPEN PRODUCT DECISION (Danny):** cross-source dedup. `sync_id` is `workout-<startEpoch>`; the same real run
+  written by two sources (Apple Watch + third-party) either overwrites or duplicates. Deterministic resolution needs
+  a source-precedence/merge rule with real blast radius on workout history — directly analogous to the weight
+  source-precedence decision (`43b70b21`). Options (a) prefer Apple Watch/first-writer, (b) prefer richest record,
+  (c) keep-all + dedupe exact `HKWorkout.uuid` — recommendation: ship provenance first, then choose. **Not
+  implemented; awaiting decision** (never silently drop a user's workouts).
+- Also corrected the **activity-dynamics** roadmap note: running/cycling power/cadence are workout-scoped, so a daily
+  generic-store average is the wrong home for most of them — decide per-metric during Workouts. Docs only.
 
 ## 2026-07-15 — docs(health): establish Swift compile-verification; correct a false "no Xcode" claim in the audit
 

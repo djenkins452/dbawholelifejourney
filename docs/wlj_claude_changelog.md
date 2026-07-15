@@ -3,8 +3,65 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (fix(dashboard): Executive Action card for a task navigated to Nutrition — root-caused a substring keyword match)
+# Last Updated: 2026-07-14 (fix(fitness): weighted bodyweight-exercise volume now SUMS body weight + added load; "+ Weight" → "Add weight")
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — fix(fitness): weighted bodyweight exercises now count body weight + added load (was: added load alone)
+
+**Investigation (two questions asked about the workout system):**
+
+**Q1 — Where are exercises managed?** There is one canonical **`Exercise`** library
+(`apps/health/models.py:1571`, "Admin-configurable exercise library"). Rows are **seeded, not
+user-created** — via the `populate_exercises` management command and data migrations — and maintained
+**only through Django Admin** at `/admin/health/exercise/` (`ExerciseAdmin`, `apps/health/admin.py:159`;
+create at `/admin/health/exercise/add/`). There is intentionally **no in-app UI** to create/edit the
+library; the fitness screens only *select* exercises into workouts/templates (`exercise_list_json`,
+`add_exercise_htmx`). Three layers, one library: `Exercise` (source of truth) ← `WorkoutExercise`→`ExerciseSet`
+(logged, FK PROTECT) and `TemplateExercise`→`TemplateExerciseSet` (template defaults, FK CASCADE).
+
+**Q2 — What does "+ Weight" do?** Runtime-traced UI→model→calc. The checkbox (shown ONLY for
+`movement_type == "bodyweight"`, `exercise_row.html:24`) has no name/id and submits nothing — its JS
+(`workout_form.html`) just reveals a hidden weight input for *added external load* (belt/vest/dumbbell).
+The entered value lands in `ExerciseSet.weight`; body mass is captured separately in
+`ExerciseSet.bodyweight_used` (`models.py:1964`).
+
+**Bug found (a correctness defect, not just a misleading label):** `ExerciseSet.volume` treated body weight
+and added weight as **mutually exclusive** — `if weight → weight × reps; elif bodyweight_used →
+bodyweight_used × reps`. And `save_set_ajax` only captured `bodyweight_used` when NO weight was entered
+(`... and not parsed_weight`). Net effect: a 180 lb athlete's pull-ups scored 180×10 = **1800**, but the same
+set with a 25 lb belt scored 25×10 = **250** — adding load made recorded volume *plummet ~7×*. The bulk
+form-submit paths never set `bodyweight_used` at all, so bodyweight-only sets saved via the full form scored 0.
+
+**Fix (eliminate the class — the two components are summed, one source captures body weight everywhere):**
+- `ExerciseSet.volume` bodyweight branch → **`(bodyweight_used + added weight) × reps`** (missing component
+  counts as 0, so legacy rows still score) — `apps/health/models.py`.
+- New single source `fitness_utils.latest_bodyweight_lb(user)` — read by BOTH the AJAX save and the two
+  bulk workout paths, so they can never diverge — `apps/health/services/fitness_utils.py`.
+- `save_set_ajax` now captures body weight whenever there are reps (dropped the `not parsed_weight` guard);
+  `WorkoutSessionCreateView.post` / `WorkoutUpdateView.post` now stamp `bodyweight_used` on bodyweight sets
+  — `apps/health/views.py`.
+- Relabeled the checkbox **"+ Weight" → "Add weight"** with a tooltip ("Add extra load … your body weight is
+  already counted automatically") — `templates/health/fitness/partials/exercise_row.html`,
+  `templates/health/fitness/workout_form.html`.
+
+**Consumers** (all read `.volume`, so they inherit the fix): `fitness_utils` weekly/exercise volume,
+`double_progression`, `pr_utils`.
+
+**Docs:** in-app context help (`help_topics.json`, HEALTH_FITNESS topic — new "Bodyweight Exercises & Added
+Weight" section), user guide (`docs/wlj_claude_features.md` — new "Workout Exercises & Volume" section),
+release note (`release_notes.json` pk 273, type=fix).
+
+**Files:** `apps/health/models.py`, `apps/health/views.py`, `apps/health/services/fitness_utils.py`,
+`templates/health/fitness/partials/exercise_row.html`, `templates/health/fitness/workout_form.html`,
+`apps/health/tests/test_movement_types.py`, `apps/help/fixtures/help_topics.json`,
+`apps/core/fixtures/release_notes.json`, `docs/wlj_claude_features.md`.
+
+**Verification:** `apps.health.tests.test_movement_types` — 58 tests OK (updated
+`test_weighted_with_added_weight_bodyweight` and `test_bodyweight_set_with_added_weight` to assert the sum;
+added `test_added_weight_without_recorded_bodyweight`). `python manage.py check` clean. No model schema change
+(`bodyweight_used` already existed) — `makemigrations --check` reports no changes. Two pre-existing unrelated
+failures in `test_fitness` (activity_level signal / routine threshold) confirmed to fail identically on the
+original code (not caused by this change).
 
 ## 2026-07-14 — fix(dashboard): Executive Action "Do this now" card for a TASK navigated to Nutrition instead of the task
 

@@ -3101,6 +3101,35 @@ Structured workout programming system allowing users to create named plans with 
 
 ---
 
+## Workout Exercises & Volume
+
+### Exercise Library (admin-managed)
+Exercises are a shared, admin-configurable **`Exercise`** library (`apps/health/models.py`). They are **seeded, not user-created** — via the `populate_exercises` management command and data migrations — and maintained through **Django Admin** at `/admin/health/exercise/` (create a new one at `/admin/health/exercise/add/`). There is intentionally **no in-app UI** for creating or editing the library; the fitness screens only *select* existing exercises into workouts and templates. Each `Exercise` carries a `movement_type` (weighted / bodyweight / time) and a `load_type` (external / bodyweight / assisted / band / movement) that drive the logging UI and the volume math.
+
+**Three layers, one library** (both instance layers FK the same `Exercise` rows — no M2M, so ordering/notes/set-defaults live on the through-models):
+
+| Layer | Model | Link to `Exercise` |
+|-------|-------|--------------------|
+| Library (source of truth) | `Exercise` | — |
+| Logged workout instance | `WorkoutExercise` → `ExerciseSet` | FK `on_delete=PROTECT` |
+| Reusable template instance | `TemplateExercise` → `TemplateExerciseSet` | FK `on_delete=CASCADE` |
+
+### Bodyweight exercises & the "Add weight" toggle
+Bodyweight movements (pull-ups, dips, push-ups) use the athlete's own mass as the load. When a bodyweight set is logged, WLJ stamps `ExerciseSet.bodyweight_used` from the user's most recent `WeightEntry`. The single source for that lookup is `fitness_utils.latest_bodyweight_lb`, read by **both** the workout-logging views and the per-set AJAX save so the two paths can never diverge.
+
+The **"Add weight"** checkbox (shown only for `movement_type == "bodyweight"`, formerly labeled "+ Weight") reveals a weight box for *extra* load — a weight belt, vest, or dumbbell. The user enters **only the added weight**; body weight is captured automatically.
+
+**Volume = (bodyweight_used + added weight) × reps.** The two components are **summed, never treated as alternatives**, so adding load correctly *increases* recorded volume. (Prior behavior returned `added weight × reps` alone, which made a weighted pull-up score *lower* than the same movement done unweighted — corrected 2026-07-14. Whichever component is missing counts as 0, so legacy rows still score sensibly.)
+
+### Key Files
+- `apps/health/models.py` — `Exercise`, `WorkoutExercise`, `ExerciseSet.volume`
+- `apps/health/services/fitness_utils.py` — `latest_bodyweight_lb`, weekly/exercise volume
+- `apps/health/admin.py` — `ExerciseAdmin` (library management)
+- `templates/health/fitness/partials/exercise_row.html` — the "Add weight" toggle
+- `apps/health/tests/test_movement_types.py` — volume + bodyweight coverage
+
+---
+
 ## Data Export & Report Generation
 
 ### Overview

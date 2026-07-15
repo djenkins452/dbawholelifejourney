@@ -28,6 +28,28 @@ from django.db.models import Max, Sum
 logger = logging.getLogger(__name__)
 
 
+def latest_bodyweight_lb(user):
+    """The user's most recent recorded body weight in pounds (Decimal), or None.
+
+    The single source for "what did this athlete weigh?" when scoring bodyweight
+    exercise volume. A bodyweight movement (pull-up, dip, push-up) moves body
+    mass; a WEIGHTED one moves body mass PLUS added load — so both the workout
+    logging views AND the per-set AJAX save read this one helper to stamp
+    ExerciseSet.bodyweight_used, and can never diverge. Request-path-safe: a
+    single indexed lookup, no heavy compute.
+    """
+    from apps.health.models import WeightEntry
+    try:
+        latest = (
+            WeightEntry.objects.filter(user=user).order_by("-recorded_at").first()
+        )
+        if latest is not None:
+            return Decimal(str(latest.value_in_lb))
+    except Exception:
+        logger.debug("Could not fetch latest bodyweight for volume calc")
+    return None
+
+
 # ── Training Intelligence ─────────────────────────────────────────────
 
 # Activity baselines: (light_threshold, moderate_threshold) in minutes.

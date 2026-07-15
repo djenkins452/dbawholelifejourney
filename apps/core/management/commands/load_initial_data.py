@@ -1160,6 +1160,10 @@ class Command(BaseCommand):
         # One-time: Reload release_notes for "How Your Body Changed" Change Map (PK 272)
         self._reset_change_map_release_note(DataLoadConfig, force, verbosity)
 
+        # One-time: Reload release_notes (PK 273) + help_topics (HEALTH_FITNESS) for
+        # the weighted bodyweight-exercise volume fix + "Add weight" relabel
+        self._reset_fitness_added_weight_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2564,6 +2568,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset change map release note FAILED: {e}'))
+
+    def _reset_fitness_added_weight_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 273) AND help_topics
+        (HEALTH_FITNESS topic) for the weighted bodyweight-exercise volume fix and
+        the "+ Weight" -> "Add weight" relabel. Volume now sums body weight + added
+        load, and the Fitness help topic gains a "Bodyweight Exercises & Added
+        Weight" section.
+        """
+        reset_tracker_name = 'reset_fitness_added_weight_2026_07_14'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            for loader_name in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader_name)
+                    config.reset()
+                    if verbosity >= 1:
+                        self.stdout.write(f'  Reset {loader_name} loader for fitness Add weight fix')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes + help_topics for fitness Add weight fix (Jul 2026)',
+                'command', 'One-time reset to reload PK 273 release note + HEALTH_FITNESS help topic'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset fitness Add weight fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

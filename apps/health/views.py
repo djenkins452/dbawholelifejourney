@@ -1886,6 +1886,9 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
 
         # Process exercises
         exercise_ids = request.POST.getlist("exercise_id")
+        # Body weight for bodyweight-exercise volume (belt/vest sets add to it).
+        from apps.health.services.fitness_utils import latest_bodyweight_lb
+        latest_bw = latest_bodyweight_lb(user)
         for idx, exercise_id in enumerate(exercise_ids):
             try:
                 exercise = Exercise.objects.get(pk=exercise_id)
@@ -1909,11 +1912,17 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
                         reps = request.POST.get(reps_key)
 
                         if weight or reps:
+                            set_bodyweight = (
+                                latest_bw
+                                if exercise.load_type == "bodyweight" and reps
+                                else None
+                            )
                             ExerciseSet.objects.create(
                                 workout_exercise=workout_exercise,
                                 set_number=set_idx,
                                 weight=Decimal(weight) if weight else None,
                                 reps=int(reps) if reps else None,
+                                bodyweight_used=set_bodyweight,
                             )
                         set_idx += 1
 
@@ -2060,6 +2069,9 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
 
         # Process exercises (same as create)
         exercise_ids = request.POST.getlist("exercise_id")
+        # Body weight for bodyweight-exercise volume (belt/vest sets add to it).
+        from apps.health.services.fitness_utils import latest_bodyweight_lb
+        latest_bw = latest_bodyweight_lb(request.user)
         for idx, exercise_id in enumerate(exercise_ids):
             try:
                 exercise = Exercise.objects.get(pk=exercise_id)
@@ -2082,11 +2094,17 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
                         reps = request.POST.get(reps_key)
 
                         if weight or reps:
+                            set_bodyweight = (
+                                latest_bw
+                                if exercise.load_type == "bodyweight" and reps
+                                else None
+                            )
                             ExerciseSet.objects.create(
                                 workout_exercise=workout_exercise,
                                 set_number=set_idx,
                                 weight=Decimal(weight) if weight else None,
                                 reps=int(reps) if reps else None,
+                                bodyweight_used=set_bodyweight,
                             )
                         set_idx += 1
 
@@ -2855,16 +2873,13 @@ def save_set_ajax(request):
             except (ValueError, TypeError):
                 return JsonResponse({"error": f"Invalid duration value: {duration_seconds}"}, status=400)
 
-        # For bodyweight load_type exercises, auto-fetch user's latest weight
-        if exercise.load_type == "bodyweight" and parsed_reps and not parsed_weight:
-            try:
-                latest_weight = WeightEntry.objects.filter(
-                    user=user
-                ).order_by("-recorded_at").first()
-                if latest_weight:
-                    parsed_bodyweight = Decimal(str(latest_weight.value_in_lb))
-            except Exception:
-                logger.debug("Could not fetch bodyweight for volume calc")
+        # Bodyweight exercises move the athlete's own mass — plus any added load
+        # (belt/vest/dumbbell). Capture body weight WHENEVER there are reps (not
+        # only when weight is blank), so a weighted set scores
+        # (bodyweight + added) × reps, never the added load alone.
+        if exercise.load_type == "bodyweight" and parsed_reps:
+            from apps.health.services.fitness_utils import latest_bodyweight_lb
+            parsed_bodyweight = latest_bodyweight_lb(user)
 
         workout_exercise, created = WorkoutExercise.objects.get_or_create(
             session=workout,

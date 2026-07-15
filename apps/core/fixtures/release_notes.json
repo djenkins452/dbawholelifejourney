@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 273,
+    "fields": {
+      "title": "Weighted pull-ups and dips now count correctly",
+      "description": "When you add weight to a bodyweight exercise — a belt on pull-ups, a vest on dips, a dumbbell between your feet — your training volume now adds that extra load on top of your body weight instead of replacing it. Before, entering an added weight could make a weighted set count for less than the same exercise done with just your body weight. Now the math is right: volume = (your body weight + added weight) × reps, and your body weight is always counted for you automatically from your latest weigh-in. We also renamed the checkbox from \"+ Weight\" to \"Add weight,\" with a tip making clear you enter only the extra load. Find it on any bodyweight exercise under Health → Fitness.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-07-14",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/health/physical/fitness/",
+      "created_at": "2026-07-14T12:00:00Z",
+      "updated_at": "2026-07-14T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 272,
     "fields": {
       "title": "See where your body changed — in a single glance",

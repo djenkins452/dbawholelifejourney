@@ -268,8 +268,27 @@ class VolumeCalculationTests(MovementTypeTestMixin, TestCase):
         self.assertEqual(we2.total_volume, 0)
 
     def test_weighted_with_added_weight_bodyweight(self):
-        """Bodyweight exercise with added weight uses weight × reps."""
+        """Weighted bodyweight set SUMS body mass + added load, never replaces it.
+
+        Regression: previously the added-weight branch returned weight × reps
+        alone (45 × 8 = 360), so strapping on a belt made a pull-up's recorded
+        volume PLUMMET below the same movement done unweighted. Volume must be
+        (bodyweight + added) × reps."""
         exercise = self.create_exercise(name="Weighted-pullup", movement_type="bodyweight")
+        we = WorkoutExercise.objects.create(
+            session=self.workout, exercise=exercise, order=0
+        )
+        s = ExerciseSet.objects.create(
+            workout_exercise=we, set_number=1,
+            weight=Decimal("45.0"), reps=8, bodyweight_used=Decimal("180.0"),
+        )
+        # (bodyweight 180 + added 45) × 8 reps = 1800
+        self.assertAlmostEqual(s.volume, 1800.0)
+
+    def test_added_weight_without_recorded_bodyweight(self):
+        """A legacy/added-weight-only row (no captured bodyweight) still scores
+        the added load × reps — the missing component counts as 0, never breaks."""
+        exercise = self.create_exercise(name="Weighted-dip", movement_type="bodyweight")
         we = WorkoutExercise.objects.create(
             session=self.workout, exercise=exercise, order=0
         )
@@ -277,7 +296,6 @@ class VolumeCalculationTests(MovementTypeTestMixin, TestCase):
             workout_exercise=we, set_number=1,
             weight=Decimal("45.0"), reps=8,
         )
-        # weight × reps takes priority
         self.assertAlmostEqual(s.volume, 360.0)
 
     def test_total_volume_property(self):
@@ -509,7 +527,12 @@ class SaveSetAjaxTests(MovementTypeTestMixin, TestCase):
         self.assertAlmostEqual(float(es.bodyweight_used), 180.5, places=1)
 
     def test_bodyweight_set_with_added_weight(self):
-        """Bodyweight exercise with optional added weight."""
+        """Weighted bodyweight set captures BOTH body mass and added load so
+        volume sums them. (Previously bodyweight_used was skipped whenever a
+        weight was entered, which made weighted sets score the belt alone.)"""
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("180.0"), unit="lb",
+        )
         exercise = self.create_exercise(
             name="Weighted-dip-test", movement_type="bodyweight"
         )
@@ -526,8 +549,10 @@ class SaveSetAjaxTests(MovementTypeTestMixin, TestCase):
         es = ExerciseSet.objects.get(pk=data["set_id"])
         self.assertEqual(float(es.weight), 45.0)
         self.assertEqual(es.reps, 8)
-        # bodyweight_used NOT populated because weight was provided
-        self.assertIsNone(es.bodyweight_used)
+        # bodyweight_used IS captured even though added weight was provided
+        self.assertAlmostEqual(float(es.bodyweight_used), 180.0, places=1)
+        # volume = (bodyweight 180 + added 45) × 8 = 1800
+        self.assertAlmostEqual(es.volume, 1800.0)
 
     def test_time_set_save(self):
         """Time-based set saves duration_seconds."""

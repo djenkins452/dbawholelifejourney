@@ -1992,18 +1992,22 @@ class ExerciseSet(models.Model):
         """Calculate volume for this set based on exercise load_type.
 
         external: weight × reps (requires explicit weight)
-        bodyweight: weight × reps if added weight, else bodyweight_used × reps
+        bodyweight: (bodyweight_used + added weight) × reps — a bodyweight
+            movement always moves the athlete's own mass, PLUS any extra load
+            (weight belt, vest, dumbbell). The two are SUMMED, never treated as
+            alternatives, so adding weight raises volume rather than collapsing
+            it. Whichever component is missing counts as 0, so historical rows
+            (added-weight-only, or bodyweight-only) still score sensibly.
         band/movement/assisted: None (no meaningful volume)
         """
         load_type = self.workout_exercise.exercise.load_type
         if load_type == "external":
             return float(self.weight) * self.reps if self.weight and self.reps else 0
         elif load_type == "bodyweight":
-            if self.weight and self.reps:
-                return float(self.weight) * self.reps
-            if self.bodyweight_used and self.reps:
-                return float(self.bodyweight_used) * self.reps
-            return 0
+            if not self.reps:
+                return 0
+            total_load = float(self.bodyweight_used or 0) + float(self.weight or 0)
+            return total_load * self.reps if total_load else 0
         else:  # band, movement, assisted
             return None
 

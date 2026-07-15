@@ -49,6 +49,12 @@ from apps.ai.cos_services.domain_history import (
     history_capability_index,
     history_capable_domains,
 )
+from apps.ai.cos_services.domain_entity import (
+    DOMAIN_ENTITY_SCHEMA_VERSION,
+    get_domain_entity,
+    entity_capability_index,
+    entity_capable_domains,
+)
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -88,6 +94,11 @@ __all__ = [
     "history_capability_index",
     "history_capable_domains",
     "DOMAIN_HISTORY_SCHEMA_VERSION",
+    # Pillar 1 — entity branch (Truth Resolution Layer, DomainTruth.describe)
+    "get_domain_entity",
+    "entity_capability_index",
+    "entity_capable_domains",
+    "DOMAIN_ENTITY_SCHEMA_VERSION",
     # Phase 3
     "get_tool_schemas",
     "enabled_tool_names",

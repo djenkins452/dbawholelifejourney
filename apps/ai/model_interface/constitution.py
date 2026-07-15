@@ -151,6 +151,17 @@ def _valid_truth_history_domains():
         return []
 
 
+def _valid_truth_entity_domains():
+    """Domains that describe at least one record-level entity (DomainTruth.describe) —
+    the enum for the get_entity tool. Catalog-driven, so a domain that later registers
+    entity_types participates automatically."""
+    try:
+        from apps.ai.cos_services.domain_entity import entity_capable_domains
+        return entity_capable_domains()
+    except Exception:
+        return []
+
+
 def _named_periods():
     try:
         from apps.core.truth.periods import NAMED_PERIODS
@@ -166,6 +177,7 @@ def truth_tools():
     health_keys = _valid_health_keys()
     hist_domains = _valid_history_domains()
     truth_hist_domains = _valid_truth_history_domains()
+    truth_entity_domains = _valid_truth_entity_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
     if domains:
@@ -182,6 +194,10 @@ def truth_tools():
                              "description": "The domain to read history for."}
     if truth_hist_domains:
         history_domain_schema["enum"] = truth_hist_domains
+    entity_domain_schema = {"type": "string",
+                            "description": "The domain to read record-level entities for."}
+    if truth_entity_domains:
+        entity_domain_schema["enum"] = truth_entity_domains
 
     return [
         {"type": "function", "function": {
@@ -237,6 +253,29 @@ def truth_tools():
                         "description": "ISO date 'YYYY-MM-DD' — omit for a single date "
                                        "(defaults to start)."},
             }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_entity",
+            "description": (
+                "Get deterministic RECORD-LEVEL truth for a domain — the complete detail "
+                "of individual records, the companion to get_domain_state (composed now), "
+                "get_history (series), and get_foundational_health_facts (current scalars). "
+                "Returns composed CompleteEntity objects (identity/definition/status/plan/"
+                "standing/performance + freshness/confidence), never raw rows. Use to LIST "
+                "all records of a type (pass entity_type) — e.g. 'list my medications', "
+                "'my saved people/places' — or to fetch ONE by name (pass name). The "
+                "answerable (domain, entity_type) pairs are listed in Current Context's "
+                "capability index (`capabilities.truth_entities`); do not guess a type."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": entity_domain_schema,
+                "entity_type": {"type": "string",
+                                "description": ("The entity type to list — must be one "
+                                                "advertised in the capability index (e.g. "
+                                                "'medication', 'person', 'place').")},
+                "name": {"type": "string",
+                         "description": ("Fetch ONE entity by name instead of listing "
+                                         "(optional; takes precedence over entity_type).")},
+            }, "required": ["domain"]}}},
         {"type": "function", "function": {
             "name": "get_foundational_health_facts",
             "description": (

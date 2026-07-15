@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-15 (feat(ios): world-class native Health Sync experience — grouped, deterministic, premium)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — feat(model-interface): Truth Resolution Layer surface-complete — the ENTITY branch (get_entity)
+
+**Milestone (framework completion, not a bug fix):** exposes the **fourth and final** deterministic retrieval surface of the Truth Resolution Layer through the Model Interface. `DomainTruth` has always defined four surfaces — **state · current · history · entity** — but only three were reachable by the conversational model. `get_domain_state` (`.state()`), `get_foundational_health_facts` (`.current()`), and `get_history` (`.history()`) shipped; **`.describe()` / `.describe_one()` (record-level `CompleteEntity` truth) had no truth tool.** So record-level questions ("list my medications in full", "show that person/place") could not be resolved for ANY domain — even medicine and legacy, which already implement `describe()`. This wires the entity surface exactly as the other three, completing the interface. After this, no interface work remains; only per-domain provider depth.
+
+**What was added (catalog-driven, reuse-only — no parallel retrieval, no bespoke per-domain entity tool, no bypass of `DomainTruth`):**
+- **`apps/ai/cos_services/domain_entity.py`** — `get_domain_entity(user, domain, entity_type=…, name=…)`: the generic Model-Interface entity read surface. Delegates to `DomainTruth(user, domain).describe(entity_type)` (list) / `.describe_one(name)` (one) over `truth_catalog()`. Returns composed `CompleteEntity` dicts (identity/definition/status/plan/standing/performance + freshness/confidence) — **never raw rows**. Honest statuses: `ready` / `empty` / `unsupported` / `unsupported_domain` / `error` (a provider that advertises an entity type but doesn't resolve it reports `unsupported`, never a crash). Exact structural sibling of `domain_history.py`.
+- **`get_entity` truth tool** (`apps/ai/model_interface/constitution.py :: truth_tools()`) — catalog-driven schema: the `domain` enum is the set of domains registering `entity_types`, so any domain that adds entities participates automatically. Dispatched in `apps/ai/model_interface/service.py` through the same truth-envelope + audit path as the other truth tools.
+- **Capability index** (`apps/ai/cos_services/current_context.py :: _capabilities()`) — now advertises `truth_entities` (per-domain entity-type NAMES only, from the catalog), so the model knows which `(domain, entity_type)` pairs it can pull and never guesses.
+
+**Cross-domain (uniform, not per-domain hacks):** every domain that registers `entity_types` lights up through one path. Today: **legacy** (`memory`/`person`/`place`) and **medicine** (`medication`/`supplement`/`otc`/`wellness`). Health/nutrition/finance expose no `entity_types` yet → honest `unsupported` (provider depth, not an interface gap).
+
+**Constitutional compliance:** WLJ owns truth; OpenAI reasons. No raw rows. One authority (`DomainTruth`) — no duplicated truth surface. Current Context stays a small priority/capability baseline. `route_message`, the Conductor, the classifier, and legacy orchestration untouched.
+
+**Verification:** `manage.py check` clean (only pre-existing djstripe env warnings); **97 targeted tests pass** — `test_domain_entity` (new, 13), `test_domain_history`, `test_cos_tools`, `test_model_interface_runtime`, `test_standing_context`, `test_current_context_baseline`, `test_domain_state`. Live: `all_tools()` now advertises all four truth surfaces incl. `get_entity`; entity capability index = `{legacy, medicine}`.
+
+**Files:** `apps/ai/cos_services/domain_entity.py` (new), `apps/ai/cos_services/__init__.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/tests/test_domain_entity.py` (new), `docs/WLJ_MODEL_INTERFACE_DESIGN.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — feat(ios): world-class native Health Sync experience (SwiftUI) on deterministic truth
 
 Product milestone — the UI had fallen behind the backend. Rewrote the native `HealthSyncView.swift` from a flat,

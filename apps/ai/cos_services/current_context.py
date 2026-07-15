@@ -97,7 +97,7 @@ def _capabilities() -> dict:
     permanent resident: "what data exists so the model knows what to pull"). It
     advertises, per domain, which metrics are answerable as HISTORY via the
     get_history tool, so the model never guesses a (domain, metric) pair."""
-    domains, truth_history = [], {}
+    domains, truth_history, truth_entities = [], {}, {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
@@ -108,14 +108,21 @@ def _capabilities() -> dict:
                 for d, s in cat.items()
                 if isinstance(s, dict) and s.get("history")
             }
+            truth_entities = {
+                d: sorted(s.get("entities", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("entities")
+            }
     except Exception:  # pragma: no cover - defensive
-        domains, truth_history = [], {}
+        domains, truth_history, truth_entities = [], {}, {}
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
+        "truth_entities": truth_entities,
         "note": ("call get_history(domain, metric, period) for a historical value "
-                 "(names in truth_history); call a truth tool for anything not "
-                 "present in this baseline"),
+                 "(names in truth_history); call get_entity(domain, entity_type|name) "
+                 "for record-level detail (names in truth_entities); call a truth tool "
+                 "for anything not present in this baseline"),
     }
 
 

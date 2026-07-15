@@ -211,6 +211,7 @@ def build_body_intelligence(user, *, as_of=None):
     circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS)
     composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS)
     current = _current_snapshot(body_comp, snapshot, weight)
+    current_cards = _current_snapshot_cards(current)
 
     # ── Deterministic headline (facts only) ────────────────────────────────
     headline = _build_headline(weight, goal, snapshot, body_comp)
@@ -227,6 +228,7 @@ def build_body_intelligence(user, *, as_of=None):
         "circumference_rows": circumference_rows,
         "composition_rows": composition_rows,
         "current": current,
+        "current_cards": current_cards,
         "sessions": sessions,
         "metric_labels": METRIC_LABELS,
         "circumference_metrics": CIRCUMFERENCE_METRICS,
@@ -453,6 +455,81 @@ def _current_snapshot(body_comp, snapshot, weight):
         "waist": snap_latest.get("waist"),
         "waist_unit": snap_units.get("waist", "in"),
     }
+
+
+# ── Current Snapshot cards: value OR a read-only "why is this empty?" state ──
+#
+# A Current Snapshot card must never leave the user wondering whether the system is broken.
+# It either shows the latest deterministic truth, or — when the user hasn't logged that
+# metric yet — a read-only state that answers "why is this empty, and where does this value
+# come from?". This is DETERMINISTIC PROVENANCE, not an action control: no buttons, no inline
+# actions (the Current Snapshot stays a read-only executive summary). Applied uniformly to
+# EVERY metric — never special-cased to one.
+
+#: The Current Snapshot cards, in display order: (metric key, label, static unit | None).
+#: A ``None`` unit means "resolve at render" (waist carries its own logged unit).
+CURRENT_SNAPSHOT_CARDS = [
+    ("weight", "Weight", "lb"),
+    ("body_fat_pct", "Body Fat", "%"),
+    ("fat_mass", "Fat Mass", "lb"),
+    ("lean_mass", "Lean Mass", "lb"),
+    ("skeletal_muscle_mass", "Skeletal Muscle", "lb"),
+    ("waist", "Waist", None),
+]
+
+#: Per-metric provenance — the ONE place that answers "where does this value come from?" for
+#: an unlogged card. Facts about WLJ's OWN ingestion, verified against the HealthKit handler
+#: map (``apps/mobile/views.py`` ``process_health_metric``) and the manual Body Composition
+#: form. ``apple_health`` = whether Apple Health/HealthKit actually syncs the metric: weight,
+#: body_fat, lean_body_mass, and waist have handlers; ``fat_mass`` and ``skeletal_muscle_mass``
+#: have NONE — Apple Health exposes no such quantity (fat mass is derived; skeletal muscle mass
+#: is not a HealthKit type). ``entry_paths`` = the ways a user can supply the value TODAY.
+CURRENT_SNAPSHOT_PROVENANCE = {
+    "weight": {"apple_health": True, "entry_paths": ["Manual weigh-in", "Your Chief of Staff"]},
+    "body_fat_pct": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "fat_mass": {"apple_health": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "lean_mass": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "skeletal_muscle_mass": {"apple_health": False, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+    "waist": {"apple_health": True, "entry_paths": ["Manual Body Composition entry", "Your Chief of Staff"]},
+}
+
+
+def _current_snapshot_cards(current):
+    """Ordered, render-ready Current Snapshot cards.
+
+    Each card is either POPULATED (``value`` is set → the template renders value + unit,
+    unchanged from before) or EMPTY (``value is None`` → ``empty`` carries a deterministic,
+    read-only explanation: a "Not yet logged" headline, whether Apple Health provides the
+    metric, and the entry paths that CAN supply it today). No per-metric special-casing; the
+    same rule produces every card.
+    """
+    cur = current or {}
+    cards = []
+    for key, label, static_unit in CURRENT_SNAPSHOT_CARDS:
+        value = cur.get(key)
+        unit = static_unit if static_unit is not None else cur.get("waist_unit", "in")
+        empty = None
+        if value is None:
+            prov = CURRENT_SNAPSHOT_PROVENANCE.get(
+                key, {"apple_health": False, "entry_paths": []}
+            )
+            empty = {
+                "headline": "Not yet logged",
+                "source_note": (
+                    "Usually syncs from Apple Health — none has synced yet."
+                    if prov["apple_health"]
+                    else "This metric isn't available from Apple Health."
+                ),
+                "entry_paths": prov["entry_paths"],
+            }
+        cards.append({
+            "key": key,
+            "label": label,
+            "value": value,
+            "unit": unit,
+            "empty": empty,
+        })
+    return cards
 
 
 def _build_headline(weight, goal, snapshot, body_comp):

@@ -3,8 +3,46 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (test(health): Phase A — sleep-stage end-to-end proof + telemetry-truth validation)
+# Last Updated: 2026-07-15 (feat(body): Current Snapshot empty cards explain provenance instead of a bare dash)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(body): Body Intelligence Current Snapshot — read-only "why is this empty?" states (Option B)
+
+A Current Snapshot card now either shows the latest deterministic truth OR a read-only state that answers *"why is
+this empty, and where does this value come from?"* — never a bare dash that reads as "broken". Follows the approved
+Skeletal Muscle investigation (Option B), applied **uniformly to every metric**, not special-cased.
+
+**Behavior:** For any unlogged metric the card shows a muted, read-only block: **"Not yet logged"**, whether Apple
+Health provides it, and the entry paths that CAN supply it today. Example (Skeletal Muscle): *"Not yet logged · This
+metric isn't available from Apple Health · It can be added through: Manual Body Composition entry · Your Chief of
+Staff."* **No buttons or inline actions** — the Current Snapshot stays a read-only executive summary. Populated cards
+are visually and structurally unchanged.
+
+**Provenance is accurate to WLJ's actual ingestion**, verified against the HealthKit handler map
+(`apps/mobile/views.py :: process_health_metric`, lines ~704–744) and the manual Body Composition form: Apple Health
+syncs **weight / body fat / lean mass / waist** (handlers exist) but **not fat mass or skeletal muscle** (no
+HealthKit quantity — fat mass is derived, skeletal muscle isn't an Apple Health type). So an unlogged lean-mass card
+says it "usually syncs from Apple Health", while fat-mass and skeletal-muscle say they "aren't available from Apple
+Health" — per-metric-accurate, not a blanket message.
+
+**Implementation (deterministic, request-path-safe, no new business logic):**
+- `apps/health/services/body_intelligence.py` — new `CURRENT_SNAPSHOT_CARDS` (ordered) + `CURRENT_SNAPSHOT_PROVENANCE`
+  (per-metric `apple_health` flag + `entry_paths`) + `_current_snapshot_cards(current)`, exposed as `result["current_cards"]`.
+  The existing `current` dict is UNCHANGED (backward-compatible for every other consumer); the cards are a pure
+  arrangement over it.
+- `templates/health/body_intelligence.html` — the six hardcoded snapshot cards become one data-driven loop over
+  `bi.current_cards`; populated cards render exactly as before, empty cards render the read-only provenance block.
+  Added muted, dashed `.bi-stat--empty` styling (theme-aware; never completion-resembling, per the Visual Truth
+  Contract).
+- `apps/health/tests/test_body_intelligence.py` — new `BodyIntelligenceCurrentSnapshotEmptyStateTest` (card order,
+  populated card keeps value + no empty state, skeletal-muscle empty state text + entry paths, fat-mass Apple-Health
+  note, lean-mass "syncs" note proving per-metric accuracy, logged metric flips out of empty state, and a view-render
+  test asserting the rendered page shows the read-only empty state while the populated waist value is unchanged).
+
+**Verified:** live trace on the affected account — Weight 298.3 · Body Fat 39.2 · Fat Mass 116.93 · Lean Mass 181.4 ·
+Waist 55.0 all show values; Skeletal Muscle shows the informative empty state. `manage.py check` clean;
+`makemigrations --check` → no changes; 76 targeted tests pass (`test_body_intelligence`,
+`test_body_composition_snapshot`, `test_body_story`).
 
 ## 2026-07-15 — test(health): Phase A — sleep-stage ingestion proof + telemetry-truth validation
 

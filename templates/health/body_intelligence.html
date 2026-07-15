@@ -115,30 +115,25 @@
     <!-- ── Current snapshot ────────────────────────────────────────────── -->
     <h3 class="bi-section-title">Current snapshot</h3>
     <div class="bi-stat-grid" data-testid="bi-snapshot">
-        <div class="bi-stat">
-            <span class="bi-stat-label">Weight</span>
-            <span class="bi-stat-value">{% if bi.current.weight %}{{ bi.current.weight }}<small>lb</small>{% else %}—{% endif %}</span>
+        {% for card in bi.current_cards %}
+        <div class="bi-stat{% if card.empty %} bi-stat--empty{% endif %}" data-metric="{{ card.key }}">
+            <span class="bi-stat-label">{{ card.label }}</span>
+            {% if card.empty %}
+            {# Read-only empty state — answers "why is this empty, and where does it come from?"
+               Deterministic provenance, never an action control (no buttons). #}
+            <span class="bi-stat-empty-head">{{ card.empty.headline }}</span>
+            <span class="bi-stat-empty-note">{{ card.empty.source_note }}</span>
+            {% if card.empty.entry_paths %}
+            <span class="bi-stat-empty-sub">It can be added through:</span>
+            <ul class="bi-stat-empty-paths">
+                {% for path in card.empty.entry_paths %}<li>{{ path }}</li>{% endfor %}
+            </ul>
+            {% endif %}
+            {% else %}
+            <span class="bi-stat-value">{{ card.value }}<small>{{ card.unit }}</small></span>
+            {% endif %}
         </div>
-        <div class="bi-stat">
-            <span class="bi-stat-label">Body Fat</span>
-            <span class="bi-stat-value">{% if bi.current.body_fat_pct %}{{ bi.current.body_fat_pct }}<small>%</small>{% else %}—{% endif %}</span>
-        </div>
-        <div class="bi-stat">
-            <span class="bi-stat-label">Fat Mass</span>
-            <span class="bi-stat-value">{% if bi.current.fat_mass %}{{ bi.current.fat_mass }}<small>lb</small>{% else %}—{% endif %}</span>
-        </div>
-        <div class="bi-stat">
-            <span class="bi-stat-label">Lean Mass</span>
-            <span class="bi-stat-value">{% if bi.current.lean_mass %}{{ bi.current.lean_mass }}<small>lb</small>{% else %}—{% endif %}</span>
-        </div>
-        <div class="bi-stat">
-            <span class="bi-stat-label">Skeletal Muscle</span>
-            <span class="bi-stat-value">{% if bi.current.skeletal_muscle_mass %}{{ bi.current.skeletal_muscle_mass }}<small>lb</small>{% else %}—{% endif %}</span>
-        </div>
-        <div class="bi-stat">
-            <span class="bi-stat-label">Waist</span>
-            <span class="bi-stat-value">{% if bi.current.waist %}{{ bi.current.waist }}<small>{{ bi.current.waist_unit }}</small>{% else %}—{% endif %}</span>
-        </div>
+        {% endfor %}
     </div>
 
     <!-- ── Trends: reporting lenses over history ───────────────────────── -->
@@ -479,6 +474,14 @@ document.addEventListener('DOMContentLoaded', function () {
 .bi-stat-label { font-size: var(--font-size-xs, 0.75rem); text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #6b7280); }
 .bi-stat-value { font-size: var(--font-size-xl, 1.375rem); font-weight: 700; color: var(--color-text, #111827); }
 .bi-stat-value small { font-size: 0.7em; font-weight: 600; color: var(--color-text-muted, #6b7280); margin-left: 2px; }
+/* Read-only empty state: intentional "not logged yet" + provenance. Muted + dashed so it
+   never reads as broken and never resembles completion (Visual Truth Contract). */
+.bi-stat--empty { border-style: dashed; background: var(--color-surface-subtle, #f9fafb); }
+.bi-stat-empty-head { font-size: var(--font-size-base, 0.95rem); font-weight: 700; color: var(--color-text, #111827); }
+.bi-stat-empty-note { font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); line-height: 1.35; }
+.bi-stat-empty-sub { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); margin-top: 0.25rem; }
+.bi-stat-empty-paths { margin: 0.15rem 0 0; padding-left: 1rem; font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); line-height: 1.4; }
+.bi-stat-empty-paths li { list-style: disc; }
 
 /* Trends */
 .bi-trend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3, 0.75rem); margin-bottom: var(--space-4, 1rem); }

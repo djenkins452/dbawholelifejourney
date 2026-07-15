@@ -253,6 +253,96 @@ class BodyIntelligenceCurrentSnapshotCompositionTest(TestCase):
             self.assertEqual(cur[metric], latest[metric])
 
 
+class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
+    """A Current Snapshot card either shows the latest deterministic truth OR a read-only
+    state explaining why it's empty and where the value comes from — never a bare dash that
+    reads as "broken". The rule is uniform across every metric (no per-metric special-case),
+    and the provenance is accurate to WLJ's actual ingestion (Apple Health syncs weight /
+    body fat / lean mass / waist; NOT fat mass or skeletal muscle)."""
+
+    def setUp(self):
+        self.user = create_test_user(email="emptystate@example.com")
+
+    def _log(self, metric, value, unit, day):
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name=metric, value=Decimal(str(value)),
+            unit=unit, measurement_date=day,
+        )
+
+    def _cards_by_key(self):
+        cards = build_body_intelligence(self.user)["current_cards"]
+        return {c["key"]: c for c in cards}, cards
+
+    def test_cards_cover_all_six_metrics_in_order(self):
+        _, cards = self._cards_by_key()
+        self.assertEqual(
+            [c["key"] for c in cards],
+            ["weight", "body_fat_pct", "fat_mass", "lean_mass",
+             "skeletal_muscle_mass", "waist"],
+        )
+
+    def test_populated_card_has_no_empty_state_and_keeps_value(self):
+        today = timezone.now().date()
+        self._log("body_fat_pct", "39.2", "pct", today)
+        by_key, _ = self._cards_by_key()
+        card = by_key["body_fat_pct"]
+        self.assertIsNone(card["empty"])
+        self.assertEqual(card["value"], 39.2)
+        self.assertEqual(card["unit"], "%")
+
+    def test_skeletal_muscle_empty_state_explains_source(self):
+        """The reported case: no canonical skeletal muscle → informative read-only state."""
+        by_key, _ = self._cards_by_key()
+        card = by_key["skeletal_muscle_mass"]
+        self.assertIsNone(card["value"])
+        self.assertIsNotNone(card["empty"])
+        self.assertEqual(card["empty"]["headline"], "Not yet logged")
+        self.assertIn("isn't available from Apple Health", card["empty"]["source_note"])
+        self.assertEqual(
+            card["empty"]["entry_paths"],
+            ["Manual Body Composition entry", "Your Chief of Staff"],
+        )
+
+    def test_fat_mass_empty_state_marks_apple_health_unavailable(self):
+        """Fat mass has no Apple Health quantity either — same honest note, not special-cased."""
+        by_key, _ = self._cards_by_key()
+        card = by_key["fat_mass"]
+        self.assertIsNotNone(card["empty"])
+        self.assertIn("isn't available from Apple Health", card["empty"]["source_note"])
+
+    def test_apple_health_metric_empty_state_says_it_syncs(self):
+        """An unlogged metric Apple Health DOES provide (lean mass) explains it usually syncs
+        — proving the provenance is per-metric-accurate, not a blanket message."""
+        by_key, _ = self._cards_by_key()  # nothing logged → lean_mass empty
+        card = by_key["lean_mass"]
+        self.assertIsNotNone(card["empty"])
+        self.assertIn("syncs from Apple Health", card["empty"]["source_note"])
+        self.assertNotIn("not available", card["empty"]["source_note"])
+
+    def test_logged_metric_flips_out_of_empty_state(self):
+        today = timezone.now().date()
+        self._log("skeletal_muscle_mass", "92.0", "lb", today)
+        by_key, _ = self._cards_by_key()
+        card = by_key["skeletal_muscle_mass"]
+        self.assertIsNone(card["empty"])
+        self.assertEqual(card["value"], 92.0)
+
+    def test_page_renders_empty_state_read_only(self):
+        """View render: the empty card shows the informative text and NO action control
+        (read-only executive summary — no button/link inside the snapshot card)."""
+        c = Client()
+        c.force_login(self.user)
+        self._log("waist", "55.0", "in", timezone.now().date())
+        resp = c.get(reverse("health:body_intelligence"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Not yet logged")
+        self.assertContains(resp, "available from Apple Health")
+        self.assertContains(resp, "Manual Body Composition entry")
+        self.assertContains(resp, "Your Chief of Staff")
+        # Populated waist card still renders its value + unit unchanged.
+        self.assertContains(resp, "55.0<small>in</small>", html=False)
+
+
 class BodyCheckInAutoAssociationTest(TestCase):
     """Workflow: a new check-in adopts today's ungrouped measurements + weigh-in."""
 

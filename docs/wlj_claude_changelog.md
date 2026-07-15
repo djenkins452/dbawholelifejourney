@@ -3,8 +3,30 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): HealthKitDailyMetric — governed generic fact store for HealthKit's long tail)
+# Last Updated: 2026-07-15 (docs(truth): expand Visual Truth Contract → Truth Presentation Contract (2 dimensions))
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — docs(truth): expand Visual Truth Contract into the Truth Presentation Contract
+
+Closes the dangling reference created by the `feat(truth): Lifecycle Truth` commit: `apps/core/truth/lifecycle.py`
+and `test_truth_presentation_contract.py` cite `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` as "the expanded Truth
+Presentation Contract," but the doc itself had not yet been expanded. This makes the governing document match the
+code. Rather than fragment a second standalone "Async Truth" doctrine, the existing Visual Truth Contract is
+expanded in place (backward-compatible — the filename and all existing Visual Truth content are preserved):
+
+- **Umbrella rule** stated once: *the customer must never be shown a state that claims more certainty than WLJ has
+  actually established*, with two dimensions.
+- **Dimension 1 — Visual Truth** (spatial): the original contract, unchanged (only real completion may LOOK
+  complete; enforced by `test_visual_truth_contract.py`).
+- **Dimension 2 — Lifecycle Truth** (temporal): a customer-facing status must represent the highest VERIFIED stage,
+  never one it merely initiated. Documents the canonical vocabulary (`Initiated → Received → Persisted → Derived →
+  Current` + qualifiers `partial/failed/stale`), the six product rules ("completion is earned", "Saved is the honest
+  floor", "the customer is never the reconciler", …), the as-built Body Intelligence / Health Sync adoption, the
+  enforcement (`test_truth_presentation_contract.py`), and a trust-ranked migration roadmap (upload/analysis, OCR,
+  summary/reflection generation, Operations recovery, Current Context). Explicitly a presentation-discipline
+  contract, NOT a Constitutional Article.
+
+**Files:** `docs/WLJ_VISUAL_TRUTH_CONTRACT.md` (expanded, +103 lines). Documentation only — no code change.
 
 ## 2026-07-15 — feat(health): HealthKitDailyMetric — governed generic fact store for HealthKit's long tail
 

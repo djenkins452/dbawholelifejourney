@@ -3,8 +3,36 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(body): Current Snapshot empty cards explain provenance instead of a bare dash)
+# Last Updated: 2026-07-15 (feat(health): Phase A gap closure — Height + Waist HealthKit producers + Height ingest)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): Phase A gap closure — Height + Waist Circumference HealthKit ingestion
+
+Closes two producer/consumer gaps from the coverage audit (§2c #2, #3):
+
+- **Waist:** the server `process_waist_metric` handler already existed but had NO iOS producer (WLJ never
+  authorized `HKQuantityTypeIdentifierWaistCircumference`). Added the iOS read authorization + `fetchWaist()` +
+  sync wiring, so waist now actually flows.
+- **Height:** brand-new end-to-end. iOS now authorizes `HKQuantityTypeIdentifierHeight` + `fetchHeight()`;
+  new server `process_height_metric` handler stores it as `BodyCompositionEntry(metric_name="height")` — the same
+  canonical row a manual entry writes, so it feeds BMI/BSA and Body Intelligence with **zero new model/migration**.
+
+Both reuse the established body-composition pattern (`_sync_body_composition_entry`) — one authority per truth
+domain, idempotent (keyed on metric_name + measurement_date), request-path safe. Registered in
+`HEALTH_METRIC_HANDLERS` **and** `HEALTH_SYNC_TYPES` (Body Measurements category), so the CI agreement contract
+covers them and they report truthful sync status.
+
+**iOS** (`HealthKitManager.swift`): +`.height`/`.waistCircumference` reads, a shared `fetchBodyMeasurement`
+helper (reads in inches; returns [] if unavailable so it never crashes auth/sync), `fetchHeight`/`fetchWaist`,
+wired into the main sync fetch + append.
+
+**Verification:** `test_health_sync_telemetry_truth` (height/waist → BodyCompositionEntry + active telemetry +
+idempotent) and `test_health_sync_registry_contract` — 8 tests OK; no migration (reuses BodyCompositionEntry);
+check clean. **iOS awaits on-device verification** (compile + authorize + first sync).
+
+**Files:** `apps/mobile/views.py` (process_height_metric + handler map), `apps/health/services/health_sync_status.py`
+(height registry row), `apps/health/tests/test_health_sync_telemetry_truth.py`,
+`ios/WLJWrapper/WLJWrapper/Services/HealthKitManager.swift`.
 
 ## 2026-07-15 — feat(body): Body Intelligence Current Snapshot — read-only "why is this empty?" states (Option B)
 

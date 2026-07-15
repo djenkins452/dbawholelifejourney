@@ -1778,6 +1778,35 @@ def process_waist_metric(user, metric_date, source, sync_id, data):
     return _sync_body_composition_entry(user, "waist", waist_value, unit, metric_date, source)
 
 
+def process_height_metric(user, metric_date, source, sync_id, data):
+    """
+    Process height from Apple HealthKit (native ``height``).
+
+    Stored as a BodyCompositionEntry(metric_name="height"), the same canonical row a
+    manual entry writes — so height feeds BMI/BSA calculations, the body-composition
+    snapshot, and Body Intelligence with zero new infrastructure. Unit is preserved
+    from the sample ("in" or "cm"); default "in".
+    """
+    height_value = data.get("value")
+    if height_value is None:
+        raise ValueError("value is required for height")
+
+    try:
+        height_value = Decimal(str(height_value))
+    except (TypeError, InvalidOperation):
+        raise ValueError(f"Invalid height value: {height_value}")
+
+    unit = (data.get("unit") or "in").lower()
+    if unit not in ("in", "cm"):
+        unit = "in"
+
+    # Generous range covering inches (~20–100) and centimetres (~50–250).
+    if height_value <= 0 or height_value > 300:
+        raise ValueError(f"Height value out of range: {height_value}")
+
+    return _sync_body_composition_entry(user, "height", height_value, unit, metric_date, source)
+
+
 def _sync_body_composition_entry(user, metric_name, value, unit, measurement_date, source):
     """
     Create or update a BodyCompositionEntry so the intelligence engine
@@ -2888,6 +2917,7 @@ HEALTH_METRIC_HANDLERS = {
     "body_fat": process_body_fat_metric,
     "bmi": process_bmi_metric,
     "waist": process_waist_metric,
+    "height": process_height_metric,
     "workout": process_workout_metric,
     "lean_body_mass": process_lean_body_mass_metric,
     "respiratory_rate": process_respiratory_rate_metric,

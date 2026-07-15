@@ -178,6 +178,9 @@ HEALTH_SYNC_TYPES: list[HealthSyncType] = [
     HealthSyncType("waist", "Waist Circumference", "apps.health.models.BodyCompositionEntry",
                    "measurement_date", unit="in", presence_filter={"metric_name": "waist"},
                    stale_after_days=None, category="body"),
+    HealthSyncType("height", "Height", "apps.health.models.BodyCompositionEntry",
+                   "measurement_date", unit="in", presence_filter={"metric_name": "height"},
+                   stale_after_days=None, category="body"),
 
     # ── Mobility (MobilityEntry — field-keyed) ────────────────────────────── #
     HealthSyncType("walking_speed", "Walking Speed", "apps.health.models.MobilityEntry", "metric_date",

@@ -99,6 +99,16 @@ class HealthKitManager {
             types.insert(bmiType)
         }
 
+        // Height (feeds BMI / BSA calculations)
+        if let heightType = HKQuantityType.quantityType(forIdentifier: .height) {
+            types.insert(heightType)
+        }
+
+        // Waist Circumference (central-adiposity trend)
+        if let waistType = HKQuantityType.quantityType(forIdentifier: .waistCircumference) {
+            types.insert(waistType)
+        }
+
         // Respiratory Rate
         if let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) {
             types.insert(respRateType)
@@ -318,6 +328,8 @@ class HealthKitManager {
         let workouts = try await fetchWorkouts(from: startDate, to: endDate)
         let leanMass = try await fetchLeanBodyMass(from: startDate, to: endDate)
         let bmi = try await fetchBMI(from: startDate, to: endDate)
+        let height = try await fetchHeight(from: startDate, to: endDate)
+        let waist = try await fetchWaist(from: startDate, to: endDate)
         let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
         let hrv = try await fetchHeartRateVariability(from: startDate, to: endDate)
         let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
@@ -343,6 +355,8 @@ class HealthKitManager {
         metrics.append(contentsOf: workouts)
         metrics.append(contentsOf: leanMass)
         metrics.append(contentsOf: bmi)
+        metrics.append(contentsOf: height)
+        metrics.append(contentsOf: waist)
         metrics.append(contentsOf: respiratoryRate)
         metrics.append(contentsOf: hrv)
         metrics.append(contentsOf: vo2Max)
@@ -1422,6 +1436,86 @@ class HealthKitManager {
 
             healthStore.execute(query)
         }
+    }
+
+    // MARK: - Fetch Body Measurement (height, waist) → value + unit
+
+    /// Latest-per-day body measurement (height, waist circumference) as a
+    /// value+unit HealthMetric — the SAME shape the server's body-composition
+    /// handlers expect (BodyCompositionEntry metric_name="height"/"waist"). Read in
+    /// inches so the server stores a consistent unit. Returns [] if the identifier
+    /// is unavailable, so it never crashes authorization or sync.
+    private func fetchBodyMeasurement(
+        from startDate: Date, to endDate: Date,
+        identifier: HKQuantityTypeIdentifier, metricType: String, syncPrefix: String
+    ) async throws -> [HealthMetric] {
+        guard let quantityType = HKQuantityType.quantityType(forIdentifier: identifier) else {
+            return []
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate, options: .strictEndDate)
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: quantityType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd"
+
+                // Latest reading per day (body measurements change slowly).
+                var latestPerDay: [String: (date: Date, value: Double)] = [:]
+                for sample in (samples as? [HKQuantitySample]) ?? [] {
+                    let value = sample.quantity.doubleValue(for: .inch())
+                    let dateStr = dateFormatter.string(from: sample.startDate)
+                    if let existing = latestPerDay[dateStr] {
+                        if sample.startDate > existing.date {
+                            latestPerDay[dateStr] = (sample.startDate, value)
+                        }
+                    } else {
+                        latestPerDay[dateStr] = (sample.startDate, value)
+                    }
+                }
+
+                var metrics: [HealthMetric] = []
+                for (dateStr, data) in latestPerDay {
+                    metrics.append(HealthMetric(
+                        type: metricType,
+                        date: dateStr,
+                        value: data.value,
+                        unit: "in",
+                        source: "apple_health",
+                        syncId: "\(syncPrefix)-\(dateStr)"
+                    ))
+                }
+
+                continuation.resume(returning: metrics)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchHeight(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        return try await fetchBodyMeasurement(
+            from: startDate, to: endDate,
+            identifier: .height, metricType: "height", syncPrefix: "height"
+        )
+    }
+
+    private func fetchWaist(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
+        return try await fetchBodyMeasurement(
+            from: startDate, to: endDate,
+            identifier: .waistCircumference, metricType: "waist", syncPrefix: "waist"
+        )
     }
 
     // MARK: - Fetch Workouts

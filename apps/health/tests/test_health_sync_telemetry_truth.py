@@ -85,6 +85,35 @@ class HealthSyncTelemetryTruthTests(TestCase):
         # asleep = total in bed - awake
         self.assertEqual(entry.asleep_duration_minutes, 470 - 36)
 
+    def test_height_and_waist_ingest_to_body_composition(self):
+        """Gap closure: height + waist flow to BodyCompositionEntry (metric_name-keyed),
+        the same canonical row a manual entry writes, and report active telemetry."""
+        from apps.health.models import BodyCompositionEntry
+
+        self.assertEqual(process_health_metric(self.user, {
+            "type": "height", "date": self.today, "value": 70, "unit": "in",
+            "source": "apple_health", "sync_id": "height-x",
+        }), "created")
+        self.assertEqual(process_health_metric(self.user, {
+            "type": "waist", "date": self.today, "value": 34, "unit": "in",
+            "source": "apple_health", "sync_id": "waist-x",
+        }), "created")
+
+        self.assertTrue(BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="height", source="apple_health").exists())
+        self.assertTrue(BodyCompositionEntry.objects.filter(
+            user=self.user, metric_name="waist", source="apple_health").exists())
+
+        status = build_health_sync_status(self.user)
+        self.assertNotEqual(self._status_for(status, "height")["status"], "no_data")
+        self.assertNotEqual(self._status_for(status, "waist")["status"], "no_data")
+
+        # Idempotent: same date+value → skipped (body-comp keys on metric_name+date).
+        self.assertEqual(process_health_metric(self.user, {
+            "type": "height", "date": self.today, "value": 70, "unit": "in",
+            "source": "apple_health", "sync_id": "height-x",
+        }), "skipped")
+
     def test_resync_is_idempotent(self):
         metric = {
             "type": "sleep", "date": "2026-07-11", "total_minutes": 470,

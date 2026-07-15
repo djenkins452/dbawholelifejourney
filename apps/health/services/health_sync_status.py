@@ -322,8 +322,31 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
 
     run = _latest_ingestion_run(user)
 
+    # Account-level rollup for the Health Sync hero card. This is a DETERMINISTIC
+    # status — the same kind of fact as each type's status, one level up — not an
+    # interpretive verdict. ``healthy_count``/``active_count`` give the honest
+    # fraction; ``no_data`` types (the user simply doesn't produce that data) are
+    # NOT counted as failures, only issues (real regressions / missing core) are.
+    healthy_count = sum(
+        1 for d in data_types if d["status"] in (STATUS_HEALTHY, STATUS_IDLE)
+    )
+    if not active:
+        overall_status = "setup"          # nothing has ever synced
+    elif issues:
+        overall_status = "attention"      # a real regression or a core source absent
+    else:
+        overall_status = "healthy"
+    overall_health = {
+        "status": overall_status,
+        "healthy_count": healthy_count,
+        "active_count": len(active),
+        "total_count": len(data_types),
+        "issue_count": len(issues),
+    }
+
     return {
         "generated_at": now.isoformat(),
+        "overall_health": overall_health,
         "last_sync": (
             {"at": run.created_at.isoformat(), "status": run.status, "ingestion_id": run.id}
             if run else None

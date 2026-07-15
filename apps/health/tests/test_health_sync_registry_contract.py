@@ -135,6 +135,19 @@ class HealthSyncRegistryContractTests(TestCase):
             self.assertIn(c["key"], CATEGORY_LABELS)
             self.assertEqual(c["label"], CATEGORY_LABELS[c["key"]])
 
+        # Overall-health rollup for the native hero card (the iOS OverallHealth model
+        # decodes exactly these keys — this pins the contract so the UI can't break).
+        oh = status["overall_health"]
+        self.assertEqual(
+            set(oh.keys()),
+            {"status", "healthy_count", "active_count", "total_count", "issue_count"},
+        )
+        self.assertEqual(oh["status"], "setup")          # no data yet for a fresh user
+        self.assertEqual(oh["active_count"], 0)
+        self.assertEqual(oh["healthy_count"], 0)
+        self.assertEqual(oh["total_count"], len(HEALTH_SYNC_TYPES))
+        self.assertEqual(oh["issue_count"], len(status["issues"]))
+
 
 # The fetch strategies the registry documents (how the iOS producer reads each sample).
 _KNOWN_FETCH_STRATEGIES = {

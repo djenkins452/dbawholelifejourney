@@ -3,8 +3,43 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (docs(health): Workouts domain — scope enrichment + surface cross-source dedup decision)
+# Last Updated: 2026-07-15 (feat(ios): world-class native Health Sync experience — grouped, deterministic, premium)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(ios): world-class native Health Sync experience (SwiftUI) on deterministic truth
+
+Product milestone — the UI had fallen behind the backend. Rewrote the native `HealthSyncView.swift` from a flat,
+developer-diagnostics list into a first-class iOS status screen answering, at a glance: *is everything healthy?
+what synced? what changed? what needs attention? what next?* Everything renders **deterministic backend truth**
+(`build_health_sync_status`) — never "authorized" as a proxy for healthy.
+
+**Backend (deterministic):** added `overall_health` to `build_health_sync_status` — a rollup `{status
+(healthy|attention|setup), healthy_count, active_count, total_count, issue_count}`. Same *kind* of fact as each
+type's status, one level up — not a verdict; `no_data` sources (a type you don't produce) are NOT counted as
+failures, only real issues are. Pinned by the registry contract test (the iOS `OverallHealth` model decodes these
+exact keys). The grouped `categories` truth already existed and is now consumed.
+
+**Native UI (SwiftUI, compile-verified — BUILD SUCCEEDED):**
+- **Hero card** — overall status glyph + "N of M active sources healthy", clean *Last synced* / *Newest data*
+  (with source name) lines, and a primary Sync button. (Product-critique pass: replaced a cramped 3-column
+  diagnostic strip; dropped the redundant issue counter — the Attention card owns it.)
+- **Needs Attention card** — appears only for real issues, each with the deterministic message + "Fix in Apple
+  Health".
+- **Latest Sync card** — human-readable Imported (with counts) / No Changes / Needs Attention.
+- **Collapsible category cards** — Activity, Heart & Vitals, Sleep, Body, … each with an aggregate status tint,
+  "healthy / needs-attention" summary, and per-source rows with ✓ healthy · ⚠ stale · ○ neutral no-data
+  indicators; **active categories first, dormant last** so unused sources don't clutter the lead.
+- **Detail sheet** per source — last record, 7-day + total counts, source, and a **suggested action** (deep-links
+  to Apple Health for no-data/stale). Replaces any dead affordance.
+- Removed the temporary developer **"Steps Diagnostics"** panel; premium card styling, spring expand/collapse,
+  light/dark aware (`systemGroupedBackground`), mobile-first spacing/typography.
+
+**Model:** `HealthSyncStatus.swift` gains `OverallHealth` + `SyncCategory` (+ decodes `categories`).
+
+**Verification:** iOS app **compiles clean** (0 errors/warnings in Health Sync files); backend suites green incl.
+the new `overall_health` contract assertion; `manage.py check` clean; no migration drift. **On-device visual pass
+still required** (HealthKit data is absent in the simulator) — see `WLJ_HEALTHKIT_COVERAGE_AUDIT.md` §9 item 10.
+No new HealthKit metrics added (per the milestone's scope).
 
 ## 2026-07-15 — docs(health): Workouts domain — enrichment scope + cross-source dedup product decision
 

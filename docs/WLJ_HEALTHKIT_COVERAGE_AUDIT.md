@@ -252,9 +252,12 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
 - **Characteristics (DOB/sex/blood type):** needs a profile destination + additive migration + a small ingest
   path (not the per-date sample stream) + iOS `HKCharacteristicType` reads. **Precedence rule required:** only
   fill if not already user-set (never overwrite user-entered demographics).
-- **Grouped Health Sync UI (Swift):** backend `categories` is done + tested; the iOS `HealthSyncView` still
-  renders a flat list. Rewriting it is Swift-only and device-unverifiable here, so deferred to avoid shipping an
-  unverified UI rewrite that could break the screen.
+- **Grouped Health Sync UI (Swift): ✅ DONE** — `HealthSyncView.swift` was rewritten into a first-class native
+  experience: an overall-health hero card (`overall_health` deterministic rollup), a surfaced "Needs Attention"
+  card, a "Latest Sync" summary (imported / no-changes / needs-attention), and collapsible **category cards**
+  (active first, dormant last) with per-source status indicators (✓ healthy · ⚠ stale · ○ neutral no-data) and a
+  deep-dive detail sheet (last record, counts, source, suggested action). The developer "Steps Diagnostics" panel
+  was removed. **Compile-verified** (BUILD SUCCEEDED); on-device visual/runtime pass still needed (see §9).
 - **Source-precedence hardening:** several handlers (e.g. `process_weight_metric`) match an existing same-day row
   **without scoping by source**, so an Apple-Health sync can update a `manual` (user-entered) row and flip its
   `source`. Whether that is desired (scale precision) or a defect (clobbering a user correction) is a genuine
@@ -310,6 +313,12 @@ Run on a device signed into the WLJ account, after installing a build with these
 8. **Sleep stages** — after a night's sleep syncs, confirm deep/REM/core(light)/awake minutes are populated.
 9. **Existing types unaffected** — confirm steps, weight, HR, glucose, etc. still sync (no regression from the
    handler-map refactor).
+10. **Health Sync experience (native UI)** — open Settings → Health Sync and visually confirm: the **hero card**
+    shows the right overall status + "N of M healthy" + last-synced/newest lines; **category cards** group sources
+    correctly, collapse/expand smoothly, and show the right per-source ✓/⚠/○ indicators; the **Latest Sync** card
+    lists imported/no-changes/attention; tapping a source opens the **detail sheet** with a suggested action; a
+    **Needs Attention** card appears only when there's a real issue; dormant categories sit at the bottom; light +
+    dark mode both look premium. (This is the visual pass that can't be done off-device.)
 
 ---
 

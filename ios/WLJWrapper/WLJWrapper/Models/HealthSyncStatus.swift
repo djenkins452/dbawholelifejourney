@@ -10,6 +10,7 @@ import Foundation
 
 struct HealthSyncStatus: Codable {
     let generatedAt: String?
+    let overallHealth: OverallHealth?
     let lastSync: LastSyncInfo?
     let activeTypesCount: Int
     let totalTypesCount: Int
@@ -17,11 +18,13 @@ struct HealthSyncStatus: Codable {
     let oldestActiveSource: TypeRef?
     let issues: [SyncIssue]
     let dataTypes: [DataTypeHealth]
+    let categories: [SyncCategory]?
     let lastSyncSummary: SyncSummary?
     let diagnostics: SyncDiagnostics?
 
     enum CodingKeys: String, CodingKey {
         case generatedAt = "generated_at"
+        case overallHealth = "overall_health"
         case lastSync = "last_sync"
         case activeTypesCount = "active_types_count"
         case totalTypesCount = "total_types_count"
@@ -29,9 +32,54 @@ struct HealthSyncStatus: Codable {
         case oldestActiveSource = "oldest_active_source"
         case issues
         case dataTypes = "data_types"
+        case categories
         case lastSyncSummary = "last_sync_summary"
         case diagnostics
     }
+}
+
+/// Account-level rollup for the hero card. Deterministic status (not a verdict):
+/// `status` ∈ healthy | attention | setup; counts give the honest fraction.
+struct OverallHealth: Codable {
+    let status: String
+    let healthyCount: Int
+    let activeCount: Int
+    let totalCount: Int
+    let issueCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case healthyCount = "healthy_count"
+        case activeCount = "active_count"
+        case totalCount = "total_count"
+        case issueCount = "issue_count"
+    }
+}
+
+/// One category group (Activity, Heart & Vitals, …) as grouped by the backend.
+struct SyncCategory: Codable, Identifiable {
+    var id: String { key }
+    let key: String
+    let label: String
+    let types: [DataTypeHealth]
+    let activeCount: Int
+    let totalCount: Int
+    let staleCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case key, label, types
+        case activeCount = "active_count"
+        case totalCount = "total_count"
+        case staleCount = "stale_count"
+    }
+
+    /// How many sources in this category are healthy (has data, within cadence).
+    var healthyCount: Int { types.filter { $0.status == "healthy" || $0.status == "idle" }.count }
+    /// Category needs attention if any source that WAS producing data has gone stale.
+    /// (A never-synced source is "dormant", surfaced separately — not an error.)
+    var needsAttention: Bool { staleCount > 0 }
+    /// No source in this category has ever produced data.
+    var isDormant: Bool { activeCount == 0 }
 }
 
 // MARK: - Temporary glass-box diagnostics (locate where a metric disappears)

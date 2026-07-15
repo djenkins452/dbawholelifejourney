@@ -17,6 +17,7 @@ class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
     history_metrics = ("steps", "sleep", "weight", "workouts")
+    entity_types = ("workout",)
 
     _HISTORY = {
         "steps": HealthHistory.steps,
@@ -34,3 +35,20 @@ class HealthDomainTruth(DomainTruth):
             raise KeyError(f"health history unsupported: {metric!r} "
                            f"(have {self.history_metrics})")
         return fn(self.user, period, **kwargs)
+
+    # -- Entity Completeness Contract (record-level truth) --------------------
+    # Delegates to the canonical WorkoutQueries authority (no new retrieval logic).
+    def describe(self, entity_type="workout"):
+        """Recent completed workouts as CompleteEntity objects — answers "what
+        exercises did I do", "did I do calf raises", "my sets/weight/volume",
+        "summarize my workout". entity_type ∈ workout."""
+        if entity_type not in (None, "workout"):
+            raise KeyError(f"health domain cannot describe {entity_type!r} "
+                           f"(have {self.entity_types})")
+        from apps.health.services.workout_queries import WorkoutQueries
+        return WorkoutQueries.describe(self.user)
+
+    def describe_one(self, name):
+        """The most recent completed workout matching `name` (or activity type), or None."""
+        from apps.health.services.workout_queries import WorkoutQueries
+        return WorkoutQueries.describe_one(self.user, name)

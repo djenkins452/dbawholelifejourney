@@ -117,8 +117,9 @@ surface-complete:
   over `truth_catalog()`, so every domain that registers `entity_types` participates
   automatically. Returns composed `CompleteEntity` objects (never raw rows). The
   capability index advertises the answerable `(domain, entity_type)` pairs as
-  `truth_entities`. Today **legacy** (memory/person/place) and **medicine**
-  (medication/supplement/otc/wellness) participate; others light up as they register.
+  `truth_entities`. Today **legacy** (memory/person/place), **medicine**
+  (medication/supplement/otc/wellness), and **health** (`workout`) participate; others
+  light up as they register.
 - Record search → `search_history` (`HistorySearchService`).
 
 **The interface no longer blocks any domain.** Remaining work is purely per-domain

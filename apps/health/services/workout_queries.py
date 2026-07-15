@@ -121,3 +121,127 @@ class WorkoutQueries:
             date__gte=start_date,
             date__lte=end_date,
         ).exclude(status='deleted')
+
+    # ── Entity Completeness (record-level truth) ─────────────────────────────
+    # Workouts participate in the platform Entity surface (DomainTruth.describe /
+    # get_entity) exactly like Medication: a completed workout describes itself
+    # across the CompleteEntity dimensions from a SINGLE deterministic retrieval,
+    # so the CoS answers "what exercises did I do", "did I do calf raises", "what
+    # weight", "my sets", "my volume", "summarize my workout" from truth WLJ owns
+    # — with no workout-specific tool. Per-set volume/movement reuse the canonical
+    # ExerciseSet.volume / .movement_work properties (no re-derived calculation).
+    _DESCRIBE_DAYS = 30       # recent window that covers "yesterday" / "this week" / "last workout"
+    _DESCRIBE_LIMIT = 20      # cap the payload — most-recent-first (bounded truth package)
+
+    @classmethod
+    def _describe_qs(cls, user, start_date, end_date):
+        """Completed sessions in range, newest-first, with the exercise + set graph
+        prefetched so `_to_entity` runs with no per-row query (N+1-free)."""
+        return (
+            cls.completed_in_range(user, start_date, end_date)
+            .select_related("from_template")
+            .prefetch_related("workout_exercises__exercise", "workout_exercises__sets")
+            .order_by("-date", "-completed_at", "-created_at")
+        )
+
+    @classmethod
+    def describe(cls, user, *, since_days=None, limit=None):
+        """Recent completed workouts, each a `CompleteEntity` (bounded, newest-first).
+
+        Workouts are historical, so "describe all entities of this type" is bounded to
+        a recent window (`_DESCRIBE_DAYS`) and a count cap (`_DESCRIBE_LIMIT`) to keep
+        the truth package small. The model reasons over the returned entities to resolve
+        "yesterday" / "my last workout" / "did I do X" — WLJ owns the facts, the model
+        picks among them.
+        """
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+        days = cls._DESCRIBE_DAYS if since_days is None else since_days
+        cap = cls._DESCRIBE_LIMIT if limit is None else limit
+        sessions = list(cls._describe_qs(user, today - timedelta(days=days), today)[:cap])
+        return [cls._to_entity(s) for s in sessions]
+
+    @classmethod
+    def describe_one(cls, user, name):
+        """The most recent completed workout whose name or activity type matches `name`
+        (case-insensitive), as a `CompleteEntity`, or None."""
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        n = (name or "").strip()
+        if not n:
+            return None
+        today = get_user_today(user)
+        session = (
+            cls._describe_qs(user, today - timedelta(days=365), today)
+            .filter(Q(name__icontains=n) | Q(workout_type__icontains=n))
+            .first()
+        )
+        return cls._to_entity(session) if session else None
+
+    @classmethod
+    def _to_entity(cls, session):
+        """One completed WorkoutSession → a CompleteEntity across the contract dimensions.
+        Reads only prefetched relations (no `.filter()` on the prefetch — that bypasses
+        the cache) and reuses the canonical per-set volume/movement calculations."""
+        from apps.core.truth.entity import CompleteEntity
+        exercises, detail = [], []
+        strength_load = 0.0
+        movement_reps = 0
+        resistance_sets = 0
+        for we in session.workout_exercises.all():             # prefetched
+            ex = we.exercise
+            is_resistance = (ex.category == "resistance")
+            exercises.append({"name": ex.name, "category": ex.category})
+            set_rows, ex_volume = [], 0.0
+            for s in we.sets.all():                             # prefetched (ordered by set_number)
+                s.workout_exercise = we                         # prime cache → reuse s.volume, no query
+                vol, mw = s.volume, s.movement_work
+                set_rows.append({
+                    "set": s.set_number,
+                    "weight_lb": float(s.weight) if s.weight is not None else None,
+                    "reps": s.reps,
+                    "volume_lb": round(vol, 1) if vol is not None else None,
+                    "is_warmup": s.is_warmup,
+                    "is_pr": s.is_pr,
+                })
+                if is_resistance and not s.is_warmup:
+                    resistance_sets += 1
+                    if vol is not None:
+                        ex_volume += vol
+                        strength_load += vol
+                    if mw is not None:
+                        movement_reps += mw
+            detail.append({
+                "name": ex.name, "category": ex.category, "order": we.order,
+                "total_volume_lb": round(ex_volume, 1), "sets": set_rows,
+            })
+
+        title = (session.name or session.workout_type or "Workout").strip()
+        template = session.from_template if session.from_template_id else None
+        return CompleteEntity(
+            kind="workout",
+            identity=f"{title} — {session.date.isoformat()}",
+            definition={
+                "date": session.date.isoformat(),
+                "mode": session.session_mode,                   # structured | activity
+                "workout_type": session.workout_type or "",
+                "exercise_count": len(exercises),
+                "exercises": exercises,                         # names → "did I do calf raises?"
+            },
+            status="completed",
+            plan={"from_template": getattr(template, "name", None)},
+            standing={},                                        # a logged workout is settled history
+            performance={
+                "total_sets": resistance_sets,
+                "strength_load_lb": round(strength_load, 1),
+                "movement_work_reps": movement_reps,
+                "duration_minutes": session.duration_minutes,
+                "calories_burned": session.calories_burned,
+                "distance_miles": (float(session.distance_miles)
+                                   if session.distance_miles is not None else None),
+                "avg_heart_rate": session.avg_heart_rate,
+                "intensity": session.intensity or "",
+            },
+            extensions={"exercise_detail": detail} if detail else {},
+        )

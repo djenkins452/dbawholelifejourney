@@ -227,21 +227,26 @@ def truth_tools():
         {"type": "function", "function": {
             "name": "get_history",
             "description": (
-                "Get deterministic HISTORICAL truth for a domain metric over a period — "
-                "the 'back then' companion to get_domain_state (composed now) and "
-                "get_foundational_health_facts (current scalars). Returns a composed series "
-                "(points + total/average/count + coverage confidence + provenance), never "
-                "raw rows. Use for questions like 'what did I weigh on July 4th', 'my steps "
-                "last week', 'average sleep last month', 'my workouts this month'. The "
+                "Get deterministic AGGREGATE / time-series truth for a domain metric over a "
+                "period — counts, totals, averages, changes, and trends. Returns a composed "
+                "series (data points + total/average/count + coverage confidence + "
+                "provenance), never individual records. Use for 'how many / how much / "
+                "average / trend / how has X changed' questions, e.g. 'what did I weigh on "
+                "July 4th', 'my steps last week', 'average sleep last month', 'HOW MANY "
+                "workouts did I complete last week', 'how has my workout frequency changed'. "
+                "It does NOT return the contents of an individual record — no exercise "
+                "names, sets, reps, or weights. For the detailed contents of a specific "
+                "record (e.g. which exercises were in a workout), use get_entity. The "
                 "answerable (domain, metric) pairs are listed in Current Context's "
                 "capability index (`capabilities.truth_history`); do not guess a metric."
             ),
             "parameters": {"type": "object", "properties": {
                 "domain": history_domain_schema,
                 "metric": {"type": "string",
-                           "description": ("The history metric for the domain — must be "
+                           "description": ("The aggregate metric for the domain — must be "
                                            "one advertised in the capability index (e.g. "
-                                           "'weight', 'steps', 'sleep', 'workouts').")},
+                                           "'weight', 'steps', 'sleep', 'workouts' = number "
+                                           "of sessions, NOT their exercise contents).")},
                 "period": {"type": "string", "enum": list(_NAMED_PERIODS) + ["custom"],
                            "description": ("Named window, or 'custom' with start/end. A "
                                            "specific date (e.g. 'July 4th') → set "
@@ -256,22 +261,26 @@ def truth_tools():
         {"type": "function", "function": {
             "name": "get_entity",
             "description": (
-                "Get deterministic RECORD-LEVEL truth for a domain — the complete detail "
-                "of individual records, the companion to get_domain_state (composed now), "
-                "get_history (series), and get_foundational_health_facts (current scalars). "
-                "Returns composed CompleteEntity objects (identity/definition/status/plan/"
-                "standing/performance + freshness/confidence), never raw rows. Use to LIST "
-                "all records of a type (pass entity_type) — e.g. 'list my medications', "
-                "'my saved people/places' — or to fetch ONE by name (pass name). The "
-                "answerable (domain, entity_type) pairs are listed in Current Context's "
-                "capability index (`capabilities.truth_entities`); do not guess a type."
+                "Get deterministic DETAIL for individual canonical records — a record's "
+                "identity, contents, components, child records, and record-specific "
+                "attributes. Returns composed records (never raw database rows). Use for "
+                "'what / which / did I / show me / summarize' questions about specific "
+                "records: LIST all records of a type (pass entity_type), or fetch ONE by "
+                "name (pass name). Examples: 'list my medications', 'my saved people/"
+                "places', and for workouts — 'what exercises did I do yesterday?', 'did I "
+                "do calf raises?', 'what weight and reps did I use?', 'summarize my last "
+                "workout'. For AGGREGATE counts/totals/trends over a period (e.g. HOW MANY "
+                "workouts), use get_history instead. The answerable (domain, entity_type) "
+                "pairs are listed in Current Context's capability index "
+                "(`capabilities.truth_entities`); do not guess a type."
             ),
             "parameters": {"type": "object", "properties": {
                 "domain": entity_domain_schema,
                 "entity_type": {"type": "string",
-                                "description": ("The entity type to list — must be one "
+                                "description": ("The record type to list — must be one "
                                                 "advertised in the capability index (e.g. "
-                                                "'medication', 'person', 'place').")},
+                                                "'medication', 'person', 'place', 'workout' "
+                                                "= a workout's exercises/sets/reps/weights).")},
                 "name": {"type": "string",
                          "description": ("Fetch ONE entity by name instead of listing "
                                          "(optional; takes precedence over entity_type).")},

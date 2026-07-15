@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — fix(model-interface): disambiguate History vs Entity truth surfaces (workout "7 sessions" → correct surface selection)
+
+**Root cause (proven earlier):** the Workout `CompleteEntity` is correct and complete, but the model selected the *aggregate* surface for a *detail* question — "what exercises did I do?" resolved through `get_history(health, workouts)` (a series with `unit="sessions"` → "7 workout sessions") instead of `get_entity(health, workout)` (the exercise/set detail). The two capabilities were too semantically close: `truth_history.health.workouts` vs `truth_entities.health.workout`, and the entity tool didn't advertise workout-detail questions. A truth-tool contract + capability-discovery problem — NOT a provider problem.
+
+**Correction (Model-Interface contract only — no provider, no new tool, no routing):**
+- **Tool descriptions** (`apps/ai/model_interface/constitution.py :: truth_tools()`) — `get_history` now states it returns **aggregate/time-series** truth (counts/totals/averages/trends), explicitly **does NOT** return exercise names/sets/reps/weights, and redirects record-contents questions to `get_entity` ("HOW MANY workouts" is its workout example). `get_entity` now states it returns **individual-record detail** with explicit workout examples ("what exercises did I do yesterday?", "did I do calf raises?", "what weight and reps?", "summarize my last workout"). Internal class names (`CompleteEntity`, `DomainTruth`) removed from model-facing text.
+- **Capability index** (`apps/ai/cos_services/current_context.py :: _capabilities()`) — adds compact `surface_roles` (history = AGGREGATE-not-record-contents; entities = DETAIL-of-one-record) and a sharpened `note` that names the exact collision: health `'workouts'` (aggregate session count) vs `'workout'` (one workout's exercise detail) are **DIFFERENT surfaces**. Existing `truth_history`/`truth_entities` maps unchanged (backward-compatible; still catalog-driven).
+- **Granularity metadata on the envelopes** (`domain_history.py` / `domain_entity.py`) — every history envelope now carries `granularity: "aggregate"` + a `scope` note ("aggregate values … not the contents of any individual record; for a record's contents use get_entity"); every entity envelope carries `granularity: "record_detail"` + the inverse scope. Truthful, generic (no workout-specific prose), fits the existing envelope (extra keys only, wrapped by `_wrap_truth` unchanged). This makes a history result honestly self-identify its scope so a detail question is never silently answered from a count.
+
+**Not touched (scope boundaries honored):** `WorkoutQueries`, `HealthDomainTruth`, `DomainTruth`, the four-surface architecture, request-path safety. No workout-specific tool, no deterministic conversational routing, no `route_message`/lanes/classifier/Conductor.
+
+**Production audit note:** confirming *which* tool fired on the original failing turns is recorded deterministically in `ToolCallLog` (`kind='truth'`); a new test proves the Model-Interface dispatch records the answering surface by name (`get_entity` vs `get_history`), so that ledger is the approved local/admin verification path. Prod DB/SSH was not used (ops rule).
+
+**Verification:** `manage.py check` clean; `makemigrations --check` → no changes. **68 targeted tests pass** — `test_truth_surface_contract` (new: schema semantics, capability roles, granularity, audit distinction), `test_domain_history`, `test_domain_entity`, `test_workout_entity`, `test_request_path_safety_contract`, `test_model_interface_runtime`. Live dump confirms the model now receives distinct `surface_roles` + the workouts-vs-workout note; `get_history(health, workouts)` returns `granularity=aggregate` (unit "sessions", no exercise names) and `get_entity(health, workout)` returns `granularity=record_detail` with Calf Raise/Squat + per-set detail.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/cos_services/domain_history.py`, `apps/ai/cos_services/domain_entity.py`, `apps/ai/tests/test_truth_surface_contract.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — chore: retire the temporary STEPS_GLASSBOX instrumentation (Steps proven through the full pipeline)
 
 Steps is confirmed healthy end to end on device (569 raw samples → 8 daily totals → 2,299 metrics submitted, 5/5

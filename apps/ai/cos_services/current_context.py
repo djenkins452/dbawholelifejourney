@@ -119,10 +119,23 @@ def _capabilities() -> dict:
         "answerable_domains": domains,
         "truth_history": truth_history,
         "truth_entities": truth_entities,
-        "note": ("call get_history(domain, metric, period) for a historical value "
-                 "(names in truth_history); call get_entity(domain, entity_type|name) "
-                 "for record-level detail (names in truth_entities); call a truth tool "
-                 "for anything not present in this baseline"),
+        # Semantic roles — so two similarly-named capabilities are never treated as
+        # equivalent (e.g. health 'workouts' aggregate vs 'workout' record detail).
+        "surface_roles": {
+            "truth_history": ("AGGREGATE truth over a period — counts, totals, averages, "
+                              "trends. NOT the contents of any individual record."),
+            "truth_entities": ("DETAIL of an individual record — its identity, contents, "
+                               "and child records (e.g. a workout's exercises, sets, reps, "
+                               "weights)."),
+        },
+        "note": ("For 'how many / how much / average / trend' use get_history (metric "
+                 "names in truth_history). For 'what / which / did I / the contents of a "
+                 "specific record' use get_entity (record types in truth_entities). A "
+                 "metric and a record type can share a domain — e.g. health 'workouts' "
+                 "(aggregate session count) vs 'workout' (one workout's exercise detail) "
+                 "— these are DIFFERENT surfaces; pick by whether the question is a count/"
+                 "trend or a record's contents. Call a truth tool for anything not in this "
+                 "baseline."),
     }
 
 

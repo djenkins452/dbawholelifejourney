@@ -66,6 +66,13 @@ def _envelope(domain, metric, status, **extra):
         "metric": metric,
         "schema_version": DOMAIN_HISTORY_SCHEMA_VERSION,
         "generated_at": timezone.now().isoformat(),
+        # Truthful granularity: this surface is aggregate/time-series ONLY. It never
+        # carries the contents of an individual record — so a detail question ("which
+        # exercises?") is out of scope here and belongs to get_entity.
+        "granularity": "aggregate",
+        "scope": ("Aggregate values over the period (counts, totals, averages, trends) — "
+                  "not the contents of any individual record. For a record's detailed "
+                  "contents, use get_entity."),
     }
     base.update(extra)
     return base

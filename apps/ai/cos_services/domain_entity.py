@@ -71,6 +71,13 @@ def _envelope(domain, entity_type, status, **extra):
         "entity_type": entity_type,
         "schema_version": DOMAIN_ENTITY_SCHEMA_VERSION,
         "generated_at": timezone.now().isoformat(),
+        # Truthful granularity: this surface carries the DETAILED CONTENTS of individual
+        # records (identity, components, child records). For aggregate counts/totals/
+        # trends over a period, get_history is the right surface.
+        "granularity": "record_detail",
+        "scope": ("The detailed contents of individual records (identity, components, "
+                  "child records). For aggregate counts, totals, or trends over a period, "
+                  "use get_history."),
     }
     base.update(extra)
     return base

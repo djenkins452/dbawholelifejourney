@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-15 (refactor(body): Current Snapshot empty-state wording is platform-neutral)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — feat(model-interface): Complete Pillar 1 — the HISTORY branch of the Truth Resolution Layer
+
+**Milestone (not a bug fix):** finishes the unfinished branch of the Model Interface Pillar 1 truth interface. The Model Interface already exposed the canonical `DomainTruth.state()` (via `get_domain_state`) and `.current()` (via `get_foundational_health_facts`), but never `.history()` — so `use_model_interface` users could not retrieve historical deterministic truth ("what did I weigh on July 4th?", "my steps last week") and the model narrated "I couldn't find" for truth WLJ owns. This wires the existing history capability into the Model Interface exactly as the design specified (`WLJ_MODEL_INTERFACE_DESIGN.md` §Pillar 1: "history series… as on-demand truth tools… plus a catalog"), re-hosting the Answer Precondition Pipeline inside the truth tool (Amendment A).
+
+**What was added (catalog-driven, reuse-only — no new retrieval logic, no parallel store, no `route_message`, no legacy orchestration):**
+- **`apps/ai/cos_services/domain_history.py`** — `get_domain_history(user, domain, metric, period, start, end)`: the generic Model-Interface history read surface. Delegates to the canonical Truth Resolution Layer `DomainTruth(user, domain).history(...)` over `truth_catalog()`. Returns a composed `HistorySeries` envelope (points + total/average/count + coverage confidence + provenance) — never raw rows. Honest statuses: `ready` / `empty` / `unsupported` / `unsupported_domain` / `error`. A specific date ("July 4th") is a `custom` period with `start=end`.
+- **`get_history` truth tool** (`apps/ai/model_interface/constitution.py :: truth_tools()`) — catalog-driven schema: the `domain` enum is the set of domains that register `history_metrics`, so any domain that adds history participates automatically. Dispatched in `apps/ai/model_interface/service.py` through the same truth-envelope + audit path as the other truth tools.
+- **Capability index** (`apps/ai/cos_services/current_context.py :: _capabilities()`) — now advertises `truth_history` (per-domain history metric NAMES only, from the catalog), so the model knows which `(domain, metric)` pairs it can pull and never guesses. Small; the shrink-principle "what data exists" resident — not a data container.
+
+**Cross-domain (uniform, not per-domain hacks):** every domain that has registered `history_metrics` lights up through one path. Today that is **health** (`weight`, `steps`, `sleep`, `workouts`) — the four with real History providers. Current-only rollout domains (journal/calendar/tasks/faith/relationships) correctly return `unsupported`. **Known limitation:** `MedicineDomainTruth` declares `history_metrics=("adherence",)` but its `history()` raises — the tool reports that honestly as `unsupported` (never a generic error); implementing medicine adherence-history is per-domain provider work, out of scope for the interface milestone. Nutrition/finance/body-composition history and record-level entity retrieval (workout exercise lists, InBody scans via `DomainTruth.describe()`) are likewise separate data-layer slices, not part of completing the interface's history branch.
+
+**Constitutional compliance:** WLJ owns truth; OpenAI reasons. No raw rows exposed. One authority (`DomainTruth`) — no duplicated truth surface. Current Context stays a small priority/capability baseline. `route_message`, the Conductor, the classifier, and legacy Beth orchestration are untouched (correctly retired).
+
+**Files:** `apps/ai/cos_services/domain_history.py` (new), `apps/ai/cos_services/__init__.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/tests/test_domain_history.py` (new), `docs/WLJ_MODEL_INTERFACE_DESIGN.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — refactor(body): Current Snapshot empty-state wording is platform-neutral (no vendor names)
 
 Follow-up to the Current Snapshot empty-state feature: the read-only "why is this empty?" wording no longer names

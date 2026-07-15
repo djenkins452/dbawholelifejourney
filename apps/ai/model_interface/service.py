@@ -31,6 +31,7 @@ from apps.ai.cos_services import (
     action_interface,
     get_ai_relationship,
     get_current_context_baseline,
+    get_domain_history,
     get_domain_state,
     get_foundational_health_facts,
     search_history,
@@ -246,6 +247,25 @@ class ModelInterfaceService:
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
                     result_digest={"keys": args.get("keys")},
+                )
+                return out
+            if name == "get_history":
+                raw = get_domain_history(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    period=args.get("period", "last_7_days"),
+                    start=args.get("start"), end=args.get("end"),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"history:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    result_digest={"domain": args.get("domain"),
+                                   "metric": args.get("metric"),
+                                   "period": args.get("period")},
                 )
                 return out
 

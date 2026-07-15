@@ -91,16 +91,31 @@ def _clock(user, now=None) -> dict:
 
 
 def _capabilities() -> dict:
-    """What truth WLJ can deterministically answer (static; no user data)."""
+    """What truth WLJ can deterministically answer (static; no user data).
+
+    The capability index — metric NAMES only, never data (the shrink-principle
+    permanent resident: "what data exists so the model knows what to pull"). It
+    advertises, per domain, which metrics are answerable as HISTORY via the
+    get_history tool, so the model never guesses a (domain, metric) pair."""
+    domains, truth_history = [], {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
-        domains = sorted(cat.keys()) if isinstance(cat, dict) else []
+        if isinstance(cat, dict):
+            domains = sorted(cat.keys())
+            truth_history = {
+                d: sorted(s.get("history", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("history")
+            }
     except Exception:  # pragma: no cover - defensive
-        domains = []
+        domains, truth_history = [], {}
     return {
         "answerable_domains": domains,
-        "note": "call a truth tool for anything not present in this baseline",
+        "truth_history": truth_history,
+        "note": ("call get_history(domain, metric, period) for a historical value "
+                 "(names in truth_history); call a truth tool for anything not "
+                 "present in this baseline"),
     }
 
 

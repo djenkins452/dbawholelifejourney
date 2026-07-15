@@ -140,10 +140,33 @@ def _valid_history_domains():
         return []
 
 
+def _valid_truth_history_domains():
+    """Domains that answer at least one metric as deterministic HISTORY (DomainTruth
+    .history) — the enum for the get_history tool. Catalog-driven, so a domain that
+    later registers history_metrics participates automatically."""
+    try:
+        from apps.ai.cos_services.domain_history import history_capable_domains
+        return history_capable_domains()
+    except Exception:
+        return []
+
+
+def _named_periods():
+    try:
+        from apps.core.truth.periods import NAMED_PERIODS
+        return list(NAMED_PERIODS)
+    except Exception:
+        return ["today", "yesterday", "last_7_days", "this_week", "last_week",
+                "this_month", "last_month", "this_quarter", "last_quarter",
+                "this_year", "last_year"]
+
+
 def truth_tools():
     domains = _valid_domains()
     health_keys = _valid_health_keys()
     hist_domains = _valid_history_domains()
+    truth_hist_domains = _valid_truth_history_domains()
+    _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
     if domains:
         domain_schema["enum"] = domains
@@ -155,6 +178,10 @@ def truth_tools():
                                          "omit to search all."}
     if hist_domains:
         hist_domain_schema["enum"] = hist_domains + ["all"]
+    history_domain_schema = {"type": "string",
+                             "description": "The domain to read history for."}
+    if truth_hist_domains:
+        history_domain_schema["enum"] = truth_hist_domains
 
     return [
         {"type": "function", "function": {
@@ -181,6 +208,35 @@ def truth_tools():
                 "timeframe": {"type": "string",
                               "description": "Optional, e.g. '7d', '30d', 'year'."},
             }, "required": ["query"]}}},
+        {"type": "function", "function": {
+            "name": "get_history",
+            "description": (
+                "Get deterministic HISTORICAL truth for a domain metric over a period — "
+                "the 'back then' companion to get_domain_state (composed now) and "
+                "get_foundational_health_facts (current scalars). Returns a composed series "
+                "(points + total/average/count + coverage confidence + provenance), never "
+                "raw rows. Use for questions like 'what did I weigh on July 4th', 'my steps "
+                "last week', 'average sleep last month', 'my workouts this month'. The "
+                "answerable (domain, metric) pairs are listed in Current Context's "
+                "capability index (`capabilities.truth_history`); do not guess a metric."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": history_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The history metric for the domain — must be "
+                                           "one advertised in the capability index (e.g. "
+                                           "'weight', 'steps', 'sleep', 'workouts').")},
+                "period": {"type": "string", "enum": list(_NAMED_PERIODS) + ["custom"],
+                           "description": ("Named window, or 'custom' with start/end. A "
+                                           "specific date (e.g. 'July 4th') → set "
+                                           "start=end=that date.")},
+                "start": {"type": "string",
+                          "description": "ISO date 'YYYY-MM-DD' — required for a custom "
+                                         "range or a single specific date."},
+                "end": {"type": "string",
+                        "description": "ISO date 'YYYY-MM-DD' — omit for a single date "
+                                       "(defaults to start)."},
+            }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_foundational_health_facts",
             "description": (

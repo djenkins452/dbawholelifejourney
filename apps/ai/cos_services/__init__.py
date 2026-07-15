@@ -43,6 +43,12 @@ from apps.ai.cos_services.current_context import (
     CURRENT_CONTEXT_SCHEMA_VERSION,
     get_current_context_baseline,
 )
+from apps.ai.cos_services.domain_history import (
+    DOMAIN_HISTORY_SCHEMA_VERSION,
+    get_domain_history,
+    history_capability_index,
+    history_capable_domains,
+)
 from apps.ai.cos_services.domain_state import (
     DOMAIN_REGISTRY,
     DOMAIN_STATE_SCHEMA_VERSION,
@@ -77,6 +83,11 @@ __all__ = [
     "supported_domains",
     "DOMAIN_REGISTRY",
     "DOMAIN_STATE_SCHEMA_VERSION",
+    # Pillar 1 — history branch (Truth Resolution Layer, DomainTruth.history)
+    "get_domain_history",
+    "history_capability_index",
+    "history_capable_domains",
+    "DOMAIN_HISTORY_SCHEMA_VERSION",
     # Phase 3
     "get_tool_schemas",
     "enabled_tool_names",

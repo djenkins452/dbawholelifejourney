@@ -102,6 +102,23 @@ statuses, never substituted with a plausible value or another domain's data (Law
 before exposure; a `suspect` verdict downgrades confidence and carries its `investigation`
 text.
 
+**Implementation status (2026-07-15).** Pillar 1 is complete across all three truth
+kinds of `DomainTruth`:
+- **state** (`.state()`) → `get_domain_state` (`DomainStateService`).
+- **current** (`.current()`) → `get_foundational_health_facts`.
+- **history** (`.history()`) → `get_history` (`DomainHistoryService`,
+  `apps/ai/cos_services/domain_history.py`) — catalog-driven over `truth_catalog()`,
+  so every domain that registers `history_metrics` participates automatically. The
+  capability index (Current Context) advertises the answerable `(domain, metric)`
+  history pairs as `truth_history`.
+- Record search → `search_history` (`HistorySearchService`).
+
+The history data layer is as deep as each domain's registered History provider: health
+(`weight`/`steps`/`sleep`/`workouts`) is live; other domains light up automatically as
+they register `history_metrics`. Record-level entity retrieval (`DomainTruth.describe()`)
+and per-domain history providers (nutrition, finance, medicine-adherence-history) are
+the remaining data-layer slices — the interface itself no longer blocks them.
+
 ---
 
 ## Pillar 2 — Action interface

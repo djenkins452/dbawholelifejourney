@@ -228,6 +228,8 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
 | **Telemetry truth** | Ingested data flips status off `no_data` across every model-sharing pattern; un-ingested shared-field stays `no_data`. | `test_health_sync_telemetry_truth` |
 | **Height** (gap §2c #3) | New end to end: iOS `.height` read + `fetchHeight()`; server `process_height_metric` → `BodyCompositionEntry(metric_name="height")`. No new model/migration. | telemetry-truth test |
 | **Waist** (gap §2c #2) | Added the missing iOS producer (`.waistCircumference` read + `fetchWaist()`); server handler already existed. | telemetry-truth test |
+| **Generic fact store** | `HealthKitDailyMetric` (migration `0103`) — governed home for HealthKit's long tail (no bespoke model). Registry rows `model_path` here, discriminated by `metric_key`; idempotent upsert per `(user, metric_key, date, source)` with provenance. Ingest `process_generic_daily_metric` (validation + central normalization + created/updated/skipped telemetry). | `test_generic_daily_metric` (6: ingest, idempotency, update, multi-key, multi-source, validation) |
+| **Activity long-tail** | 7 generic activity types via the store: cycling / swimming / **wheelchair** / **snow-sports** distance, swimming strokes, Apple Move time, **wheelchair pushes**. Each an iOS `fetchDailySum` producer + registry row + handler entry. | generic-store + agreement tests |
 
 **Truth states:** every source reports `healthy / idle / stale / no_data` (per-type persisted status) and
 `imported / no_changes / failed` (per-run results). No fabricated state; absence is never reported as healthy.
@@ -236,6 +238,11 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
 - **iOS height + waist** producers (`HealthKitManager.swift`). Server side is tested; the Swift mirrors the
   existing `fetchBMI` pattern and the `value`+`unit` init but has **not been compiled/run on device** (no Xcode
   in this environment). See §9 checklist.
+- **iOS activity long-tail** producers (cycling / swimming / wheelchair / snow-sports distance, swim strokes,
+  Move time, wheelchair pushes). Each reuses the proven `fetchDailySum` helper (one line + a read-type insert),
+  all identifiers ≤ iOS 11.2 so no `#available` guard is needed at the iOS-17 deployment target. Server ingest is
+  tested; the Swift is **not device-compiled here**. Deterministically verified: the Django↔Swift agreement
+  contract confirms every registry identifier is read by the app.
 
 ### Remaining (not yet implemented — honest status)
 - **Characteristics (DOB/sex/blood type):** needs a profile destination + additive migration + a small ingest
@@ -249,6 +256,11 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
   `source`. Whether that is desired (scale precision) or a defect (clobbering a user correction) is a genuine
   product+data call with real blast radius on weight history — **investigate and decide before mutating**
   (do not speculatively change health-data dedup). Characterization test + decision needed.
+- **Activity dynamics (running/cycling form):** running speed/power/stride/vertical-oscillation/ground-contact
+  (iOS 16+) and cycling speed/power/cadence + physical-effort (iOS 17+) are all readable at the iOS-17 target with
+  no `#available` guard, and fit the generic store. They are **discrete daily-average** metrics, so they need a
+  generic `fetchDailyAverage` iOS helper (the analogue of `fetchDailySum`) — the next Activity batch. Deferred from
+  this milestone only to keep it to the already-proven cumulative-sum producer path (trustworthy over speculative).
 - **Phases B–E:** each new type needs a **paired iOS producer**; a Django-only handler would be a dead path
   (exactly how `waist` sat before this work). Best executed as batched domain phases per §5, each a single
   deliberate iOS auth-set revision + registry rows + tests. The registry + contract + category infra built here

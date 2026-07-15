@@ -153,6 +153,23 @@ HEALTHKIT_TYPES: list[HealthKitType] = [
        stale_after_days=None, category="activity",
        hk_identifier="HKQuantityTypeIdentifierAppleMoveTime", hk_swift_reads=(".appleMoveTime",),
        fetch_strategy="cumulative_sum", subtitle="Apple Move time"),
+    # Accessibility + specialized activity distances (wheelchair users / snow sports).
+    _t(key="wheelchair_distance", label="Wheelchair Distance", model_path="apps.health.models.HealthKitDailyMetric",
+       date_field="metric_date", unit="mi", presence_filter={"metric_key": "wheelchair_distance"},
+       stale_after_days=None, category="activity",
+       hk_identifier="HKQuantityTypeIdentifierDistanceWheelchair", hk_swift_reads=(".distanceWheelchair",),
+       fetch_strategy="cumulative_sum", subtitle="Wheelchair distance"),
+    _t(key="push_count", label="Wheelchair Pushes", model_path="apps.health.models.HealthKitDailyMetric",
+       date_field="metric_date", unit="pushes", presence_filter={"metric_key": "push_count"},
+       stale_after_days=None, category="activity",
+       hk_identifier="HKQuantityTypeIdentifierPushCount", hk_swift_reads=(".pushCount",),
+       fetch_strategy="cumulative_sum", subtitle="Wheelchair push count"),
+    _t(key="snow_sports_distance", label="Snow Sports Distance", model_path="apps.health.models.HealthKitDailyMetric",
+       date_field="metric_date", unit="mi", presence_filter={"metric_key": "snow_sports_distance"},
+       stale_after_days=None, category="activity",
+       hk_identifier="HKQuantityTypeIdentifierDistanceDownhillSnowSports",
+       hk_swift_reads=(".distanceDownhillSnowSports",),
+       fetch_strategy="cumulative_sum", subtitle="Downhill snow sports distance"),
 
     # ═══ Heart & Vitals ═════════════════════════════════════════════════════ #
     _t(key="heart_rate", label="Heart Rate", model_path="apps.health.models.HeartRateEntry",

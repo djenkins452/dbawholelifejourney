@@ -3,8 +3,39 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (docs(truth): expand Visual Truth Contract → Truth Presentation Contract (2 dimensions))
+# Last Updated: 2026-07-15 (feat(health): Activity long-tail — wheelchair + snow-sports distance & wheelchair pushes)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): Activity domain — wheelchair distance, wheelchair pushes, snow-sports distance
+
+First domain milestone of the HealthKit domain-by-domain expansion (Domain 1: Activity & Workouts). Completes the
+Activity **distance/count** family through the governed generic fact store (`HealthKitDailyMetric`) so activity
+distance coverage is now walking/running · cycling · swimming · **wheelchair** · **downhill snow-sports**, plus
+step/flight/**push** counts and Move/Exercise/Stand time.
+
+**Three new types** (all cumulative daily sums, no bespoke model):
+- `wheelchair_distance` — `HKQuantityTypeIdentifierDistanceWheelchair` (accessibility parity)
+- `push_count` — `HKQuantityTypeIdentifierPushCount` (wheelchair pushes)
+- `snow_sports_distance` — `HKQuantityTypeIdentifierDistanceDownhillSnowSports`
+
+**Full path, single-authority pattern:** one registry row each (`apps/health/healthkit_registry.py`,
+`category="activity"`, `fetch_strategy="cumulative_sum"`) → auto-propagates into `HEALTH_SYNC_TYPES` telemetry →
+handler-map entry (`process_generic_daily_metric`) → iOS producer (a `fetchDailySum` one-liner + read-type insert
+in `HealthKitManager.swift`). All identifiers are ≤ iOS 11.2, so no `#available` guard is needed at the iOS-17
+deployment target. No migration (the generic store already exists).
+
+**Tests:** new `apps/mobile/tests/test_generic_daily_metric.py` (6) drives the real ingest endpoint end-to-end for
+**every** generic key — ingest+persist, idempotent convergence (created→skipped→skipped, never duplicates the
+`(user, metric_key, date, source)` row), in-place update on value change, distinct-key and distinct-source
+isolation, and value-less rejection. This closes a pre-existing coverage gap: the generic store had no ingest test,
+only the Swift↔Django agreement contract. Agreement contract green (Django→Swift confirms every new identifier is
+read by the app); `manage.py check` clean; no migration drift.
+
+**Awaiting on-device:** the three iOS producers reuse the proven `fetchDailySum` helper but are not Xcode-compiled
+in this environment (see `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` §9). **Next Activity batch:** running/cycling
+*dynamics* (speed/power/cadence, iOS 16/17) — discrete daily-averages needing a generic `fetchDailyAverage` iOS
+helper; documented in §8 Remaining. Files: `healthkit_registry.py`, `apps/mobile/views.py`,
+`HealthKitManager.swift`, `test_generic_daily_metric.py` (new), `WLJ_HEALTHKIT_COVERAGE_AUDIT.md`.
 
 ## 2026-07-15 — docs(truth): expand Visual Truth Contract into the Truth Presentation Contract
 

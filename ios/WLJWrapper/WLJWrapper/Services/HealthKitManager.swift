@@ -122,6 +122,15 @@ class HealthKitManager {
         if let moveTimeType = HKQuantityType.quantityType(forIdentifier: .appleMoveTime) {
             types.insert(moveTimeType)
         }
+        if let wheelchairType = HKQuantityType.quantityType(forIdentifier: .distanceWheelchair) {
+            types.insert(wheelchairType)
+        }
+        if let pushCountType = HKQuantityType.quantityType(forIdentifier: .pushCount) {
+            types.insert(pushCountType)
+        }
+        if let snowSportsType = HKQuantityType.quantityType(forIdentifier: .distanceDownhillSnowSports) {
+            types.insert(snowSportsType)
+        }
 
         // Respiratory Rate
         if let respRateType = HKQuantityType.quantityType(forIdentifier: .respiratoryRate) {
@@ -398,6 +407,9 @@ class HealthKitManager {
         let swimmingDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceSwimming, unit: .meter(), unitLabel: "m", metricType: "swimming_distance", syncPrefix: "swimdist")
         let swimmingStrokes = try await fetchDailySum(from: startDate, to: endDate, identifier: .swimmingStrokeCount, unit: .count(), unitLabel: "strokes", metricType: "swimming_strokes", syncPrefix: "swimstroke")
         let moveMinutes = try await fetchDailySum(from: startDate, to: endDate, identifier: .appleMoveTime, unit: .minute(), unitLabel: "min", metricType: "move_minutes", syncPrefix: "movemin")
+        let wheelchairDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceWheelchair, unit: .mile(), unitLabel: "mi", metricType: "wheelchair_distance", syncPrefix: "wheeldist")
+        let pushCount = try await fetchDailySum(from: startDate, to: endDate, identifier: .pushCount, unit: .count(), unitLabel: "pushes", metricType: "push_count", syncPrefix: "pushcount")
+        let snowSportsDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceDownhillSnowSports, unit: .mile(), unitLabel: "mi", metricType: "snow_sports_distance", syncPrefix: "snowdist")
 
         metrics.append(contentsOf: walkingAsymmetry)
         metrics.append(contentsOf: walkingSteadiness)
@@ -415,6 +427,9 @@ class HealthKitManager {
         metrics.append(contentsOf: swimmingDistance)
         metrics.append(contentsOf: swimmingStrokes)
         metrics.append(contentsOf: moveMinutes)
+        metrics.append(contentsOf: wheelchairDistance)
+        metrics.append(contentsOf: pushCount)
+        metrics.append(contentsOf: snowSportsDistance)
 
         if metrics.isEmpty {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)

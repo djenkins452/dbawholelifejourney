@@ -3005,6 +3005,9 @@ HEALTH_METRIC_HANDLERS = {
     "swimming_distance": process_generic_daily_metric,
     "swimming_strokes": process_generic_daily_metric,
     "move_minutes": process_generic_daily_metric,
+    "wheelchair_distance": process_generic_daily_metric,
+    "push_count": process_generic_daily_metric,
+    "snow_sports_distance": process_generic_daily_metric,
 }
 
 

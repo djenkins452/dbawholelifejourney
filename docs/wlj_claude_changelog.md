@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Phase A — HealthKit telemetry parity + categories + CI agreement contract)
+# Last Updated: 2026-07-15 (test(health): Phase A — sleep-stage end-to-end proof + telemetry-truth validation)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — test(health): Phase A — sleep-stage ingestion proof + telemetry-truth validation
+
+Validates the Phase A registry against REAL ingested data (the contract test proved it runs on an empty
+account; this proves it tells the truth once data arrives). `apps/health/tests/test_health_sync_telemetry_truth.py`:
+
+- **Sleep stages end to end** — a realistic Apple-Health sleep payload persists all four stages
+  (`stage_deep/rem/light/awake_minutes`) and derives `asleep = total − awake`. (Full path traced in code:
+  `HKCategoryValueSleepAnalysis.asleepDeep` → `deepMinutes` → JSON `deep_minutes` → `SleepEntry.stage_deep_minutes`.)
+- **Telemetry truth across model-sharing patterns** — ingesting steps / exercise_minutes / walking_speed flips
+  each type's Health Sync status off `no_data`, while an un-ingested StepsEntry field (`flights_climbed`) stays
+  `no_data` — proving `presence_filter` correctly distinguishes types that share a model. Category `active_count`s
+  reflect reality.
+- **Idempotency** — an identical re-sync is `skipped` (no duplicate row); a changed stage is `updated` (still one row).
+
+Test-only; no production code change. 3 tests OK.
 
 ## 2026-07-15 — feat(health): Phase A — HealthKit Sync telemetry parity, categories & CI agreement contract
 

@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — refine(model-interface): CoS concision — answer and stop, no default invitation filler
+
+**Behavior refinement (response style only — no truth/provider/retrieval change):** the Chief of Staff was appending generic invitation filler ("if there's anything else you'd like to know…", "feel free to ask…", "let me know if…") by default, which costs tokens, latency, money, and the user's attention. Added a **CONCISION** directive to the Model-Interface governing prompt (`CONSTITUTION`, `apps/ai/model_interface/constitution.py`): answer the question, then STOP; help the user accomplish the current objective in the fewest necessary words; do NOT append generic invitations (named explicitly) — a rare exception, never a default close; offer a follow-up ONLY when it genuinely advances the objective, and then exactly ONE concise, specific suggestion (e.g. "You completed 4 workouts last week. Want me to list them?"), not a vague invitation; if there is no meaningful next step, end the response. Includes the two worked examples ("did I do calf raises?" → "Yes — …" stop; "what weight?" → "285 lb for 3 sets of 10 reps." stop).
+
+**Scope:** the Model-Interface runtime (the production/owner path). Truth Resolution architecture, providers, and retrieval untouched. No new tool, no routing.
+
+**Verification:** `manage.py check` clean; no migrations (prompt-only). **32 targeted tests pass** — new `test_response_concision` (the CONSTITUTION carries the rule, names the banned phrases, allows exactly one meaningful follow-up, and the rule survives into the assembled system prompt) + `test_model_interface_runtime` + `test_truth_surface_contract`. No brittle live-model wording assertions (the model's actual phrasing is non-deterministic); the contract verifies the governing instruction, not OpenAI output.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_response_concision.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — fix(model-interface): disambiguate History vs Entity truth surfaces (workout "7 sessions" → correct surface selection)
 
 **Root cause (proven earlier):** the Workout `CompleteEntity` is correct and complete, but the model selected the *aggregate* surface for a *detail* question — "what exercises did I do?" resolved through `get_history(health, workouts)` (a series with `unit="sessions"` → "7 workout sessions") instead of `get_entity(health, workout)` (the exercise/set detail). The two capabilities were too semantically close: `truth_history.health.workouts` vs `truth_entities.health.workout`, and the entity tool didn't advertise workout-detail questions. A truth-tool contract + capability-discovery problem — NOT a provider problem.

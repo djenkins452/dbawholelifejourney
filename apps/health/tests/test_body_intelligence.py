@@ -175,6 +175,84 @@ class BodyIntelligenceCanonicalWeightTest(TestCase):
         self.assertEqual(bi["current"]["weight"], build_weight_summary(self.user)["current_lb"])
 
 
+class BodyIntelligenceCurrentSnapshotCompositionTest(TestCase):
+    """Current Snapshot body-composition cards must read the SAME canonical latest-logged
+    BodyCompositionEntry snapshot that Waist uses — never the DailyHealthSummary today-rollup
+    (regression for the 'Body Fat / Fat Mass / Lean Mass show — while canonical values exist'
+    gap). Skeletal Muscle has no canonical source, so it stays empty ("—")."""
+
+    def setUp(self):
+        self.user = create_test_user(email="snapshot@example.com")
+
+    def _log(self, metric, value, unit, day):
+        BodyCompositionEntry.objects.create(
+            user=self.user, metric_name=metric, value=Decimal(str(value)),
+            unit=unit, measurement_date=day,
+        )
+
+    def test_composition_reads_latest_bodycompositionentry_not_rollup(self):
+        from apps.health.models import DailyHealthSummary
+
+        today = timezone.now().date()
+        earlier = today - timedelta(days=30)
+        # Canonical latest-logged truth (the value the user actually last measured).
+        self._log("body_fat_pct", "42.0", "pct", earlier)
+        self._log("body_fat_pct", "39.2", "pct", today)
+        self._log("fat_mass", "120.0", "lb", earlier)
+        self._log("fat_mass", "116.93", "lb", today)
+        self._log("lean_mass", "178.0", "lb", earlier)
+        self._log("lean_mass", "181.4", "lb", today)
+        self._log("waist", "55.0", "in", today)
+        # A today-rollup carrying DIFFERENT composition numbers must be ignored by the
+        # Current Snapshot — the snapshot is the sole authority for these cards.
+        DailyHealthSummary.objects.create(
+            user=self.user, summary_date=today,
+            body_fat_pct=Decimal("99.9"), fat_mass=Decimal("99.9"), lean_mass=Decimal("99.9"),
+        )
+
+        cur = build_body_intelligence(self.user)["current"]
+        # Each card equals the latest BodyCompositionEntry value, NOT the rollup's 99.9.
+        self.assertEqual(cur["body_fat_pct"], 39.2)
+        self.assertEqual(cur["fat_mass"], 116.93)
+        self.assertEqual(cur["lean_mass"], 181.4)
+        self.assertEqual(cur["waist"], 55.0)
+
+    def test_composition_renders_without_any_rollup_row(self):
+        """The exact reported failure: canonical entries exist, but there is NO
+        DailyHealthSummary row for today. The old producer blanked all four; the snapshot
+        producer must surface them."""
+        today = timezone.now().date()
+        self._log("body_fat_pct", "39.2", "pct", today)
+        self._log("fat_mass", "116.93", "lb", today)
+        self._log("lean_mass", "181.4", "lb", today)
+
+        cur = build_body_intelligence(self.user)["current"]
+        self.assertEqual(cur["body_fat_pct"], 39.2)
+        self.assertEqual(cur["fat_mass"], 116.93)
+        self.assertEqual(cur["lean_mass"], 181.4)
+
+    def test_skeletal_muscle_empty_when_no_canonical_truth(self):
+        """No BodyCompositionEntry for skeletal_muscle_mass anywhere → stays None ("—")."""
+        today = timezone.now().date()
+        self._log("body_fat_pct", "39.2", "pct", today)  # other metrics present
+        cur = build_body_intelligence(self.user)["current"]
+        self.assertIsNone(cur["skeletal_muscle_mass"])
+
+    def test_composition_matches_snapshot_latest_exactly(self):
+        """Current Snapshot values must equal snapshot.latest — one consistent authority."""
+        today = timezone.now().date()
+        self._log("body_fat_pct", "39.2", "pct", today)
+        self._log("fat_mass", "116.93", "lb", today)
+        self._log("lean_mass", "181.4", "lb", today)
+        self._log("waist", "55.0", "in", today)
+
+        bi = build_body_intelligence(self.user)
+        cur = bi["current"]
+        latest = bi["snapshot"]["latest"]
+        for metric in ("body_fat_pct", "fat_mass", "lean_mass", "waist"):
+            self.assertEqual(cur[metric], latest[metric])
+
+
 class BodyCheckInAutoAssociationTest(TestCase):
     """Workflow: a new check-in adopts today's ungrouped measurements + weigh-in."""
 

@@ -419,9 +419,16 @@ def _measurement_rows(snapshot, metric_order, metric_labels):
 
 
 def _current_snapshot(body_comp, snapshot, weight):
-    """Named current values for the top snapshot cards. WEIGHT is canonical (the Weight
-    domain — same source as the Weight page); fat/lean come from the pre-computed
-    body-comp rollup; waist from the measurement snapshot."""
+    """Named current values for the top snapshot cards — one consistent canonical authority.
+
+    WEIGHT is the Weight domain (``build_weight_summary`` → ``WeightEntry``), the SAME
+    source as the Weight page. Every BODY-COMPOSITION card — body fat, fat mass, lean mass,
+    skeletal muscle, waist — reads the canonical latest-logged ``BodyCompositionEntry``
+    snapshot (``snapshot.latest``), so the whole card row is internally consistent. A metric
+    the user has never logged is absent from ``snapshot.latest`` → ``None`` → renders "—"
+    (e.g. skeletal muscle, which has no canonical source yet). No rollup fallback, no merged
+    sources, no fabricated value.
+    """
     bc = body_comp or {}
     snap_latest = (snapshot or {}).get("latest") or {}
     snap_units = (snapshot or {}).get("units") or {}
@@ -430,10 +437,13 @@ def _current_snapshot(body_comp, snapshot, weight):
         # Weight is CANONICAL — the Weight domain (build_weight_summary → WeightEntry),
         # the SAME source as the Weight page. Never the DailyHealthSummary rollup.
         "weight": canonical_weight if canonical_weight is not None else bc.get("weight"),
-        "body_fat_pct": bc.get("body_fat_pct"),
-        "fat_mass": bc.get("fat_mass"),
-        "lean_mass": bc.get("lean_mass"),
-        "skeletal_muscle_mass": bc.get("skeletal_muscle_mass"),
+        # Body composition — canonical latest-logged BodyCompositionEntry (snapshot.latest),
+        # the SAME authority Waist uses. Never the DailyHealthSummary today-rollup (which is
+        # None on any day without a same-day rollup, blanking values that canonically exist).
+        "body_fat_pct": snap_latest.get("body_fat_pct"),
+        "fat_mass": snap_latest.get("fat_mass"),
+        "lean_mass": snap_latest.get("lean_mass"),
+        "skeletal_muscle_mass": snap_latest.get("skeletal_muscle_mass"),
         "waist": snap_latest.get("waist"),
         "waist_unit": snap_units.get("waist", "in"),
     }

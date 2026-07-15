@@ -3,8 +3,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (feat(fitness): bodyweight "working weight" — body weight + added = total shown live at point of entry)
+# Last Updated: 2026-07-14 (fix(body): Current Snapshot reads latest canonical BodyCompositionEntry, not the today-rollup)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — fix(body): Body Intelligence Current Snapshot shows canonical Body Fat / Fat Mass / Lean Mass (wrong producer)
+
+**Symptom (proven, then fixed):** On `/health/physical/body-intelligence/` the Current Snapshot showed Weight and
+Waist but **dashes** for Body Fat, Fat Mass, Lean Mass, and Skeletal Muscle — even though 40 canonical
+`BodyCompositionEntry` rows existed for the first three (e.g. 39.2% / 116.93 lb / 181.4 lb) and those values were
+already visible in the page's own "Body composition" section.
+
+**Root cause (runtime-traced Browser→Template→View→builder→snapshot→DB):** the single Current Snapshot producer
+`_current_snapshot` (`apps/health/services/body_intelligence.py`) sourced those four cards from `body_comp` — the
+`DailyHealthSummary` **today-rollup** row (`_build_body_comp_panel` → `today.body_fat_pct` etc., which is `None`
+unless a rollup exists for *today's exact date*) — while Waist correctly read the canonical latest-logged
+`BodyCompositionEntry` snapshot (`snapshot.latest`). Two neighboring cards, two different authorities. Any day
+without a same-day rollup blanked values that canonically exist.
+
+**Fix (surgical — one producer, no redesign, no new logic, no fallback chains):** repoint the body-composition
+cards in `_current_snapshot` to read `snapshot.latest` — the **same** canonical authority Waist already uses:
+- `body_fat_pct`, `fat_mass`, `lean_mass`, `skeletal_muscle_mass` → `snapshot.latest[...]` (was `body_comp[...]`).
+- Weight unchanged (Weight domain, `build_weight_summary` → `WeightEntry`); Waist unchanged.
+- **Skeletal Muscle** correctly still renders "—": there is no canonical `BodyCompositionEntry` source for it
+  (0 rows; not exposed by our sync), so `snapshot.latest` has no key → `None`. No fabrication, no rollup fallback.
+- `DailyHealthSummary` meaning is untouched; Body Story and every other consumer are untouched.
+
+**Files:** `apps/health/services/body_intelligence.py` (`_current_snapshot` only),
+`apps/health/tests/test_body_intelligence.py` (new `BodyIntelligenceCurrentSnapshotCompositionTest` — proves the
+four cards read latest `BodyCompositionEntry`, render with no rollup row present, match `snapshot.latest` exactly,
+and that Skeletal Muscle stays empty without canonical truth).
+
+**Verified:** live trace on the affected account now shows Body Fat 39.2 · Fat Mass 116.93 · Lean Mass 181.4 ·
+Waist 55.0 · Weight 298.3 · Skeletal Muscle — (each equal to `snapshot.latest`); `manage.py check` clean;
+`makemigrations --check` → no changes; 69 targeted tests pass (`test_body_intelligence`,
+`test_body_composition_snapshot`, `test_body_story`).
 
 ## 2026-07-14 — feat(fitness): bodyweight exercises show working weight (body weight + added = total) live
 

@@ -3,13 +3,15 @@
 **Status:** Investigation → **Phase A in progress.** Telemetry parity + CI agreement contract landed 2026-07-15.
 **Date:** 2026-07-15
 
-> **As-built progress log**
-> - **2026-07-15 — Phase A #1 (telemetry parity + categories + CI contract):** `HEALTH_SYNC_TYPES` expanded
->   12 → 37 so every ingested type has freshness/health telemetry; added category grouping (10 categories) as the
->   Health Sync UI foundation; hoisted the canonical `HEALTH_METRIC_HANDLERS` map; added
->   `test_health_sync_registry_contract` enforcing handler-map ↔ registry agreement in CI. Closes §2c gap #1.
->   *Remaining Phase A:* iOS producer gaps (waist, height), characteristic reads (DOB/sex/blood type), sleep-stage
->   end-to-end proof, grouped Health Sync UI rendering.
+> **As-built progress log** (full detail in §8 below)
+> - **2026-07-15 — Phase A #1 (telemetry parity + categories + CI contract)** — `HEALTH_SYNC_TYPES` 12 → 38;
+>   category grouping; canonical `HEALTH_METRIC_HANDLERS`; `test_health_sync_registry_contract`. Closes §2c #1.
+> - **2026-07-15 — Phase A #2 (sleep-stage proof + telemetry-truth)** — `test_health_sync_telemetry_truth`.
+> - **2026-07-15 — Phase A #3 (gap closure)** — Height (new, end to end) + Waist (added the missing iOS producer)
+>   → `BodyCompositionEntry`. Closes §2c #2 & #3. iOS awaits on-device verification.
+> - **Remaining:** characteristic reads (DOB/sex/blood type — needs profile destination + migration), grouped
+>   Health Sync UI rendering (Swift), source-precedence hardening (health-data blast radius — investigate first),
+>   Phases B–E (each needs paired iOS producers). Sensitive-data (reproductive) — **BLOCKED pending decision** (§10).
 **Author:** Chief Architect (audit)
 **Architectural goal (stated):** *"WLJ should ingest every meaningful HealthKit data type that HealthKit allows for read access."* The product may choose not to surface or actively use a metric today, but it should be available as **deterministic truth** for future capabilities whenever practical.
 
@@ -210,3 +212,88 @@ Already synced: energy, protein, carbs, total fat, saturated fat, fiber, sugar, 
 ## 7. Bottom line
 
 WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested) — well beyond most consumer apps. The highest-leverage next step is **not** more metrics; it's **Phase A: making the metrics we already ingest observable** (wire the ~27 orphaned ingest types into the telemetry registry) and **closing the three internal gaps** (characteristics, height/waist, BMI). After that, expansion toward the stated "ingest everything readable" goal should proceed **in batched domain phases** (B → E), each a single deliberate auth-set revision with mandatory telemetry — never one metric at a time.
+
+---
+
+## 8. As-built status (2026-07-15)
+
+### Landed, tested, on `main`
+| Item | What shipped | Verification |
+|---|---|---|
+| **Telemetry parity** | `HEALTH_SYNC_TYPES` 12 → 38 rows — every ingested type now has freshness/health telemetry (closes the ~27 orphaned-type gap). Types sharing a model are `presence_filter`-distinguished. | `test_health_sync_registry_contract` (build runs across all types on a real user) |
+| **Categories** | 10-category taxonomy + grouped `categories` in `build_health_sync_status` (additive). Data-driven foundation for the grouped UI. | contract test asserts every type is grouped |
+| **Canonical handler map** | Hoisted `HEALTH_METRIC_HANDLERS` (module-level, single source of truth) in `apps/mobile/views.py`. | — |
+| **CI agreement contract** | `test_health_sync_registry_contract` — handler-map ↔ registry must be the SAME set; every row resolves against its model. Drift fails CI. | 4 tests |
+| **Sleep stages** | Proven end to end (`asleepDeep`→`deepMinutes`→`deep_minutes`→`stage_deep_minutes`) + idempotency. | `test_health_sync_telemetry_truth` |
+| **Telemetry truth** | Ingested data flips status off `no_data` across every model-sharing pattern; un-ingested shared-field stays `no_data`. | `test_health_sync_telemetry_truth` |
+| **Height** (gap §2c #3) | New end to end: iOS `.height` read + `fetchHeight()`; server `process_height_metric` → `BodyCompositionEntry(metric_name="height")`. No new model/migration. | telemetry-truth test |
+| **Waist** (gap §2c #2) | Added the missing iOS producer (`.waistCircumference` read + `fetchWaist()`); server handler already existed. | telemetry-truth test |
+
+**Truth states:** every source reports `healthy / idle / stale / no_data` (per-type persisted status) and
+`imported / no_changes / failed` (per-run results). No fabricated state; absence is never reported as healthy.
+
+### Code-complete, awaiting **on-device** verification
+- **iOS height + waist** producers (`HealthKitManager.swift`). Server side is tested; the Swift mirrors the
+  existing `fetchBMI` pattern and the `value`+`unit` init but has **not been compiled/run on device** (no Xcode
+  in this environment). See §9 checklist.
+
+### Remaining (not yet implemented — honest status)
+- **Characteristics (DOB/sex/blood type):** needs a profile destination + additive migration + a small ingest
+  path (not the per-date sample stream) + iOS `HKCharacteristicType` reads. **Precedence rule required:** only
+  fill if not already user-set (never overwrite user-entered demographics).
+- **Grouped Health Sync UI (Swift):** backend `categories` is done + tested; the iOS `HealthSyncView` still
+  renders a flat list. Rewriting it is Swift-only and device-unverifiable here, so deferred to avoid shipping an
+  unverified UI rewrite that could break the screen.
+- **Source-precedence hardening:** several handlers (e.g. `process_weight_metric`) match an existing same-day row
+  **without scoping by source**, so an Apple-Health sync can update a `manual` (user-entered) row and flip its
+  `source`. Whether that is desired (scale precision) or a defect (clobbering a user correction) is a genuine
+  product+data call with real blast radius on weight history — **investigate and decide before mutating**
+  (do not speculatively change health-data dedup). Characterization test + decision needed.
+- **Phases B–E:** each new type needs a **paired iOS producer**; a Django-only handler would be a dead path
+  (exactly how `waist` sat before this work). Best executed as batched domain phases per §5, each a single
+  deliberate iOS auth-set revision + registry rows + tests. The registry + contract + category infra built here
+  is the foundation they plug into.
+
+---
+
+## 9. iPhone verification checklist
+
+Run on a device signed into the WLJ account, after installing a build with these changes:
+
+1. **Authorization prompt** — reinstall / re-trigger HealthKit auth; confirm the prompt now lists **Height** and
+   **Waist Circumference** among the requested types, and that granting/denying does not crash.
+2. **First sync** — trigger a manual sync; confirm it completes without error (no new type crashes the run).
+3. **Height** — ensure Apple Health has a height value; sync; confirm a `BodyCompositionEntry(metric_name="height")`
+   appears (Body Intelligence / backend) with the right value in inches.
+4. **Waist** — add a waist measurement in Apple Health (or a connected scale); sync; confirm
+   `BodyCompositionEntry(metric_name="waist")` appears.
+5. **Idempotency** — sync twice; confirm height/waist are **not** duplicated (same day → skipped/updated).
+6. **No-data honesty** — for a type you have no data for, confirm the Health Sync status shows `no_data`
+   ("No records received"), not a fabricated healthy state.
+7. **Stale** — (optional) confirm a daily source with no recent data reports `stale`.
+8. **Sleep stages** — after a night's sleep syncs, confirm deep/REM/core(light)/awake minutes are populated.
+9. **Existing types unaffected** — confirm steps, weight, HR, glucose, etc. still sync (no regression from the
+   handler-map refactor).
+
+---
+
+## 10. Sensitive-data boundary — reproductive & sexual health (ACTIVATION BLOCKED)
+
+**Investigation:** WLJ **already** has a first-party menstrual/cycle-tracking domain
+(`apps/health/models.py` — cycle-tracking preferences with an explicit *"enable menstrual cycle tracking"* opt-in,
+menstrual-flow records, cycle records, symptom logging) and a general **AI data-sharing consent**
+(`apps/users/models.py:584` `ai_data_consent` + date). So a *partial, feature-level* consent model exists for
+menstrual data.
+
+**Decision required before any implementation:**
+- **Menstrual flow** (`HKCategoryTypeIdentifierMenstrualFlow`, etc.) *could* map into the existing cycle-tracking
+  domain, gated by its enable flag — but wiring HealthKit → that domain (dedup, provenance, retention) is still a
+  deliberate design + privacy call.
+- **Sexual activity, pregnancy/pregnancy-test, ovulation, cervical-mucus, contraceptive, progesterone, basal body
+  temperature** have **no home** in WLJ and **no consent surface**. HealthKit exposing them is not consent to
+  ingest them.
+
+**Status: BLOCKED pending Danny's explicit decision.** Per the sensitive-data rule, no reproductive/sexual-health
+HealthKit ingestion is implemented. When approved, it requires: dedicated consent copy + `Info.plist` usage
+strings, a retention/access-control stance, and a decision on which categories map to the existing cycle domain
+vs. need new structure. All other (non-blocked) phases proceed independently.

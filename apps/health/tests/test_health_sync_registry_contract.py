@@ -15,9 +15,13 @@ row). It asserts:
 If you add a HealthKit metric type, you must add it to BOTH the handler map and the
 registry (and the iOS producer) — this test fails otherwise.
 """
+import re
+from pathlib import Path
+
 from django.conf import settings
 from django.test import TestCase
 
+from apps.health.healthkit_registry import AUTHORIZED_SWIFT_READS, HEALTHKIT_TYPES
 from apps.health.services.health_sync_status import (
     CATEGORY_LABELS,
     HEALTH_SYNC_TYPES,
@@ -26,6 +30,11 @@ from apps.health.services.health_sync_status import (
 )
 from apps.mobile.views import HEALTH_METRIC_HANDLERS
 from apps.users.models import TermsAcceptance, User
+
+_IOS_HEALTHKIT_MANAGER = (
+    Path(settings.BASE_DIR) / "ios" / "WLJWrapper" / "WLJWrapper"
+    / "Services" / "HealthKitManager.swift"
+)
 
 
 def _field_name(lookup: str) -> str:
@@ -53,6 +62,34 @@ class HealthSyncRegistryContractTests(TestCase):
             f"Health Sync registry rows with NO ingest handler (add a handler or remove "
             f"the row): {sorted(telemetry_but_no_handler)}",
         )
+
+    def test_registry_identifiers_are_authorized_in_ios(self):
+        """Django → Swift agreement: every HealthKit identifier the canonical registry
+        references must be read by the iOS app. Prevents the exact drift the audit found
+        (a server handler with no iOS producer — e.g. waist before it was wired). If you
+        add a registry row, you must add its `.enumCase` to HealthKitManager.readTypes +
+        a fetch, or this fails."""
+        if not _IOS_HEALTHKIT_MANAGER.exists():
+            self.skipTest("iOS HealthKitManager.swift not present in this checkout")
+        text = _IOS_HEALTHKIT_MANAGER.read_text()
+        ios_reads = set(re.findall(r"forIdentifier:\s*(\.\w+)", text))
+
+        missing = {r for r in AUTHORIZED_SWIFT_READS if r not in ios_reads}
+        self.assertEqual(
+            missing, set(),
+            f"Canonical registry references HealthKit identifiers the iOS app does not "
+            f"read (add them to HealthKitManager.readTypes + a fetch): {sorted(missing)}",
+        )
+
+    def test_registry_hk_metadata_is_complete(self):
+        """Every non-workout registry row declares its HealthKit identity + display
+        metadata (the single-authority promise) so no consumer has to hardcode it."""
+        for t in HEALTHKIT_TYPES:
+            self.assertTrue(t.hk_identifier, f"{t.key}: missing hk_identifier")
+            self.assertTrue(t.subtitle, f"{t.key}: missing display subtitle")
+            self.assertIn(t.kind, ("quantity", "category", "correlation", "workout", "composite"))
+            if t.kind != "workout":
+                self.assertTrue(t.hk_swift_reads, f"{t.key}: missing hk_swift_reads")
 
     def test_registry_keys_are_unique(self):
         keys = [t.key for t in HEALTH_SYNC_TYPES]

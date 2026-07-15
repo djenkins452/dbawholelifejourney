@@ -3,8 +3,35 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (refactor(body): Current Snapshot empty-state wording refinement + platform-neutrality comment)
+# Last Updated: 2026-07-15 (feat(health): canonical HealthKit registry — single authority + Swift↔Django agreement contract)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): canonical HealthKit registry (single authority) + Swift↔Django agreement contract
+
+Removes the duplicated, drift-prone HealthKit lists. `apps/health/healthkit_registry.py` is now THE single
+source of truth for every synced type — one row per WLJ metric carrying: HealthKit identity (`hk_identifier` +
+`hk_swift_reads` + `kind`), WLJ metric `key`, `unit` + `fetch_strategy`, storage destination
+(`model_path` + `presence_filter`), telemetry (`date_field`/`stale_after_days`/`core`), `category`, and display
+metadata (`label`/`subtitle`).
+
+- **`health_sync_status.py` now DERIVES** its `HEALTH_SYNC_TYPES` from the canonical registry (re-exported under
+  the historical names for back-compat) instead of hardcoding a parallel list. Zero behavior change — the
+  telemetry projection is 1:1.
+- **Executable cross-language agreement contracts** (`test_health_sync_registry_contract.py`), so Swift and
+  Django cannot drift:
+  - handler map ↔ registry are the SAME set (existing),
+  - every registry row resolves against its real model (existing),
+  - **NEW — Django → Swift:** every registry `hk_swift_reads` identifier is authorized in
+    `HealthKitManager.swift` (catches "server handler with no iOS producer" — exactly how `waist` sat before),
+  - **NEW:** every non-workout row declares complete HK identity + display metadata.
+
+This is the architecture the roadmap plugs into: adding a HealthKit type is now one registry row + a mirrored
+iOS fetch + a handler, and CI tells you if you missed a side.
+
+**Verification:** full contract suite (6) + telemetry-truth + sync-status — 18 tests OK; no migration; check clean.
+
+**Files:** `apps/health/healthkit_registry.py` (new — canonical registry),
+`apps/health/services/health_sync_status.py` (derives from it), `apps/health/tests/test_health_sync_registry_contract.py`.
 
 ## 2026-07-15 — refactor(body): Current Snapshot empty-state wording refinement + platform-neutrality comment
 

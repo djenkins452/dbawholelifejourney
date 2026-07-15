@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — fix(health): workout history counted sessions × exercises ("28 workout sessions" for 4 workouts)
+
+**Regression root cause (proven, one-line fix).** After the History/Entity disambiguation (`ffcc0432`) correctly routed "how many workouts did I complete last week?" to `get_history(health, workouts)`, the answer became inflated (e.g. "28 workout sessions" for 4 workouts). `ffcc0432` was the TRIGGER, not the cause — it did not touch the workout history provider; it merely steered the count question to a provider carrying a **pre-existing** bug (introduced with the Point-in-Time History capability, `b3dfcc3f`; before `ffcc0432` the count came from the fitness state surface, which counts correctly).
+
+**The bug (`apps/health/services/workout_history.py :: WorkoutHistory.sessions`):** `WorkoutQueries.completed_in_range` builds its "completed" filter with `_COMPLETED_Q`, which includes `Q(workout_exercises__isnull=False)` — a LEFT JOIN to `workout_exercises`. The base queryset's `.distinct()` does NOT survive `.values("date").annotate(v=Count("id"))` (the GROUP BY re-groups the joined rows), so `Count("id")` counted `(session × exercise)` rows: a 4-session week of 7-exercise workouts reported per-date `[7,7,7,7]` → **28**, rendered as "28 sessions" (the `unit="sessions"` label was correct; the value was inflated). Proven: `completed_in_range(...).count()` = 4 (correct), annotated total = 28.
+
+**Fix:** `Count("id")` → `Count("id", distinct=True)` (one line). Per-date `[1,1,1,1]` → **4**. Nothing else changes: the History/Entity distinction (`ffcc0432`'s descriptions/capability/entity surface), `completed_in_range` (whose `.count()` was already correct and is shared by other callers), and all other history metrics (steps/sleep/weight use `HealthHistory`, no exercise join) are untouched.
+
+**Verification:** `manage.py check` clean; `makemigrations --check` → no changes. **44 targeted tests pass** — new `test_workout_history_count` (provider counts sessions not exercises; the `get_history` surface reports 4; a single 10-exercise workout = 1 session) + `test_domain_history` + `test_workout_history` + `test_truth_surface_contract` + `test_workout_entity`.
+
+**Files:** `apps/health/services/workout_history.py`, `apps/health/tests/test_workout_history_count.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — policy(model-interface): Medical Information Policy refinement — calm, non-alarmist, no reflexive referral
 
 **Refinement of the permanent Medical Information Policy (governing prompt only — no truth/provider/retrieval/architecture change).** Keeps Levels 1–2 unchanged and sharpens the personal/interpretation layer in `CONSTITUTION` (`apps/ai/model_interface/constitution.py`) + the canonical doc (`docs/WLJ_MEDICAL_INFORMATION_POLICY.md`):

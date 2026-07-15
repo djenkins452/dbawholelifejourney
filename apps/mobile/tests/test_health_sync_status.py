@@ -70,7 +70,7 @@ class HealthSyncTelemetryTest(TestCase):
         run = HealthIngestionRun.objects.filter(user=self.user).latest("created_at")
         self.assertEqual(run.metric_type_results["steps"]["failed"], 1)
 
-    # ---- glass-box: client_debug captured + diagnostics exposed ----
+    # ---- client_debug capture (generic device→server diagnostic channel) ----
     def test_ingest_stores_client_debug(self):
         resp = self.client.post(
             "/api/mobile/health/ingest/",
@@ -85,24 +85,6 @@ class HealthSyncTelemetryTest(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         run = HealthIngestionRun.objects.filter(user=self.user).latest("created_at")
         self.assertEqual(run.client_debug["steps"]["raw_samples"], 412)
-
-    def test_sync_status_includes_steps_diagnostics_verdict(self):
-        # Device says it built+sent steps, but the run recorded no steps -> "not received".
-        self.client.post(
-            "/api/mobile/health/ingest/",
-            data=json.dumps({
-                "metrics": [{"type": "weight", "date": self.today, "value": 200,
-                             "unit": "lbs", "source": "apple_health", "sync_id": "w1"}],
-                "client_debug": {"steps": {"raw_samples": 412, "built": 7, "sent": 7}},
-            }),
-            content_type="application/json",
-            **self._headers(),
-        )
-        resp = self.client.get("/api/mobile/health/sync-status/", **self._headers())
-        diag = resp.json()["sync_health"]["diagnostics"]["steps"]
-        self.assertEqual(diag["stage"], "not_received")
-        self.assertEqual(diag["client_reported"]["built"], 7)
-        self.assertEqual(diag["server_received"]["created"], 0)
 
     # ---- the endpoint exposes the rich truth ----
     def test_sync_status_returns_sync_health(self):

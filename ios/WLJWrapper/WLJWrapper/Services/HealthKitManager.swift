@@ -484,10 +484,8 @@ class HealthKitManager {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
         }
 
-        // Submit to API (with glass-box telemetry so the server can see exactly
-        // what the device fetched vs. what it received/persisted).
-        let clientDebug: [String: [String: Int]] = ["steps": lastStepsDebug]
-        let response = try await APIClient.shared.submitHealthMetrics(metrics, clientDebug: clientDebug)
+        // Submit to API. Per-batch + overall telemetry is logged inside submitHealthMetrics.
+        let response = try await APIClient.shared.submitHealthMetrics(metrics)
 
         // Honor any pending server "reimport" directive (the web "Re-import from Apple
         // Health" button) as part of the normal sync — best-effort, never fails the sync.
@@ -622,39 +620,16 @@ class HealthKitManager {
 
     // MARK: - Fetch Steps
 
-    /// GLASS-BOX (temporary): what the last Steps fetch observed —
-    /// ["raw_samples": N, "built": daily-totals, "sent": metrics-queued]. Read by
-    /// syncHealthData and sent to the server so we can prove where Steps disappear.
-    private(set) var lastStepsDebug: [String: Int] = [:]
-
     /// Types skipped during the LAST sync because their fetch failed (most often an
     /// unauthorized / not-determined type). Surfaced to the user as "needs permission".
     private(set) var lastSyncSkippedTypes: [String] = []
 
-    /// Count raw samples of a type in a window (proves HealthKit is returning data).
-    private func countRawSamples(_ type: HKSampleType, predicate: NSPredicate) async throws -> Int {
-        try await withCheckedThrowingContinuation { continuation in
-            let q = HKSampleQuery(
-                sampleType: type, predicate: predicate,
-                limit: HKObjectQueryNoLimit, sortDescriptors: nil
-            ) { _, samples, error in
-                if let error = error { continuation.resume(throwing: error); return }
-                continuation.resume(returning: samples?.count ?? 0)
-            }
-            healthStore.execute(q)
-        }
-    }
-
     private func fetchSteps(from startDate: Date, to endDate: Date) async throws -> [HealthMetric] {
         guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else {
-            lastStepsDebug = ["raw_samples": 0, "built": 0, "sent": 0]
             return []
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: startDate, end: endDate)
-
-        // GLASS-BOX: how many raw step samples does HealthKit actually have here?
-        let rawSampleCount = (try? await countRawSamples(stepType, predicate: predicate)) ?? -1
 
         // Query daily totals
         let interval = DateComponents(day: 1)
@@ -698,9 +673,6 @@ class HealthKitManager {
             healthStore.execute(query)
         }
 
-        lastStepsDebug = ["raw_samples": rawSampleCount, "built": metrics.count, "sent": metrics.count]
-        print("[STEPS_GLASSBOX] window \(startDate)…\(endDate) rawSamples=\(rawSampleCount) "
-              + "builtDailyTotals=\(metrics.count) values=\(metrics.map { Int($0.value ?? 0) })")
         return metrics
     }
 

@@ -169,99 +169,6 @@ def _last_sync_summary(run) -> Optional[dict]:
     }
 
 
-def _recent_runs(user, now, minutes=15, limit=12):
-    """Ingestion runs in the last `minutes` — one user sync = several batch runs."""
-    from apps.mobile.models import HealthIngestionRun
-    cutoff = now - timedelta(minutes=minutes)
-    return list(
-        HealthIngestionRun.objects
-        .filter(user=user, created_at__gte=cutoff)
-        .order_by("-created_at")[:limit]
-    )
-
-
-def steps_pipeline_diagnostics(user, now: Optional[datetime] = None) -> dict:
-    """Deterministic glass-box: prove exactly where Steps disappear.
-
-    Compares, for the most recent sync session (last 15 min of batch runs):
-    what the CLIENT reported it fetched/sent (``client_debug.steps``), what the
-    SERVER received/processed (``metric_type_results.steps`` + validation errors),
-    and what actually PERSISTED (``StepsEntry``) — then names the failing stage.
-    Reusable for a Health Ops diagnostic view; safe/read-only.
-    """
-    now = now or timezone.now()
-    runs = _recent_runs(user, now)
-
-    # Aggregate the server's per-type steps outcome across the session's batches.
-    received = {"created": 0, "updated": 0, "skipped": 0, "failed": 0}
-    failure_reasons = []
-    client_steps = None  # most recent client_debug.steps
-    for r in runs:
-        tr = (getattr(r, "metric_type_results", None) or {}).get("steps")
-        if tr:
-            for k in received:
-                received[k] += int(tr.get(k, 0))
-        for e in (getattr(r, "validation_errors", None) or []):
-            if isinstance(e, dict) and (e.get("type", "").lower() == "steps"):
-                failure_reasons.append(e.get("error", "error"))
-        cd = (getattr(r, "client_debug", None) or {}).get("steps")
-        if cd and client_steps is None:
-            client_steps = cd
-
-    from django.apps import apps as django_apps
-    StepsEntry = django_apps.get_model("health", "StepsEntry")
-    persisted_total = StepsEntry.objects.filter(user=user, source=APPLE_HEALTH).count()
-    latest = (StepsEntry.objects.filter(user=user, source=APPLE_HEALTH)
-              .order_by("-logged_date").first())
-    server_touched = received["created"] + received["updated"]
-
-    # Deterministic verdict — the failing stage.
-    if not runs:
-        verdict = "No sync in the last 15 minutes. Trigger a sync, then reopen this page."
-        stage = "no_recent_sync"
-    elif client_steps is not None and int(client_steps.get("raw_samples", -1)) == 0:
-        verdict = ("HealthKit returned 0 raw step samples for the 7-day window "
-                   "(even though permission is granted) — a device query/data issue, not the server.")
-        stage = "healthkit_returned_zero"
-    elif client_steps is not None and int(client_steps.get("built", -1)) == 0:
-        verdict = ("Raw step samples exist but the daily-total (cumulative-sum) query "
-                   "produced 0 metrics — the fetchSteps aggregation is the problem.")
-        stage = "aggregation_zero"
-    elif failure_reasons:
-        verdict = f"The server RECEIVED steps but REJECTED them: {failure_reasons[0]}"
-        stage = "server_rejected"
-    elif (received["created"] + received["updated"] + received["skipped"] + received["failed"]) == 0:
-        if client_steps is not None and int(client_steps.get("sent", 0)) > 0:
-            verdict = ("The device says it SENT step metrics, but the server received none "
-                       "in this session — a transport/serialization or batching/user mismatch.")
-            stage = "not_received"
-        else:
-            verdict = ("No step metrics were sent in this session. Either fetchSteps built none, "
-                       "or the client build predates glass-box telemetry (update the app).")
-            stage = "not_sent"
-    elif server_touched > 0 and persisted_total == 0:
-        verdict = ("The server processed step metrics but no StepsEntry persisted — "
-                   "a persistence anomaly (investigate process_steps_metric).")
-        stage = "not_persisted"
-    else:
-        verdict = (f"Steps are flowing: server created/updated {server_touched} this session; "
-                   f"{persisted_total} StepsEntry rows total.")
-        stage = "healthy"
-
-    return {
-        "stage": stage,
-        "verdict": verdict,
-        "client_reported": client_steps,  # {raw_samples, built, sent} or None
-        "server_received": received,
-        "server_rejection_reasons": failure_reasons[:3],
-        "persisted_total": persisted_total,
-        "latest_persisted_date": (
-            latest.logged_date.isoformat() if latest and latest.logged_date else None
-        ),
-        "recent_run_count": len(runs),
-    }
-
-
 def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
     """THE deterministic Health Sync status for a user. Facts only — never a verdict."""
     now = now or timezone.now()
@@ -365,6 +272,4 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
         "data_types": data_types,
         "categories": categories,
         "last_sync_summary": _last_sync_summary(run),
-        # Temporary glass-box: pinpoint exactly where Steps disappear.
-        "diagnostics": {"steps": steps_pipeline_diagnostics(user, now)},
     }

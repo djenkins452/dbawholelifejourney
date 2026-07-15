@@ -3,8 +3,33 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(ios): HealthKit authorization lifecycle — Review Health Permissions when the registry expands)
+# Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — chore: retire the temporary STEPS_GLASSBOX instrumentation (Steps proven through the full pipeline)
+
+Steps is confirmed healthy end to end on device (569 raw samples → 8 daily totals → 2,299 metrics submitted, 5/5
+batches, 0 errors), so the one-off glass-box built to find where Steps disappeared has served its purpose and is
+removed. The **durable** generic telemetry — per-type `metric_type_results`, the sync summary, per-source status,
+and the new per-batch/overall submission logs — stays; only the Steps-specific instrumentation goes.
+
+**Removed:**
+- **Server** (`health_sync_status.py`): `steps_pipeline_diagnostics()` + `_recent_runs()` helpers and the
+  `diagnostics` key from `build_health_sync_status`. **Request-path win:** that diagnostic ran extra queries on
+  *every* status load; the status endpoint is now leaner. (Dropped its test; kept the generic `client_debug`
+  capture test.)
+- **Server** (`mobile/views.py`): the verbose `[STEPS_GLASSBOX]` `logger.warning` in the ingest view. The
+  resilient ingestion logic is untouched; the generic `client_debug` capture is retained as a reusable channel.
+- **iOS** (`HealthKitManager.swift`): `lastStepsDebug`, the `countRawSamples()` helper (an extra per-sync
+  HealthKit query), and the `[STEPS_GLASSBOX]` print in `fetchSteps`; the sync no longer sends steps `clientDebug`.
+- **iOS** (`HealthSyncStatus.swift`): the `SyncDiagnostics` / `StepsDiagnostics` models + the `diagnostics` field
+  (the Steps Diagnostics UI panel was already removed in the native redesign).
+
+**Kept (durable value):** `lastSyncSkippedTypes` (feeds the "Review Health Permissions" surfacing), the per-batch
++ overall submission telemetry, and the generic `client_debug` channel. Ingestion path unchanged.
+
+**Verification:** iOS compiles clean (BUILD SUCCEEDED, 0 errors); `manage.py check` clean; health-sync + registry
+contract suites green (21 tests); no migration change. No behavior change to sync or ingestion.
 
 ## 2026-07-15 — feat(ios): HealthKit authorization lifecycle — "Review Health Permissions" for newly-added types
 

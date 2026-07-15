@@ -321,6 +321,22 @@ class HealthKitManager {
 
     // MARK: - Sync Health Data
 
+    /// Run one fetch resiliently. A single data type failing — most importantly an
+    /// unauthorized type throwing HealthKit Code=5 (authorization not determined, e.g.
+    /// the blood-pressure correlation type we intentionally don't authorize) — must
+    /// NEVER abort the whole sync. Before this, one throwing fetch meant `submit` was
+    /// never reached and everything already fetched (e.g. steps) was silently lost.
+    /// Logs which type failed and continues with an empty result.
+    private func safeFetch(_ type: String,
+                           _ fetch: () async throws -> [HealthMetric]) async -> [HealthMetric] {
+        do {
+            return try await fetch()
+        } catch {
+            print("[HEALTH_SYNC] fetch '\(type)' failed: \(error.localizedDescription) — skipped; sync continues")
+            return []
+        }
+    }
+
     func syncHealthData() async throws -> SyncResult {
         guard KeychainManager.shared.getAPIToken() != nil else {
             throw HealthKitError.notAuthenticated
@@ -333,33 +349,34 @@ class HealthKitManager {
         let endDate = Date()
         let startDate = calendar.date(byAdding: .day, value: -7, to: endDate)!
 
-        // Fetch all data types
-        let steps = try await fetchSteps(from: startDate, to: endDate)
-        let weights = try await fetchWeight(from: startDate, to: endDate)
-        let sleepData = try await fetchSleep(from: startDate, to: endDate)
-        let heartRates = try await fetchHeartRate(from: startDate, to: endDate)
-        let glucoseReadings = try await fetchBloodGlucose(from: startDate, to: endDate)
-        let oxygenReadings = try await fetchBloodOxygen(from: startDate, to: endDate)
-        let waterIntake = try await fetchWaterIntake(from: startDate, to: endDate)
-        let activeCalories = try await fetchActiveCalories(from: startDate, to: endDate)
-        let distance = try await fetchDistance(from: startDate, to: endDate)
-        let restingCalories = try await fetchRestingCalories(from: startDate, to: endDate)
-        let flightsClimbed = try await fetchFlightsClimbed(from: startDate, to: endDate)
-        let exerciseMinutes = try await fetchExerciseMinutes(from: startDate, to: endDate)
-        let standHours = try await fetchStandHours(from: startDate, to: endDate)
-        let bodyFat = try await fetchBodyFat(from: startDate, to: endDate)
-        let workouts = try await fetchWorkouts(from: startDate, to: endDate)
-        let leanMass = try await fetchLeanBodyMass(from: startDate, to: endDate)
-        let bmi = try await fetchBMI(from: startDate, to: endDate)
-        let height = try await fetchHeight(from: startDate, to: endDate)
-        let waist = try await fetchWaist(from: startDate, to: endDate)
-        let respiratoryRate = try await fetchRespiratoryRate(from: startDate, to: endDate)
-        let hrv = try await fetchHeartRateVariability(from: startDate, to: endDate)
-        let vo2Max = try await fetchVO2Max(from: startDate, to: endDate)
-        let caffeine = try await fetchCaffeine(from: startDate, to: endDate)
-        let mindfulMinutes = try await fetchMindfulMinutes(from: startDate, to: endDate)
-        let bloodPressure = try await fetchBloodPressure(from: startDate, to: endDate)
-        let bodyTemperature = try await fetchBodyTemperature(from: startDate, to: endDate)
+        // Fetch all data types. Each fetch is RESILIENT (safeFetch): one type failing
+        // must never abort the sync and silently drop everything already fetched.
+        let steps = await safeFetch("steps") { try await self.fetchSteps(from: startDate, to: endDate) }
+        let weights = await safeFetch("weight") { try await self.fetchWeight(from: startDate, to: endDate) }
+        let sleepData = await safeFetch("sleep") { try await self.fetchSleep(from: startDate, to: endDate) }
+        let heartRates = await safeFetch("heart_rate") { try await self.fetchHeartRate(from: startDate, to: endDate) }
+        let glucoseReadings = await safeFetch("blood_glucose") { try await self.fetchBloodGlucose(from: startDate, to: endDate) }
+        let oxygenReadings = await safeFetch("blood_oxygen") { try await self.fetchBloodOxygen(from: startDate, to: endDate) }
+        let waterIntake = await safeFetch("water") { try await self.fetchWaterIntake(from: startDate, to: endDate) }
+        let activeCalories = await safeFetch("active_calories") { try await self.fetchActiveCalories(from: startDate, to: endDate) }
+        let distance = await safeFetch("distance") { try await self.fetchDistance(from: startDate, to: endDate) }
+        let restingCalories = await safeFetch("resting_calories") { try await self.fetchRestingCalories(from: startDate, to: endDate) }
+        let flightsClimbed = await safeFetch("flights_climbed") { try await self.fetchFlightsClimbed(from: startDate, to: endDate) }
+        let exerciseMinutes = await safeFetch("exercise_minutes") { try await self.fetchExerciseMinutes(from: startDate, to: endDate) }
+        let standHours = await safeFetch("stand_hours") { try await self.fetchStandHours(from: startDate, to: endDate) }
+        let bodyFat = await safeFetch("body_fat") { try await self.fetchBodyFat(from: startDate, to: endDate) }
+        let workouts = await safeFetch("workout") { try await self.fetchWorkouts(from: startDate, to: endDate) }
+        let leanMass = await safeFetch("lean_body_mass") { try await self.fetchLeanBodyMass(from: startDate, to: endDate) }
+        let bmi = await safeFetch("bmi") { try await self.fetchBMI(from: startDate, to: endDate) }
+        let height = await safeFetch("height") { try await self.fetchHeight(from: startDate, to: endDate) }
+        let waist = await safeFetch("waist") { try await self.fetchWaist(from: startDate, to: endDate) }
+        let respiratoryRate = await safeFetch("respiratory_rate") { try await self.fetchRespiratoryRate(from: startDate, to: endDate) }
+        let hrv = await safeFetch("hrv") { try await self.fetchHeartRateVariability(from: startDate, to: endDate) }
+        let vo2Max = await safeFetch("vo2_max") { try await self.fetchVO2Max(from: startDate, to: endDate) }
+        let caffeine = await safeFetch("caffeine") { try await self.fetchCaffeine(from: startDate, to: endDate) }
+        let mindfulMinutes = await safeFetch("mindful_minutes") { try await self.fetchMindfulMinutes(from: startDate, to: endDate) }
+        let bloodPressure = await safeFetch("blood_pressure") { try await self.fetchBloodPressure(from: startDate, to: endDate) }
+        let bodyTemperature = await safeFetch("body_temperature") { try await self.fetchBodyTemperature(from: startDate, to: endDate) }
 
         metrics.append(contentsOf: steps)
         metrics.append(contentsOf: weights)
@@ -388,28 +405,28 @@ class HealthKitManager {
         metrics.append(contentsOf: bloodPressure)
         metrics.append(contentsOf: bodyTemperature)
 
-        // Extended HealthKit types
-        let walkingAsymmetry = try await fetchWalkingAsymmetry(from: startDate, to: endDate)
-        let walkingSteadiness = try await fetchWalkingSteadiness(from: startDate, to: endDate)
-        let walkingSpeed = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingSpeed, unit: HKUnit.mile().unitDivided(by: .hour()), metricType: "walking_speed", fieldName: "walking_speed", syncPrefix: "walkspeed")
-        let stepLength = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingStepLength, unit: .inch(), metricType: "step_length", fieldName: "step_length", syncPrefix: "steplength")
-        let doubleSupport = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingDoubleSupportPercentage, unit: .percent(), metricType: "double_support_time", fieldName: "double_support_time", syncPrefix: "doublesupport", multiplyBy100: true)
-        let stairAscent = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairAscentSpeed, unit: HKUnit.meter().unitDivided(by: .second()), metricType: "stair_ascent_speed", fieldName: "stair_ascent_speed", syncPrefix: "stairascent")
-        let stairDescent = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairDescentSpeed, unit: HKUnit.meter().unitDivided(by: .second()), metricType: "stair_descent_speed", fieldName: "stair_descent_speed", syncPrefix: "stairdescent")
-        let sixMinWalk = try await fetchMobilityQuantity(from: startDate, to: endDate, identifier: .sixMinuteWalkTestDistance, unit: .meter(), metricType: "six_min_walk", fieldName: "six_min_walk", syncPrefix: "6minwalk")
-        let hrEvents = try await fetchHeartRateEvents(from: startDate, to: endDate)
-        let headphoneAudio = try await fetchHeadphoneAudio(from: startDate, to: endDate)
-        let environmentalAudio = try await fetchEnvironmentalAudio(from: startDate, to: endDate)
-        let dietaryNutrients = try await fetchDietaryNutrients(from: startDate, to: endDate)
+        // Extended HealthKit types (also resilient via safeFetch)
+        let walkingAsymmetry = await safeFetch("walking_asymmetry") { try await self.fetchWalkingAsymmetry(from: startDate, to: endDate) }
+        let walkingSteadiness = await safeFetch("walking_steadiness") { try await self.fetchWalkingSteadiness(from: startDate, to: endDate) }
+        let walkingSpeed = await safeFetch("walking_speed") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingSpeed, unit: HKUnit.mile().unitDivided(by: .hour()), metricType: "walking_speed", fieldName: "walking_speed", syncPrefix: "walkspeed") }
+        let stepLength = await safeFetch("step_length") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingStepLength, unit: .inch(), metricType: "step_length", fieldName: "step_length", syncPrefix: "steplength") }
+        let doubleSupport = await safeFetch("double_support_time") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .walkingDoubleSupportPercentage, unit: .percent(), metricType: "double_support_time", fieldName: "double_support_time", syncPrefix: "doublesupport", multiplyBy100: true) }
+        let stairAscent = await safeFetch("stair_ascent_speed") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairAscentSpeed, unit: HKUnit.meter().unitDivided(by: .second()), metricType: "stair_ascent_speed", fieldName: "stair_ascent_speed", syncPrefix: "stairascent") }
+        let stairDescent = await safeFetch("stair_descent_speed") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .stairDescentSpeed, unit: HKUnit.meter().unitDivided(by: .second()), metricType: "stair_descent_speed", fieldName: "stair_descent_speed", syncPrefix: "stairdescent") }
+        let sixMinWalk = await safeFetch("six_min_walk") { try await self.fetchMobilityQuantity(from: startDate, to: endDate, identifier: .sixMinuteWalkTestDistance, unit: .meter(), metricType: "six_min_walk", fieldName: "six_min_walk", syncPrefix: "6minwalk") }
+        let hrEvents = await safeFetch("heart_rate_events") { try await self.fetchHeartRateEvents(from: startDate, to: endDate) }
+        let headphoneAudio = await safeFetch("headphone_audio") { try await self.fetchHeadphoneAudio(from: startDate, to: endDate) }
+        let environmentalAudio = await safeFetch("environmental_audio") { try await self.fetchEnvironmentalAudio(from: startDate, to: endDate) }
+        let dietaryNutrients = await safeFetch("dietary_nutrients") { try await self.fetchDietaryNutrients(from: startDate, to: endDate) }
 
         // Generic fact-store activity types (cumulative daily sum → HealthKitDailyMetric)
-        let cyclingDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceCycling, unit: .mile(), unitLabel: "mi", metricType: "cycling_distance", syncPrefix: "cycdist")
-        let swimmingDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceSwimming, unit: .meter(), unitLabel: "m", metricType: "swimming_distance", syncPrefix: "swimdist")
-        let swimmingStrokes = try await fetchDailySum(from: startDate, to: endDate, identifier: .swimmingStrokeCount, unit: .count(), unitLabel: "strokes", metricType: "swimming_strokes", syncPrefix: "swimstroke")
-        let moveMinutes = try await fetchDailySum(from: startDate, to: endDate, identifier: .appleMoveTime, unit: .minute(), unitLabel: "min", metricType: "move_minutes", syncPrefix: "movemin")
-        let wheelchairDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceWheelchair, unit: .mile(), unitLabel: "mi", metricType: "wheelchair_distance", syncPrefix: "wheeldist")
-        let pushCount = try await fetchDailySum(from: startDate, to: endDate, identifier: .pushCount, unit: .count(), unitLabel: "pushes", metricType: "push_count", syncPrefix: "pushcount")
-        let snowSportsDistance = try await fetchDailySum(from: startDate, to: endDate, identifier: .distanceDownhillSnowSports, unit: .mile(), unitLabel: "mi", metricType: "snow_sports_distance", syncPrefix: "snowdist")
+        let cyclingDistance = await safeFetch("cycling_distance") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .distanceCycling, unit: .mile(), unitLabel: "mi", metricType: "cycling_distance", syncPrefix: "cycdist") }
+        let swimmingDistance = await safeFetch("swimming_distance") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .distanceSwimming, unit: .meter(), unitLabel: "m", metricType: "swimming_distance", syncPrefix: "swimdist") }
+        let swimmingStrokes = await safeFetch("swimming_strokes") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .swimmingStrokeCount, unit: .count(), unitLabel: "strokes", metricType: "swimming_strokes", syncPrefix: "swimstroke") }
+        let moveMinutes = await safeFetch("move_minutes") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .appleMoveTime, unit: .minute(), unitLabel: "min", metricType: "move_minutes", syncPrefix: "movemin") }
+        let wheelchairDistance = await safeFetch("wheelchair_distance") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .distanceWheelchair, unit: .mile(), unitLabel: "mi", metricType: "wheelchair_distance", syncPrefix: "wheeldist") }
+        let pushCount = await safeFetch("push_count") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .pushCount, unit: .count(), unitLabel: "pushes", metricType: "push_count", syncPrefix: "pushcount") }
+        let snowSportsDistance = await safeFetch("snow_sports_distance") { try await self.fetchDailySum(from: startDate, to: endDate, identifier: .distanceDownhillSnowSports, unit: .mile(), unitLabel: "mi", metricType: "snow_sports_distance", syncPrefix: "snowdist") }
 
         metrics.append(contentsOf: walkingAsymmetry)
         metrics.append(contentsOf: walkingSteadiness)

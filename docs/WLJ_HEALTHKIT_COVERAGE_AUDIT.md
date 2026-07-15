@@ -230,6 +230,7 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
 | **Waist** (gap §2c #2) | Added the missing iOS producer (`.waistCircumference` read + `fetchWaist()`); server handler already existed. | telemetry-truth test |
 | **Generic fact store** | `HealthKitDailyMetric` (migration `0103`) — governed home for HealthKit's long tail (no bespoke model). Registry rows `model_path` here, discriminated by `metric_key`; idempotent upsert per `(user, metric_key, date, source)` with provenance. Ingest `process_generic_daily_metric` (validation + central normalization + created/updated/skipped telemetry). | `test_generic_daily_metric` (6: ingest, idempotency, update, multi-key, multi-source, validation) |
 | **Activity long-tail** | 7 generic activity types via the store: cycling / swimming / **wheelchair** / **snow-sports** distance, swimming strokes, Apple Move time, **wheelchair pushes**. Each an iOS `fetchDailySum` producer + registry row + handler entry. | generic-store + agreement tests |
+| **Sync resilience (Steps ROOT CAUSE)** | `syncHealthData` was all-or-nothing: ~35 sequential `try await fetchX()` then one `submit`. `fetchBloodPressure` queries the `.bloodPressure` **correlation** type (never authorized — it hangs `requestAuthorization`), which throws **Code=5** and aborted the whole sync *after* `fetchSteps` ran (logged `built=8`) but *before* `submit` — so Steps (and all types) were built yet never sent. Fix: `safeFetch` wraps every fetch → a single type failing logs + returns `[]` and the sync still submits. Eliminates the class. | `test_every_queried_identifier_is_authorized_or_allowlisted` (proves `.bloodPressure` is the only queried-but-unauthorized id) + compile |
 
 **Truth states:** every source reports `healthy / idle / stale / no_data` (per-type persisted status) and
 `imported / no_changes / failed` (per-run results). No fabricated state; absence is never reported as healthy.
@@ -288,6 +289,13 @@ WLJ's HealthKit coverage is already **strong** (53 authorized reads, 39 ingested
   is acceptable only for the few that occur outside workouts (e.g. ambient running speed from the phone). Decide
   per-metric during the Workouts milestone; needs either per-workout series storage or a generic `fetchDailyAverage`
   helper for the genuinely-daily subset. Deferred deliberately, not skipped.
+- **Blood pressure reads (proper fix, device-verify):** BP currently syncs nothing — its fetch queries the
+  `.bloodPressure` correlation type, which can't be authorized (hangs `requestAuthorization` on some iOS), so it
+  throws Code=5 and is now caught gracefully (returns `[]`). The correct fix is to **stop querying the correlation
+  type**: read the authorized `.bloodPressureSystolic` + `.bloodPressureDiastolic` quantity samples and pair them by
+  identical sample `startDate`. Deferred (not risked blind): pairing health-data must be **device-verified** —
+  ingesting a mis-paired systolic/diastolic reading is worse than none. Compile-safe, well-understood; needs a real
+  BP reading on-device to confirm pairing before shipping.
 - **Phases B–E:** each new type needs a **paired iOS producer**; a Django-only handler would be a dead path
   (exactly how `waist` sat before this work). Best executed as batched domain phases per §5, each a single
   deliberate iOS auth-set revision + registry rows + tests. The registry + contract + category infra built here

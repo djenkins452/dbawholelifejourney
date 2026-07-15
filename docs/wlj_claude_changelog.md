@@ -3,7 +3,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(ios): world-class native Health Sync experience — grouped, deterministic, premium)
+# Last Updated: 2026-07-15 (fix(ios): Steps ROOT CAUSE — one unauthorized fetch (Code=5) aborted the whole sync)
 # ================================================================# WLJ Change History
 
 ## 2026-07-15 — feat(model-interface): Truth Resolution Layer surface-complete — the ENTITY branch (get_entity)
@@ -22,6 +22,42 @@
 **Verification:** `manage.py check` clean (only pre-existing djstripe env warnings); **97 targeted tests pass** — `test_domain_entity` (new, 13), `test_domain_history`, `test_cos_tools`, `test_model_interface_runtime`, `test_standing_context`, `test_current_context_baseline`, `test_domain_state`. Live: `all_tools()` now advertises all four truth surfaces incl. `get_entity`; entity capability index = `{legacy, medicine}`.
 
 **Files:** `apps/ai/cos_services/domain_entity.py` (new), `apps/ai/cos_services/__init__.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/tests/test_domain_entity.py` (new), `docs/WLJ_MODEL_INTERFACE_DESIGN.md`, `docs/wlj_claude_changelog.md`.
+
+## 2026-07-15 — fix(ios): Steps root cause — resilient per-fetch sync (one Code=5 no longer aborts everything)
+
+**Root cause proven (device logs + static trace), both symptoms, one cause.** Device logs showed
+`[STEPS_GLASSBOX] rawSamples=573 builtDailyTotals=8` — HealthKit auth, `fetchSteps()`, and the cumulative
+aggregation are all healthy; Steps were *built* on device. Tracing from payload creation onward:
+`syncHealthData()` was **all-or-nothing** — ~35 sequential `try await fetchX(...)` calls, then a single `submit`
+at the end. `fetchSteps` runs first (logs `built=8`), but a later fetch, **`fetchBloodPressure`**, queries the
+`.bloodPressure` **correlation** type — which is deliberately NOT authorized (authorizing it hangs
+`requestAuthorization` on some iOS versions; only the systolic/diastolic members are authorized). Querying an
+unauthorized type throws **HealthKit Code=5 (authorization not determined)**, and `fetchBloodPressure` re-throws
+it → `syncHealthData` threw → **`submit` was never reached** → Steps (already built) and everything else were
+silently dropped. So: built ✓, but never sent / received / persisted / shown.
+
+**The Code=5 identifier (the separate ask):** conclusively `.bloodPressure` — the blood-pressure *correlation*
+type — proven by diffing the iOS authorization `readTypes` set against every identifier the fetches query
+(`.bloodPressure` was the ONLY queried-but-unauthorized one). **Decision:** not "request it" (documented
+`requestAuthorization` hang) → **handle gracefully** (below). Proper BP fix (read the authorized
+systolic/diastolic quantities and pair them) is documented as a device-verify follow-up — not risked blind, since
+a mis-paired reading is worse than none.
+
+**Fix — eliminate the class (`ios/.../HealthKitManager.swift`):** new `safeFetch(type){ … }` wraps **every** fetch
+— a single type failing (Code=5 or anything) logs `[HEALTH_SYNC] fetch '<type>' failed: … — skipped; sync
+continues` and returns `[]`, so `submit` is always reached with everything that succeeded. The architectural
+condition that let one type's failure kill the whole sync (and silently lose Steps) is removed. Steps now flow
+regardless of BP.
+
+**Regression guard:** `test_every_queried_identifier_is_authorized_or_allowlisted` splits the `readTypes` closure
+from the fetch code and asserts **queried ⊆ authorized** (+ a documented allowlist for `.bloodPressure`). This
+closes a blind spot in the prior authorization test (which grepped `forIdentifier:` anywhere, so a fetch-only
+identifier looked authorized — exactly how `.bloodPressure` slipped). Any future queried-but-unauthorized type now
+fails CI instead of silently throwing Code=5 on-device.
+
+**Verification:** iOS **compiles clean** (BUILD SUCCEEDED, 0 errors); 12 contract tests green; `check` clean; no
+migration drift. **On-device:** after installing this build, a sync should show Steps flowing and the `[HEALTH_SYNC]
+fetch 'blood_pressure' failed … Code=5 … skipped` line (proving the graceful handling). No new metrics.
 
 ## 2026-07-15 — feat(ios): world-class native Health Sync experience (SwiftUI) on deterministic truth
 

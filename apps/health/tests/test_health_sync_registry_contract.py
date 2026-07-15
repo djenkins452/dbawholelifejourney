@@ -205,6 +205,39 @@ class CanonicalContractHardeningTests(TestCase):
                 t.presence_filter, {"metric_key": t.key},
                 f"{t.key}: presence_filter must discriminate on its own metric_key")
 
+    def test_every_queried_identifier_is_authorized_or_allowlisted(self):
+        """Code=5 guard (the Steps root cause). An identifier a fetch QUERIES but that is
+        NOT in the iOS authorization `readTypes` set throws
+        `errorAuthorizationNotDetermined` — and before `safeFetch`, one such throw aborted
+        the ENTIRE sync before `submit`, silently killing Steps (already fetched) and
+        everything else. The prior authorization test greps `forIdentifier:` anywhere, so
+        a fetch-only identifier looked authorized — this closes that blind spot by
+        splitting the readTypes closure from the fetch code and asserting queried ⊆
+        authorized (plus a documented allowlist of types we intentionally don't authorize
+        but handle gracefully)."""
+        if not _IOS_HEALTHKIT_MANAGER.exists():
+            self.skipTest("iOS HealthKitManager.swift not present in this checkout")
+        text = _IOS_HEALTHKIT_MANAGER.read_text()
+        marker = text.find("return types")  # end of the readTypes authorization closure
+        self.assertNotEqual(marker, -1, "could not locate the readTypes closure")
+        authz_region, fetch_region = text[:marker], text[marker:]
+        authorized = set(re.findall(r"forIdentifier:\s*(\.\w+)", authz_region))
+        queried = set(re.findall(r"forIdentifier:\s*(\.\w+)", fetch_region))
+
+        # Types we KNOWINGLY query without authorizing. `.bloodPressure` is a correlation
+        # type that hangs requestAuthorization on some iOS versions, so we authorize its
+        # systolic/diastolic members instead and let the correlation query fail gracefully
+        # under safeFetch (it returns [] and the sync continues).
+        ALLOWLIST = {".bloodPressure"}
+
+        unauthorized = queried - authorized - ALLOWLIST
+        self.assertEqual(
+            unauthorized, set(),
+            f"Fetches query HealthKit identifiers NOT in readTypes (these throw Code=5 and "
+            f"silently never sync — add them to readTypes, or to the documented allowlist "
+            f"if intentional + handled by safeFetch): {sorted(unauthorized)}",
+        )
+
     def test_every_generic_type_has_an_ios_producer(self):
         """Django→Swift PRODUCER agreement (beyond authorization): every generic-store key
         must be emitted by an iOS fetch as ``metricType: \"<key>\"``. A registry row +

@@ -3,8 +3,35 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (docs(body): regression-guard comment on the Current Snapshot producer)
+# Last Updated: 2026-07-15 (docs(health): HealthKit coverage audit + roadmap — investigation only, no data types added)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — docs(health): comprehensive HealthKit coverage audit & roadmap (investigation only)
+
+Produced `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` — a full comparison of the HealthKit readable surface
+(through iOS 18) against what WLJ actually requests and ingests, with a five-bucket gap analysis
+(synchronized / available-not-synced / intentionally-excluded / not-appropriate / needs-architecture),
+per-missing-type detail (HK identifier, name, domain, units, R/RW, business value, H/M/L priority),
+effort-tiered recommendations, and a phased roadmap. **No code changed and no new data types were added** —
+this is decision input, per the request to stop adding metrics one at a time.
+
+**Traced from actual code (not the UI):**
+- iOS authorizes **53** read types — `HealthKitManager.swift:16-240` (`readTypes`).
+- Server ingests **39** `metric_type` keys — `apps/mobile/views.py:704-744` (`handlers`).
+- Telemetry registry surfaces only **12** — `apps/health/services/health_sync_status.py:71-97`.
+
+**Three internal gaps surfaced (Tier 0 quick wins):**
+1. ~27 ingested types have NO freshness/health telemetry (not in `HEALTH_SYNC_TYPES`) — same blind-spot
+   class as the Steps investigation.
+2. `waist` server handler has no iOS producer (dead path) — iOS never authorizes `WaistCircumference`.
+3. No `HKCharacteristicType` read at all (DOB/sex/blood type/skin/wheelchair); no `height`; `bmi` ingested
+   but unmonitored.
+
+**Recommendation:** highest leverage is Phase A — make already-ingested metrics observable + close the three
+gaps — before expanding coverage in batched domain phases (B–E), each a single deliberate auth-set revision
+with mandatory telemetry.
+
+**Files:** `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` (new).
 
 ## 2026-07-14 — docs(body): architectural regression-guard comment on the Current Snapshot producer
 

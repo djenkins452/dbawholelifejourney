@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (fix(body): Current Snapshot reads latest canonical BodyCompositionEntry, not the today-rollup)
+# Last Updated: 2026-07-14 (docs(body): regression-guard comment on the Current Snapshot producer)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — docs(body): architectural regression-guard comment on the Current Snapshot producer
+
+Added a brief `⚠️ ARCHITECTURAL INVARIANT` comment above `_current_snapshot`
+(`apps/health/services/body_intelligence.py`) documenting **why** body fat / fat mass / lean mass read the latest
+canonical `BodyCompositionEntry` snapshot (`snapshot.latest`) and NOT the `DailyHealthSummary` today-rollup —
+because the rollup is None on any day without a same-day rollup and would blank composition that canonically
+exists. Prevents a future developer from "correcting" it back to the previous incorrect behavior. Comment-only; no
+behavior change. (Companion to the 2026-07-14 Current Snapshot fix below.)
 
 ## 2026-07-14 — fix(body): Body Intelligence Current Snapshot shows canonical Body Fat / Fat Mass / Lean Mass (wrong producer)
 

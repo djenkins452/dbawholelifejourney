@@ -418,6 +418,12 @@ def _measurement_rows(snapshot, metric_order, metric_labels):
     return rows
 
 
+# ⚠️ ARCHITECTURAL INVARIANT — DO NOT "fix" body fat / fat mass / lean mass back to the
+# DailyHealthSummary rollup (`body_comp`). That rollup only carries a value when a same-day
+# rollup ran, so it reads None on most days and BLANKS composition that canonically exists.
+# The Current Snapshot's authority is the latest-logged BodyCompositionEntry (`snapshot.latest`)
+# — the same source Waist uses and the same numbers the "Body composition" section shows.
+# One canonical producer per card, no rollup fallback. (Regression fixed 2026-07-14.)
 def _current_snapshot(body_comp, snapshot, weight):
     """Named current values for the top snapshot cards — one consistent canonical authority.
 

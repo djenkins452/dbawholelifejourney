@@ -6,6 +6,28 @@
 # Last Updated: 2026-07-15 (docs(health): HealthKit coverage audit + roadmap — investigation only, no data types added)
 # ================================================================# WLJ Change History
 
+## 2026-07-14 — fix(ios): add HealthSyncStatus.swift to the Xcode build target (compile fix)
+
+**Symptom:** iOS project failed to compile with 3 errors — `Cannot find type 'HealthSyncStatus' in scope`
+and `Type 'SyncStatusResponse' does not conform to protocol 'Decodable'/'Encodable'` (2×).
+
+**Root cause (single):** `WLJWrapper/Models/HealthSyncStatus.swift` existed on disk and was well-formed, but was
+never registered in `WLJWrapper.xcodeproj/project.pbxproj` — no `PBXBuildFile`, no `PBXFileReference`, not in the
+`Models` group, not in the `Sources` build phase. The compiler therefore never saw the file. Because
+`SyncStatusResponse` (`Services/APIClient.swift:437`) has a stored property `let syncHealth: HealthSyncStatus?`,
+an unknown member type blocked Swift's automatic `Codable` synthesis — so all three errors collapsed to that one
+missing target membership. A disk-vs-pbxproj diff confirmed `HealthSyncStatus.swift` was the ONLY Swift file on
+disk absent from the project.
+
+**Fix:** Added the four required pbxproj entries for the file (object id `…000F`) — build file, file reference,
+`Models` group child, and `Sources` build-phase entry — mirroring the existing `HealthMetric.swift` pattern. No
+Swift source changed; no obsolete type recreated; no manual `Decodable` implementation. The canonical
+server-contract model was already correct — it simply wasn't being compiled.
+
+**Files:** `ios/WLJWrapper/WLJWrapper.xcodeproj/project.pbxproj`.
+
+**Verification:** `xcodebuild -scheme WLJWrapper -sdk iphonesimulator … build` → **BUILD SUCCEEDED** (0 errors).
+
 ## 2026-07-15 — docs(health): comprehensive HealthKit coverage audit & roadmap (investigation only)
 
 Produced `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` — a full comparison of the HealthKit readable surface

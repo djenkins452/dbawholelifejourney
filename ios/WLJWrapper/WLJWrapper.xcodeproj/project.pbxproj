@@ -16,6 +16,7 @@
 		1A0000000000000000000007 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1000000000000000000007 /* APIClient.swift */; };
 		1A0000000000000000000008 /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1000000000000000000008 /* HealthKitManager.swift */; };
 		1A0000000000000000000009 /* HealthMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1000000000000000000009 /* HealthMetric.swift */; };
+		1A000000000000000000000F /* HealthSyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A100000000000000000000F /* HealthSyncStatus.swift */; };
 		1A000000000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1A100000000000000000000A /* Assets.xcassets */; };
 		1A000000000000000000000B /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1A100000000000000000000B /* HealthKit.framework */; };
 		7D6566EE2F2569C9007C1407 /* BackgroundSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D6566ED2F2569C9007C1407 /* BackgroundSyncManager.swift */; };
@@ -34,6 +35,7 @@
 		1A1000000000000000000007 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		1A1000000000000000000008 /* HealthKitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		1A1000000000000000000009 /* HealthMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthMetric.swift; sourceTree = "<group>"; };
+		1A100000000000000000000F /* HealthSyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthSyncStatus.swift; sourceTree = "<group>"; };
 		1A100000000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		1A100000000000000000000B /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		1A100000000000000000000C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -132,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				1A1000000000000000000009 /* HealthMetric.swift */,
+				1A100000000000000000000F /* HealthSyncStatus.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -227,6 +230,7 @@
 				1A0000000000000000000008 /* HealthKitManager.swift in Sources */,
 				7DC2B4D02F56EBF400D47000 /* ContactImportView.swift in Sources */,
 				1A0000000000000000000009 /* HealthMetric.swift in Sources */,
+				1A000000000000000000000F /* HealthSyncStatus.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

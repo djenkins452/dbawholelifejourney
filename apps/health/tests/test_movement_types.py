@@ -580,6 +580,34 @@ class SaveSetAjaxTests(MovementTypeTestMixin, TestCase):
 # 6-7. PR Detection Tests
 # =============================================================================
 
+class WorkingWeightRenderTests(MovementTypeTestMixin, TestCase):
+    """The workout form ships the working-weight UI scaffolding and the
+    deterministic body-weight value the JS uses to show body + added = total."""
+
+    def _get_form(self):
+        self.client.login(email="test@example.com", password="testpass123")
+        return self.client.get(reverse("health:workout_create"))
+
+    def test_form_injects_bodyweight_and_working_weight_markup(self):
+        self.user = self.create_user()
+        WeightEntry.objects.create(user=self.user, value=Decimal("285.0"), unit="lb")
+        resp = self._get_form()
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("const currentBodyweight = 285.0", html)
+        self.assertIn("weight-field working-weight", html)
+        self.assertIn("ww-total", html)
+        self.assertIn("working-weight-note", html)
+        self.assertIn('placeholder="Added"', html)
+        self.assertIn("function refreshWorkingWeight", html)
+
+    def test_form_reports_null_bodyweight_when_none_recorded(self):
+        self.user = self.create_user()
+        resp = self._get_form()
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("const currentBodyweight = null", resp.content.decode())
+
+
 class TimePRDetectionTests(MovementTypeTestMixin, TestCase):
     """Test PR detection for time-based exercises."""
 

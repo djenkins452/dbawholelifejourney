@@ -3121,6 +3121,8 @@ The **"Add weight"** checkbox (shown only for `movement_type == "bodyweight"`, f
 
 **Volume = (bodyweight_used + added weight) × reps.** The two components are **summed, never treated as alternatives**, so adding load correctly *increases* recorded volume. (Prior behavior returned `added weight × reps` alone, which made a weighted pull-up score *lower* than the same movement done unweighted — corrected 2026-07-14. Whichever component is missing counts as 0, so legacy rows still score sensibly.)
 
+**Working-weight display (makes the math visible).** When "Add weight" is toggled on, each set shows the equation inline — `285 + [ 25 ] = 310 lb` — where Body Weight and Total are read-only and only the added-load input is editable. The body-weight figure and live total are a **display layer only**: nothing about what is submitted or stored changes (the added-weight input is still the sole POST value; `bodyweight_used` is still stamped server-side). The value comes from the same deterministic source as the calculation — the workout form injects `current_bodyweight_json` (from `latest_bodyweight_lb`) as the JS `currentBodyweight`, and `refreshWorkingWeight()` / `updateSetTotal()` keep every set's total live. If no body weight is recorded, a note explains that only the added weight will count until one is logged. Implemented in `templates/health/fitness/workout_form.html` (JS template + logic) and `templates/health/fitness/partials/exercise_row.html` (server-rendered rows).
+
 ### Key Files
 - `apps/health/models.py` — `Exercise`, `WorkoutExercise`, `ExerciseSet.volume`
 - `apps/health/services/fitness_utils.py` — `latest_bodyweight_lb`, weekly/exercise volume

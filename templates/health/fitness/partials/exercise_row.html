@@ -77,16 +77,21 @@ Variables:
 
     {% elif exercise.category == "resistance" and exercise.movement_type == "bodyweight" %}
         {# Bodyweight exercise (e.g., Push-ups, Pull-ups) #}
+        <div class="working-weight-note" style="display: none;"></div>
         <div class="sets-container">
             {% if existing_sets %}
                 {% for set in existing_sets %}
                     <div class="set-row" data-set-number="{{ set.set_number }}">
                         <span class="set-number">Set {{ set.set_number }}</span>
                         <div class="set-inputs">
-                            <div class="weight-field" style="display: none;">
+                            <div class="weight-field working-weight" style="display: none;">
+                                <span class="ww-body" title="Your body weight (auto)"></span>
+                                <span class="ww-op ww-op-plus">+</span>
                                 <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_weight"
-                                       value="{{ set.weight|default:'' }}" inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                                <span class="input-suffix">lbs</span>
+                                       value="{{ set.weight|default:'' }}" inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                                <span class="input-suffix">lb</span>
+                                <span class="ww-op ww-op-eq">=</span>
+                                <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                             </div>
                             <input type="number" name="exercise_{{ exercise.pk }}_set_{{ set.set_number }}_reps"
                                    value="{{ set.reps|default:'' }}" inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">
@@ -103,10 +108,14 @@ Variables:
                             <div class="set-row" data-set-number="{{ forloop.counter }}">
                                 <span class="set-number">Set {{ forloop.counter }}</span>
                                 <div class="set-inputs">
-                                    <div class="weight-field" style="display: none;">
+                                    <div class="weight-field working-weight" style="display: none;">
+                                        <span class="ww-body" title="Your body weight (auto)"></span>
+                                        <span class="ww-op ww-op-plus">+</span>
                                         <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_weight"
-                                               inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                                        <span class="input-suffix">lbs</span>
+                                               inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                                        <span class="input-suffix">lb</span>
+                                        <span class="ww-op ww-op-eq">=</span>
+                                        <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                                     </div>
                                     <input type="number" name="exercise_{{ exercise.pk }}_set_{{ forloop.counter }}_reps"
                                            inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">

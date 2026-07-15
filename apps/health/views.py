@@ -1717,6 +1717,12 @@ class WorkoutCreateView(LoginRequiredMixin, TemplateView):
         # Pre-populate date with today
         context["date"] = today
 
+        # Working weight for bodyweight exercises: body weight + added load.
+        # Same deterministic source the volume calculation uses.
+        from apps.health.services.fitness_utils import latest_bodyweight_lb
+        _bw = latest_bodyweight_lb(user)
+        context["current_bodyweight_json"] = str(float(_bw)) if _bw else "null"
+
         # Activity presets for the activity mode toggle
         from .models import ACTIVITY_PRESETS
         context["activity_presets"] = ACTIVITY_PRESETS
@@ -2012,6 +2018,11 @@ class WorkoutUpdateView(LoginRequiredMixin, TemplateView):
         context["date"] = workout.date
         context["editing"] = True
         context["editing_activity"] = workout.is_activity
+
+        # Working weight for bodyweight exercises (same source as the volume calc).
+        from apps.health.services.fitness_utils import latest_bodyweight_lb
+        _bw = latest_bodyweight_lb(user)
+        context["current_bodyweight_json"] = str(float(_bw)) if _bw else "null"
 
         # Activity presets for activity edit
         from .models import ACTIVITY_PRESETS

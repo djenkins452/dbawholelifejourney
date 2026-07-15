@@ -3,8 +3,37 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-14 (fix(fitness): weighted bodyweight-exercise volume now SUMS body weight + added load; "+ Weight" → "Add weight")
+# Last Updated: 2026-07-14 (feat(fitness): bodyweight "working weight" — body weight + added = total shown live at point of entry)
 # ================================================================# WLJ Change History
+
+## 2026-07-14 — feat(fitness): bodyweight exercises show working weight (body weight + added = total) live
+
+**UX refinement (display only — no calculation or storage change).** Following the volume fix, the
+"Add weight" flow now makes the math visible. When toggled on, each bodyweight set renders the equation
+inline — `285 + [ 25 ] = 310 lb` — where **Body Weight** and **Total** are read-only and only the added-load
+input is editable. This communicates, at the point of entry, that (a) WLJ includes body weight automatically,
+(b) the input is only the extra external load, and (c) volume uses the total.
+
+**Deterministic + single-source:** the workout form injects `current_bodyweight_json` (from
+`fitness_utils.latest_bodyweight_lb` — the SAME source the volume calc uses) as the JS `currentBodyweight`.
+`refreshWorkingWeight()` populates the body-weight figure and `updateSetTotal()` recomputes each set's total
+live as the added-weight input changes. If no body weight is recorded, a note states that only the added
+weight will count until one is logged. Nothing submitted or stored changes — the added-weight input remains
+the only POST value and `bodyweight_used` is still stamped server-side.
+
+**Files:** `apps/health/views.py` (WorkoutCreate/UpdateView pass `current_bodyweight_json`),
+`templates/health/fitness/workout_form.html` (JS `currentBodyweight` + `bodyweightTemplate` markup +
+`refreshWorkingWeight`/`updateSetTotal`/live-input listener + CSS), `templates/health/fitness/partials/exercise_row.html`
+(server-rendered rows), `apps/health/tests/test_movement_types.py` (`WorkingWeightRenderTests`).
+
+**Verification:** `WorkingWeightRenderTests` — 2 tests OK (has-BW form injects `currentBodyweight = 285.0`
++ all working-weight markup; no-BW form injects `null`). `manage.py check` clean; no model/schema change.
+
+**⚠️ Dev-DB note for Danny:** an early verification script was mistakenly run against the dev database
+(not a test DB) and created two throwaway users — `ww_render_test@example.com` and `ww_render_nobw@example.com`
+— that could not be cascade-deleted because the dev DB's `capture_multimodalartifact` table is unmigrated.
+They are inert; remove them after running `migrate` locally if you want the dev DB tidy. Verification was
+redone as an isolated `--keepdb` test.
 
 ## 2026-07-14 — fix(fitness): weighted bodyweight exercises now count body weight + added load (was: added load alone)
 

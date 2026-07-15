@@ -545,13 +545,18 @@
         <div class="instructions-panel" style="display: none;">
             <div class="instructions-content"></div>
         </div>
+        <div class="working-weight-note" style="display: none;"></div>
         <div class="sets-container">
             <div class="set-row" data-set-number="1">
                 <span class="set-number">Set 1</span>
                 <div class="set-inputs">
-                    <div class="weight-field" style="display: none;">
-                        <input type="number" name="exercise_EXERCISE_ID_set_1_weight" inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                        <span class="input-suffix">lbs</span>
+                    <div class="weight-field working-weight" style="display: none;">
+                        <span class="ww-body" title="Your body weight (auto)"></span>
+                        <span class="ww-op ww-op-plus">+</span>
+                        <input type="number" name="exercise_EXERCISE_ID_set_1_weight" inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                        <span class="input-suffix">lb</span>
+                        <span class="ww-op ww-op-eq">=</span>
+                        <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                     </div>
                     <input type="number" name="exercise_EXERCISE_ID_set_1_reps" inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
@@ -562,9 +567,13 @@
             <div class="set-row" data-set-number="2">
                 <span class="set-number">Set 2</span>
                 <div class="set-inputs">
-                    <div class="weight-field" style="display: none;">
-                        <input type="number" name="exercise_EXERCISE_ID_set_2_weight" inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                        <span class="input-suffix">lbs</span>
+                    <div class="weight-field working-weight" style="display: none;">
+                        <span class="ww-body" title="Your body weight (auto)"></span>
+                        <span class="ww-op ww-op-plus">+</span>
+                        <input type="number" name="exercise_EXERCISE_ID_set_2_weight" inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                        <span class="input-suffix">lb</span>
+                        <span class="ww-op ww-op-eq">=</span>
+                        <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                     </div>
                     <input type="number" name="exercise_EXERCISE_ID_set_2_reps" inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
@@ -575,9 +584,13 @@
             <div class="set-row" data-set-number="3">
                 <span class="set-number">Set 3</span>
                 <div class="set-inputs">
-                    <div class="weight-field" style="display: none;">
-                        <input type="number" name="exercise_EXERCISE_ID_set_3_weight" inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                        <span class="input-suffix">lbs</span>
+                    <div class="weight-field working-weight" style="display: none;">
+                        <span class="ww-body" title="Your body weight (auto)"></span>
+                        <span class="ww-op ww-op-plus">+</span>
+                        <input type="number" name="exercise_EXERCISE_ID_set_3_weight" inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                        <span class="input-suffix">lb</span>
+                        <span class="ww-op ww-op-eq">=</span>
+                        <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                     </div>
                     <input type="number" name="exercise_EXERCISE_ID_set_3_reps" inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
@@ -1186,6 +1199,45 @@
     gap: var(--space-1);
 }
 
+/* Working weight (bodyweight exercises): body weight + added load = total.
+   Shown inline per set so the math is visible at the point of entry. */
+.working-weight {
+    flex-wrap: wrap;
+}
+.ww-body {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.ww-op {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+}
+.ww-total {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.working-weight .weight-input {
+    width: 64px;
+}
+.working-weight-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    background: var(--color-surface-2, rgba(0, 0, 0, 0.03));
+    border-radius: var(--radius-sm, 6px);
+    padding: var(--space-2) var(--space-3);
+    margin-top: var(--space-2);
+    line-height: 1.35;
+}
+.working-weight-note.no-bodyweight {
+    color: var(--color-warning, #92400e);
+    background: var(--color-warning-bg, rgba(146, 64, 14, 0.08));
+}
+
 /* Time-based exercise styles */
 .duration-input {
     width: 100px;
@@ -1480,6 +1532,10 @@ let isEditing = {% if editing %}true{% else %}false{% endif %};
 
 // Template defaults for pre-populating form from last workout
 const templateDefaults = {{ template_defaults_json|default:"{}"|safe }};
+
+// Body weight (lb) for bodyweight-exercise working weight, or null if none
+// recorded. Same deterministic source the volume calculation uses server-side.
+const currentBodyweight = {{ current_bodyweight_json|default:"null"|safe }};
 
 // Rest timer state
 let restTimerInterval = null;
@@ -2066,6 +2122,9 @@ function addExercise() {
         if (howBtn) howBtn.style.display = 'none';
     }
 
+    // Initialize working-weight display (body weight + added load = total)
+    if (newRow) refreshWorkingWeight(newRow);
+
     // Reset select
     select.value = '';
 
@@ -2106,9 +2165,13 @@ function addSet(btn) {
             <div class="set-row" data-set-number="${setCount}">
                 <span class="set-number">Set ${setCount}</span>
                 <div class="set-inputs">
-                    <div class="weight-field" style="${weightDisplay}">
-                        <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" inputmode="decimal" placeholder="Weight" step="0.5" class="weight-input">
-                        <span class="input-suffix">lbs</span>
+                    <div class="weight-field working-weight" style="${weightDisplay}">
+                        <span class="ww-body" title="Your body weight (auto)"></span>
+                        <span class="ww-op ww-op-plus">+</span>
+                        <input type="number" name="exercise_${exerciseId}_set_${setCount}_weight" inputmode="decimal" placeholder="Added" step="0.5" class="weight-input">
+                        <span class="input-suffix">lb</span>
+                        <span class="ww-op ww-op-eq">=</span>
+                        <span class="ww-total" aria-label="Total working weight">&mdash;</span>
                     </div>
                     <input type="number" name="exercise_${exerciseId}_set_${setCount}_reps" inputmode="numeric" pattern="[0-9]*" placeholder="Reps" class="reps-input">
                     <span class="input-suffix">reps</span>
@@ -2134,7 +2197,75 @@ function addSet(btn) {
     }
 
     container.insertAdjacentHTML('beforeend', setHtml);
+    refreshWorkingWeight(exerciseRow);
 }
+
+// =====================================================
+// Working weight (bodyweight exercises): body weight + added load = total.
+// Display-only; the added-weight input is the only editable field, and what is
+// submitted/stored is unchanged (this is a UX layer over the same calculation).
+// =====================================================
+function wwFormat(n) {
+    return (Math.round(n * 10) / 10).toString();
+}
+function wwHasBodyweight() {
+    return currentBodyweight !== null && currentBodyweight !== undefined && currentBodyweight > 0;
+}
+function updateSetTotal(field) {
+    const totalEl = field.querySelector('.ww-total');
+    if (!totalEl) return;
+    const input = field.querySelector('.weight-input');
+    const added = parseFloat(input && input.value) || 0;
+    const hasBW = wwHasBodyweight();
+    const total = (hasBW ? currentBodyweight : 0) + added;
+    totalEl.textContent = (!hasBW && added <= 0) ? '—' : (wwFormat(total) + ' lb');
+}
+function refreshWorkingWeight(row) {
+    if (!row || row.dataset.movementType !== 'bodyweight') return;
+    const checkbox = row.querySelector('.add-weight-checkbox');
+    const on = !!(checkbox && checkbox.checked);
+    const hasBW = wwHasBodyweight();
+
+    const note = row.querySelector('.working-weight-note');
+    if (note) {
+        if (on && hasBW) {
+            note.textContent = 'Working weight includes your body weight: ' + wwFormat(currentBodyweight)
+                + ' lb — automatically detected from your latest weigh-in.';
+            note.classList.remove('no-bodyweight');
+            note.style.display = 'block';
+        } else if (on && !hasBW) {
+            note.textContent = 'No body weight available. Only the added weight will be counted until you record a body weight.';
+            note.classList.add('no-bodyweight');
+            note.style.display = 'block';
+        } else {
+            note.style.display = 'none';
+        }
+    }
+
+    row.querySelectorAll('.working-weight').forEach(function(field) {
+        const bodyEl = field.querySelector('.ww-body');
+        const plusEl = field.querySelector('.ww-op-plus');
+        if (hasBW) {
+            if (bodyEl) { bodyEl.textContent = wwFormat(currentBodyweight); bodyEl.style.display = ''; }
+            if (plusEl) plusEl.style.display = '';
+        } else {
+            if (bodyEl) bodyEl.style.display = 'none';
+            if (plusEl) plusEl.style.display = 'none';
+        }
+        updateSetTotal(field);
+    });
+}
+// Live-update the total as the added-weight input changes.
+document.addEventListener('input', function(e) {
+    const input = e.target.closest('.weight-input');
+    if (!input) return;
+    const field = input.closest('.working-weight');
+    if (field) updateSetTotal(field);
+});
+// Initialize working-weight display for every bodyweight exercise on load.
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.exercise-row.bodyweight-row').forEach(refreshWorkingWeight);
+});
 
 // Handle form submission for final save
 document.getElementById('workoutForm').addEventListener('submit', async function(e) {
@@ -2206,6 +2337,8 @@ function applyTemplateDefaults() {
             }
         }
     }
+    // Recompute working-weight totals after pre-filling weights.
+    document.querySelectorAll('.exercise-row.bodyweight-row').forEach(refreshWorkingWeight);
 }
 
 // =====================================================
@@ -2454,6 +2587,7 @@ document.addEventListener('change', function(e) {
             weightFields.forEach(field => {
                 field.style.display = checkbox.checked ? 'flex' : 'none';
             });
+            refreshWorkingWeight(exerciseRow);
         }
     }
 });

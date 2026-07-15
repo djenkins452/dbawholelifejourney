@@ -519,11 +519,17 @@ def _current_snapshot_cards(current):
             )
             empty = {
                 "headline": "Not yet logged",
-                # Platform-neutral: describe WLJ's truth, not any one ecosystem's capability.
+                # We say "connected health source(s)" — NOT a vendor name — on purpose. This is
+                # architectural: WLJ is intentionally platform-neutral. Apple Health, Google
+                # Health Connect, Samsung Health, Garmin, Fitbit, Oura, Whoop, direct
+                # integrations, and any future integration are all just "connected health
+                # sources". The card describes WLJ's OWN current knowledge, not one ecosystem's
+                # capabilities. The "…yet" phrasing keeps it forward-looking (a source may
+                # provide it later).
                 "source_note": (
                     "No reading available yet."
                     if prov["from_connected_source"]
-                    else "None of your connected health sources currently provide this measurement."
+                    else "No connected health source has provided this measurement yet."
                 ),
                 "entry_paths": prov["entry_paths"],
             }

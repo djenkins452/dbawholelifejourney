@@ -3,8 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (refactor(body): Current Snapshot empty-state wording is platform-neutral)
+# Last Updated: 2026-07-15 (refactor(body): Current Snapshot empty-state wording refinement + platform-neutrality comment)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — refactor(body): Current Snapshot empty-state wording refinement + platform-neutrality comment
+
+Two small refinements to the Current Snapshot empty state (copy + a code comment; no behavior change):
+- **Wording:** for a manual-only metric the note now reads **"No connected health source has provided this
+  measurement yet."** (was "None of your connected health sources currently provide this measurement."). The new
+  phrasing shifts focus from platform *capability* to WLJ's *current knowledge* and the trailing "…yet" keeps it
+  forward-looking. Connected-source metrics still read "No reading available yet.".
+- **Architectural comment** (`apps/health/services/body_intelligence.py`): added a short comment explaining WHY the
+  provenance intentionally says "connected health source(s)" and never a vendor name — WLJ is intentionally
+  platform-neutral; Apple Health, Google Health Connect, Samsung Health, Garmin, Fitbit, Oura, Whoop, direct
+  integrations, and future integrations are all just "connected health sources", and the UI describes WLJ's own
+  knowledge, not one ecosystem.
+
+**Files:** `apps/health/services/body_intelligence.py`, `apps/health/tests/test_body_intelligence.py` (updated
+empty-state wording assertions). **Verified:** live trace → Skeletal Muscle reads "No connected health source has
+provided this measurement yet."; `manage.py check` clean; `makemigrations --check` → no changes; 34 targeted
+`test_body_intelligence` tests pass (77 across the body trio).
 
 ## 2026-07-15 — feat(model-interface): Complete Pillar 1 — the HISTORY branch of the Truth Resolution Layer
 

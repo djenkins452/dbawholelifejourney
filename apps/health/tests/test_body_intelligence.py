@@ -300,7 +300,7 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
         self.assertEqual(card["empty"]["headline"], "Not yet logged")
         self.assertEqual(
             card["empty"]["source_note"],
-            "None of your connected health sources currently provide this measurement.",
+            "No connected health source has provided this measurement yet.",
         )
         self.assertEqual(
             card["empty"]["entry_paths"],
@@ -315,7 +315,7 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
         self.assertIsNotNone(card["empty"])
         self.assertEqual(
             card["empty"]["source_note"],
-            "None of your connected health sources currently provide this measurement.",
+            "No connected health source has provided this measurement yet.",
         )
 
     def test_connected_source_metric_note_is_platform_neutral(self):
@@ -352,7 +352,7 @@ class BodyIntelligenceCurrentSnapshotEmptyStateTest(TestCase):
         resp = c.get(reverse("health:body_intelligence"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Not yet logged")
-        self.assertContains(resp, "None of your connected health sources currently provide")
+        self.assertContains(resp, "No connected health source has provided this measurement yet.")
         self.assertNotContains(resp, "Apple Health")
         self.assertContains(resp, "Manual Body Composition entry")
         self.assertContains(resp, "Your Chief of Staff")

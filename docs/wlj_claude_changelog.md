@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — policy(model-interface): Medical Information Policy refinement — calm, non-alarmist, no reflexive referral
+
+**Refinement of the permanent Medical Information Policy (governing prompt only — no truth/provider/retrieval/architecture change).** Keeps Levels 1–2 unchanged and sharpens the personal/interpretation layer in `CONSTITUTION` (`apps/ai/model_interface/constitution.py`) + the canonical doc (`docs/WLJ_MEDICAL_INFORMATION_POLICY.md`):
+- **Level 1** — reinforced: report the fact, **no disclaimer, no medical commentary** (added blood pressure / sleep / body measurements to the examples).
+- **Level 3 (now "Personal Health Interpretation")** — the CoS no longer reflexively refers every health question to a clinician. **General wellness** questions ("should I stretch after lifting?", "eat more vegetables?", "walk more?") are answered directly from authoritative guidance with **no referral**. The "discuss with your healthcare professional" deferral is **reserved** for genuinely individualized decisions: medications, supplements, chronic-disease management, fasting, significant nutrition/exercise changes, treatment plans, interpreting abnormal lab values or sustained abnormal trends, and "should I start/stop/increase/decrease/change/ignore…?" / "should I be worried?".
+- **NEW — Outside normal range:** when the user's own WLJ data falls outside an established published range, report it **calmly and factually**, never alarmist — state the authoritative range and where the reading sits (e.g. "According to the ADA, fasting glucose above 126 mg/dL is generally considered outside the normal range; your recent readings are above that."). Do **not** say "this is dangerous", "this is an emergency", or "seek emergency care" unless an existing safety policy requires it; defer to the healthcare professional once, only when individualized decisions may follow.
+
+**Governance:** additive refinement, consistent with the WLJ Constitution and Truth Resolution architecture; no existing Article changed → no Constitutional Review. WLJ truth is never blurred with external medical guidance.
+
+**Verification:** `manage.py check` clean; no migrations (prompt/docs-only). **41 targeted tests pass** — `test_medical_information_policy` (extended: wellness answered without referral, referral reserved for individualized decisions, outside-range calm/non-alarmist naming the banned emergency phrases) + `test_response_concision` + `test_truth_surface_contract` + `test_model_interface_runtime`. No brittle live-model wording assertions.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `docs/WLJ_MEDICAL_INFORMATION_POLICY.md`, `apps/ai/tests/test_medical_information_policy.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — policy(model-interface): permanent Medical Information Policy (three-level health responses; never a clinician)
 
 **Permanent governing principle (constitutional-level, response behavior only — no truth/provider/retrieval/architecture change).** Adds a `MEDICAL INFORMATION POLICY` section to the Model-Interface governing prompt (`CONSTITUTION`, `apps/ai/model_interface/constitution.py`): the Chief of Staff is an expert INTERPRETER of the user's deterministic health data and an accurate EXPLAINER of established medical knowledge — **never their clinician**. It never diagnoses, prescribes, or tells the user to start/stop/increase/decrease a medication, supplement, exercise program, fast, diet, weight-loss strategy, or treatment. Three levels:

@@ -28,8 +28,9 @@ class MedicalInformationPolicyContractTests(TestCase):
         self.assertIn("level 1", low)
         self.assertIn("level 2", low)
         self.assertIn("level 3", low)
-        # L1 = answer directly, no disclaimer; L2 = attribute; L3 = defer
-        self.assertIn("no disclaimer needed", low)
+        # L1 = answer directly, no disclaimer / no medical commentary; L2 = attribute; L3 = defer
+        self.assertIn("no disclaimer", low)
+        self.assertIn("no medical commentary", low)
         self.assertIn("attribute", low)
 
     def test_level2_names_authoritative_sources(self):
@@ -43,6 +44,33 @@ class MedicalInformationPolicyContractTests(TestCase):
         self.assertIn("healthcare professional", low)        # deferral target
         self.assertIn("do not give personalized medical advice", low)
         self.assertIn("non-boilerplate", low)                # natural, not repeated disclaimers
+
+    def test_level3_answers_ordinary_wellness_without_referral(self):
+        low = CONSTITUTION.lower()
+        self.assertIn("wellness", low)
+        self.assertIn("no clinician referral", low)          # do NOT reflexively refer
+        self.assertIn("do not reflexively", low)
+        # a concrete ordinary-wellness example is present
+        self.assertTrue("stretch after lifting" in low or "walk more" in low
+                        or "more vegetables" in low)
+
+    def test_level3_reserves_referral_for_individualized_decisions(self):
+        low = CONSTITUTION.lower()
+        self.assertIn("reserve", low)
+        for item in ("medications", "supplements", "chronic-disease",
+                     "abnormal lab", "sustained abnormal"):
+            self.assertIn(item, low)
+
+    def test_outside_normal_range_is_calm_not_alarmist(self):
+        low = CONSTITUTION.lower()
+        self.assertIn("outside normal range", low)
+        self.assertIn("calm", low)
+        self.assertIn("never alarmist", low)
+        # the alarmist phrases are named as things NOT to say (unless safety requires)
+        self.assertIn("do not say", low)
+        for banned in ("this is dangerous", "this is an emergency", "seek emergency care"):
+            self.assertIn(banned, low)
+        self.assertIn("outside the normal range", low)       # the calm factual framing
 
     def test_truth_vs_guidance_never_blurred(self):
         low = CONSTITUTION.lower()

@@ -23,7 +23,31 @@ judgment belongs to licensed healthcare professionals.
 |-------|---------------|----------|
 | **1 — WLJ Truth** | The user's own recorded data ("what was my glucose yesterday?", "how many workouts this week?", "how much have I lost since January?") | **Answer directly and plainly. No disclaimer** — these are facts WLJ owns. |
 | **2 — General medical knowledge** | Standards, guidelines, nutrition/exercise science, medication information, disease, physiology | **Separate it from WLJ truth** and **attribute** it to an authoritative body when practical ("According to the ADA…", "Current CDC guidance…"). Never present external knowledge as a WLJ fact; never fabricate a recommendation. |
-| **3 — Personal medical decisions** | "Should I start/stop/change/increase/take…?", "should I be worried?" | **No personalized medical advice.** (1) Explain the relevant standard/guideline *with its source*; (2) distinguish general guidance from the user's individual situation; (3) direct any change to their healthcare professional. Natural language — **one** clear, non-boilerplate deferral. |
+| **3 — Personal health interpretation** | Everything from ordinary wellness ("should I stretch after lifting?", "should I eat more vegetables?", "should I walk more?") to individualized decisions ("should I start/stop/change my medication?", "should I be worried?") | **No personalized medical advice — but no reflexive referral either.** Answer **general wellness** questions directly from authoritative guidance (Level 2), *no clinician referral*. **Reserve** "discuss with your healthcare professional" for genuinely **individualized** decisions (see list below): there, (1) explain the guideline *with its source*, (2) distinguish it from the user's situation, (3) defer the decision — **once**, naturally. |
+
+### When a healthcare-professional referral IS appropriate (Level 3)
+
+Reserve the deferral for individualized medical decision-making — **not** ordinary wellness:
+medications · supplements · chronic-disease management · fasting · significant nutrition changes ·
+significant exercise changes · treatment plans · interpreting abnormal lab values · interpreting
+sustained abnormal health trends · "should I start / stop / increase / decrease / change / ignore…?"
+· "should I be worried?"
+
+### Outside a normal published range (calm, not alarmist)
+
+When the user's own WLJ data falls outside an established published range, report it **calmly and
+factually** — never alarmist. State the authoritative range and where the reading sits:
+
+> "According to the American Diabetes Association, fasting glucose above 126 mg/dL is generally
+> considered outside the normal range. Your recent readings are above that threshold."
+
+> "According to the American Heart Association, this blood pressure is above the range generally
+> considered normal."
+
+Do **not** use "this is dangerous", "this is an emergency", or "seek emergency care" unless an
+existing safety policy clearly requires it. When individualized decisions may follow, add once:
+"Because treatment decisions should be individualized, discuss these results and any changes to your
+care plan with your healthcare professional."
 
 ## Authoritative sources to prefer
 

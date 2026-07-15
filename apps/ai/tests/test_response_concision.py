@@ -2,9 +2,10 @@
 # File: apps/ai/tests/test_response_concision.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
 # Description: The Model Interface governing prompt (CONSTITUTION) instructs the
-#   model to answer and stop — no generic invitation filler by default, one
-#   concise follow-up only when it advances the objective. Deterministic contract
-#   only (the prompt carries the rule); no brittle live-model wording assertions.
+#   model to answer and stop — generic invitation filler is PROHIBITED, and a
+#   follow-up is offered only when all four value conditions hold (and is always
+#   optional). Deterministic contract only (the prompt carries the rule); no
+#   brittle live-model wording assertions.
 # ==============================================================================
 from django.test import TestCase
 
@@ -17,20 +18,34 @@ class ResponseConcisionContractTests(TestCase):
         low = CONSTITUTION.lower()
         self.assertIn("answer the question", low)
         self.assertIn("fewest necessary words", low)
+        self.assertIn("elite executive assistant", low)
 
-    def test_constitution_names_the_banned_filler_phrases(self):
+    def test_generic_invitation_filler_is_prohibited(self):
         low = CONSTITUTION.lower()
-        for phrase in ("if there's anything else", "feel free to ask",
-                       "let me know if", "if you need anything else"):
+        self.assertIn("never end a response with a generic invitation", low)
+        self.assertIn("prohibited", low)
+        self.assertIn("filler", low)
+        for phrase in ("if you need more details", "if there's anything else",
+                       "feel free to ask", "let me know if",
+                       "if you have any more questions", "anything else i can help with"):
             self.assertIn(phrase, low)
-        # framed as a rare exception, not a default close
-        self.assertIn("rare", low)
 
-    def test_constitution_allows_exactly_one_meaningful_follow_up(self):
+    def test_follow_up_requires_all_four_conditions_and_is_optional(self):
         low = CONSTITUTION.lower()
+        self.assertIn("only when all of these are true", low)
+        self.assertIn("directly related", low)                     # (1)
+        self.assertIn("immediately from deterministic truth", low)  # (2)
+        self.assertIn("materially advances", low)                   # (3)
+        self.assertIn("more valuable than simply ending", low)      # (4)
         self.assertIn("exactly one", low)
-        self.assertIn("advances the current objective", low)
-        self.assertIn("no meaningful next step", low)
+        # optional, never required — and if any condition fails, stop
+        self.assertIn("optional, never required", low)
+        self.assertIn("if any of those four is false", low)
+
+    def test_signal_not_conversation_length(self):
+        low = CONSTITUTION.lower()
+        self.assertIn("signal, not conversation length", low)
+        self.assertIn("must justify its existence", low)
 
     def test_system_prompt_carries_the_rule(self):
         # The rule must survive into the actual system prompt the model receives.
@@ -40,3 +55,4 @@ class ResponseConcisionContractTests(TestCase):
         svc = ModelInterfaceService(user, ai_service=object())
         prompt = svc._system_prompt({"current_context": {}})
         self.assertIn("CONCISION", prompt)
+        self.assertIn("PROHIBITED", prompt)

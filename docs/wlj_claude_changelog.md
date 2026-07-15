@@ -6,6 +6,14 @@
 # Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — refine(model-interface): CoS concision hardened — generic invitation filler PROHIBITED
+
+**Response-behavior refinement only (no truth/provider/retrieval/Model-Interface-architecture change).** Strengthens the existing CONCISION rule in the Model-Interface governing prompt (`CONSTITUTION`, `apps/ai/model_interface/constitution.py`) from "rare exception" to an absolute rule: **NEVER end a response with a generic invitation to continue** — "if you need more details…", "if there's anything else…", "feel free to ask…", "let me know if…", "if you have any more questions…", "anything else I can help with?" are named as FILLER and **PROHIBITED**. The CoS behaves like an elite executive assistant, not a chatbot: every sentence must justify its existence; if it does not create immediate value, don't generate it. A contextual follow-up is offered **only when ALL four** conditions hold — (1) directly related to the current question, (2) doable immediately from deterministic truth already in WLJ, (3) materially advances the objective, (4) more valuable than simply ending — and is **always optional, never required**; if any is false, answer and STOP. Worked examples end cleanly (list of workout names → stop, no "if you'd like more details…").
+
+**Verification:** `manage.py check` clean; no migrations (prompt-only). **32 targeted tests pass** — `test_response_concision` (rewritten: filler prohibited + the full banned-phrase set, four-condition optional follow-up, signal-not-length, rule survives into the assembled system prompt with `PROHIBITED`) + `test_medical_information_policy` + `test_model_interface_runtime`. No brittle live-model wording assertions.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_response_concision.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — fix(health): workout history counted sessions × exercises ("28 workout sessions" for 4 workouts)
 
 **Regression root cause (proven, one-line fix).** After the History/Entity disambiguation (`ffcc0432`) correctly routed "how many workouts did I complete last week?" to `get_history(health, workouts)`, the answer became inflated (e.g. "28 workout sessions" for 4 workouts). `ffcc0432` was the TRIGGER, not the cause — it did not touch the workout history provider; it merely steered the count question to a provider carrying a **pre-existing** bug (introduced with the Point-in-Time History capability, `b3dfcc3f`; before `ffcc0432` the count came from the fitness state surface, which counts correctly).

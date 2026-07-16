@@ -176,6 +176,8 @@ class Place(RichTextMixin, LegacyOwnedModel):
     description_plain = models.TextField(blank=True, default="", editable=False)
 
     RICH_TEXT_FIELDS = {"description": "description_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("description_plain",)
     # Set when a public place is verified via lookup (name + location only —
     # no deep research). Blank for personal places like "Grandma's house".
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -284,6 +286,8 @@ class LifeMilestone(RichTextMixin, LegacyOwnedModel):
     description_plain = models.TextField(blank=True, default="", editable=False)
 
     RICH_TEXT_FIELDS = {"description": "description_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("description_plain",)
 
     significance = models.PositiveSmallIntegerField(default=0)
 
@@ -732,6 +736,8 @@ class Relationship(RichTextMixin, LegacyOwnedModel):
     notes_plain = models.TextField(blank=True, default="", editable=False)
 
     RICH_TEXT_FIELDS = {"notes": "notes_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("notes_plain",)
 
     started_year = models.PositiveIntegerField(null=True, blank=True)
     ended_year = models.PositiveIntegerField(null=True, blank=True)

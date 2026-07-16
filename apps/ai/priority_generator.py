@@ -285,13 +285,13 @@ class PriorityGeneratorMixin:
                             description += f' - milestone due in {days_until} days'
                 else:
                     title = f'Progress on: {goal.title[:50]}'
-                    description = goal.description[:200] if goal.description else ''
+                    description = goal.description_plain[:200] if goal.description_plain else ''
 
                 priorities.append({
                     'priority_type': 'purpose',
                     'title': title,
                     'description': description,
-                    'why_important': goal.why_it_matters[:200] if goal.why_it_matters else 'This is one of your stated life goals.',
+                    'why_important': goal.why_it_matters_plain[:200] if goal.why_it_matters_plain else 'This is one of your stated life goals.',
                     'linked_goal_id': goal.id,
                 })
 

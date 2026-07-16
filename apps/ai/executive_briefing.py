@@ -1437,7 +1437,7 @@ def _build_journal_followup_section(user, today) -> str:
         # Health keyword detection across entries
         health_mentions = Counter()
         for entry in entries:
-            body = entry.body or ""
+            body = entry.body_plain or ""
             matches = HEALTH_KEYWORDS.findall(body.lower())
             for match in matches:
                 health_mentions[match] += 1

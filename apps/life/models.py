@@ -129,6 +129,8 @@ class Project(RichTextMixin, UserOwnedModel):
         "purpose": "purpose_plain",
         "reflection": "reflection_plain",
     }
+    # Current Context / Beth reads the plain shadows, never the raw HTML.
+    CONTEXT_FIELDS = ("description_plain", "purpose_plain", "reflection_plain")
 
     class Meta:
         ordering = ['-created_at']

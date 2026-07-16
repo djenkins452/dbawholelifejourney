@@ -292,7 +292,7 @@ class DashboardAI:
                 for goal in active_goals.order_by('sort_order')[:3]:
                     goal_data = {
                         'title': goal.title,
-                        'why_it_matters': goal.why_it_matters,
+                        'why_it_matters': goal.why_it_matters_plain,
                         'domain': goal.domain.name if goal.domain else None,
                         'milestone_progress': goal.milestone_progress_percent,
                         'total_milestones': goal.milestone_count,
@@ -697,7 +697,7 @@ class DashboardAI:
         return [
             {
                 'title': e.title,
-                'body': e.body[:500] if e.body else '',
+                'body': e.body_plain[:500] if e.body_plain else '',
                 'mood': e.mood,
                 'date': e.entry_date.strftime('%A, %b %d'),
             }

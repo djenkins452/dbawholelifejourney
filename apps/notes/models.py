@@ -52,6 +52,8 @@ class Note(RichTextMixin, UserOwnedModel):
 
     # RichTextMixin: sanitize `body` on save and regenerate the plain shadow.
     RICH_TEXT_FIELDS = {"body": "body_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("body_plain",)
     tags = models.ManyToManyField(
         Tag,
         blank=True,

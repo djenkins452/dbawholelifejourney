@@ -1270,8 +1270,8 @@ class TriggerJournalBackfillView(View):
                 text_parts = []
                 if entry.title:
                     text_parts.append(entry.title)
-                if entry.body:
-                    text_parts.append(entry.body)
+                if entry.body_plain:
+                    text_parts.append(entry.body_plain)
                 text = ' '.join(text_parts).strip()
                 word_count = len(text.split()) if text else 0
 

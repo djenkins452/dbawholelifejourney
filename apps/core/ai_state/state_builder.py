@@ -1525,8 +1525,8 @@ def _build_goal_context(goal):
         if active_m else None,
         "next_milestones": [m.title for m in incomplete[:3]],
         "recently_completed_milestone": recently_completed,
-        "why_it_matters": _clean(getattr(goal, "why_it_matters", None)),
-        "success_definition": _clean(getattr(goal, "success_looks_like", None)),
+        "why_it_matters": _clean(getattr(goal, "why_it_matters_plain", None)),
+        "success_definition": _clean(getattr(goal, "success_looks_like_plain", None)),
     }
 
 

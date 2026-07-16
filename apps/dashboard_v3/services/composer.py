@@ -602,11 +602,12 @@ def _build_mission_card(user) -> dict | None:
     phase_label = _PHASE_LABEL.get(phase, "Foundation")
 
     # Optional supporting line — the user's own "why", excerpted. Never
-    # generated; rendered only when they wrote one.
-    why = (goal.why_it_matters or "").strip() or None
+    # generated; rendered only when they wrote one. Read the plain-text shadow —
+    # the mission card shows unformatted text, never raw rich-text HTML.
+    why = (goal.why_it_matters_plain or "").strip() or None
 
-    # Short tagline under the title — the user's own description, if any.
-    subtitle = (goal.description or "").strip() or None
+    # Short tagline under the title — the user's own description, if any (plain shadow).
+    subtitle = (goal.description_plain or "").strip() or None
 
     # Key Drivers + status classifier are OPTIONAL supporting signals. The
     # mission hero card must NEVER disappear because a signal read failed —

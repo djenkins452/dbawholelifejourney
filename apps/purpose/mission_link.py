@@ -103,8 +103,8 @@ def _mission_facts(goal, today):
         "id": goal.id,
         "title": goal.title,
         "is_primary": bool(goal.is_primary_mission),
-        "why_it_matters": (goal.why_it_matters or "").strip(),
-        "success_looks_like": (goal.success_looks_like or "").strip(),
+        "why_it_matters": (goal.why_it_matters_plain or "").strip(),
+        "success_looks_like": (goal.success_looks_like_plain or "").strip(),
         "target_date": target.isoformat() if target else None,
         "days_to_target": (target - today).days if target else None,
         "progress": {

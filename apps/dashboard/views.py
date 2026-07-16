@@ -813,7 +813,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         # Recent entries for context (display objects — DB ok)
         recent_entries = list(entries.order_by('-entry_date')[:5].values(
-            'title', 'entry_date', 'mood', 'body'
+            'title', 'entry_date', 'mood', 'body_plain'
         ))
 
         # SAE state-first: entries_30d count

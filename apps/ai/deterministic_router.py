@@ -5432,7 +5432,7 @@ def _handle_planning_query(user, msg_lower=None):
         ]
         # 2) Why it matters — the user's OWN words (never generated); else the
         #    target-date framing.
-        why = (goal.why_it_matters or "").strip()
+        why = (goal.why_it_matters_plain or "").strip()
         if why:
             parts.append(f"Why it matters: {why}")
         elif goal.target_date and goal.target_date > today:

@@ -128,7 +128,7 @@
                     {% endif %}
                     <span class="note-ref">{{ note.reference }}</span>
                 </div>
-                <p class="note-excerpt">{{ note.content|truncatewords:20 }}</p>
+                <p class="note-excerpt">{{ note.content_plain|truncatewords:20 }}</p>
                 {% if note.tags %}
                 <div class="note-tags">
                     {% for tag in note.tags|slice:":3" %}

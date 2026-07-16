@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-16 (feat(people): Phase 0b — canonical Person Layer-1 domain foundation)
+# Last Updated: 2026-07-16 (fix(rte): eliminate the raw-HTML-leak regression class)
 # ================================================================# WLJ Change History
+
+## 2026-07-16 — fix(rte): eliminate the raw-HTML-leak regression class from the WYSIWYG rollout
+
+**Class fix, not one page.** After the Rich Text Editor rollout, several consumers rendered the raw sanitized-HTML field instead of the `*_plain` shadow, so users saw literal `<p>…` tags (reported on the Dashboard mission card). Repo-wide audit of every consumer of the 20 rich-text fields; each surface now intentionally chooses HTML vs plain. **No global striptags, no global `|safe`.**
+
+- **Reported bug (Dashboard):** `apps/dashboard_v3/services/composer.py` mission hero read `goal.why_it_matters` / `goal.description` (HTML) → template auto-escaped + `truncatechars` (tags shown, cut mid-tag). Now reads `*_plain`.
+- **UI templates → plain shadow:** `templates/faith/study_tools/home.html` (`content`→`content_plain`), `templates/faith/answered_prayers.html` (`description`→`description_plain`), `templates/relationships/group_detail.html` (`description`→`description_plain`).
+- **Current Context / Beth (the systemic path):** 8 rich-text models lacked `CONTEXT_FIELDS`, so `NarratableMixin` defaulted to the raw HTML field when the page was in focus — feeding tags into the assistant. Added `CONTEXT_FIELDS` (plain shadows) to `notes.Note`, `life.Project`, `faith.PrayerRequest`/`FaithMilestone`/`BibleStudyNote`, `legacy.Place`/`LifeMilestone`/`Relationship`. (Class attributes — no migration.)
+- **Search (`apps/ai/search_service.py`, 10 sites):** user-facing snippets and keyword filters now use `*_plain` for JournalEntry/LifeGoal/PrayerRequest/FaithMilestone/Project (was matching + showing HTML).
+- **CoS/LLM context + SAE + signals + exec briefing:** `state_builder.py` (goal why/success), `signal_engine.py` + `ops_views.py` + `executive_briefing.py` (journal body), `deterministic_router.py` / `dashboard_ai.py` / `priority_generator.py` / `trend_tracking.py` / `purpose/mission_link.py` (goal fields, journal body) → all read the plain shadow so no tags reach the model or user summaries.
+- **Mobile API:** `apps/mobile/views.py` `_serialize_person` returns `notes_plain`. **Admin/dashboard hardening:** `journal/admin.py` search on `body_plain`; `dashboard/views.py` recent-entries dict selects `body_plain`.
+
+**Correct-as-is (unchanged, verified):** all full detail/editor pages keep sanitized HTML via `<div class="wlj-rich">{{ field|safe }}</div>`; list/card surfaces already using `_plain` (goal_list, project_list, prayer_list, milestone_list, note_list, group_list). **Intentionally left:** `apps/users/services/data_export.py` GDPR export writes the raw field AND the `_plain` shadow (data-portability wants the stored value; clean text is included alongside) — noted, not changed. `legacy.Person.bio` not added to CONTEXT_FIELDS (never leaked; adding would surface new content — out of scope). Client-supplied `page_context` in `personal_assistant.py` reads a client dict, not a model — flagged for a client-side check.
+
+**Verification:** `manage.py check` clean; no migrations. Runtime proof (rolled-back transaction): the Dashboard mission card renders `Because I want to be healthier & stronger` (no `<p>/<strong>`), Current Context renders plain. Tests: faith 169, search_service 21, notes, dashboard_v3 — pass (the 5 dashboard_v3 failures were proven pre-existing on clean HEAD, unrelated to this change). **Files:** the 21 listed above + `docs/wlj_claude_changelog.md`.
+
+---
 
 ## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 3 (health signals → observation)
 

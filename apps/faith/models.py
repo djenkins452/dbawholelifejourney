@@ -170,6 +170,8 @@ class PrayerRequest(RichTextMixin, UserOwnedModel):
         "description": "description_plain",
         "answer_notes": "answer_notes_plain",
     }
+    # Current Context / Beth reads the plain shadows, never the raw HTML.
+    CONTEXT_FIELDS = ("description_plain", "answer_notes_plain")
 
     # Prayer categories
     is_personal = models.BooleanField(
@@ -314,6 +316,8 @@ class FaithMilestone(RichTextMixin, UserOwnedModel):
     description_plain = models.TextField(blank=True, default="", editable=False)
 
     RICH_TEXT_FIELDS = {"description": "description_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("description_plain",)
 
     scripture_reference = models.CharField(
         max_length=100,
@@ -1039,6 +1043,8 @@ class BibleStudyNote(RichTextMixin, UserOwnedModel):
     content_plain = models.TextField(blank=True, default="", editable=False)
 
     RICH_TEXT_FIELDS = {"content": "content_plain"}
+    # Current Context / Beth reads the plain shadow, never the raw HTML.
+    CONTEXT_FIELDS = ("content_plain",)
 
     # Optional categorization
     tags = models.JSONField(

@@ -230,7 +230,7 @@ def _extract_journal_signals(user, cutoff):
         entries = JournalEntry.objects.filter(
             user=user,
             created_at__gte=cutoff,
-        ).values_list("body", flat=True)
+        ).values_list("body_plain", flat=True)
     except Exception:
         logger.warning("Signal engine: failed to query journal entries", exc_info=True)
         return signals

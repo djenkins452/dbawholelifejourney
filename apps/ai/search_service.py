@@ -135,7 +135,7 @@ class SearchService:
 
         # Apply keyword filter
         if keywords:
-            keyword_q = self._build_keyword_filter(keywords, ['title', 'body'])
+            keyword_q = self._build_keyword_filter(keywords, ['title', 'body_plain'])
             entries = entries.filter(keyword_q)
 
         # Apply date range filter
@@ -162,7 +162,7 @@ class SearchService:
             results.append(self._create_result(
                 id=entry.pk,
                 title=entry.title or f"Journal Entry - {entry.entry_date}",
-                snippet=entry.body[:200] if entry.body else "",
+                snippet=entry.body_plain[:200] if entry.body_plain else "",
                 date_value=entry.entry_date,
                 url=reverse('journal:entry_detail', args=[entry.pk]),
                 metadata={
@@ -883,7 +883,7 @@ class SearchService:
         if keywords:
             keyword_q = self._build_keyword_filter(
                 keywords,
-                ['title', 'description', 'why_it_matters', 'success_looks_like']
+                ['title', 'description_plain', 'why_it_matters_plain', 'success_looks_like_plain']
             )
             goals = goals.filter(keyword_q)
 
@@ -900,7 +900,7 @@ class SearchService:
             results.append(self._create_result(
                 id=goal.pk,
                 title=f"{goal.title}{milestone_info}",
-                snippet=goal.description or goal.why_it_matters or "",
+                snippet=goal.description_plain or goal.why_it_matters_plain or "",
                 date_value=goal.target_date,
                 url=reverse('purpose:goal_detail', args=[goal.pk]),
                 metadata={
@@ -976,7 +976,7 @@ class SearchService:
         if keywords:
             keyword_q = self._build_keyword_filter(
                 keywords,
-                ['title', 'description', 'person_or_situation', 'answer_notes']
+                ['title', 'description_plain', 'person_or_situation', 'answer_notes_plain']
             )
             prayers = prayers.filter(keyword_q)
 
@@ -988,7 +988,7 @@ class SearchService:
             results.append(self._create_result(
                 id=prayer.pk,
                 title=f"Prayer: {prayer.title} ({status})",
-                snippet=prayer.description or "",
+                snippet=prayer.description_plain or "",
                 date_value=prayer.created_at.date(),
                 url=reverse('faith:prayer_detail', args=[prayer.pk]),
                 metadata={
@@ -1084,7 +1084,7 @@ class SearchService:
         if keywords:
             keyword_q = self._build_keyword_filter(
                 keywords,
-                ['title', 'description', 'scripture_reference']
+                ['title', 'description_plain', 'scripture_reference']
             )
             milestones = milestones.filter(keyword_q)
 
@@ -1095,7 +1095,7 @@ class SearchService:
             results.append(self._create_result(
                 id=milestone.pk,
                 title=f"Faith Milestone: {milestone.title}",
-                snippet=milestone.description or "",
+                snippet=milestone.description_plain or "",
                 date_value=milestone.date,
                 url=reverse('faith:milestone_list'),
                 metadata={
@@ -1207,7 +1207,7 @@ class SearchService:
         if keywords:
             keyword_q = self._build_keyword_filter(
                 keywords,
-                ['title', 'description', 'purpose']
+                ['title', 'description_plain', 'purpose_plain']
             )
             projects = projects.filter(keyword_q)
 
@@ -1221,7 +1221,7 @@ class SearchService:
             results.append(self._create_result(
                 id=project.pk,
                 title=f"Project: {project.title} ({project.status.title()})",
-                snippet=project.description or project.purpose or "",
+                snippet=project.description_plain or project.purpose_plain or "",
                 date_value=project.target_date,
                 url=reverse('life:project_detail', args=[project.pk]),
                 metadata={

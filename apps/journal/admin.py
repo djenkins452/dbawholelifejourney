@@ -19,7 +19,7 @@ class JournalEntryAdmin(admin.ModelAdmin):
         "created_at",
     ]
     list_filter = ["status", "mood", "entry_date", "categories"]
-    search_fields = ["title", "body", "user__email"]
+    search_fields = ["title", "body_plain", "user__email"]
     date_hierarchy = "entry_date"
     raw_id_fields = ["user", "prompt"]
     filter_horizontal = ["categories", "tags", "emotions"]

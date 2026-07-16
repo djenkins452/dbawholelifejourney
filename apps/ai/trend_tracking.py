@@ -678,7 +678,7 @@ Provide a brief, warm summary of this week."""
                 'domain': goal.domain.name if goal.domain else 'General',
                 'timeframe': goal.get_timeframe_display(),
                 'days_since_update': days_since_update,
-                'why_it_matters': goal.why_it_matters[:100] if goal.why_it_matters else '',
+                'why_it_matters': goal.why_it_matters_plain[:100] if goal.why_it_matters_plain else '',
                 'needs_attention': days_since_update > 14
             })
 

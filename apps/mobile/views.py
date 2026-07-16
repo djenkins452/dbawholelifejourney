@@ -3378,7 +3378,7 @@ def _serialize_person(person):
         "email": person.email or "",
         "phone": person.phone or "",
         "relationship_type": person.relationship_type or "",
-        "notes": person.notes or "",
+        "notes": person.notes_plain or "",
     }
 
 

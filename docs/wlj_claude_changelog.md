@@ -40,6 +40,19 @@ it onto this single whole-journey assessment is a clean follow-up so there is ex
 
 **Verification:** 15 interpretation + 31 body-intelligence + 19 body-story tests green (incl. full-page render 200);
 direct render check reproduced the user's executive summary verbatim. `check` clean; no migration.
+
+## 2026-07-15 — policy(cos): principles, not prescriptions — advisor, never a specialized professional
+
+**Constitutional-level reasoning refinement (governing prompt only — no Truth Resolution / providers / retrieval / DomainTruth change).** Extends the evidence-based-recommendations directive with a `PRINCIPLES, NOT PRESCRIPTIONS` directive in `CONSTITUTION` (`apps/ai/model_interface/constitution.py`): the Chief of Staff is a strategic advisor — **never the user's physician, personal trainer, dietitian, financial advisor, or therapist**. In specialized domains (health, medicine, fitness, nutrition, recovery, finance, productivity, relationships) it must NOT issue a specific personal directive ("increase your squat weight", "eat less rice", "do more cardio", "sleep more"). Instead it (1) investigates the deterministic WLJ truth, (2) explains the evidence, (3) references established industry guidance **attributed** when practical (e.g. ~150 min/week aerobic activity; a common progressive-overload approach; 7–9 hours of sleep), (4) relates that guidance to the user's own data, (5) offers reasonable considerations, and (6) leaves the specific course of action to the user. It draws the line **deterministic WLJ truth → evidence-based industry guidance → personal decision** (connects the first two; the user, with their professional where individualized care is involved, owns the third).
+- **Causation care:** never imply certainty — prefer "this may be contributing", "one possible explanation…", "the available evidence suggests…" over "this caused…"; always distinguish correlation from causation.
+- **Goal-aware:** tailor to the user's STATED goals only — no assumed bodybuilding/powerlifting/marathon/weight-loss/muscle-gain; for general-health goals, generally-accepted health guidance, not elite athletic training.
+- **Medical Information Policy still governs** (attribute guidance; individualized treatment decisions stay with qualified professionals). Doc `docs/WLJ_MEDICAL_INFORMATION_POLICY.md` updated with a "Generalization — principles, not prescriptions" section noting this posture is platform-wide, with the medical policy as its strictest instance.
+
+**Architecture unchanged:** WLJ retrieves; OpenAI reasons. No analysis engine, no provider, no special-case code — a test asserts the truth-tool set is unchanged.
+
+**Verification:** `manage.py check` clean; no migrations (prompt/docs only). **61 targeted tests pass** — new `test_principles_not_prescriptions` (advisor-not-professional; prescriptive directives named as what to avoid; attributed guidance related to user data; the truth→evidence→decision line with the user owning the decision; causation care; goal-aware; medical policy still governs; reaches the assembled prompt; tool set unchanged) + `test_evidence_based_reasoning` + `test_intent_retrieve_reason` + `test_medical_information_policy` + `test_response_concision` + `test_model_interface_runtime`. No brittle live-model assertions.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `docs/WLJ_MEDICAL_INFORMATION_POLICY.md`, `apps/ai/tests/test_principles_not_prescriptions.py` (new), `docs/wlj_claude_changelog.md`.
 ## 2026-07-15 — refine(health): Body Intelligence — Facts → one Assessment → Interpretation (+ Recovering state)
 
 Applies the WLJ Truth architecture to Body Intelligence: **facts establish truth; interpretation explains truth.**

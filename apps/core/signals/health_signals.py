@@ -391,12 +391,12 @@ def _signal_body_composition(health_state):
     # ── Insight text ──
     if state == POOR:
         if muscle_risk == "HIGH":
-            insight = "Significant muscle loss detected — consider increasing protein and resistance training"
+            insight = "Significant muscle loss detected — lean mass is below where you started"
         else:
             insight = "Body composition trends need attention — fat loss quality is declining"
     elif state == WATCH:
         if plateau == "TRUE_PLATEAU":
-            insight = "Weight loss has stalled — may need to adjust approach"
+            insight = "Weight loss has stalled — no clear downward trend recently"
         elif muscle_risk == "MODERATE":
             insight = "Some muscle loss detected alongside fat loss"
         else:
@@ -447,10 +447,10 @@ def _signal_metabolic_efficiency(health_state):
         plateau == "TRUE_PLATEAU" and speed_label not in ("GAINING", None)
     ):
         state = POOR
-        insight = "Metabolic adaptation may be occurring — consider a diet break or refeed"
+        insight = "Metabolic adaptation may be occurring — weight loss has slowed relative to the deficit"
     elif speed_label == "FAST":
         state = WATCH
-        insight = "Weight loss pace is aggressive — monitor for metabolic slowdown"
+        insight = "Weight loss pace is aggressive relative to your target"
     else:
         state = MODERATE
         insight = "Metabolic rate is within normal range"

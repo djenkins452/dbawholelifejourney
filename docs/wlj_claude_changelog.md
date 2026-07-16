@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-16 (refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table))
 # ================================================================# WLJ Change History
 
+## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 3 (health signals → observation)
+
+**Third slice of the recommendation-authoring class solution (observation, not prescription).** `apps/core/signals/health_signals.py` authored four prescriptive `insight` strings from single-domain body-comp/metabolic signals (no cross-domain investigation): "Significant muscle loss detected — **consider increasing protein and resistance training**", "Metabolic adaptation may be occurring — **consider a diet break or refeed**", "Weight loss has stalled — **may need to adjust approach**", "Weight loss pace is aggressive — **monitor for metabolic slowdown**". Each now states the **observation + its basis** only ("…lean mass is below where you started", "…weight loss has slowed relative to the deficit", "…no clear downward trend recently", "…aggressive relative to your target"). The deterministic finding is preserved; the un-earned prescription is gone — the CoS owns any recommendation.
+
+**Consumers verified (critical rule):** only `nudge_engine.py:164` reads the `insight` **text** (still a valid, non-empty message); `signal_collector` / `narrative_engine` / `intervention_engine` read the signal's **structural** fields (`state`/`trend`/`key`/`value`), not the text — so nothing downstream breaks. `_signal(...)` contract shape unchanged.
+
+**Boundary preserved:** `physical_decision.py`, `double_progression.py`, `executive_interpretation.py`, Category A/B untouched. Ledger updated in `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`.
+
+**Verification:** `manage.py check` clean; no migrations. **146+ targeted tests pass** — `test_health_signals` (30), `apps.core.ai_arbitration`, `apps.core.proactive`. No test asserted the old prescriptive strings.
+
+**Increments 1–3 (correlation, health-coaching injection, health signals) are now deployed. Remaining Category-C: goal surfaces (product decision recorded — facts-only + "Ask your CoS"), dashboard nudges/moves, and the DEFERRED Body Intelligence + executive-summary surfaces (active concurrent development — reassess once those sessions land).**
+
+**Files:** `apps/core/signals/health_signals.py`, `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-16 — refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table)
 
 Follow-up to the day-truth redesign below: "retired" now means **removed**, so the old approach can't be accidentally reconnected.

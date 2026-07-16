@@ -21,6 +21,21 @@ Follow-up to the day-truth redesign below: "retired" now means **removed**, so t
 
 ---
 
+## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 2 (health coaching → observation, drop the force-lead)
+
+**Second slice of the recommendation-authoring class solution (observation, not prescription).** The legacy CoS-context path force-fed single-domain health prescriptions into the answer: `apps/core/ai_orchestrator/cos_context.py:4041` mandated *"you MUST lead with the HEALTH COACHING section"* and the injected block listed `Action 1`/`Action 2` (`trend_analyzer`/`health_coaching_builder` `primary_action`/`secondary_action`) — front-running the reasoning layer with a canned, single-domain directive.
+
+**Change (contract-safe — injection only; builder output shapes untouched):**
+- The mandate became a **HEALTH OBSERVATION RULE**: the section is WLJ's deterministic read (the single biggest constraint + its evidence); **reason over it** with the user's cross-domain truth, and only if the evidence supports it offer a principle-based consideration — do NOT repeat a canned action.
+- The injected block now surfaces the **observation only** — primary constraint, "what the evidence shows" (insight), positive momentum, and supporting signals — and **no longer injects `primary_action`/`secondary_action`**. Labels relabeled "HEALTH COACHING (lead with this)" → "HEALTH OBSERVATION (reason over this)".
+- **No builder changed:** `trend_analyzer._build_coaching` and `health_coaching_builder` still produce their full dicts, so `nudge_engine` and every other consumer are unaffected — only how `cos_context` *injects* them into the prompt changed. (The dashboard nudge, which reads those builders directly, is a separate Category-C surface for a later increment.) The observation (`primary_constraint`, `insight`, evidence) remains reachable; nothing is emptied.
+
+**Boundary preserved:** `physical_decision.py`, `double_progression.py`, `executive_interpretation.py`, Category A/B untouched. Ledger updated in `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`.
+
+**Verification:** `manage.py check` clean; no migrations. **76+ targeted tests pass** — `test_health_critical_priority`, `test_health_coaching` (builder unchanged), `test_cos_decision_shortcut`, `apps.core.ai_cross_domain`. No test asserts the old injection labels/actions. (Pre-existing, unrelated failures in `test_cos_domain_filtering` — builder-registry path — were confirmed present on the base commit without this change; not caused here.)
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py`, `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 1 (correlation → observation)
 
 **First slice of the recommendation-authoring class solution (observation, not prescription — no Truth Resolution / DomainTruth / Model Interface / provider change; WLJ exposes observations, the CoS owns recommendations).** The audit found ~13 Category-C surfaces where WLJ authors single-domain prescriptions that bypass the reasoning layer. This increment corrects the **correlation → causation** sub-class, in the two stable, non-colliding files (Body Intelligence + executive-summary surfaces are DEFERRED while under active concurrent development):

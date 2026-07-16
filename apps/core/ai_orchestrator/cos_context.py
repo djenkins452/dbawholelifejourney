@@ -4038,11 +4038,14 @@ def _format_health_intelligence_block(health_intel, context):
     )
     lines.append("")
     lines.append(
-        "COACHING RULE: When the user asks about their health, progress, or what "
-        "to focus on, you MUST lead with the HEALTH COACHING section below. "
-        "Name the primary constraint first, deliver the insight, then the action(s). "
-        "Acknowledge positive momentum briefly. Do NOT list every metric — "
-        "focus on the ONE thing that matters most right now."
+        "HEALTH OBSERVATION RULE: When the user asks about their health, progress, or "
+        "what to focus on, the HEALTH OBSERVATION section below is WLJ's deterministic "
+        "read — the single biggest constraint right now plus its supporting evidence. "
+        "REASON over it (with the user's cross-domain truth); name the constraint, "
+        "explain what the evidence shows, and only if the evidence supports it offer a "
+        "principle-based consideration — do NOT simply repeat a canned action. "
+        "Acknowledge positive momentum briefly. Focus on the ONE thing that matters "
+        "most; don't list every metric."
     )
     lines.append("")
 
@@ -4242,21 +4245,20 @@ def _format_health_intelligence_block(health_intel, context):
     constraint = coaching.get('primary_constraint')
     if constraint:
         lines.append("")
-        lines.append("  HEALTH COACHING (system-selected — lead with this):")
+        # Expose the OBSERVATION (the deterministic limiter + its evidence); the model
+        # owns the recommendation. The prescriptive primary_/secondary_action are
+        # intentionally NOT injected — WLJ observes, the CoS reasons and recommends.
+        lines.append("  HEALTH OBSERVATION (WLJ's deterministic read — reason over this):")
         lines.append(f"    Primary constraint: {constraint}")
-        lines.append(f"    Insight: {coaching.get('insight', '')}")
-        if coaching.get('primary_action'):
-            lines.append(f"    Action 1: {coaching['primary_action']}")
-        if coaching.get('secondary_action'):
-            lines.append(f"    Action 2: {coaching['secondary_action']}")
+        lines.append(f"    What the evidence shows: {coaching.get('insight', '')}")
         if coaching.get('reinforcement'):
             lines.append(f"    Positive momentum: {coaching['reinforcement']}")
         supporting = coaching.get('supporting_signals', [])
         if supporting:
-            lines.append(f"    Also watch: {', '.join(supporting)}")
+            lines.append(f"    Also relevant: {', '.join(supporting)}")
     elif coaching.get('reinforcement'):
         lines.append("")
-        lines.append("  HEALTH COACHING (reinforcement — no active constraints):")
+        lines.append("  HEALTH OBSERVATION (reinforcement — no active constraints):")
         lines.append(f"    Status: All signals stable")
         lines.append(f"    Positive momentum: {coaching['reinforcement']}")
     else:

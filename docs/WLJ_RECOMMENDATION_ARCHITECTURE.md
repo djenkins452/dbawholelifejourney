@@ -60,8 +60,8 @@ conclusions, it never invents them").
 | Surface | Status |
 |---|---|
 | `cdce_engine.py` detector narratives; `cos_intelligence.py` pattern `action` | **Corrected (Increment 1)** — causal/prescriptive suffixes → observation-only, matching the already-correct `detect_sleep_mood`/`detect_exercise_mood` |
-| `trend_analyzer._build_coaching` → `top_recommendation`; `health_coaching_builder._ACTIONS`; `cos_context.py:4041` "lead with this" mandate | Increment 2 (planned) |
-| `health_signals.py` (muscle-loss, metabolic) | Increment 3 (planned) — verify arbitration/narrative/intervention consumers first |
+| `cos_context.py` health-coaching injection + `:4041` "lead with this" mandate | **Corrected (Increment 2)** — the CoS-prompt injection now surfaces the health **observation** (primary constraint, insight/evidence, positive momentum, supporting signals) and instructs the model to REASON over it; the prescriptive `primary_action`/`secondary_action` are no longer injected and "MUST lead with the action" became "reason over this observation." Builder output shapes (`trend_analyzer`, `health_coaching_builder`) unchanged so other consumers (`nudge_engine`, etc.) are unaffected — the dashboard nudge surface is a separate later increment |
+| `health_signals.py` (muscle-loss, metabolic) | Increment 3 (next) — verify arbitration/narrative/intervention consumers first |
 | `purpose/recommendation_service.py`, mission coach line, `goal_pace`, `significant_events._what_next` | Awaiting increment — **goal page = facts + observations only; add "Ask your CoS" affordance that passes goal context to the existing CoS path; no auto target write-back; goal changes stay explicit user-approved actions** |
 | `measurement_interpretation._VERDICT_COPY` `focus` (Body Intelligence) | **Deferred — active concurrent development** (fetch main + reassess before applying the same rule; do not restore older behavior or duplicate completed work) |
 | `cos_briefing/executive_summary.py`, dashboard executive-summary / recommendation files | **Deferred — foreign uncommitted work** |

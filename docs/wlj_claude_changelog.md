@@ -3,7 +3,7 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-16 (refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table))
+# Last Updated: 2026-07-16 (feat(people): Phase 0b — canonical Person Layer-1 domain foundation)
 # ================================================================# WLJ Change History
 
 ## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 3 (health signals → observation)
@@ -19,6 +19,23 @@
 **Increments 1–3 (correlation, health-coaching injection, health signals) are now deployed. Remaining Category-C: goal surfaces (product decision recorded — facts-only + "Ask your CoS"), dashboard nudges/moves, and the DEFERRED Body Intelligence + executive-summary surfaces (active concurrent development — reassess once those sessions land).**
 
 **Files:** `apps/core/signals/health_signals.py`, `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`, `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-16 — feat(people): Phase 0b — canonical Person Layer-1 domain foundation (`apps/people`)
+
+**Foundation for the Person consolidation (design: `docs/WLJ_PERSON_CONSOLIDATION_AND_RECOGNITION.md`). Establishes ONE always-on canonical Person identity authority every module will consume; NO consumers redirected yet (that is Phase 0c+). Retired identity models A/B/C remain live authorities for now.**
+
+- **Fixed a pre-existing data-loss defect in `apps/legacy/services/person_merge.py`** — the hard-delete of the merged-away duplicate CASCADE-destroyed its `PreservedFact` rows (violating Legacy's "nothing is ever lost" mandate) and SET_NULL-nulled `LegacyProfile.self_person` when the duplicate was the user's self-anchor. Now re-points both onto the survivor (all_objects for archived/deleted preserved facts) and inherits `gedcom_xref`/`source_batch` provenance into blank survivor facts, before the existing hard-delete. Behavior + all prior tests preserved; **3 regression tests added**.
+- **New `apps/people` domain** (always-on, never feature-flagged, registered SYSTEM domain). Models: `Person` (independent status truths — `is_deceased`, `is_self`, `origin` — **no `person_kind` catch-all**), `PersonMembership` (deterministic People-vs-Legacy boundary; granted, never auto-revoked), `RecognitionPhrase` (custom/learned durable + derived-computed; unified alias authority), `PersonPhoto`, `PersonEvent` (bounded lifecycle provenance — meaningful identity events only, not a CRUD log), `PersonSourceLink` (temporary migration bridge with explicit retirement gate).
+- **Services (the single home for each):** `resolution.resolve` (one deterministic resolver: exact name → unique first name → @handle → derived role → confirmed phrase; unique→resolved, >1→ambiguous, else unresolved), `merge.merge_persons` (preservation-safe, soft-deletes the loser), `membership`, `phrases` (AI proposes → WLJ validates → user confirms → WLJ stores), `identity` (create + self-anchor), `provenance`, `reconciliation.ingest_source_person` (conservative bridge — auto-links only exact identity matches, routes uncertain to review, never guesses), and `hooks` (dependency-inverted extension points so Relationships/Legacy register role-resolvers + merge-participants WITHOUT Core importing them).
+- **API:** `people:lookup`, `people:resolve` (read-only, request-path-safe). **Contract test** `test_architecture_boundary` fails CI if Core Person imports any feature module (incl. the three retiring Person homes).
+
+**Verification:** 39 `apps.people` tests + 10 legacy merge tests pass; `makemigrations --check` clean; request-path-safety and constitution contracts pass. Pre-existing unrelated failure noted: `apps.core.tests.test_current_context` (`preroute_named_goal` returns None — CoS goal-routing, clean vs HEAD, untouched by this work). **Phase 0b is AWAITING DANNY'S PRODUCT VALIDATION — not declared complete.**
+
+**Files:** `apps/people/` (models, services/, api.py, urls.py, admin.py, capabilities.py, apps.py, normalization.py, migrations/0001_initial, tests/), `apps/legacy/services/person_merge.py`, `apps/legacy/tests/test_person_merge.py`, `config/settings.py`, `config/urls.py`, `docs/WLJ_PERSON_CONSOLIDATION_AND_RECOGNITION.md`.
+
+---
 
 ## 2026-07-16 — refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table)
 

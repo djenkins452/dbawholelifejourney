@@ -161,6 +161,7 @@ INSTALLED_APPS = [
     # Local apps
     "apps.core",
     "apps.users",
+    "apps.people",  # Canonical Person — foundational, always-on Layer 1 identity authority
     "apps.dashboard",
     "apps.journal",
     "apps.faith",

@@ -20,8 +20,8 @@ def merge_people(user, loser, winner):
     """Merge `loser` into `winner` (both this user's People). Returns the winner.
     Raises ValueError on a nonsensical merge."""
     from apps.legacy.models import (
-        Contributor, Memory, MemoryDiscovery, MemoryPerson, Output,
-        Relationship, RelationshipAlias,
+        Contributor, LegacyProfile, Memory, MemoryDiscovery, MemoryPerson, Output,
+        PreservedFact, Relationship, RelationshipAlias,
     )
     if loser.pk == winner.pk:
         raise ValueError("Cannot merge a person into themselves.")
@@ -67,15 +67,30 @@ def merge_people(user, loser, winner):
     #    the loser and winner can never share one — re-pointing never conflicts.
     RelationshipAlias.objects.filter(person=loser).update(person=winner)
 
+    # 7b. Preserved facts — Legacy's PERMANENT preservation layer ("nothing is ever
+    #     lost"). Person is CASCADE, so these MUST be re-pointed BEFORE the loser is
+    #     deleted or they are silently destroyed. all_objects moves archived/deleted too.
+    PreservedFact.all_objects.filter(person=loser).update(person=winner)
+
+    # 7c. Self-anchor — if the duplicate was the user's own node, move the anchor to the
+    #     survivor. self_person is SET_NULL, so without this a self-merge would null the
+    #     user's identity anchor. LegacyProfile.self_person is unique per user.
+    LegacyProfile.objects.filter(self_person=loser).update(self_person=winner)
+
     # 8. Fill the survivor's blank facts from the duplicate (never overwrite).
     fields = []
-    for f in ("birth_year", "death_year", "relationship_label", "bio"):
+    for f in ("birth_year", "death_year", "relationship_label", "bio", "gedcom_xref"):
         if not getattr(winner, f) and getattr(loser, f):
             setattr(winner, f, getattr(loser, f))
             fields.append(f)
     if not winner.portrait_id and loser.portrait_id:
         winner.portrait_id = loser.portrait_id
         fields.append("portrait")
+    # Provenance: inherit the duplicate's import origin if the survivor has none, so the
+    # merged record retains where its facts came from.
+    if not winner.source_batch_id and loser.source_batch_id:
+        winner.source_batch_id = loser.source_batch_id
+        fields.append("source_batch")
 
     # 9. Keep the duplicate's name searchable as an alias on the survivor.
     akas, seen_aka, merged = [], set(), []

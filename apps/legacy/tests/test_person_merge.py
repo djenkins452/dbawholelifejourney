@@ -6,8 +6,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from apps.legacy.models import (
-    Contributor, Media, Memory, MemoryDiscovery, MemoryPerson, Output,
-    Person, Relationship, RelationshipAlias,
+    Contributor, LegacyProfile, Media, Memory, MemoryDiscovery, MemoryPerson,
+    Output, Person, PreservedFact, Relationship, RelationshipAlias,
 )
 from apps.legacy.services.person_merge import merge_people
 
@@ -93,6 +93,40 @@ class PersonMergeTests(TestCase):
         p = self._p("A")
         with self.assertRaises(ValueError):
             merge_people(self.user, loser=p, winner=p)
+
+    def test_preserved_facts_survive_merge(self):
+        """PreservedFact.person is CASCADE — the merge MUST re-point it, never let the
+        loser's hard-delete destroy the permanent preservation layer."""
+        loser = self._p("Marvin Jenkins"); winner = self._p("Marvin Lynn Jenkins")
+        fact = PreservedFact.objects.create(
+            user=self.user, person=loser, concept="Military", label="Service",
+            original_tag="_MILT", value="US Army 1963-1965")
+        merge_people(self.user, loser=loser, winner=winner)
+        fact.refresh_from_db()
+        self.assertEqual(fact.person_id, winner.pk)                   # preserved, re-pointed
+        self.assertTrue(PreservedFact.objects.filter(person=winner, original_tag="_MILT").exists())
+
+    def test_self_anchor_follows_merge(self):
+        """If the duplicate was the user's own node (self_person, SET_NULL), the merge
+        must move the anchor to the survivor rather than null the user's identity."""
+        loser = self._p("Me Duplicate"); winner = self._p("Me")
+        profile, _ = LegacyProfile.objects.get_or_create(user=self.user)
+        profile.self_person = loser; profile.save()
+        merge_people(self.user, loser=loser, winner=winner)
+        profile.refresh_from_db()
+        self.assertEqual(profile.self_person_id, winner.pk)          # anchor preserved
+
+    def test_provenance_inherited_when_survivor_blank(self):
+        """The survivor inherits the duplicate's import provenance (gedcom_xref,
+        source_batch) when it has none, so merged facts keep their origin."""
+        from apps.legacy.models import ImportBatch
+        batch = ImportBatch.objects.create(user=self.user)
+        loser = self._p("Marvin Jenkins", gedcom_xref="@I42@", source_batch=batch)
+        winner = self._p("Marvin Lynn Jenkins")
+        merge_people(self.user, loser=loser, winner=winner)
+        winner.refresh_from_db()
+        self.assertEqual(winner.gedcom_xref, "@I42@")
+        self.assertEqual(winner.source_batch_id, batch.pk)
 
     def test_view_end_to_end(self):
         self.client.force_login(self.user)

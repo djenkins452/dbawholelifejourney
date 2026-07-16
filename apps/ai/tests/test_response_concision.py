@@ -66,8 +66,10 @@ class CompletionSalienceContractTests(TestCase):
         # it comes AFTER the structured context (recency = highest salience)...
         self.assertGreater(p.index("RESPONSE COMPLETION (highest priority"),
                            p.index("STRUCTURED CONTEXT"))
-        # ...and is near the very end (the last instruction before the user turn)
-        self.assertLess(len(p) - p.index("RESPONSE COMPLETION (highest priority"), 1400)
+        # ...and is the LAST block in the prompt (nothing structural follows it)
+        tail = p[p.index("RESPONSE COMPLETION (highest priority"):]
+        self.assertNotIn("=== STRUCTURED CONTEXT", tail)
+        self.assertLess(len(tail), 2000)   # a compact reminder, not a second policy block
 
     def test_short_factual_answer_is_complete_and_not_impolite(self):
         low = self._prompt().lower()

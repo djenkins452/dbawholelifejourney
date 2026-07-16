@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-15 (refine(health): Body Intelligence — "Inconclusive" state + evidence/reason beneath every status)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — refine(model-interface): answer the INTENT — retrieve vs reason (analysis is not bare retrieval)
+
+**Intent-fulfillment refinement (governing prompt only — no Truth Resolution / providers / tools / retrieval change).** "Analyze my workout trends." was answering the *retrieval* ("You completed three workouts.") instead of the *analysis* — the model stopped at the first deterministic truth that partly satisfied the request. Adds an **INTENT — RETRIEVE vs REASON** directive to `CONSTITUTION` (`apps/ai/model_interface/constitution.py`) distinguishing two operation types:
+- **RETRIEVAL** ("what / how many / list / did I / what was my") — the deterministic value IS the answer; return it plainly and stop.
+- **REASONING** ("analyze / compare X to Y / summarize / interpret / identify patterns or trends / evaluate my progress / how am I doing / what does this mean") — the retrieved truth is a **PRECONDITION, not the answer**: retrieve the deterministic truth, THEN reason over it, THEN deliver the requested analysis/comparison/summary/interpretation. Do NOT stop after retrieval — a bare count or list does not answer an "analyze/compare/summarize/evaluate" request.
+
+**Reconciled with completion** (the just-shipped completion rule): the high-salience `RESPONSE_COMPLETION_REMINDER` now matches the objective to the intent — a retrieval question is satisfied by the value, but an analysis/comparison/summary request's objective is the REASONING, so "fewest words" means no filler, *not* skipping the analysis; the response ends only after the analysis is delivered.
+
+**Architecture unchanged (boundary preserved):** WLJ still only *retrieves* deterministic truth; OpenAI *reasons* over it and never invents it. No analysis engine, no workout-trends provider, no special-case code — the directive explicitly grounds the reasoning strictly in WLJ's supplied numbers.
+
+**Verification:** `manage.py check` clean; no migrations (prompt-only). **53 targeted tests pass** — new `test_intent_retrieve_reason` (retrieval stays terse; reasoning intents named + require retrieve-then-reason + "do not stop after retrieval"; boundary "you interpret truth; you never invent it"; the completion reminder reconciles analysis ≠ bare retrieval; and **the truth-tool set is unchanged** — proving no retrieval/architecture change) + `test_response_concision` + `test_medical_information_policy` + `test_model_interface_runtime` + `test_truth_surface_contract`. No brittle live-model assertions.
+
+**Post-deploy behavioral validation** (live-model, non-deterministic): "Analyze my workout trends." → retrieved facts + an actual trend/consistency read; "Compare this month to last month." → retrieve both, then compare; "Summarize my nutrition." → retrieve, then summarize; and terse retrieval questions ("how many workouts?") still answer plainly and stop.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_intent_retrieve_reason.py` (new), `apps/ai/tests/test_response_concision.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — refine(health): Body Intelligence — honest "Inconclusive" state + the *why* under every status
 
 Refines the measurement interpretation engine on two points:

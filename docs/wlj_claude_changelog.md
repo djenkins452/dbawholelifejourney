@@ -3,8 +3,44 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Body Intelligence interprets the WHOLE journey + fix leaking template comment)
+# Last Updated: 2026-07-15 (refine(health): Body Intelligence — Facts→Assessment→Interpretation + one holistic assessment + Recovering)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — refine(health): Body Intelligence — Facts → one Assessment → Interpretation (+ Recovering state)
+
+Applies the WLJ Truth architecture to Body Intelligence: **facts establish truth; interpretation explains truth.**
+Same card layout — the information HIERARCHY changed.
+
+**1. Facts first, interpretation second.** Each card now shows the deterministic facts on top (Current · Overall
+trend · Recent trend), then a divided **"Interpretation"** section (status + narrative). The interpretation
+explains the facts above it and never contradicts them.
+
+**2. One holistic Body Assessment drives every card.** `build_body_assessment` builds a single whole-body verdict
+from the complete composition truth (fat / lean / weight, **overall + recent**) BEFORE any card renders; every
+card interpretation — and the **Insights** list — is generated from it. So no card independently infers a
+conclusion that conflicts with another. This fixes a real contradiction the page showed: Insights said "Lean Mass
+trending up (improving)" while the card said "Needs attention." The **Insights list is now generated FROM the
+interpreted rows** (`build_insights`) — it can no longer disagree with a card.
+
+**3. New 🟡 Recovering state.** When a metric is still short of the goal **overall** but recent momentum is
+**correcting**, it reads **Recovering**, not red. E.g. lean mass Overall Down 12 lb / Recent Up 2.8 lb →
+"Still below your starting point, but recent readings show you rebuilding." The whole-body assessment distinguishes
+genuine *muscle loss* (lean down and not rebuilding → 🔴) from *recovering* (lean down but rebuilding → 🟡) — so a
+shrinking limb during recovery reads 🟡 (consistent with the body), not a red "muscle loss" that contradicts the
+rebuilding lean-mass card.
+
+**Files:** `measurement_interpretation.py` (`build_body_assessment` + `RECOVERING` + `build_insights`; overall +
+recent), `body_intelligence.py` (feeds the assessment + `insights`), `_bi_measure_table.html` (Facts→Interpretation
+hierarchy + amber Recovering), `body_intelligence.html` (Insights from `bi.insights`; legend gains Recovering;
+whole-body-assessment note), `test_measurement_interpretation.py`, `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md`.
+
+**Honesty:** no request-path-safe strength signal yet — evidence uses fat/lean/weight (which directly measure
+muscle-vs-fat), never a fabricated "Strength ↑".
+
+**Verification:** 20 interpretation + 51 body-intelligence/body-story tests green (incl. full-page render 200).
+Rendered-HTML check on the screenshot scenario confirms: assessment=recovering; Lean Mass + the previously-red
+limbs now 🟡 Recovering; Fat Mass/Waist 🟢 Improving; Insights mirror the cards exactly (no contradiction); facts
+render above the Interpretation section on every card. `check` clean; no migration.
 
 ## 2026-07-15 — feat(health): Body Intelligence interprets the whole journey (not one week) + comment-render fix
 

@@ -248,12 +248,13 @@
     {# ── Legend: what the colours mean ─────────────────────────────────────── #}
     <div class="bi-measure-legend" role="note" aria-label="What the measurement colours mean">
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-improving" aria-hidden="true"></span><strong>Improving</strong> — moving the healthy direction over your journey</span>
+        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-recovering" aria-hidden="true"></span><strong>Recovering</strong> — still short of the goal overall, but correcting recently</span>
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-attention" aria-hidden="true"></span><strong>Needs attention</strong> — moving away from your goal over your journey</span>
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>Stable</strong> — no meaningful long-term change</span>
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>Inconclusive</strong> — not enough evidence yet to conclude</span>
     </div>
-    {% if bi.body_journey and bi.body_journey.summary %}
-    <p class="bi-measure-legend-note">Your body's overall direction: {{ bi.body_journey.summary }}{% if bi.body_journey.confidence == "low" %} <em>(still forming — limb reads stay cautious until it's clearer)</em>{% endif %}. Limb measurements are interpreted against this.</p>
+    {% if bi.body_assessment and bi.body_assessment.summary %}
+    <p class="bi-measure-legend-note">Your whole-body assessment: {{ bi.body_assessment.summary }}{% if bi.body_assessment.confidence == "low" %} <em>(still forming — limb reads stay cautious until it's clearer)</em>{% endif %}. Every limb card is interpreted against this single assessment.</p>
     {% endif %}
     <style nonce="{{ csp_nonce }}">
     .bi-measure-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: var(--space-3, 0.75rem);
@@ -261,6 +262,7 @@
     .bi-legend-item { display: inline-flex; align-items: center; gap: 6px; }
     .bi-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
     .bi-legend-improving { background: var(--color-success, #10b981); }
+    .bi-legend-recovering { background: var(--color-warning, #f59e0b); }
     .bi-legend-attention { background: var(--color-danger, #ef4444); }
     .bi-legend-neutral { background: var(--color-border, #d1d5db); }
     .bi-measure-legend-note { margin-top: var(--space-2, 0.5rem); font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
@@ -294,13 +296,14 @@
     {% endif %}
 
     <!-- ── Insights ────────────────────────────────────────────────────── -->
-    {% if bi.body_comp.top_insight or bi.snapshot.trend_summary %}
+    {% if bi.body_comp.top_insight or bi.insights %}
     <h3 class="bi-section-title">Insights</h3>
     <div class="bi-insights">
         {% if bi.body_comp.top_insight %}<p class="bi-insight-top">{{ bi.body_comp.top_insight }}</p>{% endif %}
-        {% if bi.snapshot.trend_summary %}
+        {% if bi.insights %}
         <ul class="bi-insight-list">
-            {% for line in bi.snapshot.trend_summary %}<li>{{ line }}</li>{% endfor %}
+            {# Generated FROM the interpreted cards → the Insights never contradict a card. #}
+            {% for line in bi.insights %}<li>{{ line }}</li>{% endfor %}
         </ul>
         {% endif %}
     </div>

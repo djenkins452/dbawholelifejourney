@@ -23,19 +23,31 @@ body coach and does **not** react to one week's measurement noise. Each card sho
 | **Evidence** (limbs) | "Body fat ↓ over your journey · Lean mass ↑ over your journey" |
 | **Interpretation** | "Excellent progress — continues moving in the desired direction." |
 
-Four states, three colours:
+Five states, four colours:
 
 | State | Colour | Meaning |
 |---|---|---|
 | 🟢 **Improving** | green | moving the healthy direction **over the journey** |
+| 🟡 **Recovering** | amber | still short of the goal **overall**, but recent momentum is **correcting** |
 | 🔴 **Needs attention** | red | moving away from the goal **over the journey** |
 | ⚪ **Stable** | gray | a *confident* "no meaningful long-term change" |
 | ⚪ **Inconclusive** | gray | not enough history / conflicting signals to conclude |
 
-**Status is driven by the OVERALL trend** (noise-resistant). The **narrative reflects recent
-momentum** — continuing, plateaued, or reversing. We never present an uncertain inference as
-certain, and we distinguish *Stable* (we know it hasn't moved) from *Inconclusive* (we can't
-tell yet).
+**Status is driven by the OVERALL trend** (noise-resistant); the **narrative reflects recent
+momentum**. *Recovering* is the key nuance: e.g. lean mass below baseline overall but rising in
+recent readings reads "Still below your starting point, but rebuilding" — **not** muscle loss.
+
+## WLJ Truth architecture: Facts → Assessment → Interpretation
+
+Each card shows **facts first** (Current · Overall trend · Recent trend — deterministic WLJ
+truth), then a divided **Interpretation** section. The interpretation *explains* the facts and
+must never contradict them.
+
+Before any card renders, `build_body_assessment` builds **one** holistic whole-body verdict from
+the complete composition truth. **Every** card's interpretation — and the **Insights** list
+(`build_insights`, generated FROM the interpreted rows) — derives from that single assessment, so
+no card independently infers a conclusion that conflicts with another. Facts → whole-body
+assessment → per-measurement interpretation.
 
 ---
 
@@ -67,19 +79,22 @@ line here.
 
 ---
 
-## Body-journey inference (`classify_body_journey`)
+## Whole-body assessment (`build_body_assessment`)
 
-Deterministic verdict from the **overall** trajectories of fat mass, lean mass, body-fat %, and
-weight (whole journey → far less noisy than one week). Used to interpret limb changes.
+The ONE deterministic verdict from the fat / lean / weight trajectories (overall **and** recent).
+Used to interpret every limb, and the source the Insights list mirrors.
 
-| Condition (overall) | Verdict | Status |
+| Condition | Verdict | Status |
 |---|---|---|
-| lean ↓ ≥ 1 lb | muscle loss | 🔴 Needs attention |
-| fat ↓ **and** lean ↑ | recomposition | 🟢 Improving |
+| fat ↓ **and** lean ↑ (overall) | recomposition | 🟢 Improving |
+| lean ↓ overall **but** lean ↑ recently (≥ 0.5 lb) | recovering | 🟡 Recovering |
+| lean ↓ overall **and not** rebuilding | muscle loss | 🔴 Needs attention |
 | fat ↓ **and** lean not down | fat loss, muscle preserved | 🟢 Improving |
 | fat ↑ **and** lean ↑ (or unclear) | mixed | ⚪ Inconclusive |
 
-*(fat ↓ = fat mass ≤ −1 lb or body-fat ≤ −0.4 pct over the journey.)*
+*(fat ↓ = fat mass ≤ −1 lb or body-fat ≤ −0.4 pct over the journey.)* A limb inherits the
+assessment status (a flat limb → Stable). A shrinking limb reads 🔴 only under genuine
+*muscle loss*; under *recovering* it reads 🟡, consistent with the body.
 
 ---
 

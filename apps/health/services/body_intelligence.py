@@ -211,20 +211,24 @@ def build_body_intelligence(user, *, as_of=None):
     # Baseline = first logged reading; classify the body's overall trajectory (fat/lean/
     # weight since the start of the journey), so a limb circumference is never judged alone.
     from apps.health.services.measurement_interpretation import (
-        analyze_trajectory, classify_body_journey,
+        analyze_trajectory, build_body_assessment, build_insights,
     )
     _series = (measurement_series or {}).get("series", {})
     _weight_pts = [{"date": d.isoformat(), "value": v} for d, v in weight_hist] if weight_hist else []
-    body_journey = classify_body_journey(
+    # ONE holistic assessment (overall + recent) — every card interpretation derives from it,
+    # so the whole page tells the same story (no card conflicts with another).
+    body_assessment = build_body_assessment(
         fat_traj=analyze_trajectory(_series.get("fat_mass"), "lb"),
         lean_traj=analyze_trajectory(_series.get("lean_mass"), "lb"),
         weight_traj=analyze_trajectory(_weight_pts, "lb"),
         bf_traj=analyze_trajectory(_series.get("body_fat_pct"), "pct"),
     )
 
-    # ── Template-friendly rows — each interprets its WHOLE journey (overall + recent) ──
-    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, measurement_series, body_journey)
-    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, measurement_series, body_journey)
+    # ── Template-friendly rows — FACTS (overall + recent) then interpretation from the
+    # single assessment. Insights are generated FROM these rows → guaranteed consistent. ──
+    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, measurement_series, body_assessment)
+    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, measurement_series, body_assessment)
+    insights = build_insights(circumference_rows + composition_rows)
     current = _current_snapshot(body_comp, snapshot, weight)
     current_cards = _current_snapshot_cards(current)
 
@@ -262,7 +266,8 @@ def build_body_intelligence(user, *, as_of=None):
         "measurement_series": measurement_series,
         "circumference_rows": circumference_rows,
         "composition_rows": composition_rows,
-        "body_journey": body_journey,
+        "body_assessment": body_assessment,
+        "insights": insights,
         "current": current,
         "current_cards": current_cards,
         "sessions": sessions,
@@ -431,12 +436,12 @@ def _build_session_view(user):
     }
 
 
-def _measurement_rows(snapshot, metric_order, metric_labels, measurement_series, body_journey):
+def _measurement_rows(snapshot, metric_order, metric_labels, measurement_series, body_assessment):
     """Ordered template rows for the metrics the user has logged, each interpreting its
     WHOLE journey — overall trend (baseline→now) + recent momentum — not a single delta.
 
     The verdict comes from ``measurement_interpretation`` (limb circumferences are read
-    against the body's whole-journey ``body_journey``, never in isolation). The current
+    against the body's whole-journey ``body_assessment``, never in isolation). The current
     value comes straight from the canonical snapshot; the trend comes from the per-metric
     history series. No new queries.
     """
@@ -456,7 +461,7 @@ def _measurement_rows(snapshot, metric_order, metric_labels, measurement_series,
             continue
         unit = units.get(metric, "")
         traj = analyze_trajectory(series_by_metric.get(metric), unit)
-        interp = interpret_measurement(metric, unit, traj, body_journey)
+        interp = interpret_measurement(metric, unit, traj, body_assessment)
         rows.append({
             "metric": metric,
             "label": metric_labels.get(metric, metric),

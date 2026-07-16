@@ -1,28 +1,34 @@
 {% comment %}
-Body Intelligence measurement cards — the whole-journey story, not a single delta.
-Expects rows = [{label, value, unit, status, status_label, arrow, confidence,
-                 overall_text, recent_text, evidence, reason}].
+Body Intelligence measurement cards — WLJ Truth architecture: FACTS first, INTERPRETATION second.
+Expects rows = [{label, value, unit, status, status_label, overall_text, recent_text,
+                 evidence, reason}].
 
-Each card reads like a body coach: the current value, a status (🟢 Improving / 🔴 Needs
-attention / ⚪ Stable / ⚪ Inconclusive) driven by the OVERALL trend since the start of the
-journey (noise-resistant), the Overall + Recent trend, the body-composition evidence (for
-limbs), and a plain-English interpretation. See measurement_interpretation.py.
+Same card layout as before; the information HIERARCHY is: the deterministic facts (Current,
+Overall trend, Recent trend) on top, then a divided "Interpretation" section (status + narrative)
+generated from the ONE holistic body assessment. The interpretation explains the facts above it and
+never contradicts them. See apps/health/services/measurement_interpretation.py.
 {% endcomment %}
 <div class="bi-measure-cards">
     {% for row in rows %}
     <div class="bi-measure-card bi-status-{{ row.status }}">
+        {# ── Facts (WLJ Truth) ── #}
         <div class="bi-measure-card-top">
             <span class="bi-measure-card-label">{{ row.label }}</span>
             <span class="bi-measure-card-value">{{ row.value|floatformat:"-2" }}{% if row.unit %}<small>{{ row.unit }}</small>{% endif %}</span>
         </div>
-        <span class="bi-measure-card-status">
-            {% if row.status == "improving" %}<span class="bi-status-icon" aria-hidden="true">&#10003;</span>{% elif row.status == "needs_attention" %}<span class="bi-status-icon" aria-hidden="true">&#10007;</span>{% endif %}
-            <span class="bi-status-word">{{ row.status_label }}</span>
-        </span>
         <span class="bi-measure-card-trend"><span class="bi-trend-key">Overall</span> {{ row.overall_text }}</span>
         {% if row.recent_text and row.recent_text != row.overall_text %}<span class="bi-measure-card-trend"><span class="bi-trend-key">Recent</span> {{ row.recent_text }}</span>{% endif %}
-        {% if row.evidence %}<span class="bi-measure-card-evidence">{{ row.evidence|join:" · " }}</span>{% endif %}
-        {% if row.reason %}<span class="bi-measure-card-reason">{{ row.reason }}</span>{% endif %}
+
+        {# ── Interpretation (explains the facts above) ── #}
+        <div class="bi-measure-card-interp">
+            <span class="bi-interp-label">Interpretation</span>
+            <span class="bi-measure-card-status">
+                {% if row.status == "improving" %}<span class="bi-status-icon" aria-hidden="true">&#10003;</span>{% elif row.status == "needs_attention" %}<span class="bi-status-icon" aria-hidden="true">&#10007;</span>{% endif %}
+                <span class="bi-status-word">{{ row.status_label }}</span>
+            </span>
+            {% if row.evidence %}<span class="bi-measure-card-evidence">{{ row.evidence|join:" · " }}</span>{% endif %}
+            {% if row.reason %}<span class="bi-measure-card-reason">{{ row.reason }}</span>{% endif %}
+        </div>
     </div>
     {% endfor %}
 </div>
@@ -35,17 +41,20 @@ limbs), and a plain-English interpretation. See measurement_interpretation.py.
 .bi-measure-card-label { font-size: var(--font-size-xs, 0.72rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); }
 .bi-measure-card-value { font-size: var(--font-size-lg, 1.15rem); font-weight: 800; color: var(--color-text, #111827); line-height: 1.1; white-space: nowrap; }
 .bi-measure-card-value small { font-size: 0.6em; font-weight: 600; color: var(--color-text-muted, #6b7280); margin-left: 2px; }
-.bi-measure-card-status { display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-size-sm, 0.82rem); font-weight: 800; margin-top: 1px; }
-.bi-status-icon { font-weight: 900; }
 .bi-measure-card-trend { font-size: var(--font-size-xs, 0.72rem); color: var(--color-text, #374151); font-weight: 600; }
 .bi-trend-key { display: inline-block; min-width: 48px; color: var(--color-text-muted, #9ca3af); font-weight: 700; text-transform: uppercase; font-size: 0.62rem; letter-spacing: 0.03em; }
-.bi-measure-card-evidence { font-size: var(--font-size-xs, 0.68rem); font-weight: 600; color: var(--color-text-muted, #6b7280); margin-top: 1px; }
-.bi-measure-card-reason { font-size: var(--font-size-xs, 0.7rem); color: var(--color-text-muted, #6b7280); line-height: 1.3; margin-top: 1px; }
+.bi-measure-card-interp { display: flex; flex-direction: column; gap: 0.15rem; margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid var(--color-border, #eef0f2); }
+.bi-interp-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #b0b6be); }
+.bi-measure-card-status { display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-size-sm, 0.82rem); font-weight: 800; }
+.bi-status-icon { font-weight: 900; }
+.bi-measure-card-evidence { font-size: var(--font-size-xs, 0.68rem); font-weight: 600; color: var(--color-text-muted, #6b7280); }
+.bi-measure-card-reason { font-size: var(--font-size-xs, 0.7rem); color: var(--color-text-muted, #6b7280); line-height: 1.3; }
 
-/* Status → colour. Improving green · Needs attention red · Stable / Inconclusive gray.
-   The left rail gives an at-a-glance read down the grid. */
+/* Status → colour. Improving green · Recovering amber · Needs attention red · Stable/Inconclusive gray. */
 .bi-status-improving { border-left-color: var(--color-success, #10b981); }
 .bi-status-improving .bi-measure-card-status { color: var(--color-success, #10b981); }
+.bi-status-recovering { border-left-color: var(--color-warning, #f59e0b); }
+.bi-status-recovering .bi-measure-card-status { color: var(--color-warning, #d97706); }
 .bi-status-needs_attention { border-left-color: var(--color-danger, #ef4444); }
 .bi-status-needs_attention .bi-measure-card-status { color: var(--color-danger, #ef4444); }
 .bi-status-stable { border-left-color: var(--color-border, #d1d5db); }

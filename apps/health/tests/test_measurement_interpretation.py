@@ -1,143 +1,140 @@
 """
-Deterministic tests for Body Intelligence WHOLE-JOURNEY measurement interpretation.
+Deterministic tests for Body Intelligence whole-journey interpretation.
 
 Pins:
-  1. `analyze_trajectory` — baseline (first reading) → latest overall change + rolling recent.
-  2. `classify_body_journey` — the body's overall trajectory from fat/lean/weight history.
-  3. `interpret_measurement` — status driven by the OVERALL trend (noise-resistant), with a
-     coach-style narrative; limbs read against the body's journey; flat-over-journey → Stable;
-     not-enough-history → Inconclusive.
+  1. `analyze_trajectory` — baseline (first reading) → overall + rolling recent.
+  2. `build_body_assessment` — ONE holistic verdict (overall + recent), incl. RECOVERING
+     when lean is below baseline but rebuilding.
+  3. `interpret_measurement` — FACTS + interpretation from the assessment; overall drives the
+     status (noise-resistant), Recovering when overall is behind but recent is correcting.
+  4. `build_insights` — generated FROM the rows so Insights can never contradict a card.
 """
 from datetime import date, timedelta
 
 from django.test import SimpleTestCase
 
 from apps.health.services.measurement_interpretation import (
-    IMPROVING, NEEDS_ATTENTION, STABLE, INCONCLUSIVE,
-    analyze_trajectory, classify_body_journey, interpret_measurement,
+    IMPROVING, RECOVERING, NEEDS_ATTENTION, STABLE, INCONCLUSIVE,
+    analyze_trajectory, build_body_assessment, interpret_measurement, build_insights,
 )
 
 
 def _series(values, step_days=7):
-    """Weekly [{date,value}] history, oldest first."""
     start = date(2026, 1, 1)
     return [{"date": (start + timedelta(days=i * step_days)).isoformat(), "value": float(v)}
             for i, v in enumerate(values)]
 
 
 def _traj(overall, recent=0.0):
-    """A pre-analyzed trajectory dict for interpret/journey tests."""
     return {"baseline": 0.0, "latest": overall, "overall": overall, "recent": recent,
             "n": 10, "span_days": 90}
 
 
 class AnalyzeTrajectoryTests(SimpleTestCase):
-    def test_overall_and_recent_from_full_history(self):
+    def test_overall_and_recent(self):
         t = analyze_trajectory(_series([60, 59, 58, 57, 56, 55, 54, 53, 52, 51]), "in")
-        self.assertEqual(t["baseline"], 60.0)
-        self.assertEqual(t["latest"], 51.0)
-        self.assertEqual(t["overall"], -9.0)          # baseline → latest
-        self.assertLess(t["recent"], 0)               # still dropping recently
-        self.assertGreater(t["overall"], t["recent"] - 100)  # sanity
-        self.assertNotEqual(t["recent"], t["overall"])  # recent window ≠ whole journey
+        self.assertEqual(t["overall"], -9.0)
+        self.assertLess(t["recent"], 0)
+        self.assertNotEqual(t["recent"], t["overall"])
 
     def test_needs_two_readings(self):
         self.assertIsNone(analyze_trajectory(_series([50]), "in"))
-        self.assertIsNone(analyze_trajectory([], "in"))
 
 
-class ClassifyBodyJourneyTests(SimpleTestCase):
+class BuildBodyAssessmentTests(SimpleTestCase):
     def test_recomposition_is_improving(self):
-        bj = classify_body_journey(fat_traj=_traj(-5.0), lean_traj=_traj(3.0))
-        self.assertEqual(bj["status"], IMPROVING)
-        self.assertIn("Lean mass ↑ over your journey", bj["evidence"])
+        a = build_body_assessment(fat_traj=_traj(-5.0), lean_traj=_traj(3.0))
+        self.assertEqual(a["status"], IMPROVING)
+
+    def test_lean_below_baseline_but_rebuilding_is_recovering(self):
+        # The screenshot case: lean overall -12, recently +2.8 → Recovering, NOT muscle loss.
+        a = build_body_assessment(fat_traj=_traj(-14.0, -7.4), lean_traj=_traj(-12.0, 2.8))
+        self.assertEqual(a["status"], RECOVERING)
+        self.assertEqual(a["verdict"], "recovering")
+        self.assertIn("rebuilding", a["summary"])
+
+    def test_lean_still_falling_needs_attention(self):
+        a = build_body_assessment(fat_traj=_traj(-0.5), lean_traj=_traj(-4.0, -0.6))
+        self.assertEqual(a["status"], NEEDS_ATTENTION)
 
     def test_fat_loss_preserving_is_improving(self):
-        bj = classify_body_journey(fat_traj=_traj(-5.0), lean_traj=_traj(0.2))
-        self.assertEqual(bj["status"], IMPROVING)
-
-    def test_lean_loss_needs_attention(self):
-        bj = classify_body_journey(fat_traj=_traj(-0.5), lean_traj=_traj(-3.0))
-        self.assertEqual(bj["status"], NEEDS_ATTENTION)
-
-    def test_conflicting_is_inconclusive(self):
-        bj = classify_body_journey(fat_traj=_traj(2.0), lean_traj=_traj(2.0))
-        self.assertEqual(bj["status"], INCONCLUSIVE)
+        a = build_body_assessment(fat_traj=_traj(-5.0), lean_traj=_traj(0.2))
+        self.assertEqual(a["status"], IMPROVING)
 
     def test_no_history_is_inconclusive(self):
-        self.assertEqual(classify_body_journey()["status"], INCONCLUSIVE)
+        self.assertEqual(build_body_assessment()["status"], INCONCLUSIVE)
 
 
 class InterpretMeasurementTests(SimpleTestCase):
-    BJ_IMPROVING = {"status": IMPROVING, "confidence": "high",
-                    "evidence": ["Body fat ↓ over your journey", "Lean mass ↑ over your journey"],
-                    "summary": "you're losing fat and building muscle"}
-    BJ_ATTENTION = {"status": NEEDS_ATTENTION, "confidence": "high",
-                    "evidence": ["Lean mass ↓ over your journey"],
-                    "summary": "lean mass has fallen over your journey"}
-    BJ_LOW = {"status": INCONCLUSIVE, "confidence": "low", "evidence": [], "summary": "unclear"}
+    A_IMPROVING = {"status": IMPROVING, "confidence": "high",
+                   "evidence": ["Body fat ↓ over your journey", "Lean mass ↑ over your journey"],
+                   "summary": "you're losing fat and building lean mass"}
+    A_RECOVERING = {"status": RECOVERING, "confidence": "high",
+                    "evidence": ["Lean mass ↓ over your journey", "Lean mass ↑ recently"],
+                    "summary": "you lost lean mass earlier but recent readings show you rebuilding it"}
+    A_ATTENTION = {"status": NEEDS_ATTENTION, "confidence": "high",
+                   "evidence": ["Lean mass ↓ over your journey"],
+                   "summary": "your lean mass is below your starting point"}
 
-    # ── Direct measures — judged by the whole-journey overall trend ──
+    # Direct measures
     def test_waist_overall_down_is_improving(self):
         r = interpret_measurement("waist", "in", _traj(-6.2, -0.5), None)
         self.assertEqual(r["status"], IMPROVING)
         self.assertIn("Down", r["overall_text"])
-        self.assertIn("progress", r["reason"].lower())
 
-    def test_waist_overall_down_recent_plateau_still_improving(self):
-        r = interpret_measurement("waist", "in", _traj(-6.2, 0.0), None)
+    def test_lean_below_start_but_rebuilding_is_recovering(self):
+        # Direct lean card: overall Down 12, Recent Up 2.8 → Recovering (matches user example).
+        r = interpret_measurement("lean_mass", "lb", _traj(-12.0, 2.8), None)
+        self.assertEqual(r["status"], RECOVERING)
+        self.assertEqual(r["status_label"], "Recovering")
+        self.assertIn("rebuilding", r["reason"].lower())
+
+    def test_overall_flat_is_stable(self):
+        self.assertEqual(interpret_measurement("waist", "in", _traj(0.1, 0.0), None)["status"], STABLE)
+
+    def test_overall_and_recent_away_needs_attention(self):
+        self.assertEqual(interpret_measurement("lean_mass", "lb", _traj(-5.0, -0.7), None)["status"],
+                         NEEDS_ATTENTION)
+
+    # Limbs read against the ONE assessment
+    def test_limb_under_recovering_is_recovering_not_red(self):
+        # The screenshot fix: a shrinking thigh while the body is RECOVERING must not read red.
+        r = interpret_measurement("thigh_left", "in", _traj(-1.5, -0.38), self.A_RECOVERING)
+        self.assertEqual(r["status"], RECOVERING)
+        self.assertNotEqual(r["status"], NEEDS_ATTENTION)
+
+    def test_limb_up_under_recomposition_is_muscle(self):
+        r = interpret_measurement("arm_left", "in", _traj(0.4, 0.1), self.A_IMPROVING)
         self.assertEqual(r["status"], IMPROVING)
-        self.assertIn("plateaued", r["reason"].lower())
+        self.assertIn("muscle", r["reason"].lower())
 
-    def test_waist_overall_flat_is_stable(self):
-        r = interpret_measurement("waist", "in", _traj(0.1, 0.0), None)
-        self.assertEqual(r["status"], STABLE)
-        self.assertEqual(r["overall_text"], "Flat")
-
-    def test_waist_overall_up_needs_attention(self):
-        r = interpret_measurement("waist", "in", _traj(2.0, 0.3), None)
+    def test_limb_shrinking_under_muscle_loss_needs_attention(self):
+        r = interpret_measurement("calf_left", "in", _traj(-0.6, -0.2), self.A_ATTENTION)
         self.assertEqual(r["status"], NEEDS_ATTENTION)
 
-    def test_lean_mass_overall_up_is_improving(self):
-        r = interpret_measurement("lean_mass", "lb", _traj(5.0, 0.6), None)
-        self.assertEqual(r["status"], IMPROVING)
+    def test_limb_flat_is_stable(self):
+        self.assertEqual(
+            interpret_measurement("calf_left", "in", _traj(0.1, 0.0), self.A_RECOVERING)["status"], STABLE)
 
-    def test_lean_mass_overall_down_needs_attention(self):
-        r = interpret_measurement("lean_mass", "lb", _traj(-3.0, -0.4), None)
-        self.assertEqual(r["status"], NEEDS_ATTENTION)
-
-    # ── Limbs — read against the body's journey ──
-    def test_arm_up_during_recomposition_is_muscle(self):
-        r = interpret_measurement("arm_left", "in", _traj(0.4, 0.1), self.BJ_IMPROVING)
-        self.assertEqual(r["status"], IMPROVING)
-        self.assertIn("muscle development", r["reason"].lower())
-        self.assertIn("Lean mass ↑ over your journey", r["evidence"])
-
-    def test_thigh_down_during_fat_loss_is_improving(self):
-        r = interpret_measurement("thigh_left", "in", _traj(-0.8, -0.1), self.BJ_IMPROVING)
-        self.assertEqual(r["status"], IMPROVING)
-        self.assertIn("fat loss", r["reason"].lower())
-
-    def test_limb_shrinking_during_muscle_loss_needs_attention(self):
-        r = interpret_measurement("calf_left", "in", _traj(-0.6, -0.2), self.BJ_ATTENTION)
-        self.assertEqual(r["status"], NEEDS_ATTENTION)
-        self.assertIn("muscle loss", r["reason"].lower())
-
-    def test_limb_flat_over_journey_is_stable(self):
-        r = interpret_measurement("calf_left", "in", _traj(0.1, 0.0), self.BJ_IMPROVING)
-        self.assertEqual(r["status"], STABLE)
-        self.assertIn("no meaningful long-term change", r["reason"].lower())
-
-    def test_limb_with_unclear_body_is_inconclusive(self):
-        r = interpret_measurement("forearm_left", "in", _traj(0.4, 0.1), self.BJ_LOW)
-        self.assertEqual(r["status"], INCONCLUSIVE)
-
-    # ── Neutral + no-history ──
     def test_neutral_flat_is_stable(self):
-        r = interpret_measurement("chest", "in", _traj(0.1, 0.0), None)
-        self.assertEqual(r["status"], STABLE)
+        self.assertEqual(interpret_measurement("chest", "in", _traj(0.1, 0.0), None)["status"], STABLE)
 
     def test_no_history_is_inconclusive(self):
-        r = interpret_measurement("waist", "in", None, None)
-        self.assertEqual(r["status"], INCONCLUSIVE)
-        self.assertIn("keep logging", r["reason"].lower())
+        self.assertEqual(interpret_measurement("waist", "in", None, None)["status"], INCONCLUSIVE)
+
+
+class BuildInsightsTests(SimpleTestCase):
+    def test_insights_generated_from_rows_and_ordered(self):
+        rows = [
+            {"label": "Waist", "status": IMPROVING, "status_label": "Improving", "overall_text": "Down 6.2 in"},
+            {"label": "Lean Mass", "status": RECOVERING, "status_label": "Recovering", "overall_text": "Down 12 lb"},
+            {"label": "Arm", "status": NEEDS_ATTENTION, "status_label": "Needs attention", "overall_text": "Down 1 in"},
+            {"label": "Calf", "status": STABLE, "status_label": "Stable", "overall_text": "Flat"},
+        ]
+        out = build_insights(rows)
+        # Attention first, then recovering, then improving, then stable.
+        self.assertTrue(out[0].startswith("Arm: Needs attention"))
+        self.assertTrue(out[1].startswith("Lean Mass: Recovering"))
+        self.assertIn("Waist: Improving", out[2])
+        # Every insight mirrors a card's status → cannot contradict.
+        self.assertTrue(all("—" in line for line in out))

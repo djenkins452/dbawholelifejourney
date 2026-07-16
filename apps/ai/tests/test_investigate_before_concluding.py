@@ -84,7 +84,7 @@ class InvestigateBeforeConcludingContractTests(TestCase):
         svc = ModelInterfaceService(user, ai_service=object())
         low = svc._system_prompt({"current_context": {}}).lower()
         self.assertIn("investigate before concluding", low)
-        self.assertIn("reserve 'insufficient' for a genuine absence", low)
+        self.assertIn("reserve it for a genuine absence", low)
 
     def test_analysis_surface_is_the_investigation_guarantee(self):
         # The behavioral contract is now backed by a deterministic surface, not only a

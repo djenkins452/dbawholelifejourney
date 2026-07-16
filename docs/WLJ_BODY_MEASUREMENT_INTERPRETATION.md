@@ -1,138 +1,121 @@
 # WLJ Body Measurement Interpretation
 
 **Canonical module:** `apps/health/services/measurement_interpretation.py`
-**Consumed by:** `apps/health/services/body_intelligence.py` (`_measurement_rows`) → the
-Body Intelligence "Body measurements" cards (`templates/health/_bi_measure_table.html`).
+**Consumed by:** `apps/health/services/body_intelligence.py` (`_measurement_rows`) → the Body
+Intelligence "Body measurements" cards (`templates/health/_bi_measure_table.html`).
 **Tests:** `apps/health/tests/test_measurement_interpretation.py`
 
 ---
 
 ## The question each card answers
 
-> **"What is this change most likely telling me?"**
+> **"What direction has this body part been moving since the start of this journey, and does
+> that align with the rest of the body?"**
 
-Every measurement card communicates three *separate* things:
+It reads the **whole journey**, not a single week — so it describes the long-term story like a
+body coach and does **not** react to one week's measurement noise. Each card shows:
 
-| Concept | Where it shows |
+| Concept | Example |
 |---|---|
-| The **literal** measurement change | the arrow (▲ up / ▼ down / → none) + the signed number |
-| Whether that change is a **healthy** direction | the colour + status word |
-| The current **status** | Improving · Needs attention · No change |
+| **Status** | 🟢 Improving / 🔴 Needs attention / ⚪ Stable / ⚪ Inconclusive |
+| **Overall trend** (baseline → now) | "Down 6.2 in" |
+| **Recent trend** (rolling ~35 days) | "Down 0.5 in" / "Flat" |
+| **Evidence** (limbs) | "Body fat ↓ over your journey · Lean mass ↑ over your journey" |
+| **Interpretation** | "Excellent progress — continues moving in the desired direction." |
 
-The arrow is *always* the literal movement. The **colour and label are the judgment** — so
-the user never has to remember whether "up" or "down" is good for a given metric.
-
-Three visual states (and only three):
+Four states, three colours:
 
 | State | Colour | Meaning |
 |---|---|---|
-| 🟢 **Improving** | green | movement in the healthy direction |
-| 🔴 **Needs attention** | red | movement away from the goal |
-| ⚪ **Inconclusive** | gray | the deterministic signals don't support a confident conclusion (or nothing meaningful has moved yet) |
+| 🟢 **Improving** | green | moving the healthy direction **over the journey** |
+| 🔴 **Needs attention** | red | moving away from the goal **over the journey** |
+| ⚪ **Stable** | gray | a *confident* "no meaningful long-term change" |
+| ⚪ **Inconclusive** | gray | not enough history / conflicting signals to conclude |
 
-We deliberately **never** say "No change" when the truth is "we cannot confidently determine
-what this means" — that is **Inconclusive**, and we say so ("keep tracking over the next few
-check-ins"). We never present an uncertain inference as certain; medium-confidence limb reads
-are hedged ("Likely improving").
-
-Every card also surfaces the **evidence** it was built from + a one-line **conclusion**, so the
-user understands *why* WLJ reached the verdict — e.g. `Body fat ↓ · Lean mass ↑` →
-"Likely muscle gain while losing fat."
+**Status is driven by the OVERALL trend** (noise-resistant). The **narrative reflects recent
+momentum** — continuing, plateaued, or reversing. We never present an uncertain inference as
+certain, and we distinguish *Stable* (we know it hasn't moved) from *Inconclusive* (we can't
+tell yet).
 
 ---
 
-## Core principle: never judge a circumference in isolation
+## Baseline & trends (`analyze_trajectory`)
 
-WLJ always has the whole picture — daily body weight, body-fat %, lean mass, fat mass, and
-the precomputed body-composition signals. A limb (arm/forearm/thigh/calf) getting bigger or
-smaller can be muscle **or** fat, so we do **not** hard-code "arms bigger = good". Instead we
-infer the **body's direction** and read the limb change through it.
+* **Baseline** = the **first logged reading** — the start of the journey. (No compelling reason
+  to pick another baseline; the DB order is the journey.)
+* **Overall** = latest − baseline.
+* **Recent** = latest − the earliest reading within the last **35 days** (falls back to the
+  prior reading). This is the rolling momentum.
+* **< 2 readings** → `None` → the card is *Inconclusive* ("keep logging").
+
+Meaningful-change thresholds are per-unit and **larger for Overall than Recent**, so one week
+never sets the long-term story: Overall `in 0.3 · lb 1.0 · pct 0.4 · kcal 30`; Recent is ~half.
 
 ---
 
 ## Category map (`MEASUREMENT_CATEGORY`)
 
-Every measurement is one of four categories. New measurements inherit behaviour by being
-added here (anything unlisted defaults to `neutral` — we never fabricate a verdict).
+| Category | Metrics | How it's judged |
+|---|---|---|
+| `decrease_good` | waist, hips, neck, body_fat_pct, fat_mass, visceral_fat, bmi, metabolic_age | own journey; smaller is healthier |
+| `increase_good` | lean_mass, skeletal_muscle_mass, bone_mass | own journey; larger is healthier |
+| `inferred` | arm/forearm/thigh/calf (both sides) | the limb's journey **against the body's journey** |
+| `neutral` | chest, shoulders, body_water_pct, bmr | tracked, never judged |
 
-### `decrease_good` — direct fat / risk measures; smaller is healthier
-`waist`, `hips`, `neck`, `body_fat_pct`, `fat_mass`, `visceral_fat`, `bmi`, `metabolic_age`
-
-*(These directly measure the target — waist ↓ **is** less fat — so they're judged by their
-own literal direction, high confidence, no inference.)*
-
-### `increase_good` — direct lean / structural mass; larger is healthier
-`lean_mass`, `skeletal_muscle_mass`, `bone_mass`
-
-### `inferred` — limb circumferences; judged by the body's inferred direction
-`arm_left`, `arm_right`, `forearm_left`, `forearm_right`, `thigh_left`, `thigh_right`,
-`calf_left`, `calf_right`
-
-### `neutral` — no directional health goal (tracked, never judged)
-`chest`, `shoulders`, `body_water_pct`, `bmr`
+Anything unlisted → `neutral` (never fabricate a verdict). Add a new measurement by adding one
+line here.
 
 ---
 
-## Body-direction inference (`infer_body_direction`)
+## Body-journey inference (`classify_body_journey`)
 
-Deterministic, from the `DailyHealthSummary` body-comp panel (all computed in the background
-cycle — no request-path queries). Inputs: 14-day `fat_mass`/`lean_mass` deltas +
-`recomposition_flag_14d`, `muscle_loss_risk_level`, `muscle_preservation_status`. Meaningful
-move = ±0.5 lb over 14 days.
+Deterministic verdict from the **overall** trajectories of fat mass, lean mass, body-fat %, and
+weight (whole journey → far less noisy than one week). Used to interpret limb changes.
 
-Rules, in priority order (matching the agreed Scenarios A–D):
+| Condition (overall) | Verdict | Status |
+|---|---|---|
+| lean ↓ ≥ 1 lb | muscle loss | 🔴 Needs attention |
+| fat ↓ **and** lean ↑ | recomposition | 🟢 Improving |
+| fat ↓ **and** lean not down | fat loss, muscle preserved | 🟢 Improving |
+| fat ↑ **and** lean ↑ (or unclear) | mixed | ⚪ Inconclusive |
 
-| # | Condition | Verdict | Status | Confidence |
-|---|---|---|---|---|
-| 1 | `muscle_loss_risk_level ∈ {high, elevated}` **or** lean ↓ ≥0.5 lb | `muscle_loss` | 🔴 Needs attention | high if both, else medium |
-| 2 | `recomposition_flag_14d` **or** (fat ↓ **and** lean ↑) | `recomposition` | 🟢 Improving | high |
-| 3 | fat ↓ **and** lean not down | `fat_loss_preserving` | 🟢 Improving | high if muscle preserved, else medium |
-| 4 | fat ↑ **and** lean ↑ (or no clear pattern) | `mixed`/`unclear` | ⚪ No change | low |
-| — | missing fat or lean delta | `insufficient` | ⚪ No change | low |
-
-**Worked scenarios**
-
-- **A** — waist ↓, fat ↓, lean ↑, strength ↑, arm ↑ → *recomposition* → **Improving**.
-- **B** — waist ↓, fat ↓, lean stable, arm ↓ slightly → *fat loss preserving muscle* →
-  **Improving** (a **down** arrow shown **green** — smaller limb = fat loss).
-- **C** — weight ↓ fast, lean ↓, strength ↓, arms ↓ → *muscle loss* → **Needs attention**.
-- **D** — signals conflict → *unclear* → **No change** ("Not enough evidence").
-
-A limb card then takes the body verdict's status (with its own literal arrow). Low
-confidence → gray "Not enough evidence"; medium → "Likely …".
+*(fat ↓ = fat mass ≤ −1 lb or body-fat ≤ −0.4 pct over the journey.)*
 
 ---
 
-## Per-measurement interpretation (`interpret_measurement`)
+## Interpreting a limb
 
-```
-if |delta| < epsilon(unit):            → Inconclusive ("no meaningful change yet")  (flat arrow)
-elif category == neutral:              → Inconclusive ("no established healthy direction")
-elif category in {decrease_good, increase_good}:
-        healthy = literal direction matches the good direction
-        → Improving | Needs attention  (high confidence, with a one-line reason)
-elif category == inferred:
-        use infer_body_direction() (carries evidence + summary):
-          low confidence  → Inconclusive ("keep tracking over the next few check-ins")
-          medium          → "Likely improving" / "Likely needs attention" (+ evidence)
-          high            → Improving | Needs attention (+ evidence)
-```
+1. Limb **flat** over the journey → ⚪ **Stable** ("no meaningful long-term change").
+2. Else read against `classify_body_journey`:
+   * body **Improving** → limb Improving. Bigger limb → "muscle development"; smaller limb →
+     "fat loss, not muscle loss".
+   * body **Needs attention** (losing lean) → a **shrinking** limb → 🔴 "possible muscle loss";
+     a growing limb → ⚪ Inconclusive (mixed signal).
+   * body **Inconclusive / low confidence** → ⚪ Inconclusive ("keep tracking").
 
-Each result carries `evidence` (the signals, e.g. `["Body fat ↓", "Lean mass ↑"]`) and a
-`reason` (the conclusion) — both rendered beneath the status word on the card.
-
-`epsilon(unit)`: 5.0 for `kcal/day`, else 0.05 (only a genuine ~0 reads as "No change").
+So the same **down** arrow reads 🟢 green during fat loss and 🔴 red during muscle loss — the
+user never has to know whether up or down is "good".
 
 ---
 
-## Adding a new measurement
+## Worked examples
 
-1. Add it to `MEASUREMENT_CATEGORY` in the correct category. That's it — the cards, colours,
-   legend, and (for limbs) the inference all inherit automatically.
-2. If it's a limb-like circumference that could be muscle or fat → `inferred`.
-3. If it has no accepted directional health goal → `neutral` (never guess).
-4. Add a case to `test_measurement_interpretation.py`.
+- **Waist** — Overall Down 6.2 in, Recent Down 0.5 in → 🟢 "Excellent progress — continues
+  moving in the desired direction."
+- **Hips** — Overall Down 3 in, Recent Flat → 🟢 "Strong overall progress; plateaued recently."
+- **Arm** — Overall Up 0.4 in, body losing fat + gaining lean → 🟢 "Growing while you're losing
+  fat and building muscle."
+- **Calf** — Overall Flat → ⚪ "Stable — no meaningful long-term change."
+- **Calf** — Overall Down 0.6 in, body losing lean → 🔴 "Shrinking while lean mass has fallen —
+  possible muscle loss."
 
-**Do not** hard-code "up good / down good" for anything a limb-style circumference —
-route it through the body-direction inference so the judgment stays honest across phases
-(cut vs bulk vs recomposition).
+---
+
+## Honesty notes
+
+* A dedicated **strength** signal is not yet wired request-path-safe, so evidence is built from
+  fat / lean / weight (which directly measure muscle-vs-fat) — never a fabricated "Strength ↑".
+  Wiring a precomputed strength-trend (workout/PR progression) into the background cycle is a
+  clean follow-up.
+* All inputs are deterministic truth already computed (the per-metric history series + weight
+  history). This module only INTERPRETS — no new request-path queries.

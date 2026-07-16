@@ -207,15 +207,24 @@ def build_body_intelligence(user, *, as_of=None):
     # ── Sessions: latest + previous applicable check-in ────────────────────
     sessions = _build_session_view(user)
 
-    # ── Deterministic body-direction inference (drives limb interpretation) ──
-    # "Is the body improving?" from the whole composition picture — reused by every
-    # limb (arm/forearm/thigh/calf) card so a circumference is never judged alone.
-    from apps.health.services.measurement_interpretation import infer_body_direction
-    body_direction = infer_body_direction(body_comp)
+    # ── Whole-journey body-composition direction (drives limb interpretation) ──
+    # Baseline = first logged reading; classify the body's overall trajectory (fat/lean/
+    # weight since the start of the journey), so a limb circumference is never judged alone.
+    from apps.health.services.measurement_interpretation import (
+        analyze_trajectory, classify_body_journey,
+    )
+    _series = (measurement_series or {}).get("series", {})
+    _weight_pts = [{"date": d.isoformat(), "value": v} for d, v in weight_hist] if weight_hist else []
+    body_journey = classify_body_journey(
+        fat_traj=analyze_trajectory(_series.get("fat_mass"), "lb"),
+        lean_traj=analyze_trajectory(_series.get("lean_mass"), "lb"),
+        weight_traj=analyze_trajectory(_weight_pts, "lb"),
+        bf_traj=analyze_trajectory(_series.get("body_fat_pct"), "pct"),
+    )
 
-    # ── Template-friendly flattened rows (arrangement of snapshot truth) ────
-    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, body_direction)
-    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, body_direction)
+    # ── Template-friendly rows — each interprets its WHOLE journey (overall + recent) ──
+    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, measurement_series, body_journey)
+    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, measurement_series, body_journey)
     current = _current_snapshot(body_comp, snapshot, weight)
     current_cards = _current_snapshot_cards(current)
 
@@ -253,7 +262,7 @@ def build_body_intelligence(user, *, as_of=None):
         "measurement_series": measurement_series,
         "circumference_rows": circumference_rows,
         "composition_rows": composition_rows,
-        "body_direction": body_direction,
+        "body_journey": body_journey,
         "current": current,
         "current_cards": current_cards,
         "sessions": sessions,
@@ -422,48 +431,47 @@ def _build_session_view(user):
     }
 
 
-def _measurement_rows(snapshot, metric_order, metric_labels, body_direction=None):
-    """Flatten the canonical snapshot into ordered template rows for the metrics in
-    ``metric_order`` that the user has actually logged, attaching the deterministic
-    interpretation for each ("what is this change most likely telling me?").
+def _measurement_rows(snapshot, metric_order, metric_labels, measurement_series, body_journey):
+    """Ordered template rows for the metrics the user has logged, each interpreting its
+    WHOLE journey — overall trend (baseline→now) + recent momentum — not a single delta.
 
-    Pure arrangement + interpretation — every value comes straight from the snapshot; the
-    verdict comes from ``measurement_interpretation`` (limb circumferences are read through
-    the inferred ``body_direction``, never in isolation). No re-diffing, no new queries.
+    The verdict comes from ``measurement_interpretation`` (limb circumferences are read
+    against the body's whole-journey ``body_journey``, never in isolation). The current
+    value comes straight from the canonical snapshot; the trend comes from the per-metric
+    history series. No new queries.
     """
-    from apps.health.services.measurement_interpretation import interpret_measurement
+    from apps.health.services.measurement_interpretation import (
+        analyze_trajectory, interpret_measurement,
+    )
 
     if not snapshot:
         return []
     latest = snapshot.get("latest") or {}
-    previous = snapshot.get("previous") or {}
-    delta = snapshot.get("delta") or {}
-    delta_pct = snapshot.get("delta_pct") or {}
     units = snapshot.get("units") or {}
+    series_by_metric = (measurement_series or {}).get("series", {})
 
     rows = []
     for metric in metric_order:
         if metric not in latest:
             continue
-        d = delta.get(metric)
         unit = units.get(metric, "")
-        interp = interpret_measurement(metric, d, unit, body_direction)
+        traj = analyze_trajectory(series_by_metric.get(metric), unit)
+        interp = interpret_measurement(metric, unit, traj, body_journey)
         rows.append({
             "metric": metric,
             "label": metric_labels.get(metric, metric),
             "value": latest.get(metric),
             "unit": unit,
-            "previous": previous.get(metric),
-            "delta": d,
-            "delta_pct": delta_pct.get(metric),
-            # Deterministic interpretation — the arrow is the LITERAL move; status/colour
-            # is whether that move is good, bad, or inconclusive.
-            "status": interp["status"],              # improving | needs_attention | inconclusive
+            # Whole-journey interpretation — status/colour from the OVERALL trend (noise-
+            # resistant); Overall + Recent trend text + a coach-style narrative.
+            "status": interp["status"],              # improving | needs_attention | stable | inconclusive
             "status_label": interp["status_label"],
-            "arrow": interp["arrow"],                # up | down | flat
-            "confidence": interp["confidence"],      # high | medium | low
-            "evidence": interp["evidence"],          # signals behind the verdict (limbs)
-            "reason": interp["reason"],
+            "arrow": interp["arrow"],                # overall direction: up | down | flat
+            "confidence": interp["confidence"],
+            "overall_text": interp["overall_text"],  # "Down 6.2 in"
+            "recent_text": interp["recent_text"],    # "Down 0.5 in"
+            "evidence": interp["evidence"],          # body-composition context (limbs)
+            "reason": interp["reason"],              # the interpretation narrative
             # Back-compat healthy-direction flag (kept for any older reader).
             "improved": True if interp["status"] == "improving" else (
                 False if interp["status"] == "needs_attention" else None),

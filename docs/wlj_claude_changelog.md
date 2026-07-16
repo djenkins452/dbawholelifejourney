@@ -3,8 +3,48 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (refine(health): Body Intelligence — "Inconclusive" state + evidence/reason beneath every status)
+# Last Updated: 2026-07-15 (feat(health): Body Intelligence interprets the WHOLE journey + fix leaking template comment)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): Body Intelligence interprets the whole journey (not one week) + comment-render fix
+
+**1. Rendering bug.** A multi-line Django `{# … #}` comment leaked into the UI (Django `{# #}` is single-line
+only — its tag regex isn't DOTALL — so a comment whose `#}` is on the next line renders as text). Fixed both
+multi-line `{# #}` blocks in `body_intelligence.html` by converting them to `{% comment %}…{% endcomment %}`
+(the empty-state one the user saw, plus a latent one in the freshness note).
+
+**2. The interpretation engine now reads the WHOLE journey, not the latest delta.** The prior version compared
+only latest-vs-previous, so nearly everything collapsed to Improving/Inconclusive and it reacted to one week's
+measurement noise. It now asks *"what direction has this body part moved since the start of the journey, and does
+that align with the rest of the body?"*
+
+- **`analyze_trajectory`** — baseline = the **first logged reading**; computes **Overall** (baseline→now) and
+  **Recent** (rolling ~35-day) change from the full per-metric history. Overall thresholds are larger than recent,
+  so a single week never sets the long-term story.
+- **`classify_body_journey`** — the body's overall trajectory from **whole-journey** fat/lean/weight trends
+  (decisive, low-noise): recomposition / fat-loss-preserving → Improving; lean-loss → Needs attention; mixed →
+  Inconclusive.
+- **`interpret_measurement`** — status is driven by the **overall** trend (noise-resistant); the narrative reflects
+  recent momentum (continuing / plateaued / reversing). Four states now: 🟢 Improving · 🔴 Needs attention · ⚪
+  **Stable** (confident "no meaningful long-term change") · ⚪ Inconclusive (not enough history). Limbs are read
+  against the body's journey — a **down** arrow reads green during fat loss but red during muscle loss.
+
+**Cards** now show **Overall** + **Recent** trend, the body-composition **evidence** (limbs), and a coach-style
+**interpretation** — e.g. Waist "Down 6.2 in / Down 0.5 in → Excellent progress, continues moving in the desired
+direction"; Arm "Up 0.4 in → Growing while you're losing fat and building muscle"; Calf "Flat → Stable, no
+meaningful long-term change." (`_bi_measure_table.html` redesigned; legend gains **Stable**; the note now states
+the body's overall direction.)
+
+**Files:** `measurement_interpretation.py` (rewritten to trajectory model), `body_intelligence.py` (feeds history
++ `body_journey`), `_bi_measure_table.html`, `body_intelligence.html`, `test_measurement_interpretation.py`
+(rewritten), `test_body_intelligence.py`, `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md`.
+
+**Honesty:** no request-path-safe strength signal is wired yet, so evidence uses fat/lean/weight (which directly
+measure muscle-vs-fat) — never a fabricated "Strength ↑".
+
+**Verification:** 16 interpretation + 57 body-intelligence/body-story tests green (incl. full-page render 200);
+rendered-HTML check confirms every case (waist→Improving with momentum, plateau nuance, thigh▼→green fat-loss,
+calf▼→red muscle-loss, flat→Stable, no-history→Inconclusive). `check` clean; no migration.
 
 ## 2026-07-15 — refine(model-interface): answer the INTENT — retrieve vs reason (analysis is not bare retrieval)
 

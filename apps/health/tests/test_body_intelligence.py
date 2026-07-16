@@ -118,9 +118,9 @@ class BodyIntelligenceServiceTest(TestCase):
         self.assertEqual(len(waist_rows), 1)
         row = waist_rows[0]
         self.assertEqual(row["value"], 34.0)
-        self.assertEqual(row["previous"], 36.0)
-        self.assertEqual(row["delta"], -2.0)
-        # Waist down is an improvement.
+        # Whole-journey trajectory: waist 36 → 34 = Down 2 in overall → Improving.
+        self.assertEqual(row["status"], "improving")
+        self.assertIn("Down", row["overall_text"])
         self.assertTrue(row["improved"])
 
     def test_deterministic(self):

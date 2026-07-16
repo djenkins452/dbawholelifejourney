@@ -46,3 +46,67 @@ class ResponseCompletionContractTests(TestCase):
         prompt = svc._system_prompt({"current_context": {}})
         self.assertIn("COMPLETION", prompt)
         self.assertIn("objective is satisfied", prompt.lower())
+
+
+class CompletionSalienceContractTests(TestCase):
+    """The compact completion reminder is placed at the HIGH-SALIENCE end of the assembled
+    prompt and gives completion precedence over the standing relationship-warmth signals —
+    without any output post-processing."""
+
+    def _prompt(self):
+        from apps.ai.model_interface.service import ModelInterfaceService
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user(email="sal@test.com", password="x")
+        svc = ModelInterfaceService(user, ai_service=object())
+        return svc._system_prompt({"current_context": {}})
+
+    def test_reminder_is_at_the_high_salience_end_of_the_prompt(self):
+        p = self._prompt()
+        self.assertIn("RESPONSE COMPLETION (highest priority", p)
+        # it comes AFTER the structured context (recency = highest salience)...
+        self.assertGreater(p.index("RESPONSE COMPLETION (highest priority"),
+                           p.index("STRUCTURED CONTEXT"))
+        # ...and is near the very end (the last instruction before the user turn)
+        self.assertLess(len(p) - p.index("RESPONSE COMPLETION (highest priority"), 1400)
+
+    def test_short_factual_answer_is_complete_and_not_impolite(self):
+        low = self._prompt().lower()
+        self.assertIn("a short factual answer is complete", low)
+        self.assertIn("not impolite", low)
+        self.assertIn("brevity is not rudeness", low)
+
+    def test_completion_overrides_relationship_warmth_and_question_frequency(self):
+        low = self._prompt().lower()
+        self.assertIn("override", low)
+        for signal in ("supportive tone", "coaching style", "accountability style",
+                       "question-frequency"):
+            self.assertIn(signal, low)
+
+    def test_question_frequency_does_not_require_a_follow_up(self):
+        low = self._prompt().lower()
+        self.assertIn("does not mean append a question", low)
+        self.assertIn("may ask a genuinely useful question", low)
+
+    def test_meaningful_follow_up_remains_optional(self):
+        low = self._prompt().lower()
+        self.assertIn("would you like me to list them?", low)
+        self.assertIn("optional", low)
+
+    def test_no_output_post_processing_answer_returned_verbatim(self):
+        # Proves the correction is a PROMPT reminder, not an output post-processor:
+        # generate() returns the model's answer byte-for-byte, even one WITH a trailing
+        # invitation — nothing strips or rewrites it.
+        from apps.ai.model_interface.service import ModelInterfaceService
+        from apps.ai.models import AssistantConversation
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user(email="npp@test.com", password="x")
+        conv = AssistantConversation.get_or_create_active(user)
+        canned = "You completed 5 workouts last week. If you need anything else, just ask."
+
+        class _FakeAI:
+            def _call_api_with_tools(self, system_prompt, user_message, **kw):
+                return canned
+
+        svc = ModelInterfaceService(user, ai_service=_FakeAI())
+        result = svc.generate(conv, "how many workouts last week?", surface="chat")
+        self.assertEqual(result["answer"], canned)   # verbatim — no stripping, no rewrite

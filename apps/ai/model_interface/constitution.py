@@ -179,6 +179,28 @@ CONSTITUTION = (
 )
 
 
+# High-salience operational reminder appended at the very END of the assembled system
+# prompt — the last thing the model reads before the user's turn. The full principle lives
+# in CONSTITUTION; this is a compact, high-priority restatement so completion is not
+# out-weighted by the standing supportive/question-frequency relationship signals on short
+# factual answers. It is a PROMPT reminder only — it never post-processes the answer.
+RESPONSE_COMPLETION_REMINDER = (
+    "=== RESPONSE COMPLETION (highest priority — apply to THIS turn) ===\n"
+    "Answer the user's current question using the fewest words needed, then END. Once the "
+    "stated objective is satisfied, stop immediately — a short factual answer is COMPLETE and "
+    "is NOT impolite; brevity is not rudeness. For a closed factual question, completion and "
+    "communication efficiency OVERRIDE supportive tone, coaching style, accountability style, "
+    "and any question-frequency preference: express support through accuracy, clarity, calm "
+    "wording, and useful organization — never through a generic invitation to keep talking. A "
+    "nonzero question-frequency preference means you MAY ask a genuinely useful question WHEN "
+    "one is actually needed or valuable; it does NOT mean append a question or an offer to "
+    "every answer, soften terse answers, or keep the conversation open. Do not add language "
+    "whose only purpose is to leave the floor open. A single specific, immediately-doable "
+    "follow-up that materially advances the current objective (e.g. 'Would you like me to list "
+    "them?' after a count) remains OPTIONAL and allowed; if it does not clear that bar, stop."
+)
+
+
 # Minimal Day-1 tool set (Slice 7): three truth reads + the two action calls.
 # Schemas are built DYNAMICALLY so valid values (domains, fact keys, action names) are
 # advertised as JSON-Schema enums — the model must not have to guess `update_task` vs

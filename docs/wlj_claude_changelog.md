@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-15 (feat(health): Body Intelligence measurements answer "am I improving?" — evidence-based, not fixed rules)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — refine(model-interface): high-salience completion reminder (precedence over relationship warmth)
+
+**Prompt-salience correction for the proven completion variance (governing prompt only — no Truth Resolution / providers / tools / retrieval / DomainTruth / Current-Context-data change, no output post-processor, no phrase blacklist).** Proven earlier: the count answer and the list answer use the *same* MI runtime, system prompt, tool loop, and verbatim persistence — no code appends the closer. The model itself under-applies the completion rule to *short* factual answers (a one-line count feels abrupt, so it pads with a generic invitation), out-weighed by the standing supportive / question-frequency AI-Relationship signals. This raises the completion principle's **salience and precedence** without changing its meaning.
+
+**What changed:**
+- **`RESPONSE_COMPLETION_REMINDER`** (`apps/ai/model_interface/constitution.py`) — a compact, high-priority operational restatement (the full principle still lives in `CONSTITUTION`).
+- **Placed LAST in the assembled system prompt** (`apps/ai/model_interface/service.py :: _system_prompt`) — appended after the structured context, the final instruction the model reads before the user's turn (highest recency salience), so it is not out-weighed by the relationship-warmth signals above it.
+- **Content:** answer in the fewest words then END; a short factual answer is COMPLETE and NOT impolite (brevity is not rudeness); for closed factual questions, completion + efficiency **OVERRIDE** supportive tone, coaching style, accountability style, and question-frequency — support is expressed through accuracy/clarity/calm wording/organization, never a generic invitation; a nonzero question-frequency preference means you *may* ask a useful question when genuinely needed, **not** append one to every answer; a single specific, immediately-doable follow-up that materially advances the objective remains OPTIONAL and allowed.
+
+**Verification:** `manage.py check` clean; no migrations (prompt-only). **46 targeted tests pass** — new `CompletionSalienceContractTests` (reminder is at the high-salience END of the assembled prompt; short-answer-is-complete-and-not-impolite; completion overrides relationship warmth + question-frequency; question-frequency does not require a follow-up; meaningful follow-up stays optional; and — proving no output post-processor — `generate()` returns the model's answer BYTE-FOR-BYTE even when it contains a trailing invitation) + `test_response_concision` + `test_medical_information_policy` + `test_model_interface_runtime` + `test_standing_context` + `test_ai_relationship_service` (12).
+
+**Post-deploy behavioral validation** (live-model, non-deterministic — cannot be asserted in a unit test or driven from here): "how many workouts last week?" → count, optionally "Would you like me to list them?"; "list them out for me." → the list, STOP; "did I do calf raises yesterday?" → "Yes…", STOP — no generic invitation in any wording. If it still fails after this salience/precedence correction, report the live behavior and reassess — no brittle output-stripping layer without explicit approval.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`, `apps/ai/tests/test_response_concision.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — feat(health): Body Intelligence measurements answer "am I improving?" (deterministic, evidence-based)
 
 Each "Body measurements" card now communicates **three separate things**: the *literal* change

@@ -40,6 +40,7 @@ from apps.ai.cos_services import (
 from apps.ai.model_interface.constitution import (
     ALLOWED_WRITE_INTENTS as _ALLOWED_WRITE_INTENTS,
     CONSTITUTION,
+    RESPONSE_COMPLETION_REMINDER,
     all_tools,
 )
 from apps.core.truth import envelope as _env
@@ -208,11 +209,15 @@ class ModelInterfaceService:
         )
 
     def _system_prompt(self, standing_context: dict) -> str:
+        # The completion reminder is placed LAST — the highest-salience position, the final
+        # instruction the model reads before the user's turn — so it is not out-weighted by
+        # the standing supportive/question-frequency relationship signals in the context above.
         return (
             CONSTITUTION
             + self._focus_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
             + json.dumps(standing_context, ensure_ascii=False)
+            + "\n\n" + RESPONSE_COMPLETION_REMINDER
         )
 
     # -- tool dispatch --------------------------------------------------------

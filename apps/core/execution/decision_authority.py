@@ -107,6 +107,9 @@ def execution_facts(user, now=None, state=None) -> dict:
         return {
             "active_block": (state.get("active_block") or {}).get("name"),
             "timing": state.get("timing"),
+            # The deterministic day execution phase — the ONE fact every surface reads
+            # for "where is the user in today's execution?" (facts only, never a verdict).
+            "execution_phase": state.get("execution_phase"),
             "overdue": [_facts(a) for a in (state.get("overdue_actions") or [])],
             "due_now": [_facts(a) for a in (state.get("now_actions") or [])],
             "coming_up": [_facts(a) for a in (state.get("next_actions") or [])],

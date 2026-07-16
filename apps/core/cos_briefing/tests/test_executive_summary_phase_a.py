@@ -2,11 +2,11 @@
 
 Covers three discrete changes shipped together in this PR:
 
-  A1 — Time-aware headline matrix. The "let's protect the rest of the
-       day" framing was firing at 8 AM. Headlines now branch on a
-       small time-band classifier (early_morning / morning / midday /
-       evening / late_evening) so the wording reflects the user's
-       actual clock position.
+  A1 — Execution-phase-grounded headline (redesigned 2026-07-16). The headline
+       is grounded in the deterministic DAY EXECUTION PHASE
+       (build_execution_state["execution_phase"]) — never inferred from the clock
+       or the weekly trend. Fixes the "Slow start" fabrication at 4:56 AM before
+       the day had begun. (Superseded the old clock×trend headline matrix.)
 
   A2 — Dedupe by title in `_collect_needs_attention`. Insight rows
        with identical titles but different dedupe_keys (e.g. two
@@ -34,8 +34,8 @@ from apps.core.ai_insights.models import Insight
 from apps.core.cos_briefing.executive_summary import (
     _collect_needs_attention,
     _derive_headline,
-    _HEADLINE_MATRIX,
-    _time_band,
+    _fallback_headline,
+    _headline_for_phase,
 )
 from apps.users.models import TermsAcceptance
 
@@ -86,161 +86,131 @@ def _make_insight(user, *, title, severity="warning",
     return row
 
 
-# ── A1: time-aware headline ───────────────────────────────────────
+# ── A1: execution-phase-grounded headline ─────────────────────────
+#
+# The headline no longer keys on a clock×weekly-trend matrix. It is grounded in
+# the deterministic DAY EXECUTION PHASE (build_execution_state["execution_phase"]).
+# It may only describe today's execution from that fact — never from the clock or
+# the weekly trend. (Incident 2026-07-16: "Slow start" at 4:56 AM before the day
+# had begun.)
 
-class TimeBandClassifierTests(TestCase):
-    """The _time_band helper classifies a tz-aware datetime into a
-    small fixed band. Boundaries matter — they show up in the headline
-    matrix lookup."""
-
-    def test_early_morning_band_4_to_10(self):
-        for h in (4, 5, 7, 8, 9):
-            self.assertEqual(_time_band(_at(h)), "early_morning")
-
-    def test_morning_band_10_to_12(self):
-        for h in (10, 11):
-            self.assertEqual(_time_band(_at(h)), "morning")
-
-    def test_midday_band_12_to_17(self):
-        for h in (12, 13, 14, 15, 16):
-            self.assertEqual(_time_band(_at(h)), "midday")
-
-    def test_evening_band_17_to_21(self):
-        for h in (17, 18, 19, 20):
-            self.assertEqual(_time_band(_at(h)), "evening")
-
-    def test_late_evening_band_21_to_4(self):
-        for h in (21, 22, 23, 0, 1, 2, 3):
-            self.assertEqual(_time_band(_at(h)), "late_evening")
-
-    def test_none_falls_back_to_midday(self):
-        self.assertEqual(_time_band(None), "midday")
+# Words that assert a within-day trajectory — forbidden unless execution truth proves it.
+_FABRICATION_PHRASES = (
+    "slow start", "behind this morning", "reset your trajectory",
+    "resets the trajectory", "you're falling behind", "falling behind",
+    "you're behind", "time to recover",
+)
 
 
-class HeadlineMatrixTests(TestCase):
-    """The headline matrix has all 5 bands × 6 states; every cell is
-    a non-empty string. Spot-checks per the user-spec verbatim copy."""
+def _phase_state(phase, **facts):
+    """Minimal exec_state carrying an ``execution_phase`` facts dict."""
+    pf = {
+        "phase": phase,
+        "overdue_count": facts.get("overdue_count", 0),
+        "first_commitment": facts.get("first_commitment"),
+        "minutes_until_first_commitment": facts.get("minutes_until_first_commitment"),
+    }
+    return {"execution_phase": pf}
 
-    def test_matrix_complete(self):
-        expected_bands = {"early_morning", "morning", "midday",
-                          "evening", "late_evening"}
-        expected_states = {"at_risk", "slipping", "improving",
-                           "mixed", "steady", "unknown"}
-        self.assertEqual(set(_HEADLINE_MATRIX.keys()), expected_states)
-        for state, by_band in _HEADLINE_MATRIX.items():
-            self.assertEqual(
-                set(by_band.keys()), expected_bands,
-                f"state {state} missing band coverage: "
-                f"{set(by_band.keys())}",
-            )
-            for band, text in by_band.items():
-                self.assertTrue(
-                    text and isinstance(text, str),
-                    f"empty headline at {state}/{band}",
+
+class BeforeFirstCommitmentHeadlineTests(TestCase):
+    """The reported 4:56 AM case: before the first commitment, the headline states
+    the day is beginning — it never fabricates a 'slow start' / trajectory claim."""
+
+    def test_before_first_says_day_is_beginning_with_minutes(self):
+        state = _phase_state(
+            "before_first_commitment",
+            first_commitment={"title": "Prayer Time", "time": "5:30 AM",
+                              "minutes_until": 34},
+            minutes_until_first_commitment=34,
+        )
+        text = _derive_headline("slipping", [], [], state, focus_now=None)
+        self.assertIn("just beginning", text.lower())
+        self.assertIn("34 minute", text.lower())
+        self.assertIn("Prayer Time", text)
+
+    def test_before_first_never_fabricates_trajectory(self):
+        """Even when the weekly trend passed in is 'slipping', the before-first
+        headline must contain none of the fabricated within-day trajectory words."""
+        state = _phase_state(
+            "before_first_commitment",
+            first_commitment={"title": "Prayer Time", "time": "5:30 AM",
+                              "minutes_until": 34},
+            minutes_until_first_commitment=34,
+        )
+        for trend in ("slipping", "at_risk", "improving", "steady", "unknown"):
+            text = _derive_headline(trend, [], [], state, focus_now=None).lower()
+            for bad in _FABRICATION_PHRASES:
+                self.assertNotIn(
+                    bad, text, f"trend={trend} leaked fabricated phrase {bad!r}: {text!r}",
                 )
 
-    def test_at_risk_morning_uses_recoverable_framing(self):
-        """The headline production bug: 8 AM should NOT say 'protect
-        the rest of the day'. Must lean toward recoverable/reset/
-        momentum vocabulary."""
-        text = _HEADLINE_MATRIX["at_risk"]["early_morning"].lower()
-        self.assertTrue(
-            any(k in text for k in ("recover", "reset", "momentum",
-                                     "rebuild")),
-            f"early_morning at_risk wording must reinforce "
-            f"recover/reset/momentum: {text}",
+    def test_clean_slate_when_no_first_commitment(self):
+        state = _phase_state("before_first_commitment")
+        text = _derive_headline("unknown", [], [], state, focus_now=None)
+        self.assertIn("clean slate", text.lower())
+
+    def test_far_off_first_commitment_uses_clock_time_not_minutes(self):
+        state = _phase_state(
+            "before_first_commitment",
+            first_commitment={"title": "Team standup", "time": "9:00 AM",
+                              "minutes_until": 214},
+            minutes_until_first_commitment=214,
         )
-        self.assertNotIn(
-            "protect the rest of the day", text,
-            "early_morning at_risk must NOT use protect-the-day "
-            "damage-control framing",
-        )
+        text = _derive_headline("unknown", [], [], state, focus_now=None)
+        self.assertIn("9:00 AM", text)
+        self.assertNotIn("214", text)
 
 
-class DeriveHeadlineTimeAwarenessTests(TestCase):
-    """End-to-end: _derive_headline picks the correct cell from the
-    matrix given an overall_state + user_now."""
+class ExecutionPhaseHeadlineTests(TestCase):
+    """Each phase produces its own grounded, non-shaming opener."""
 
-    def _at_risk_state(self):
-        """Minimal exec_state shape that triggers the at_risk path
-        without entering RECOVERY mode."""
-        return {
-            "recovery_mode": None,
-            "overdue_actions": [
-                {"title": "a"}, {"title": "b"}, {"title": "c"},
-                {"title": "d"},
-            ],
-            "at_risk_actions": [],
-        }
+    def test_behind_states_overdue_and_recovery_path(self):
+        state = _phase_state("behind", overdue_count=2)
+        text = _derive_headline("steady", [], [], state, focus_now=None).lower()
+        self.assertIn("drifted", text)
+        self.assertIn("2 commitments are past due", text)
+        self.assertIn("back on track", text)
 
-    def test_at_risk_at_eight_am_uses_morning_framing(self):
-        """The headline production trust break — 8:07 AM with overdue
-        items must NOT render the 'protect the rest of the day' line."""
-        text = _derive_headline(
-            overall_state="at_risk",
-            going_well=[],
-            needs_attention=[],
-            exec_state=self._at_risk_state(),
-            focus_now={"title": "x"},
-            user_now=_at(8),
-        )
-        self.assertNotIn("protect the rest of the day", text)
-        text_lower = text.lower()
-        self.assertTrue(
-            any(k in text_lower for k in ("recover", "reset",
-                                           "momentum", "rebuild")),
-            f"morning at_risk wording must reinforce recovery, got: {text}",
-        )
+    def test_behind_singular_grammar(self):
+        state = _phase_state("behind", overdue_count=1)
+        text = _derive_headline("steady", [], [], state, focus_now=None).lower()
+        self.assertIn("one commitment is past due", text)
 
-    def test_at_risk_at_two_pm_uses_midday_framing(self):
-        text = _derive_headline(
-            overall_state="at_risk",
-            going_well=[],
-            needs_attention=[],
-            exec_state=self._at_risk_state(),
-            focus_now={"title": "x"},
-            user_now=_at(14),
-        )
-        self.assertEqual(text, _HEADLINE_MATRIX["at_risk"]["midday"])
+    def test_underway(self):
+        text = _derive_headline("steady", [], [], _phase_state("underway"), None)
+        self.assertIn("underway", text.lower())
 
-    def test_at_risk_at_seven_pm_uses_evening_framing(self):
-        text = _derive_headline(
-            overall_state="at_risk",
-            going_well=[],
-            needs_attention=[],
-            exec_state=self._at_risk_state(),
-            focus_now={"title": "x"},
-            user_now=_at(19),
-        )
-        self.assertEqual(text, _HEADLINE_MATRIX["at_risk"]["evening"])
+    def test_ahead(self):
+        text = _derive_headline("improving", [], [], _phase_state("ahead"), None)
+        self.assertIn("ahead of schedule", text.lower())
 
-    def test_back_compat_no_user_now_uses_midday_default(self):
-        """Existing callers that haven't been updated still work and
-        get the previous-equivalent midday wording."""
-        text = _derive_headline(
-            overall_state="at_risk",
-            going_well=[],
-            needs_attention=[],
-            exec_state=self._at_risk_state(),
-            focus_now={"title": "x"},
-        )
-        self.assertEqual(text, _HEADLINE_MATRIX["at_risk"]["midday"])
+    def test_winding_down(self):
+        text = _derive_headline("steady", [], [], _phase_state("winding_down"), None)
+        self.assertIn("winding down", text.lower())
 
-    def test_recovery_mode_special_branch_preserved(self):
-        """The RECOVERY/STABILIZE special branches were existing
-        deterministic responses with their own narrative. They must
-        still take precedence over the time-aware matrix."""
-        state = self._at_risk_state()
-        state["recovery_mode"] = "RECOVERY"
-        text = _derive_headline(
-            overall_state="at_risk",
-            going_well=[],
-            needs_attention=[],
-            exec_state=state,
-            focus_now={"title": "x"},
-            user_now=_at(8),
-        )
-        self.assertIn("recover", text.lower())
+    def test_day_complete(self):
+        text = _derive_headline("improving", [], [], _phase_state("day_complete"), None)
+        self.assertIn("complete", text.lower())
+
+    def test_headline_for_phase_returns_none_for_unknown(self):
+        self.assertIsNone(_headline_for_phase("unknown", {}, None))
+
+
+class FallbackHeadlineTests(TestCase):
+    """When execution truth is unavailable, the fallback is trend-scoped and never
+    asserts a within-day trajectory."""
+
+    def test_no_execution_phase_uses_fallback(self):
+        # exec_state without an execution_phase key → degraded fallback.
+        text = _derive_headline("improving", [], [], {}, focus_now=None)
+        self.assertEqual(text, _fallback_headline("improving"))
+
+    def test_fallback_never_fabricates_today(self):
+        for trend in ("improving", "steady", "unknown"):
+            text = _fallback_headline(trend).lower()
+            for bad in _FABRICATION_PHRASES:
+                self.assertNotIn(bad, text)
 
 
 # ── A2: dedupe by title ────────────────────────────────────────────

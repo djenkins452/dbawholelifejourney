@@ -1097,6 +1097,8 @@ class Command(BaseCommand):
         self._reset_exec_briefing_coherence_release_notes(DataLoadConfig, force, verbosity)
         # Background chat generation (PK 213)
         self._reset_background_chat_release_notes(DataLoadConfig, force, verbosity)
+        # Executive Briefing grounded in day-execution truth (PK 274)
+        self._reset_exec_briefing_day_truth_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8162,6 +8164,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset background chat release notes FAILED: {e}'))
+
+    def _reset_exec_briefing_day_truth_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 274 (Executive
+        Briefing grounded in day-execution truth — the headline now reads the
+        deterministic execution_phase fact instead of inferring today's state from
+        the clock/weekly trend; the trend badge is scoped "This Week").
+        """
+        reset_tracker_name = 'reset_exec_briefing_day_truth_2026_07_16'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for exec briefing day-truth (PK 274)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for executive briefing day-truth',
+                'command',
+                'One-time reset: added PK 274 for execution-phase-grounded Executive Briefing'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset exec briefing day-truth release notes FAILED: {e}'))
 
     def _reset_exec_briefing_coherence_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

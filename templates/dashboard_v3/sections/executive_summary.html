@@ -2,13 +2,23 @@
     <header class="v3-exec-head">
         <div class="v3-exec-title-row">
             <h2 class="v3-h2">Executive Briefing</h2>
-            <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
-                {% if summary.trajectory == 'improving' %}↑ Improving
-                {% elif summary.trajectory == 'at_risk' %}⚠ At Risk
-                {% elif summary.trajectory == 'slipping' %}↓ Slipping
-                {% elif summary.trajectory == 'steady' %}→ Steady
-                {% elif summary.trajectory == 'mixed' %}↔ Mixed
-                {% else %}Building signal{% endif %}
+            {% comment %}
+            The badge is the WEEKLY / long-term trend — a different truth from today's
+            execution (which the headline carries). It is scoped "This Week" so a
+            "↓ Slipping" arrow can never be misread as "today's execution is slipping."
+            {% endcomment %}
+            <span class="v3-trajectory-wrap">
+                {% if summary.trajectory and summary.trajectory != 'unknown' %}
+                    <span class="v3-trajectory-scope">This Week</span>
+                {% endif %}
+                <span class="v3-trajectory v3-trajectory-{{ summary.trajectory|default:'unknown' }}">
+                    {% if summary.trajectory == 'improving' %}↑ Improving
+                    {% elif summary.trajectory == 'at_risk' %}⚠ At Risk
+                    {% elif summary.trajectory == 'slipping' %}↓ Slipping
+                    {% elif summary.trajectory == 'steady' %}→ Steady
+                    {% elif summary.trajectory == 'mixed' %}↔ Mixed
+                    {% else %}Building signal{% endif %}
+                </span>
             </span>
         </div>
         {% if summary.headline %}

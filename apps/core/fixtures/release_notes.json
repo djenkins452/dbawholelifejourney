@@ -4358,5 +4358,21 @@
       "created_at": "2026-07-13T02:00:00Z",
       "updated_at": "2026-07-13T02:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 274,
+    "fields": {
+      "title": "Your Executive Briefing now knows where you actually are in the day",
+      "description": "The Executive Briefing on your home page used to open with a line based on the time of day and your weekly trend — which meant early in the morning it could say things like \"slow start\" before your day had even begun. Now the opening line is grounded in your real execution: whether you're before your first commitment, underway, ahead, behind, or winding down. First thing in the morning it will say something like \"The day is just beginning — your first commitment starts in 34 minutes,\" and it only says you've drifted when something is genuinely past due. Your longer-term momentum is still there, now clearly labeled \"This Week\" so it can't be mistaken for how today is going. The result: truthful context first, then coaching — no invented narrative.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-16",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/dashboard/",
+      "created_at": "2026-07-16T12:00:00Z",
+      "updated_at": "2026-07-16T12:00:00Z"
+    }
   }
 ]

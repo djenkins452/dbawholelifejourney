@@ -644,41 +644,30 @@ class HeadlineAndMomentumTests(TestCase):
             terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"),
         )
 
-    # ── Headline ──
-    def test_headline_for_unknown_state(self):
+    # ── Headline (grounded in execution_phase; see redesign 2026-07-16) ──
+    def test_headline_for_unknown_state_falls_back(self):
+        # No execution_phase available → degraded, trend-scoped fallback.
         line = _derive_headline("unknown", [], [], None, None)
-        self.assertIn("Light data", line)
+        self.assertIn("where your day stands", line.lower())
 
-    def test_headline_for_improving(self):
-        line = _derive_headline("improving", [{}, {}], [], None, None)
-        self.assertIn("trending up", line.lower())
+    def test_headline_before_first_commitment(self):
+        state = {"execution_phase": {
+            "phase": "before_first_commitment",
+            "first_commitment": {"title": "Prayer Time", "time": "5:30 AM",
+                                 "minutes_until": 34},
+            "minutes_until_first_commitment": 34,
+        }}
+        line = _derive_headline("slipping", [], [], state, None)
+        self.assertIn("just beginning", line.lower())
+        # The weekly trend ("slipping") must NOT fabricate a within-day claim.
+        self.assertNotIn("slow start", line.lower())
 
-    def test_headline_for_recovery_mode(self):
-        # Recovery/stabilize mode resolves to the dominant "at_risk" state;
-        # both badge and headline derive from that single verdict.
-        state = {
-            "recovery_state": {"mode": "RECOVERY"},
-            "overdue_actions": [],
-            "at_risk_actions": [],
-        }
-        self.assertEqual(_derive_overall_state([], [], None, state), "at_risk")
-        line = _derive_headline("at_risk", [], [], state, {"title": "x"})
-        self.assertIn("recover", line.lower())
-
-    def test_headline_for_many_overdue(self):
-        # 3+ overdue items resolve to the dominant "at_risk" state.
-        state = {
-            "recovery_state": {"mode": "NORMAL"},
-            "overdue_actions": [{}, {}, {}, {}],
-            "at_risk_actions": [],
-        }
-        self.assertEqual(_derive_overall_state([], [], None, state), "at_risk")
-        # user_now=None → midday band. Phase A trust framing is constructive
-        # (reprioritize / protect the afternoon), NOT the old shaming "past
-        # due" / damage-control wording. Lock both in.
-        line = _derive_headline("at_risk", [], [], state, None)
-        self.assertNotIn("past due", line.lower())
-        self.assertIn("reprioritize", line.lower())
+    def test_headline_for_behind_phase(self):
+        # Overdue items are the ONLY thing that lets the headline say "past due".
+        state = {"execution_phase": {"phase": "behind", "overdue_count": 3}}
+        line = _derive_headline("steady", [], [], state, None)
+        self.assertIn("past due", line.lower())
+        self.assertIn("back on track", line.lower())
 
     def test_summary_emits_headline_key(self):
         summary = build_executive_summary(self.user)

@@ -41,90 +41,86 @@ def _exec_state(overdue=0, at_risk=0, recovery="NORMAL"):
     }
 
 
+def _phase_state(phase, **facts):
+    """exec_state carrying an ``execution_phase`` facts dict — the truth the headline
+    now grounds on."""
+    pf = {"phase": phase, "overdue_count": facts.get("overdue_count", 0),
+          "first_commitment": facts.get("first_commitment"),
+          "minutes_until_first_commitment": facts.get("minutes_until_first_commitment")}
+    return {"execution_phase": pf}
+
+
 def _insights(n, severity="warning"):
     return [{"title": f"{severity} {i}", "severity": severity} for i in range(n)]
 
 
 class DominantStateCoherenceTests(TestCase):
-    def test_1_badge_and_headline_never_contradict(self):
-        """Requirement 1: for every dominant state, the headline cannot use
-        decline language unless the state is itself negative."""
-        scenarios = [
-            # (going_well, needs_attention, biggest_risk, exec_state)
-            (_insights(2, "positive"), [], None, _exec_state()),          # improving
-            ([{"title": "one win"}], [], None, _exec_state()),            # steady
-            ([], _insights(1), None, _exec_state()),                      # slipping
-            ([], [], None, _exec_state(overdue=4)),                       # at_risk
-            (_insights(1, "positive"), _insights(1), None, _exec_state()),  # mixed
-            ([], [], None, _exec_state()),                                # unknown
-        ]
-        for gw, na, risk, es in scenarios:
-            state = _derive_overall_state(gw, na, risk, es)
-            headline = _derive_headline(state, gw, na, es, focus_now=None).lower()
-            if state in ("improving", "steady", "unknown"):
-                for phrase in _DECLINE_PHRASES:
-                    self.assertNotIn(
-                        phrase, headline,
-                        f"state={state} headline leaked decline word {phrase!r}: {headline!r}",
-                    )
+    """After the 2026-07-16 redesign the badge and headline carry DIFFERENT truths:
+    the badge is the weekly trend; the headline is today's execution phase. The
+    coherence guarantee is now: the headline never asserts a within-day decline
+    unless `execution_phase == behind`, no matter what the weekly trend says."""
 
-    def test_1b_steady_state_headline_is_not_slipping(self):
-        """The exact production contradiction: STEADY badge must not pair with
-        a 'you're slipping behind' headline."""
-        gw = [{"title": "one win"}]
-        state = _derive_overall_state(gw, [], None, _exec_state())
-        self.assertEqual(state, "steady")
-        headline = _derive_headline(state, gw, [], _exec_state(), focus_now=True)
-        self.assertNotIn("slipping", headline.lower())
-
-    def test_3_forward_risk_does_not_override_current_state(self):
-        """Requirement 3: dominant state reads only current signals (insights +
-        now-pressure), never forward-risk predictions — so a stable day stays
-        stable even when a future-risk prediction exists."""
+    def test_badge_is_weekly_trend_only(self):
+        """The badge (trajectory) reflects the LONG-TERM trend and is NOT flipped by
+        today's overdue/at-risk/recovery pressure — that's the headline's job now."""
         gw = [{"title": "win a"}, {"title": "win b"}]
-        # No exec pressure, no warning insights → improving regardless of any
-        # forward-risk prediction (predictions are not an input here at all).
-        state = _derive_overall_state(gw, [], None, _exec_state())
-        self.assertEqual(state, "improving")
+        # Same positive weekly trend regardless of today's execution pressure.
+        self.assertEqual(_derive_overall_state(gw, [], None, _exec_state()), "improving")
+        self.assertEqual(
+            _derive_overall_state(gw, [], None, _exec_state(overdue=3)), "improving")
+        self.assertEqual(
+            _derive_overall_state([], [], None, _exec_state(recovery="RECOVERY")),
+            "unknown")
+
+    def test_headline_grounded_in_phase_not_weekly_trend(self):
+        """A 'slipping' weekly trend must NOT make the headline claim today is
+        slipping when the day hasn't begun."""
+        state = _phase_state(
+            "before_first_commitment",
+            first_commitment={"title": "Prayer Time", "time": "5:30 AM",
+                              "minutes_until": 34},
+            minutes_until_first_commitment=34,
+        )
+        headline = _derive_headline("slipping", [], [], state, focus_now=None).lower()
+        self.assertIn("just beginning", headline)
+        for phrase in _DECLINE_PHRASES:
+            self.assertNotIn(phrase, headline, f"leaked decline word {phrase!r}: {headline!r}")
+
+    def test_headline_only_declines_when_phase_is_behind(self):
+        """Decline language ('past due', 'drifted') is allowed ONLY when the
+        execution phase proves it. An on-track 'underway' day with a slipping
+        weekly trend stays free of within-day decline words."""
+        underway = _derive_headline("slipping", [], [], _phase_state("underway"), None).lower()
+        for phrase in _DECLINE_PHRASES:
+            self.assertNotIn(phrase, underway)
+        behind = _derive_headline("steady", [], [], _phase_state("behind", overdue_count=2), None).lower()
+        self.assertIn("drifted", behind)
+        self.assertIn("past due", behind)
+
+    def test_3_forward_risk_does_not_override_trend(self):
+        """The badge reads only current insight signals, never forward-risk
+        predictions — a stable trend stays stable."""
+        gw = [{"title": "win a"}, {"title": "win b"}]
+        self.assertEqual(_derive_overall_state(gw, [], None, _exec_state()), "improving")
 
     def test_5_plateau_and_calorie_dont_force_slipping(self):
-        """Requirement 5: plateau / calorie concerns arrive as predictions and
-        guidance (not warning insights). With primary signals stable, the
-        dominant state must not be forced to 'slipping'."""
+        """Plateau / calorie concerns arrive as predictions and guidance (not warning
+        insights). With primary signals stable, the trend must not be forced to
+        'slipping'."""
         gw = [{"title": "consistent rhythm"}]
         state = _derive_overall_state(gw, [], None, _exec_state())
         self.assertEqual(state, "steady")
-        self.assertNotEqual(state, "slipping")
 
     def test_6_positive_momentum_recognized(self):
-        """Requirement 6: clear improving signals with no concerns → improving,
-        and the headline reflects upward momentum."""
+        """Clear improving insight signals with no concerns → improving trend."""
         gw = [{"title": "win a"}, {"title": "win b"}]
-        state = _derive_overall_state(gw, [], None, _exec_state())
-        self.assertEqual(state, "improving")
-        headline = _derive_headline(state, gw, [], _exec_state(), focus_now=None)
-        self.assertIn("trending up", headline.lower())
+        self.assertEqual(_derive_overall_state(gw, [], None, _exec_state()), "improving")
 
-    def test_7_mixed_day_single_coherent_narrative(self):
-        """Requirement 7: real wins + real drift, no now-pressure → 'mixed',
-        and the headline names both without overclaiming either direction."""
+    def test_7_mixed_trend(self):
+        """Real wins + real drift → 'mixed' weekly trend."""
         gw = [{"title": "win"}]
         na = _insights(2)
-        state = _derive_overall_state(gw, na, None, _exec_state())
-        self.assertEqual(state, "mixed")
-        headline = _derive_headline(state, gw, na, _exec_state(), focus_now=None)
-        self.assertIn("mixed signals", headline.lower())
-
-    def test_now_pressure_outranks_positive_insights(self):
-        """Overdue items right now make the day 'slipping' even with positive
-        insights — current reality beats the weekly trend."""
-        gw = [{"title": "win a"}, {"title": "win b"}]
-        state = _derive_overall_state(gw, [], None, _exec_state(overdue=1))
-        self.assertEqual(state, "slipping")
-
-    def test_recovery_mode_is_at_risk(self):
-        state = _derive_overall_state([], [], None, _exec_state(recovery="RECOVERY"))
-        self.assertEqual(state, "at_risk")
+        self.assertEqual(_derive_overall_state(gw, na, None, _exec_state()), "mixed")
 
 
 class AllClearGateTests(TestCase):

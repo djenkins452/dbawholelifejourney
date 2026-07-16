@@ -211,6 +211,19 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     font-weight: 500;
     letter-spacing: -0.005em;
 }
+.v3-trajectory-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.v3-trajectory-scope {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--v3-text-mute);
+    opacity: 0.75;
+}
 .v3-trajectory {
     font-size: 0.66rem;
     font-weight: 700;

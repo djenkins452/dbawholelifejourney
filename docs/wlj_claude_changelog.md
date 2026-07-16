@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-16 (feat(health): Body Intelligence — ONE unified executive assessment; retire the second "Body Story")
+# Last Updated: 2026-07-16 (fix(cos): Executive Briefing grounded in day-execution truth — never fabricate today's trajectory)
 # ================================================================# WLJ Change History
+
+## 2026-07-16 — fix(cos): Executive Briefing grounded in day-execution truth — never fabricate today's trajectory
+
+**Trust break (reported):** At 4:56 AM the Executive Briefing said *"Slow start, but the day is wide open. A small win in the next hour resets the trajectory."* Before the day had begun there was no evidence of a "slow start" — the briefing invented the user's current state. Same class as the "6:15 AM tonight" fabrication: one sentence welded from two sources that don't know about each other.
+
+**Runtime trace (proven, not guessed):** `DashboardV3View` → `composer.build_dashboard_v3_context` → `build_executive_summary` → `_derive_headline`, which indexed a static `_HEADLINE_MATRIX[overall_state][time_band]`. At local hour 4–10 with a `slipping` trend it returned the hardcoded "Slow start…" cell. The headline copy described a **within-day execution trajectory** but was keyed on `(clock band × weekly-trend verdict)` — neither of which knows the user's actual execution today.
+
+**Eliminate the class (not the symptom):** Removed the condition that let the headline describe today's execution without consuming today's execution truth.
+- **New deterministic fact on the canonical execution authority** — `build_execution_state()["execution_phase"]` (via `compute_execution_phase()` in `apps/core/execution/execution_state.py`). Facts only, no verdict: `before_first_commitment · underway · ahead · behind · midday · afternoon · winding_down · day_complete`, plus `first_commitment`, `minutes_until_first_commitment`, `completed_count`, `overdue_count`, `remaining_count`, `clock_phase`. **No new authority** — it extends the ONE execution-truth producer every surface already consumes (dashboard / CoS / notifications / widgets / voice). It **reuses** `timing.py` (two new calculation helpers `earliest_future_commitment` / `completed_ahead_of_schedule`) and the canonical `daypart` clock — no second clock or day-state producer.
+- **Exposed through `decision_authority.execution_facts()`** so the CoS envelope reads the same single fact.
+- **Headline now grounded in `execution_phase`** (`_derive_headline` + new `_headline_for_phase`). It can only say "behind / past due" when `execution_phase == behind` (proven overdue), only "just beginning" when before the first commitment, etc. At 4:56 AM: *"The day is just beginning. Prayer Time starts in 34 minutes."* The clock×trend `_HEADLINE_MATRIX` / `_time_band` are retired.
+- **Badge is now purely the WEEKLY / long-term trend** (`_derive_overall_state` no longer folds today's overdue/at-risk/recovery pressure in — that belongs to `execution_phase`) and is **labeled "This Week"** in the template so `↓ Slipping` can never be misread as today's execution. Long-term trends are kept, just clearly scoped.
+
+**Product review:** An exceptional human Chief of Staff would not say "slow start" before the day began. The redesigned briefing states where the user actually is in the day (fact), then coaches from it — no shaming, no motivational filler, no invented trajectory.
+
+**Files:** `apps/core/execution/execution_state.py` (`compute_execution_phase` + wired into state), `apps/core/execution/timing.py` (2 calc helpers + `from __future__ import annotations`), `apps/core/execution/decision_authority.py` (`execution_facts` exposes phase), `apps/core/cos_briefing/executive_summary.py` (phase-grounded headline; trend-only badge), `templates/dashboard_v3/sections/executive_summary.html` ("This Week" badge scope), `static/dashboard_v3/css/dashboard_v3.css` (`.v3-trajectory-scope`). Tests: `apps/core/execution/tests/test_execution_phase.py` (new), rewrote `test_executive_summary_phase_a.py` A1 (execution-phase headline + fabrication contract), `test_composer.py` + `test_executive_briefing_coherence.py` (new badge≠headline scope contract). Docs: `apps/core/fixtures/release_notes.json`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verification:** `manage.py check` clean; `makemigrations --check` = no changes. 123+ scoped tests green across execution-phase / timing / completion-reconciliation / briefing Phase-A / coherence / composer / decision-authority + request-path-safety contracts (one pre-existing wall-clock-flaky `RhythmInteractionModeTests` preview-group test fails identically on `main` — unrelated). Template render confirmed end-to-end: "This Week ↓ Slipping" badge beside "The day is just beginning. Prayer Time starts in 34 minutes."
+
+---
 
 ## 2026-07-16 — feat(health): Body Intelligence — one unified executive assessment (retire the second "Body Story")
 

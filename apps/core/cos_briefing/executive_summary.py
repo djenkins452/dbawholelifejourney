@@ -75,137 +75,132 @@ MAX_RECOMMENDATIONS = 3
 #   midday        : 12–17  (afternoon protection mode)
 #   evening       : 17–21  (close strong; pick the highest-impact item)
 #   late_evening  : 21–04  (don't shame; brief, generous, tomorrow framing)
-def _time_band(user_now) -> str:
-    """Return one of: early_morning, morning, midday, evening, late_evening.
-
-    ``user_now`` is a timezone-aware datetime in the USER's local time
-    (composer passes ``get_user_now(user)``). When None is passed the
-    function returns "midday" — a neutral default that keeps existing
-    behaviour for any caller that hasn't been updated yet.
-    """
-    if user_now is None:
-        return "midday"
-    hour = user_now.hour
-    if 4 <= hour < 10:
-        return "early_morning"
-    if 10 <= hour < 12:
-        return "morning"
-    if 12 <= hour < 17:
-        return "midday"
-    if 17 <= hour < 21:
-        return "evening"
-    return "late_evening"
-
-
-# ── Headline matrix ────────────────────────────────────────────────────
-# Per overall_state × time_band copy. Kept as a pure data table so
-# wording can be tuned without re-reading the surrounding logic.
+# ── Phase-grounded headline ────────────────────────────────────────────
+# The opening line is grounded in the DAY EXECUTION PHASE — the deterministic
+# fact from `build_execution_state()["execution_phase"]` (before_first_commitment
+# / underway / ahead / behind / midday / afternoon / winding_down / day_complete).
 #
-# WLJ philosophy reminders baked into the wording:
-#   - missed ≠ failed (morning bias: recoverable, reset, momentum)
-#   - protect ≠ shame (midday bias: prioritize, hold the line)
-#   - close strong ≠ catch-everything (evening bias: highest-impact)
+# Non-negotiable truth rule (why this replaced the old clock×trend matrix): the
+# headline may describe today's execution ONLY from execution truth. It must NEVER
+# infer "slow start / behind / reset your trajectory" from the clock or a weekly
+# trend. At 4:56 AM, before the first commitment, the ONLY truthful opener is that
+# the day is just beginning — never "Slow start." (Incident: 2026-07-16.)
 #
-# Special branches (recovery_mode / specific overdue counts / specific
-# at_risk counts) are handled inside _derive_headline() and fall back
-# to this matrix when no special branch matches.
-_HEADLINE_MATRIX: dict[str, dict[str, str]] = {
-    "at_risk": {
-        "early_morning":
-            "You're behind this morning, but the day is fully recoverable. "
-            "A strong reset now rebuilds momentum.",
-        "morning":
-            "Behind early — but the day is still in front of you. "
-            "One focused action restarts the rhythm.",
-        "midday":
-            "Several priorities slipped this morning — reprioritize and "
-            "protect the afternoon.",
-        "evening":
-            "Day's been bumpy — close strong with the highest-impact item.",
-        "late_evening":
-            "Tough day. Pick the one thing that protects tomorrow and "
-            "call it done.",
-    },
-    "slipping": {
-        "early_morning":
-            "Slow start, but the day is wide open. A small win in the "
-            "next hour resets the trajectory.",
-        "morning":
-            "Drift this morning — one focused action gets you back on "
-            "rhythm before the day fills up.",
-        "midday":
-            "A few things are slipping — pick one to address this "
-            "afternoon and the trajectory turns.",
-        "evening":
-            "Drift this week — one decisive action tonight or first thing "
-            "tomorrow resets the rhythm.",
-        "late_evening":
-            "Drift detected — name one priority for tomorrow morning and "
-            "let the rest go for tonight.",
-    },
-    "improving": {
-        "early_morning":
-            "Strong morning shape — protect what's working and keep the "
-            "rhythm consistent.",
-        "morning":
-            "Trending up — keep the rhythm consistent through midday.",
-        "midday":
-            "Trending up — protect the afternoon and you ride this "
-            "into tomorrow.",
-        "evening":
-            "Strong day. Close it out and bank the momentum for tomorrow.",
-        "late_evening":
-            "Solid trajectory. Rest well — momentum like this compounds.",
-    },
-    "mixed": {
-        "early_morning":
-            "Mixed signals heading in — keep the wins, address the drift "
-            "before noon and the day balances.",
-        "morning":
-            "Mixed signals — keep what's working and address the drift "
-            "with one focused action.",
-        "midday":
-            "Mixed signals this week — real wins, real drift. Keep the "
-            "wins; address the drift.",
-        "evening":
-            "Wins and drift in the same day. Close with the wins and "
-            "name what you'll address tomorrow.",
-        "late_evening":
-            "Mixed day — count the wins, name one drift to address "
-            "tomorrow, rest.",
-    },
-    "steady": {
-        "early_morning":
-            "Steady shape this morning — hold the line and keep the "
-            "rhythm.",
-        "morning":
-            "Steady — hold the line and keep the rhythm through "
-            "midday.",
-        "midday":
-            "Steady today. Hold the line and keep the rhythm.",
-        "evening":
-            "Steady day. Close it out and reset for tomorrow.",
-        "late_evening":
-            "Steady. Rest well.",
-    },
-    "unknown": {
-        "early_morning":
-            "Light data so far — log a few things this morning and the "
-            "briefing fills in.",
-        "morning":
-            "Light data so far — log a few things and the briefing fills "
-            "in.",
-        "midday":
-            "Light data so far — log a few things and the briefing fills "
-            "in.",
-        "evening":
-            "Light data so far — log today's key items and the briefing "
-            "fills in.",
-        "late_evening":
-            "Light data so far — a quick log tonight or in the morning "
-            "fills the briefing in.",
-    },
+# Facts only here; the copy is coaching built ON TOP of a proven phase. The weekly
+# trend lives in the badge (labeled "This Week"), a separate truth.
+
+
+def _minutes_phrase(mins) -> str | None:
+    """'in 34 minutes' / 'now' — or None when the gap is ≥ 1h (use the clock time
+    instead of an awkward 'in 214 minutes')."""
+    if mins is None:
+        return None
+    if mins <= 0:
+        return "now"
+    if mins < 60:
+        return f"in {mins} minute{'s' if mins != 1 else ''}"
+    return None
+
+
+def _first_commitment_clause(phase_facts) -> str | None:
+    """A grounded clause for the user's first still-pending commitment, e.g.
+    'Prayer Time starts in 34 minutes.' Returns None when there is nothing to
+    anchor to (clean/empty day)."""
+    first = phase_facts.get("first_commitment") or {}
+    title = (first.get("title") or "").strip()
+    time = first.get("time")
+    label = title if title else "your first scheduled commitment"
+    mp = _minutes_phrase(phase_facts.get("minutes_until_first_commitment"))
+    if mp == "now":
+        clause = f"{label} is up now."
+    elif mp:
+        clause = f"{label} starts {mp}."
+    elif time:
+        clause = f"{label} is scheduled for {time}."
+    else:
+        return None
+    return clause[0].upper() + clause[1:]
+
+
+def _headline_for_phase(phase, phase_facts, focus_now) -> str | None:
+    """One grounded opener chosen by the DAY EXECUTION PHASE (a fact). Coaching, never
+    shaming; never a claim the execution truth doesn't support."""
+    if phase == "before_first_commitment":
+        clause = _first_commitment_clause(phase_facts)
+        if clause:
+            return f"The day is just beginning. {clause}"
+        return (
+            "You have a clean slate — nothing is scheduled yet. "
+            "A good moment to set your focus for the day."
+        )
+
+    if phase == "underway":
+        return (
+            "Your day is underway. Completing your next commitment "
+            "builds the momentum for the rest of the day."
+        )
+
+    if phase == "ahead":
+        return (
+            "You're ahead of schedule — a strong start. Protect the rhythm "
+            "and keep it going."
+        )
+
+    if phase == "behind":
+        n = phase_facts.get("overdue_count") or 0
+        if n == 1:
+            lead = "Your schedule has drifted — one commitment is past due."
+        else:
+            lead = f"Your schedule has drifted — {n} commitments are past due."
+        return (
+            f"{lead} Completing the next scheduled commitment is the fastest "
+            f"way back on track."
+        )
+
+    if phase == "midday":
+        return (
+            "You're into the middle of the day. Focus on the next commitment "
+            "and keep the momentum through the afternoon."
+        )
+
+    if phase == "afternoon":
+        return (
+            "Into the afternoon now — protect time for your highest-impact "
+            "remaining commitment."
+        )
+
+    if phase == "winding_down":
+        return (
+            "The day is winding down. Focus on finishing your highest-impact "
+            "remaining commitment."
+        )
+
+    if phase == "day_complete":
+        return (
+            "Today's commitments are complete — a good moment to reflect and "
+            "reset for tomorrow."
+        )
+
+    return None
+
+
+# Degraded fallback ONLY (execution truth unavailable). Trend-scoped wording — never a
+# within-day trajectory claim, so it can't fabricate "today" from the weekly trend.
+_FALLBACK_HEADLINE: dict[str, str] = {
+    "improving": "Your recent trend is positive — keep the rhythm going.",
+    "steady": "Things are holding steady — keep the rhythm going.",
+    "slipping": "A few things need attention — one focused action turns it around.",
+    "at_risk": "Several things need attention — start with your next commitment.",
+    "mixed": "Mixed signals lately — keep the wins and address the drift.",
+    "unknown": "Here's where your day stands.",
 }
+
+
+def _fallback_headline(overall_state) -> str:
+    return _FALLBACK_HEADLINE.get(overall_state or "unknown",
+                                  _FALLBACK_HEADLINE["unknown"])
+
+
 MAX_FOLLOW_ON = 5            # how many "coming up" hints next to focus_now
 INSIGHT_WINDOW_DAYS = 7      # only fresh insights count toward the briefing
 
@@ -288,18 +283,19 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
     needs_attention = _augment_attention_with_execution(needs_attention, exec_state)
 
     # ── Orchestration layer ──────────────────────────────────────────────
-    # ONE dominant-state selection. Both the badge (trajectory) and the
-    # headline derive from this single verdict, so they can never contradict
-    # ("STEADY" badge + "you're slipping" headline). Lower-priority slots
-    # (opportunity, recommendations) render beneath this state but may not
-    # override it.
+    # TWO distinct truths, cleanly separated (2026-07-16 redesign):
+    #   • trajectory  = the WEEKLY / long-term trend → the badge (labeled "This Week").
+    #   • headline    = where the user is in TODAY'S execution → grounded in the
+    #                   deterministic `execution_phase` fact from build_execution_state.
+    # They describe different scopes, so a "This Week ↓ Slipping" badge can sit beside
+    # a "The day is just beginning" headline without contradiction — and the headline
+    # can NEVER fabricate today's state from the clock or the weekly trend.
     overall_state = _derive_overall_state(
         going_well, needs_attention, biggest_risk, exec_state,
     )
     trajectory = overall_state
-    # Phase A trust fix — pass user_now so the headline matrix can
-    # branch on time-of-day. Fail-soft: if the lookup fails for any
-    # reason, _derive_headline falls back to its default "midday" band.
+    # The headline reads TODAY'S execution phase from exec_state; user_now is passed
+    # only for the degraded fallback path (execution truth unavailable).
     try:
         from apps.core.utils import get_user_now
         _user_now = get_user_now(user)
@@ -1290,37 +1286,30 @@ def _execution_pressure(exec_state):
     return recovery_mode, overdue_count, at_risk_count
 
 
-def _derive_overall_state(going_well, needs_attention, biggest_risk, exec_state) -> str:
-    """THE dominant-state selection — the single source both the badge and
-    the headline derive from. Deterministic, no LLM.
+def _derive_overall_state(going_well, needs_attention, biggest_risk, exec_state=None) -> str:
+    """THE weekly / standing TREND verdict — the long-term momentum shown in the
+    trajectory badge (labeled "This Week" in the template). Deterministic, no LLM.
 
-    Folds two signal families into ONE current-state verdict:
-      - now-state execution pressure (overdue / at-risk items today)
-      - long-window Insight counts (going_well vs needs_attention)
+    Scope (2026-07-16 redesign): this is the LONG-TERM trend ONLY. Today's execution
+    pressure — overdue / at-risk / recovery *right now* — is deliberately NOT read
+    here. That is the job of the day's `execution_phase` truth, which the HEADLINE
+    consumes. Keeping the two truths cleanly separated is the whole point: the badge
+    says how the *week* is trending; the headline says where the user is in *today's*
+    execution. They describe different scopes and can never be confused for each other.
 
-    Execution pressure is *current* and outranks the slower insight trend:
-    if real items are overdue right now you are not "steady" no matter how
-    the week's insights net out. This is what stops the "STEADY" badge from
-    appearing next to a "you're slipping behind" headline.
+    (Previously this folded now-pressure into the badge to keep a single-verdict
+    headline coherent. The headline is now grounded in `execution_phase` instead, so
+    that coupling is obsolete — and a badge labeled "This Week" that flipped on a
+    single overdue item would itself be the integrity bug we're removing.)
 
-    Future-oriented risk (overload/burnout predictions) is deliberately NOT
-    read here — a forward risk must never override a stable *current* state.
+    `exec_state` is accepted for signature stability; it is intentionally unused.
 
-    Returns: improving | steady | slipping | at_risk | mixed | unknown
+    Returns: improving | steady | slipping | mixed | unknown
     """
-    recovery_mode, overdue_count, at_risk_count = _execution_pressure(exec_state)
-
     pos = len(going_well or [])
     neg = len(needs_attention or [])
     has_risk = bool(biggest_risk)
 
-    # Now-state pressure dominates — it is the current reality of the day.
-    if recovery_mode in ("RECOVERY", "STABILIZE") or overdue_count >= 3:
-        return "at_risk"
-    if overdue_count > 0 or at_risk_count >= 2:
-        return "slipping"
-
-    # No now-pressure → fall back to the insight-count trend.
     if pos == 0 and neg == 0 and not has_risk:
         return "unknown"
     if pos >= 2 and neg == 0:
@@ -1342,50 +1331,24 @@ def _derive_headline(
     overall_state, going_well, needs_attention, exec_state, focus_now,
     user_now=None,
 ) -> str:
-    """One-sentence opener, chosen WITHIN the dominant state.
+    """The one-sentence opener — GROUNDED in the day's execution phase (a fact).
 
-    The headline may pick more specific wording inside a state, but it can
-    NEVER select a sentence that contradicts the state. ``overall_state`` is
-    the same verdict the badge shows, so badge and headline always agree.
+    The opener describes TODAY'S execution only from `execution_phase`
+    (before_first_commitment / underway / ahead / behind / midday / afternoon /
+    winding_down / day_complete). It NEVER infers today's state from the clock or
+    from the weekly trend (`overall_state`) — that is what produced the fabricated
+    "Slow start" at 4:56 AM before the day had begun.
 
-    No free-text generation, no LLM — each branch is a pre-written sentence.
+    `overall_state` is used ONLY for the degraded fallback (when execution truth is
+    unavailable), where the wording stays trend-scoped and never claims a within-day
+    trajectory. `user_now` is no longer read — the phase already carries clock context.
 
-    Phase A trust fix: time-aware wording. ``user_now`` is the user's
-    local-time datetime; when omitted, defaults to "midday" framing,
-    preserving back-compat for any caller that has not been updated.
+    No free-text generation, no LLM.
     """
-    recovery_mode, overdue_count, at_risk_count = _execution_pressure(exec_state)
-    neg = len(needs_attention or [])
-    band = _time_band(user_now)
-
-    if overall_state == "at_risk":
-        # Recovery-mode special branches still take precedence — they
-        # encode a different conversation (deliberate recovery state)
-        # rather than a generic at-risk render.
-        if recovery_mode in ("RECOVERY", "STABILIZE"):
-            if focus_now:
-                return "Today's drifted — let's recover the next step and rebuild momentum."
-            return "Today's behind schedule. Reset with one small action."
-        # All other at_risk renders flow through the time-aware matrix.
-        return _HEADLINE_MATRIX["at_risk"][band]
-
-    if overall_state == "slipping":
-        # Insight-name personalisation is preserved where useful.
-        if neg > 0 and band in ("morning", "midday"):
-            return (
-                f"A few things are slipping — "
-                f"{needs_attention[0]['title'].lower()} needs attention first."
-            )
-        return _HEADLINE_MATRIX["slipping"][band]
-
-    if overall_state == "improving":
-        return _HEADLINE_MATRIX["improving"][band]
-
-    if overall_state == "mixed":
-        return _HEADLINE_MATRIX["mixed"][band]
-
-    if overall_state == "steady":
-        return _HEADLINE_MATRIX["steady"][band]
-
-    # Unknown / no signal.
-    return _HEADLINE_MATRIX["unknown"][band]
+    phase_facts = (exec_state or {}).get("execution_phase") or {}
+    phase = phase_facts.get("phase")
+    if phase and phase != "unknown":
+        line = _headline_for_phase(phase, phase_facts, focus_now)
+        if line:
+            return line
+    return _fallback_headline(overall_state)

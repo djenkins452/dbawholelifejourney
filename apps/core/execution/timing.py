@@ -23,6 +23,7 @@ directive. It exists so the model NEVER performs date/duration arithmetic itself
 "6:15 AM tonight" fabrication class): we hand it the computed RESULTS and let it interpret
 what they mean. Pure and request-path-safe: no DB writes, no LLM, no mutation.
 """
+from __future__ import annotations
 
 import datetime as _dt
 import logging
@@ -205,3 +206,64 @@ def compute_execution_timing(state, now) -> dict:
     except Exception:  # pragma: no cover - defensive; never fabricate timing
         logger.warning("execution timing: compute failed", exc_info=True)
         return {"status": "pending"}
+
+
+def earliest_future_commitment(items, now) -> dict | None:
+    """The day's first STILL-PENDING scheduled commitment relative to ``now``.
+
+    A FACT for "the day hasn't begun yet — your first commitment is at X." Scans the
+    actionable, not-yet-completed items, keeps those with a scheduled time at or after
+    ``now``, and returns the earliest as:
+
+        {"title": str, "time": "5:30 AM", "minutes_until": int}
+
+    Returns None when there is no future scheduled commitment (empty/clear day, or the
+    day's scheduled work is already behind/done). Never raises — timing is the single
+    calculation authority; a consumer must never re-parse clocks itself.
+    """
+    try:
+        if not isinstance(now, _dt.datetime):
+            today = _dt.date.today()
+            now = _dt.datetime.combine(today, now) if isinstance(now, _dt.time) else _dt.datetime.now()
+        best, best_dt = None, None
+        for it in (items or []):
+            if not it.get('is_actionable') or it.get('completed_today'):
+                continue
+            if it.get('completion_status') in _RESOLVED:
+                continue
+            sched = _parse_sched(it.get('scheduled_time'), now)
+            if sched is None or sched < now:
+                continue
+            if best_dt is None or sched < best_dt:
+                best, best_dt = it, sched
+        if best is None:
+            return None
+        return {
+            "title": _title(best),
+            "time": _fmt(best_dt),
+            "minutes_until": _minutes(best_dt, now),
+        }
+    except Exception:  # pragma: no cover - defensive; never fabricate timing
+        logger.warning("earliest_future_commitment: compute failed", exc_info=True)
+        return None
+
+
+def completed_ahead_of_schedule(items, now) -> int:
+    """Count of commitments completed today whose scheduled time is LATER than ``now`` —
+    i.e. future work knocked out early. The deterministic proof behind an "ahead of
+    schedule" read (a FACT, not the verdict; the narrator interprets it). Never raises."""
+    try:
+        if not isinstance(now, _dt.datetime):
+            today = _dt.date.today()
+            now = _dt.datetime.combine(today, now) if isinstance(now, _dt.time) else _dt.datetime.now()
+        count = 0
+        for it in (items or []):
+            if not it.get('completed_today'):
+                continue
+            sched = _parse_sched(it.get('scheduled_time'), now)
+            if sched is not None and sched > now:
+                count += 1
+        return count
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("completed_ahead_of_schedule: compute failed", exc_info=True)
+        return 0

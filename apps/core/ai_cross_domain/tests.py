@@ -216,7 +216,8 @@ class CDCEEngineTests(TestCase):
         corr = result[0]
         self.assertEqual(corr['correlation_type'], 'habit_goal_alignment')
         self.assertEqual(corr['direction'], 'positive')
-        self.assertIn('discipline', corr['narrative'])
+        # observation, not a verdict — no "the discipline is paying off"
+        self.assertIn('move together', corr['narrative'])
 
     def test_detect_habit_goal_both_low(self):
         """Detector finds habit-goal co-decline."""
@@ -236,7 +237,11 @@ class CDCEEngineTests(TestCase):
 
         self.assertEqual(len(result), 1)
         corr = result[0]
-        self.assertIn('Rebuilding', corr['narrative'])
+        # observation, not a prescription — no "Rebuilding daily habits may unlock…"
+        self.assertIn('moving together', corr['narrative'])
+        for banned in ('may unlock', 'may restore', 'may help', 'reinforcing',
+                       'paying off', 'supports overall'):
+            self.assertNotIn(banned, corr['narrative'])
 
     def test_detect_habit_goal_no_data(self):
         """Returns empty when no habits or goals."""
@@ -318,7 +323,8 @@ class CDCEEngineTests(TestCase):
         self.assertEqual(len(result), 1)
         corr = result[0]
         self.assertEqual(corr['correlation_type'], 'fasting_fitness')
-        self.assertIn('reinforcing', corr['narrative'])
+        # observation, not a verdict — no "protocols are reinforcing each other"
+        self.assertIn('moved together', corr['narrative'])
 
     def test_detect_momentum_mood(self):
         """Detector finds momentum-mood correlation."""

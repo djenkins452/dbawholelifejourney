@@ -475,8 +475,8 @@ def detect_habit_goal_alignment(user, signals):
             'strength_score': round(score, 3),
             'direction': 'positive',
             'narrative': (
-                f"Your habit consistency ({habit_rate:.0%}) is driving goal progress "
-                f"({goal_rate:.0%} milestones completed). The discipline is paying off."
+                f"Your habit consistency ({habit_rate:.0%}) and goal progress "
+                f"({goal_rate:.0%} milestones completed) are both strong and move together."
             ),
             'evidence_summary': (
                 f"Habit rate {habit_rate:.0%} with goal completion {goal_rate:.0%} "
@@ -505,8 +505,7 @@ def detect_habit_goal_alignment(user, signals):
             'direction': 'positive',
             'narrative': (
                 f"Both habit consistency ({habit_rate:.0%}) and goal progress "
-                f"({goal_rate:.0%}) are low. Rebuilding daily habits may unlock "
-                f"goal momentum."
+                f"({goal_rate:.0%}) are low right now, and they've been moving together."
             ),
             'evidence_summary': (
                 f"Habit rate {habit_rate:.0%} with goal completion {goal_rate:.0%} — "
@@ -611,9 +610,8 @@ def detect_faith_consistency(user, signals):
             'strength_score': round(score, 3),
             'direction': 'positive',
             'narrative': (
-                f"Faith practice has been inactive for {days_since} days, and only "
-                f"{positive_ratio:.0%} of mood entries are positive. "
-                f"Resuming scripture reading may help emotional outlook."
+                f"Faith practice has been inactive for {days_since} days, alongside "
+                f"{positive_ratio:.0%} positive mood entries over the same window."
             ),
             'evidence_summary': (
                 f"Only {positive_moods} of {total_moods} mood entries are positive "
@@ -677,8 +675,7 @@ def detect_fasting_fitness(user, signals):
             'direction': 'positive',
             'narrative': (
                 f"Fasting compliance ({fasting_score:.0f}%) and workout consistency "
-                f"({workout_score:.0f}%) are both strong. Your physical discipline "
-                f"protocols are reinforcing each other."
+                f"({workout_score:.0f}%) are both strong and have moved together."
             ),
             'evidence_summary': (
                 f"Fasting {fasting_score:.0f}% compliance with {fasts_7d} fasts "
@@ -710,8 +707,7 @@ def detect_fasting_fitness(user, signals):
             'direction': 'positive',
             'narrative': (
                 f"Both fasting ({fasting_score:.0f}%) and workout consistency "
-                f"({workout_score:.0f}%) have dropped. These protocols tend to "
-                f"decline together — focusing on one may restore the other."
+                f"({workout_score:.0f}%) have dropped, and they've declined together."
             ),
             'evidence_summary': (
                 f"Fasting {fasting_score:.0f}% and workout {workout_score:.0f}% — "
@@ -778,8 +774,7 @@ def detect_momentum_engagement(user, signals):
             'direction': 'positive',
             'narrative': (
                 f"Your multi-domain engagement (momentum {momentum}/100) "
-                f"coincides with {positive_ratio:.0%} positive mood entries. "
-                f"Staying active across domains supports overall well-being."
+                f"coincides with {positive_ratio:.0%} positive mood entries."
             ),
             'evidence_summary': (
                 f"Momentum score {momentum}/100 with {positive_moods}/{total_moods} "

@@ -429,8 +429,7 @@ def whole_life_patterns(user):
                 continue                                   # analytics artifact, not a life pattern
             candidates.append({
                 "text": narrative[:220],
-                "action": f"these move together, so the habit that steadies your {la} "
-                          f"tends to lift your {lb} too",
+                "action": f"worth watching how your {la} and your {lb} move together",
                 "basis": f"a repeated link between your {la} and your {lb}",
                 "confidence": float(getattr(c, "strength_score", 0.0) or 0.0),
                 "source": "cdce_correlation"})

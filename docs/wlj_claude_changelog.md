@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-16 (fix(cos): Executive Briefing grounded in day-execution truth — never fabricate today's trajectory)
 # ================================================================# WLJ Change History
 
+## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 1 (correlation → observation)
+
+**First slice of the recommendation-authoring class solution (observation, not prescription — no Truth Resolution / DomainTruth / Model Interface / provider change; WLJ exposes observations, the CoS owns recommendations).** The audit found ~13 Category-C surfaces where WLJ authors single-domain prescriptions that bypass the reasoning layer. This increment corrects the **correlation → causation** sub-class, in the two stable, non-colliding files (Body Intelligence + executive-summary surfaces are DEFERRED while under active concurrent development):
+- **`apps/core/ai_cross_domain/cdce_engine.py`** — six detector narratives dropped their bolted-on causal/prescriptive suffixes ("Rebuilding daily habits **may unlock** goal momentum", "Resuming scripture reading **may help** emotional outlook", "focusing on one **may restore** the other", "protocols are **reinforcing** each other", "the discipline is **paying off**", "**supports overall** well-being"). They now state the correlation **observation** only (the %/scores + "move together"), matching the already-correct `detect_sleep_mood`/`detect_exercise_mood` in the same file. **All deterministic evidence preserved** — `strength_score`, `evidence_summary`, `evidence`, `data_points` unchanged; the observation is still surfaced by the proactive check-in, `cos_intelligence` patterns, and `cos_context` correlations, so the CoS can reason over it.
+- **`apps/ai/cos_intelligence.py`** — the CDCE pattern candidate's `action` field (a contract field consumed by the executive-pattern lane, `lanes.py:818`) reframed from the causal "the habit that steadies your X **tends to lift** your Y too" to the non-causal observation "worth watching how your X and Y move together" (matching the sibling fallback in the same builder). Contract field preserved — no consumer breakage.
+
+**Boundary preserved:** `physical_decision.py`, `double_progression.py`, `executive_interpretation.py`, and all Category A/B truth/observations untouched — they already investigate correctly and remain evidence providers. New canonical doc `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md` (the observation-not-prescription rule + the correction contract + the Category-C ledger).
+
+**Verification:** `manage.py check` clean; no migrations. **49 targeted tests pass** — `apps.core.ai_cross_domain` (updated: narratives assert the observation, not the verdict; a guard rejects the banned prescriptive phrases) + `apps.ai.tests.test_executive_pattern`. No user-facing surface emptied — the correlation observation still renders; only the un-earned causal advice is gone.
+
+**Class ledger:** corrected = CDCE narratives + cos_intelligence pattern action. Deferred (concurrency) = Body Intelligence, executive-summary/dashboard. Awaiting product decision applied but not yet implemented = goal page (facts-only + "Ask your CoS"). Preserved as domain expertise = physical_decision / double_progression / executive_interpretation. **Increments 2 (force-led health coaching) and 3 (health signals) follow as independent tested slices.**
+
+**Files:** `apps/core/ai_cross_domain/cdce_engine.py`, `apps/ai/cos_intelligence.py`, `apps/core/ai_cross_domain/tests.py`, `docs/WLJ_RECOMMENDATION_ARCHITECTURE.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-16 — fix(cos): Executive Briefing grounded in day-execution truth — never fabricate today's trajectory
 
 **Trust break (reported):** At 4:56 AM the Executive Briefing said *"Slow start, but the day is wide open. A small win in the next hour resets the trajectory."* Before the day had begun there was no evidence of a "slow start" — the briefing invented the user's current state. Same class as the "6:15 AM tonight" fabrication: one sentence welded from two sources that don't know about each other.

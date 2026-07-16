@@ -42,6 +42,21 @@ Rendered-HTML check on the screenshot scenario confirms: assessment=recovering; 
 limbs now 🟡 Recovering; Fat Mass/Waist 🟢 Improving; Insights mirror the cards exactly (no contradiction); facts
 render above the Interpretation section on every card. `check` clean; no migration.
 
+## 2026-07-15 — feat(cos): evidence-based recommendations — the CoS earns the recommendation (not a notification engine)
+
+**Chief-of-Staff reasoning milestone (governing prompt only — no Truth Resolution / providers / tools / retrieval / analysis-engine change; WLJ still only retrieves, OpenAI reasons).** Two behaviors:
+
+- **Part 1 — intent fulfillment (strengthened):** the `INTENT — RETRIEVE vs REASON` directive now names **recommendation requests** ("what should I do about X", "why is X…") as a REASONING intent, so the CoS retrieves → reasons → delivers the *recommendation* (not a bare retrieval).
+- **Part 2 — evidence-based recommendations (new `EVIDENCE-BASED RECOMMENDATIONS` directive):** the CoS must never jump from an observation straight to a fix. It works the chain — (1) OBSERVATION (the deterministic fact) → (2) RETRIEVE related evidence, **across domains** when relevant (for a weight slip: nutrition, activity/cardio, sleep, body composition, recovery, medication, stress, goal pace) → (3) EVALUATE likely contributors (which facts mattered, which didn't) → (4) name UNCERTAINTY → (5) EXPLAIN the reasoning so the recommendation is **traceable** → (6) only THEN recommend, preferring to fix the likely contributors before changing the goal itself. If the deterministic evidence doesn't support a clear conclusion, **say so** and recommend observing longer rather than inventing a cause — never fabricate a causal relationship. A recommendation the user can't trace back to the facts actually retrieved is a trust failure.
+
+**Boundary preserved:** the CoS investigates only with deterministic truth already available (via the existing truth tools); it never invents evidence and WLJ never invents it for it. **The proactive check-in templates (WLJ facts) are untouched** — they remain facts-only; this changes how the *model* reasons over them (fix at the reasoning layer, not by moving reasoning into WLJ). No workout-trends provider, no analysis engine, no special-case code — a test asserts the truth-tool set is unchanged.
+
+**Verification:** `manage.py check` clean; no migrations (prompt-only). **52 targeted tests pass** — new `test_evidence_based_reasoning` (recommendation is a reasoning intent; never jump observation→recommendation; the six-step evidence chain; cross-domain investigation; recommendations traceable to retrieved facts; uncertainty acknowledged when evidence is insufficient; never invents evidence/causation; directive reaches the assembled prompt; tool set unchanged) + `test_intent_retrieve_reason` + `test_response_concision` + `test_medical_information_policy` + `test_model_interface_runtime`. No brittle live-model assertions.
+
+**Post-deploy behavioral validation** (live-model, non-deterministic): "Analyze my workout trends." → facts + a real trend read; "What should I do about my weight?" → observation + cross-domain evidence + likely contributors + stated uncertainty + an earned recommendation (fix contributors before moving the goal), or an honest "not enough evidence yet — let's observe longer."
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_evidence_based_reasoning.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-15 — feat(health): Body Intelligence interprets the whole journey (not one week) + comment-render fix
 
 **1. Rendering bug.** A multi-line Django `{# … #}` comment leaked into the UI (Django `{# #}` is single-line

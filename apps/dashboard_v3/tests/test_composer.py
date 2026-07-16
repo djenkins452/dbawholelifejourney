@@ -646,8 +646,8 @@ class HeadlineAndMomentumTests(TestCase):
 
     # ── Headline (grounded in execution_phase; see redesign 2026-07-16) ──
     def test_headline_for_unknown_state_falls_back(self):
-        # No execution_phase available → degraded, trend-scoped fallback.
-        line = _derive_headline("unknown", [], [], None, None)
+        # No execution_phase available → the single neutral opener (not a trend lookup).
+        line = _derive_headline(None, None)
         self.assertIn("where your day stands", line.lower())
 
     def test_headline_before_first_commitment(self):
@@ -657,15 +657,14 @@ class HeadlineAndMomentumTests(TestCase):
                                  "minutes_until": 34},
             "minutes_until_first_commitment": 34,
         }}
-        line = _derive_headline("slipping", [], [], state, None)
+        line = _derive_headline(state, None)
         self.assertIn("just beginning", line.lower())
-        # The weekly trend ("slipping") must NOT fabricate a within-day claim.
         self.assertNotIn("slow start", line.lower())
 
     def test_headline_for_behind_phase(self):
         # Overdue items are the ONLY thing that lets the headline say "past due".
         state = {"execution_phase": {"phase": "behind", "overdue_count": 3}}
-        line = _derive_headline("steady", [], [], state, None)
+        line = _derive_headline(state, None)
         self.assertIn("past due", line.lower())
         self.assertIn("back on track", line.lower())
 

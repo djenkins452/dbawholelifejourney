@@ -122,9 +122,18 @@ def _first_commitment_clause(phase_facts) -> str | None:
     return clause[0].upper() + clause[1:]
 
 
-def _headline_for_phase(phase, phase_facts, focus_now) -> str | None:
-    """One grounded opener chosen by the DAY EXECUTION PHASE (a fact). Coaching, never
-    shaming; never a claim the execution truth doesn't support."""
+# The ONLY non-phase line: a single neutral opener for the degraded case where the
+# execution authority could not produce a phase (compute_execution_phase hit its
+# defensive path → phase "unknown"). It is a constant, NOT a trend/clock lookup — so
+# the headline can never again become a function of the weekly trend or the clock.
+_NEUTRAL_HEADLINE = "Here's where your day stands."
+
+
+def _headline_for_phase(phase, phase_facts, focus_now) -> str:
+    """THE single producer of the Executive Briefing headline — one grounded opener
+    per DAY EXECUTION PHASE (a fact). Coaching, never shaming; never a claim the
+    execution truth doesn't support. Always returns a string (the neutral opener when
+    the phase is unknown/degraded), so there is exactly one headline code path."""
     if phase == "before_first_commitment":
         clause = _first_commitment_clause(phase_facts)
         if clause:
@@ -181,24 +190,8 @@ def _headline_for_phase(phase, phase_facts, focus_now) -> str | None:
             "reset for tomorrow."
         )
 
-    return None
-
-
-# Degraded fallback ONLY (execution truth unavailable). Trend-scoped wording — never a
-# within-day trajectory claim, so it can't fabricate "today" from the weekly trend.
-_FALLBACK_HEADLINE: dict[str, str] = {
-    "improving": "Your recent trend is positive — keep the rhythm going.",
-    "steady": "Things are holding steady — keep the rhythm going.",
-    "slipping": "A few things need attention — one focused action turns it around.",
-    "at_risk": "Several things need attention — start with your next commitment.",
-    "mixed": "Mixed signals lately — keep the wins and address the drift.",
-    "unknown": "Here's where your day stands.",
-}
-
-
-def _fallback_headline(overall_state) -> str:
-    return _FALLBACK_HEADLINE.get(overall_state or "unknown",
-                                  _FALLBACK_HEADLINE["unknown"])
+    # Unknown / degraded (execution authority couldn't produce a phase).
+    return _NEUTRAL_HEADLINE
 
 
 MAX_FOLLOW_ON = 5            # how many "coming up" hints next to focus_now
@@ -294,17 +287,9 @@ def build_executive_summary(user, execution_contract=None) -> dict[str, Any]:
         going_well, needs_attention, biggest_risk, exec_state,
     )
     trajectory = overall_state
-    # The headline reads TODAY'S execution phase from exec_state; user_now is passed
-    # only for the degraded fallback path (execution truth unavailable).
-    try:
-        from apps.core.utils import get_user_now
-        _user_now = get_user_now(user)
-    except Exception:
-        _user_now = None
-    headline = _derive_headline(
-        overall_state, going_well, needs_attention, exec_state, focus_now,
-        user_now=_user_now,
-    )
+    # The headline reads TODAY'S execution phase from exec_state — the single grounded
+    # path. It does not consult the clock or the weekly trend.
+    headline = _derive_headline(exec_state, focus_now)
 
     # State-based executive lenses (additive to the contract). DISTINCT
     # judgments per lens (win / improvement / decline / opportunity / trend /
@@ -1327,28 +1312,18 @@ def _derive_overall_state(going_well, needs_attention, biggest_risk, exec_state=
     return "mixed"
 
 
-def _derive_headline(
-    overall_state, going_well, needs_attention, exec_state, focus_now,
-    user_now=None,
-) -> str:
+def _derive_headline(exec_state, focus_now=None) -> str:
     """The one-sentence opener — GROUNDED in the day's execution phase (a fact).
 
-    The opener describes TODAY'S execution only from `execution_phase`
-    (before_first_commitment / underway / ahead / behind / midday / afternoon /
-    winding_down / day_complete). It NEVER infers today's state from the clock or
-    from the weekly trend (`overall_state`) — that is what produced the fabricated
-    "Slow start" at 4:56 AM before the day had begun.
+    There is exactly ONE headline code path: read the deterministic `execution_phase`
+    from the execution authority and hand it to `_headline_for_phase`. The opener
+    describes TODAY'S execution only from that fact (before_first_commitment /
+    underway / ahead / behind / midday / afternoon / winding_down / day_complete).
+    It NEVER infers today's state from the clock or the weekly trend — that is what
+    produced the fabricated "Slow start" at 4:56 AM before the day had begun. When the
+    phase is unknown/degraded, `_headline_for_phase` returns a single neutral opener.
 
-    `overall_state` is used ONLY for the degraded fallback (when execution truth is
-    unavailable), where the wording stays trend-scoped and never claims a within-day
-    trajectory. `user_now` is no longer read — the phase already carries clock context.
-
-    No free-text generation, no LLM.
+    No free-text generation, no LLM, no trend/clock lookup table.
     """
     phase_facts = (exec_state or {}).get("execution_phase") or {}
-    phase = phase_facts.get("phase")
-    if phase and phase != "unknown":
-        line = _headline_for_phase(phase, phase_facts, focus_now)
-        if line:
-            return line
-    return _fallback_headline(overall_state)
+    return _headline_for_phase(phase_facts.get("phase"), phase_facts, focus_now)

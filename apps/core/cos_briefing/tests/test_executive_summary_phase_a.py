@@ -34,8 +34,8 @@ from apps.core.ai_insights.models import Insight
 from apps.core.cos_briefing.executive_summary import (
     _collect_needs_attention,
     _derive_headline,
-    _fallback_headline,
     _headline_for_phase,
+    _NEUTRAL_HEADLINE,
 )
 from apps.users.models import TermsAcceptance
 
@@ -52,13 +52,6 @@ def _make_user(email="exec-briefing-trust@test.com"):
     u.preferences.has_completed_onboarding = True
     u.preferences.save()
     return u
-
-
-def _at(hour: int):
-    """Build a tz-aware datetime at the given hour (today) for headline
-    tests. The actual date doesn't matter — only the .hour attribute."""
-    base = timezone.now()
-    return base.replace(hour=hour, minute=0, second=0, microsecond=0)
 
 
 def _make_insight(user, *, title, severity="warning",
@@ -124,30 +117,28 @@ class BeforeFirstCommitmentHeadlineTests(TestCase):
                               "minutes_until": 34},
             minutes_until_first_commitment=34,
         )
-        text = _derive_headline("slipping", [], [], state, focus_now=None)
+        text = _derive_headline(state, focus_now=None)
         self.assertIn("just beginning", text.lower())
         self.assertIn("34 minute", text.lower())
         self.assertIn("Prayer Time", text)
 
     def test_before_first_never_fabricates_trajectory(self):
-        """Even when the weekly trend passed in is 'slipping', the before-first
-        headline must contain none of the fabricated within-day trajectory words."""
+        """The before-first headline must contain none of the fabricated within-day
+        trajectory words — and it is a pure function of execution_phase, so the weekly
+        trend cannot influence it at all (there is nowhere to pass a trend)."""
         state = _phase_state(
             "before_first_commitment",
             first_commitment={"title": "Prayer Time", "time": "5:30 AM",
                               "minutes_until": 34},
             minutes_until_first_commitment=34,
         )
-        for trend in ("slipping", "at_risk", "improving", "steady", "unknown"):
-            text = _derive_headline(trend, [], [], state, focus_now=None).lower()
-            for bad in _FABRICATION_PHRASES:
-                self.assertNotIn(
-                    bad, text, f"trend={trend} leaked fabricated phrase {bad!r}: {text!r}",
-                )
+        text = _derive_headline(state, focus_now=None).lower()
+        for bad in _FABRICATION_PHRASES:
+            self.assertNotIn(bad, text, f"leaked fabricated phrase {bad!r}: {text!r}")
 
     def test_clean_slate_when_no_first_commitment(self):
         state = _phase_state("before_first_commitment")
-        text = _derive_headline("unknown", [], [], state, focus_now=None)
+        text = _derive_headline(state, focus_now=None)
         self.assertIn("clean slate", text.lower())
 
     def test_far_off_first_commitment_uses_clock_time_not_minutes(self):
@@ -157,7 +148,7 @@ class BeforeFirstCommitmentHeadlineTests(TestCase):
                               "minutes_until": 214},
             minutes_until_first_commitment=214,
         )
-        text = _derive_headline("unknown", [], [], state, focus_now=None)
+        text = _derive_headline(state, focus_now=None)
         self.assertIn("9:00 AM", text)
         self.assertNotIn("214", text)
 
@@ -167,50 +158,51 @@ class ExecutionPhaseHeadlineTests(TestCase):
 
     def test_behind_states_overdue_and_recovery_path(self):
         state = _phase_state("behind", overdue_count=2)
-        text = _derive_headline("steady", [], [], state, focus_now=None).lower()
+        text = _derive_headline(state, focus_now=None).lower()
         self.assertIn("drifted", text)
         self.assertIn("2 commitments are past due", text)
         self.assertIn("back on track", text)
 
     def test_behind_singular_grammar(self):
         state = _phase_state("behind", overdue_count=1)
-        text = _derive_headline("steady", [], [], state, focus_now=None).lower()
+        text = _derive_headline(state, focus_now=None).lower()
         self.assertIn("one commitment is past due", text)
 
     def test_underway(self):
-        text = _derive_headline("steady", [], [], _phase_state("underway"), None)
+        text = _derive_headline(_phase_state("underway"), None)
         self.assertIn("underway", text.lower())
 
     def test_ahead(self):
-        text = _derive_headline("improving", [], [], _phase_state("ahead"), None)
+        text = _derive_headline(_phase_state("ahead"), None)
         self.assertIn("ahead of schedule", text.lower())
 
     def test_winding_down(self):
-        text = _derive_headline("steady", [], [], _phase_state("winding_down"), None)
+        text = _derive_headline(_phase_state("winding_down"), None)
         self.assertIn("winding down", text.lower())
 
     def test_day_complete(self):
-        text = _derive_headline("improving", [], [], _phase_state("day_complete"), None)
+        text = _derive_headline(_phase_state("day_complete"), None)
         self.assertIn("complete", text.lower())
 
-    def test_headline_for_phase_returns_none_for_unknown(self):
-        self.assertIsNone(_headline_for_phase("unknown", {}, None))
 
+class SingleHeadlinePathTests(TestCase):
+    """There is exactly ONE headline path: exec_state → execution_phase →
+    _headline_for_phase. The unknown/degraded case yields the single neutral opener,
+    not a trend/clock lookup — so the retired matrix cannot be reintroduced."""
 
-class FallbackHeadlineTests(TestCase):
-    """When execution truth is unavailable, the fallback is trend-scoped and never
-    asserts a within-day trajectory."""
+    def test_unknown_phase_returns_neutral_constant(self):
+        self.assertEqual(_headline_for_phase("unknown", {}, None), _NEUTRAL_HEADLINE)
+        self.assertEqual(_headline_for_phase(None, {}, None), _NEUTRAL_HEADLINE)
 
-    def test_no_execution_phase_uses_fallback(self):
-        # exec_state without an execution_phase key → degraded fallback.
-        text = _derive_headline("improving", [], [], {}, focus_now=None)
-        self.assertEqual(text, _fallback_headline("improving"))
+    def test_missing_execution_phase_falls_to_neutral(self):
+        # exec_state without an execution_phase key → the one neutral opener.
+        self.assertEqual(_derive_headline({}, focus_now=None), _NEUTRAL_HEADLINE)
+        self.assertEqual(_derive_headline(None, focus_now=None), _NEUTRAL_HEADLINE)
 
-    def test_fallback_never_fabricates_today(self):
-        for trend in ("improving", "steady", "unknown"):
-            text = _fallback_headline(trend).lower()
-            for bad in _FABRICATION_PHRASES:
-                self.assertNotIn(bad, text)
+    def test_neutral_headline_never_fabricates_today(self):
+        text = _NEUTRAL_HEADLINE.lower()
+        for bad in _FABRICATION_PHRASES:
+            self.assertNotIn(bad, text)
 
 
 # ── A2: dedupe by title ────────────────────────────────────────────

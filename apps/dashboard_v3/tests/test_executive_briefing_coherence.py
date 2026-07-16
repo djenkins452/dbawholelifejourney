@@ -73,27 +73,28 @@ class DominantStateCoherenceTests(TestCase):
             "unknown")
 
     def test_headline_grounded_in_phase_not_weekly_trend(self):
-        """A 'slipping' weekly trend must NOT make the headline claim today is
-        slipping when the day hasn't begun."""
+        """The headline is a pure function of execution_phase — it can't claim today
+        is slipping when the day hasn't begun, because the weekly trend is not even an
+        input to it."""
         state = _phase_state(
             "before_first_commitment",
             first_commitment={"title": "Prayer Time", "time": "5:30 AM",
                               "minutes_until": 34},
             minutes_until_first_commitment=34,
         )
-        headline = _derive_headline("slipping", [], [], state, focus_now=None).lower()
+        headline = _derive_headline(state, focus_now=None).lower()
         self.assertIn("just beginning", headline)
         for phrase in _DECLINE_PHRASES:
             self.assertNotIn(phrase, headline, f"leaked decline word {phrase!r}: {headline!r}")
 
     def test_headline_only_declines_when_phase_is_behind(self):
         """Decline language ('past due', 'drifted') is allowed ONLY when the
-        execution phase proves it. An on-track 'underway' day with a slipping
-        weekly trend stays free of within-day decline words."""
-        underway = _derive_headline("slipping", [], [], _phase_state("underway"), None).lower()
+        execution phase proves it. An on-track 'underway' day stays free of
+        within-day decline words (the headline can't even see the weekly trend)."""
+        underway = _derive_headline(_phase_state("underway"), None).lower()
         for phrase in _DECLINE_PHRASES:
             self.assertNotIn(phrase, underway)
-        behind = _derive_headline("steady", [], [], _phase_state("behind", overdue_count=2), None).lower()
+        behind = _derive_headline(_phase_state("behind", overdue_count=2), None).lower()
         self.assertIn("drifted", behind)
         self.assertIn("past due", behind)
 

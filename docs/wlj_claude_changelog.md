@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-16 (fix(cos): Executive Briefing grounded in day-execution truth — never fabricate today's trajectory)
+# Last Updated: 2026-07-16 (refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table))
 # ================================================================# WLJ Change History
+
+## 2026-07-16 — refactor(cos): Executive Briefing headline — ONE deterministic path (remove the legacy fallback table)
+
+Follow-up to the day-truth redesign below: "retired" now means **removed**, so the old approach can't be accidentally reconnected.
+
+- **`_HEADLINE_MATRIX` and `_time_band` are gone** (verified — zero references anywhere). Already removed in the prior commit; confirmed no code path reaches them.
+- **Removed the second path.** The prior commit left a `_FALLBACK_HEADLINE` dict + `_fallback_headline()` — a **weekly-trend-keyed lookup table** used when execution truth was unavailable. That was a latent re-introduction of the exact "headline as a function of the trend" coupling we removed. Deleted both. The degraded/unknown case now returns a **single neutral constant** `_NEUTRAL_HEADLINE = "Here's where your day stands."` from inside `_headline_for_phase` — a constant, not a table.
+- **One headline producer, one signature.** `_derive_headline(exec_state, focus_now)` now does exactly one thing: read `execution_phase` and hand it to `_headline_for_phase` (which always returns a string). Dropped the unused `overall_state / going_well / needs_attention / user_now` params and the now-pointless `get_user_now()` call in `build_executive_summary`. The headline can no longer even *see* the weekly trend or the clock — they are not inputs.
+- **Tests** updated to the single-path signature; added `SingleHeadlinePathTests` asserting unknown/missing phase → the one neutral opener (guards against a future fallback table). Removed the obsolete `FallbackHeadlineTests` and the unused `_at` clock helper.
+
+**Verification:** `manage.py check` clean. Scoped suites green (Phase-A headline, coherence, execution-phase, composer briefing). Runtime confirmed: `_derive_headline` → `_headline_for_phase` is the ONLY headline path; unknown/missing phase → `"Here's where your day stands."` (no trend line). The pre-existing wall-clock-flaky `RhythmInteractionModeTests` preview-group test still fails identically on `main` (unrelated).
+
+**Files:** `apps/core/cos_briefing/executive_summary.py`, `apps/core/cos_briefing/tests/test_executive_summary_phase_a.py`, `apps/dashboard_v3/tests/test_composer.py`, `apps/dashboard_v3/tests/test_executive_briefing_coherence.py`.
+
+---
 
 ## 2026-07-16 — refactor(cos): recommendation-authoring class — Increment 1 (correlation → observation)
 

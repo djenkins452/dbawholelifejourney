@@ -34,8 +34,10 @@ class BuildBodyAssessmentTests(SimpleTestCase):
         self.assertTrue(any("Weight ↓ 27" in f for f in a["facts"]))
         self.assertTrue(any("Waist ↓ 6.2" in f for f in a["facts"]))
         self.assertTrue(any("recovering" in f.lower() for f in a["facts"]))
-        self.assertIn("rebuilding", a["opportunity"].lower())
-        self.assertTrue(a["headline"])
+        # Executive story fields: narrative (why), wins, focus (what next), confidence basis.
+        self.assertTrue(a["headline"] and a["narrative"] and a["wins"])
+        self.assertTrue(any("lean" in f.lower() or "protein" in f.lower() for f in a["focus"]))
+        self.assertIn("check-ins", a["confidence_basis"])
 
     def test_recomposition_is_excellent(self):
         a = build_body_assessment({"fat_mass": _T(-6), "lean_mass": _T(3)})

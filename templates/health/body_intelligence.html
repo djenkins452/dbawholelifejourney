@@ -46,66 +46,77 @@
     </div>
     {% endif %}
 
-    <!-- ── Your Body Story: the one executive briefing (Layer 1 — interpretation) ── -->
-    {% with story=bi.body_story %}
-    <section class="bi-story bi-story-{{ story.status.tone|default:'unknown' }}" data-testid="bi-story">
-        <header class="bi-story-head">
-            <div class="bi-story-title-row">
-                <h2 class="bi-story-title">Your Body Story</h2>
-                <span class="bi-story-status bi-story-status-{{ story.status.tone|default:'unknown' }}" data-testid="bi-story-status">
-                    {{ story.status.label }}
-                </span>
-            </div>
-            <div class="bi-story-meta">
-                <span class="bi-story-confidence bi-story-confidence-{{ story.confidence.level }}" title="{{ story.confidence.basis }}" data-testid="bi-story-confidence">
-                    <span class="bi-conf-dot" aria-hidden="true"></span>{{ story.confidence.level|title }} confidence
-                </span>
-                {% if story.status.detail %}<span class="bi-story-status-detail">{{ story.status.detail }}</span>{% endif %}
+    {# ── YOUR BODY ASSESSMENT — the ONE canonical executive interpretation. Facts establish
+       truth; this explains it; the cards below are its supporting evidence. ── #}
+    {% with a=bi.body_assessment %}
+    {% if a and a.grade %}
+    <section class="bi-assessment bi-assessment-{{ a.status }}" data-testid="bi-assessment">
+        <header class="bi-assessment-head">
+            <h2 class="bi-assessment-title">Your Body Assessment</h2>
+            <div class="bi-assessment-grade-wrap">
+                <span class="bi-assessment-grade-key">Overall progress</span>
+                <span class="bi-assessment-grade">{{ a.grade }}</span>
             </div>
         </header>
-
-        {% if story.narrative %}
-        <div class="bi-story-narrative" data-testid="bi-story-narrative">
-            {% for sentence in story.narrative %}<p>{{ sentence }}</p>{% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="bi-story-cols">
-            <div class="bi-story-col">
-                <h3 class="bi-story-col-title">Biggest wins</h3>
-                {% if story.wins %}
-                <ul class="bi-story-list bi-story-list-win">
-                    {% for w in story.wins %}
-                    <li><span class="bi-story-mark" aria-hidden="true">✓</span>
-                        <span><b>{{ w.title }}</b>{% if w.detail %} — {{ w.detail }}{% endif %}</span></li>
-                    {% endfor %}
-                </ul>
-                {% else %}<p class="bi-story-empty">Wins will show here as your progress builds.</p>{% endif %}
+        {% if a.headline %}<p class="bi-assessment-headline">{{ a.headline }}</p>{% endif %}
+        {% for s in a.narrative %}<p class="bi-assessment-narrative">{{ s }}</p>{% endfor %}
+        <div class="bi-assessment-cols">
+            {% if a.wins %}
+            <div class="bi-assessment-col">
+                <span class="bi-assessment-block-label">What's going well</span>
+                <ul class="bi-assessment-list bi-assessment-list-win">{% for w in a.wins %}<li>{{ w }}</li>{% endfor %}</ul>
             </div>
-
-            <div class="bi-story-col">
-                <h3 class="bi-story-col-title">Watch items</h3>
-                {% if story.watch_items %}
-                <ul class="bi-story-list bi-story-list-watch">
-                    {% for it in story.watch_items %}
-                    <li><span class="bi-story-mark bi-story-mark-{{ it.tone }}" aria-hidden="true">{% if it.tone == 'critical' %}!{% else %}⚠{% endif %}</span>
-                        <span><b>{{ it.title }}</b>{% if it.detail %} — {{ it.detail }}{% endif %}</span></li>
-                    {% endfor %}
-                </ul>
-                {% else %}<p class="bi-story-empty bi-story-empty-ok"><span aria-hidden="true">✓</span> Nothing needs attention right now.</p>{% endif %}
+            {% endif %}
+            {% if a.facts %}
+            <div class="bi-assessment-col">
+                <span class="bi-assessment-block-label">Since beginning your journey</span>
+                <ul class="bi-assessment-list">{% for f in a.facts %}<li>{{ f }}</li>{% endfor %}</ul>
             </div>
-        </div>
-
-        {% if story.recommendation %}
-        <div class="bi-story-rec" data-testid="bi-story-rec">
-            <span class="bi-story-rec-label">Start here</span>
-            <div class="bi-story-rec-body">
-                <b class="bi-story-rec-title">{{ story.recommendation.title }}</b>
-                {% if story.recommendation.detail %}<span class="bi-story-rec-detail">{{ story.recommendation.detail }}</span>{% endif %}
+            {% endif %}
+            {% if a.focus %}
+            <div class="bi-assessment-col">
+                <span class="bi-assessment-block-label">Focus next</span>
+                <ul class="bi-assessment-list bi-assessment-list-focus">{% for f in a.focus %}<li>{{ f }}</li>{% endfor %}</ul>
             </div>
+            {% endif %}
         </div>
-        {% endif %}
+        <div class="bi-assessment-foot">
+            {% if a.overall %}<span class="bi-assessment-overall">{{ a.overall }}</span>{% endif %}
+            <span class="bi-assessment-conf" title="{{ a.confidence_basis }}"><span class="bi-conf-dot" aria-hidden="true"></span>{{ a.confidence|title }} confidence — {{ a.confidence_basis }}</span>
+        </div>
     </section>
+    <style nonce="{{ csp_nonce }}">
+    .bi-assessment { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+        border-left: 5px solid var(--color-border, #d1d5db); border-radius: var(--radius-lg, 14px);
+        padding: var(--space-5, 1.25rem) var(--space-5, 1.25rem); margin-bottom: var(--space-5, 1.25rem); }
+    .bi-assessment-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .bi-assessment-title { margin: 0; font-size: var(--font-size-xl, 1.35rem); font-weight: 800; color: var(--color-text, #111827); }
+    .bi-assessment-grade-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .bi-assessment-grade-key { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
+    .bi-assessment-grade { font-size: var(--font-size-base, 1rem); font-weight: 800; padding: 3px 14px; border-radius: 999px;
+        background: var(--color-border, #e5e7eb); color: var(--color-text, #374151); }
+    .bi-assessment-headline { margin: 0.6rem 0 0; font-size: var(--font-size-lg, 1.1rem); font-weight: 700; color: var(--color-text, #1f2937); line-height: 1.4; }
+    .bi-assessment-narrative { margin: 0.35rem 0 0; font-size: var(--font-size-sm, 0.92rem); color: var(--color-text-muted, #4b5563); line-height: 1.5; }
+    .bi-assessment-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4, 1rem); margin-top: var(--space-4, 1rem); }
+    .bi-assessment-block-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
+    .bi-assessment-list { margin: 0.3rem 0 0; padding-left: 1.15rem; }
+    .bi-assessment-list li { font-size: var(--font-size-sm, 0.88rem); color: var(--color-text, #374151); line-height: 1.5; }
+    .bi-assessment-list-win li { list-style: none; position: relative; padding-left: 1.1rem; }
+    .bi-assessment-list-win li::before { content: "\2713"; position: absolute; left: 0; color: var(--color-success, #10b981); font-weight: 900; }
+    .bi-assessment-list-focus li { list-style: none; position: relative; padding-left: 1.1rem; }
+    .bi-assessment-list-focus li::before { content: "\2192"; position: absolute; left: 0; color: var(--color-accent, #6366f1); font-weight: 900; }
+    .bi-assessment-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem 1.25rem; flex-wrap: wrap; margin-top: var(--space-4, 1rem); padding-top: var(--space-3, 0.75rem); border-top: 1px solid var(--color-border, #eef0f2); }
+    .bi-assessment-overall { font-size: var(--font-size-sm, 0.9rem); font-weight: 600; color: var(--color-text, #374151); }
+    .bi-assessment-conf { display: inline-flex; align-items: center; gap: 6px; font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted, #9ca3af); }
+    .bi-conf-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .bi-assessment-improving { border-left-color: var(--color-success, #10b981); }
+    .bi-assessment-improving .bi-assessment-grade { background: var(--color-success, #10b981); color: #fff; }
+    .bi-assessment-recovering { border-left-color: var(--color-warning, #f59e0b); }
+    .bi-assessment-recovering .bi-assessment-grade { background: var(--color-warning, #f59e0b); color: #fff; }
+    .bi-assessment-needs_attention { border-left-color: var(--color-danger, #ef4444); }
+    .bi-assessment-needs_attention .bi-assessment-grade { background: var(--color-danger, #ef4444); color: #fff; }
+    </style>
+    {% endif %}
     {% endwith %}
 
     <!-- Overall progress: Weight · Fat mass · Lean mass -->
@@ -224,57 +235,6 @@
         {% endif %}
     </div>
     {% endif %}
-
-    {# ── YOUR BODY ASSESSMENT — the ONE executive summary; the cards below are its evidence ── #}
-    {% with a=bi.body_assessment %}
-    {% if a and a.grade %}
-    <section class="bi-assessment bi-assessment-{{ a.status }}" data-testid="bi-assessment">
-        <div class="bi-assessment-head">
-            <h3 class="bi-assessment-title">Your Body Assessment</h3>
-            <div class="bi-assessment-grade-wrap">
-                <span class="bi-assessment-grade-key">Overall progress</span>
-                <span class="bi-assessment-grade">{{ a.grade }}</span>
-            </div>
-        </div>
-        {% if a.headline %}<p class="bi-assessment-headline">{{ a.headline }}</p>{% endif %}
-        {% if a.facts %}
-        <div class="bi-assessment-block">
-            <span class="bi-assessment-block-label">Since beginning your journey</span>
-            <ul class="bi-assessment-facts">{% for f in a.facts %}<li>{{ f }}</li>{% endfor %}</ul>
-        </div>
-        {% endif %}
-        {% if a.overall %}
-        <div class="bi-assessment-block">
-            <span class="bi-assessment-block-label">Overall assessment</span>
-            <p class="bi-assessment-overall">{{ a.overall }} {{ a.opportunity }}</p>
-        </div>
-        {% endif %}
-    </section>
-    <style nonce="{{ csp_nonce }}">
-    .bi-assessment { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
-        border-left: 5px solid var(--color-border, #d1d5db); border-radius: var(--radius-lg, 14px);
-        padding: var(--space-4, 1rem) var(--space-5, 1.25rem); margin-bottom: var(--space-4, 1rem); }
-    .bi-assessment-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-    .bi-assessment-title { margin: 0; font-size: var(--font-size-lg, 1.15rem); font-weight: 800; color: var(--color-text, #111827); }
-    .bi-assessment-grade-wrap { display: inline-flex; align-items: center; gap: 8px; }
-    .bi-assessment-grade-key { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
-    .bi-assessment-grade { font-size: var(--font-size-base, 1rem); font-weight: 800; padding: 2px 12px; border-radius: 999px;
-        background: var(--color-border, #e5e7eb); color: var(--color-text, #374151); }
-    .bi-assessment-headline { margin: 0.5rem 0 0; font-size: var(--font-size-base, 1rem); font-weight: 600; color: var(--color-text, #1f2937); line-height: 1.4; }
-    .bi-assessment-block { margin-top: 0.85rem; }
-    .bi-assessment-block-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
-    .bi-assessment-facts { margin: 0.25rem 0 0; padding-left: 1.1rem; }
-    .bi-assessment-facts li { font-size: var(--font-size-sm, 0.9rem); color: var(--color-text, #374151); line-height: 1.5; }
-    .bi-assessment-overall { margin: 0.25rem 0 0; font-size: var(--font-size-sm, 0.9rem); color: var(--color-text, #374151); line-height: 1.45; }
-    .bi-assessment-improving { border-left-color: var(--color-success, #10b981); }
-    .bi-assessment-improving .bi-assessment-grade { background: var(--color-success, #10b981); color: #fff; }
-    .bi-assessment-recovering { border-left-color: var(--color-warning, #f59e0b); }
-    .bi-assessment-recovering .bi-assessment-grade { background: var(--color-warning, #f59e0b); color: #fff; }
-    .bi-assessment-needs_attention { border-left-color: var(--color-danger, #ef4444); }
-    .bi-assessment-needs_attention .bi-assessment-grade { background: var(--color-danger, #ef4444); color: #fff; }
-    </style>
-    {% endif %}
-    {% endwith %}
 
     <!-- ── Body measurements (supporting evidence) ───────────────────────── -->
     <h3 class="bi-section-title">Body measurements</h3>
@@ -499,66 +459,6 @@ document.addEventListener('DOMContentLoaded', function () {
     font-size: var(--font-size-sm, 0.875rem); margin-bottom: var(--space-4, 1rem); }
 .bi-freshness-dot { width: 8px; height: 8px; border-radius: 50%;
     background: var(--color-warning, #d97706); flex: 0 0 auto; }
-
-/* ── Your Body Story — the executive briefing hero ──────────────────────── */
-.bi-story { position: relative; background: var(--color-surface, #fff);
-    border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px);
-    padding: var(--space-6, 1.5rem); margin-bottom: var(--space-8, 2rem);
-    border-top: 4px solid var(--bi-tone, var(--color-accent, #6366f1)); }
-/* Tone accent — WLJ-computed status drives the hero's leading colour. */
-.bi-story-positive { --bi-tone: var(--color-success, #10b981); }
-.bi-story-steady   { --bi-tone: var(--color-accent, #6366f1); }
-.bi-story-caution  { --bi-tone: var(--color-warning, #f59e0b); }
-.bi-story-critical { --bi-tone: var(--color-danger, #ef4444); }
-.bi-story-unknown  { --bi-tone: var(--color-text-muted, #9ca3af); }
-
-.bi-story-head { margin-bottom: var(--space-4, 1rem); }
-.bi-story-title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3, 0.75rem); flex-wrap: wrap; }
-.bi-story-title { font-size: var(--font-size-xl, 1.375rem); font-weight: 800; color: var(--color-text, #111827); margin: 0; letter-spacing: -0.01em; }
-.bi-story-status { font-size: var(--font-size-sm, 0.875rem); font-weight: 700; padding: 0.25rem 0.7rem; border-radius: var(--radius-full, 999px);
-    color: var(--bi-tone); background: color-mix(in srgb, var(--bi-tone) 14%, transparent); white-space: nowrap; }
-.bi-story-meta { display: flex; align-items: center; gap: var(--space-3, 0.75rem); flex-wrap: wrap; margin-top: var(--space-2, 0.5rem); }
-.bi-story-confidence { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--font-size-xs, 0.75rem); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); cursor: default; }
-.bi-conf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--color-text-muted, #9ca3af); }
-.bi-story-confidence-high .bi-conf-dot { background: var(--color-success, #10b981); }
-.bi-story-confidence-medium .bi-conf-dot { background: var(--color-warning, #f59e0b); }
-.bi-story-confidence-low .bi-conf-dot { background: var(--color-text-muted, #9ca3af); }
-.bi-story-status-detail { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #6b7280); }
-
-.bi-story-narrative { margin: 0 0 var(--space-5, 1.25rem); }
-.bi-story-narrative p { font-size: var(--font-size-base, 1rem); line-height: 1.6; color: var(--color-text, #1f2937); margin: 0 0 var(--space-2, 0.5rem); }
-.bi-story-narrative p:first-child { font-size: var(--font-size-lg, 1.125rem); font-weight: 600; color: var(--color-text, #111827); }
-.bi-story-narrative p:last-child { margin-bottom: 0; }
-
-.bi-story-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5, 1.25rem);
-    padding-top: var(--space-4, 1rem); border-top: 1px solid var(--color-border, #e5e7eb); }
-.bi-story-col-title { font-size: var(--font-size-xs, 0.75rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--color-text-muted, #6b7280); margin: 0 0 var(--space-2, 0.5rem); }
-.bi-story-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2, 0.5rem); }
-.bi-story-list li { display: flex; gap: 0.5rem; align-items: flex-start; font-size: var(--font-size-sm, 0.9rem); line-height: 1.45; color: var(--color-text, #374151); }
-.bi-story-list b { color: var(--color-text, #111827); font-weight: 700; }
-.bi-story-mark { flex: none; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
-    border-radius: 50%; font-size: 0.7rem; font-weight: 800; margin-top: 0.1rem; }
-.bi-story-list-win .bi-story-mark { background: color-mix(in srgb, var(--color-success, #10b981) 18%, transparent); color: var(--color-success, #10b981); }
-.bi-story-mark-caution { background: color-mix(in srgb, var(--color-warning, #f59e0b) 18%, transparent); color: var(--color-warning, #f59e0b); }
-.bi-story-mark-critical { background: color-mix(in srgb, var(--color-danger, #ef4444) 18%, transparent); color: var(--color-danger, #ef4444); }
-.bi-story-empty { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #9ca3af); margin: 0; }
-.bi-story-empty-ok { color: var(--color-success, #10b981); }
-
-.bi-story-rec { display: flex; align-items: flex-start; gap: var(--space-3, 0.75rem); margin-top: var(--space-5, 1.25rem);
-    padding: var(--space-4, 1rem); border-radius: var(--radius-md, 10px);
-    background: color-mix(in srgb, var(--bi-tone) 8%, var(--color-surface, #fff)); border: 1px solid color-mix(in srgb, var(--bi-tone) 25%, var(--color-border, #e5e7eb)); }
-.bi-story-rec-label { flex: none; font-size: var(--font-size-xs, 0.75rem); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
-    color: var(--bi-tone); padding: 0.2rem 0.55rem; border-radius: var(--radius-full, 999px); background: color-mix(in srgb, var(--bi-tone) 15%, transparent); white-space: nowrap; margin-top: 0.1rem; }
-.bi-story-rec-body { display: flex; flex-direction: column; gap: 0.15rem; }
-.bi-story-rec-title { font-size: var(--font-size-base, 1rem); color: var(--color-text, #111827); }
-.bi-story-rec-detail { font-size: var(--font-size-sm, 0.875rem); color: var(--color-text-muted, #4b5563); line-height: 1.5; }
-
-@media (max-width: 640px) {
-    .bi-story-cols { grid-template-columns: 1fr; gap: var(--space-4, 1rem); }
-    .bi-story-rec { flex-direction: column; gap: var(--space-2, 0.5rem); }
-}
 
 /* Stat grid */
 .bi-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3, 0.75rem); }

@@ -122,36 +122,64 @@ def _fact(label, traj, unit) -> str | None:
     return f"{label} {'↓' if ov < 0 else '↑'} {abs(ov):.2g}{u}"
 
 
-# Executive copy per verdict — headline, overall assessment, biggest opportunity.
+# The ONE canonical executive voice per verdict — coaching narrative (Why), overall
+# assessment, and what to focus on next (recommendations). Encouraging tone.
 _VERDICT_COPY = {
-    "recomposition": (
-        "You're losing fat and building lean mass at the same time — the hardest, most valuable pattern.",
-        "Your body is moving exactly where you want it to.",
-        "Keep the momentum: hold your training and protein while the fat keeps coming off."),
-    "recovering": (
-        "You're successfully losing fat while preserving and beginning to rebuild lean mass.",
-        "Your body is continuing to move in the desired direction.",
-        "Your biggest opportunity is rebuilding additional lean mass while continuing fat loss."),
-    "fat_loss_preserving": (
-        "You're losing fat while holding on to your lean mass — clean, high-quality fat loss.",
-        "Your body is moving in the desired direction.",
-        "Your biggest opportunity is adding resistance training to start building lean mass."),
-    "muscle_loss": (
-        "You're losing lean mass over your journey — the part of your body worth protecting.",
-        "Your body needs attention.",
-        "Prioritise protein and resistance training to protect and rebuild muscle."),
-    "mixed_gain": (
-        "Both fat and lean mass are rising — a mixed picture.",
-        "Your body's direction is mixed right now.",
-        "Decide on a clear phase — a lean bulk or a cut — so the trend has one direction."),
-    "unclear": (
-        "Your body-composition trend isn't clear yet.",
-        "There isn't enough of a pattern to call your direction yet.",
-        "Keep logging weight and measurements to sharpen the picture."),
-    "insufficient": (
-        "Keep logging to build your assessment.",
-        "A few more check-ins will unlock your whole-body story.",
-        "Log weight and body composition over the next few check-ins."),
+    "recomposition": {
+        "headline": "You're losing fat and building lean mass at the same time — the hardest, most valuable pattern.",
+        "narrative": [
+            "This is textbook recomposition: fat is coming off while lean mass climbs.",
+            "It's the most difficult outcome to achieve, and it means your training and nutrition are dialled in.",
+        ],
+        "overall": "Your body is moving exactly where you want it to.",
+        "focus": ["Keep your training and protein steady — don't change what's working.",
+                  "Stay patient; recomposition is slow, but it's the highest-quality result."],
+    },
+    "recovering": {
+        "headline": "You're successfully losing fat while preserving and beginning to rebuild lean mass.",
+        "narrative": [
+            "You've done the hard work of losing significant fat.",
+            "You gave up some lean mass along the way — but your recent measurements show the trend has turned, and you're rebuilding it.",
+        ],
+        "overall": "Your body is continuing to move in the desired direction.",
+        "focus": ["Prioritise protein and resistance training to accelerate lean-mass recovery.",
+                  "Keep the fat-loss habits that are clearly working."],
+    },
+    "fat_loss_preserving": {
+        "headline": "You're losing fat while holding on to your lean mass — clean, high-quality fat loss.",
+        "narrative": ["What you're losing is almost entirely fat; your lean mass is holding.",
+                      "That's exactly what healthy, sustainable fat loss looks like."],
+        "overall": "Your body is moving in the desired direction.",
+        "focus": ["Add or intensify resistance training to start building lean mass, not just preserving it.",
+                  "Keep protein high to protect the muscle you have."],
+    },
+    "muscle_loss": {
+        "headline": "You're losing lean mass over your journey — the part of your body worth protecting.",
+        "narrative": ["Your lean mass is below where you started, which usually means the deficit is too aggressive or training/protein is too low.",
+                      "This is very fixable, and it's worth addressing now."],
+        "overall": "Your body needs attention.",
+        "focus": ["Raise protein and add resistance training to protect muscle.",
+                  "Consider a smaller calorie deficit so weight loss comes from fat, not muscle."],
+    },
+    "mixed_gain": {
+        "headline": "Both fat and lean mass are rising — a mixed picture.",
+        "narrative": ["You're gaining, and right now it's a mix of muscle and fat."],
+        "overall": "Your body's direction is mixed.",
+        "focus": ["Pick a clear phase — a lean bulk or a cut — so the trend has one direction.",
+                  "Tighten nutrition to steer the mix toward muscle."],
+    },
+    "unclear": {
+        "headline": "Your body-composition trend isn't clear yet.",
+        "narrative": ["There isn't a strong enough pattern yet to call your direction."],
+        "overall": "There isn't enough of a pattern to call your direction yet.",
+        "focus": ["Keep logging weight and measurements consistently to sharpen the picture."],
+    },
+    "insufficient": {
+        "headline": "Keep logging to build your assessment.",
+        "narrative": ["A few more check-ins will unlock your whole-body story."],
+        "overall": "A few more check-ins will unlock your whole-body story.",
+        "focus": ["Log weight and body composition over the next few check-ins."],
+    },
 }
 
 
@@ -211,9 +239,9 @@ def build_body_assessment(traj_by_metric=None, weight_traj=None) -> dict:
         "insufficient": "Getting started",
     }[verdict]
 
-    headline, overall, opportunity = _VERDICT_COPY[verdict]
+    copy = _VERDICT_COPY[verdict]
 
-    # Journey facts (deterministic highlights since baseline).
+    # Journey facts (the evidence — deterministic highlights since baseline).
     facts = []
     for label, traj, unit in (("Weight", weight_traj, "lb"), ("Waist", waist_traj, "in"),
                               ("Fat Mass", fat_traj, "lb")):
@@ -228,10 +256,33 @@ def build_body_assessment(traj_by_metric=None, weight_traj=None) -> dict:
         elif lean_down:
             facts.append(f"Lean Mass ↓ {abs(lean_ov):.2g} lb (needs rebuilding)")
 
+    # What's going well (from the data).
+    wins = []
+    if big_fat:
+        wins.append("Major fat loss")
+    elif fat_down:
+        wins.append("Fat is trending down")
+    if waist_traj and waist_traj["overall"] <= -_thr(_OVERALL, "in"):
+        wins.append("Waist is shrinking")
+    if lean_up:
+        wins.append("Building lean mass")
+    elif lean_down and lean_rebuilding:
+        wins.append("Lean mass has turned the corner and is rebuilding")
+
+    # Confidence basis (how much history backs the call).
+    ref = lean_traj or fat_traj or weight_traj
+    if ref and ref.get("n"):
+        span = ref.get("span_days")
+        basis = f"Based on {ref['n']} check-ins" + (f" over {span} days." if span else ".")
+    else:
+        basis = "Not enough check-ins yet to be confident."
+
     return {
-        "verdict": verdict, "status": status, "confidence": conf,
-        "grade": grade, "headline": headline, "overall": overall,
-        "opportunity": opportunity, "facts": facts, "summary": summary, "evidence": ev,
+        "verdict": verdict, "status": status, "confidence": conf, "confidence_basis": basis,
+        "grade": grade, "headline": copy["headline"], "narrative": list(copy["narrative"]),
+        "overall": copy["overall"], "focus": list(copy["focus"]),
+        "opportunity": copy["focus"][0] if copy["focus"] else "",  # back-compat
+        "facts": facts, "wins": wins, "summary": summary, "evidence": ev,
     }
 
 

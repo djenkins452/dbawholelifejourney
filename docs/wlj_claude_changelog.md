@@ -3,9 +3,41 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Body Intelligence — executive "Your Body Assessment" at top; every measurement participates)
+# Last Updated: 2026-07-16 (feat(health): Body Intelligence — ONE unified executive assessment; retire the second "Body Story")
 # ================================================================# WLJ Change History
 
+## 2026-07-16 — feat(health): Body Intelligence — one unified executive assessment (retire the second "Body Story")
+
+There were **two** executive narratives at the top of Body Intelligence: the older 14-day "Your Body Story"
+(`body_story_builder`) and the new whole-journey "Your Body Assessment" — two voices that could disagree. Merged
+them into **ONE canonical body interpretation**, taking the strengths of each: the whole-journey deterministic
+reasoning (overall + recent momentum, supporting facts, confidence) *and* the Body Story qualities (richer
+narrative, coaching language, wins, recommendations, encouraging tone).
+
+**`build_body_assessment` is now the single executive voice** and answers the five coach questions:
+- **What's happening** — `grade` (Overall progress: Excellent / Great / Good / Needs attention / …) + `headline`.
+- **Why** — `narrative` (coaching sentences).
+- **What evidence** — `facts` (Weight ↓ 27 lb · Waist ↓ 6.2 in · Fat Mass ↓ 14 lb · lean-mass sentence).
+- **What's going well** — `wins`.
+- **What to focus next** — `focus` (recommendations).
+- **How sure** — `confidence` + `confidence_basis` ("Based on N check-ins over M days").
+
+**Page hierarchy is now singular:** Facts (in each card) → the one Whole-Body Assessment (top) → measurement cards
+(supporting evidence) → historical graphs (proof). Every card and the Insights list consume this one assessment —
+nothing invents a different story.
+
+**Retired** `apps/health/services/body_story_builder.py` + `apps/health/tests/test_body_story.py` (no other
+consumers — it was only rendered here and self-tested) and removed the old "Your Body Story" template section +
+its dead CSS. The `body_story` release note is left as historical.
+
+**Files:** `measurement_interpretation.py` (executive `build_body_assessment`: narrative/wins/focus/confidence),
+`body_intelligence.py` (drop `body_story`), `body_intelligence.html` (one unified section at top; duplicate
+assessment card + dead CSS removed), `test_measurement_interpretation.py`, `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md`.
+Deleted: `body_story_builder.py`, `test_body_story.py`.
+
+**Verification:** 15 interpretation + 31 body-intelligence tests green (incl. full-page render 200); render check
+reproduced the full executive story (grade Excellent, narrative, wins, facts, focus, confidence "Based on 20
+check-ins over 180 days"). `manage.py check` clean; no migration; no other importers of the retired builder.
 ## 2026-07-15 — feat(health): Body Intelligence — one executive assessment at the TOP; cards are its evidence
 
 Completes the top-down architecture the user asked for: **Facts establish truth → the whole-body Assessment

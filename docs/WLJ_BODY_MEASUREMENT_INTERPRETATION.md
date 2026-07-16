@@ -78,14 +78,26 @@ never sets the long-term story: Overall `in 0.3 · lb 1.0 · pct 0.4 · kcal 30`
 (improving the body); some (`supporting`) contribute with lower confidence, but all participate in
 the same story. Anything unlisted → `supporting`.
 
-## The executive summary (`build_body_assessment` output)
+## The ONE executive summary (`build_body_assessment` output)
 
-Computed ONCE, rendered as **"Your Body Assessment"** at the TOP (the cards are its evidence). It
-returns, besides `status`/`confidence` (which the cards consume): `grade` (Overall progress —
-Excellent / Great / Good / Recovering-grade / Needs attention / …), `headline`, `facts` (journey
-highlights: Weight ↓ 27 lb, Waist ↓ 6.2 in, Fat Mass ↓ 14 lb, and a lean-mass sentence),
-`overall`, and `opportunity`. The Insights list mirrors the cards, so nothing invents a different
-story.
+This is the **single canonical body interpretation for WLJ** — one body truth, one assessment, one
+story. It is computed ONCE and rendered as **"Your Body Assessment"** at the TOP; every card and the
+Insights list consume it, and everything else on the page supports it. (The older 14-day
+`body_story_builder` hero was **retired** in favour of this — there is now exactly one executive voice.)
+
+It answers the five coach questions:
+
+| Question | Field |
+|---|---|
+| What is happening? | `grade` (Overall progress) + `headline` |
+| Why? | `narrative` (coaching sentences) |
+| What evidence supports it? | `facts` (Weight ↓ 27 lb, Waist ↓ 6.2 in, Fat Mass ↓ 14 lb, lean-mass sentence) |
+| What is going well? | `wins` |
+| What should I focus on next? | `focus` (recommendations) |
+| How sure are we? | `confidence` + `confidence_basis` ("Based on N check-ins over M days") |
+
+Plus `status` / `overall` / `opportunity` / `summary` consumed by the cards. The narrative + wins +
+focus are generated to be consistent with the whole-journey verdict — never a second, divergent story.
 
 ---
 

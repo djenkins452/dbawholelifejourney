@@ -229,7 +229,7 @@
 
     <!-- ── Body measurements ───────────────────────────────────────────── -->
     <h3 class="bi-section-title">Body measurements</h3>
-    <p class="bi-section-note">The arrow is your literal change; the colour and label say whether it's <strong>improving</strong>, <strong>needs attention</strong>, or <strong>no meaningful conclusion</strong>. Arms, forearms, thighs and calves are read against your whole body-composition picture (fat, lean, weight) — not the measurement alone — so you never have to remember whether up or down is "good".</p>
+    <p class="bi-section-note">The arrow is your literal change; the colour and label say whether it's <strong>improving</strong>, <strong>needs attention</strong>, or <strong>inconclusive</strong>, with the reasoning shown beneath. Arms, forearms, thighs and calves are read against your whole body-composition picture (fat, lean, weight) — not the measurement alone — so you never have to remember whether up or down is "good".</p>
 
     {% if bi.circumference_rows or bi.composition_rows %}
     <div class="bi-measure-tables">
@@ -251,7 +251,7 @@
     <div class="bi-measure-legend" role="note" aria-label="What the measurement colours mean">
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-improving" aria-hidden="true"></span><strong>Improving</strong> — healthy direction</span>
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-attention" aria-hidden="true"></span><strong>Needs attention</strong> — moving away from your goal</span>
-        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>No change</strong> — little movement, or not enough evidence to conclude</span>
+        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>Inconclusive</strong> — not enough evidence to draw a confident conclusion</span>
     </div>
     {% if bi.body_direction and bi.body_direction.summary %}
     <p class="bi-measure-legend-note">Limb reading right now: {{ bi.body_direction.summary }}{% if bi.body_direction.confidence == "low" %} <em>(low confidence — shown as “no change” until the picture is clearer)</em>{% elif bi.body_direction.confidence == "medium" %} <em>(medium confidence)</em>{% endif %}</p>

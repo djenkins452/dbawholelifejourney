@@ -19,10 +19,12 @@ circumference alone — so the user never has to remember whether up or down is 
             <span class="bi-arrow" aria-hidden="true">{% if row.arrow == "up" %}▲{% elif row.arrow == "down" %}▼{% else %}→{% endif %}</span>
             {% if row.delta > 0 %}+{% endif %}{{ row.delta|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}
         </span>
-        <span class="bi-measure-card-status"{% if row.reason %} title="{{ row.reason }}"{% endif %}>
+        <span class="bi-measure-card-status">
             {% if row.status == "improving" %}<span class="bi-status-icon" aria-hidden="true">&#10003;</span>{% elif row.status == "needs_attention" %}<span class="bi-status-icon" aria-hidden="true">&#10007;</span>{% endif %}
             <span class="bi-status-word">{{ row.status_label }}</span>
         </span>
+        {% if row.evidence %}<span class="bi-measure-card-evidence">{{ row.evidence|join:" · " }}</span>{% endif %}
+        {% if row.reason %}<span class="bi-measure-card-reason">{{ row.reason }}</span>{% endif %}
         <span class="bi-measure-card-prev">from {{ row.previous|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}</span>
         {% else %}
         <span class="bi-measure-card-delta is-first">First entry</span>
@@ -45,11 +47,13 @@ circumference alone — so the user never has to remember whether up or down is 
 .bi-measure-card-status { display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-size-xs, 0.72rem); font-weight: 700; }
 .bi-status-word { text-transform: none; }
 .bi-status-icon { font-weight: 900; }
-.bi-measure-card-prev { font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted, #9ca3af); }
+.bi-measure-card-evidence { font-size: var(--font-size-xs, 0.68rem); font-weight: 600; color: var(--color-text-muted, #6b7280); margin-top: 1px; }
+.bi-measure-card-reason { font-size: var(--font-size-xs, 0.68rem); color: var(--color-text-muted, #9ca3af); line-height: 1.25; }
+.bi-measure-card-prev { font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted, #9ca3af); margin-top: 1px; }
 
 /* Status → colour. The arrow/number AND the status word take the status colour; the
    left rail gives an at-a-glance read down the grid. Improving green · Needs attention
-   red · No change / inconclusive gray. */
+   red · Inconclusive gray. */
 .bi-status-improving { border-left-color: var(--color-success, #10b981); }
 .bi-status-improving .bi-measure-card-delta,
 .bi-status-improving .bi-measure-card-status { color: var(--color-success, #10b981); }
@@ -58,6 +62,6 @@ circumference alone — so the user never has to remember whether up or down is 
 .bi-status-needs_attention .bi-measure-card-delta,
 .bi-status-needs_attention .bi-measure-card-status { color: var(--color-danger, #ef4444); }
 
-.bi-status-no_change { border-left-color: var(--color-border, #d1d5db); }
-.bi-status-no_change .bi-measure-card-status { color: var(--color-text-muted, #9ca3af); }
+.bi-status-inconclusive { border-left-color: var(--color-border, #d1d5db); }
+.bi-status-inconclusive .bi-measure-card-status { color: var(--color-text-muted, #9ca3af); }
 </style>

@@ -28,10 +28,16 @@ Three visual states (and only three):
 |---|---|---|
 | 🟢 **Improving** | green | movement in the healthy direction |
 | 🔴 **Needs attention** | red | movement away from the goal |
-| ⚪ **No change** | gray | no meaningful movement, **or** no meaningful conclusion |
+| ⚪ **Inconclusive** | gray | the deterministic signals don't support a confident conclusion (or nothing meaningful has moved yet) |
 
-We **never** present an uncertain inference as certain. Low-confidence limb reads fall back
-to gray "Not enough evidence"; medium-confidence reads are hedged ("Likely improving").
+We deliberately **never** say "No change" when the truth is "we cannot confidently determine
+what this means" — that is **Inconclusive**, and we say so ("keep tracking over the next few
+check-ins"). We never present an uncertain inference as certain; medium-confidence limb reads
+are hedged ("Likely improving").
+
+Every card also surfaces the **evidence** it was built from + a one-line **conclusion**, so the
+user understands *why* WLJ reached the verdict — e.g. `Body fat ↓ · Lean mass ↑` →
+"Likely muscle gain while losing fat."
 
 ---
 
@@ -100,17 +106,20 @@ confidence → gray "Not enough evidence"; medium → "Likely …".
 ## Per-measurement interpretation (`interpret_measurement`)
 
 ```
-if |delta| < epsilon(unit):            → No change            (flat arrow)
-elif category == neutral:              → No change · "No goal" (literal arrow)
+if |delta| < epsilon(unit):            → Inconclusive ("no meaningful change yet")  (flat arrow)
+elif category == neutral:              → Inconclusive ("no established healthy direction")
 elif category in {decrease_good, increase_good}:
         healthy = literal direction matches the good direction
-        → Improving | Needs attention  (high confidence)
+        → Improving | Needs attention  (high confidence, with a one-line reason)
 elif category == inferred:
-        use infer_body_direction():
-          low confidence  → No change · "Not enough evidence"
-          medium          → "Likely improving" / "Likely needs attention"
-          high            → Improving | Needs attention
+        use infer_body_direction() (carries evidence + summary):
+          low confidence  → Inconclusive ("keep tracking over the next few check-ins")
+          medium          → "Likely improving" / "Likely needs attention" (+ evidence)
+          high            → Improving | Needs attention (+ evidence)
 ```
+
+Each result carries `evidence` (the signals, e.g. `["Body fat ↓", "Lean mass ↑"]`) and a
+`reason` (the conclusion) — both rendered beneath the status word on the card.
 
 `epsilon(unit)`: 5.0 for `kcal/day`, else 0.05 (only a genuine ~0 reads as "No change").
 

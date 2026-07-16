@@ -3,8 +3,40 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (feat(health): Body Intelligence measurements answer "am I improving?" — evidence-based, not fixed rules)
+# Last Updated: 2026-07-15 (refine(health): Body Intelligence — "Inconclusive" state + evidence/reason beneath every status)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — refine(health): Body Intelligence — honest "Inconclusive" state + the *why* under every status
+
+Refines the measurement interpretation engine on two points:
+
+1. **"No change" → "Inconclusive."** The gray state is renamed and its meaning sharpened: we no longer say
+   "No change" when the truth is *"we cannot confidently determine what this means."* The three states are now
+   **🟢 Improving / 🔴 Needs attention / ⚪ Inconclusive**. Inconclusive is used whenever the deterministic
+   signals don't support a confident conclusion — a limb whose composition evidence conflicts, a neutral metric
+   with no health goal, or nothing meaningful moved yet — and it says "keep tracking over the next few check-ins"
+   rather than implying a stable verdict. (`INCONCLUSIVE` replaces `NO_CHANGE` in `measurement_interpretation.py`;
+   template class `bi-status-no_change` → `bi-status-inconclusive`.)
+
+2. **Evidence + conclusion under every card.** Each result now carries `evidence` (the signals it was built
+   from) and a one-line `reason` (the conclusion), both rendered beneath the status word — so the user sees not
+   just the verdict but *why*. Limb cards show the composition evidence, e.g. `Body fat ↓ · Lean mass ↑` →
+   "Likely muscle gain while losing fat"; a muscle-loss read shows `Lean mass ↓ · Weight ↓ quickly` → "Possible
+   muscle loss"; a conflicting read shows `Body fat ↑ · Lean mass ↑` → "not enough to draw a confident
+   conclusion." Direct measures get a short reason ("Getting smaller — the healthy direction").
+
+**Honesty note:** a dedicated *strength* signal is not yet wired request-path-safe, so the evidence is built from
+the fat/lean/weight deltas (which directly measure muscle-vs-fat) — never a fabricated "Strength ↑".
+
+**Files:** `measurement_interpretation.py` (INCONCLUSIVE + `evidence`), `body_intelligence.py` (pass `evidence`
+through), `_bi_measure_table.html` (render evidence/reason + class rename), `body_intelligence.html` (legend +
+note wording), `test_measurement_interpretation.py`, `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md`.
+
+**Verification:** 16 interpretation + 34 body-intelligence tests green (incl. full-page render 200). Rendered-HTML
+check confirms every case: thigh ▼ during fat-loss → 🟢 Improving (down arrow, green); calf ▼ during muscle-loss →
+🔴 red; neutral/no-move/conflicting → ⚪ Inconclusive with an accurate reason. `check` clean; no migration.
+(Browser pane can't load local files for a pixel screenshot this session; the page renders 200 and output is
+verified structurally.)
 
 ## 2026-07-15 — refine(model-interface): high-salience completion reminder (precedence over relationship warmth)
 

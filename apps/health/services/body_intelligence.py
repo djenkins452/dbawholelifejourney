@@ -458,10 +458,11 @@ def _measurement_rows(snapshot, metric_order, metric_labels, body_direction=None
             "delta_pct": delta_pct.get(metric),
             # Deterministic interpretation — the arrow is the LITERAL move; status/colour
             # is whether that move is good, bad, or inconclusive.
-            "status": interp["status"],              # improving | needs_attention | no_change
+            "status": interp["status"],              # improving | needs_attention | inconclusive
             "status_label": interp["status_label"],
             "arrow": interp["arrow"],                # up | down | flat
             "confidence": interp["confidence"],      # high | medium | low
+            "evidence": interp["evidence"],          # signals behind the verdict (limbs)
             "reason": interp["reason"],
             # Back-compat healthy-direction flag (kept for any older reader).
             "improved": True if interp["status"] == "improving" else (

@@ -207,9 +207,15 @@ def build_body_intelligence(user, *, as_of=None):
     # ── Sessions: latest + previous applicable check-in ────────────────────
     sessions = _build_session_view(user)
 
+    # ── Deterministic body-direction inference (drives limb interpretation) ──
+    # "Is the body improving?" from the whole composition picture — reused by every
+    # limb (arm/forearm/thigh/calf) card so a circumference is never judged alone.
+    from apps.health.services.measurement_interpretation import infer_body_direction
+    body_direction = infer_body_direction(body_comp)
+
     # ── Template-friendly flattened rows (arrangement of snapshot truth) ────
-    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS)
-    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS)
+    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, body_direction)
+    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, body_direction)
     current = _current_snapshot(body_comp, snapshot, weight)
     current_cards = _current_snapshot_cards(current)
 
@@ -247,6 +253,7 @@ def build_body_intelligence(user, *, as_of=None):
         "measurement_series": measurement_series,
         "circumference_rows": circumference_rows,
         "composition_rows": composition_rows,
+        "body_direction": body_direction,
         "current": current,
         "current_cards": current_cards,
         "sessions": sessions,
@@ -415,14 +422,16 @@ def _build_session_view(user):
     }
 
 
-def _measurement_rows(snapshot, metric_order, metric_labels):
+def _measurement_rows(snapshot, metric_order, metric_labels, body_direction=None):
     """Flatten the canonical snapshot into ordered template rows for the metrics in
-    ``metric_order`` that the user has actually logged. Pure arrangement — every value
-    comes straight from the snapshot; no re-diffing.
+    ``metric_order`` that the user has actually logged, attaching the deterministic
+    interpretation for each ("what is this change most likely telling me?").
+
+    Pure arrangement + interpretation — every value comes straight from the snapshot; the
+    verdict comes from ``measurement_interpretation`` (limb circumferences are read through
+    the inferred ``body_direction``, never in isolation). No re-diffing, no new queries.
     """
-    from apps.health.services.body_composition_snapshot import (
-        METRIC_IMPROVEMENT_DIRECTION,
-    )
+    from apps.health.services.measurement_interpretation import interpret_measurement
 
     if not snapshot:
         return []
@@ -437,22 +446,26 @@ def _measurement_rows(snapshot, metric_order, metric_labels):
         if metric not in latest:
             continue
         d = delta.get(metric)
-        direction = METRIC_IMPROVEMENT_DIRECTION.get(metric, "none")
-        improved = None
-        if d is not None and direction != "none" and d != 0:
-            moved_down = d < 0
-            improved = (moved_down and direction == "down") or (
-                not moved_down and direction == "up"
-            )
+        unit = units.get(metric, "")
+        interp = interpret_measurement(metric, d, unit, body_direction)
         rows.append({
             "metric": metric,
             "label": metric_labels.get(metric, metric),
             "value": latest.get(metric),
-            "unit": units.get(metric, ""),
+            "unit": unit,
             "previous": previous.get(metric),
             "delta": d,
             "delta_pct": delta_pct.get(metric),
-            "improved": improved,
+            # Deterministic interpretation — the arrow is the LITERAL move; status/colour
+            # is whether that move is good, bad, or inconclusive.
+            "status": interp["status"],              # improving | needs_attention | no_change
+            "status_label": interp["status_label"],
+            "arrow": interp["arrow"],                # up | down | flat
+            "confidence": interp["confidence"],      # high | medium | low
+            "reason": interp["reason"],
+            # Back-compat healthy-direction flag (kept for any older reader).
+            "improved": True if interp["status"] == "improving" else (
+                False if interp["status"] == "needs_attention" else None),
         })
     return rows
 

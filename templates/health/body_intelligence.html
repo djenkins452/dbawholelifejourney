@@ -229,7 +229,7 @@
 
     <!-- ── Body measurements ───────────────────────────────────────────── -->
     <h3 class="bi-section-title">Body measurements</h3>
-    <p class="bi-section-note">Latest vs previous for each measurement. Positive/negative is your literal change; the arrow marks the healthier direction where WLJ knows it.</p>
+    <p class="bi-section-note">The arrow is your literal change; the colour and label say whether it's <strong>improving</strong>, <strong>needs attention</strong>, or <strong>no meaningful conclusion</strong>. Arms, forearms, thighs and calves are read against your whole body-composition picture (fat, lean, weight) — not the measurement alone — so you never have to remember whether up or down is "good".</p>
 
     {% if bi.circumference_rows or bi.composition_rows %}
     <div class="bi-measure-tables">
@@ -246,6 +246,26 @@
         </div>
         {% endif %}
     </div>
+
+    {# ── Legend: what the colours mean ─────────────────────────────────────── #}
+    <div class="bi-measure-legend" role="note" aria-label="What the measurement colours mean">
+        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-improving" aria-hidden="true"></span><strong>Improving</strong> — healthy direction</span>
+        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-attention" aria-hidden="true"></span><strong>Needs attention</strong> — moving away from your goal</span>
+        <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>No change</strong> — little movement, or not enough evidence to conclude</span>
+    </div>
+    {% if bi.body_direction and bi.body_direction.summary %}
+    <p class="bi-measure-legend-note">Limb reading right now: {{ bi.body_direction.summary }}{% if bi.body_direction.confidence == "low" %} <em>(low confidence — shown as “no change” until the picture is clearer)</em>{% elif bi.body_direction.confidence == "medium" %} <em>(medium confidence)</em>{% endif %}</p>
+    {% endif %}
+    <style nonce="{{ csp_nonce }}">
+    .bi-measure-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: var(--space-3, 0.75rem);
+        font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
+    .bi-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+    .bi-legend-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+    .bi-legend-improving { background: var(--color-success, #10b981); }
+    .bi-legend-attention { background: var(--color-danger, #ef4444); }
+    .bi-legend-neutral { background: var(--color-border, #d1d5db); }
+    .bi-measure-legend-note { margin-top: var(--space-2, 0.5rem); font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }
+    </style>
 
     <div class="bi-chart-card">
         <div class="bi-chart-head">

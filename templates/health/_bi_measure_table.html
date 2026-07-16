@@ -1,19 +1,27 @@
 {% comment %}
-Body Intelligence measurement cards (formerly a dense table).
-Expects: rows = list of {label, value, unit, previous, delta, delta_pct, improved}
-A card grid scans far faster than a wide table on both desktop and phone, while keeping
-the full current · previous · change detail. Read-only view of the canonical snapshot.
+Body Intelligence measurement cards.
+Expects rows = [{label, value, unit, previous, delta, delta_pct,
+                 status, status_label, arrow, confidence, reason}].
+
+The ARROW is the LITERAL measurement movement (▲ up / ▼ down / → none). The COLOUR and
+STATUS say whether that movement is Improving (green) / Needs attention (red) / No change
+· inconclusive (gray). For limb circumferences the status is inferred from the whole
+body-composition picture (apps/health/services/measurement_interpretation.py), never the
+circumference alone — so the user never has to remember whether up or down is "good".
 {% endcomment %}
 <div class="bi-measure-cards">
     {% for row in rows %}
-    <div class="bi-measure-card">
+    <div class="bi-measure-card bi-status-{{ row.status }}">
         <span class="bi-measure-card-label">{{ row.label }}</span>
         <span class="bi-measure-card-value">{{ row.value|floatformat:"-2" }}{% if row.unit %}<small>{{ row.unit }}</small>{% endif %}</span>
         {% if row.delta is not None %}
-        <span class="bi-measure-card-delta {% if row.improved %}is-good{% elif row.improved == False %}is-bad{% endif %}">
-            {% if row.delta > 0 %}▲{% elif row.delta < 0 %}▼{% else %}→{% endif %}
+        <span class="bi-measure-card-delta">
+            <span class="bi-arrow" aria-hidden="true">{% if row.arrow == "up" %}▲{% elif row.arrow == "down" %}▼{% else %}→{% endif %}</span>
             {% if row.delta > 0 %}+{% endif %}{{ row.delta|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}
-            {% if row.improved %}<span class="bi-measure-card-tick" aria-label="improving">&#10003;</span>{% endif %}
+        </span>
+        <span class="bi-measure-card-status"{% if row.reason %} title="{{ row.reason }}"{% endif %}>
+            {% if row.status == "improving" %}<span class="bi-status-icon" aria-hidden="true">&#10003;</span>{% elif row.status == "needs_attention" %}<span class="bi-status-icon" aria-hidden="true">&#10007;</span>{% endif %}
+            <span class="bi-status-word">{{ row.status_label }}</span>
         </span>
         <span class="bi-measure-card-prev">from {{ row.previous|floatformat:"-2" }}{% if row.unit %} {{ row.unit }}{% endif %}</span>
         {% else %}
@@ -26,14 +34,30 @@ the full current · previous · change detail. Read-only view of the canonical s
 <style nonce="{{ csp_nonce }}">
 .bi-measure-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-3, 0.75rem); }
 .bi-measure-card { display: flex; flex-direction: column; gap: 0.15rem; background: var(--color-surface, #fff);
-    border: 1px solid var(--color-border, #e5e7eb); border-radius: var(--radius-lg, 12px); padding: var(--space-3, 0.75rem) var(--space-4, 1rem); }
+    border: 1px solid var(--color-border, #e5e7eb); border-left: 3px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-lg, 12px); padding: var(--space-3, 0.75rem) var(--space-4, 1rem); }
 .bi-measure-card-label { font-size: var(--font-size-xs, 0.72rem); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted, #6b7280); }
 .bi-measure-card-value { font-size: var(--font-size-xl, 1.375rem); font-weight: 800; color: var(--color-text, #111827); line-height: 1.1; }
 .bi-measure-card-value small { font-size: 0.55em; font-weight: 600; color: var(--color-text-muted, #6b7280); margin-left: 2px; }
 .bi-measure-card-delta { font-size: var(--font-size-sm, 0.875rem); font-weight: 700; color: var(--color-text-muted, #6b7280); margin-top: 2px; }
-.bi-measure-card-delta.is-good { color: var(--color-success, #10b981); }
-.bi-measure-card-delta.is-bad { color: var(--color-warning, #f59e0b); }
 .bi-measure-card-delta.is-first { color: var(--color-text-muted, #9ca3af); font-weight: 600; }
-.bi-measure-card-tick { margin-left: 2px; }
+.bi-arrow { margin-right: 1px; }
+.bi-measure-card-status { display: inline-flex; align-items: center; gap: 3px; font-size: var(--font-size-xs, 0.72rem); font-weight: 700; }
+.bi-status-word { text-transform: none; }
+.bi-status-icon { font-weight: 900; }
 .bi-measure-card-prev { font-size: var(--font-size-xs, 0.72rem); color: var(--color-text-muted, #9ca3af); }
+
+/* Status → colour. The arrow/number AND the status word take the status colour; the
+   left rail gives an at-a-glance read down the grid. Improving green · Needs attention
+   red · No change / inconclusive gray. */
+.bi-status-improving { border-left-color: var(--color-success, #10b981); }
+.bi-status-improving .bi-measure-card-delta,
+.bi-status-improving .bi-measure-card-status { color: var(--color-success, #10b981); }
+
+.bi-status-needs_attention { border-left-color: var(--color-danger, #ef4444); }
+.bi-status-needs_attention .bi-measure-card-delta,
+.bi-status-needs_attention .bi-measure-card-status { color: var(--color-danger, #ef4444); }
+
+.bi-status-no_change { border-left-color: var(--color-border, #d1d5db); }
+.bi-status-no_change .bi-measure-card-status { color: var(--color-text-muted, #9ca3af); }
 </style>

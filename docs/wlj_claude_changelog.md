@@ -3,8 +3,47 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (chore: retire the temporary STEPS_GLASSBOX instrumentation — Steps proven end to end)
+# Last Updated: 2026-07-15 (feat(health): Body Intelligence measurements answer "am I improving?" — evidence-based, not fixed rules)
 # ================================================================# WLJ Change History
+
+## 2026-07-15 — feat(health): Body Intelligence measurements answer "am I improving?" (deterministic, evidence-based)
+
+Each "Body measurements" card now communicates **three separate things**: the *literal* change
+(arrow), whether that change is a *healthy* direction (colour), and the *status* word — so the user
+never has to remember whether up or down is "good" for a metric. Three states only: 🟢 **Improving** /
+🔴 **Needs attention** / ⚪ **No change · inconclusive**. The arrow is always the literal movement; the
+colour/label is the judgment.
+
+**Core principle — never judge a circumference in isolation.** Per the product decision, WLJ has the whole
+picture (weight, body-fat %, lean, fat, the precomputed recomposition / muscle-loss-risk / preservation
+signals), so a limb (arm/forearm/thigh/calf) change is read against the **body's inferred direction**, not a
+fixed "bigger arms = good" rule. This means a **▼ down** arrow can correctly show **green "Improving"** (a
+smaller limb while losing fat) — and a limb shrinking during muscle loss shows red. When evidence is thin or
+conflicting we say so ("Not enough evidence"), and medium-confidence reads are hedged ("Likely improving") —
+never an uncertain inference presented as certain.
+
+**New canonical module** `apps/health/services/measurement_interpretation.py` (the single authority):
+- `MEASUREMENT_CATEGORY` — every metric → `decrease_good` (waist/hips/neck/body-fat/fat-mass/visceral/BMI/
+  metabolic-age) · `increase_good` (lean/skeletal-muscle/bone) · `inferred` (the eight limb circumferences) ·
+  `neutral` (chest/shoulders/BMR/body-water). Unlisted → neutral (never fabricate a verdict).
+- `infer_body_direction(body_comp)` — deterministic verdict from the DailyHealthSummary body-comp panel
+  (14-day fat/lean deltas + recomposition/muscle-loss-risk/preservation), matching the agreed Scenarios A–D
+  (recomposition → Improving; fat-loss-preserving → Improving; muscle-loss → Needs attention; conflict →
+  Neutral). Reuses precomputed truth → **no new request-path queries**.
+- `interpret_measurement(...)` → `{status, status_label, arrow, confidence, reason}` per card.
+
+**Wiring/UI:** `_measurement_rows` now attaches the interpretation (replacing the old healthy-direction-only
+`improved` flag, kept for back-compat); `_bi_measure_table.html` redesigned with a status colour-rail + literal
+arrow + status word + reason tooltip; `body_intelligence.html` gains the **legend** (🟢/🔴/⚪) and a live
+"limb reading" note with confidence.
+
+**Docs:** `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md` (the category map + inference rules so future
+measurements inherit the correct behaviour by category).
+
+**Verification:** 16 new interpretation unit tests (all four scenarios + directional/neutral/near-zero/limb
+cases, incl. the "down arrow but green" case) + 53 existing body-intelligence/body-story tests green (incl.
+full-page render → 200 with the new fields). `manage.py check` clean; no migration. (Browser pane was
+unavailable this session for a pixel screenshot; the page renders 200 and the logic is fully unit-tested.)
 
 ## 2026-07-15 — refine(model-interface): define response COMPLETION (replace the filler-phrase blacklist)
 

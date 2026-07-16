@@ -98,7 +98,23 @@ class DomainTruth:
         `CompleteEntity` that can answer the natural questions about itself."""
         raise NotImplementedError(f"{self.domain} domain truth exposes no describe()")
 
+    # ANALYSIS COMPLETENESS LAW (the investigate-before-concluding guarantee) --------
+    # THE LAW: when the user's intent is ANALYSIS of a subject, the Chief of Staff must
+    # investigate the deterministic truth WLJ holds before it may conclude "insufficient".
+    # A prompt can only REQUEST that; it cannot GUARANTEE it. So WLJ performs the
+    # investigation DETERMINISTICALLY: the Analysis surface composes EVERY relevant
+    # retrieval for a subject (history across trailing windows + record detail + all-time
+    # span/count) into ONE bundle carrying a deterministic completeness verdict
+    # (holds_data / evidence). Composition, not reasoning — the model still reasons over
+    # the bundle. Because one call returns the whole evidence set, the model can neither
+    # under-gather nor truthfully claim "insufficient" while WLJ still holds the truth.
+    # A domain declares its analyzable subjects here; the generic composer
+    # (apps/ai/cos_services/domain_analysis.py) reuses history()/describe() — no new
+    # retrieval logic. `subject -> {history_metric, entity_type, windows}`.
+    analysis_subjects = {}        # introspection: subjects the Analysis surface can compose
+
     def supports(self):
         return {"current": tuple(self.current_metrics),
                 "history": tuple(self.history_metrics),
-                "entities": tuple(self.entity_types)}
+                "entities": tuple(self.entity_types),
+                "analysis": tuple(self.analysis_subjects)}

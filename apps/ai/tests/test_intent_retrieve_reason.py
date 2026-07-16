@@ -56,5 +56,5 @@ class IntentRetrieveVsReasonContractTests(TestCase):
         names = {t["function"]["name"] for t in truth_tools()}
         self.assertEqual(names, {
             "get_domain_state", "search_history", "get_history",
-            "get_entity", "get_foundational_health_facts",
+            "get_entity", "get_analysis", "get_foundational_health_facts",
         })

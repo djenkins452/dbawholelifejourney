@@ -68,7 +68,7 @@ class InvestigateBeforeConcludingContractTests(TestCase):
     def test_workout_example_is_present(self):
         low = CONSTITUTION.lower()
         self.assertIn("analyze my workout trends", low)
-        self.assertIn("do not stop at one history window", low)
+        self.assertIn("get_analysis('health', 'workouts')", low)
 
     def test_high_salience_reminder_guards_premature_insufficient(self):
         # The completion reminder is assembled LAST (highest salience); it must not let the
@@ -86,10 +86,26 @@ class InvestigateBeforeConcludingContractTests(TestCase):
         self.assertIn("investigate before concluding", low)
         self.assertIn("reserve 'insufficient' for a genuine absence", low)
 
-    def test_truth_resolution_tool_set_unchanged(self):
-        # Prompt-only change: no tool added/removed, no retrieval surface touched.
+    def test_analysis_surface_is_the_investigation_guarantee(self):
+        # The behavioral contract is now backed by a deterministic surface, not only a
+        # prompt: get_analysis composes the whole investigation in one call.
+        names = {t["function"]["name"] for t in truth_tools()}
+        self.assertIn("get_analysis", names)
+        low = CONSTITUTION.lower()
+        self.assertIn("get_analysis", low)
+        self.assertIn("holds_data", low)
+
+    def test_understanding_is_not_a_completeness_authority(self):
+        # Resolves the override tension: the whole-life summary never justifies an
+        # "insufficient" verdict on a specific analytical subject.
+        low = CONSTITUTION.lower()
+        self.assertIn("whole-life summary", low)
+        self.assertIn("never conclude 'insufficient' for the subject", low)
+
+    def test_truth_resolution_tool_set_is_the_expected_six(self):
+        # Analysis added as a first-class truth surface (state/history/entity/analysis).
         names = {t["function"]["name"] for t in truth_tools()}
         self.assertEqual(names, {
             "get_domain_state", "search_history", "get_history",
-            "get_entity", "get_foundational_health_facts",
+            "get_entity", "get_analysis", "get_foundational_health_facts",
         })

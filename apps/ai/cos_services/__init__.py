@@ -49,6 +49,12 @@ from apps.ai.cos_services.domain_history import (
     history_capability_index,
     history_capable_domains,
 )
+from apps.ai.cos_services.domain_analysis import (
+    DOMAIN_ANALYSIS_SCHEMA_VERSION,
+    analysis_capability_index,
+    analysis_capable_domains,
+    get_domain_analysis,
+)
 from apps.ai.cos_services.domain_entity import (
     DOMAIN_ENTITY_SCHEMA_VERSION,
     get_domain_entity,
@@ -91,6 +97,9 @@ __all__ = [
     "DOMAIN_STATE_SCHEMA_VERSION",
     # Pillar 1 — history branch (Truth Resolution Layer, DomainTruth.history)
     "get_domain_history",
+    "get_domain_analysis",
+    "analysis_capability_index",
+    "analysis_capable_domains",
     "history_capability_index",
     "history_capable_domains",
     "DOMAIN_HISTORY_SCHEMA_VERSION",

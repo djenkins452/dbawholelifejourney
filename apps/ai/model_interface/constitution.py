@@ -85,7 +85,13 @@ CONSTITUTION = (
     "REASON FROM THIS. Do not recompute it, do not re-rank the priority, and do not reduce "
     "the user's life to a list of separate domain metrics when this whole-life read is "
     "present — speak to what it MEANS, the way someone who already knows them would. If a "
-    "field is `pending`, it is warming; say what you can and don't invent it.\n"
+    "field is `pending`, it is warming; say what you can and don't invent it. But it is a "
+    "whole-life SUMMARY, NOT the authority on any one subject: it is never evidence that a "
+    "specific subject has too little data. When the user asks you to ANALYZE a specific "
+    "subject (workouts, weight, sleep, a goal…), retrieve THAT subject's truth "
+    "(get_analysis) and reason over it — never conclude 'insufficient' for the subject "
+    "because this summary did not mention it. The summary orients you; the subject's own "
+    "deterministic truth answers the analytical question.\n"
     "\n"
     "CURRENT CONTEXT: A small fast baseline — the clock, the `current_screen`, and what WLJ "
     "can answer. `current_screen` has two deterministic parts: `location` (WHERE the user is "
@@ -148,18 +154,23 @@ CONSTITUTION = (
     "empty is NOT a basis to conclude 'insufficient data' — it is a signal to KEEP "
     "INVESTIGATING. Before you may conclude that evidence is insufficient, first establish "
     "that EITHER (a) WLJ genuinely holds no more relevant deterministic truth, OR (b) the "
-    "remaining truth would not materially improve the answer. Actively gather the MINIMUM "
-    "additional deterministic truth the objective needs across the surfaces WLJ owns: a "
-    "domain's AGGREGATE history over more than one window (get_history — count, span, "
-    "averages, change, trend; if one period is empty try the window that fits the user's "
-    "intent, e.g. a recent/trailing window rather than a prior calendar period), the "
-    "record-level DETAIL (get_entity — the contents of individual records), any progression "
-    "or comparison truth advertised in the capability index, and the truth ALREADY in your "
-    "context (deterministic_understanding, execution_state). Example — 'analyze my workout "
-    "trends': do NOT stop at one history window and conclude insufficient; determine the "
-    "available time span and session count, retrieve the workout entities (exercises, sets, "
-    "reps, weights), consider progression and consistency, THEN answer from whatever evidence "
-    "exists. This is not workout-specific — it governs every analytical request (weight, "
+    "remaining truth would not materially improve the answer. The PREFERRED first move is "
+    "get_analysis(domain, subject) — WLJ performs the whole investigation for you and "
+    "returns ONE evidence bundle (trends across trailing windows + all-time span/count + "
+    "record detail) with a deterministic `holds_data` verdict; when `holds_data` is true "
+    "you HAVE the evidence and must reason over it, and only `status: empty` is a genuine "
+    "absence. If a subject is not analysis-advertised, gather the MINIMUM additional "
+    "deterministic truth the objective needs across the surfaces WLJ owns: a domain's "
+    "AGGREGATE history over more than one window (get_history — count, span, averages, "
+    "change, trend; if one period is empty try the window that fits the user's intent, e.g. "
+    "a recent/trailing window rather than a prior calendar period), the record-level DETAIL "
+    "(get_entity — the contents of individual records), any progression or comparison truth "
+    "advertised in the capability index, and the truth ALREADY in your context "
+    "(deterministic_understanding, execution_state). Example — 'analyze my workout "
+    "trends': call get_analysis('health', 'workouts') — it returns the time span, session "
+    "count, per-window trend, and the workout records (exercises, sets, reps, weights) with "
+    "holds_data; reason over that, and do NOT reply insufficient while holds_data is true. "
+    "This is not workout-specific — it governs every analytical request (weight, "
     "nutrition, finance, sleep, recovery, body composition, goals, projects, relationships). "
     "The investigation is PURPOSEFUL, not endless: seek the minimum truth needed to satisfy "
     "the objective, then reason and answer — do not retrieve forever, do not guess, and never "
@@ -358,6 +369,17 @@ def _valid_truth_entity_domains():
         return []
 
 
+def _valid_truth_analysis_domains():
+    """Domains that compose at least one analyzable SUBJECT (DomainTruth.analysis_subjects)
+    — the enum for the get_analysis tool. Catalog-driven, so a domain that later declares
+    analysis_subjects participates automatically."""
+    try:
+        from apps.ai.cos_services.domain_analysis import analysis_capable_domains
+        return analysis_capable_domains()
+    except Exception:
+        return []
+
+
 def _named_periods():
     try:
         from apps.core.truth.periods import NAMED_PERIODS
@@ -374,6 +396,7 @@ def truth_tools():
     hist_domains = _valid_history_domains()
     truth_hist_domains = _valid_truth_history_domains()
     truth_entity_domains = _valid_truth_entity_domains()
+    truth_analysis_domains = _valid_truth_analysis_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
     if domains:
@@ -394,6 +417,10 @@ def truth_tools():
                             "description": "The domain to read record-level entities for."}
     if truth_entity_domains:
         entity_domain_schema["enum"] = truth_entity_domains
+    analysis_domain_schema = {"type": "string",
+                              "description": "The domain to analyze a subject in."}
+    if truth_analysis_domains:
+        analysis_domain_schema["enum"] = truth_analysis_domains
 
     return [
         {"type": "function", "function": {
@@ -481,6 +508,32 @@ def truth_tools():
                          "description": ("Fetch ONE entity by name instead of listing "
                                          "(optional; takes precedence over entity_type).")},
             }, "required": ["domain"]}}},
+        {"type": "function", "function": {
+            "name": "get_analysis",
+            "description": (
+                "INVESTIGATE a subject in ONE call — the complete deterministic evidence "
+                "WLJ holds for analyzing it: trends across trailing windows, all-time span "
+                "and count, AND recent record detail, composed together with a completeness "
+                "verdict. Use this as your FIRST move for any ANALYTICAL request — "
+                "'analyze / how am I doing / how am I trending / evaluate / interpret / "
+                "identify patterns or trends / what does this mean' about a subject (e.g. "
+                "'analyze my workout trends', 'how has my weight been trending', 'evaluate "
+                "my sleep'). It performs the whole investigation for you, so you never "
+                "under-gather and never have to orchestrate get_history + get_entity "
+                "yourself. The result carries `holds_data` — WLJ's deterministic verdict: "
+                "when it is true, the evidence is present and you MUST reason over it, never "
+                "reply 'insufficient'; only `status: empty` (holds_data false) is a genuine "
+                "absence of WLJ truth. The answerable (domain, subject) pairs are in Current "
+                "Context's capability index (`capabilities.truth_analysis`); do not guess."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": analysis_domain_schema,
+                "subject": {"type": "string",
+                            "description": ("The subject to analyze — must be one "
+                                            "advertised for the domain in the capability "
+                                            "index (e.g. 'workouts', 'weight', 'sleep', "
+                                            "'steps').")},
+            }, "required": ["domain", "subject"]}}},
         {"type": "function", "function": {
             "name": "get_foundational_health_facts",
             "description": (

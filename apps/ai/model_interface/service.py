@@ -31,6 +31,7 @@ from apps.ai.cos_services import (
     action_interface,
     get_ai_relationship,
     get_current_context_baseline,
+    get_domain_analysis,
     get_domain_entity,
     get_domain_history,
     get_domain_state,
@@ -272,6 +273,24 @@ class ModelInterfaceService:
                     result_digest={"domain": args.get("domain"),
                                    "metric": args.get("metric"),
                                    "period": args.get("period")},
+                )
+                return out
+            if name == "get_analysis":
+                raw = get_domain_analysis(
+                    user, args.get("domain", ""), args.get("subject", ""),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"analysis:{args.get('domain', '')}."
+                           f"{args.get('subject', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    result_digest={"domain": args.get("domain"),
+                                   "subject": args.get("subject"),
+                                   "holds_data": raw.get("holds_data"),
+                                   "evidence": raw.get("evidence")},
                 )
                 return out
             if name == "get_entity":

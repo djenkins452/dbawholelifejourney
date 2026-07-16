@@ -19,6 +19,16 @@ class HealthDomainTruth(DomainTruth):
     history_metrics = ("steps", "sleep", "weight", "workouts")
     entity_types = ("workout",)
 
+    # Analyzable subjects — each composes the domain's EXISTING history()/describe()
+    # surfaces into one evidence bundle (see DomainTruth.analysis_subjects). Subjects
+    # with an entity_type also carry record-level detail (exercises/sets/reps/weights).
+    analysis_subjects = {
+        "workouts": {"history_metric": "workouts", "entity_type": "workout"},
+        "weight":   {"history_metric": "weight"},
+        "sleep":    {"history_metric": "sleep"},
+        "steps":    {"history_metric": "steps"},
+    }
+
     _HISTORY = {
         "steps": HealthHistory.steps,
         "sleep": HealthHistory.sleep,

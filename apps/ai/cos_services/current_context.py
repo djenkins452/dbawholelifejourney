@@ -97,7 +97,7 @@ def _capabilities() -> dict:
     permanent resident: "what data exists so the model knows what to pull"). It
     advertises, per domain, which metrics are answerable as HISTORY via the
     get_history tool, so the model never guesses a (domain, metric) pair."""
-    domains, truth_history, truth_entities = [], {}, {}
+    domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
@@ -113,12 +113,18 @@ def _capabilities() -> dict:
                 for d, s in cat.items()
                 if isinstance(s, dict) and s.get("entities")
             }
+            truth_analysis = {
+                d: sorted(s.get("analysis", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("analysis")
+            }
     except Exception:  # pragma: no cover - defensive
-        domains, truth_history, truth_entities = [], {}, {}
+        domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
         "truth_entities": truth_entities,
+        "truth_analysis": truth_analysis,
         # Semantic roles — so two similarly-named capabilities are never treated as
         # equivalent (e.g. health 'workouts' aggregate vs 'workout' record detail).
         "surface_roles": {
@@ -127,15 +133,24 @@ def _capabilities() -> dict:
             "truth_entities": ("DETAIL of an individual record — its identity, contents, "
                                "and child records (e.g. a workout's exercises, sets, reps, "
                                "weights)."),
+            "truth_analysis": ("COMPLETE evidence for ANALYZING a subject in one call — "
+                               "trends across trailing windows + all-time span/count + "
+                               "record detail + a holds_data verdict. The whole "
+                               "investigation, composed; use for analyze/trend/'how am I "
+                               "doing' questions so you never under-gather."),
         },
         "note": ("For 'how many / how much / average / trend' use get_history (metric "
                  "names in truth_history). For 'what / which / did I / the contents of a "
-                 "specific record' use get_entity (record types in truth_entities). A "
-                 "metric and a record type can share a domain — e.g. health 'workouts' "
-                 "(aggregate session count) vs 'workout' (one workout's exercise detail) "
-                 "— these are DIFFERENT surfaces; pick by whether the question is a count/"
-                 "trend or a record's contents. Call a truth tool for anything not in this "
-                 "baseline."),
+                 "specific record' use get_entity (record types in truth_entities). For "
+                 "'analyze / how am I doing / how am I trending / evaluate / interpret' a "
+                 "subject, use get_analysis (subjects in truth_analysis) — it composes the "
+                 "whole investigation in ONE call and returns holds_data, so you never "
+                 "conclude 'insufficient' while WLJ still holds the truth. A metric and a "
+                 "record type can share a domain — e.g. health 'workouts' (aggregate "
+                 "session count) vs 'workout' (one workout's exercise detail) — these are "
+                 "DIFFERENT surfaces; pick by whether the question is a count/trend, a "
+                 "record's contents, or a full analysis. Call a truth tool for anything "
+                 "not in this baseline."),
     }
 
 

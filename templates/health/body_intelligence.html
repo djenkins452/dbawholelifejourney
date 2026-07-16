@@ -225,9 +225,60 @@
     </div>
     {% endif %}
 
-    <!-- ── Body measurements ───────────────────────────────────────────── -->
+    {# ── YOUR BODY ASSESSMENT — the ONE executive summary; the cards below are its evidence ── #}
+    {% with a=bi.body_assessment %}
+    {% if a and a.grade %}
+    <section class="bi-assessment bi-assessment-{{ a.status }}" data-testid="bi-assessment">
+        <div class="bi-assessment-head">
+            <h3 class="bi-assessment-title">Your Body Assessment</h3>
+            <div class="bi-assessment-grade-wrap">
+                <span class="bi-assessment-grade-key">Overall progress</span>
+                <span class="bi-assessment-grade">{{ a.grade }}</span>
+            </div>
+        </div>
+        {% if a.headline %}<p class="bi-assessment-headline">{{ a.headline }}</p>{% endif %}
+        {% if a.facts %}
+        <div class="bi-assessment-block">
+            <span class="bi-assessment-block-label">Since beginning your journey</span>
+            <ul class="bi-assessment-facts">{% for f in a.facts %}<li>{{ f }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+        {% if a.overall %}
+        <div class="bi-assessment-block">
+            <span class="bi-assessment-block-label">Overall assessment</span>
+            <p class="bi-assessment-overall">{{ a.overall }} {{ a.opportunity }}</p>
+        </div>
+        {% endif %}
+    </section>
+    <style nonce="{{ csp_nonce }}">
+    .bi-assessment { background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb);
+        border-left: 5px solid var(--color-border, #d1d5db); border-radius: var(--radius-lg, 14px);
+        padding: var(--space-4, 1rem) var(--space-5, 1.25rem); margin-bottom: var(--space-4, 1rem); }
+    .bi-assessment-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    .bi-assessment-title { margin: 0; font-size: var(--font-size-lg, 1.15rem); font-weight: 800; color: var(--color-text, #111827); }
+    .bi-assessment-grade-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .bi-assessment-grade-key { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
+    .bi-assessment-grade { font-size: var(--font-size-base, 1rem); font-weight: 800; padding: 2px 12px; border-radius: 999px;
+        background: var(--color-border, #e5e7eb); color: var(--color-text, #374151); }
+    .bi-assessment-headline { margin: 0.5rem 0 0; font-size: var(--font-size-base, 1rem); font-weight: 600; color: var(--color-text, #1f2937); line-height: 1.4; }
+    .bi-assessment-block { margin-top: 0.85rem; }
+    .bi-assessment-block-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #9ca3af); }
+    .bi-assessment-facts { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+    .bi-assessment-facts li { font-size: var(--font-size-sm, 0.9rem); color: var(--color-text, #374151); line-height: 1.5; }
+    .bi-assessment-overall { margin: 0.25rem 0 0; font-size: var(--font-size-sm, 0.9rem); color: var(--color-text, #374151); line-height: 1.45; }
+    .bi-assessment-improving { border-left-color: var(--color-success, #10b981); }
+    .bi-assessment-improving .bi-assessment-grade { background: var(--color-success, #10b981); color: #fff; }
+    .bi-assessment-recovering { border-left-color: var(--color-warning, #f59e0b); }
+    .bi-assessment-recovering .bi-assessment-grade { background: var(--color-warning, #f59e0b); color: #fff; }
+    .bi-assessment-needs_attention { border-left-color: var(--color-danger, #ef4444); }
+    .bi-assessment-needs_attention .bi-assessment-grade { background: var(--color-danger, #ef4444); color: #fff; }
+    </style>
+    {% endif %}
+    {% endwith %}
+
+    <!-- ── Body measurements (supporting evidence) ───────────────────────── -->
     <h3 class="bi-section-title">Body measurements</h3>
-    <p class="bi-section-note">Each measurement is read over your <strong>whole journey</strong> — the overall trend since your first check-in plus recent momentum — not a single week, so it describes your long-term story rather than reacting to noise. Arms, forearms, thighs and calves are interpreted against your whole body-composition trajectory (fat, lean, weight), so you never have to remember whether up or down is "good".</p>
+    <p class="bi-section-note">Each card shows the <strong>facts</strong> (Current · Overall · Recent) and then how that measurement <strong>contributes</strong> to your assessment above. Every measurement participates in the same story — read over your whole journey and against your whole body-composition trajectory, never in isolation.</p>
 
     {% if bi.circumference_rows or bi.composition_rows %}
     <div class="bi-measure-tables">
@@ -253,9 +304,6 @@
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>Stable</strong> — no meaningful long-term change</span>
         <span class="bi-legend-item"><span class="bi-legend-dot bi-legend-neutral" aria-hidden="true"></span><strong>Inconclusive</strong> — not enough evidence yet to conclude</span>
     </div>
-    {% if bi.body_assessment and bi.body_assessment.summary %}
-    <p class="bi-measure-legend-note">Your whole-body assessment: {{ bi.body_assessment.summary }}{% if bi.body_assessment.confidence == "low" %} <em>(still forming — limb reads stay cautious until it's clearer)</em>{% endif %}. Every limb card is interpreted against this single assessment.</p>
-    {% endif %}
     <style nonce="{{ csp_nonce }}">
     .bi-measure-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: var(--space-3, 0.75rem);
         font-size: var(--font-size-xs, 0.75rem); color: var(--color-text-muted, #6b7280); }

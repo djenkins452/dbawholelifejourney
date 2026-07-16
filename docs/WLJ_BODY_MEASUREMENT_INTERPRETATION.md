@@ -71,11 +71,21 @@ never sets the long-term story: Overall `in 0.3 · lb 1.0 · pct 0.4 · kcal 30`
 |---|---|---|
 | `decrease_good` | waist, hips, neck, body_fat_pct, fat_mass, visceral_fat, bmi, metabolic_age | own journey; smaller is healthier |
 | `increase_good` | lean_mass, skeletal_muscle_mass, bone_mass | own journey; larger is healthier |
-| `inferred` | arm/forearm/thigh/calf (both sides) | the limb's journey **against the body's journey** |
-| `neutral` | chest, shoulders, body_water_pct, bmr | tracked, never judged |
+| `inferred` | arm/forearm/thigh/calf, **chest, shoulders** | circumference's journey **against the assessment** |
+| `supporting` | bmr, body_water_pct | contextual — lower-confidence supporting evidence, against the assessment |
 
-Anything unlisted → `neutral` (never fabricate a verdict). Add a new measurement by adding one
-line here.
+**Nothing is "neutral / no goal."** Every measurement contributes evidence toward the one goal
+(improving the body); some (`supporting`) contribute with lower confidence, but all participate in
+the same story. Anything unlisted → `supporting`.
+
+## The executive summary (`build_body_assessment` output)
+
+Computed ONCE, rendered as **"Your Body Assessment"** at the TOP (the cards are its evidence). It
+returns, besides `status`/`confidence` (which the cards consume): `grade` (Overall progress —
+Excellent / Great / Good / Recovering-grade / Needs attention / …), `headline`, `facts` (journey
+highlights: Weight ↓ 27 lb, Waist ↓ 6.2 in, Fat Mass ↓ 14 lb, and a lean-mass sentence),
+`overall`, and `opportunity`. The Insights list mirrors the cards, so nothing invents a different
+story.
 
 ---
 

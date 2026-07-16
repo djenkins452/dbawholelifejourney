@@ -3,9 +3,43 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-15 (refine(health): Body Intelligence — Facts→Assessment→Interpretation + one holistic assessment + Recovering)
+# Last Updated: 2026-07-15 (feat(health): Body Intelligence — executive "Your Body Assessment" at top; every measurement participates)
 # ================================================================# WLJ Change History
 
+## 2026-07-15 — feat(health): Body Intelligence — one executive assessment at the TOP; cards are its evidence
+
+Completes the top-down architecture the user asked for: **Facts establish truth → the whole-body Assessment
+establishes meaning → each card explains how it contributes.** The page now tells you the story first.
+
+**1. Executive "Your Body Assessment" at the top.** `build_body_assessment` now produces a full executive summary —
+`grade` (Overall progress: Excellent / Great / Good / Needs attention / …), `headline`, `facts` (journey highlights:
+"Weight ↓ 27 lb", "Waist ↓ 6.2 in", "Fat Mass ↓ 14 lb", and a lean-mass sentence), `overall`, and `opportunity`.
+It renders as a prominent card **above** the measurement cards (which are now labelled supporting evidence). The
+whole-body assessment sentence that was buried at the bottom is gone — it's the lead now.
+
+**2. Computed once, consumed by everything.** The assessment is built a single time from the whole-journey
+trajectories (fat/lean/weight, overall + recent), then every card AND the Insights list derive from it. No card or
+list independently invents a different story.
+
+**3. Nothing says "No health goal" / "Tracked".** Every measurement participates in the one goal (improving the
+body). `chest`/`shoulders` are now `inferred` (circumferences read against the assessment); `bmr`/`body_water_pct`
+are `supporting` (lower-confidence evidence, read against the assessment). The `neutral`/"no goal" category is gone.
+
+Verified on the screenshot data: assessment grade **Excellent** ("You're successfully losing fat while preserving
+and beginning to rebuild lean mass"), facts = Weight ↓ 27 lb · Waist ↓ 6.2 in · Fat Mass ↓ 14 lb · Lean Mass
+recovering, opportunity = "rebuilding additional lean mass while continuing fat loss" — and every card (Chest, BMR,
+Thigh, Lean Mass) derives from it with no "no goal".
+
+**Files:** `measurement_interpretation.py` (executive `build_body_assessment` + `supporting` category + `%` units),
+`body_intelligence.py` (compute trajectories once; feed assessment + rows + insights), `_bi_measure_table.html`
+(unchanged layout), `body_intelligence.html` (executive card at top; note removed from bottom; cards = evidence),
+`test_measurement_interpretation.py`, `docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md`.
+
+**Note:** the older 14-day "Your Body Story" hero (`body_story_builder`) still renders higher on the page; unifying
+it onto this single whole-journey assessment is a clean follow-up so there is exactly one executive voice.
+
+**Verification:** 15 interpretation + 31 body-intelligence + 19 body-story tests green (incl. full-page render 200);
+direct render check reproduced the user's executive summary verbatim. `check` clean; no migration.
 ## 2026-07-15 — refine(health): Body Intelligence — Facts → one Assessment → Interpretation (+ Recovering state)
 
 Applies the WLJ Truth architecture to Body Intelligence: **facts establish truth; interpretation explains truth.**

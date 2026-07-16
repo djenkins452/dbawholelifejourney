@@ -214,20 +214,19 @@ def build_body_intelligence(user, *, as_of=None):
         analyze_trajectory, build_body_assessment, build_insights,
     )
     _series = (measurement_series or {}).get("series", {})
+    _units = (snapshot or {}).get("units", {})
+    # Whole-journey trajectory per metric, computed ONCE (baseline→now + recent momentum).
+    traj_by_metric = {m: analyze_trajectory(pts, _units.get(m, "")) for m, pts in _series.items()}
     _weight_pts = [{"date": d.isoformat(), "value": v} for d, v in weight_hist] if weight_hist else []
-    # ONE holistic assessment (overall + recent) — every card interpretation derives from it,
-    # so the whole page tells the same story (no card conflicts with another).
-    body_assessment = build_body_assessment(
-        fat_traj=analyze_trajectory(_series.get("fat_mass"), "lb"),
-        lean_traj=analyze_trajectory(_series.get("lean_mass"), "lb"),
-        weight_traj=analyze_trajectory(_weight_pts, "lb"),
-        bf_traj=analyze_trajectory(_series.get("body_fat_pct"), "pct"),
-    )
+    weight_traj = analyze_trajectory(_weight_pts, "lb")
 
-    # ── Template-friendly rows — FACTS (overall + recent) then interpretation from the
-    # single assessment. Insights are generated FROM these rows → guaranteed consistent. ──
-    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, measurement_series, body_assessment)
-    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, measurement_series, body_assessment)
+    # THE ONE whole-body executive assessment — computed once, consumed by every card AND the
+    # Insights list, so nothing on the page invents a different story. Facts → Assessment →
+    # per-measurement interpretation.
+    body_assessment = build_body_assessment(traj_by_metric, weight_traj)
+
+    circumference_rows = _measurement_rows(snapshot, CIRCUMFERENCE_METRICS, METRIC_LABELS, traj_by_metric, body_assessment)
+    composition_rows = _measurement_rows(snapshot, COMPOSITION_METRICS, METRIC_LABELS, traj_by_metric, body_assessment)
     insights = build_insights(circumference_rows + composition_rows)
     current = _current_snapshot(body_comp, snapshot, weight)
     current_cards = _current_snapshot_cards(current)
@@ -436,31 +435,25 @@ def _build_session_view(user):
     }
 
 
-def _measurement_rows(snapshot, metric_order, metric_labels, measurement_series, body_assessment):
-    """Ordered template rows for the metrics the user has logged, each interpreting its
-    WHOLE journey — overall trend (baseline→now) + recent momentum — not a single delta.
-
-    The verdict comes from ``measurement_interpretation`` (limb circumferences are read
-    against the body's whole-journey ``body_assessment``, never in isolation). The current
-    value comes straight from the canonical snapshot; the trend comes from the per-metric
-    history series. No new queries.
+def _measurement_rows(snapshot, metric_order, metric_labels, traj_by_metric, body_assessment):
+    """Ordered template rows for the metrics the user has logged. FACTS (Overall + Recent
+    trend) then interpretation — how each measurement contributes to the ONE
+    ``body_assessment`` (never an independent conclusion). Trajectories are precomputed;
+    the current value comes from the canonical snapshot. No new queries.
     """
-    from apps.health.services.measurement_interpretation import (
-        analyze_trajectory, interpret_measurement,
-    )
+    from apps.health.services.measurement_interpretation import interpret_measurement
 
     if not snapshot:
         return []
     latest = snapshot.get("latest") or {}
     units = snapshot.get("units") or {}
-    series_by_metric = (measurement_series or {}).get("series", {})
 
     rows = []
     for metric in metric_order:
         if metric not in latest:
             continue
         unit = units.get(metric, "")
-        traj = analyze_trajectory(series_by_metric.get(metric), unit)
+        traj = (traj_by_metric or {}).get(metric)
         interp = interpret_measurement(metric, unit, traj, body_assessment)
         rows.append({
             "metric": metric,

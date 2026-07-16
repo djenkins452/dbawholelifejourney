@@ -1,14 +1,17 @@
 """
 Body Intelligence — measurement interpretation (the ONE deterministic authority).
 
-WLJ Truth architecture: **facts establish truth; interpretation explains truth.** This module
-NEVER competes with the facts — it reads the deterministic per-metric history (Current, Overall
-trend since the first reading, Recent momentum) and explains it.
+WLJ Truth architecture, applied top-down:
 
-Interpretation is **holistic**: `build_body_assessment` produces ONE whole-body verdict from the
-complete composition truth (fat / lean / weight, overall + recent), and every card's interpretation
-is generated from that single assessment. So no card independently infers a conclusion that
-conflicts with another — the whole page tells one story.
+    Facts establish truth.  →  The Whole-Body Assessment establishes meaning.  →  Each card
+    explains how its measurement contributes to that assessment.
+
+`build_body_assessment` computes ONE whole-body executive summary (grade + headline + journey
+facts + opportunity) from the complete composition truth (fat / lean / weight, overall + recent).
+It is computed ONCE. Every measurement card and the Insights list consume it — nothing on the
+page independently invents a different story. **No measurement is "neutral / no goal"**: every
+measurement contributes evidence toward the one goal (improving the body); some contribute with
+lower confidence, but all participate.
 
 Five states (four colours):
 
@@ -18,17 +21,16 @@ Five states (four colours):
     ⚪ Stable           a confident "no meaningful long-term change"
     ⚪ Inconclusive     not enough history / conflicting signals to conclude
 
-Status is driven by the OVERALL trend (noise-resistant); the narrative reflects recent momentum
-(continuing / plateaued / recovering). The interpretation must never contradict the facts above it.
-
-Categories (`MEASUREMENT_CATEGORY`): ``decrease_good`` / ``increase_good`` (direct measures, judged
-by their own journey), ``inferred`` (limbs — read against the body assessment), ``neutral`` (no goal).
+Categories (`MEASUREMENT_CATEGORY`):
+  * ``decrease_good`` / ``increase_good`` — direct measures with an intrinsic good direction.
+  * ``inferred`` — circumferences (arms/forearms/thighs/calves/chest/shoulders), read against the
+    assessment (a limb can be muscle or fat).
+  * ``supporting`` — contextual metrics (BMR, body-water) that participate as lower-confidence
+    supporting evidence, interpreted against the assessment. Never "no goal".
 
 Inputs are deterministic truth already computed (per-metric history + weight history). NOTE: a
-request-path-safe *strength* signal is not yet wired, so evidence uses fat / lean / weight (which
-directly measure muscle-vs-fat) — never a fabricated "Strength ↑".
-
-Rules documented in ``docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md``.
+request-path-safe *strength* signal is not yet wired, so evidence uses fat / lean / weight — never
+a fabricated "Strength ↑". Rules: ``docs/WLJ_BODY_MEASUREMENT_INTERPRETATION.md``.
 """
 from __future__ import annotations
 
@@ -38,7 +40,7 @@ from datetime import date
 DECREASE_GOOD = "decrease_good"
 INCREASE_GOOD = "increase_good"
 INFERRED = "inferred"
-NEUTRAL = "neutral"
+SUPPORTING = "supporting"
 
 MEASUREMENT_CATEGORY = {
     "waist": DECREASE_GOOD, "hips": DECREASE_GOOD, "neck": DECREASE_GOOD,
@@ -47,23 +49,24 @@ MEASUREMENT_CATEGORY = {
     "lean_mass": INCREASE_GOOD, "skeletal_muscle_mass": INCREASE_GOOD, "bone_mass": INCREASE_GOOD,
     "arm_left": INFERRED, "arm_right": INFERRED, "forearm_left": INFERRED, "forearm_right": INFERRED,
     "thigh_left": INFERRED, "thigh_right": INFERRED, "calf_left": INFERRED, "calf_right": INFERRED,
-    "chest": NEUTRAL, "shoulders": NEUTRAL, "body_water_pct": NEUTRAL, "bmr": NEUTRAL,
+    "chest": INFERRED, "shoulders": INFERRED,   # circumferences → read against the assessment
+    "bmr": SUPPORTING, "body_water_pct": SUPPORTING,  # contextual → supporting evidence
 }
 
 # ── Statuses ────────────────────────────────────────────────────────────────
-IMPROVING = "improving"           # green
-RECOVERING = "recovering"         # amber — behind overall, but correcting recently
-NEEDS_ATTENTION = "needs_attention"  # red
-STABLE = "stable"                 # gray — confident "no meaningful long-term change"
-INCONCLUSIVE = "inconclusive"     # gray — not enough history / conflicting
+IMPROVING = "improving"
+RECOVERING = "recovering"
+NEEDS_ATTENTION = "needs_attention"
+STABLE = "stable"
+INCONCLUSIVE = "inconclusive"
 
-_OVERALL = {"in": 0.3, "lb": 1.0, "pct": 0.4, "kcal/day": 30.0, "kcal": 30.0, "": 0.3}
-_RECENT = {"in": 0.15, "lb": 0.5, "pct": 0.2, "kcal/day": 20.0, "kcal": 20.0, "": 0.15}
+_OVERALL = {"in": 0.3, "lb": 1.0, "pct": 0.4, "%": 0.4, "kcal/day": 30.0, "kcal": 30.0, "": 0.3}
+_RECENT = {"in": 0.15, "lb": 0.5, "pct": 0.2, "%": 0.2, "kcal/day": 20.0, "kcal": 20.0, "": 0.15}
 _RECENT_WINDOW_DAYS = 35
 _LEAN_MEANINGFUL = 1.0
 _FAT_MEANINGFUL = 1.0
 _BF_MEANINGFUL = 0.4
-_LEAN_REBUILD = 0.5  # recent lean gain (lb) that reads as "rebuilding"
+_LEAN_REBUILD = 0.5
 
 
 def _thr(table, unit):
@@ -79,8 +82,6 @@ def _to_date(s):
 
 
 def analyze_trajectory(points, unit) -> dict | None:
-    """From a full ``[{date, value}]`` history: overall change (baseline→latest, the start of
-    the journey), rolling recent change, and span. None with <2 real readings."""
     pts = [p for p in (points or []) if p.get("value") is not None]
     if len(pts) < 2:
         return None
@@ -95,74 +96,146 @@ def analyze_trajectory(points, unit) -> dict | None:
                 recent_ref = p["value"]
                 break
     first_d = _to_date(pts[0]["date"])
-    span = (latest_d - first_d).days if (latest_d and first_d) else None
     return {
         "baseline": baseline, "latest": latest,
         "overall": round(latest - baseline, 2),
         "recent": round(latest - recent_ref, 2),
-        "n": len(pts), "span_days": span,
+        "n": len(pts),
+        "span_days": (latest_d - first_d).days if (latest_d and first_d) else None,
     }
 
 
 def _fmt(change, unit) -> str:
-    """'Down 6.2 in' / 'Up 0.4 in' / 'Flat'."""
     if change is None:
         return "—"
-    thr = _thr(_RECENT, unit)
     u = f" {unit}" if unit else ""
-    if abs(change) < thr:
+    if abs(change) < _thr(_RECENT, unit):
         return "Flat"
     return f"{'Down' if change < 0 else 'Up'} {abs(change):.2g}{u}"
 
 
-def build_body_assessment(fat_traj=None, lean_traj=None, weight_traj=None, bf_traj=None) -> dict:
-    """The ONE whole-body assessment (overall + recent), from which every limb card's
-    interpretation is generated. Considers RECENT momentum, so lean below baseline but
-    rebuilding reads as **Recovering**, not muscle loss.
+def _fact(label, traj, unit) -> str | None:
+    if not traj or abs(traj["overall"]) < _thr(_OVERALL, unit):
+        return None
+    ov = traj["overall"]
+    u = f" {unit}" if unit else ""
+    return f"{label} {'↓' if ov < 0 else '↑'} {abs(ov):.2g}{u}"
 
-    Returns ``{verdict, status, confidence, evidence, summary}``.
-    """
+
+# Executive copy per verdict — headline, overall assessment, biggest opportunity.
+_VERDICT_COPY = {
+    "recomposition": (
+        "You're losing fat and building lean mass at the same time — the hardest, most valuable pattern.",
+        "Your body is moving exactly where you want it to.",
+        "Keep the momentum: hold your training and protein while the fat keeps coming off."),
+    "recovering": (
+        "You're successfully losing fat while preserving and beginning to rebuild lean mass.",
+        "Your body is continuing to move in the desired direction.",
+        "Your biggest opportunity is rebuilding additional lean mass while continuing fat loss."),
+    "fat_loss_preserving": (
+        "You're losing fat while holding on to your lean mass — clean, high-quality fat loss.",
+        "Your body is moving in the desired direction.",
+        "Your biggest opportunity is adding resistance training to start building lean mass."),
+    "muscle_loss": (
+        "You're losing lean mass over your journey — the part of your body worth protecting.",
+        "Your body needs attention.",
+        "Prioritise protein and resistance training to protect and rebuild muscle."),
+    "mixed_gain": (
+        "Both fat and lean mass are rising — a mixed picture.",
+        "Your body's direction is mixed right now.",
+        "Decide on a clear phase — a lean bulk or a cut — so the trend has one direction."),
+    "unclear": (
+        "Your body-composition trend isn't clear yet.",
+        "There isn't enough of a pattern to call your direction yet.",
+        "Keep logging weight and measurements to sharpen the picture."),
+    "insufficient": (
+        "Keep logging to build your assessment.",
+        "A few more check-ins will unlock your whole-body story.",
+        "Log weight and body composition over the next few check-ins."),
+}
+
+
+def build_body_assessment(traj_by_metric=None, weight_traj=None) -> dict:
+    """The ONE whole-body executive assessment. Computed once; consumed by every card + the
+    Insights list. Returns verdict/status/confidence (for cards) plus the executive summary
+    (grade, headline, journey facts, overall, opportunity)."""
+    t = traj_by_metric or {}
+    fat_traj, lean_traj = t.get("fat_mass"), t.get("lean_mass")
+    bf_traj, waist_traj = t.get("body_fat_pct"), t.get("waist")
+
     fat_ov = fat_traj["overall"] if fat_traj else None
     lean_ov = lean_traj["overall"] if lean_traj else None
     lean_rc = lean_traj["recent"] if lean_traj else None
     bf_ov = bf_traj["overall"] if bf_traj else None
 
-    if fat_ov is None and lean_ov is None and bf_ov is None:
-        return {"verdict": "insufficient", "status": INCONCLUSIVE, "confidence": "low",
-                "evidence": [], "summary": "not enough body-composition history yet"}
-
     fat_down = (fat_ov is not None and fat_ov <= -_FAT_MEANINGFUL) or (bf_ov is not None and bf_ov <= -_BF_MEANINGFUL)
     fat_up = (fat_ov is not None and fat_ov >= _FAT_MEANINGFUL) or (bf_ov is not None and bf_ov >= _BF_MEANINGFUL)
+    big_fat = (fat_ov is not None and fat_ov <= -8.0) or (bf_ov is not None and bf_ov <= -3.0)
     lean_up = lean_ov is not None and lean_ov >= _LEAN_MEANINGFUL
     lean_down = lean_ov is not None and lean_ov <= -_LEAN_MEANINGFUL
     lean_rebuilding = lean_rc is not None and lean_rc >= _LEAN_REBUILD
 
-    if fat_down and lean_up:
-        return {"verdict": "recomposition", "status": IMPROVING, "confidence": "high",
-                "evidence": ["Body fat ↓ over your journey", "Lean mass ↑ over your journey"],
-                "summary": "you're losing fat and building lean mass"}
-    if lean_down and lean_rebuilding:
-        return {"verdict": "recovering", "status": RECOVERING, "confidence": "high",
-                "evidence": ["Lean mass ↓ over your journey", "Lean mass ↑ recently"],
-                "summary": "you lost lean mass earlier but recent readings show you rebuilding it"}
-    if lean_down:
-        return {"verdict": "muscle_loss", "status": NEEDS_ATTENTION, "confidence": "high",
-                "evidence": ["Lean mass ↓ over your journey"],
-                "summary": "your lean mass is below your starting point"}
-    if fat_down:
-        return {"verdict": "fat_loss_preserving", "status": IMPROVING, "confidence": "high",
-                "evidence": ["Body fat ↓ over your journey", "Lean mass steady"],
-                "summary": "you're losing fat while holding lean mass"}
-    if fat_up and lean_up:
-        return {"verdict": "mixed_gain", "status": INCONCLUSIVE, "confidence": "low",
-                "evidence": ["Body fat ↑ over your journey", "Lean mass ↑ over your journey"],
-                "summary": "fat and lean are both rising — the body's direction is mixed"}
-    return {"verdict": "unclear", "status": INCONCLUSIVE, "confidence": "low", "evidence": [],
-            "summary": "the body-composition trend is mixed so far"}
+    if fat_ov is None and lean_ov is None and bf_ov is None:
+        verdict, status, conf, summary, ev = "insufficient", INCONCLUSIVE, "low", "not enough body-composition history yet", []
+    elif fat_down and lean_up:
+        verdict, status, conf = "recomposition", IMPROVING, "high"
+        summary = "you're losing fat and building lean mass"
+        ev = ["Body fat ↓ over your journey", "Lean mass ↑ over your journey"]
+    elif lean_down and lean_rebuilding:
+        verdict, status, conf = "recovering", RECOVERING, "high"
+        summary = "you lost lean mass earlier but recent readings show you rebuilding it"
+        ev = ["Lean mass ↓ over your journey", "Lean mass ↑ recently"]
+    elif lean_down:
+        verdict, status, conf = "muscle_loss", NEEDS_ATTENTION, "high"
+        summary = "your lean mass is below your starting point"
+        ev = ["Lean mass ↓ over your journey"]
+    elif fat_down:
+        verdict, status, conf = "fat_loss_preserving", IMPROVING, "high"
+        summary = "you're losing fat while holding lean mass"
+        ev = ["Body fat ↓ over your journey", "Lean mass steady"]
+    elif fat_up and lean_up:
+        verdict, status, conf = "mixed_gain", INCONCLUSIVE, "low"
+        summary = "fat and lean are both rising"
+        ev = ["Body fat ↑ over your journey", "Lean mass ↑ over your journey"]
+    else:
+        verdict, status, conf, summary, ev = "unclear", INCONCLUSIVE, "low", "the body-composition trend is mixed so far", []
+
+    # Grade (Overall Progress).
+    grade = {
+        "recomposition": "Excellent",
+        "recovering": "Excellent" if big_fat else "Good",
+        "fat_loss_preserving": "Great",
+        "muscle_loss": "Needs attention",
+        "mixed_gain": "Mixed",
+        "unclear": "Building",
+        "insufficient": "Getting started",
+    }[verdict]
+
+    headline, overall, opportunity = _VERDICT_COPY[verdict]
+
+    # Journey facts (deterministic highlights since baseline).
+    facts = []
+    for label, traj, unit in (("Weight", weight_traj, "lb"), ("Waist", waist_traj, "in"),
+                              ("Fat Mass", fat_traj, "lb")):
+        f = _fact(label, traj, unit)
+        if f:
+            facts.append(f)
+    if lean_traj:
+        if lean_down and lean_rebuilding:
+            facts.append("Lean Mass remains below your starting point but has begun recovering over recent measurements.")
+        elif lean_up:
+            facts.append(f"Lean Mass ↑ {abs(lean_ov):.2g} lb")
+        elif lean_down:
+            facts.append(f"Lean Mass ↓ {abs(lean_ov):.2g} lb (needs rebuilding)")
+
+    return {
+        "verdict": verdict, "status": status, "confidence": conf,
+        "grade": grade, "headline": headline, "overall": overall,
+        "opportunity": opportunity, "facts": facts, "summary": summary, "evidence": ev,
+    }
 
 
 def _base(status, label, unit, traj, evidence, reason, *, confidence="high"):
-    """Assemble the row result: FACTS (Overall/Recent trend text) + INTERPRETATION."""
     return {
         "status": status, "status_label": label, "confidence": confidence,
         "arrow": ("flat" if not traj or abs(traj["overall"]) < _thr(_OVERALL, unit)
@@ -174,38 +247,24 @@ def _base(status, label, unit, traj, evidence, reason, *, confidence="high"):
 
 
 def interpret_measurement(metric: str, unit: str, traj: dict | None, assessment: dict | None) -> dict:
-    """Interpret one measurement's whole-journey trajectory from the holistic assessment.
-
-    Returns FACTS (``overall_text``, ``recent_text``, ``arrow``) + INTERPRETATION
-    (``status``, ``status_label``, ``evidence``, ``reason``, ``confidence``). The
-    interpretation never contradicts the facts.
-    """
-    category = MEASUREMENT_CATEGORY.get(metric, NEUTRAL)
+    """FACTS (overall/recent) + how this measurement contributes to the ONE assessment."""
+    category = MEASUREMENT_CATEGORY.get(metric, SUPPORTING)
 
     if traj is None:
         return {"status": INCONCLUSIVE, "status_label": "Inconclusive", "arrow": "flat",
                 "confidence": "low", "overall_text": "—", "recent_text": "—", "evidence": [],
                 "reason": "Keep logging — a few readings are needed to see your trajectory."}
 
-    overall = traj["overall"]
-    recent = traj["recent"]
-    ov_thr = _thr(_OVERALL, unit)
-    rc_thr = _thr(_RECENT, unit)
+    overall, recent = traj["overall"], traj["recent"]
+    ov_thr, rc_thr = _thr(_OVERALL, unit), _thr(_RECENT, unit)
     overall_flat = abs(overall) < ov_thr
-
-    # Neutral — tracked, never judged.
-    if category == NEUTRAL:
-        if overall_flat:
-            return _base(STABLE, "Stable", unit, traj, [], "Stable — no meaningful long-term change.")
-        return _base(INCONCLUSIVE, "Tracked", unit, traj, [],
-                     "No health goal for this measurement — shown for your reference.")
 
     # Direct measures — judged by their own journey; recent momentum adds Recovering.
     if category in (DECREASE_GOOD, INCREASE_GOOD):
         good = -1 if category == DECREASE_GOOD else 1
         if overall_flat:
             return _base(STABLE, "Stable", unit, traj, [], "Stable — no meaningful long-term change.")
-        if overall * good > 0:  # overall toward the goal
+        if overall * good > 0:
             if recent * good > 0 and abs(recent) >= rc_thr:
                 reason = "Excellent long-term progress — continues moving in the desired direction."
             elif abs(recent) < rc_thr:
@@ -213,17 +272,15 @@ def interpret_measurement(metric: str, unit: str, traj: dict | None, assessment:
             else:
                 reason = "Strong overall progress, though it's eased off recently — worth watching."
             return _base(IMPROVING, "Improving", unit, traj, [], reason)
-        # Overall on the wrong side of baseline.
-        if recent * good > 0 and abs(recent) >= rc_thr:  # recent is correcting
-            if category == INCREASE_GOOD:
-                reason = "Still below your starting point, but recent readings show you rebuilding."
-            else:
-                reason = "Still above your starting point, but recently moving the right way again."
+        if recent * good > 0 and abs(recent) >= rc_thr:
+            reason = ("Still below your starting point, but recent readings show you rebuilding."
+                      if category == INCREASE_GOOD
+                      else "Still above your starting point, but recently moving the right way again.")
             return _base(RECOVERING, "Recovering", unit, traj, [], reason)
         return _base(NEEDS_ATTENTION, "Needs attention", unit, traj, [],
                      "Trending away from your goal over your journey — worth attention.")
 
-    # INFERRED (limb) — read the limb's journey against the ONE body assessment.
+    # Contextual / circumference — read against the ONE assessment.
     if overall_flat:
         return _base(STABLE, "Stable", unit, traj, [], "Stable — no meaningful long-term change.")
 
@@ -232,34 +289,43 @@ def interpret_measurement(metric: str, unit: str, traj: dict | None, assessment:
     aconf = a.get("confidence", "low")
     aev = list(a.get("evidence", []))
     asum = a.get("summary", "")
-    limb_up = overall > 0
+    up = overall > 0
 
+    if category == SUPPORTING:
+        if astatus in (IMPROVING, RECOVERING, NEEDS_ATTENTION):
+            label = {IMPROVING: "Improving", RECOVERING: "Recovering", NEEDS_ATTENTION: "Needs attention"}[astatus]
+            return _base(astatus, label, unit, traj, [],
+                         f"Supporting evidence — consistent with your overall progress ({asum}).",
+                         confidence="low")
+        return _base(INCONCLUSIVE, "Inconclusive", unit, traj, [],
+                     "Contributes to your overall picture, but doesn't point a clear direction on its own yet.",
+                     confidence="low")
+
+    # INFERRED circumference.
     if aconf == "low" or astatus == INCONCLUSIVE:
         return _base(INCONCLUSIVE, "Inconclusive", unit, traj, aev,
-                     "This limb is changing, but your body's overall direction isn't clear enough yet — keep tracking.",
+                     "This is changing, but your body's overall direction isn't clear enough yet — keep tracking.",
                      confidence="low")
     if astatus == IMPROVING:
-        reason = (f"Growing while {asum} — consistent with muscle development." if limb_up
+        reason = (f"Growing while {asum} — consistent with muscle development." if up
                   else f"Slimming while {asum} — consistent with fat loss, not muscle loss.")
         return _base(IMPROVING, "Improving", unit, traj, aev, reason, confidence=aconf)
     if astatus == RECOVERING:
-        reason = (f"Growing as {asum}." if limb_up
-                  else f"Still slimming while {asum} — likely catching up.")
+        reason = (f"Growing as {asum}." if up else f"Still slimming while {asum} — likely catching up.")
         return _base(RECOVERING, "Recovering", unit, traj, aev, reason, confidence=aconf)
     if astatus == NEEDS_ATTENTION:
-        if not limb_up:
+        if not up:
             return _base(NEEDS_ATTENTION, "Needs attention", unit, traj, aev,
                          f"Shrinking while {asum} — possible muscle loss.", confidence=aconf)
         return _base(INCONCLUSIVE, "Inconclusive", unit, traj, aev,
                      f"Growing even though {asum} — a mixed signal; keep tracking.", confidence="low")
     return _base(INCONCLUSIVE, "Inconclusive", unit, traj, aev,
-                 "Not enough evidence to interpret this limb yet — keep tracking.", confidence="low")
+                 "Not enough evidence to interpret this yet — keep tracking.", confidence="low")
 
 
 def build_insights(rows) -> list:
     """One consistent Insights list, generated FROM the interpreted rows so it can never
-    contradict a card. Ordered by attention (needs attention → recovering → improving →
-    stable), then label."""
+    contradict a card. Ordered by attention."""
     order = {NEEDS_ATTENTION: 0, RECOVERING: 1, IMPROVING: 2, STABLE: 3, INCONCLUSIVE: 4}
     out = []
     for r in sorted(rows, key=lambda r: (order.get(r.get("status"), 5), r.get("label", ""))):

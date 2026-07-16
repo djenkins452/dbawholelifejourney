@@ -41,7 +41,7 @@ class CompetingHypothesesContractTests(TestCase):
     def test_requires_challenging_the_leading_hypothesis(self):
         low = CONSTITUTION.lower()
         self.assertIn("challenge your leading hypothesis", low)
-        self.assertIn("what evidence argues against this", low)
+        self.assertIn("what else could explain this", low)
         self.assertIn("stronger", low)
         self.assertIn("more uncertain", low)
 

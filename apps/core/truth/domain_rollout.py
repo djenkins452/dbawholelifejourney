@@ -23,6 +23,12 @@ def _absent(domain, metric, reason="no recent data"):
 class JournalDomainTruth(DomainTruth):
     domain = "journal"
     current_metrics = ("days_since_entry", "last_entry")
+    # Record-level truth: journal entries (title, body, MOOD, emotions, tags). Additive —
+    # `describe()` delegates to the canonical JournalQueries authority (no new store).
+    # This makes "what was my journal about yesterday?" / "what was my mood yesterday?"
+    # answerable from JOURNAL truth, instead of a cross-domain search that surfaces
+    # unrelated health metrics (defect 2026-07-17).
+    entity_types = ("entry",)
 
     def current(self, metric):
         st = self.state()
@@ -35,6 +41,20 @@ class JournalDomainTruth(DomainTruth):
             return _found(self.domain, metric, v, v) if v else \
                 _absent(self.domain, metric, "no journal entries")
         return _absent(self.domain, metric, "unsupported metric")
+
+    def describe(self, entity_type="entry"):
+        """Recent journal entries as CompleteEntity objects — answers "what did I write
+        about", "what was my mood", "what emotions/tags". entity_type ∈ entry."""
+        if entity_type not in (None, "entry"):
+            raise KeyError(f"journal domain cannot describe {entity_type!r} "
+                           f"(have {self.entity_types})")
+        from apps.journal.services.journal_queries import JournalQueries
+        return JournalQueries.describe(self.user)
+
+    def describe_one(self, name):
+        """The journal entry matching `name` (a date or title), or None."""
+        from apps.journal.services.journal_queries import JournalQueries
+        return JournalQueries.describe_one(self.user, name)
 
 
 @register_domain_truth
@@ -107,3 +127,27 @@ class RelationshipDomainTruth(DomainTruth):
             n = len(b) if isinstance(b, (list, tuple)) else (b or 0)
             return _found(self.domain, metric, n)
         return _absent(self.domain, metric, "unsupported metric")
+
+
+@register_domain_truth
+class NutritionDomainTruth(DomainTruth):
+    """Record-level nutrition truth: the actual FOODS the user logged. Additive entity
+    surface (delegates to the canonical NutritionQueries authority). Nutrition
+    AGGREGATES (calorie/protein targets, daily totals) already reach the model via
+    get_foundational_health_facts / get_domain_state; this exposes the food ITEMS so
+    "what have I eaten?" and personalized menus reason from real foods, not generic
+    knowledge (personalization defect, 2026-07-17). Distinct registry from
+    get_domain_state('nutrition') — this cannot change that path."""
+    domain = "nutrition"
+    entity_types = ("food",)
+
+    def describe(self, entity_type="food"):
+        if entity_type not in (None, "food"):
+            raise KeyError(f"nutrition domain cannot describe {entity_type!r} "
+                           f"(have {self.entity_types})")
+        from apps.health.services.nutrition_queries import NutritionQueries
+        return NutritionQueries.describe(self.user)
+
+    def describe_one(self, name):
+        from apps.health.services.nutrition_queries import NutritionQueries
+        return NutritionQueries.describe_one(self.user, name)

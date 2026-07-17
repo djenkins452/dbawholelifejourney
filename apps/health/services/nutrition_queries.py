@@ -169,6 +169,81 @@ class NutritionQueries:
             "sugar_g": agg["sugar_g"] or Decimal("0"),
         }
 
+    # ── Entity Completeness Law (record-level "what I ate" for the Model Interface) ──
+    # `describe` / `describe_one` return `CompleteEntity` objects — the actual FOODS the
+    # user logged (name, brand, meal, macros). Before this, the Model Interface reached
+    # nutrition AGGREGATES (targets, totals) but not the food items, so "what have I
+    # eaten?" returned "no meal details" and personalized menus ignored the foods the
+    # user actually eats (e.g. their 45g protein shake). This is the surface behind
+    # NutritionDomainTruth.describe(); it lets the CoS reason FROM the user's real foods
+    # instead of generic knowledge (personalization defect, 2026-07-17). Reuses the
+    # canonical queries above; no new store.
+    _DESCRIBE_LIMIT = 40   # recent foods across the last few days, newest-first
+
+    @classmethod
+    def describe(cls, user, *, limit=None):
+        """Recent logged foods, each a `CompleteEntity` (bounded, newest-first). The
+        model reasons over them to answer "what did I eat yesterday?" and to ground a
+        recommendation in foods the user actually eats."""
+        qs = (FoodEntry.objects.filter(user=user, status='active')
+              .order_by('-logged_date', '-logged_time', '-created_at')
+              [: (limit or cls._DESCRIBE_LIMIT)])
+        return [cls._to_entity(f) for f in qs]
+
+    @classmethod
+    def describe_one(cls, user, name):
+        """The most recent logged food matching `name` (e.g. "protein shake"), as a
+        `CompleteEntity`, or None — so the CoS cites the user's ACTUAL item + macros
+        ("your protein shake is 45g protein"), never a generic assumption."""
+        name = (name or "").strip()
+        if not name:
+            return None
+        f = (FoodEntry.objects.filter(user=user, status='active',
+                                      food_name__icontains=name)
+             .order_by('-logged_date', '-logged_time').first())
+        return cls._to_entity(f) if f else None
+
+    @classmethod
+    def _to_entity(cls, f):
+        """One FoodEntry → a CompleteEntity across the contract dimensions."""
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+
+        def _num(v):
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        name = (f.food_name or "").strip() or "Food"
+        brand = (f.food_brand or "").strip()
+        label = name + (f" ({brand})" if brand else "")
+        return CompleteEntity(
+            kind="food",
+            identity=f"{label} — {f.logged_date}",
+            definition={
+                "date": f.logged_date,
+                "meal_type": (f.meal_type or None),
+                "food_name": name,
+                "brand": brand or None,
+                "quantity": _num(f.quantity),
+                "serving_size": _num(f.serving_size),
+                "serving_unit": (f.serving_unit or None),
+            },
+            status="eaten",
+            performance={
+                "calories": _num(f.total_calories),
+                "protein_g": _num(f.total_protein_g),
+                "carbohydrates_g": _num(f.total_carbohydrates_g),
+                "fat_g": _num(f.total_fat_g),
+                "fiber_g": _num(f.total_fiber_g),
+                "sugar_g": _num(f.total_sugar_g),
+            },
+            freshness=F.CURRENT,
+        )
+
 
 def build_meal_signals(meal_totals):
     """

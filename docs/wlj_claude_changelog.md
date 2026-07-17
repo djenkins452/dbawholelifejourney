@@ -6,6 +6,28 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — feat(truth): expose Journal + Nutrition entity surfaces — the CoS reasons FROM the user's truth, not generic knowledge
+
+**Root cause of the investigation-quality + personalization defects: a Layer-1 truth-ACCESSIBILITY gap, NOT prompt/reasoning.** The Model Interface can only reason over truth WLJ exposes as tools; the `DomainTruth` catalog exposed record-level entities for only `health(workout)`, `legacy`, `medicine`. Everything else was reachable only as aggregates or via a cross-domain `search_history`. So (proven from the transcript + the catalog):
+
+- **"what was my journal about yesterday?" → returned health mobility/audio metrics.** Journal had `entities=[]`, so the question fell through to `search_history` (default `domain="all"`, which includes `health`), which surfaced records dated 7/16 (walking speed, audio exposure) that the model narrated as "journal entries."
+- **"what was my mood yesterday?" → "no mood".** `mood` is a FIELD on `JournalEntry`, never exposed.
+- **"what have I eaten?" → "no meal details".** Foods live in `FoodEntry` (171 rows for the owner), never exposed — only nutrition aggregates (calorie/protein targets, totals) were reachable.
+- **Personalized menu ignored the user's real foods / their 45g protein shake → generic internet plan** ("I could just use ChatGPT"). Same gap: the food ITEMS weren't retrievable.
+
+Per-question layer classification: **all one class — Layer 1 (Truth accessibility)**, sub-type *tool implementation / missing surface* (+ the journal→health case is also *tool routing*: unscoped `search_history("all")`). Not intent classification, not reasoning — the data existed; it wasn't exposed.
+
+- **Fix (certified entity-surface pattern; purely ADDITIVE):**
+  - **Journal entity** — extended the canonical `JournalQueries` with `describe()`/`describe_one()` (→ `CompleteEntity`: title, body_plain, **mood**, emotions, tags) and added `entity_types=("entry",)` + `describe` to `JournalDomainTruth`. Now "journal about yesterday" and "mood yesterday" resolve from JOURNAL truth (by date or title), removing the reliance on cross-domain search. (emotions/tags/categories are M2M → rendered by name; body is the plain-text shadow, never raw HTML.)
+  - **Nutrition food entity** — extended the canonical `NutritionQueries` with `describe()`/`describe_one()` (→ `CompleteEntity`: food_name, brand, meal_type, macros) and registered a new `NutritionDomainTruth` (domain `nutrition`, `entity_types=("food",)`) over `FoodEntry`. Now "what have I eaten?" returns the actual foods with macros, and `get_entity(nutrition, name="protein shake")` returns the user's real **45g** shake — the CoS personalizes from truth.
+  - Both auto-flow into `get_entity` + the Current Context capability index via `truth_catalog()`. No new store; each extends the existing canonical `*Queries` authority (never a parallel impl).
+- **Regression safety proven:** `get_domain_state("nutrition")` routes through the SEPARATE SAE `MODULE_BUILDERS` registry, so adding `NutritionDomainTruth` cannot change it (test locks this). All previously-working entity surfaces (health/workout, medicine/medication, legacy/person) unregressed. No migration.
+- **Tests:** `apps/journal/tests/test_journal_entity_truth.py` + `apps/health/tests/test_nutrition_entity_truth.py` (journal/mood retrieval, "what have I eaten", the 45g shake by name, empty states, existing-surface regression, `get_domain_state('nutrition')` unchanged). Full protected-behavior run — journal + nutrition + domain_analysis + truth_surface_contract + domain_entity + investigate + competing_hypotheses + executive_formatting + request_path_safety + tool_loop_budgets + health_date = **123 pass**.
+
+**Still OPEN (next slices, same pattern — flagged, not built):** medical **conditions** (diabetes — `MedicalCondition` exists, unexposed) so the CoS personalizes for conditions; nutrition **history/analysis** (macro trends) + food **preferences**; and scoping `search_history` intent so a journal query never defaults to `"all"`.
+
+**Files:** `apps/journal/services/journal_queries.py`, `apps/health/services/nutrition_queries.py`, `apps/core/truth/domain_rollout.py`, `apps/journal/tests/test_journal_entity_truth.py` (new), `apps/health/tests/test_nutrition_entity_truth.py` (new).
+
 ## 2026-07-17 — fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap
 
 **The real bug behind "I can't see which items were completed."** The completed-items expander already existed, was already default-collapsed, and already read the correct execution truth. It was simply **dead**: `#v3-live` is re-rendered with `hx-swap="innerHTML"` after every completion, while the toggles were bound per-node at page load (`querySelectorAll(...).forEach(addEventListener)`). The swap replaced every node with a listener-less clone, so the expander stopped responding the moment you completed something — exactly when you'd want to look at what you just completed — and stayed dead until a full page reload. **No second implementation was built; the existing one was fixed.** There remains exactly one completed-items surface (`rhythm.html`) and one producer of completed truth (`s.items`).

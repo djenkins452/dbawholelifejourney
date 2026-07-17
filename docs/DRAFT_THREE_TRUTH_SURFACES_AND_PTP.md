@@ -1,312 +1,356 @@
 # DRAFT — Three Truth Surfaces & the Personal Truth Profile
 
-> **STATUS: DESIGN DRAFT FOR REVIEW. NOT CANONICAL. NOT FROZEN.**
-> This document exists to be reviewed and refined *before* anything is written into the
-> canonical contracts. It contains four proposed drafts (Parts A–D). **No code, no
-> models, no registries, and no standing-context changes are created by this document.**
-> When a part is approved, it is transcribed into the canonical doc named in its banner
-> and this draft is retired.
+> **STATUS: DESIGN DRAFT FOR REVIEW — v2 (deep review). NOT CANONICAL. NOT FROZEN.**
+> Design-only. Creates no code, models, registries, or standing-context changes.
+> v1 introduced the four proposed drafts (Parts A–D) + open questions (Part E).
+> **v2 resolves Part E through a grounded owner analysis and, where an answer changed
+> another, restructures the proposal (it did — three times; see the changelog at the
+> end of this file).**
 >
-> **Grounding (repo truth, not greenfield):** a first slice already ships —
-> `apps/ai/cos_services/personal_truth.py` (the composer) + the `get_user_truth` tool.
-> It is already a read-only, cross-domain, provenance-bearing projection with per-fact
-> `module`+`source`, conflict-surfacing (`_nutrition_target_contradictions`), and one
-> composer feeding both standing context and the tool. **This design formalizes what
-> shipped and specifies the roadmap (derived/verified facts, the owner registry, the
-> surface taxonomy, the additional fact dimensions).** Where this design and the shipped
-> code differ, that is a *proposed refinement*, called out as such — not a description of
-> current behavior.
+> **Grounding (repo truth, verified 2026-07-17):** Slice 1 already ships —
+> `apps/ai/cos_services/personal_truth.py` (composer) + `get_user_truth` tool: read-only,
+> cross-domain, per-fact `module`+`source` provenance, conflict-surfacing
+> (`_nutrition_target_contradictions`), one composer feeding standing context + the tool.
+> Owner models were read directly from the codebase for the analysis in Part D.
 
 ---
 
-## Part 0 — Decided vs open (read first)
+## Part 0 — What v2 changed (so reviewers see the deltas)
 
-**Decided in review (Danny, 2026-07-17):**
-- Three Truth Surfaces become an explicit governing concept.
-- The Personal Truth **Profile** is a deterministic **projection, never a store**.
-- Every durable-fact type maps to an authoritative owner; a fact with **no owner may
-  stay Derived forever but may never become Verified**.
-- Provenance lifecycle: **Explicit / Derived / Verified**; Observed truth carries
-  **confidence**; a derived fact **never silently becomes explicit**.
-- Additional fact dimensions: identity spine, constraints, confidence, recency,
-  sensitivity, and **conflict is surfaced, never reconciled**.
-- Standing-context responsibilities are cleanly separated (Current Context / Personal
-  Truth Profile / Execution Truth / Mission / AI Relationship).
-- **Placement:** taxonomy defined in the Truth/Action Contract, enforced from the
-  Architecture Laws, implemented via the Model Interface accessors, PTP as one instance.
-  The **enumeration does not go in the Constitution** (keep it extensible); at most the
-  single "one-question-per-surface, projection-only" invariant is elevated later, via a
-  Constitutional Review, once proven.
+The deep review changed three things that ripple through Parts A–D:
 
-**Open questions for this review (collected in Part E):** the owner for "favorite/
-avoided foods"; the PTP↔Mission line for targets; whether Forward Truth / Relational
-Truth become 4th/5th surfaces; sensitivity surface-gating policy; and the derived-fact
-recompute cadence.
+1. **AI Relationship is a *projection*, not an owner** (verified: `get_ai_relationship`
+   is a projection service with `AIRelationshipProjectionTests`). So "relationship/
+   coaching preference → AI Relationship owner" (v1) was **wrong**. The leaf owners are
+   `UserPreferences.ai_coaching_style`, `ai.LearnedCommunicationPreference`,
+   `ai.ResponsePreference`. PTP and AI Relationship are **sibling projections** over the
+   same owners, cut by **content (PTP) vs voice (AI Relationship)**. → restructures Part
+   D §9/§10.
+2. **Safety-critical categories are ownerless AND underivable** (allergies, injuries —
+   no model exists; you cannot deterministically derive an allergy from an event stream).
+   The v1 rule "ownerless ⇒ Derived forever" is unsafe here: you can't derive it either.
+   → the lifecycle becomes a **decision tree with a safety carve-out** (Part D §4), and a
+   **prerequisite backlog** appears (Part D §16): some categories cannot enter PTP *at
+   all* until an owner model is created.
+3. **"Derive from absence" is forbidden** — the direct application of the Health-Sync /
+   Flights-Climbed lesson (absence of records ≠ a fact) to PTP derivation. "Foods
+   avoided" cannot be derived from *not* logging a food. → new invariant (Part D §4).
+
+Everything else in v1 stands.
 
 ---
 
 # PART A — PROPOSED DRAFT for `WLJ_LLM_TRUTH_ACTION_CONTRACT.md` §3 (The Truth Boundary)
 
-> Insert as a new subsection (e.g. **§3.8 The Three Truth Surfaces**), after §3.2
-> (the truth-tool envelope) and referencing it. Not yet transcribed.
+> Insert as **§3.8 The Three Truth Surfaces**, after §3.2. Not yet transcribed.
 
 ## §3.8 The Three Truth Surfaces
 
-WLJ exposes truth to the model through truth tools (§3.2). Those tools are not
-interchangeable: they answer three fundamentally different **question-shapes**, and a
-tool answers **exactly one**. Naming the three prevents the drift where a record-level
-lookup is answered with domain aggregates, or a momentary status is mistaken for a
-standing fact (incident class: the truth-accessibility gap, 2026-07-17).
+WLJ exposes truth to the model through truth tools (§3.2). Those tools answer three
+different **question-shapes**, and a tool answers **exactly one**.
 
 | Surface | Question-shape | Returns | Example callers |
 |---|---|---|---|
-| **Entity Truth** | *"What happened?"* | one **episodic record** | a meal, a workout, a journal entry, a glucose reading, a transaction |
-| **Domain State** | *"Where does this domain stand right now?"* | current **momentary** deterministic state of one domain | nutrition status, health status, financial status, execution status |
+| **Entity Truth** | *"What happened?"* | one **episodic record** | a meal, workout, journal entry, glucose reading, transaction |
+| **Domain State** | *"Where does this domain stand right now?"* | current **momentary** deterministic state of one domain | nutrition / health / financial / execution status |
 | **Personal Truth Profile** | *"Who is this person?"* | **durable standing facts** | conditions, targets, constraints, preferences, standing routines |
 
-**The three rules that make this a contract, not a diagram:**
+**The three contract rules:**
 
-1. **One question-shape per surface.** A truth tool answers exactly one of the three. A
-   tool that blends them (a "status" that also returns records, a "profile" that returns
-   today's plan) is a defect, not a convenience.
-2. **Classify the accessor by the question it answers, never by where the data lives.**
-   The same underlying dataset may surface through more than one accessor. A workout
-   schedule is the tie-break example: the standing *definition* ("trains 5×/week,
-   mornings") is **Personal Truth Profile**; current *adherence* is **Domain State**;
-   today's *session* is **Entity/Execution**. One dataset, three accessors, three
-   question-shapes.
-3. **Surface-type is orthogonal to delivery-mode.** *Which surface* a truth belongs to
-   is independent of *how it reaches the model*: pulled on demand via a truth tool, or
-   pushed every turn in the executive-context envelope (§3.6). Entity Truth is pulled;
-   the Personal Truth Profile is pushed standing; Domain State is both. Do not conflate
-   "surface" with "delivered-standing."
+1. **One question-shape per surface.** A blended tool (a "status" that also returns
+   records; a "profile" that returns today's plan) is a defect.
+2. **Classify the accessor by the question it answers, not by where the data lives.**
+   Same dataset, multiple accessors. Tie-break example — a workout schedule: standing
+   *definition* → Personal Truth Profile; current *adherence* → Domain State; today's
+   *session* → Entity/Execution.
+3. **Surface-type is orthogonal to delivery-mode.** Which surface ≠ how it's delivered
+   (pulled on demand vs pushed standing in the executive-context envelope §3.6). Entity
+   Truth is pulled; the Profile is pushed standing; Domain State is both.
 
-**Envelope.** All three return the standard truth-tool envelope (§3.2): value(s) +
-source + freshness + confidence + provenance. Nothing here introduces a parallel
-envelope.
+**Envelope.** All three return the standard §3.2 envelope (value + source + freshness +
+confidence + provenance). No parallel envelope.
 
-**The set is open.** Three surfaces are the current, load-bearing set. Candidates for a
-future surface (e.g. **Forward Truth** — "what is likely / where are we headed", from
-deterministic predictions and Mission trajectory; **Relational Truth** — "who relates to
-whom", the Person graph) are why the enumeration is defined here and in the Laws, and
-**not** frozen in the Constitution: a new surface must be addable by contract, not by
-amendment. A new surface is legitimate only if it answers a genuinely new question-shape
-and obeys rules 1–3.
+### §3.8.1 What is NOT a truth surface (the fence — added v2)
+
+These are frequently confused with a truth surface and must be kept out of the taxonomy,
+or the classification erodes:
+
+- **Deterministic Understanding** — deterministic *assessments* of current state ("on
+  track with medication"), not facts. It is an interpretation layer over Domain State,
+  not a fourth surface. (Assessment ≠ fact.)
+- **Executive Reflection** — facts/learning about the *assistant's* performance (EIOs),
+  not about the *user*. Different subject entirely; never a personal truth.
+- **Future Prediction / forecasts** — "what is *likely*." A prediction is not a durable
+  fact and not a record. See §3.8.2.
+- **Recommendations / verdicts** — the model's reasoning output, never a WLJ truth
+  surface.
+
+Rule: *a truth surface returns facts the user's world already makes true. Assessments,
+predictions, reflections, and recommendations are computed **over** truth, not truth.*
+
+### §3.8.2 The set is open — Forward and Relational (added v2)
+
+- **Forward Truth** ("what is likely / where are we headed" — deterministic predictions
+  like projected A1c, weight projection; Mission trajectory). This *is* a genuinely
+  distinct question-shape. **Disposition: recognized future 4th surface, NOT promoted
+  now.** It currently rides inside Domain State briefings and Mission. Promote it the day
+  a dedicated forecast accessor is needed; until then it is folded, explicitly flagged
+  here so it isn't misfiled as Domain State permanently.
+- **Relational Truth** ("who relates to whom" — the Person graph). **Disposition: folds
+  into the existing three, never a separate surface.** Salient standing relationships →
+  Profile (identity spine); an individual relationship record → Entity Truth;
+  relationship health/activity → Domain State. It is the cleanest demonstration of rule 2
+  (one domain, three accessors by question-shape).
+
+The taxonomy is **three today, open by construction** — a new surface is added by
+contract (here + the Laws), never by constitutional amendment.
 
 ---
 
 # PART B — PROPOSED DRAFT for `WLJ_ARCHITECTURE_LAWS.md` (Amendment B)
 
-> The Laws own the Answer Precondition Pipeline; step 6 is RETRIEVE. The Laws govern
-> *how* you retrieve but do not yet classify *what* is retrievable. Amendment B fills
-> that slot and is the **enforcement anchor** for Part A. Not yet transcribed.
+> Enforcement anchor for Part A, at the RETRIEVE step. Not yet transcribed.
 
 ## Amendment B (proposed) — The Retrieval Surface Classification
 
-**Every retrieval targets exactly one of the three Truth Surfaces (Entity Truth /
-Domain State / Personal Truth Profile), and a surface answers exactly one
-question-shape.** Retrieval that cannot name its surface, or a surface that answers more
-than one question-shape, is a Law-0 violation (answering a different question than was
-asked) surfacing at the retrieval layer.
+**Every retrieval targets exactly one of the three Truth Surfaces, and a surface answers
+exactly one question-shape.** Retrieval that cannot name its surface, or a surface
+answering more than one question-shape, is a Law-0 violation (answering a different
+question than was asked) surfacing at the retrieval layer.
 
-- **Companion to Law 0 (Intent Before Retrieval).** Law 0 fixes *which domains*;
-  Amendment B fixes *which surface within them*. Intent selects the question-shape; the
-  question-shape selects the surface. "Questions determine retrieval" now includes
-  "questions determine the surface."
-- **Companion to Law 3 (Orchestration/Strategy).** The STRATEGY step chooses retrieval
-  vs enumeration+enrichment vs reasoning; Amendment B constrains the retrieval option to
-  a single declared surface.
-- **Enforcement (proposed, specified in Part D, built later):** truth accessors declare
-  their surface-type; a contract test rejects an accessor that declares more than one
-  surface-type or (for a `durable_profile` accessor) owns a writable model. The Laws
-  state the rule; the test makes blending fail CI. *(This describes a proposed test; it
-  is not created by this draft.)*
+- **Companion to Law 0.** Law 0 fixes *which domains*; Amendment B fixes *which surface
+  within them*. Intent → question-shape → surface.
+- **Companion to Law 3.** STRATEGY's retrieval option is constrained to one declared
+  surface.
+- **Enforcement (specified, built later):** accessors declare their surface-type; a
+  contract test rejects multi-surface accessors and any `durable_profile` accessor that
+  owns a writable model.
+- **Fence (from §3.8.1):** assessments (Deterministic Understanding), predictions,
+  reflection, and recommendations are **not** retrieval surfaces; they are computed over
+  retrieved truth and must not be registered as one.
 
 ---
 
 # PART C — PROPOSED DRAFT: Model Interface additions
 
-> Destined for `WLJ_MODEL_INTERFACE_DESIGN.md`. It already names `get_entity` and
-> `get_domain_state`; this formalizes the trio and adds `get_durable_facts`. **Interface
-> contract only — conceptual shapes, no code, no implementation.**
+> Destined for `WLJ_MODEL_INTERFACE_DESIGN.md` (already names `get_entity` /
+> `get_domain_state`). Interface contract only — conceptual shapes, no code.
 
-The three surfaces are reached through three accessor families. Each returns the §3.2
-envelope. Signatures below are **conceptual** (illustrative shape, not code):
+Three accessor families, one per surface; each returns the §3.2 envelope.
 
 ### C.1 `get_entity` — Entity Truth (exists)
-- **Question:** "What happened? / show me this record."
-- **Shape:** `get_entity(user, domain, entity_type, selector) → { record, envelope }`
-- **Returns:** one episodic record (or a bounded, explicitly-scoped set), record-level.
-- **Backed by:** the DomainTruth `get_entity` surfaces already shipped (journal entry,
-  nutrition food, workout, …). Registry: DomainTruth.
-- **Delivery:** pulled on demand.
+`get_entity(user, domain, entity_type, selector) → { record, envelope }` — one episodic
+record. Backed by the DomainTruth `get_entity` surfaces. Pulled on demand.
 
 ### C.2 `get_domain_state` — Domain State (exists)
-- **Question:** "Where does this domain stand right now?"
-- **Shape:** `get_domain_state(user, domain) → { current_state, envelope }`
-- **Returns:** current momentary deterministic state of one domain (facts, not verdicts).
-- **Backed by:** the SAE state builders (`build_health_state`, `build_relationships_
-  state`, execution state, …). Registry: the domain-state registry — **already a
-  separate registry from `get_entity`** (this is the distinction the taxonomy makes
-  permanent).
-- **Delivery:** pulled on demand and/or summarized into the envelope.
+`get_domain_state(user, domain) → { current_state, envelope }` — current momentary
+domain state (facts, not verdicts). Backed by SAE state builders; **already a separate
+registry from `get_entity`** — the distinction the taxonomy makes permanent.
 
 ### C.3 `get_durable_facts` — Personal Truth Profile (proposed; new)
-- **Question:** "Who is this person? (standing facts, this domain's contribution)"
-- **Shape:** `get_durable_facts(user, domain) → { facts: [DurableFact], envelope }`
-  where a **DurableFact** carries (conceptually): `key`, `value`, `unit?`,
-  `owner_module`, `source_accessor`, `provenance ∈ {explicit, derived, verified}`,
-  `confidence?` (for derived), `as_of` / `valid_until?`, `sensitivity`, and — where
-  present — a surfaced `conflict`.
-- **Returns:** the durable, decision-relevant facts a domain owns, as a bounded,
-  curated set (not analytics).
-- **Backed by (proposed refinement):** each domain exposes its own `get_durable_facts`;
-  the **Personal Truth Profile composer** (`personal_truth.py`, shipped) aggregates them.
-  *Today the composer reads module surfaces directly; the refinement is to formalize a
-  per-domain `get_durable_facts` provider so the composer never re-derives.* One source
-  feeds both the domain's own use and the Profile (no second producer).
-- **Delivery:** composed once per turn into the executive-context envelope (background-
-  computed, request-path-safe) **and** available via the `get_user_truth` tool.
-
-**Invariant across all three:** an accessor declares exactly one surface-type; a
-`get_durable_facts` provider has **no writable model** (projection only).
+`get_durable_facts(user, domain) → { facts: [DurableFact], envelope }`. A **DurableFact**
+carries: `key`, `value`, `unit?`, **`owner_module`**, **`source_accessor`**, **`provenance
+∈ {explicit, derived, verified}`**, `confidence?` (derived), `as_of` / `valid_until?`,
+`sensitivity`, `conflict?`. Bounded/curated, not analytics. The **PTP composer**
+(`personal_truth.py`) aggregates per-domain `get_durable_facts` providers — one source
+feeds both the domain and the Profile (no re-derivation). Delivered standing (background-
+computed) + via `get_user_truth`. **Invariant:** a `get_durable_facts` provider has **no
+writable model**.
 
 ---
 
-# PART D — PROPOSED OUTLINE: `WLJ_PERSONAL_TRUTH_PROFILE.md`
+# PART D — PROPOSED OUTLINE: `WLJ_PERSONAL_TRUTH_PROFILE.md`  *(v2 — expanded from the owner analysis)*
 
-> Outline only — section headers + intent. To be expanded into the full contract after
-> this review. **No models/registries created here; the registry below is described, not
-> built.**
+**§0. First sentence.** "The Personal Truth Profile is a deterministic **projection**,
+not a storage model. It owns nothing, stores no authority, and has no writable model."
 
-**§0. First sentence (non-negotiable).** "The Personal Truth Profile is a deterministic
-**projection**, not a storage model. It owns nothing, stores no authority, and has no
-writable model of its own." Everything else is subordinate to this line.
+**§1. Is / is not.** (Promote both lists from the shipped module docstring.)
 
-**§1. What it is / is not.** Is: deterministic, cross-domain, read-only, composed,
-provenance-bearing, delivered standing + via `get_user_truth`. Is not: a store, a second
-authority, a DomainTruth/entity/history replacement, an LLM profile, a
-reasoning/recommendation engine, a key-value dumping ground. *(Both lists exist in the
-shipped module docstring — promote them to the contract.)*
+**§2. Place in the Three Truth Surfaces.** The "who is this person?" surface.
 
-**§2. Place in the Three Truth Surfaces.** The "who is this person?" surface; sibling to
-Entity Truth and Domain State (Part A). Answers one question-shape; classified by the
-question, not the data's origin.
+**§3. The DurableFact model.** Fields per Part C.3.
 
-**§3. The fact model (DurableFact).** Fields and their meaning:
-- `key`, `value`, `unit?`, `owner_module`, `source_accessor`.
-- **`provenance ∈ {explicit, derived, verified}`** — see §4.
-- **`confidence`** — required for `derived` (e.g. "Premier Protein 45g · 52 occurrences ·
-  high"); lets the model reason without inventing certainty.
-- **`as_of` / `valid_until?`** — durable ≠ permanent; §6.
-- **`sensitivity`** — §7.
-- **`conflict?`** — §5.
+### §4. The provenance lifecycle — a decision tree (RESTRUCTURED in v2)
 
-**§4. The Explicit / Derived / Verified lifecycle.**
-- **Explicit** — the owner holds a user-supplied fact. *(Shipped: Slice 1.)*
-- **Derived** — no owner-stored standing fact; the Profile computed it deterministically
-  from episodic records (no LLM). *(Roadmap: derived slice.)*
-- **Verified** — the owner holds a fact whose provenance says *confirmed-from-derived*.
-- **The three states are COMPUTED from the owners' data — never stored in the Profile.**
-- **Hard invariant:** a Derived fact becomes Verified **only** through an explicit user
-  confirmation event that **writes to the owner**; it never becomes Explicit implicitly.
-  This boundary is trust-critical and is enforced by a contract test.
-- **Consequence for owners:** owners need a "confirmed-from-derived" provenance marker.
-  *(Cross-cutting requirement to flag.)*
+Provenance is **computed from owners' data, never stored in the Profile.** For each
+candidate fact:
 
-**§5. The Owner Registry (described, not built).** Every durable-fact **type** maps:
-`fact-type → authoritative owner → read accessor → confirmation write-path`. Rule: a
-fact-type with **no owner may remain Derived forever but may never be Verified** (no
-place to write ⇒ no verification ⇒ no temptation to store it in the Profile). *This
-registry is the structural guarantee behind §0; this document specifies its shape only.*
+```
+1. Does an authoritative OWNER hold a user-supplied value?
+      → EXPLICIT.  (verifiable-by-definition; already user-asserted)
+2. Else: is it deterministically DERIVABLE from PRESENT episodic records?
+      → DERIVED (with confidence + support count). Never Verified while ownerless.
+      → Becomes VERIFIED only when the user explicitly confirms AND the confirmation
+        writes to an owner (which records "confirmed-from-derived").
+3. Else (no owner, not derivable):
+      → does NOT appear in the Profile.
+4. SAFETY CARVE-OUT: if the fact is safety-critical (allergy, contraindication, injury)
+   it may appear ONLY as EXPLICIT from a first-class owner. It is NEVER derived, NEVER
+   guessed, and absent until an owner exists. A wrong safety fact is worse than none.
+```
+
+**Two hard invariants (contract tests):**
+- **Never derive from absence.** A derived fact asserts only PRESENCE proven by records.
+  "Not logged" is not "avoided"; "no workout row" is not "rest day preference." (Direct
+  application of the Health-Sync lesson — absence ≠ fact.)
+- **Observed never silently becomes Explicit.** Derived→Verified requires an explicit
+  user-confirmation event that writes to the owner. Enforced, not policy.
+
+### §5. The Owner Registry — foundation table (NEW in v2; the answer to the owner problem)
+
+The registry maps `fact-type → authoritative owner → read accessor → confirm write-path`.
+This table is its seed. **It is also a one-authority audit instrument:** building it
+forces every durable-fact type to name a single owner and surfaces existing violations.
+
+| Category | Authoritative owner (store) | Exists? | Projection source | Can be Verified? | In PTP? |
+|---|---|---|---|---|---|
+| **Identity spine** (name, pronouns, DOB, tz/locale) | `people.Person` (is_self) + `users.UserPreferences` | ✅ (gated on Person-consolidation) | people.Person / UserPreferences | Explicit | **Yes** (identity spine) |
+| **Medical conditions** | `health.MedicalCondition` | ✅ | MedicalCondition | Explicit | **Yes** (shipped) |
+| **Medications** | `health.MedicationEvent` / MedicineQueries | ✅ | MedicineQueries.active | Explicit | **Yes** (shipped) |
+| **Allergies** | — **none** | ❌ | — (not derivable) | **No** | **No — needs owner first** (safety) |
+| **Injuries** | — **none** | ❌ | — | **No** | **No — needs owner first** (safety) |
+| **Nutrition targets** | `health.NutritionGoals` (canonical) — **conflicts with** `meals.DietaryProfile` | ✅ (DUAL) | NutritionGoals; conflict surfaced | Explicit | **Yes** (shipped) — needs canonical-owner designation |
+| **Favorite foods** | — none (`FoodPreference` proposed) | ❌ | derivable (meal-log frequency) | Derived-only until owner | **Yes** as Derived |
+| **Foods avoided** | — none / overlaps allergies | ❌ | **NOT derivable** (absence≠avoidance) | No | **Only if explicitly owned** |
+| **Supplements** | — none (execution `supplement_dose` only) | ❌ (no standing store) | weak | Derived-only until owner | tentative |
+| **Exercise preferences** | — likely none | ❌? | maybe derivable | Derived-only until owner | tentative |
+| **Workout schedule** | `health.WorkoutSchedule` (+ `life.RoutineSchedule`) | ✅ | WorkoutSchedule | Explicit | **Yes** (standing definition; not today's session) |
+| **Coaching preferences** | `users.UserPreferences.ai_coaching_style` + `ai.LearnedCommunicationPreference` | ✅ | those owners | Explicit / Verified | **Content-shaping subset → Yes**; voice → AI Relationship |
+| **Communication preferences** | `ai.ResponsePreference` / `ai.LearnedCommunicationPreference` | ✅ | those owners | Explicit / Verified | **Mostly voice → AI Relationship**; content subset → PTP |
+| **Relationship preferences** | leaf owner (UserPreferences / relationship settings) — **NOT "AI Relationship"** | partial | underlying store | depends on owner | boundary case (content → PTP) |
+| **Faith preferences** | faith settings / UserPreferences (**verify at impl**) | ? | TBD | TBD | verify |
+| **Financial preferences** | finance profile (**verify at impl**) | ? | TBD | TBD | verify |
+| **Projects** | `life.Project` | ✅ | life.Project | Explicit | **No** — active work (Domain/Mission), not standing identity |
+| **Long-term priorities** | `core.UserPriorityProfile` | ✅ | UserPriorityProfile | Explicit | **Yes** (shipped; standing values) |
+| **Goals** | `purpose.LifeGoal` | ✅ | LifeGoal | Explicit | **Durable aspects yes** (existence + target); **progress → Mission** |
+| **Mission targets** | `purpose` (mission over LifeGoal / GoalSignalSource) | ✅ | mission_link | Explicit | **Mission surface**, referenced by PTP, not owned |
+| **Constraints** (composite) | MedicalCondition + Allergy(∅) + DietaryProfile.dietary_flags | partial | multiple | mixed | **Partial** — limited by ownerless allergies |
+| **Safety-critical** (composite) | MedicalCondition + Allergy(∅) + Injury(∅) | partial (**gaps**) | multiple | mixed | **Owned parts yes; allergies/injuries need owners** |
 
 **§6. Confidence, recency & validity.** Derived facts carry confidence + support count;
-all facts carry `as_of`; facts may carry `valid_until` and a re-derivation cadence.
-Stale derived facts decay or re-derive; they are never asserted as current.
+all facts carry `as_of`; `valid_until` + re-derivation where relevant. Stale derived
+facts re-derive or decay — never asserted as current.
 
-**§7. Conflict — surfaced, never reconciled.** When Explicit and Derived (or two owners)
-disagree on the same fact, the Profile presents **both**, tagged, and does not explain or
-choose. Reasoning belongs to the model; facts belong to WLJ. *(Shipped precedent:
-`_nutrition_target_contradictions` — generalize it.)*
+**§7. Conflict — surfaced, never reconciled.** Present both values, tagged; never
+explain or choose. (Shipped precedent: `_nutrition_target_contradictions`.) The
+nutrition dual-owner is the live example: PTP surfaces the conflict; the *domain* must
+designate the canonical owner (§16).
 
-**§8. Sensitivity & surface-gating.** Each fact carries a sensitivity tier; sensitive
-facts (medical, mental-health, reproductive — note the existing *blocked* reproductive
-boundary) obey a surface policy so they are not narrated in inappropriate contexts.
+**§8. Sensitivity & surface-gating.** The **owning module** sets each fact's sensitivity
+tier; PTP carries it. Default narration policy is conservative; hard-blocked categories
+(reproductive — existing boundary) stay out entirely. (Full policy deferred; the
+carry+flag requirement is fixed now.)
 
-**§9. Categories (curated, bounded).**
-- **Identity spine** — canonical `people.Person` self-anchor (name, pronouns, DOB/age,
-  timezone/locale) + at-a-glance unique relationships (spouse, children). *(Depends on
-  the Person-consolidation landing; currently absent from Slice 1.)*
-- **Constraints / hard limits** — allergies, contraindications, dietary/religious
-  restrictions, accessibility needs, safety-critical facts (high salience).
-- **Targets** — nutrition/health/goal targets *(shipped)*.
-- **Conditions & medications** — *(shipped)*.
-- **Preferences & avoidances** — favorite/avoided foods, coaching content preferences
-  (recommendation-shaping, **not** persona — that's AI Relationship).
-- **Standing routines** — the durable *definition* (not today's session).
-- **Declared priorities & relationship preferences** — *(shipped: priorities,
-  relationship)*.
+**§9. Categories.** As the §5 table. Note the **AI-Relationship correction**: coaching/
+communication/relationship preferences are owned by `UserPreferences` /
+`LearnedCommunicationPreference` / `ResponsePreference` — **AI Relationship is a sibling
+projection, never the owner.** PTP projects the *content* of these prefs; AI Relationship
+projects their *voice*.
 
-**§10. Boundaries (draw them here or they blur in code).**
-- **vs AI Relationship** — content vs voice. The Profile is the facts the model reasons
-  *from*; AI Relationship is the stance it reasons *with*. Coaching prefs that shape
-  *recommendations* are Profile; those that shape *tone/persona* are AI Relationship.
-- **vs Mission** — facts vs progress. Mission owns active goals + trajectory; the Profile
-  may hold a target *value* but never progress.
-- **vs Domain State** — standing vs momentary (the workout-schedule tie-break, Part A).
-- **vs Entity Truth** — distillation vs the event stream.
+**§10. Boundaries (v2 — hardened).**
+- **vs AI Relationship** — both are *projections over the same preference owners*; cut by
+  **content (PTP) vs voice (AI Relationship)**. Neither owns.
+- **vs Mission** — PTP holds a goal's *existence + target* (durable); Mission holds its
+  *progress + trajectory*. One owner (LifeGoal), two consumers.
+- **vs Domain State** — standing definition vs current status (workout-schedule tie-break).
+- **vs Entity Truth** — the durable distillation vs the event record.
+- **vs Current Context** — who the person *is* vs what they're *looking at now*.
+- **vs Deterministic Understanding** — durable *fact* vs momentary deterministic
+  *assessment*. DU is not a truth surface (§3.8.1); PTP never carries an assessment.
+- **vs Reflection** — facts about the *user* vs learning about the *assistant*. Reflection
+  never writes to PTP.
+- **vs Future Prediction** — present-tense durable fact vs "what's likely." Predictions
+  are Forward Truth (§3.8.2), never a personal-truth fact.
 
-**§11. Request-path safety.** Cross-domain aggregation is **background-computed +
-cached**; the request path reads a pre-computed snapshot and returns `pending` if absent
-— never a live fallback (per `WLJ_REQUEST_PATH_SAFETY.md`).
+**§11. Request-path safety.** Background-computed + cached snapshot; request path reads
+it, returns `pending` if absent, never live-aggregates.
 
-**§12. Invariants & contract tests (specified, not built).**
-- No writable model (projection-only) — CI test.
-- Each provider declares exactly one surface-type (`durable_profile`).
-- Derived→Verified only via explicit confirmation writing to the owner — CI test.
-- Ownerless fact-types cannot be Verified — CI test.
-- No LLM import in the composer — CI test.
-- One composer feeds standing context and `get_user_truth` — no duplicate retrieval.
+**§12–15.** (Unchanged from v1: contract tests; standing-context placement; phasing —
+Slice 1 shipped, then Derived+confidence, Verified lifecycle, identity spine; governance
+— taxonomy in Contract+Laws, not Constitution.)
 
-**§13. Standing-context placement.** Delivered every turn beside AI Relationship and
-Mission (the standing cluster), distinct from Current Context and Execution Truth (the
-momentary cluster). *(Shipped: already in standing context + tool.)*
+### §16. Prerequisite backlog (NEW in v2 — what must exist BEFORE certain categories enter PTP)
 
-**§14. Phasing.**
-- **Slice 1 — Explicit durable facts.** *Shipped* (`personal_truth.py` + `get_user_truth`).
-- **Slice 2 — Derived facts + confidence** (deterministic aggregation only).
-- **Slice 3 — Verified lifecycle** (confirm-to-owner + owner provenance marker + registry).
-- **Slice 4 — Identity spine** (gated on Person-consolidation).
-- **Cross-cutting — sensitivity gating, recency/validity, the surface registry + tests.**
+- **Create first-class owners (blocking, safety):** `Allergy`, `Injury`. Underivable +
+  safety-critical ⇒ absent from PTP until owned. *(Design flags this; does not build it.)*
+- **Create owners to unlock Verified:** `FoodPreference` (favorites/avoided), a standing
+  `Supplement` store. Until then: favorites = Derived-only; avoided = omitted (never
+  derived).
+- **Designate a canonical owner (one-authority fix):** nutrition targets —
+  `NutritionGoals` canonical; `DietaryProfile` becomes a consumer or a defined-precedence
+  source. PTP keeps surfacing the conflict until the domain resolves it.
+- **Verify at implementation:** exercise / faith / financial preference owners.
 
-**§15. Governance.** This contract defines the Profile; the Three Truth Surfaces are
-defined in the Truth/Action Contract (Part A) and enforced from the Laws (Part B). The
-Constitution is not amended by this contract; elevation of the single
-"one-question-per-surface, projection-only" invariant to an Article is a separate,
-later, explicit Constitutional Review.
+This backlog is *domain work the Profile depends on*, not Profile work — which reinforces
+that PTP is a projection with real upstream dependencies, and the Owner Registry is the
+coordination + one-authority-audit artifact.
 
 ---
 
-# PART E — Open questions for this review
+# PART E — RESOLVED (v2)
 
-1. **Ownerless facts.** "Favorite/avoided foods" has no obvious authoritative owner
-   today. Options: (a) stays permanently Derived (never Verified); (b) create a small
-   `FoodPreference` owner in the meals/nutrition domain; (c) fold into an existing
-   preferences store. Which?
-2. **PTP ↔ Mission for targets.** Does a target *value* live in the Profile, in Mission,
-   or is it referenced from Mission? (Avoid two owners.)
-3. **A 4th/5th surface?** Do **Forward Truth** (predictions/trajectory) and **Relational
-   Truth** (the Person graph) become surfaces, or fold into Domain State / the identity
-   spine? (Decides how open we make the taxonomy's wording now.)
-4. **Sensitivity surface-gating policy.** What is the default narration policy for
-   sensitive facts, and who sets a fact's tier — the owning module?
-5. **Derived recompute cadence.** Background frequency + invalidation triggers for
-   derived facts (tie to existing intelligence cycles rather than a new scheduler?).
-6. **AI Relationship as an owner.** The review listed "relationship preference → AI
-   Relationship" as an owner. Is AI Relationship a genuine authoritative *store*, or does
-   a preferences store own it and AI Relationship consume it? (One-authority check.)
+**E1 — Ownerless favorite/avoided foods.** No owner today. **Favorites** are derivable
+(meal-log frequency) → **Derived-only until a `FoodPreference` owner exists**; only then
+Verifiable. **Avoided** is **not** safely derivable (absence ≠ avoidance) → **omitted
+unless explicitly owned**; overlaps allergies (safety) → belongs with the Allergy owner.
+*Resolution: create `FoodPreference` (favorites) + route "avoided" through the Allergy/
+constraint owner; do not derive avoidance.*
+
+**E2 — PTP ↔ Mission for targets.** Target *value* owned by `NutritionGoals`, projected
+to PTP as a durable fact; Mission *references* it when a goal is about it. No dual
+ownership; progress stays in Mission.
+
+**E3 — 4th/5th surfaces.** **Forward Truth** = recognized future 4th surface, **folded
+for now** (rides in Domain State + Mission), promoted when a forecast accessor is needed.
+**Relational Truth** = **folds into the existing three** (identity spine / Entity /
+Domain State), never separate. Taxonomy stays **three, explicitly open**.
+
+**E4 — Sensitivity gating.** The **owning module** sets the tier; PTP carries + flags it;
+conservative default narration; hard-blocked categories stay out. Full policy deferred;
+carry+flag fixed now.
+
+**E5 — Derived recompute cadence.** Tie to existing intelligence cycles (SAME cycle /
+PIE–PRIE) + invalidate on the owning domain's write events. **No new scheduler.**
+
+**E6 — AI Relationship as owner.** **No.** Verified: it's a *projection*
+(`get_ai_relationship`). Leaf owners are `UserPreferences.ai_coaching_style`,
+`LearnedCommunicationPreference`, `ResponsePreference`. PTP and AI Relationship are
+sibling projections cut by content vs voice.
+
+**Remaining genuinely open (need Danny):**
+- **O1 — Create the safety owners now or gate PTP?** Do we schedule `Allergy`/`Injury`
+  owner models as a prerequisite milestone, or ship PTP without safety-critical
+  constraints until then? (I recommend: create the owners — safety facts are the highest-
+  value durable truth, and their absence is itself a product risk.)
+- **O2 — Nutrition dual-owner:** designate `NutritionGoals` canonical and demote
+  `DietaryProfile` to consumer, or define an explicit precedence? (A domain-level
+  one-authority decision the registry forces.)
+- **O3 — Faith/financial/exercise preference owners:** confirm or create.
 
 ---
 
-*End of draft. Nothing here is canonical until transcribed into the named docs after
-review. This file creates no code, models, registries, or standing-context changes.*
+# Governance — re-evaluated after the deep review (unchanged conclusion, one addition)
+
+Placement stands: **taxonomy defined in the Truth/Action Contract (§3.8), enforced from
+the Architecture Laws (Amendment B), implemented via the Model Interface trio, PTP as one
+instance; enumeration NOT in the Constitution** (keep it open; elevate at most the single
+"one-question-per-surface, projection-only" invariant later, via Review).
+
+**Addition (v2):** the **Owner Registry is a Constitution one-authority *audit
+instrument*,** not just PTP plumbing — it forces every durable-fact type to name a single
+owner and surfaces existing violations (nutrition dual-owner). That elevates its
+importance: it should be built early and referenced by the one-authority discipline, not
+treated as PTP-internal detail.
+
+---
+
+## Changelog (this draft)
+- **v2 (2026-07-17)** — deep review. Resolved Part E (E1–E6) via a grounded owner
+  analysis (Part D §5 table). Three restructurings: AI Relationship is a projection not
+  an owner (§9/§10); safety carve-out + "never derive from absence" in the lifecycle
+  (§4); prerequisite owner backlog (§16). Added the §3.8.1 "not-a-surface" fence and the
+  §3.8.2 Forward/Relational disposition. Three genuinely-open items remain (O1–O3).
+- **v1 (2026-07-17)** — initial four drafts (Parts A–D) + open questions (Part E).
+
+*Nothing here is canonical until transcribed into the named docs after review. This file
+creates no code, models, registries, or standing-context changes.*

@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — chore(journal): remove the TEMP Person-recognition glass-box (served its purpose)
+
+Removed the temporary Stage-1 diagnostic completely — the view (`recognition_diag` + its local `login_required` import), the URL (`journal/recognition-diag/`), and its comment markers. Nothing else referenced it. **Verified gone:** zero `recognition_diag`/`recognition-diag` references in code/templates; `reverse('journal:recognition_diag')` → `NoReverseMatch`; `resolve('/journal/recognition-diag/')` → `Resolver404`; `manage.py check` clean. The original deploy entry (`80e8ead9`) stays in this log as history. Files: `apps/journal/views.py`, `apps/journal/urls.py`.
+
 ## 2026-07-17 — feat(truth): Personal Truth layer — Slice 1 (explicit durable facts) — the CoS reasons FROM who the user is
 
 **New first-class truth layer (approved architecture). Additive; deterministic; read-only; no new store, no parallel authority, no LLM, no derivation.** Personal Truth is the canonical cross-module PROJECTION of the durable, explicitly-stored user facts the Chief of Staff reasons FROM every turn — the standing counterpart to episodic module entity/history surfaces and distinct from `deterministic_understanding` (which holds volatile assessments, not facts). This is the direct fix for the personalization defect at the correct layer: the model now gets "who you are" (targets, conditions, medications, relationship, priorities) in standing context every turn.

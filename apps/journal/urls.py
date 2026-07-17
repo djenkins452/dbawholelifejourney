@@ -46,7 +46,4 @@ urlpatterns = [
     path("htmx/entry-form/", views.HTMXEntryFormView.as_view(), name="htmx_entry_form"),
     path("htmx/mood-select/", views.HTMXMoodSelectView.as_view(), name="htmx_mood_select"),
     path("htmx/tag-create/", views.HTMXTagCreateModalView.as_view(), name="htmx_tag_create"),
-
-    # TEMP DIAGNOSTIC — Person Recognition glass-box (Stage 1). REMOVE with the view.
-    path("recognition-diag/", views.recognition_diag, name="recognition_diag"),
 ]

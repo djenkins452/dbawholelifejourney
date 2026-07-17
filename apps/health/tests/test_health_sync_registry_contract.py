@@ -21,7 +21,14 @@ from pathlib import Path
 from django.conf import settings
 from django.test import TestCase
 
-from apps.health.healthkit_registry import AUTHORIZED_SWIFT_READS, HEALTHKIT_TYPES
+from apps.health.healthkit_registry import (
+    ACTIVITY_CLASSES,
+    AUTHORIZED_SWIFT_READS,
+    CONTINUOUS,
+    EVENT_DRIVEN,
+    HEALTHKIT_TYPES,
+    RARE,
+)
 from apps.health.services.health_sync_status import (
     CATEGORY_LABELS,
     HEALTH_SYNC_TYPES,
@@ -95,6 +102,57 @@ class HealthSyncRegistryContractTests(TestCase):
         keys = [t.key for t in HEALTH_SYNC_TYPES]
         self.assertEqual(len(keys), len(set(keys)), "Duplicate keys in HEALTH_SYNC_TYPES")
 
+    # ── Activity-class policy (the structural guard, added 2026-07-17) ──────────
+    # Origin: "Flights Climbed has not synced in 6 days" — a false sync warning
+    # produced purely because the user hadn't climbed stairs. These tests make that
+    # class of misconfiguration impossible rather than fixing one metric.
+
+    def test_every_type_declares_a_valid_activity_class(self):
+        """Every type must say whether records are expected regularly. The field is
+        required on the dataclass, so a new row physically cannot omit it — this pins
+        the value set as well."""
+        for t in HEALTHKIT_TYPES:
+            self.assertIn(
+                t.activity_class, ACTIVITY_CLASSES,
+                f"{t.key}: invalid activity_class {t.activity_class!r}",
+            )
+
+    def test_only_continuous_types_may_declare_a_freshness_cadence(self):
+        """THE class guard: `stale_after_days` is an ACTIVITY cadence and only makes
+        sense for metrics expected to produce records most days. An event-driven,
+        user-entered, device-generated or rare metric that carried a cadence could once
+        again turn "the user didn't do this" into a sync warning. Reject it at CI."""
+        offenders = [
+            (t.key, t.activity_class, t.stale_after_days)
+            for t in HEALTHKIT_TYPES
+            if t.activity_class != CONTINUOUS and t.stale_after_days is not None
+        ]
+        self.assertEqual(
+            offenders, [],
+            "Only `continuous` types may set stale_after_days. Inactivity in these "
+            f"types must never imply a sync problem: {offenders}",
+        )
+
+    def test_known_event_driven_types_are_classified_as_such(self):
+        """Pins the specific metrics whose inactivity is entirely normal — the reported
+        bug (flights_climbed) plus its siblings. A future edit reclassifying one of
+        these as `continuous` would resurrect the false warning, so it must be
+        deliberate and visible in this diff."""
+        for key in ("flights_climbed", "exercise_minutes", "swimming_distance",
+                    "swimming_strokes", "cycling_distance", "workout",
+                    "mindful_minutes", "stair_ascent_speed", "walking_asymmetry",
+                    "six_min_walk", "wheelchair_distance"):
+            t = HEALTH_SYNC_TYPES_BY_KEY[key]
+            self.assertIn(
+                t.activity_class, (EVENT_DRIVEN, RARE),
+                f"{key} only produces records when the activity happens — it must not "
+                f"be {t.activity_class!r}",
+            )
+            self.assertIsNone(
+                t.stale_after_days,
+                f"{key}: inactivity must never be able to raise a sync warning",
+            )
+
     def test_every_registry_row_resolves_against_its_model(self):
         for t in HEALTH_SYNC_TYPES:
             model = t.get_model()  # raises if model_path is wrong
@@ -140,7 +198,8 @@ class HealthSyncRegistryContractTests(TestCase):
         oh = status["overall_health"]
         self.assertEqual(
             set(oh.keys()),
-            {"status", "healthy_count", "active_count", "total_count", "issue_count"},
+            {"status", "healthy_count", "active_count", "total_count", "issue_count",
+             "attention_count"},
         )
         self.assertEqual(oh["status"], "setup")          # no data yet for a fresh user
         self.assertEqual(oh["active_count"], 0)

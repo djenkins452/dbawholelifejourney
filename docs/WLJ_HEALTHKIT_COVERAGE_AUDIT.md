@@ -4,6 +4,11 @@
 **Date:** 2026-07-15
 
 > **As-built progress log** (full detail in §8 below)
+> - **2026-07-17 — Truth-model correction (see §0 — GOVERNING).** Health Sync no longer treats "no new data"
+>   as "sync failure". Three separated truths (import health / source activity / activity class); required
+>   `activity_class` on all 47 registry rows; `stale` status + "has not synced" wording REMOVED; attention
+>   only from verified `HealthIngestionRun` truth; hero reports sync health, not activity. Fixes the
+>   "Flights Climbed has not synced in 6 days" false warning.
 > - **2026-07-15 — Phase A #1 (telemetry parity + categories + CI contract)** — `HEALTH_SYNC_TYPES` 12 → 38;
 >   category grouping; canonical `HEALTH_METRIC_HANDLERS`; `test_health_sync_registry_contract`. Closes §2c #1.
 > - **2026-07-15 — Phase A #2 (sleep-stage proof + telemetry-truth)** — `test_health_sync_telemetry_truth`.
@@ -16,6 +21,44 @@
 **Architectural goal (stated):** *"WLJ should ingest every meaningful HealthKit data type that HealthKit allows for read access."* The product may choose not to surface or actively use a metric today, but it should be available as **deterministic truth** for future capabilities whenever practical.
 
 > This document is a **comparison + gap analysis + roadmap**, produced so we can make intentional, batched product decisions instead of adding metrics one at a time. It does not add any data types.
+
+---
+
+## 0. GOVERNING TRUTH MODEL — what Health Sync may and may not claim (2026-07-17)
+
+> **Read this before touching anything in `health_sync_status.py` or `healthkit_registry.py`.**
+
+**Incident.** The dashboard reported *"Needs Attention — Flights Climbed has not synced in 6 days"* while synchronization was working perfectly. The user simply hadn't climbed stairs. The engine measured **days since the last data row** and called that **sync health** — telling a paying customer something was broken when nothing was.
+
+**The class.** Absence of data was used as a proxy for sync failure. The engine had ONE axis (record age) and had to express THREE unrelated truths through it. Seven activity metrics carried a `__gt: 0` presence filter, so a legitimate zero-value day was indistinguishable from a sync outage.
+
+**The model — three independent truths. Never conflate them:**
+
+| Truth | Source of record | May it say "Needs Attention"? |
+|---|---|---|
+| **Import health** — did sync technically work? | `HealthIngestionRun` (run status, `metric_type_results`, `validation_errors`, `client_debug`) | **YES — the ONLY thing that may** |
+| **Source activity** — did records arrive? | the persisted health rows | **NO** — this is what the user/device did |
+| **Activity class** — should records be expected? | `healthkit_registry.activity_class` | **NO** — it is freshness *policy* |
+
+**THE RULE (structurally enforced):** *Record age can never mark a source unhealthy.* For **every** class — including `continuous` — no recent data is at most informational ("No recent X records"). A source is unhealthy only when the ingestion truth **proves** a technical problem: the run failed, this type's records were rejected, the app could not read the type from Apple Health, or the device stopped checking in (`sync_path`).
+
+**Activity classes** (declared once per row; the field is **required** so a new type cannot skip it):
+
+| Class | Count | Meaning | `stale_after_days` allowed? |
+|---|---|---|---|
+| `continuous` | 11 | produces records most days when sync works *and* the device is in use | **yes** (activity display only) |
+| `event_driven` | 21 | only when the activity happens (flights climbed, swimming, workouts, HR events, mobility) | **no** |
+| `device_generated` | 7 | only when a device measures it (weight, BP, SpO₂) | **no** |
+| `user_entered` | 4 | only when the user logs it (water, caffeine, nutrition, waist) | **no** |
+| `rare` | 4 | infrequent by nature (height, VO₂ max, walking steadiness, six-minute walk) | **no** |
+
+Enforced by `apps/health/tests/test_health_sync_registry_contract.py` — a non-continuous row that sets `stale_after_days` **fails CI**, so inactivity can never again be configured into a sync warning.
+
+**What WLJ must never fabricate.** HealthKit deliberately hides read-authorization, so we never infer "authorized"/"denied"/"unsupported" from silence. A read problem is reported **only** when the iOS client tells us its fetch actually failed (`client_debug[type].fetch_failed`, set by `HealthKitManager.safeFetch`). That is also the only condition that may offer "Fix in Apple Health" — never for ordinary inactivity.
+
+**Display contract.** The hero card reports **synchronization** health ("Syncing Normally" / "1 source needs attention"), never an activity fraction. Source activity is shown separately and explicitly labeled as activity. Per-type: `healthy` (importing + recent records) · `idle` (importing, no recent records — **neutral, green, no action**) · `no_data` (never recorded) · `attention` (**verified** technical problem only). The retired `stale` status and the "has not synced" wording are **removed**, not bypassed.
+
+Regression coverage: `apps/health/tests/test_health_sync_truth_model.py`.
 
 ---
 

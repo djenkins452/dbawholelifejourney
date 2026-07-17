@@ -20,6 +20,11 @@ struct HealthSyncStatus: Codable {
     let dataTypes: [DataTypeHealth]
     let categories: [SyncCategory]?
     let lastSyncSummary: SyncSummary?
+    /// The technical truth about synchronization itself — the ONLY authority for
+    /// "is sync working?". Never infer that from how old a metric's records are.
+    let syncPath: SyncPath?
+    /// What the SOURCES produced. Activity, never health — displayed separately.
+    let sourceActivitySummary: SourceActivitySummary?
 
     enum CodingKeys: String, CodingKey {
         case generatedAt = "generated_at"
@@ -33,6 +38,41 @@ struct HealthSyncStatus: Codable {
         case dataTypes = "data_types"
         case categories
         case lastSyncSummary = "last_sync_summary"
+        case syncPath = "sync_path"
+        case sourceActivitySummary = "source_activity_summary"
+    }
+}
+
+/// Account-level TECHNICAL health of the sync path (from HealthIngestionRun).
+/// `status` ∈ ok | never_synced | not_checking_in | failed
+struct SyncPath: Codable {
+    let status: String
+    let lastRunAt: String?
+    let lastRunStatus: String?
+    let errorMessage: String?
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case lastRunAt = "last_run_at"
+        case lastRunStatus = "last_run_status"
+        case errorMessage = "error_message"
+    }
+
+    var isWorking: Bool { status == "ok" }
+}
+
+/// How many sources produced records lately. ACTIVITY — not health. Never label this
+/// "healthy"/"unhealthy": a source with no new records is not sick, the user just
+/// didn't do that thing.
+struct SourceActivitySummary: Codable {
+    let producedRecently: Int
+    let noRecentRecords: Int
+    let neverRecorded: Int
+
+    enum CodingKeys: String, CodingKey {
+        case producedRecently = "produced_recently"
+        case noRecentRecords = "no_recent_records"
+        case neverRecorded = "never_recorded"
     }
 }
 
@@ -44,6 +84,9 @@ struct OverallHealth: Codable {
     let activeCount: Int
     let totalCount: Int
     let issueCount: Int
+    /// Sources with a VERIFIED technical problem. This — not inactivity — is what
+    /// "needs attention" means.
+    let attentionCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case status
@@ -51,6 +94,7 @@ struct OverallHealth: Codable {
         case activeCount = "active_count"
         case totalCount = "total_count"
         case issueCount = "issue_count"
+        case attentionCount = "attention_count"
     }
 }
 
@@ -62,22 +106,27 @@ struct SyncCategory: Codable, Identifiable {
     let types: [DataTypeHealth]
     let activeCount: Int
     let totalCount: Int
+    /// Legacy alias of `attentionCount` (kept for wire compatibility). It counts
+    /// VERIFIED technical problems — never inactivity.
     let staleCount: Int
+    let attentionCount: Int?
 
     enum CodingKeys: String, CodingKey {
         case key, label, types
         case activeCount = "active_count"
         case totalCount = "total_count"
         case staleCount = "stale_count"
+        case attentionCount = "attention_count"
     }
 
-    /// How many sources in this category are healthy (has data, within cadence).
-    var healthyCount: Int { types.filter { $0.status == "healthy" || $0.status == "idle" }.count }
-    /// Category needs attention if any source that WAS producing data has gone stale.
-    /// (A never-synced source is "dormant", surfaced separately — not an error.)
-    var needsAttention: Bool { staleCount > 0 }
+    /// Sources in this category with no verified technical problem.
+    var healthyCount: Int { types.filter { !$0.needsAttention }.count }
+    /// Category needs attention only when a source has a VERIFIED import problem.
+    var needsAttention: Bool { (attentionCount ?? staleCount) > 0 }
     /// No source in this category has ever produced data.
     var isDormant: Bool { activeCount == 0 }
+    /// Sources that produced records recently (activity, not health).
+    var producedRecentlyCount: Int { types.filter { $0.sourceActivity == "recent" }.count }
 }
 
 struct LastSyncInfo: Codable {
@@ -102,6 +151,11 @@ struct SyncIssue: Codable, Identifiable {
     let key: String
     let message: String
     let severity: String
+    /// The corrective affordance this issue justifies. "open_health_settings" ONLY when
+    /// Apple Health sharing is the PROVEN cause — never for ordinary inactivity.
+    let action: String?
+
+    var opensHealthSettings: Bool { action == "open_health_settings" }
 }
 
 struct DataTypeHealth: Codable, Identifiable {
@@ -109,12 +163,24 @@ struct DataTypeHealth: Codable, Identifiable {
     let key: String
     let label: String
     let unit: String
-    let status: String            // healthy | stale | idle | no_data
+    /// Derived display status ∈ healthy | idle | no_data | attention.
+    /// "attention" is ONLY ever set from verified import truth — never from record age.
+    let status: String
     let lastRecordAt: String?
     let recentCount: Int
     let totalCount: Int
-    let staleDays: Int?
+    let staleDays: Int?           // legacy alias of daysSinceLastRecord (a fact, not a verdict)
     let message: String
+
+    // ── The three separated truths (see health_sync_status.py) ──
+    /// Technical: ok | failed | blocked | never_attempted
+    let importHealth: String?
+    let importReason: String?
+    /// Activity: recent | none_recently | never
+    let sourceActivity: String?
+    /// Registry policy: continuous | event_driven | user_entered | device_generated | rare
+    let activityClass: String?
+    let daysSinceLastRecord: Int?
 
     enum CodingKeys: String, CodingKey {
         case key, label, unit, status, message
@@ -122,11 +188,21 @@ struct DataTypeHealth: Codable, Identifiable {
         case recentCount = "recent_count"
         case totalCount = "total_count"
         case staleDays = "stale_days"
+        case importHealth = "import_health"
+        case importReason = "import_reason"
+        case sourceActivity = "source_activity"
+        case activityClass = "activity_class"
+        case daysSinceLastRecord = "days_since_last_record"
     }
 
-    /// UI grouping: is this source healthy?
-    var isHealthy: Bool { status == "healthy" || status == "idle" }
-    var needsAttention: Bool { status == "no_data" || status == "stale" }
+    /// Healthy = importing without a technical problem. A source with no recent records
+    /// (a rest day, no stairs, the scale untouched) is NOT unhealthy.
+    var isHealthy: Bool { status != "attention" }
+    /// ONLY a verified technical problem needs attention. "No data" is not a fault —
+    /// the user may simply never produce that metric.
+    var needsAttention: Bool { status == "attention" }
+    /// Records only appear when the activity happens, so silence is expected.
+    var isEventDriven: Bool { activityClass == "event_driven" }
 }
 
 struct SyncSummary: Codable {

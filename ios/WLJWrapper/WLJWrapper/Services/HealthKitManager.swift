@@ -368,6 +368,18 @@ class HealthKitManager {
         }
     }
 
+    /// The `client_debug` payload for this sync: which types we TRIED to read from
+    /// Apple Health and could not. The server stores this on the HealthIngestionRun and
+    /// it is the sole evidence behind a "blocked" import state / a permission-specific
+    /// warning. A type absent from this map is NOT a problem — it just had no data.
+    private func fetchFailureTelemetry() -> [String: [String: Int]] {
+        var out: [String: [String: Int]] = [:]
+        for type in Set(lastSyncSkippedTypes) {
+            out[type] = ["fetch_failed": 1]
+        }
+        return out
+    }
+
     func syncHealthData() async throws -> SyncResult {
         guard KeychainManager.shared.getAPIToken() != nil else {
             throw HealthKitError.notAuthenticated
@@ -484,8 +496,16 @@ class HealthKitManager {
             return SyncResult(created: 0, updated: 0, skipped: 0, errors: 0)
         }
 
-        // Submit to API. Per-batch + overall telemetry is logged inside submitHealthMetrics.
-        let response = try await APIClient.shared.submitHealthMetrics(metrics)
+        // Report the types whose HealthKit READ actually failed (most often Code=5 —
+        // permission not granted, or the type isn't available on this device). This is
+        // the ONLY proof the server ever gets that a source is blocked: HealthKit hides
+        // authorization state, so the backend must never infer "denied" from silence.
+        // Without this, an unreadable type is indistinguishable from a type the user
+        // simply produced no data for — the conflation that made Health Sync say
+        // "has not synced" when nothing was wrong. See health_sync_status.py.
+        let response = try await APIClient.shared.submitHealthMetrics(
+            metrics, clientDebug: fetchFailureTelemetry()
+        )
 
         // Honor any pending server "reimport" directive (the web "Re-import from Apple
         // Health" button) as part of the normal sync — best-effort, never fails the sync.

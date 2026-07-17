@@ -331,15 +331,27 @@ private struct HeroCard: View {
     }
     private var title: String {
         switch overall?.status {
-        case "healthy": return "All Healthy"
-        case "attention": return "Needs Attention"
+        case "healthy": return "Syncing Normally"
+        case "attention": return issueCount == 1 ? "1 source needs attention"
+                                                 : "\(issueCount) sources need attention"
         default: return "Set Up Health Sync"
         }
     }
+    /// The hero reports SYNCHRONIZATION health only. It must never turn "you didn't
+    /// climb any stairs" into a health number — source activity is shown separately
+    /// below, explicitly labeled as activity. (Incident 2026-07-16.)
     private var subtitle: String {
         guard let o = overall else { return "Tap Sync to check your sources" }
         if o.status == "setup" || o.activeCount == 0 { return "No data has synced yet" }
-        return "\(o.healthyCount) of \(o.activeCount) active sources healthy"
+        if o.status == "attention" { return "Everything else is importing normally" }
+        return "Last synced \(lastSyncText)"
+    }
+    /// Activity — deliberately NOT labeled as health.
+    private var activityLine: String? {
+        guard let a = status.sourceActivitySummary, a.producedRecently > 0 else { return nil }
+        var s = "\(a.producedRecently) source\(a.producedRecently == 1 ? "" : "s") produced records recently"
+        if a.noRecentRecords > 0 { s += " • \(a.noRecentRecords) had no new records" }
+        return s
     }
     private var issueCount: Int { overall?.issueCount ?? status.issues.count }
 
@@ -364,6 +376,11 @@ private struct HeroCard: View {
                 if let n = status.newestData {
                     factLine("sparkles", "Newest data",
                              "\(n.label) • \(HealthSyncDate.relative(n.at))")
+                }
+                // Source ACTIVITY — what your sources produced. Shown as activity,
+                // never as a health score.
+                if let a = activityLine {
+                    factLine("chart.bar.doc.horizontal", "Source activity", a)
                 }
             }
 
@@ -422,11 +439,16 @@ private struct AttentionCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Button(action: onFix) {
-                Label("Fix in Apple Health", systemImage: "gearshape.fill")
-                    .font(.subheadline.weight(.medium))
+            // Only offer the Apple Health fix when the server PROVED that Apple Health
+            // sharing is the cause. An import error or a quiet phone is not fixed in
+            // Settings, and sending the user there for inactivity is a false errand.
+            if issues.contains(where: { $0.opensHealthSettings }) {
+                Button(action: onFix) {
+                    Label("Fix in Apple Health", systemImage: "gearshape.fill")
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.top, 2)
             }
-            .padding(.top, 2)
         }
         .wljCard(tint: .orange)
     }
@@ -582,16 +604,19 @@ private struct CategoryCard: View {
         if category.isDormant { return .secondary }
         return .green
     }
+    /// Health first (verified problems only); otherwise report ACTIVITY — never dress
+    /// "no new records" up as a health fraction.
     private var summaryText: String {
         if category.isDormant { return "No data yet" }
-        if category.staleCount > 0 {
-            return "\(category.staleCount) need attention • \(category.healthyCount) healthy"
+        let attention = category.attentionCount ?? category.staleCount
+        if attention > 0 {
+            return "\(attention) need attention • \(category.healthyCount) importing normally"
         }
-        return "\(category.healthyCount) of \(category.activeCount) healthy"
+        return "\(category.producedRecentlyCount) of \(category.activeCount) produced records recently"
     }
     @ViewBuilder private var statusChip: some View {
         if category.needsAttention {
-            chip("\(category.staleCount)", .orange)
+            chip("\(category.attentionCount ?? category.staleCount)", .orange)
         } else if category.isDormant {
             chip("—", .secondary)
         } else {
@@ -639,13 +664,17 @@ private struct StatusIndicator: View {
 enum HealthSyncStatusStyle {
     struct Style { let icon: String; let tint: Color; let label: String }
     /// The single mapping from a deterministic per-source status to its visual style.
+    ///
+    /// Only a VERIFIED technical problem ("attention") gets a warning icon. A source
+    /// with no recent records is neutral — not orange, not an error. Silence means the
+    /// user didn't do the thing, and that is never a fault. (Incident 2026-07-16.)
     static func of(_ status: String) -> Style {
         switch status {
-        case "healthy": return Style(icon: "checkmark.circle.fill", tint: .green, label: "Healthy")
-        case "idle":    return Style(icon: "checkmark.circle.fill", tint: .green, label: "Up to date")
-        case "stale":   return Style(icon: "exclamationmark.triangle.fill", tint: .orange, label: "Stale")
-        case "no_data": return Style(icon: "circle.dashed", tint: .secondary, label: "No data")
-        default:        return Style(icon: "questionmark.circle", tint: .gray, label: status.capitalized)
+        case "healthy":   return Style(icon: "checkmark.circle.fill", tint: .green, label: "Healthy")
+        case "idle":      return Style(icon: "checkmark.circle.fill", tint: .green, label: "No recent records")
+        case "no_data":   return Style(icon: "circle.dashed", tint: .secondary, label: "No data")
+        case "attention": return Style(icon: "exclamationmark.triangle.fill", tint: .orange, label: "Needs attention")
+        default:          return Style(icon: "questionmark.circle", tint: .gray, label: status.capitalized)
         }
     }
 }
@@ -717,19 +746,31 @@ struct DataSourceDetailView: View {
                     .padding(.vertical, 4)
                 }
 
-                Section("Details") {
-                    detailRow("Last record", HealthSyncDate.relative(type.lastRecordAt))
-                    detailRow("Records · last 7 days", "\(type.recentCount)")
-                    detailRow("Total records", "\(type.totalCount)")
-                    if let stale = type.staleDays, stale > 0 {
-                        detailRow("Days since last", "\(stale)")
+                // The three truths, kept visibly separate: is sync working, what did
+                // the source produce, and is this metric even expected to produce.
+                Section("Sync") {
+                    detailRow("Import status", importStatusText)
+                    if let reason = type.importReason, !reason.isEmpty {
+                        detailRow("Error", reason)
                     }
                     detailRow("Source", "Apple Health")
                 }
 
+                Section("Recent activity") {
+                    detailRow("Last record", HealthSyncDate.relative(type.lastRecordAt))
+                    detailRow("Records · last 7 days", "\(type.recentCount)")
+                    detailRow("Total records", "\(type.totalCount)")
+                    if let days = type.daysSinceLastRecord ?? type.staleDays, days > 0 {
+                        detailRow("Days since last record", "\(days)")
+                    }
+                    detailRow("Records expected", expectedActivityText)
+                }
+
                 Section("Suggested action") {
                     Text(suggestion).font(.subheadline).foregroundStyle(.secondary)
-                    if (type.status == "no_data" || type.status == "stale"), let onFix {
+                    // Only offer the Apple Health fix when a read block is the PROVEN
+                    // cause. Never send someone to settings for ordinary inactivity.
+                    if type.importHealth == "blocked", let onFix {
                         Button {
                             dismiss()
                             onFix()
@@ -749,16 +790,53 @@ struct DataSourceDetailView: View {
         }
     }
 
+    private var importStatusText: String {
+        switch type.importHealth {
+        case "ok": return "Importing normally"
+        case "blocked": return "Blocked by Apple Health"
+        case "failed": return "Last import rejected these records"
+        case "never_attempted": return "No sync has run yet"
+        default: return "Importing normally"
+        }
+    }
+
+    private var expectedActivityText: String {
+        switch type.activityClass {
+        case "event_driven": return "Only when the activity happens"
+        case "user_entered": return "Only when you log it"
+        case "device_generated": return "Only when measured by a device"
+        case "rare": return "Occasionally"
+        case "continuous": return "Most days"
+        default: return "—"
+        }
+    }
+
+    /// The action is driven by VERIFIED error truth. "No records recently" requires no
+    /// corrective action at all — so we say so plainly rather than inventing a chore.
     private var suggestion: String {
+        if type.importHealth == "blocked" {
+            return "WLJ tried to read \(type.label.lowercased()) from Apple Health and wasn't allowed. Turn it on under Apple Health → Sharing → Whole Life Journey, then Sync."
+        }
+        if type.importHealth == "failed" {
+            let reason = type.importReason ?? "the records were rejected"
+            return "The last sync couldn't import \(type.label.lowercased()): \(reason). This usually clears on the next sync."
+        }
         switch type.status {
         case "no_data":
-            return "No \(type.label.lowercased()) records have reached your WLJ account yet. Enable \(type.label) under Apple Health → Sharing → Whole Life Journey, then Sync."
-        case "stale":
-            return "This source hasn't produced new data in \(type.staleDays ?? 0) days. Open Apple Health to confirm the device is still recording."
+            return "No \(type.label.lowercased()) records have reached your WLJ account yet. If you expect this data, check that \(type.label) is enabled under Apple Health → Sharing → Whole Life Journey."
         case "idle":
-            return "Up to date. This source records occasionally, so gaps between readings are normal."
+            switch type.activityClass {
+            case "event_driven":
+                return "Nothing to do. \(type.label) only records when the activity happens, so gaps are completely normal."
+            case "user_entered":
+                return "Nothing to do. \(type.label) records when you log it."
+            case "device_generated":
+                return "Nothing to do. \(type.label) records when a device measures it."
+            default:
+                return "Nothing to do. Syncing is working — there just haven't been new records lately."
+            }
         default:
-            return "Everything looks good — records are arriving on schedule."
+            return "Everything looks good — records are arriving and importing normally."
         }
     }
 

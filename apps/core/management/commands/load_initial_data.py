@@ -1099,6 +1099,8 @@ class Command(BaseCommand):
         self._reset_background_chat_release_notes(DataLoadConfig, force, verbosity)
         # Executive Briefing grounded in day-execution truth (PK 274)
         self._reset_exec_briefing_day_truth_release_notes(DataLoadConfig, force, verbosity)
+        # Health Sync synchronization-truth model (PK 275)
+        self._reset_health_sync_truth_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8164,6 +8166,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset background chat release notes FAILED: {e}'))
+
+    def _reset_health_sync_truth_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 275 (Health Sync
+        synchronization-truth model — "no new data" is no longer reported as a sync
+        failure; Needs Attention is reserved for verified technical problems).
+        """
+        reset_tracker_name = 'reset_health_sync_truth_2026_07_17'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Health Sync truth model (PK 275)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Health Sync truth model',
+                'command',
+                'One-time reset: added PK 275 for the Health Sync synchronization-truth model'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset health sync truth release notes FAILED: {e}'))
 
     def _reset_exec_briefing_day_truth_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

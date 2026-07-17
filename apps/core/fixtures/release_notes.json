@@ -4374,5 +4374,21 @@
       "created_at": "2026-07-16T12:00:00Z",
       "updated_at": "2026-07-16T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 275,
+    "fields": {
+      "title": "Health Sync now tells you the truth about syncing",
+      "description": "Health Sync used to warn you when a health metric simply had no new data — so if you hadn't climbed any stairs for a few days, it said \"Flights Climbed has not synced in 6 days\" and flagged it for attention, even though syncing was working perfectly. That's fixed. Health Sync now separates three different things: whether synchronization actually worked, whether Apple Health had any new records to give, and whether a metric is even expected to update regularly. Metrics like flights climbed, workouts, swimming and exercise minutes only record when you do the activity — so quiet days now show a neutral \"No recent records\" instead of a warning. \"Needs Attention\" is now reserved for real technical problems: an import that failed, a permission Apple Health is actually blocking, or your iPhone not checking in. We'll also only send you to Apple Health settings when permissions are genuinely the cause.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-07-17",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-17T12:00:00Z",
+      "updated_at": "2026-07-17T12:00:00Z"
+    }
   }
 ]

@@ -141,12 +141,26 @@ class BuildHealthSyncStatusTest(TestCase):
         self.assertTrue(any(x["key"] == "steps" for x in st["last_sync_summary"]["imported"]))
         self.assertEqual(st["newest_data"]["key"], "steps")
 
-    def test_stale_steps_raises_issue(self):
-        self._steps(5)  # last steps 5 days ago; steps stale_after_days=2
+    def test_old_steps_records_alone_never_raise_a_sync_issue(self):
+        """Redesigned 2026-07-17: record age is ACTIVITY, never proof of a sync fault.
+
+        Steps 5 days old (cadence 2d) used to render "Steps has not synced in 5 days".
+        With a healthy recent ingestion run, the honest truth is: importing fine, just
+        no recent records.
+        """
+        self._steps(5)
+        run = HealthIngestionRun.objects.create(user=self.user, metrics_received=1)
+        run.mark_completed(0, 0, 1, type_results={"steps": {"created": 0, "updated": 0,
+                                                            "skipped": 1, "failed": 0}})
         st = build_health_sync_status(self.user, now=self.now)
         steps = next(d for d in st["data_types"] if d["key"] == "steps")
-        self.assertEqual(steps["status"], "stale")
-        self.assertTrue(any("has not synced" in i["message"] for i in st["issues"]))
+        self.assertEqual(steps["status"], "idle")
+        self.assertEqual(steps["import_health"], "ok")
+        self.assertEqual(steps["source_activity"], "none_recently")
+        self.assertEqual(st["overall_health"]["status"], "healthy")
+        self.assertFalse(any(i["key"] == "steps" for i in st["issues"]))
+        for i in st["issues"]:
+            self.assertNotIn("has not synced", i["message"])
 
     def test_irregular_source_is_idle_not_stale(self):
         # Weight is irregular by nature — an old weigh-in is not a "stale" alarm.

@@ -3,8 +3,33 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-16 (fix(rte): eliminate the raw-HTML-leak regression class)
+# Last Updated: 2026-07-17 (fix(health): Health Sync reports synchronization truth, not inferred user activity)
 # ================================================================# WLJ Change History
+
+## 2026-07-17 — fix(health): Health Sync reports synchronization truth, not inferred user activity
+
+**Trust break (reported):** Health Sync showed **"Needs Attention — Flights Climbed has not synced in 6 days."** Synchronization was working perfectly; the user simply hadn't climbed stairs. The page told a paying customer something was broken when nothing was.
+
+**Runtime trace (proven):** `HealthSyncView.swift` → `GET /api/mobile/health/sync-status/` → `build_health_sync_status()` → `_type_status()`. Staleness was `max(date_field) of health data rows` vs `now`, compared to a per-type `stale_after_days` — **days since the last data row, never days since the last sync**. `HealthIngestionRun` (the real audit log: run status, `metric_type_results`, `validation_errors`, `client_debug`) existed but fed only the cosmetic "last sync" card; `_type_status` never read it. Worse, `flights_climbed` shares `StepsEntry` with steps and carries `presence_filter={"flights_climbed__gt": 0}` — so zero-flight days were filtered out of the query **even though the row for that day existed and proved the sync ran**. 7 of the 13 stale-capable metrics had the same `__gt: 0` trap.
+
+**The class:** absence of data used as a proxy for sync failure. One axis (record age) forced to express three unrelated truths.
+
+**Correction — three independent truths, whole engine (not a Flights Climbed exception):**
+- **Import health** (technical) — from `HealthIngestionRun` ONLY: `ok / failed / blocked / never_attempted`, plus account-level `sync_path` (`ok / never_synced / not_checking_in / failed`). **The only thing that may produce "Needs Attention."** A device that stops checking in is now ONE honest account-level issue instead of 13 per-metric false alarms.
+- **Source activity** (what was produced) — from the persisted rows: `recent / none_recently / never`. Never health.
+- **Activity class** (policy) — new **required** `activity_class` on all **47** registry rows: **11 continuous · 21 event_driven · 7 device_generated · 4 user_entered · 4 rare**. `flights_climbed`, `exercise_minutes` (a rest day!) and `blood_oxygen` (Apple disabled SpO₂ on US watches) lost their cadence.
+
+**THE RULE, structurally enforced:** *record age can never mark a source unhealthy* — for every class, including `continuous` (Decision A: a watch simply may not have been worn). `STATUS_STALE` and the "has not synced" wording are **removed, not bypassed**. `test_health_sync_registry_contract` now **fails CI** if a non-continuous row sets `stale_after_days`, so inactivity can never again be configured into a sync warning.
+
+**No fabrication:** HealthKit hides read-authorization, so permission is only ever claimed from proof — iOS already tracked `lastSyncSkippedTypes` (HealthKit Code=5) but never sent it; `HealthKitManager` now reports it as `client_debug[type].fetch_failed`, which is the sole basis for a "blocked" state and the ONLY case that offers "Fix in Apple Health". Ordinary inactivity never sends the user to Settings.
+
+**Display:** hero reports **sync** health ("Syncing Normally" / "1 source needs attention" / "Last synced today at 5:39 AM"); source activity shown separately, explicitly labeled activity — never "31 of 32 healthy" derived from inactivity or padded with can't-fail idles. Per-type: `healthy` · `idle` (neutral green — "No recent Flights Climbed records", no action) · `no_data` · `attention` (verified only). Detail view separates sync status / last record / recent activity / expected cadence / actual error. **Wire-compatible with shipped iOS builds** (fields added, not removed; `stale_count`/`stale_days` kept as documented legacy aliases), so old clients get the fix too.
+
+**Verification:** `manage.py check` clean; `makemigrations --check` = no changes (registry is not a model). **42 scoped Health-Sync tests green**, incl. new `test_health_sync_truth_model.py` covering all 10 required cases (zero-flights healthy; N days no flights never attention; rest day; watch-dependent metrics; verified ingestion failure DOES warn; permission-specific warning; no "has not synced" wording; event-driven cannot be configured to warn; counts from import health; success reporting intact). Full `apps.health apps.mobile` = 2147 tests, 12 failures **proven pre-existing** (identical on base with changes stashed — body-comp/fitness/medicine, unrelated). **iOS `xcodebuild` BUILD SUCCEEDED** (no iOS test targets exist).
+
+**Files:** `apps/health/healthkit_registry.py` (activity_class ×47 + policy), `apps/health/services/health_sync_status.py` (three-truth engine), `apps/health/tests/{test_health_sync_truth_model.py (new), test_health_sync_registry_contract.py}`, `apps/mobile/tests/test_health_sync_status.py`, `ios/.../{HealthSyncStatus.swift, HealthSyncView.swift, HealthKitManager.swift}`, `docs/WLJ_HEALTHKIT_COVERAGE_AUDIT.md` (new §0 governing truth model).
+
+---
 
 ## 2026-07-17 — fix(runtime): Model Interface deep-reasoning budgets + eliminate the empty-answer class
 

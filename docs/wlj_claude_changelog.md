@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — chore(journal): TEMP glass-box for the Person-recognition reproduction (Stage 1, to be removed)
+
+Read-only, login-required, **self-scoped** diagnostic (`/journal/recognition-diag/?entry=206`) to answer the entry-206 "Heather" reproduction against prod truth — the local snapshot predates it (newest journal pk 145; all three Person tables globally empty). It reads only the calling user's own data and NEVER mutates: entry body/flags, `relationships.Mention` rows on the entry, and "Heather" across all three Person authorities (`relationships` / `ai_relationships` / `people`) plus the canonical `resolve()` result. **Temporary** — removed completely (view + URL) once the evidence is captured. Files: `apps/journal/views.py`, `apps/journal/urls.py`.
+
 ## 2026-07-17 — feat(truth): expose Journal + Nutrition entity surfaces — the CoS reasons FROM the user's truth, not generic knowledge
 
 **Root cause of the investigation-quality + personalization defects: a Layer-1 truth-ACCESSIBILITY gap, NOT prompt/reasoning.** The Model Interface can only reason over truth WLJ exposes as tools; the `DomainTruth` catalog exposed record-level entities for only `health(workout)`, `legacy`, `medicine`. Everything else was reachable only as aggregates or via a cross-domain `search_history`. So (proven from the transcript + the catalog):

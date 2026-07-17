@@ -44,6 +44,16 @@ LLM_TIMEOUT_COS_CHAT = 45  # CoS chat/briefing — large prompt, long response
 LLM_TIMEOUT_INTENT = 10    # Intent recognition — structured output, moderate
 LLM_TIMEOUT_GENERAL = 10   # General/unclassified calls — moderate headroom
 LLM_TIMEOUT_UTILITY = 8    # Lightweight utilities (summary, extraction, etc.)
+# Model Interface — the DEEPEST reasoning path: a large constitution, multi-round
+# cross-domain tool investigation, accumulated deterministic evidence in context, and a
+# long executive-briefing answer. It must NEVER inherit LLM_TIMEOUT_UTILITY (8s).
+# PROVEN in production (2026-07-17 worker log): round 0 returned 3 get_analysis tool
+# calls (prompt_tokens=14750) whose ~49KB of evidence made the round-1 request exceed
+# the inherited 8s cap → APITimeoutError → COS_TOOL_LOOP_FALLBACK → the plain fallback
+# (same 8s) also timed out → COS_PLAIN_FALLBACK_RESULT answer_len=0 → the user-visible
+# "empty response after tool execution". Only the deepest prompts were slow enough to
+# hit it, which is why only they failed.
+LLM_TIMEOUT_MODEL_INTERFACE = 45  # deep multi-round reasoning — large prompt + long answer
 
 # Endpoint → timeout mapping
 ENDPOINT_TIMEOUTS = {
@@ -54,6 +64,7 @@ ENDPOINT_TIMEOUTS = {
     'intent_recognition': LLM_TIMEOUT_INTENT,
     'journal_reflection': LLM_TIMEOUT_INTENT,
     'general': LLM_TIMEOUT_GENERAL,
+    'model_interface': LLM_TIMEOUT_MODEL_INTERFACE,
 }
 
 

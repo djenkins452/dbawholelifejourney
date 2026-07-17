@@ -18,7 +18,10 @@ from types import SimpleNamespace
 
 from django.test import TestCase
 
-from apps.ai.services import AIService, resolve_tool_loop_budgets
+from apps.ai.services import (
+    AIService, LLM_TIMEOUT_UTILITY, get_timeout_for_endpoint,
+    resolve_tool_loop_budgets,
+)
 
 
 # --- scriptable fake OpenAI client -------------------------------------------
@@ -92,6 +95,59 @@ class BudgetResolutionTests(TestCase):
             resolve_tool_loop_budgets("model_interface", max_tool_rounds=2,
                                       max_tokens=500),
             (500, 2))
+
+
+class ModelInterfaceTimeoutTests(TestCase):
+    """PROVEN production regression (2026-07-17 worker log): model_interface was absent
+    from ENDPOINT_TIMEOUTS, so it inherited LLM_TIMEOUT_UTILITY (8s) — the SHORTEST
+    timeout in the system on the DEEPEST reasoning path. Round 0 returned 3 get_analysis
+    calls (~49KB of evidence); the round-1 request exceeded 8s → APITimeoutError →
+    COS_TOOL_LOOP_FALLBACK → the plain fallback (same 8s) also timed out →
+    COS_PLAIN_FALLBACK_RESULT answer_len=0 → the user-visible empty-response message."""
+
+    def test_model_interface_resolves_its_own_timeout(self):
+        self.assertEqual(get_timeout_for_endpoint("model_interface"), 45)
+        # The whole bug: it must NEVER fall through to the lightweight-utility default.
+        self.assertNotEqual(get_timeout_for_endpoint("model_interface"),
+                            LLM_TIMEOUT_UTILITY)
+
+    def test_cos_chat_keeps_its_existing_timeout(self):
+        self.assertEqual(get_timeout_for_endpoint("cos_chat"), 45)
+
+    def test_no_regression_to_other_endpoints(self):
+        self.assertEqual(get_timeout_for_endpoint("cos_briefing"), 45)
+        self.assertEqual(get_timeout_for_endpoint("executive_briefing"), 45)
+        self.assertEqual(get_timeout_for_endpoint("proactive_briefing"), 45)
+        self.assertEqual(get_timeout_for_endpoint("intent_recognition"), 10)
+        self.assertEqual(get_timeout_for_endpoint("journal_reflection"), 10)
+        self.assertEqual(get_timeout_for_endpoint("general"), 10)
+        # an unknown endpoint still gets the utility default (unchanged behavior)
+        self.assertEqual(get_timeout_for_endpoint("something_else"), LLM_TIMEOUT_UTILITY)
+
+    def test_tool_loop_requests_receive_the_endpoint_timeout(self):
+        svc = _svc([_resp(content="answer", finish_reason="stop")])
+        _run(svc)
+        self.assertEqual(svc.client.calls[0]["timeout"], 45)
+
+    def test_tool_loop_timeout_is_per_endpoint_not_global(self):
+        svc = _svc([_resp(content="answer", finish_reason="stop")])
+        _run(svc, endpoint="cos_chat")
+        self.assertEqual(svc.client.calls[0]["timeout"], 45)
+        svc2 = _svc([_resp(content="answer", finish_reason="stop")])
+        _run(svc2, endpoint="something_else")
+        self.assertEqual(svc2.client.calls[0]["timeout"], LLM_TIMEOUT_UTILITY)
+
+    def test_plain_fallback_receives_the_same_endpoint_timeout(self):
+        # The production failure: the tool loop timed out AND the plain fallback
+        # inherited the same 8s. Both must now get the model_interface timeout.
+        class _Timeout(Exception):
+            pass
+        svc = _svc([_Timeout("round 0 timed out"),          # tool loop raises
+                    _resp(content="FALLBACK", finish_reason="stop")])  # plain fallback
+        out = _run(svc)
+        self.assertEqual(out, "FALLBACK")
+        self.assertEqual(len(svc.client.calls), 2)
+        self.assertEqual(svc.client.calls[1]["timeout"], 45)   # fallback call
 
 
 class DeepReasoningRoundsTests(TestCase):

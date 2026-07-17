@@ -6,6 +6,25 @@
 # Last Updated: 2026-07-17 (fix(health): Health Sync reports synchronization truth, not inferred user activity)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — fix(runtime): the Model Interface no longer inherits the 8s utility timeout (PROVEN root cause)
+
+**The blocking deep-reasoning failure, root-caused from the production worker log — not a hypothesis.** `'model_interface'` was absent from `ENDPOINT_TIMEOUTS`, so `get_timeout_for_endpoint('model_interface')` fell through to `LLM_TIMEOUT_UTILITY` = **8 seconds** — the SHORTEST timeout in the system, on the DEEPEST reasoning path (the shallower `cos_chat` had 45s).
+
+**Proven production sequence** (worker log, `apps.ai.model_interface.run_model_interface_generation`):
+- `round=0` succeeded: `prompt_tokens=14750 completion_tokens=71 finish_reason=tool_calls`, `tool_names=get_analysis,get_analysis,get_analysis`, `model=gpt-4o`.
+- Three tool results returned **32110 + 8099 + 8772 = ~49KB** of deterministic evidence into context.
+- `round=1` (now ~27k prompt tokens) exceeded the inherited 8s cap → **`COS_TOOL_LOOP_FALLBACK exception_type=APITimeoutError`**.
+- The plain fallback inherited the **same 8s** and also timed out → **`COS_PLAIN_FALLBACK_RESULT answer_len=0`** → `answer=""` → the user-visible *"I reached the model-interface path, but the model returned an empty response after tool execution."*
+- Notably **no `COS_TOOL_LOOP_EMPTY_FINAL` and no `COS_SYNTHESIS_RETRY`** — the failure is an *exception*, never an empty final content, which is exactly why the previous budgets/synthesis fix changed nothing. Only the deepest prompts are slow enough to hit the cap — which is why only they failed.
+
+- **The fix (smallest correct):** new `LLM_TIMEOUT_MODEL_INTERFACE = 45` + `'model_interface': LLM_TIMEOUT_MODEL_INTERFACE` in `ENDPOINT_TIMEOUTS`. Both the tool-loop rounds AND the plain fallback (which resolves the same endpoint timeout) now get 45s. **All other endpoint timeouts unchanged**; an unknown endpoint still gets the 8s utility default.
+- **Preserved as instructed:** the endpoint-specific reasoning budgets (`model_interface` = 7 rounds / 3500 tokens) and the evidence-grounded synthesis retry remain exactly as implemented — the retry stays valuable for genuine empty-content responses.
+- **Tests** (`apps/ai/tests/test_tool_loop_reasoning_budgets.py`, +6 → 17): model_interface resolves its own timeout and never equals `LLM_TIMEOUT_UTILITY`; cos_chat keeps 45s; no regression to cos_briefing/executive_briefing/proactive_briefing/intent/journal/general/unknown; tool-loop requests receive the endpoint timeout; the timeout is per-endpoint not global; **the plain fallback receives the same endpoint timeout** (the exact second-order failure from the log). Full run: **199 tests pass**; no migration.
+
+**Residual risk (flagged, not changed):** the Celery task holds `soft_time_limit=95` / `time_limit=110` (`model_interface/tasks.py:40-47`). With 45s per request, a pathological many-round turn could exceed the 95s task budget and surface `_fail(...,"timeout")` ("Something went wrong reaching the model-interface path") instead. Watch `COS_TOOL_LOOP_MEASURE` post-deploy before touching it.
+
+**Files:** `apps/ai/services.py`, `apps/ai/tests/test_tool_loop_reasoning_budgets.py`.
+
 ## 2026-07-17 — fix(health): Health Sync reports synchronization truth, not inferred user activity
 
 **Trust break (reported):** Health Sync showed **"Needs Attention — Flights Climbed has not synced in 6 days."** Synchronization was working perfectly; the user simply hadn't climbed stairs. The page told a paying customer something was broken when nothing was.

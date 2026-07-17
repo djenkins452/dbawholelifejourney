@@ -2034,15 +2034,10 @@ any in-flight stream survive a focus-mode toggle untouched.
         if (e.key === 'Escape' && apFocusActive()) setFocusMode(false);
     });
 
-    // Double-clicking the header toggles too — but not on a control inside it,
-    // where a double-click would otherwise fire the control twice AND toggle.
-    var apHeader = apPanel ? apPanel.querySelector('.assistant-panel-header') : null;
-    if (apHeader) {
-        apHeader.addEventListener('dblclick', function(e) {
-            if (e.target.closest('button, a, input, textarea, [data-action]')) return;
-            toggleFocusMode();
-        });
-    }
+    // Entry/exit is deliberately limited to the three discoverable affordances:
+    // the header button, clicking outside, and ESC. A double-click-the-header
+    // shortcut was considered and removed — it is undiscoverable, and it fights
+    // double-click-to-select-text in the header.
 
     /* ================================================================
        FORM HANDLERS (desktop)

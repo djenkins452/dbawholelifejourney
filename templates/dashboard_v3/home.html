@@ -5,7 +5,12 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/dashboard_v2.css' %}">
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260713b">
+{% comment %}
+Bump ?v= whenever dashboard_v3.css changes: the markup and the stylesheet ship
+together, so a cached stylesheet against new markup renders a broken dashboard
+(e.g. the completed-items list stuck permanently hidden).
+{% endcomment %}
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260717a">
 {% endblock %}
 
 {% block content %}
@@ -54,81 +59,143 @@
 
 <script nonce="{{ csp_nonce }}">
 (function() {
-    // CSP-safe rhythm-tile expand/collapse
-    document.querySelectorAll('.v3-rhythm-toggle').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var key = btn.getAttribute('data-rhythm-key');
-            var tile = document.querySelector('.v3-rhythm-tile[data-rhythm-key="' + key + '"]');
-            if (!tile) return;
-            var expanded = tile.getAttribute('data-expanded') === 'true';
-            tile.setAttribute('data-expanded', expanded ? 'false' : 'true');
-            btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        });
-    });
-    // Accountability card "Read more / Show less" — mirrors the
-    // rhythm-tile expand pattern (data-expanded + aria-expanded) so
-    // dashboard interactions feel consistent. Pure presentation: full
-    // text is already in the DOM (hidden via [hidden]); toggling
-    // swaps which span is shown. No fetch, no reload, no modal.
-    document.querySelectorAll('.v3-acc-readmore').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var key = btn.getAttribute('data-acc-expand-toggle');
-            var p = document.querySelector(
-                '.v3-card-slot-rec-text[data-acc-key="' + key + '"]'
+    /* ================================================================
+       DASHBOARD INTERACTIONS — delegated, swap-proof.
+
+       #v3-live below is re-rendered with hx-swap="innerHTML" after every
+       completion. Binding these controls per-node at page load (the old
+       `querySelectorAll(...).forEach(addEventListener)`) meant the swap replaced
+       every node with a listener-less clone, so the rhythm tile toggle, the
+       "N completed" expander, "Read more" and Focus-card navigation ALL went dead
+       after the first completion — and stayed dead until a full page reload. The
+       "N completed" list was the worst of it: it died at exactly the moment you'd
+       want to look at what you had just completed.
+
+       Everything below is delegated on document.body, which survives every swap,
+       per the CSP rule for dynamic elements (no inline handlers, nonce'd script,
+       state read from data-* attributes). There is nothing to rebind.
+       ================================================================ */
+
+    /* Expansion is a per-visit PREFERENCE, deliberately in memory only: it
+       survives every HTMX swap (re-asserted in v3ReapplyExpansion below) and
+       resets on refresh/navigation, as specified. Nothing is persisted.
+
+       We record the user's EXPLICIT choice (true AND false), not just "open"
+       keys, because the server re-derives each tile's default `expanded` on every
+       render — so a tile the user deliberately COLLAPSED must stay collapsed
+       through the next swap rather than springing back open. */
+    var v3Expand = {
+        tile: Object.create(null),
+        completed: Object.create(null),
+        acc: Object.create(null)
+    };
+
+    function v3SetTile(key, expanded, remember) {
+        var tile = document.querySelector('.v3-rhythm-tile[data-rhythm-key="' + key + '"]');
+        var btn = document.querySelector('.v3-rhythm-toggle[data-rhythm-key="' + key + '"]');
+        if (!tile || !btn) return;
+        tile.setAttribute('data-expanded', expanded ? 'true' : 'false');
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        if (remember) v3Expand.tile[key] = expanded;
+    }
+
+    // The ONE completed-items expander. Titles come from the same execution truth
+    // the open list renders — this only shows/hides what is already in the DOM.
+    function v3SetCompleted(key, shown, remember) {
+        var wrap = document.querySelector('.v3-collapse[data-rhythm-key="' + key + '"]');
+        var btn = document.querySelector('.v3-rhythm-show-completed[data-rhythm-key="' + key + '"]');
+        if (!wrap || !btn) return;
+        wrap.setAttribute('data-shown', shown ? 'true' : 'false');
+        btn.setAttribute('aria-expanded', shown ? 'true' : 'false');
+        // Update the LABEL span, not the button: the button also holds the caret.
+        var label = btn.querySelector('.v3-rhythm-completed-label');
+        if (label) {
+            label.textContent = btn.getAttribute(
+                shown ? 'data-expanded-label' : 'data-collapsed-label'
             );
-            if (!p) return;
-            var expanded = p.getAttribute('data-expanded') === 'true';
-            var shortEl = p.querySelector('.v3-acc-msg-short');
-            var fullEl = p.querySelector('.v3-acc-msg-full');
-            if (!shortEl || !fullEl) return;
-            if (expanded) {
-                shortEl.removeAttribute('hidden');
-                fullEl.setAttribute('hidden', '');
-                p.setAttribute('data-expanded', 'false');
-                btn.setAttribute('aria-expanded', 'false');
-                btn.textContent = btn.getAttribute('data-collapsed-label');
-            } else {
-                shortEl.setAttribute('hidden', '');
-                fullEl.removeAttribute('hidden');
-                p.setAttribute('data-expanded', 'true');
-                btn.setAttribute('aria-expanded', 'true');
-                btn.textContent = btn.getAttribute('data-expanded-label');
-            }
-        });
+        }
+        if (remember) v3Expand.completed[key] = shown;
+    }
+
+    // Accountability "Read more / Show less". Pure presentation: the full text is
+    // already in the DOM (hidden via [hidden]); toggling swaps which span shows.
+    function v3SetAcc(key, expanded, remember) {
+        var p = document.querySelector('.v3-card-slot-rec-text[data-acc-key="' + key + '"]');
+        var btn = document.querySelector('.v3-acc-readmore[data-acc-expand-toggle="' + key + '"]');
+        if (!p || !btn) return;
+        var shortEl = p.querySelector('.v3-acc-msg-short');
+        var fullEl = p.querySelector('.v3-acc-msg-full');
+        if (!shortEl || !fullEl) return;
+        if (expanded) {
+            shortEl.setAttribute('hidden', '');
+            fullEl.removeAttribute('hidden');
+        } else {
+            shortEl.removeAttribute('hidden');
+            fullEl.setAttribute('hidden', '');
+        }
+        p.setAttribute('data-expanded', expanded ? 'true' : 'false');
+        btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        btn.textContent = btn.getAttribute(
+            expanded ? 'data-expanded-label' : 'data-collapsed-label'
+        );
+        if (remember) v3Expand.acc[key] = expanded;
+    }
+
+    function v3IsOpen(sel, attr) {
+        var el = document.querySelector(sel);
+        return !!el && el.getAttribute(attr) === 'true';
+    }
+
+    document.body.addEventListener('click', function(e) {
+        var el;
+        if ((el = e.target.closest('.v3-rhythm-show-completed'))) {
+            var ck = el.getAttribute('data-rhythm-key');
+            v3SetCompleted(ck, el.getAttribute('aria-expanded') !== 'true', true);
+        } else if ((el = e.target.closest('.v3-rhythm-toggle'))) {
+            var tk = el.getAttribute('data-rhythm-key');
+            v3SetTile(tk, !v3IsOpen('.v3-rhythm-tile[data-rhythm-key="' + tk + '"]', 'data-expanded'), true);
+        } else if ((el = e.target.closest('.v3-acc-readmore'))) {
+            var ak = el.getAttribute('data-acc-expand-toggle');
+            v3SetAcc(ak, !v3IsOpen('.v3-card-slot-rec-text[data-acc-key="' + ak + '"]', 'data-expanded'), true);
+        }
     });
-    // "View N completed" toggle inside a tile
-    document.querySelectorAll('.v3-rhythm-show-completed').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var key = btn.getAttribute('data-rhythm-key');
-            var list = document.querySelector('.v3-rhythm-completed-list[data-rhythm-key="' + key + '"]');
-            if (!list) return;
-            var shown = list.getAttribute('data-shown') === 'true';
-            list.setAttribute('data-shown', shown ? 'false' : 'true');
-            btn.textContent = shown ? btn.getAttribute('data-collapsed-label') : btn.getAttribute('data-expanded-label');
-        });
-    });
+
+    /* Re-assert the user's expansion choices after every in-place refresh, so
+       "what I had open stays open" across a completion. Idempotent and cheap. */
+    function v3ReapplyExpansion() {
+        Object.keys(v3Expand.tile).forEach(function(k) { v3SetTile(k, v3Expand.tile[k], false); });
+        Object.keys(v3Expand.completed).forEach(function(k) { v3SetCompleted(k, v3Expand.completed[k], false); });
+        Object.keys(v3Expand.acc).forEach(function(k) { v3SetAcc(k, v3Expand.acc[k], false); });
+    }
+    document.body.addEventListener('htmx:afterSwap', v3ReapplyExpansion);
 
     // ── Focus card navigation (advice → immediate action) ──
     // The whole Focus card is a link to the canonical execution location
     // (resolved deterministically server-side). Clicks on the Mark Complete
     // button or any nested control are ignored so completion ≠ navigation.
+    // Delegated for the same reason as the toggles above: the Focus card lives
+    // inside #v3-live and is replaced on every completion.
     function v3Navigate(el) {
         var dest = el.getAttribute('data-v3-nav');
         if (dest) window.location.href = dest;
     }
-    document.querySelectorAll('[data-v3-nav]').forEach(function(card) {
-        card.addEventListener('click', function(e) {
-            if (e.target.closest('button, a, input, [data-v3-no-nav]')) return;
-            v3Navigate(card);
-        });
-        // Keyboard affordance (role="link" + tabindex)
-        card.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' || e.key === ' ') {
-                if (e.target.closest('button, a, input, [data-v3-no-nav]')) return;
-                e.preventDefault();
-                v3Navigate(card);
-            }
-        });
+    function v3NavTarget(e) {
+        var card = e.target.closest('[data-v3-nav]');
+        if (!card) return null;
+        if (e.target.closest('button, a, input, [data-v3-no-nav]')) return null;
+        return card;
+    }
+    document.body.addEventListener('click', function(e) {
+        var card = v3NavTarget(e);
+        if (card) v3Navigate(card);
+    });
+    // Keyboard affordance (role="link" + tabindex)
+    document.body.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var card = v3NavTarget(e);
+        if (!card) return;
+        e.preventDefault();
+        v3Navigate(card);
     });
 
     // ── Latency: tag v3-toggle / v3-partial HTMX requests so the

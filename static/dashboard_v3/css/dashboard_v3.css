@@ -919,14 +919,45 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     color: var(--v3-text-mute);
     cursor: pointer;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 .v3-rhythm-show-completed:hover { color: var(--v3-ink); }
 
-.v3-rhythm-completed-list {
-    display: none;
-    margin-top: 8px;
+/* ── Disclosure caret ────────────────────────────────────────
+   ▶ collapsed / ▼ expanded, driven by aria-expanded so the visual indicator and
+   the accessibility state can never disagree. Rotating one glyph (rather than
+   swapping two) is what makes the indicator itself animate. */
+.v3-caret {
+    display: inline-block;
+    font-size: 0.62em;
+    line-height: 1;
+    transform-origin: 50% 50%;
 }
-.v3-rhythm-completed-list[data-shown="true"] { display: flex; }
+.v3-caret::before { content: "\25B6"; }   /* ▶ */
+[aria-expanded="true"] > .v3-caret { transform: rotate(90deg); }   /* ▼ */
+
+/* ── Collapse wrapper ────────────────────────────────────────
+   grid-template-rows 0fr → 1fr animates to the content's natural height in BOTH
+   directions with no JS height measurement and no magic max-height. `display`
+   cannot be transitioned, which is why the old `display:none` toggle could never
+   animate. The child is clipped, so its padding stays inside the collapsed box. */
+.v3-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+}
+/* The grid ITEM carries the clipping and the zero minimum. `0fr` means
+   minmax(auto, 0fr), so without min-height:0 the item's automatic minimum keeps
+   the track open — and any padding on the item itself leaks into the collapsed
+   state, which is why the list's padding lives on the <ul> INSIDE this div. */
+.v3-collapse > .v3-collapse-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+.v3-collapse[data-shown="true"] { grid-template-rows: 1fr; }
+
+.v3-rhythm-completed-list { padding-top: 8px; }
 
 /* Visual Truth Contract — gated HERE ONLY. */
 .v3-ritem-completed                  { opacity: 0.55; background: transparent; }
@@ -1953,4 +1984,13 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
 
     /* Helping / Worth watching / Needs columns stack on narrow screens. */
     .v3-mission-drivers  { grid-template-columns: 1fr; gap: 16px; }
+}
+
+/* ── Disclosure motion (reduced-motion compliant) ───────────────────────────
+   Motion is opt-OUT by the user's OS setting: with `reduce` set, the caret still
+   rotates and the section still opens — instantly, with no animation. The
+   indicator and the state remain correct either way; only the tweening is gated. */
+@media (prefers-reduced-motion: no-preference) {
+    .v3-collapse { transition: grid-template-rows 0.22s ease; }
+    .v3-caret    { transition: transform 0.18s ease; }
 }

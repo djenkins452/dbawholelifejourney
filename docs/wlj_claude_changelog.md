@@ -3,8 +3,31 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-17 (feat(cos): Chief of Staff Focus Mode — expand the conversation into a reading workspace)
+# Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
+
+## 2026-07-17 — fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap
+
+**The real bug behind "I can't see which items were completed."** The completed-items expander already existed, was already default-collapsed, and already read the correct execution truth. It was simply **dead**: `#v3-live` is re-rendered with `hx-swap="innerHTML"` after every completion, while the toggles were bound per-node at page load (`querySelectorAll(...).forEach(addEventListener)`). The swap replaced every node with a listener-less clone, so the expander stopped responding the moment you completed something — exactly when you'd want to look at what you just completed — and stayed dead until a full page reload. **No second implementation was built; the existing one was fixed.** There remains exactly one completed-items surface (`rhythm.html`) and one producer of completed truth (`s.items`).
+
+**Fixed the whole class, not the one control.** All four affected controls are now delegated on `document.body` (which survives every swap), per CLAUDE.md's own CSP rule for dynamic elements — nothing to rebind:
+- `.v3-rhythm-show-completed` (the completed expander), `.v3-rhythm-toggle` (tile), `.v3-acc-readmore` ("Read more"), and **`[data-v3-nav]` Focus-card navigation + its Enter/Space keyboard affordance** — the last of which had the identical bug and was silently unreported.
+
+**Expansion state survives swaps, resets on reload.** Held in memory only (no persistence), re-asserted on `htmx:afterSwap`. It records the user's **explicit** choice (`true` *and* `false`), not just "open" keys, because the server re-derives each tile's default `expanded` on every render — so a tile the user deliberately collapsed stays collapsed through the next swap instead of springing back open (verified).
+
+**UX polish:** `▶`/`▼` caret driven by `aria-expanded` (one rotating glyph, so the visual indicator and the a11y state cannot disagree), `aria-expanded` + `aria-controls` on the button, and a real two-way animation via a `grid-template-rows: 0fr → 1fr` wrapper — `display` cannot be transitioned, which is why the old `display:none` toggle could never animate. Motion is gated behind `prefers-reduced-motion: no-preference`; with `reduce` the caret still rotates and the section still opens, just instantly.
+
+**Focus Mode:** removed the double-click-header shortcut. Entry/exit is now only the header button, click-outside, and ESC — discoverable and predictable, and it no longer fights double-click-to-select-text.
+
+**Also fixed (would have shipped broken):** `assistant-panel.css` and `dashboard_v3.css` are cache-busted with `?v=` params that were **not** bumped. Markup and stylesheet ship together, so returning users with a cached stylesheet would have got new markup + old CSS — an unstyled/non-functional Focus button, and a completed-items list stuck permanently hidden. Both bumped to `?v=20260717a`. (Focus Mode shipped earlier today with this latent defect.)
+
+**Verification (real browser, real authenticated page):** default collapsed (`rows: 0px`, `aria-expanded=false`); expand → `rows: 34px`, caret `matrix(0,1,-1,0,0,0)` = 90° = ▼, label swaps to "Hide completed"; **state survives a simulated swap and the button still works after it** (the old failure), across 4 consecutive swaps; a user-collapsed tile holds its choice against the server default; state resets on full reload. Focus Mode re-verified: 72% width, draft preserved, same node identity (no re-render), pinned-bottom preserved, click-outside + ESC exit, and **double-click now does nothing**. `check` clean; 0 inline handlers; rhythm composer tests green.
+
+**Caught by verification (again):** a multi-line `{# … #}` comment rendered as visible text at the top of the dashboard — Django's `{# #}` is single-line only. Swept every template touched this session; all clean. Screenshots catch what assertions don't.
+
+**Files:** `templates/dashboard_v3/home.html` (delegation + state), `templates/dashboard_v3/sections/rhythm.html` (caret + collapse wrapper), `static/dashboard_v3/css/dashboard_v3.css` (caret/collapse/motion), `templates/components/assistant_panel.html` (dblclick removed), `templates/base.html` (cache-bust bump).
+
+---
 
 ## 2026-07-17 — feat(cos): Chief of Staff Focus Mode — expand the conversation into a reading workspace
 

@@ -6,6 +6,28 @@
 # Last Updated: 2026-07-17 (fix(health): Health Sync reports synchronization truth, not inferred user activity)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — fix(health): ONE canonical health date contract — the summary task stopped re-implementing it
+
+**Production failure (worker log): `health.build_user_health_summary` → `ValueError: unconverted data remains: T17:33:35Z`.** Reproduced exactly. The contract was **violated, never changed** — and the real defect was **two parsers for one contract**.
+
+**Caller audit (every caller of `build_user_health_summary`):**
+| Caller | Passes | Result |
+|---|---|---|
+| `apps/health/views.py:7539` (backfill) | `str(d)` where `d = today - timedelta(days=i)` → **"YYYY-MM-DD"** | ✅ succeeded |
+| `apps/mobile/views.py:540` (iOS HealthKit ingest) | `metric.get("date")` — the **raw client payload** → **ISO-8601 instant** `2026-07-16T17:33:35Z` | ❌ crashed |
+
+That is precisely why "adjacent executions" behaved differently — two callers, two formats, one date-only parser.
+
+**Root cause:** the canonical contract *already existed* in `apps/mobile/views.py :: process_health_metric` (accepts `YYYY-MM-DD` **and** ISO-8601 via `fromisoformat`, raises on invalid), but `build_user_health_summary` had **independently re-implemented** it as `datetime.strptime(target_date_str, "%Y-%m-%d")` — date-only. The ingest path legitimately forwards HealthKit sample timestamps, so the task blew up on them.
+
+- **The fix (class-level, not a patch):** new `apps/health/services/health_dates.py :: parse_health_date()` — the **single definition** of the contract: accepts `"YYYY-MM-DD"`, an ISO-8601 instant (`…T…Z` / `+00:00`, resolving to its calendar date), or a `date`/`datetime`; raises `ValueError` otherwise. **Both** consumers now call it — `build_user_health_summary` (the broken one) and `process_health_metric` (whose inline block was removed, so no parallel implementation remains). **No string slicing:** `value[:10]` would *guess* a date out of text, silently accept malformed input (`"2026-07-16GARBAGE"`), and bypass the offset — it is parsed or rejected.
+- **Attribution held deliberately:** an instant resolves to its **UTC** calendar date (`fromisoformat(...).date()`) — exactly how the ingest attributes a HealthKit sample to a day. The summary MUST agree with the ingest or it would rebuild a *different day* than the records landed on. Whether UTC (vs the user's local day) is the right attribution is a **separate** question about the ingest; changing it here alone would silently split the two apart.
+- **Tests** (`apps/health/tests/test_health_date_contract.py`, 18): plain date; **ISO-8601 UTC `Z`** (the exact production input); explicit `+00:00`; non-UTC offset; fractional seconds; naive ISO; **tz-aware and naive `datetime` objects**; `date` pass-through; whitespace; **invalid formats still raise** (US/EU order, impossible dates, empty, None, int, list); never-slices guard; the task boundary (ISO no longer crashes, plain still works, `None` → yesterday, invalid still fails); and a **single-definition guard** asserting both consumers call `parse_health_date` and the old duplicated parse is gone. Full run: 18 + 135 mobile + 77 health = **all pass**; no migration.
+
+**Downstream audit (asked): `health.deferred_rebuild_health_summary` shares the old assumption but is NOT broken and was NOT changed** — it parses with `date.fromisoformat(date_iso)` (date-only; `ValueError` on an instant) and its **sole** caller (`apps/core/events/subscribers.py:105`) passes `date.today().isoformat()`, so it is compliant today. Residual risk flagged, not fixed: it fails **silently** (`{"status": "bad_date"}` — no raise, no retry) rather than loudly, so a future timestamp-passing caller would produce a *stale summary with no error*. `build_nightly_health_summaries` computes its own date internally (no external input). **Observation (not changed):** `mobile/views.py` builds `affected_dates` from raw timestamp strings, so several samples on the same day enqueue several rebuilds for that one day — idempotent but redundant.
+
+**Files:** `apps/health/services/health_dates.py` (new), `apps/health/tasks.py`, `apps/mobile/views.py`, `apps/health/tests/test_health_date_contract.py` (new).
+
 ## 2026-07-17 — fix(runtime): the Model Interface no longer inherits the 8s utility timeout (PROVEN root cause)
 
 **The blocking deep-reasoning failure, root-caused from the production worker log — not a hypothesis.** `'model_interface'` was absent from `ENDPOINT_TIMEOUTS`, so `get_timeout_for_endpoint('model_interface')` fell through to `LLM_TIMEOUT_UTILITY` = **8 seconds** — the SHORTEST timeout in the system, on the DEEPEST reasoning path (the shallower `cos_chat` had 45s).

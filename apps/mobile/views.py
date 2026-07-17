@@ -50,6 +50,7 @@ from apps.health.models import (
     WeightEntry,
     WorkoutSession,
 )
+from apps.health.services.health_dates import parse_health_date
 
 from apps.core.utils import hash_pii
 from .middleware import get_client_ip, require_mobile_auth
@@ -658,19 +659,13 @@ def process_health_metric(user, metric, existing_glucose_sync_ids=None):
     if not metric_date:
         raise ValueError("date is required")
 
-    # Parse date - handle both YYYY-MM-DD and ISO8601 formats
-    try:
-        if isinstance(metric_date, str):
-            # Try ISO8601 format first (includes timestamp)
-            if "T" in metric_date:
-                metric_date = datetime.fromisoformat(
-                    metric_date.replace("Z", "+00:00")
-                ).date()
-            else:
-                # Plain date format
-                metric_date = datetime.strptime(metric_date, "%Y-%m-%d").date()
-    except ValueError:
-        raise ValueError(f"Invalid date format: {metric_date}")
+    # Parse date — the CANONICAL health date contract (YYYY-MM-DD or an ISO-8601
+    # instant → its calendar date; ValueError otherwise). This logic used to live here
+    # inline; it now has ONE definition in apps/health/services/health_dates.py so that
+    # every consumer (this ingest AND health.build_user_health_summary) parses health
+    # dates identically. Two parsers for one contract is what broke the summary task in
+    # production (2026-07-17).
+    metric_date = parse_health_date(metric_date)
 
     # PRESERVE the exact HealthKit SAMPLE instant (tz-aware). The calendar-date parse
     # above throws away the time — but body-composition handlers (weight, body_fat,

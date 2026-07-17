@@ -166,10 +166,14 @@ def build_user_health_summary(self, user_id, target_date_str=None):
 
     Args:
         user_id: User ID
-        target_date_str: "YYYY-MM-DD" or None for yesterday
+        target_date_str: a health date per the canonical contract — "YYYY-MM-DD" OR an
+            ISO-8601 instant ("2026-07-16T17:33:35Z", an Apple HealthKit sample
+            timestamp, which resolves to its calendar date) — or None for yesterday.
+            See apps/health/services/health_dates.py. Invalid input raises ValueError.
     """
     from django.contrib.auth import get_user_model
 
+    from apps.health.services.health_dates import parse_health_date
     from apps.health.services.score_pipeline import ScorePipeline
 
     User = get_user_model()
@@ -181,8 +185,11 @@ def build_user_health_summary(self, user_id, target_date_str=None):
         return {"status": "user_not_found"}
 
     if target_date_str:
-        from datetime import datetime
-        target = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+        # Canonical contract (ONE definition, shared with the HealthKit ingest). This
+        # previously re-implemented the parse as strptime("%Y-%m-%d") and crashed on the
+        # ISO instants the iOS ingest path forwards:
+        # "ValueError: unconverted data remains: T17:33:35Z" (production 2026-07-17).
+        target = parse_health_date(target_date_str)
     else:
         target = date.today() - timedelta(days=1)
 

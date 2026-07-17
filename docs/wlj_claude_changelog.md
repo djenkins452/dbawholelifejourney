@@ -6,7 +6,9 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
-## 2026-07-17 — chore(journal): remove the TEMP Person-recognition glass-box (served its purpose)
+## 2026-07-17 — docs(architecture): Three Truth Surfaces & Personal Truth Profile — PROPOSED DRAFT (non-canonical)
+
+Added `docs/DRAFT_THREE_TRUTH_SURFACES_AND_PTP.md` — an architectural working document (like `WLJ_PERSON_CONSOLIDATION_AND_RECOGNITION.md`), **clearly marked PROPOSED DRAFT — NOT CANONICAL**. Design-only; creates no code, models, registries, or standing-context changes. Captures the reviewed design of the three sibling truth surfaces (Entity Truth / Domain State / Personal Truth Profile) and drafts their governing placement: §3.8 for the Truth/Action Contract (Part A), an Architecture Laws Amendment B (Part B), the Model Interface trio `get_entity`/`get_domain_state`/`get_durable_facts` (Part C), and the `WLJ_PERSONAL_TRUTH_PROFILE.md` outline (Part D), plus Part E open questions. Grounded in the already-shipped Slice 1 (`personal_truth.py` + `get_user_truth`). Exists in source control as architectural history while remaining non-authoritative until transcribed into the named canonical docs.
 
 Removed the temporary Stage-1 diagnostic completely — the view (`recognition_diag` + its local `login_required` import), the URL (`journal/recognition-diag/`), and its comment markers. Nothing else referenced it. **Verified gone:** zero `recognition_diag`/`recognition-diag` references in code/templates; `reverse('journal:recognition_diag')` → `NoReverseMatch`; `resolve('/journal/recognition-diag/')` → `Resolver404`; `manage.py check` clean. The original deploy entry (`80e8ead9`) stays in this log as history. Files: `apps/journal/views.py`, `apps/journal/urls.py`.
 

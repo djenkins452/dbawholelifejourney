@@ -223,6 +223,82 @@ class ModelInterfaceService:
             "`current_context.current_screen.focus` before treating it as what they mean now."
         )
 
+    @staticmethod
+    def _profile_lead(standing_context: dict) -> str:
+        """Raise the salience of the user's DURABLE constraints (nutrition targets, medical
+        conditions, allergies) so they are read as binding requirements, not as inert rows
+        buried in the structured-context JSON. EVIDENCE-UTILIZATION fix (2026-07-17): the
+        facts already reach the model — as `personal_truth.facts.nutrition[i].value` under
+        opaque keys ~90% through the prompt — but the model would quote them and still
+        violate them (a meal plan with 185g carbs against a stored 90g target). This lead
+        reframes the SAME facts (single source — no duplication, no new retrieval) as HARD
+        CONSTRAINTS, up front and human-readable. Empty when there is no profile. Never
+        raises."""
+        try:
+            facts = ((standing_context.get("personal_truth") or {}).get("facts")) or {}
+        except Exception:
+            return ""
+        if not facts:
+            return ""
+
+        def _idx(section):
+            return {f.get("key"): f.get("value")
+                    for f in (facts.get(section) or []) if isinstance(f, dict)}
+
+        nut, health, rel = _idx("nutrition"), _idx("health"), _idx("relationship")
+        lines = []
+
+        def _int(v):
+            try:
+                return int(round(float(v)))
+            except (TypeError, ValueError):
+                return v
+
+        targets = []
+        for label, key in (("", "nutrition.calorie_target"),
+                           ("protein ", "nutrition.protein_target"),
+                           ("carbs ", "nutrition.carb_target"),
+                           ("fat ", "nutrition.fat_target")):
+            if key in nut and nut[key] is not None:
+                unit = "kcal" if key.endswith("calorie_target") else "g"
+                targets.append(f"{label}{_int(nut[key])} {unit}".strip())
+        if targets:
+            lines.append(
+                f"Daily nutrition targets: {' · '.join(targets)}. Any meal plan or nutrition "
+                "recommendation MUST conform to these — the daily total should MEET the "
+                "calorie and protein targets and NOT exceed the carb or fat targets. These "
+                "are HARD CONSTRAINTS from the user's stored WLJ profile, not suggestions or "
+                "background. Total your plan's macros and check them against these before "
+                "answering; if you cannot fit them, say so explicitly rather than silently "
+                "exceeding a target.")
+        conditions = health.get("health.active_conditions")
+        if conditions:
+            lines.append(
+                f"Medical conditions: {', '.join(map(str, conditions))} — must MATERIALLY "
+                "shape any food, nutrition, or health recommendation (not a disclaimer).")
+        allergies = nut.get("nutrition.allergies")
+        if allergies:
+            lines.append(f"Allergies / avoid: {', '.join(map(str, allergies))} — never "
+                         "recommend these.")
+        restrictions = nut.get("nutrition.dietary_restrictions")
+        if restrictions:
+            lines.append(f"Dietary restrictions: {', '.join(map(str, restrictions))} — honor "
+                         "these.")
+        if not lines:
+            return ""
+        coaching = rel.get("relationship.coaching_style")
+        tail = f" Coaching style: {coaching}." if coaching else ""
+        body = "\n".join(f"• {ln}" for ln in lines)
+        return (
+            "\n\n=== THE USER'S STANDING PROFILE (deterministic WLJ truth — these are "
+            "CONSTRAINTS on your recommendations, not background) ===\n"
+            f"{body}{tail}\n"
+            "Reason FROM these facts. A recommendation that contradicts a stored target or "
+            "condition is WRONG even if it is generically reasonable — never retrieve these "
+            "facts and then produce a generic answer that ignores them. The full structured "
+            "profile is in `personal_truth` below; deeper detail via get_user_truth."
+        )
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
@@ -230,6 +306,7 @@ class ModelInterfaceService:
         return (
             CONSTITUTION
             + self._focus_lead(standing_context)
+            + self._profile_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
             + json.dumps(standing_context, ensure_ascii=False)
             + "\n\n" + RESPONSE_COMPLETION_REMINDER

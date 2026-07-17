@@ -126,6 +126,56 @@ class PersonalTruthCompositionTests(TestCase):
         self.assertLess(len(json.dumps(ctx)), 4000)   # concise, must not inflate prompts
 
 
+class EvidenceUtilizationProfileLeadTests(TestCase):
+    """Evidence-UTILIZATION fix (2026-07-17): Personal Truth already reached the model as
+    inert opaque-keyed JSON ~90% through the prompt, so the model quoted a 90g carb target
+    and still wrote 185g. The profile lead reframes the SAME facts (single source) as HARD
+    CONSTRAINTS, up front and readable — no new truth, no re-query."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email="lead@test.com", password="x")
+        _seed(self.user)
+        from apps.ai.model_interface.service import ModelInterfaceService
+        self.svc = ModelInterfaceService(self.user, ai_service=object())
+        self.sc = self.svc.build_standing_context()
+
+    def test_targets_are_surfaced_as_hard_constraints(self):
+        lead = self.svc._profile_lead(self.sc)
+        self.assertIn("1800 kcal", lead)
+        self.assertIn("protein 180 g", lead)
+        self.assertIn("carbs 150 g", lead)   # _seed uses carb 150
+        self.assertIn("HARD CONSTRAINTS", lead)
+        self.assertIn("NOT exceed the carb or fat targets", lead)
+        self.assertIn("check them against these", lead)
+
+    def test_conditions_and_allergies_are_surfaced(self):
+        lead = self.svc._profile_lead(self.sc)
+        self.assertIn("Type 2 Diabetes", lead)
+        self.assertIn("MATERIALLY shape", lead)
+        self.assertIn("shellfish", lead)
+
+    def test_lead_reads_from_personal_truth_single_source(self):
+        # No re-query: derived purely from the already-composed standing personal_truth.
+        empty = self.svc._profile_lead({"personal_truth": {"facts": {}}})
+        self.assertEqual(empty, "")
+        none = self.svc._profile_lead({})
+        self.assertEqual(none, "")
+
+    def test_lead_is_positioned_before_the_buried_json_blob(self):
+        prompt = self.svc._system_prompt(self.sc)
+        self.assertLess(prompt.find("STANDING PROFILE"), prompt.find("STRUCTURED CONTEXT"))
+        self.assertIn("never retrieve these facts and then produce a generic answer", prompt)
+
+    def test_lead_is_bounded(self):
+        self.assertLess(len(self.svc._profile_lead(self.sc)), 1600)
+
+    def test_lead_never_raises_on_malformed_input(self):
+        for bad in (None, {}, {"personal_truth": None},
+                    {"personal_truth": {"facts": {"nutrition": [None, {"key": None}]}}}):
+            self.assertEqual(self.svc._profile_lead(bad), "")
+
+
 class PersonalTruthConflictPolicyTests(TestCase):
     """Conflicting stored targets (NutritionGoals vs meals.DietaryProfile) are surfaced
     as a CONTRADICTION with deterministic precedence — never AI-resolved, never hidden."""

@@ -114,8 +114,13 @@ CONSTITUTION = (
     "do not reach further than you need to):\n"
     "  1. CURRENT CONTEXT — the object on screen (`current_screen.focus`) and the clock.\n"
     "  2. THIS CONVERSATION — what the user has already told you and the prior turns.\n"
-    "  3. TRUTH ALREADY IN THIS CONTEXT — `deterministic_understanding`, `execution_state`, "
-    "`missions`, `current_action` are already provided; read them before fetching anything.\n"
+    "  3. TRUTH ALREADY IN THIS CONTEXT — `deterministic_understanding`, `personal_truth`, "
+    "`execution_state`, `missions`, `current_action` are already provided; read them before "
+    "fetching anything. `personal_truth` holds the user's DURABLE, explicitly-stored facts "
+    "(nutrition targets, dietary restrictions/allergies, active medical conditions, "
+    "medications, active goals/priorities, coaching style) — always reason FROM these and "
+    "honor them (e.g. a meal plan MUST respect the stored calorie/protein targets and "
+    "medical conditions); for the full profile or a section in depth, call get_user_truth.\n"
     "  4. A TRUTH TOOL — retrieve with a tool ONLY when 1–3 genuinely cannot answer (e.g. the "
     "user asks about history, a trend, or a DIFFERENT item than the one on screen).\n"
     "  5. YOUR OWN GENERAL REASONING — for anything not about their personal WLJ truth.\n"
@@ -605,6 +610,28 @@ def truth_tools():
                                             "index (e.g. 'workouts', 'weight', 'sleep', "
                                             "'steps').")},
             }, "required": ["domain", "subject"]}}},
+        {"type": "function", "function": {
+            "name": "get_user_truth",
+            "description": (
+                "Get the user's DURABLE personal truth — the explicitly-stored, "
+                "cross-module facts about WHO THEY ARE that you reason FROM: nutrition "
+                "targets (calorie/protein/carb/fat), dietary restrictions and allergies, "
+                "active medical conditions, active medications, active goals and primary "
+                "mission, declared priorities, and the relationship (assistant name, "
+                "mode, coaching style). A concise version is ALREADY in your standing "
+                "context (`personal_truth`) — call this only for the FULL profile or a "
+                "specific section in depth. These are deterministic STORED facts with "
+                "provenance (not inferred, not preferences guessed from logs). Use them "
+                "to personalize — e.g. a meal plan MUST honor the stored calorie/protein "
+                "targets and medical conditions."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "section": {"type": "string",
+                            "enum": ["relationship", "nutrition", "health", "goals",
+                                     "priorities"],
+                            "description": ("Optional — one section to fetch in full; "
+                                            "omit for the whole profile.")},
+            }}}},
         {"type": "function", "function": {
             "name": "get_foundational_health_facts",
             "description": (

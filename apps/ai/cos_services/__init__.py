@@ -55,6 +55,12 @@ from apps.ai.cos_services.domain_analysis import (
     analysis_capable_domains,
     get_domain_analysis,
 )
+from apps.ai.cos_services.personal_truth import (
+    PERSONAL_TRUTH_SCHEMA_VERSION,
+    build_personal_truth,
+    get_user_truth,
+    personal_truth_for_context,
+)
 from apps.ai.cos_services.domain_entity import (
     DOMAIN_ENTITY_SCHEMA_VERSION,
     get_domain_entity,
@@ -100,6 +106,9 @@ __all__ = [
     "get_domain_analysis",
     "analysis_capability_index",
     "analysis_capable_domains",
+    "get_user_truth",
+    "build_personal_truth",
+    "personal_truth_for_context",
     "history_capability_index",
     "history_capable_domains",
     "DOMAIN_HISTORY_SCHEMA_VERSION",

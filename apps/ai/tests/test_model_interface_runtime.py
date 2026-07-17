@@ -86,14 +86,15 @@ class StandingContextTests(TestCase):
 
     def test_standing_context_assembles_the_owned_interfaces(self):
         # The envelope assembles owned truth interfaces; it owns none. Read-only sections:
-        # AI Relationship, Deterministic Understanding, Current Context, plus the Mission
-        # Link facts (`missions`) and the enriched `current_action` (execution truth).
+        # AI Relationship, Deterministic Understanding, Personal Truth (durable stored user
+        # facts), Current Context, plus the Mission Link facts (`missions`) and the enriched
+        # `current_action` (execution truth).
         mi = ModelInterfaceService(self.user)
         ctx = mi.build_standing_context()
         self.assertEqual(set(ctx.keys()),
                          {"ai_relationship", "deterministic_understanding",
-                          "current_context", "missions", "execution_state",
-                          "current_action"})
+                          "personal_truth", "current_context", "missions",
+                          "execution_state", "current_action"})
         # Current Context is the FAST tier only — no understanding leaks into it.
         cc = ctx["current_context"]
         self.assertEqual(set(cc.keys()),

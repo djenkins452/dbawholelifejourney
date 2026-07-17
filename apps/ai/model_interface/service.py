@@ -36,6 +36,7 @@ from apps.ai.cos_services import (
     get_domain_history,
     get_domain_state,
     get_foundational_health_facts,
+    get_user_truth,
     search_history,
 )
 from apps.ai.model_interface.constitution import (
@@ -136,6 +137,19 @@ class ModelInterfaceService:
                 attachments=attachments,
             ),
         }
+
+        # Personal Truth — durable, explicitly-stored cross-module user facts (targets,
+        # conditions, medications, relationship, priorities) the model reasons FROM every
+        # turn. Cache-first + resilient (never raises); the bounded standing view and the
+        # get_user_truth tool share ONE composer. Facts, not reasoning.
+        try:
+            from apps.ai.cos_services.personal_truth import (
+                build_personal_truth, personal_truth_for_context,
+            )
+            ctx["personal_truth"] = personal_truth_for_context(
+                build_personal_truth(self.user))
+        except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
+            logger.warning("mi: personal_truth assembly skipped", exc_info=True)
 
         # Mission Link — deterministic relationship truth. The full mission FACTS live
         # ONCE in `missions`; the current execution action carries lightweight
@@ -245,6 +259,15 @@ class ModelInterfaceService:
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
                     result_digest={"freshness": out.get("freshness")},
+                )
+                return out
+            if name == "get_user_truth":
+                raw = get_user_truth(user, section=args.get("section"))
+                out = _wrap_truth(raw, source="personal_truth")
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    result_digest={"section": args.get("section")},
                 )
                 return out
             if name == "get_foundational_health_facts":

@@ -62,6 +62,43 @@ def get_timeout_for_endpoint(endpoint: str) -> int:
     return ENDPOINT_TIMEOUTS.get(endpoint, LLM_TIMEOUT_UTILITY)
 
 
+# ── Agentic tool-loop budgets (per endpoint) ─────────────────────────────────
+# The Model Interface deep-reasoning path (competing hypotheses × cross-domain
+# investigation × time-aware history) legitimately needs MORE tool rounds and a
+# LARGER final-answer budget than the older shallow CoS. Give it explicit, bounded
+# budgets instead of raising the global defaults, so other endpoints are unchanged.
+# Bounded so a runaway model cannot loop indefinitely. (Root cause: the deep path
+# outgrew the shared 3-round / 1000-token limits and emptied on the forced final
+# round — see docs/wlj_claude_changelog.md 2026-07-17.)
+_TOOL_LOOP_DEFAULT_ROUNDS = 3
+_TOOL_LOOP_DEFAULT_TOKENS = 1000
+# Endpoint → (max_tool_rounds, final_answer_max_tokens). Only endpoints that need
+# more than the defaults appear here.
+TOOL_LOOP_BUDGETS = {
+    'model_interface': (7, 3500),
+}
+
+# Endpoints whose tool loop must NEVER return an empty final answer: an empty forced
+# final triggers ONE bounded, evidence-grounded synthesis retry, then the plain
+# fallback. Scoped deliberately — the ChatGPT-CoS path INTENTIONALLY surfaces an empty
+# final as a suppressed diagnostic state (reason=openai_fallback_empty; see
+# apps/ai/tests/test_cos_empty_answer.py), so changing it there would silently alter a
+# different live runtime's designed behavior. Only the Model Interface (where the deep
+# reasoning regression occurred) gets the non-empty guarantee.
+TOOL_LOOP_SYNTHESIS_ENDPOINTS = frozenset({'model_interface'})
+
+
+def resolve_tool_loop_budgets(endpoint, max_tool_rounds=None, max_tokens=None):
+    """Resolve the (max_tokens, max_tool_rounds) for a tool-loop call. An explicit
+    caller value always wins; otherwise the endpoint's budget (or the global default)
+    applies. Returns (max_tokens, max_tool_rounds)."""
+    ep_rounds, ep_tokens = TOOL_LOOP_BUDGETS.get(
+        endpoint, (_TOOL_LOOP_DEFAULT_ROUNDS, _TOOL_LOOP_DEFAULT_TOKENS))
+    rounds = ep_rounds if max_tool_rounds is None else max_tool_rounds
+    tokens = ep_tokens if max_tokens is None else max_tokens
+    return tokens, rounds
+
+
 def classify_llm_error(exc):
     """Map an OpenAI/transport exception to a single actionable category so the
     actual failure is never lost behind a None. Prioritizes HTTP status (robust
@@ -640,13 +677,13 @@ class AIService:
         user_prompt: str,
         tools: list,
         dispatch,
-        max_tokens: int = 1000,
+        max_tokens: int = None,
         temperature: float = 0.7,
         endpoint: str = 'cos_chat',
         user=None,
         conversation_history: list = None,
         model: str = None,
-        max_tool_rounds: int = 3,
+        max_tool_rounds: int = None,
         skip_current_context: bool = False,
         images: list = None,
     ):
@@ -664,8 +701,19 @@ class AIService:
         Vision is not supported here (callers route image turns to ``_call_api``).
 
         Returns the final assistant text (str), or None on total failure.
+
+        Budgets: `max_tokens` (final-answer budget) and `max_tool_rounds` resolve
+        per-endpoint (see resolve_tool_loop_budgets) when not passed explicitly — the
+        Model Interface deep-reasoning path gets larger bounded budgets than the
+        shallow defaults. An EMPTY forced-final response is never returned: it triggers
+        one bounded, evidence-grounded synthesis retry (no tools), then the plain
+        fallback — an empty string can never escape this loop while evidence exists.
         """
         import json as _json
+
+        # Per-endpoint budgets (explicit caller value wins; else endpoint/default).
+        max_tokens, max_tool_rounds = resolve_tool_loop_budgets(
+            endpoint, max_tool_rounds=max_tool_rounds, max_tokens=max_tokens)
 
         # CURRENT CONTEXT CONTRACT — ground the tool-loop answer in the object in focus too.
         system_prompt = _ground_current_context(
@@ -708,6 +756,7 @@ class AIService:
         _total_tool_output_chars = 0
         _all_tool_names = []
         _rounds_used = 0
+        _synthesis_retry_used = False  # scope #2: forced-final empty → one synthesis retry
 
         try:
             for _round in range(max_tool_rounds + 1):
@@ -810,7 +859,6 @@ class AIService:
                 # No tool calls (or final round) -> final answer.
                 _final = (msg.content or "").strip()
                 if not _final:
-                    # TEMP TRACE: empty assistant content on the answering round.
                     logger.warning(
                         "COS_TOOL_LOOP_EMPTY_FINAL round=%d tool_calls_count=%d "
                         "last_tool_names=%s messages_count=%d "
@@ -819,27 +867,45 @@ class AIService:
                         ",".join(_last_tool_names) or "none", len(messages),
                         getattr(_choice, "finish_reason", None),
                     )
-                # MEASUREMENT SUMMARY — the differential, with numbers: did the model
-                # retrieve the med list ONCE or repeatedly? how many rounds/tool calls?
-                # how big were tool outputs? was the FINAL answer truncated
-                # (finish_reason=length) or starved (empty) — i.e. is output-token
-                # starvation actually the limiting factor, or is it tool composition?
+                    # SCOPE #2 — on the guaranteed endpoints an empty final answer must
+                    # NEVER be returned. Perform ONE bounded, evidence-grounded synthesis
+                    # retry: keep the accumulated tool evidence, offer NO tools, and
+                    # instruct the model to answer from the deterministic evidence already
+                    # gathered — the user is never asked for truth WLJ already retrieved.
+                    if endpoint in TOOL_LOOP_SYNTHESIS_ENDPOINTS:
+                        _synthesis_retry_used = True
+                        _final = self._synthesize_from_evidence(
+                            messages, effective_model, max_tokens, temperature, _timeout,
+                            endpoint=endpoint,
+                        ) or ""
+                # MEASUREMENT SUMMARY — the differential, with numbers: rounds/tool calls,
+                # tool-output size, prompt/completion tokens, finish reason, and whether the
+                # synthesis retry was needed. Distinguishes tool composition vs token
+                # starvation vs context growth after deployment.
                 _med_calls = sum(1 for n in _all_tool_names
                                  if "medication" in n or "health" in n or "foundational" in n)
                 logger.warning(
-                    "COS_TOOL_LOOP_MEASURE rounds_used=%d total_tool_calls=%d "
-                    "tool_names=%s med_related_tool_calls=%d total_tool_output_chars=%d "
-                    "final_content_len=%d final_completion_tokens=%s "
-                    "final_finish_reason=%s repeated_retrieval=%s",
-                    _rounds_used, _total_tool_calls,
+                    "COS_TOOL_LOOP_MEASURE endpoint=%s rounds_used=%d max_tool_rounds=%d "
+                    "total_tool_calls=%d tool_names=%s med_related_tool_calls=%d "
+                    "total_tool_output_chars=%d final_content_len=%d "
+                    "final_prompt_tokens=%s final_completion_tokens=%s "
+                    "final_finish_reason=%s repeated_retrieval=%s synthesis_retry_used=%s",
+                    endpoint, _rounds_used, max_tool_rounds, _total_tool_calls,
                     ",".join(_all_tool_names) or "none", _med_calls,
-                    _total_tool_output_chars, len(_final), _completion_toks,
+                    _total_tool_output_chars, len(_final),
+                    _prompt_toks, _completion_toks,
                     getattr(_choice, "finish_reason", None),
                     len(_all_tool_names) != len(set(_all_tool_names)),
+                    _synthesis_retry_used,
                 )
-                # Empty string here = "model returned empty content" (case A);
-                # the caller distinguishes this from the None fallback below.
-                return _final
+                if _final or endpoint not in TOOL_LOOP_SYNTHESIS_ENDPOINTS:
+                    # Non-guaranteed endpoints keep the legacy contract: an empty string
+                    # here means "model returned empty content" (case A), which the
+                    # ChatGPT-CoS caller surfaces as reason=openai_fallback_empty.
+                    return _final
+                # Guaranteed endpoint, still empty after the synthesis retry — fall through
+                # to the plain fallback below (never return an empty string).
+                break
         except Exception as _loop_exc:
             # TEMP TRACE: an exception inside the tool loop forced the fallback.
             logger.warning(
@@ -857,6 +923,43 @@ class AIService:
         logger.warning("COS_PLAIN_FALLBACK_RESULT answer_len=%d",
                        len(_fb or ""))
         return _fb
+
+    def _synthesize_from_evidence(self, messages, model, max_tokens, temperature,
+                                  timeout, *, endpoint):
+        """SCOPE #2 — one bounded, evidence-grounded synthesis retry.
+
+        When the forced final round returns EMPTY content, retry ONCE keeping the
+        accumulated tool evidence in `messages`, offering NO tools, and instructing the
+        model to write the final answer from the deterministic evidence already
+        gathered (and never to ask for data WLJ already retrieved). Returns the stripped
+        content, or '' on empty/error. Never raises."""
+        try:
+            _msgs = list(messages) + [{
+                "role": "user",
+                "content": (
+                    "Write your final answer to my question now, using ONLY the "
+                    "deterministic evidence already gathered above. The investigation is "
+                    "complete — do NOT request any more tools or data. If the evidence is "
+                    "incomplete, reason from what was gathered and state the uncertainty "
+                    "honestly; never ask me to provide information that has already been "
+                    "retrieved."
+                ),
+            }]
+            resp = self.client.chat.completions.create(
+                model=model, messages=_msgs, max_tokens=max_tokens,
+                temperature=temperature, timeout=timeout,
+            )
+            _choice = resp.choices[0]
+            _content = (_choice.message.content or "").strip()
+            logger.warning(
+                "COS_SYNTHESIS_RETRY endpoint=%s content_len=%d finish_reason=%s",
+                endpoint, len(_content), getattr(_choice, "finish_reason", None),
+            )
+            return _content
+        except Exception:
+            logger.warning("COS_SYNTHESIS_RETRY_FAILED endpoint=%s", endpoint,
+                           exc_info=True)
+            return ""
 
     def _call_api_stream(
         self,

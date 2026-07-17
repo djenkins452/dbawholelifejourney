@@ -73,6 +73,33 @@ body.has-desktop-nav .desktop-main-area {
     color: var(--color-danger, #e74c3c);
     background: var(--color-border);
 }
+/* Focus-mode toggle. Mirrors .ap-tcc-link (margin-left: 4px) rather than
+   .ap-header-icon-btn, whose `margin-left:auto` positions the whole cluster —
+   a second `auto` here would break the header layout. */
+.ap-focus-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md, 6px);
+    color: var(--color-text-muted);
+    transition: color 0.15s, background 0.15s;
+    margin-left: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.ap-focus-btn:hover {
+    color: var(--color-accent);
+    background: var(--color-border);
+}
+/* One button, two glyphs: expand when docked, collapse when focused. */
+.ap-focus-btn .ap-focus-icon-collapse { display: none; }
+.assistant-panel.ap-focus .ap-focus-btn .ap-focus-icon-expand { display: none; }
+.assistant-panel.ap-focus .ap-focus-btn .ap-focus-icon-collapse { display: block; }
+
 .ap-tcc-link {
     display: flex;
     align-items: center;
@@ -2442,4 +2469,102 @@ body.has-desktop-nav .desktop-main-area {
 }
 @media (max-width: 480px) {
     .ap-cos-sublabel { display: none; } /* keep the compact mobile header tidy */
+}
+
+/* ==========================================================================
+   CHIEF OF STAFF — FOCUS MODE
+   ==========================================================================
+   The docked panel temporarily expands into a reading workspace for long-form
+   coaching, plans and explanations that a 320px rail can't carry.
+
+   Design constraint (why this is pure CSS): focus mode is a CLASS TOGGLE on
+   #assistant-panel and nothing else. The panel is never reparented, the
+   conversation is never re-rendered, and no fetch is re-issued — so the message
+   DOM, scroll position, draft text and any in-flight SSE stream survive the
+   toggle untouched. (A <dialog>/showModal() approach would require reparenting
+   the panel, which resets #ap-chat-messages scrollTop — hence the scrim below
+   instead of ::backdrop.)
+
+   Desktop only: below 1024px the panel is display:none and the mobile pull-up
+   already IS the expanded affordance, so focus mode must not apply there.
+
+   Future-proofing: the reading column is measure-capped rather than edge-to-edge,
+   and `.ap-msg-wide` + the table/pre rules below let future rich content (charts,
+   tables, side-by-side comparisons, documents) claim the full workspace width and
+   scroll internally — no second redesign needed to accommodate them.
+   ========================================================================== */
+
+/* The scrim: dashboard stays visible, de-emphasized, behind the conversation.
+   Kept out of the layout with pointer-events (not `hidden`) so it can fade. */
+.ap-focus-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 999;   /* above the dashboard + top bar (50), below the panel */
+}
+
+@media (min-width: 1025px) {
+    .ap-focus-backdrop.is-on {
+        opacity: 1;
+        pointer-events: auto;      /* click anywhere outside → exit focus mode */
+        backdrop-filter: blur(2px);
+    }
+
+    .assistant-panel.ap-focus {
+        /* ~70–75% of the viewport, capped so the reading measure stays sane on
+           ultrawide displays. */
+        width: min(72vw, 1180px);
+        z-index: 1000;             /* above the scrim */
+        box-shadow: -14px 0 52px rgba(15, 23, 42, 0.28);
+    }
+
+    /* Roomier reading column. The bubble cap is a MEASURE (ch), not a percentage:
+       90% of 1180px would be an unreadable line length. */
+    .assistant-panel.ap-focus .ap-chat-messages {
+        padding: 20px clamp(16px, 4vw, 44px);
+        gap: 14px;
+    }
+    .assistant-panel.ap-focus .ap-chat-message {
+        max-width: min(78ch, 86%);
+        font-size: 14.5px;
+        line-height: 1.65;
+        padding: 12px 16px;
+    }
+    .assistant-panel.ap-focus .ap-chat-message-image {
+        max-height: 320px;         /* the docked 120px cap is wasteful here */
+    }
+
+    /* Composer: 3–5 visible lines. It is already sticky by construction —
+       .ap-chat-messages is flex:1 and .ap-chat-input-area is flex-shrink:0 in a
+       flex column — so it stays pinned to the bottom at any panel width. */
+    .assistant-panel.ap-focus .ap-chat-input-area {
+        padding: 14px clamp(16px, 4vw, 44px);
+    }
+    .assistant-panel.ap-focus .ap-chat-input {
+        min-height: 5.75em;        /* ~4 lines at this line-height */
+        max-height: 40vh;
+        font-size: 14.5px;
+        line-height: 1.5;
+        padding: 10px 14px;
+        border-radius: 14px;
+    }
+
+    /* Future rich content: use the whole workspace, scroll internally, never
+       force the conversation column to scroll sideways. */
+    .assistant-panel.ap-focus .ap-chat-message table,
+    .assistant-panel.ap-focus .ap-chat-message pre {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    .assistant-panel.ap-focus .ap-chat-message.ap-msg-wide {
+        max-width: 100%;           /* opt-in hook for charts / comparisons */
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .assistant-panel { transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1); }
+    .ap-focus-backdrop { transition: opacity 0.2s ease; }
 }

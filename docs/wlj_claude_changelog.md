@@ -3,8 +3,32 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-17 (fix(health): Health Sync reports synchronization truth, not inferred user activity)
+# Last Updated: 2026-07-17 (feat(cos): Chief of Staff Focus Mode — expand the conversation into a reading workspace)
 # ================================================================# WLJ Change History
+
+## 2026-07-17 — feat(cos): Chief of Staff Focus Mode — expand the conversation into a reading workspace
+
+**Why:** the docked 320/360px rail was designed when replies were short. The CoS now routinely produces coaching, plans and long-form reasoning that a narrow rail can't carry.
+
+**What:** an expand control in the chat header (`data-action="ap-toggle-focus"`) grows the panel to **72% of the viewport** (`min(72vw, 1180px)`), over a scrim that keeps the dashboard visible but de-emphasized. Exit by clicking anywhere outside, pressing **ESC**, double-clicking the header, or the control itself.
+
+**The load-bearing design decision — it is a pure CSS class toggle on `#assistant-panel`, nothing else.** No reparenting, no DOM rebuild, no refetch. That is what satisfies "no conversation reload / no re-render that makes the model regenerate": the message nodes keep their identity (asserted in-browser), the draft in `#ap-chat-input` is untouched, and an in-flight SSE stream is unaffected because the streaming closure holds a direct node reference. (A `<dialog>`/`showModal()` approach was rejected: it requires the panel to *be* the dialog, and reparenting `#ap-chat-messages` resets `scrollTop` — so the scrim follows the existing `.friction-gate-overlay` idiom instead, borrowing the `e.target === backdrop` + guarded-ESC shape from `development_notice_modal.html`.)
+
+**Reading layout (not a chat redesign):** bubbles are capped by a **measure** (`min(78ch, 86%)`), not a percentage — 90% of 1180px would be an unreadable line length. Composer grows to ~4 visible lines and stays sticky (already structural: `.ap-chat-messages` is `flex:1`, `.ap-chat-input-area` is `flex-shrink:0`). Scroll position is preserved across the width **reflow** (`scrollTop` keeps its number while the content it pointed at moves): pinned-to-bottom re-pins, otherwise the ratio is restored, re-applied on rAF + after the transition.
+
+**Future-proofing (layout only, nothing built):** the workspace already accommodates charts/tables/side-by-side/documents — `table`/`pre` scroll internally rather than forcing the column sideways, and `.ap-msg-wide` is an opt-in hook for full-width content. No second redesign needed to add them.
+
+**Details that would have bitten:** the focus button uses its own `.ap-focus-btn` class, **not** `.ap-header-icon-btn`, because that class owns the header cluster's `margin-left:auto` — a second `auto` breaks the layout. Desktop-only (`@media min-width:1025px`): below 1024px the panel is `display:none` and the mobile pull-up already IS the expanded affordance; verified the scrim cannot trap taps there. ESC is **guarded** on focus mode being active — it's a document-level handler on every authenticated page and the app's modals register their own.
+
+**Verification (real browser, real page):** rendered the actual authenticated dashboard server-side via Django's test client (`force_login` — no credentials handled), served it against the real CSS/JS, and drove it at 1440×900 and 390×844. Asserted: expand → **72% width**, z-1000, scrim active/clickable, `aria-expanded=true`; **draft preserved**; **same node identity (no re-render)**; pinned-bottom preserved; mid-scroll ratio preserved (0.50 → 0.50); composer 3.8 lines and visible; click-outside exits; ESC exits; ESC still reaches other handlers when docked; at 390px the panel stays `display:none` and the scrim stays inert. A/B screenshots confirm the scrim dims the dashboard. `check` clean; zero inline handlers (CSP).
+
+**Caught by verification:** two multi-line `{# … #}` comments rendered as visible text in the chat header — Django's `{# #}` is single-line only. Converted to `{% comment %}`. The JS assertions all passed while this was live; only the screenshot exposed it.
+
+**Files:** `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`.
+
+**Not included:** Feature 1 (expandable completed Rhythm sections) — held pending Danny's decision; the premise did not match the code (see the session note: `✓ Complete Morning Medications (4)` is a mass-complete ACTION button whose count is OPEN items, and a default-collapsed completed-items expander already exists at `rhythm.html:197-224`; the real defect is that its listener dies on every HTMX swap).
+
+---
 
 ## 2026-07-17 — fix(health): ONE canonical health date contract — the summary task stopped re-implementing it
 

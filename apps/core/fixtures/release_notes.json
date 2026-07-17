@@ -4390,5 +4390,21 @@
       "created_at": "2026-07-17T12:00:00Z",
       "updated_at": "2026-07-17T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 276,
+    "fields": {
+      "title": "Focus Mode — give long conversations room to breathe",
+      "description": "Your Chief of Staff increasingly answers with real coaching: plans, comparisons, explanations. That was a lot to read in a narrow side panel. There's now an expand button in the chat header that grows the conversation into a comfortable reading workspace across most of your screen, with the dashboard dimmed behind it. Click anywhere outside, press Escape, or hit the button again to return to the docked panel. Your place in the conversation and anything you'd started typing are kept exactly as they were — nothing reloads and no reply is regenerated. While expanded you also get wider text and a roomier message box for longer questions. On phones and tablets nothing changes: the pull-up chat panel already fills the screen.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-17",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-07-17T13:00:00Z",
+      "updated_at": "2026-07-17T13:00:00Z"
+    }
   }
 ]

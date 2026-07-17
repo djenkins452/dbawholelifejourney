@@ -1101,6 +1101,8 @@ class Command(BaseCommand):
         self._reset_exec_briefing_day_truth_release_notes(DataLoadConfig, force, verbosity)
         # Health Sync synchronization-truth model (PK 275)
         self._reset_health_sync_truth_release_notes(DataLoadConfig, force, verbosity)
+        # Chief of Staff Focus Mode (PK 276)
+        self._reset_cos_focus_mode_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8166,6 +8168,35 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset background chat release notes FAILED: {e}'))
+
+    def _reset_cos_focus_mode_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 276 (Chief of Staff
+        Focus Mode — the docked chat expands into a reading workspace).
+        """
+        reset_tracker_name = 'reset_cos_focus_mode_2026_07_17'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for CoS Focus Mode (PK 276)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for CoS Focus Mode',
+                'command',
+                'One-time reset: added PK 276 for Chief of Staff Focus Mode'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset CoS focus mode release notes FAILED: {e}'))
 
     def _reset_health_sync_truth_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

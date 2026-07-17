@@ -17,6 +17,15 @@
     .assistant-toggle-btn { display: none !important; }
 }
 </style>
+{% comment %}
+Focus-mode scrim. Sits behind the panel and above the dashboard, so the page stays
+visible but de-emphasized while the conversation is expanded. Clicking it exits.
+Decorative only (aria-hidden, not focusable). It is never the panel's parent: the
+panel is never reparented, so the conversation DOM, scroll position, draft text and
+any in-flight stream survive a focus-mode toggle untouched.
+{% endcomment %}
+<div id="ap-focus-backdrop" class="ap-focus-backdrop" aria-hidden="true"></div>
+
 {# Desktop Panel (hidden on mobile via CSS) #}
 <aside id="assistant-panel" class="assistant-panel" data-testid="cos-panel"
        data-calibration-active="{{ calibration_active|yesno:'true,false' }}"
@@ -34,6 +43,28 @@
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                 </svg>
+            </button>
+            {% comment %}
+            Focus mode — expand the conversation into a reading workspace. Uses its own
+            class, NOT .ap-header-icon-btn, because that class owns the cluster's
+            margin-left:auto; a second auto would break the header spacing.
+            {% endcomment %}
+            <button class="ap-focus-btn" data-action="ap-toggle-focus"
+                    aria-expanded="false" aria-controls="assistant-panel"
+                    title="Expand to focus mode">
+                <svg class="ap-focus-icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+                <svg class="ap-focus-icon-collapse" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="4 14 10 14 10 20"/>
+                    <polyline points="20 10 14 10 14 4"/>
+                    <line x1="14" y1="10" x2="21" y2="3"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                </svg>
+                <span class="sr-only">Toggle focus mode</span>
             </button>
             <a href="{% url 'calendar_engine:dashboard' %}" class="ap-tcc-link" title="Time Command Center">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1920,7 +1951,98 @@
         }
         else if (action === 'ap-quick-reply') handleQuickReply(el);
         else if (action === 'ap-clear-chat') clearConversation();
+        else if (action === 'ap-toggle-focus') toggleFocusMode();
     });
+
+    /* ================================================================
+       FOCUS MODE — expand the conversation into a reading workspace.
+
+       Deliberately a pure CSS class toggle: nothing is reparented, no node is
+       rebuilt and no request is re-issued, so the conversation, its scroll
+       position, the draft in the composer and any in-flight SSE stream all
+       survive. The only thing that needs care is the text REFLOW the width
+       change causes — scrollTop keeps its numeric value while the content it
+       pointed at moves, so we capture the reading position first and restore
+       it after the transition.
+       ================================================================ */
+    var apPanel = document.getElementById('assistant-panel');
+    var apBackdrop = document.getElementById('ap-focus-backdrop');
+    var AP_FOCUS_MS = 260;   // must outlast the 0.24s width transition
+
+    function apFocusActive() {
+        return !!apPanel && apPanel.classList.contains('ap-focus');
+    }
+
+    function setFocusMode(on) {
+        if (!apPanel || apFocusActive() === on) return;
+
+        // Capture the reading position BEFORE the reflow.
+        var msgs = document.getElementById('ap-chat-messages');
+        var pinToBottom = true, ratio = 0;
+        if (msgs) {
+            var slack = msgs.scrollHeight - msgs.clientHeight;
+            // Treat "within 40px of the bottom" as pinned — the common case, and
+            // the one where re-pinning is unambiguously right.
+            pinToBottom = slack <= 0 || (slack - msgs.scrollTop) < 40;
+            ratio = slack > 0 ? (msgs.scrollTop / slack) : 0;
+        }
+
+        apPanel.classList.toggle('ap-focus', on);
+        if (apBackdrop) apBackdrop.classList.toggle('is-on', on);
+        document.body.classList.toggle('ap-focus-open', on);
+
+        var btn = document.querySelector('[data-action="ap-toggle-focus"]');
+        if (btn) {
+            btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+            btn.setAttribute('title', on ? 'Exit focus mode' : 'Expand to focus mode');
+        }
+
+        // Restore the reading position across the reflow (now, next frame, and
+        // once the width transition has settled).
+        if (msgs) {
+            var restore = function() {
+                if (pinToBottom) {
+                    msgs.scrollTop = msgs.scrollHeight;
+                } else {
+                    var slack2 = msgs.scrollHeight - msgs.clientHeight;
+                    msgs.scrollTop = slack2 > 0 ? Math.max(0, Math.round(ratio * slack2)) : 0;
+                }
+            };
+            restore();
+            window.requestAnimationFrame(restore);
+            window.setTimeout(restore, AP_FOCUS_MS);
+        }
+        // Keep typing where you left off.
+        if (on) {
+            var input = document.getElementById('ap-chat-input');
+            if (input) window.setTimeout(function() { input.focus(); }, AP_FOCUS_MS);
+        }
+    }
+
+    function toggleFocusMode() { setFocusMode(!apFocusActive()); }
+
+    // Click anywhere outside the expanded chat → back to the docked panel.
+    if (apBackdrop) {
+        apBackdrop.addEventListener('click', function() { setFocusMode(false); });
+    }
+
+    // ESC exits focus mode. GUARDED on focus mode actually being active: this is a
+    // document-level handler on every authenticated page, and the app's modals
+    // register their own document-level ESC handlers — an unguarded one here would
+    // fire alongside theirs.
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && apFocusActive()) setFocusMode(false);
+    });
+
+    // Double-clicking the header toggles too — but not on a control inside it,
+    // where a double-click would otherwise fire the control twice AND toggle.
+    var apHeader = apPanel ? apPanel.querySelector('.assistant-panel-header') : null;
+    if (apHeader) {
+        apHeader.addEventListener('dblclick', function(e) {
+            if (e.target.closest('button, a, input, textarea, [data-action]')) return;
+            toggleFocusMode();
+        });
+    }
 
     /* ================================================================
        FORM HANDLERS (desktop)

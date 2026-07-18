@@ -21,7 +21,7 @@ data is deferred to the consumer-migration phases (0c/0d) — deliberately not r
 from django.db import transaction
 
 from ..models import Person, PersonEvent, PersonMembership, PersonOrigin, PersonSourceLink
-from ..normalization import normalize_name
+from ..normalization import compact_name, normalize_name
 from .identity import create_person
 from .membership import grant_membership
 from .provenance import record_person_event
@@ -31,6 +31,26 @@ ALREADY_LINKED = "already_linked"
 LINKED = "linked"
 CREATED = "created"
 REVIEW = "review"
+
+# Match modes — how strongly a source row is reconciled to an existing canonical Person.
+# The identity rule is deterministic and NEVER guesses: a single unambiguous match links;
+# two-or-more distinct matches route to review; zero matches create a new canonical person.
+#
+#   EXACT_NAME     — full/display name only. The original Phase-0b behaviour; default so
+#                    existing callers/tests are unchanged.
+#   NAME_IDENTITY  — mirrors the canonical resolver's *identity* steps (exact full/display
+#                    name → unique first name → compact/@handle form), so a bare-first-name
+#                    source row ("Heather" from extraction) unifies with a full-name contact
+#                    ("Heather Jenkins") FOR THE SAME USER. Used for living stores (A + C).
+#                    Recognition roles/phrases are deliberately NOT consulted here — those
+#                    are recognition, not identity-dedup.
+#   SOURCE_LINK_ONLY — never match by name at all; link only via an existing PersonSourceLink
+#                    (the idempotency check), else CREATE. Used for legacy genealogy (B),
+#                    where same-name individuals are normal and merging by name is forbidden
+#                    (GEDCOM identity = source_batch + xref, never name).
+MATCH_EXACT_NAME = "exact_name"
+MATCH_NAME_IDENTITY = "name_identity"
+MATCH_SOURCE_LINK_ONLY = "source_link_only"
 
 
 def _exact_matches(user, display_name, first_name, last_name):
@@ -44,22 +64,70 @@ def _exact_matches(user, display_name, first_name, last_name):
     return list(unique.values())
 
 
+def _name_identity_matches(user, display_name, first_name, last_name):
+    """The canonical resolver's identity steps, in order, for reconciliation dedup.
+
+    Returns the set of canonical people matched at the FIRST step that matches — so a
+    unique-first-name match is only considered when no full-name match exists. Never
+    blends steps (that is how the resolver stays deterministic)."""
+    people = list(Person.objects.filter(user=user))
+    raw = display_name or f"{first_name} {last_name}"
+    norm = normalize_name(raw)
+    if not norm:
+        return []
+
+    # 1. exact full / display name.
+    step = {p.pk: p for p in people
+            if normalize_name(p.display_name) == norm or normalize_name(p.full_name) == norm}
+    if step:
+        return list(step.values())
+
+    # 2. unique first name — ONLY when the SOURCE is a bare single token ("Heather").
+    #    A full-name source ("Heather Smith") must NEVER match a different full name that
+    #    merely shares a first name ("Heather Jenkins") — that would be merging on name
+    #    alone. So a multi-token source skips this step entirely.
+    is_bare_first_name = len(norm.split()) == 1
+    if is_bare_first_name:
+        step = {p.pk: p for p in people if normalize_name(p.first_name) == norm}
+        if step:
+            return list(step.values())
+
+    # 3. compact / @handle form ("heatherjenkins").
+    comp = compact_name(raw)
+    if comp:
+        step = {p.pk: p for p in people
+                if compact_name(p.display_name) == comp or compact_name(p.full_name) == comp}
+        if step:
+            return list(step.values())
+
+    return []
+
+
 @transaction.atomic
 def ingest_source_person(
     user, *, source_domain, source_pk,
     display_name="", first_name="", last_name="", email="", phone="",
     is_deceased=False, is_self=False, origin=PersonOrigin.MANUAL,
-    membership_via=None,
+    membership_via=None, match_mode=MATCH_EXACT_NAME,
 ):
     """Bind one legacy source row to a canonical Person and return
-    ``(person, outcome)``. Idempotent per (source_domain, source_pk)."""
+    ``(person, outcome)``. Idempotent per (source_domain, source_pk).
+
+    ``match_mode`` selects the identity-dedup strategy (see the MATCH_* constants).
+    Regardless of mode, matching never guesses: one match links, two-or-more route to
+    review, zero creates."""
     existing = PersonSourceLink.objects.filter(
         source_domain=source_domain, source_pk=source_pk
     ).first()
     if existing:
         return existing.person, ALREADY_LINKED
 
-    matches = _exact_matches(user, display_name, first_name, last_name)
+    if match_mode == MATCH_SOURCE_LINK_ONLY:
+        matches = []                              # genealogy: never match by name
+    elif match_mode == MATCH_NAME_IDENTITY:
+        matches = _name_identity_matches(user, display_name, first_name, last_name)
+    else:
+        matches = _exact_matches(user, display_name, first_name, last_name)
 
     if len(matches) == 1:
         person = matches[0]

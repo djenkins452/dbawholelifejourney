@@ -6,6 +6,15 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(cos): first PRODUCTION Customer Truth Certification scorecard (Danny's real data) + corrected the DomainTruth-only assumption
+
+**Production evidence supersedes the local fixture run.** Operator ran the CoS against real WLJ data across 11 domains; scorecard in `docs/WLJ_CUSTOMER_TRUTH_CERT_PROD1.md`. Analysis + prioritization ONLY — no code changed.
+
+- **Owned correction:** a prior claim that Fitness/Goals/Body-Measurements were "unmeasured/impossible" was wrong on an architectural point — the `DomainTruth` registry is NOT the only truth path. Traced the real paths: **Fitness ← `health.describe("workout")`** (per-set `weight_lb`/`reps`, `since_days`); **Goals ← standing context** (`user_priorities`+`cos_intelligence`, `standing_context.py:139` — canonical SUMMARY per its own trust-framing). A missing provider changes WHICH layer served an answer, not whether it's possible.
+- **Production verdicts:** Weight ✅ (confirms the local weight fails were test-env SAE staleness), Medication ✅, glucose/BP current ✅ — vs — Nutrition ❌ (no date-scoped retrieval), glucose/BP **trend** ❌ (`history_metrics` excludes them — proven), Body Measurements ❌ (model exists, no provider — proven), Fitness ◐ (squat-load grounding), Goals ◐ (summary works, milestones need a provider), Journal ⚠️ (health-telemetry blended into journal — trust defect, **trace first**), Relationships ❌ INCOMPLETE (no person entity surface), Cross-domain ◐ (generic advice leaked into a "strictly WLJ" answer — grounding).
+- **Revised backlog (provisional, finalize after trace):** 1 Nutrition date-scoping · 2 glucose/BP trends · 3 Body-Measurements provider · 4 Journal source separation (trace-first) · 5 Relationships/People · 6 Goals item-level · 7 Fitness precision · 8 cross-domain grounding. Trace plan uses the production Acceptance Center `AcceptanceResult` evidence columns.
+- **CONCURRENCY FLAG:** a parallel session is shipping "Meal Intelligence Foundation — canonical nutrition truth," which OVERLAPS backlog #1. Nutrition work must be coordinated with that thread, not duplicated.
+
 ## 2026-07-18 — feat(meals/health): Meal Intelligence Foundation 1 — canonical nutrition truth (non-migration slice)
 
 **First implementation increment of Foundation 1 (Canonical Truth) from the Meal Intelligence roadmap.** Scope was deliberately limited to the non-data-migration, non-cross-app work (per Danny's sequencing: build surrounding infrastructure now; defer production data migrations — nutrition target-store consolidation, Recipe `life→meals` move — to isolated milestones when the tree is quiet). One owner, one writer, one deterministic authority; no duplicate producers; production assets reused, not rebuilt. **No models changed — zero migrations.**

@@ -73,6 +73,37 @@
     </form>
   </div>
 
+  <!-- Deterministic (Owner-1) certification health -->
+  {% if cert_rows %}
+  <div class="section-divider"><h2 class="section-title">Truth Retrieval Certification — deterministic (Owner-1)</h2></div>
+  <div class="stat-card">
+    <p class="ac-note" style="margin-top:0;">
+      Provider-level truth, proven with fixtures and <strong>no OpenAI</strong>.
+      ✓ certified · ◐ assessed (provider declares it, no spec yet) · ✗ gap (declared missing) · — n/a.
+      <strong>{{ cert_summary.certified }}</strong> certified ·
+      {{ cert_summary.assessed }} assessed · {{ cert_summary.gap }} gaps across
+      {{ cert_summary.domains }} domains × {{ cert_summary.capabilities }} capabilities
+      ({{ cert_summary.slice_specs }} slice specs). Customer Truth &amp; Executive Judgment layer ABOVE this (pending live runs).
+    </p>
+    <div style="overflow-x:auto;">
+      <table class="ac-table">
+        <thead><tr><th>Domain</th>{% for c in cert_caps %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in cert_rows %}
+          <tr>
+            <td><code>{{ row.domain }}</code></td>
+            {% for cell in row.cells %}
+            <td style="text-align:center;{% if cell.status == 'certified' %}color:#10b981;font-weight:700;{% elif cell.status == 'gap' %}color:#ef4444;{% elif cell.status == 'assessed' %}color:#b45309;{% else %}color:#9ca3af;{% endif %}"
+                title="{{ cell.status }}">{{ cell.sym }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Latest run -->
   {% if latest %}
   <div class="section-divider"><h2 class="section-title">Latest run</h2></div>

@@ -114,6 +114,15 @@ class AcceptanceViewTests(AdminTestMixin, TestCase):
         self.assertContains(resp, "Beth Acceptance Center")
         self.assertContains(resp, "Run Full Suite")
 
+    def test_center_shows_deterministic_certification_panel(self):
+        # The one operational certification view — deterministic (Owner-1) portion.
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse("admin_console:beth_acceptance"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Truth Retrieval Certification")
+        self.assertContains(resp, "nutrition")           # a domain row renders
+        self.assertContains(resp, "Executive Judgment")  # the layered hierarchy is shown
+
     def test_start_run_creates_run_and_redirects(self):
         self.client.force_login(self.staff)
         with patch("apps.ai.chatgpt_cos.tasks.run_beth_acceptance.delay") as m:

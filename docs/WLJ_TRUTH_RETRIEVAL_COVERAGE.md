@@ -20,6 +20,26 @@
 
 ---
 
+## Capability matrix (deterministic, v1 — generated from `capability_matrix()`)
+✓ certified (passing deterministic spec) · ◐ assessed (provider `supports()` implies it, no spec yet) · ✗ gap (declared missing) · — n/a
+
+| domain | current | historical | latest | timeline | list | count | existence | comparison |
+|---|---|---|---|---|---|---|---|---|
+| **health** (weight) | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✓ |
+| **medicine** | ✓ | ✓ | ◐ | ◐ | ✓ | ✗ | ✓ | ✗ |
+| **nutrition** | ✗ | ✗ | ✓ | ✗ | ✓ | — | ✓ | ✗ |
+| calendar | ◐ | — | ◐ | — | — | — | — | — |
+| faith | ◐ | — | ◐ | — | — | — | — | — |
+| finance | ◐ | — | ◐ | — | — | — | — | — |
+| journal | ◐ | — | ◐ | — | ◐ | — | ◐ | — |
+| legacy | ◐ | — | ◐ | — | ◐ | — | ◐ | — |
+| relationships | ◐ | — | ◐ | — | — | — | — | — |
+| tasks | ◐ | — | ◐ | — | — | — | — | — |
+
+**Totals across 10 registered domains × 8 capabilities:** 12 certified · 22 assessed · 7 gaps · 39 n/a. **Slice = 14 deterministic specs** (`test_truth_retrieval_slice`, green, no OpenAI). This matrix is the primary planning artifact — the ◐ cells are the next deterministic-certification targets; the ✗ cells are the additive truth follow-ons (nutrition date-scoping is the highest-value one).
+
+---
+
 ## Weight (health domain)
 | Question | Category | Provider surface | Owner-1 | Owner-2 |
 |---|---|---|---|---|

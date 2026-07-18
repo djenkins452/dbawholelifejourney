@@ -49,6 +49,25 @@ class BethAcceptanceCenterView(AdminRequiredMixin, TemplateView):
             logger.warning("acceptance: cos_status failed", exc_info=True)
             ctx["cos"] = {"enabled": False, "deep_grade": None,
                           "reason": "Chief of Staff status unavailable."}
+        # Deterministic (Owner-1) certification health — the first slice of the one
+        # operational view of CoS certification. Customer Truth / Executive Judgment
+        # layer ABOVE this (shown as pending here).
+        try:
+            from apps.core.truth.question_specs import (
+                CAPABILITIES, capability_matrix, matrix_summary,
+            )
+            m = capability_matrix()
+            sym = {"certified": "✓", "assessed": "◐", "gap": "✗", "na": "—"}
+            ctx["cert_caps"] = [c.replace("_", " ") for c in CAPABILITIES]
+            ctx["cert_rows"] = [
+                {"domain": d,
+                 "cells": [{"status": m[d][c], "sym": sym[m[d][c]]} for c in CAPABILITIES]}
+                for d in sorted(m)
+            ]
+            ctx["cert_summary"] = matrix_summary()
+        except Exception:
+            logger.warning("acceptance: cert matrix failed", exc_info=True)
+            ctx["cert_rows"] = []
         return ctx
 
 

@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(cos): Owner-1 deterministic Truth Retrieval Certification — QuestionSpec + first vertical slice + capability matrix + operational panel
+
+**Depth-first: certify the deterministic foundation so future Customer Truth failures are real product defects, not missing coverage.** No new framework/registry/console — extends Owner-1 (`apps/core/truth/`) and the existing Acceptance Center.
+
+- **Question Specification (Phase 4)** — `apps/core/truth/question_specs.py`: a data-driven `QuestionSpec` (stable id · domain · capability · NL question · deterministic retrieval descriptor · expected semantics · fixture · expected provider · applicability · criticality). ONE spec serves BOTH owners — Owner-1 checks it deterministically (no OpenAI) via `run_spec()`; Owner-2 reuses `question`. Certification is organised around the **8 capabilities** (current/historical/latest/timeline/list/count/existence/comparison), not domains.
+- **First vertical slice (Phase 5)** — 14 specs across **Weight · Medication · Nutrition** with deterministic fixtures (`certification_fixtures.py`, explicit user-local dates + custom ranges so named-period month boundaries can't flake). All certify GREEN against the real provider surfaces (`test_truth_retrieval_slice`, 6 tests, no OpenAI): weight current/historical/latest/timeline/comparison; medicine list/current/existence(+/−)/adherence-history; nutrition list/latest/existence(+/−).
+- **Capability matrix (Phase 5)** — `capability_matrix()` renders ✓ certified / ◐ assessed / ✗ gap / — n/a across all 10 registered domains × 8 capabilities (12 certified · 22 assessed · 7 declared gaps). Honest gaps declared in `CAPABILITY_GAPS` (nutrition date-scoping/timeline/comparison; medicine/health count/comparison) — the additive follow-ons. Recorded in `docs/WLJ_TRUTH_RETRIEVAL_COVERAGE.md`.
+- **Operational visibility** — the EXISTING Beth Acceptance Center now shows a deterministic-certification panel (matrix + summary; Customer Truth / Executive Judgment shown as the pending layers above). No new page. `apps/admin_console/ai_views.py` + `beth_acceptance_center.html`.
+- **Files:** `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `apps/core/tests/test_truth_retrieval_slice.py` (new); `apps/admin_console/ai_views.py`, `templates/admin_console/beth_acceptance_center.html`, `apps/admin_console/tests/test_beth_acceptance_center.py`, `docs/WLJ_TRUTH_RETRIEVAL_COVERAGE.md`.
+
+**Verification:** `manage.py check` clean; scoped tests GREEN — `test_truth_retrieval_slice` (6) + `test_beth_acceptance_center` (10) + `test_medicine_domain_truth` (18) = 34+ tests. No migration (no model change). Customer Truth (Owner-2) remains layered above and unchanged, now with a certified deterministic floor. NOTE: parallel rich-text/people work left untouched; committed only my files by explicit path.
+
 ## 2026-07-18 — refine(journal): the `@` is an editing gesture, not part of the finished journal
 
 **Presentation-only refinement (no identity/recognition/provenance change).** The `@` is only the editor's trigger for "I'm referring to a person"; once the person is identified it has done its job. The finished journal now reads naturally — a recognized person renders as the author's own wording, styled as a chip, with **no `@`**. Explicit and passive recognition produce the *identical* visible result; the only difference is provenance stored internally.

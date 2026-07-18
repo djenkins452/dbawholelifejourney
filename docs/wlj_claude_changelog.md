@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(journal): the `@` is an editing gesture, not part of the finished journal
+
+**Presentation-only refinement (no identity/recognition/provenance change).** The `@` is only the editor's trigger for "I'm referring to a person"; once the person is identified it has done its job. The finished journal now reads naturally — a recognized person renders as the author's own wording, styled as a chip, with **no `@`**. Explicit and passive recognition produce the *identical* visible result; the only difference is provenance stored internally.
+
+- **Editor node** (`frontend/tiptap/src/index.js` `WLJMention`): `renderHTML`/`renderText` drop the `@` prefix — the chip shows `label` alone (e.g. `Heather Jenkins`), live and on reload. `parseHTML` already strips a legacy leading `@`, so entries stored before this refinement upgrade cleanly on next open. Bundle rebuilt (esbuild IIFE).
+- **Passive scanner** (`apps/people/services/mentions.py` `recognize_prose_mentions`): wraps the author's exact matched wording (`m.group(0)`) with no injected `@` — "dinner with Heather" stays "dinner with Heather" (never silently upgraded to "Heather Jenkins"; the canonical identity lives in `data-person-id`).
+- **Plain-text shadow** auto-corrects: it's derived from the span's text content, which no longer carries `@`, so the shadow reads as the natural sentence.
+- **Unchanged by design:** canonical `data-person-id`, `PersonMention` rows, `source_type` provenance (`explicit_at_mention` vs `exact_name`/`confirmed_alias`), the `[data-mention]` chip styling, the `@` autocomplete trigger, and the sanitizer allow-list. `_MENTION_RE` keeps its optional `@?` to parse both new and legacy stored markup.
+- **Cache-bust:** RTE assets bumped `?v=20260718a → 20260718b` (returning users must fetch the new bundle/CSS with the new markup). `collectstatic` clean (0 errors, 510 post-processed).
+- **Files:** `frontend/tiptap/src/index.js`, `static/vendor/tiptap/tiptap.bundle.js`, `apps/people/services/mentions.py`, `apps/people/tests/test_mentions.py`, `templates/base.html`, `templates/components/_rich_text_editor_assets.html`. No model change → no migration.
+
+**Verification:** `apps.people.tests.test_mentions` (14) GREEN; `manage.py check` clean; `collectstatic` clean. Browser-verified end-to-end in one entry: typed `@Heather` → selected → live chip "Heather Jenkins" (no `@`); typed "coffee with Heather again" (no `@`) → passive chip "Heather" (author's wording). Saved + reopened detail reads "Lunch with Heather Jenkins, then coffee with Heather again." — two gold chips, no `@`, both `data-person-id="112"`; plain shadow `@`-free; one `PersonMention` (explicit provenance wins over the passive occurrence).
+
 ## 2026-07-18 — docs(cos): Truth Retrieval Certification — first coverage report (v0, honest evidence tiers)
 
 New durable report `docs/WLJ_TRUTH_RETRIEVAL_COVERAGE.md` for the first vertical slice (Weight · Medications · Nutrition), by domain / question-category / runtime-surface. **Integrity-first:** every cell carries an explicit evidence tier — ✅ deterministically executed · ◐ provider-assessed (audit, not yet slice-tested) · ⧗ pending live Customer Truth run (needs OpenAI + deployed worker — not runnable from the build env) · ✗ missing provider. Does NOT claim any domain "certified" from the slice. Records: medicine adherence-history **executed ✅**; weight/nutrition provider-assessed ◐ (deterministic tests are the next increment); all Customer Truth ⧗; streaming path ✗ not-yet-certified; body-measurements & nutrition date-scoping flagged as the additive follow-ons. Also documents the user-local date semantics the slice must prove.

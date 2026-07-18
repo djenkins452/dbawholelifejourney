@@ -18,7 +18,9 @@ from ..models import Person, PersonMembership, PersonMention
 from .membership import grant_membership
 from . import resolution
 
-# The sanitized mention markup: <span data-mention data-person-id="123">@Heather</span>
+# The sanitized mention markup: <span data-mention data-person-id="123">Heather</span>.
+# The `@?` tolerates the legacy "@Heather" form so entries stored before the `@` was
+# retired from the rendered journal still parse to the clean surface text.
 _MENTION_RE = re.compile(
     r'<span[^>]*data-person-id="(\d+)"[^>]*>@?([^<]*)</span>', re.IGNORECASE
 )
@@ -181,7 +183,9 @@ def recognize_prose_mentions(user, html):
             if not person:
                 continue
             out.append(text[idx:m.start()])
-            out.append(f'<span data-mention data-person-id="{person.pk}">@{m.group(0)}</span>')
+            # The `@` is only an editing gesture; the finished journal shows the author's
+            # exact wording (m.group(0)) as a recognized chip, never an injected "@".
+            out.append(f'<span data-mention data-person-id="{person.pk}">{m.group(0)}</span>')
             idx = m.end()
             if person.pk not in explicit_ids:
                 source_by_pk.setdefault(person.pk, src or resolution.EXACT_NAME)

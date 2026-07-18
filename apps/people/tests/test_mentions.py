@@ -117,9 +117,12 @@ class PassiveProseRecognitionTests(TestCase):
         e.refresh_from_db()
         # The stored body now carries the canonical token (renders as a chip on reopen).
         self.assertIn(f'data-person-id="{self.heather.pk}"', e.body)
-        self.assertIn("@Heather", e.body)
-        # Plain shadow reads cleanly.
-        self.assertIn("@Heather", e.body_plain)
+        # The `@` is an editing gesture only — the finished journal shows the author's
+        # wording as a chip, with NO injected "@".
+        self.assertIn(">Heather</span>", e.body)
+        self.assertNotIn("@", e.body)
+        # Plain shadow reads naturally — the original sentence, no "@".
+        self.assertEqual(e.body_plain, "Today I had dinner with Heather.")
         # And the canonical PersonMention link exists — same authority as explicit,
         # but recorded with faithful provenance (recognized by name, not "@mention").
         m = PersonMention.objects.get(
@@ -166,7 +169,9 @@ class PassiveProseRecognitionTests(TestCase):
             body="<p>Coffee with Honey this morning.</p>")
         e.refresh_from_db()
         self.assertIn(f'data-person-id="{self.heather.pk}"', e.body)
-        self.assertIn("@Honey", e.body)
+        # The chip preserves the author's chosen wording ("Honey") — no "@".
+        self.assertIn(">Honey</span>", e.body)
+        self.assertNotIn("@Honey", e.body)
 
     def test_existing_explicit_token_not_rewrapped(self):
         token = f'<span data-mention data-person-id="{self.heather.pk}">@Heather Jenkins</span>'

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}{{ leftover.recipe_title|default:"Leftover" }} — Leftovers — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 640px; margin: 0 auto; padding: var(--space-4);">
+    <a href="{% url 'meals:leftovers' %}" class="text-muted" style="font-size: var(--font-size-sm);">&larr; Leftovers</a>
+    <h1 style="margin-top: var(--space-3);">{{ leftover.recipe_title|default:"A meal" }}</h1>
+
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-3) 0;">
+        <span class="badge">{{ leftover.servings }} serving(s) left</span>
+        <span class="badge">{{ leftover.get_disposition_display }}</span>
+        {% if leftover.expiration_date %}<span class="badge">Expires {{ leftover.expiration_date|date:"M j, Y" }}</span>{% endif %}
+    </div>
+    <p class="text-muted" style="font-size: var(--font-size-sm);">
+        {% if leftover.preparation %}Prepared {{ leftover.preparation.prepared_at|date:"M j, Y" }}{% endif %}
+    </p>
+
+    {% if leftover.is_available %}
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-3);">
+        <form method="post" action="{% url 'meals:consume_leftover' leftover.pk %}"
+              style="display: flex; gap: var(--space-2); align-items: flex-end;">
+            {% csrf_token %}
+            <input type="hidden" name="idempotency_key" value="{{ action_idempotency_key }}-c">
+            <label style="display: flex; flex-direction: column; font-size: var(--font-size-sm);">
+                Servings eaten
+                <input type="number" name="servings" min="0" step="0.5" inputmode="decimal" value="1"
+                       style="min-height: 44px; font-size: 16px; max-width: 120px;">
+            </label>
+            <button type="submit" class="btn btn-secondary" style="min-height: 44px;">I ate this</button>
+        </form>
+        <form method="post" action="{% url 'meals:discard_leftover' leftover.pk %}"
+              style="display: flex; gap: var(--space-2); align-items: flex-end;">
+            {% csrf_token %}
+            <input type="hidden" name="idempotency_key" value="{{ action_idempotency_key }}-d">
+            <label style="display: flex; flex-direction: column; font-size: var(--font-size-sm);">
+                Discard servings (blank = all)
+                <input type="number" name="servings" min="0" step="0.5" inputmode="decimal"
+                       style="min-height: 44px; font-size: 16px; max-width: 140px;">
+            </label>
+            <button type="submit" class="btn btn-ghost" style="min-height: 44px;">Discard</button>
+        </form>
+    </div>
+    {% else %}
+    <p style="margin-top: var(--space-3);">This leftover is <strong>{{ leftover.get_disposition_display|lower }}</strong> — no further action.</p>
+    {% endif %}
+
+    {% if consumptions or waste_events %}
+    <h2 style="font-size: var(--font-size-lg); margin-top: var(--space-4);">History</h2>
+    <ul style="font-size: var(--font-size-sm); color: var(--color-text-muted);">
+        {% for c in consumptions %}
+        <li>Ate {{ c.servings_consumed }} serving(s) — {{ c.consumed_at|date:"M j, g:i a" }}</li>
+        {% endfor %}
+        {% for w in waste_events %}
+        <li>{{ w.get_event_type_display }} {{ w.servings }} serving(s) — {{ w.occurred_at|date:"M j, g:i a" }}{% if w.reason %} ({{ w.reason }}){% endif %}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endblock %}

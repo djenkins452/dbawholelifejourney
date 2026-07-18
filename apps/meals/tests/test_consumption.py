@@ -126,10 +126,14 @@ class ConsumptionLeftoverTests(ConsumptionBase):
         self.assertIsNone(r.leftover_id)
         self.assertIsNotNone(r.food_entry_id)  # nutrition still logged
 
-    def test_leftover_never_negative(self):
+    def test_over_consume_leftover_rejected(self):
+        # Increment 4: over-consuming a leftover is REJECTED (was: clamp to 0).
         prep = PreparationEvent.objects.get(pk=self._prepare(8, 2).preparation_id)
-        r = self._consume(preparation=prep, servings=Decimal("5"))  # eat more than left
-        self.assertEqual(r.leftover_remaining, 0.0)
+        r = self._consume(preparation=prep, servings=Decimal("5"))  # more than the 2 left
+        self.assertEqual(r.status, "failed")
+        self.assertEqual(r.message, "insufficient_leftover")
+        self.assertEqual(FoodEntry.objects.filter(user=self.user).count(), 0)
+        self.assertEqual(prep.leftovers.first().servings, Decimal("2.00"))  # untouched
 
 
 class ConsumptionIdempotencyTests(ConsumptionBase):

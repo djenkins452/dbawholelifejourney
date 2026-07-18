@@ -76,6 +76,13 @@ urlpatterns = [
         views.ConsumeMealView.as_view(),
         name="consume_meal",
     ),
+    # Foundation 2 — leftovers inventory (list / detail / consume-later / discard)
+    path("leftovers/", views.LeftoverListView.as_view(), name="leftovers"),
+    path("leftovers/<int:pk>/", views.LeftoverDetailView.as_view(), name="leftover_detail"),
+    path("leftovers/<int:pk>/consume/", views.ConsumeLeftoverView.as_view(),
+         name="consume_leftover"),
+    path("leftovers/<int:pk>/discard/", views.DiscardLeftoverView.as_view(),
+         name="discard_leftover"),
     # Phase 12: Pantry Photo Scan
     path("pantry/scan/", views.PantryScanStartView.as_view(), name="pantry_scan"),
     path(

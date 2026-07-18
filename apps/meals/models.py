@@ -1310,7 +1310,25 @@ class Leftover(UserOwnedModel):
 
     Recorded ONLY from a real preparation. Expiration and storage location are
     never invented — they stay null unless the user provides them.
+
+    ``disposition`` is the leftover's own lifecycle (distinct from the UserOwnedModel
+    soft-delete ``status``). Legal transitions: AVAILABLE -> {CONSUMED, DISCARDED,
+    EXPIRED}; the three latter are terminal. ``servings`` is the reproducible
+    remaining quantity (never negative); a terminal disposition is set by the action
+    (consume / discard / expire) that brings it to 0 (or the expiration process).
     """
+
+    DISP_AVAILABLE = "available"
+    DISP_CONSUMED = "consumed"
+    DISP_DISCARDED = "discarded"
+    DISP_EXPIRED = "expired"
+    DISPOSITION_CHOICES = [
+        (DISP_AVAILABLE, "Available"),
+        (DISP_CONSUMED, "Fully consumed"),
+        (DISP_DISCARDED, "Discarded"),
+        (DISP_EXPIRED, "Expired"),
+    ]
+    TERMINAL_DISPOSITIONS = {DISP_CONSUMED, DISP_DISCARDED, DISP_EXPIRED}
 
     household = models.ForeignKey(
         Household, on_delete=models.CASCADE, related_name="leftovers",
@@ -1325,7 +1343,15 @@ class Leftover(UserOwnedModel):
     recipe_title = models.CharField(max_length=200, blank=True)
     servings = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal("1"),
-        help_text="Servings of leftovers remaining (as stated at preparation)",
+        help_text="Servings of leftovers remaining (never negative)",
+    )
+    disposition = models.CharField(
+        max_length=12, choices=DISPOSITION_CHOICES, default=DISP_AVAILABLE,
+        db_index=True,
+    )
+    depleted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the leftover reached a terminal disposition",
     )
     # Optional, user-provided ONLY — never auto-invented.
     storage_location = models.CharField(
@@ -1342,6 +1368,16 @@ class Leftover(UserOwnedModel):
 
     def __str__(self):
         return f"{self.servings} serving(s) of {self.recipe_title or 'a meal'}"
+
+    @property
+    def is_available(self):
+        return (self.disposition == self.DISP_AVAILABLE
+                and self.status == "active"
+                and (self.servings or Decimal("0")) > 0)
+
+    def get_absolute_url(self):
+        from django.urls import reverse
+        return reverse("meals:leftover_detail", kwargs={"pk": self.pk})
 
 
 class MealConsumption(UserOwnedModel):
@@ -1389,3 +1425,60 @@ class MealConsumption(UserOwnedModel):
 
     def __str__(self):
         return f"Ate {self.servings_consumed} serving(s) of {self.recipe_title or 'a meal'}"
+
+
+class FoodWasteEvent(UserOwnedModel):
+    """Immutable audit record of a leftover discarded or expired (Foundation 2).
+
+    Waste is NOT nutrition — it NEVER creates a FoodEntry and NEVER counts toward
+    intake. It does NOT touch pantry inventory (preparation already deducted the
+    ingredients; discarding a prepared leftover changes leftover disposition, not
+    pantry). This thin event keeps a durable, per-event audit of partial/full
+    discard and expiration alongside the leftover's headline disposition.
+    """
+
+    EVENT_DISCARDED = "discarded"
+    EVENT_EXPIRED = "expired"
+    EVENT_TYPE_CHOICES = [
+        (EVENT_DISCARDED, "Discarded"),
+        (EVENT_EXPIRED, "Expired"),
+    ]
+
+    SOURCE_USER = "user"
+    SOURCE_SCHEDULED = "scheduled_expiration"
+
+    household = models.ForeignKey(
+        Household, on_delete=models.CASCADE, related_name="food_waste_events",
+    )
+    leftover = models.ForeignKey(
+        Leftover, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="waste_events",
+    )
+    preparation = models.ForeignKey(
+        PreparationEvent, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="waste_events",
+    )
+    recipe = models.ForeignKey(
+        "meals.Recipe", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="waste_events",
+    )
+    recipe_title = models.CharField(max_length=200, blank=True)
+    event_type = models.CharField(max_length=12, choices=EVENT_TYPE_CHOICES)
+    servings = models.DecimalField(
+        max_digits=6, decimal_places=2,
+        help_text="Servings discarded / expired in this event",
+    )
+    reason = models.CharField(max_length=300, blank=True)
+    source = models.CharField(max_length=24, default=SOURCE_USER)
+    occurred_at = models.DateTimeField(default=timezone.now)
+    idempotency_key = models.CharField(
+        max_length=100, null=True, blank=True, unique=True, db_index=True,
+    )
+
+    class Meta:
+        ordering = ["-occurred_at"]
+        verbose_name = "Food Waste Event"
+        verbose_name_plural = "Food Waste Events"
+
+    def __str__(self):
+        return f"{self.event_type} {self.servings} serving(s) of {self.recipe_title or 'a meal'}"

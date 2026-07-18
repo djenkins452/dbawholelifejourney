@@ -5,6 +5,7 @@ from .models import (
     Household,
     HouseholdMembership,
     Ingredient,
+    FoodWasteEvent,
     InventoryTransaction,
     Leftover,
     MealConsumption,
@@ -38,8 +39,19 @@ class PreparationEventAdmin(admin.ModelAdmin):
 
 @admin.register(Leftover)
 class LeftoverAdmin(admin.ModelAdmin):
-    list_display = ("recipe_title", "household", "servings", "created_at")
+    list_display = ("recipe_title", "household", "servings", "disposition",
+                    "expiration_date", "created_at")
+    list_filter = ("disposition",)
     search_fields = ("recipe_title",)
+
+
+@admin.register(FoodWasteEvent)
+class FoodWasteEventAdmin(admin.ModelAdmin):
+    list_display = ("recipe_title", "household", "event_type", "servings",
+                    "source", "occurred_at")
+    list_filter = ("event_type", "source")
+    search_fields = ("recipe_title", "idempotency_key")
+    date_hierarchy = "occurred_at"
 
 
 @admin.register(Ingredient)

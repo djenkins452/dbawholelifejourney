@@ -468,3 +468,16 @@ def enrich_recipe_ingredients(self, recipe_id):
                        exc_info=True)
 
     return {"status": "ok", "recipe_id": recipe_id, "ingredients": created}
+
+
+# =============================================================================
+# Foundation 2 — deterministic leftover expiration (scheduled)
+# =============================================================================
+@shared_task(soft_time_limit=120, time_limit=150)
+def expire_leftovers_task():
+    """Deterministically expire leftovers past their STORED expiration_date. Idempotent
+    (re-runs skip already-terminal rows); never invents an expiration date. Scheduled
+    via CELERY_BEAT_SCHEDULE."""
+    from apps.meals.services.waste import expire_due_leftovers
+    expired = expire_due_leftovers()
+    return {"status": "ok", "expired": expired}

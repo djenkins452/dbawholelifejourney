@@ -57,7 +57,17 @@ Each milestone advances specific truths up the certification ladder; the "Certif
 
 ---
 
-## Milestone 3 — Lifecycle Connectivity (Foundation F2, the spine)
+## Milestone 3 — Lifecycle Connectivity (Foundation F2, the spine) — ✅ IMPLEMENTED (awaiting Danny's real-world validation)
+
+**Status (2026-07-18):** Technically implemented and deployed across four increments —
+(1) recipe enrichment-at-write, (2) `prepare_recipe` (pantry deduction via
+`InventoryTransaction(source="preparation")` + leftovers), (3) `consume_meal` (person-scoped
+`FoodEntry` with real macros; nutrition flows into `NutritionQueries`), (4) leftover
+inventory + later consumption + `discard_leftover`/`FoodWasteEvent` + deterministic
+expiration + leftover legal state machine. Every transition passes automated behavioral
+certification (see `WLJ_MEAL_INTELLIGENCE_TRUTH_CERTIFICATION.md §4b`). **Awaiting Danny's
+real-world validation.** Grocery/meal-plan automation and meal-history analytics remain
+future milestones.
 
 **Objective.** Close the food lifecycle: make cooking and eating first-class events that deterministically update inventory and nutrition — the transition that turns features into an operating system.
 

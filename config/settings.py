@@ -1279,6 +1279,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "health.build_nightly_health_summaries",
         "schedule": crontab(hour=3, minute=0),  # 3:00 AM UTC = 10:00 PM EST
     },
+    # Foundation 2 — expire leftovers past their STORED expiration_date (idempotent;
+    # never invents a date). Crontab (not interval) per the beat-durability contract.
+    "meals-expire-leftovers-4am-utc": {
+        "task": "apps.meals.tasks.expire_leftovers_task",
+        "schedule": crontab(hour=4, minute=0),  # 4:00 AM UTC, after the health summary
+    },
     "soft-delete-cleanup-weekly-sun-3am-utc": {
         "task": "core.cleanup_soft_deletes",
         "schedule": crontab(hour=3, minute=0, day_of_week="sun"),  # Weekly Sunday (was APScheduler)

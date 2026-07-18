@@ -117,6 +117,18 @@ def consume_meal(*, user, household, preparation=None, leftover=None, recipe=Non
 
     try:
         with transaction.atomic():
+            # When consuming FROM a leftover: lock the row, require it AVAILABLE, and
+            # reject over-consumption (deterministic; no negative quantities). This
+            # validation happens before any write, so a rejection persists nothing.
+            leftover_remaining = None
+            if leftover is not None:
+                leftover = (Leftover.objects.select_for_update()
+                            .filter(pk=leftover.pk).first())
+                if leftover is None or not leftover.is_available:
+                    return ConsumptionResult(status="failed", message="leftover_unavailable")
+                if servings > (leftover.servings or Decimal("0")):
+                    return ConsumptionResult(status="failed", message="insufficient_leftover")
+
             entry = FoodEntry(
                 user=user,
                 food_name=(recipe.title or "Home-cooked meal"),
@@ -135,11 +147,16 @@ def consume_meal(*, user, household, preparation=None, leftover=None, recipe=Non
             entry.calculate_totals()
             entry.save()
 
-            leftover_remaining = None
             if leftover is not None:
-                current = leftover.servings or Decimal("0")
-                leftover.servings = max(Decimal("0"), current - servings)
-                leftover.save(update_fields=["servings", "updated_at"])
+                remaining = (leftover.servings or Decimal("0")) - servings  # validated >= 0
+                leftover.servings = remaining
+                if remaining <= 0:
+                    leftover.disposition = Leftover.DISP_CONSUMED
+                    leftover.depleted_at = timezone.now()
+                    leftover.save(update_fields=[
+                        "servings", "disposition", "depleted_at", "updated_at"])
+                else:
+                    leftover.save(update_fields=["servings", "updated_at"])
                 leftover_remaining = float(leftover.servings)
 
             consumption = MealConsumption.objects.create(

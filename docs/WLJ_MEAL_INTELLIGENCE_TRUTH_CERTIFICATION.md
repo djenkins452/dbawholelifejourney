@@ -163,6 +163,38 @@ For each food truth: **canonical owner**, **primary truth it holds**, **current 
 
 ---
 
+## 4b. Food Lifecycle Certification (Foundation 2 — implemented & passing)
+
+Behavioral certification of the **operational food lifecycle** — every implemented
+transition has a canonical producer and a passing behavioral proof. Tests live in
+`apps/meals/tests/` and run green (see the changelog entries for Foundation 2).
+
+| # | Transition | Canonical producer | Behavioral proof (test module) | Status |
+|---|---|---|---|---|
+| 1 | Recipe save → structured ingredients | `enrich_recipe_ingredients` (write-boundary signal) | `test_recipe_enrichment` · `test_food_lifecycle_certification` | ✅ |
+| 2 | Recipe → preparation | `prepare_recipe` | `test_preparation` · `test_food_lifecycle_certification` | ✅ |
+| 3 | Preparation → pantry deduction | `deduct_pantry_item` → `InventoryTransaction(source="preparation")` | `test_preparation` (deduction+txn) | ✅ |
+| 4 | Preparation → leftover | `prepare_recipe` → `Leftover` | `test_preparation` · `test_food_lifecycle_certification` | ✅ |
+| 5 | Preparation/leftover → consumption | `consume_meal` | `test_consumption` · `test_leftover_management` | ✅ |
+| 6 | Consumption → FoodEntry | `consume_meal` (reuses `FoodEntry.calculate_totals`) | `test_consumption` (scaled macros) | ✅ |
+| 7 | FoodEntry → nutrition totals | `NutritionQueries.get_daily_totals` | `test_consumption` · `test_food_lifecycle_certification` | ✅ |
+| 8 | Consumption → leftover reduction (+ terminal disposition) | `consume_meal` | `test_leftover_management` | ✅ |
+| 9 | Leftover → discard/waste (final disposition) | `discard_leftover` → `FoodWasteEvent` | `test_leftover_management` · `test_food_lifecycle_certification` | ✅ |
+| 10 | Leftover → deterministic expiration | `expire_due_leftovers` (scheduled) | `test_leftover_management` | ✅ |
+| 11 | Retry/replay → no duplicate effects | idempotency keys (prep/consume/discard) | all four suites | ✅ |
+
+**Leftover legal state transitions** (enforced): `AVAILABLE → {CONSUMED, DISCARDED,
+EXPIRED}`; the latter three are terminal. Invariants proven by test: quantities never
+negative; consume/discard above available rejected; consumed/discarded/expired leftover
+cannot be consumed or discarded; a repeated idempotency key subtracts once; failures
+roll back (fail-closed) leaving no partial truth. Discard/expiration never create a
+`FoodEntry`, never count as nutrition, and never re-deduct pantry.
+
+**Not certified here** (out of scope, later milestones): grocery-list generation,
+meal-plan automation, recommendations, price intelligence, external ordering, CoS.
+
+---
+
 ## 5. Certification process (how a food truth is certified)
 
 Aligned with the platform's two-owner Truth Retrieval Certification pattern:

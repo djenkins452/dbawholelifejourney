@@ -9,3 +9,5 @@ class MealsConfig(AppConfig):
     def ready(self):
         # Wire Recipe write-boundary enrichment (Foundation 2).
         from apps.meals import signals  # noqa: F401
+        # Register Current Context page-summary providers (e.g. meals.leftovers).
+        from apps.meals import page_summaries  # noqa: F401

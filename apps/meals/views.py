@@ -26,8 +26,9 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from django.views.generic import DetailView, TemplateView, View
+from django.views.generic import DetailView, ListView, TemplateView, View
 
+from apps.core.current_context import PageSummaryMixin
 from apps.help.mixins import HelpContextMixin
 from apps.meals.models import Recipe
 
@@ -37,6 +38,7 @@ from .models import (
     HouseholdMembership,
     Ingredient,
     InventoryTransaction,
+    Leftover,
     MealPlan,
     MealPlanEntry,
     PantryItem,
@@ -1661,6 +1663,112 @@ class ConsumeMealView(LoginRequiredMixin, MealsHouseholdMixin, View):
         return render(request, "meals/consumption_result.html", {
             "preparation": prep,
             "result": result,
+        })
+
+
+# =============================================================================
+# Foundation 2 — Leftovers inventory (list / detail / consume / discard)
+# =============================================================================
+
+
+class LeftoverListView(HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin,
+                       PageSummaryMixin, ListView):
+    """Available leftovers — a durable, returnable truth surface. Overview page →
+    facts-only Current Context summary (summary:meals.leftovers)."""
+
+    template_name = "meals/leftovers_list.html"
+    context_object_name = "leftovers"
+    page_summary_key = "meals.leftovers"
+    page_summary_title = "Leftovers"
+    help_context_id = "MEALS_LEFTOVERS"
+
+    def get_queryset(self):
+        from apps.meals.services.leftover_queries import available_leftovers
+        return available_leftovers(self.get_household())
+
+    def get_context_data(self, **kwargs):
+        import uuid
+        context = super().get_context_data(**kwargs)
+        context["action_idempotency_key"] = uuid.uuid4().hex
+        return context
+
+
+class LeftoverDetailView(HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin,
+                         DetailView):
+    """One leftover (canonical object). base.html auto-declares Current Context from
+    the UserOwnedModel's context_ref."""
+
+    template_name = "meals/leftover_detail.html"
+    context_object_name = "leftover"
+    help_context_id = "MEALS_LEFTOVER_DETAIL"
+
+    def get_queryset(self):
+        return Leftover.objects.filter(
+            household=self.get_household(), status="active",
+        ).select_related("recipe", "preparation")
+
+    def get_context_data(self, **kwargs):
+        import uuid
+        context = super().get_context_data(**kwargs)
+        context["action_idempotency_key"] = uuid.uuid4().hex
+        context["waste_events"] = self.object.waste_events.all()
+        context["consumptions"] = self.object.consumptions.all()
+        return context
+
+
+class ConsumeLeftoverView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Eat servings of an existing leftover on a later date (reuses consume_meal)."""
+
+    def post(self, request, pk):
+        from apps.meals.services.consumption import consume_meal
+
+        household = self.get_household()
+        leftover = get_object_or_404(
+            Leftover, pk=pk, household=household, status="active")
+
+        raw = (request.POST.get("servings") or "").strip()
+        try:
+            servings = Decimal(raw) if raw else Decimal("1")
+        except Exception:
+            servings = Decimal("1")
+
+        result = consume_meal(
+            user=request.user, household=household, leftover=leftover,
+            servings=servings,
+            meal_type=(request.POST.get("meal_type") or "").strip() or None,
+            idempotency_key=(request.POST.get("idempotency_key") or "").strip() or None,
+        )
+        return render(request, "meals/consumption_result.html", {
+            "preparation": leftover.preparation, "result": result,
+        })
+
+
+class DiscardLeftoverView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Discard servings of a leftover (waste truth — no FoodEntry, no pantry change)."""
+
+    def post(self, request, pk):
+        from apps.meals.services.waste import discard_leftover
+
+        household = self.get_household()
+        leftover = get_object_or_404(
+            Leftover, pk=pk, household=household, status="active")
+
+        raw = (request.POST.get("servings") or "").strip()
+        servings = None
+        if raw:
+            try:
+                servings = Decimal(raw)
+            except Exception:
+                servings = None
+
+        result = discard_leftover(
+            user=request.user, household=household, leftover=leftover,
+            servings=servings,  # None = discard all remaining
+            reason=(request.POST.get("reason") or "").strip(),
+            idempotency_key=(request.POST.get("idempotency_key") or "").strip() or None,
+        )
+        return render(request, "meals/waste_result.html", {
+            "leftover": leftover, "result": result,
         })
 
 

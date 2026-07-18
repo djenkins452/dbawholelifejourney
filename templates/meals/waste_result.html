@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Leftover discarded — Meal Intelligence — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 560px; margin: 0 auto; padding: var(--space-4);">
+    <a href="{% url 'meals:leftovers' %}" class="text-muted" style="font-size: var(--font-size-sm);">&larr; Leftovers</a>
+    <h1 style="margin-top: var(--space-3);">Discarded</h1>
+
+    {% if result.status == "replayed" %}
+    <p class="text-muted">This was already recorded — nothing was subtracted twice.</p>
+    {% elif result.status == "failed" %}
+    <p style="color: var(--color-error, #ef4444);">Could not discard: {{ result.message }}</p>
+    {% else %}
+    <p>Recorded as discarded. Not counted as nutrition.</p>
+    {% if result.leftover_remaining is not None %}
+    <p class="text-muted">Remaining: <strong>{{ result.leftover_remaining }}</strong> serving(s)
+        ({{ result.disposition }}).</p>
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

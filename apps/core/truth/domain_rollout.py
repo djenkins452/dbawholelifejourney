@@ -471,15 +471,38 @@ class RelationshipDomainTruth(DomainTruth):
         footprint = {"interactions_by_context": dict(by_ctx)}
         footprint["journal_entries"] = by_ctx.get("journal", [])
         footprint["events"] = by_ctx.get("event", [])
-        # Legacy memories the person appears in (matched by display name).
+        # Legacy memories the person appears in (matched by display name) + the PLACES
+        # those shared memories happened at ("trips / places you've been together").
+        first = name.split()[0]
         try:
             from apps.legacy.models import Memory
-            mems = (Memory.objects.filter(user=self.user,
-                                          people__display_name__icontains=name)
-                    .distinct().order_by("-created_at")[:25])
+            mems = list(Memory.objects.filter(user=self.user,
+                                              people__display_name__icontains=first)
+                        .prefetch_related("places").distinct().order_by("-created_at")[:25])
             footprint["memories"] = [m.title or "(untitled)" for m in mems]
+            places = []
+            for m in mems:
+                for pl in m.places.all():
+                    if pl.name not in places:
+                        places.append(pl.name)
+            footprint["shared_places"] = places
         except Exception:
             footprint["memories"] = []
+            footprint["shared_places"] = []
+        # The user's GOALS that mention this person (text-match across goal fields —
+        # no goal↔person FK exists; this is the deterministic 'goals involving X').
+        try:
+            from apps.purpose.models import LifeGoal
+            from django.db.models import Q
+            first = name.split()[0]
+            goals = (LifeGoal.all_objects.filter(user=self.user).filter(
+                Q(title__icontains=first) | Q(why_it_matters_plain__icontains=first)
+                | Q(success_looks_like_plain__icontains=first)
+                | Q(motivation_note_plain__icontains=first)
+                | Q(description_plain__icontains=first))[:15])
+            footprint["goals"] = [g.title for g in goals]
+        except Exception:
+            footprint["goals"] = []
         # Their upcoming birthday, if recorded.
         try:
             from apps.life.models import SignificantEvent

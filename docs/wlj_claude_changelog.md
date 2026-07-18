@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): close the last People gaps — goals & trips involving a person (deterministic, from existing data)
+
+**Follow-up to `52d12347`** (Journal/Legacy/People to production quality). Closes the two questions previously reported RED, using existing data only — no new models, no schema change, no migration.
+
+- **"What goals involve Heather?"** — no goal↔person FK exists, so the person footprint now **text-matches the user's `LifeGoal` fields** (title / why_it_matters / success_looks_like / motivation / description) for the person's name → `extensions.goals`. Deterministic, reuses existing goal text.
+- **"What trips have Heather and I taken?"** — no trip model exists, so the footprint surfaces the **places attached to the legacy memories she appears in** → `extensions.shared_places` ("places you've been together"). Memory-involvement now matches on first name so a legacy "Heather" resolves for a "Heather Jones" contact.
+- **Certification:** +4 QuestionSpecs (`rel.goals_involving`, `rel.trips`, `rel.memories_involving`, `rel.journal_mentions`); relationships fixture seeds a shared memory-at-a-place and a goal mentioning Heather. Owner-1 green; 57 regression tests green; `check` + `makemigrations --check` clean.
+
+With this, every People/Relationships question in the milestone is Owner-1 GREEN (everything-about, last-contact, working-on, memories, **goals**, journal-mentions, **trips**, events, most-important, not-connected, birthday). Owner-2 production validation remains Danny's.
+
+**Files:** `apps/core/truth/domain_rollout.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Journal / Legacy / People to production quality — contamination made structurally impossible + cross-WLJ person composition
 
 **Raised the three below-bar domains to Body/Fitness/Medication quality.** Existing architecture only; no model change, no migration. Owner-1 certified; Owner-2 is Danny's live run.

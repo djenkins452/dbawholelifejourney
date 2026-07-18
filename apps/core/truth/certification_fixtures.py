@@ -225,6 +225,19 @@ def build_relationships_fixture(email="cert_rel@example.com"):
     SignificantEvent.objects.create(
         user=u, title="Heather's Birthday", event_type="birthday",
         event_date=datetime(1985, bday.month, bday.day).date(), person_name="Heather")
+    # Cross-WLJ truth about Heather: a shared memory at a place (→ trips/shared places)
+    # and a goal that mentions her (→ 'goals involving Heather', text-matched).
+    from apps.legacy.models import Memory as LMemory, Person as LPerson, Place as LPlace
+    lp = LPerson.objects.create(user=u, display_name="Heather Jones",
+                                relationship_label="friend")
+    place = LPlace.objects.create(user=u, name="Lake Tahoe")
+    mem = LMemory.objects.create(user=u, title="Tahoe trip with Heather",
+                                 entry_type="MEMORY", entry_state="legacy")
+    mem.people.add(lp)
+    mem.places.add(place)
+    from apps.purpose.models import LifeGoal
+    LifeGoal.objects.create(user=u, title="Plan the reunion", status="active",
+                            why_it_matters="Reconnect with Heather and old friends.")
     return u, {"heather": "Heather", "heather_last": heather_last.isoformat()}
 
 

@@ -1,8 +1,9 @@
 """
 Receipt Parsing Service
 
-Parses grocery receipt text (from OCR) into structured items,
-matches them to ingredients, and updates pantry inventory.
+Parses grocery receipt text (from OCR) into structured items and matches them to
+canonical ingredients. Pantry writes are performed by the confirmation-gated
+ReceiptRoutingService (via finalize_pantry_item) — this module only parses/matches.
 
 Uses the existing scan app's OCR capabilities as input.
 """
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from .ingredient_matching import get_or_create_ingredient, match_ingredient_name
+from .ingredient_matching import match_ingredient_name
 
 logger = logging.getLogger(__name__)
 
@@ -194,102 +195,3 @@ def match_receipt_items(parsed_receipt: ParsedReceipt) -> list:
         item.ingredient_match = match
         results.append((item, match))
     return results
-
-
-def process_receipt_to_pantry(receipt_model, household):
-    """
-    Process a saved Receipt into PantryItem updates.
-
-    1. Parse the receipt text
-    2. Match items to ingredients
-    3. Create/update PantryItems
-    4. Log InventoryTransactions
-    """
-    from django.utils import timezone as tz
-
-    from apps.meals.models import (
-        Ingredient,
-        InventoryTransaction,
-        PantryItem,
-        ReceiptItem,
-    )
-
-    parsed = parse_receipt_text(receipt_model.raw_text)
-    matched = match_receipt_items(parsed)
-
-    created_items = 0
-    updated_items = 0
-
-    for parsed_item, match in matched:
-        if match.ingredient_id:
-            ingredient = Ingredient.objects.get(pk=match.ingredient_id)
-        elif match.confidence == Decimal("0"):
-            # No match — create new ingredient
-            ingredient = get_or_create_ingredient(parsed_item.raw_name)
-        else:
-            ingredient = Ingredient.objects.get(pk=match.ingredient_id)
-
-        # Save ReceiptItem
-        ReceiptItem.objects.create(
-            receipt=receipt_model,
-            ingredient=ingredient,
-            raw_name=parsed_item.raw_name,
-            raw_price=parsed_item.price,
-            quantity=parsed_item.quantity,
-            unit=parsed_item.unit,
-            match_confidence=match.confidence,
-        )
-
-        # Update or create PantryItem
-        pantry_item, created = PantryItem.objects.get_or_create(
-            household=household,
-            ingredient=ingredient,
-            defaults={
-                "quantity": parsed_item.quantity,
-                "unit": parsed_item.unit,
-                "confidence_score": Decimal("0.95"),
-                "last_confirmed_at": tz.now(),
-            },
-        )
-
-        if not created:
-            pantry_item.quantity += parsed_item.quantity
-            pantry_item.confidence_score = Decimal("0.95")
-            pantry_item.last_confirmed_at = tz.now()
-            pantry_item.save(update_fields=[
-                "quantity", "confidence_score", "last_confirmed_at", "updated_at",
-            ])
-            updated_items += 1
-        else:
-            created_items += 1
-            # Set estimated expiration
-            if ingredient.shelf_life_days:
-                pantry_item.expiration_date_estimated = (
-                    tz.now().date() + tz.timedelta(days=ingredient.shelf_life_days)
-                )
-                pantry_item.save(update_fields=["expiration_date_estimated"])
-
-        # Log transaction
-        InventoryTransaction.objects.create(
-            pantry_item=pantry_item,
-            delta_quantity=parsed_item.quantity,
-            source="receipt",
-            notes=f"From receipt: {receipt_model.store or 'Unknown Store'}",
-        )
-
-    # Update receipt with parsed data
-    receipt_model.parsed_json = {
-        "store": parsed.store,
-        "date": parsed.date,
-        "item_count": len(parsed.items),
-        "matched_count": sum(1 for _, m in matched if m.ingredient_id),
-        "total": str(parsed.total) if parsed.total else None,
-    }
-    receipt_model.store = parsed.store or receipt_model.store
-    receipt_model.save(update_fields=["parsed_json", "store", "updated_at"])
-
-    logger.info(
-        f"Processed receipt {receipt_model.id}: "
-        f"{created_items} new, {updated_items} updated pantry items"
-    )
-    return created_items, updated_items

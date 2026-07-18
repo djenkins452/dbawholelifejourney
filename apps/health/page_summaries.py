@@ -53,6 +53,65 @@ def weight_page_summary(user, params):
             "content": "Weight overview\n" + "\n".join(lines)}
 
 
+@register_page_summary("health.nutrition")
+def nutrition_page_summary(user, params):
+    """The Nutrition Home page. Deterministic facts only — the SAME composition the page
+    renders (build_nutrition_summary), so the assistant can never contradict the screen.
+    WLJ exposes totals/targets/progress numbers; the model decides what they mean."""
+    from apps.health.services.nutrition_summary import build_nutrition_summary
+
+    point = (params or {}).get("date")
+    target_date = None
+    if point:
+        try:
+            import datetime
+            target_date = datetime.date.fromisoformat(point)
+        except (ValueError, TypeError):
+            target_date = None
+
+    facts = build_nutrition_summary(user, target_date=target_date)
+    # facts["date"] is a datetime.date (not a datetime); format it directly — _d()
+    # routes through timezone.localtime() which only accepts aware datetimes.
+    day = _dj_date(facts["date"], "M j, Y")
+
+    if not facts["has_entries"]:
+        return {"title": "Nutrition", "kind": "nutrition overview",
+                "content": f"Nutrition overview — no food logged for {day}."}
+
+    t = facts["totals"]
+    lines = [
+        f"Date: {day}",
+        f"Logged: {facts['entry_count']} food {'entry' if facts['entry_count'] == 1 else 'entries'}",
+        (f"Totals so far — {t['calories']:g} cal, {t['protein_g']:g} g protein, "
+         f"{t['carbs_g']:g} g carbs, {t['fat_g']:g} g fat "
+         f"(fiber {t['fiber_g']:g} g, sugar {t['sugar_g']:g} g)"),
+    ]
+
+    targets = facts.get("targets")
+    progress = facts.get("progress") or {}
+    if targets:
+        def _line(label, key, unit):
+            tgt = targets.get(key)
+            if not tgt:
+                return None
+            pct = progress.get(key)
+            return f"{label}: {t[key]:g}{unit} of {tgt}{unit} target" + (
+                f" ({pct}%)" if pct is not None else "")
+        for text in (
+            _line("Calories", "calories", " cal"),
+            _line("Protein", "protein_g", " g"),
+            _line("Carbs", "carbs_g", " g"),
+            _line("Fat", "fat_g", " g"),
+        ):
+            if text:
+                lines.append(text)
+    else:
+        lines.append("No nutrition targets set.")
+
+    return {"title": "Nutrition", "kind": "nutrition overview",
+            "content": "Nutrition overview\n" + "\n".join(lines)}
+
+
 @register_page_summary("health.body_intelligence")
 def body_intelligence_page_summary(user, params):
     """The Body Intelligence dashboard. Deterministic facts only — the SAME composition

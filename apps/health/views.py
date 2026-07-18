@@ -4649,7 +4649,7 @@ class IntakeQuickLookView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 
 
-class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class NutritionHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Nutrition module home - daily food tracker dashboard.
     Supports date navigation via ?date=YYYY-MM-DD query param.
@@ -4657,6 +4657,8 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     template_name = "health/nutrition/home.html"
     help_context_id = "NUTRITION_HOME"
+    page_summary_key = "health.nutrition"
+    page_summary_title = "Nutrition"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -4726,39 +4728,32 @@ class NutritionHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             ]
         context["meal_signals_display"] = meal_signals_display
 
-        # --- Daily totals (canonical) ---
-        daily = NutritionQueries.get_daily_totals(user, view_date)
-        context["total_calories"] = daily["calories"]
-        context["total_protein"] = daily["protein_g"]
-        context["total_carbs"] = daily["carbs_g"]
-        context["total_fat"] = daily["fat_g"]
-        context["total_fiber"] = daily["fiber_g"]
-        context["total_sugar"] = daily["sugar_g"]
+        # --- Daily totals + goals + progress (canonical composer) ---
+        # ONE deterministic source (build_nutrition_summary → NutritionQueries) feeds
+        # BOTH this page render AND the health.nutrition Current Context summary, so the
+        # screen and the assistant can never present different totals/progress.
+        from apps.health.services.nutrition_summary import build_nutrition_summary
+        summary = build_nutrition_summary(user, target_date=view_date)
+        totals = summary["totals"]
+        context["total_calories"] = totals["calories"]
+        context["total_protein"] = totals["protein_g"]
+        context["total_carbs"] = totals["carbs_g"]
+        context["total_fat"] = totals["fat_g"]
+        context["total_fiber"] = totals["fiber_g"]
+        context["total_sugar"] = totals["sugar_g"]
 
-        # Get user's nutrition goals
-        goals = NutritionGoals.objects.filter(
-            user=user,
-            effective_until__isnull=True,
-        ).first()
-        context["goals"] = goals
+        context["goals"] = summary["goals"]
 
-        # Calculate progress percentages if goals exist
-        if goals and goals.daily_calorie_target:
-            context["calorie_progress"] = min(100, int(
-                float(context["total_calories"]) / goals.daily_calorie_target * 100
-            ))
-        if goals and goals.daily_protein_target_g:
-            context["protein_progress"] = min(100, int(
-                float(context["total_protein"]) / goals.daily_protein_target_g * 100
-            ))
-        if goals and goals.daily_carb_target_g:
-            context["carb_progress"] = min(100, int(
-                float(context["total_carbs"]) / goals.daily_carb_target_g * 100
-            ))
-        if goals and goals.daily_fat_target_g:
-            context["fat_progress"] = min(100, int(
-                float(context["total_fat"]) / goals.daily_fat_target_g * 100
-            ))
+        # Progress percentages (only present when the matching target is set)
+        progress = summary["progress"]
+        if "calories" in progress:
+            context["calorie_progress"] = progress["calories"]
+        if "protein_g" in progress:
+            context["protein_progress"] = progress["protein_g"]
+        if "carbs_g" in progress:
+            context["carb_progress"] = progress["carbs_g"]
+        if "fat_g" in progress:
+            context["fat_progress"] = progress["fat_g"]
 
         # Recent custom foods for quick access
         context["recent_foods"] = CustomFood.objects.filter(
@@ -5105,12 +5100,11 @@ class NutritionStatsView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         context["start_date"] = start_date
         context["end_date"] = today
 
-        # Get entries for period
-        entries = FoodEntry.objects.filter(
-            user=user,
-            logged_date__gte=start_date,
-            logged_date__lte=today,
-        )
+        # Get entries for period — via the canonical nutrition authority, which
+        # scopes to active (non-soft-deleted) entries. A prior direct FoodEntry query
+        # here omitted that filter and counted deleted entries in every stat.
+        from apps.health.services.nutrition_queries import NutritionQueries
+        entries = NutritionQueries.entries_in_range(user, start_date, today)
 
         # Daily aggregates
         from django.db.models import Sum

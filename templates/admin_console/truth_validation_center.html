@@ -83,9 +83,13 @@
     <h2 class="section-title" style="margin-top:0;">Run validation</h2>
     <form method="post" action="{% url 'admin_console:truth_validation_start' %}">
       {% csrf_token %}
+      <label style="display:inline-flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <input type="checkbox" name="prompt_mode" value="natural">
+        Natural-language mode <span class="tv-note">(send the raw prompt — tests the CoS's own "current/latest" resolution; default binds the prompt to the resolved object)</span>
+      </label>
       <div class="tv-controls">
         <button class="tv-btn tv-btn-primary" name="scope" value="full" data-testid="tv-run-full">Run Truth Layer Certification</button>
-        <span class="tv-note">All {{ metrics.objects_total }} objects through the production Chief of Staff. Worker-only; auto-refreshes while running.</span>
+        <span class="tv-note">All {{ metrics.objects_total }} objects through the production Chief of Staff. Worker-only; auto-refreshes while running. Object resolution uses the app's own deterministic rules and is shown per object.</span>
       </div>
     </form>
   </div>

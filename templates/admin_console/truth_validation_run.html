@@ -98,7 +98,22 @@
         <span class="tv-note">{{ r.check_pass_count }}/{{ r.check_total }} checks</span>
       </summary>
       <div class="body">
-        <h4>Prompt</h4><div>{{ r.question_text }}</div>
+        {% with res=r.raw_result_json.resolution %}
+        <h4>Resolved object</h4>
+        <table class="tv-ck" style="max-width:640px;">
+          <tr><td class="tv-note" style="width:130px;">Resolved object</td><td><strong>{{ res.resolved_object|default:"— (not resolved)" }}</strong>{% if res.status %} <span class="tv-note">· {{ res.status }}</span>{% endif %}</td></tr>
+          <tr><td class="tv-note">Resolved from</td><td>{{ res.resolved_from|default:"—" }}</td></tr>
+          <tr><td class="tv-note">Selection rule</td><td>{{ res.selection_rule|default:"—" }}</td></tr>
+          <tr><td class="tv-note">Provider</td><td><code>{{ res.provider|default:"—" }}</code></td></tr>
+          {% if not res.present %}<tr><td class="tv-note">Why absent</td><td>{{ res.reason }}</td></tr>{% endif %}
+        </table>
+        {% endwith %}
+
+        <h4>Prompt {% if r.raw_result_json.bound %}<span class="tv-note">(bound to resolved object)</span>{% endif %}</h4>
+        <div>{{ r.question_text }}</div>
+        {% if r.raw_result_json.nl_prompt and r.raw_result_json.nl_prompt != r.question_text %}
+        <div class="tv-note" style="margin-top:4px;">Discovery prompt: {{ r.raw_result_json.nl_prompt }}</div>
+        {% endif %}
 
         <h4>Chief of Staff response</h4>
         <div class="tv-resp">{{ r.response_text|default:"(no response)" }}</div>

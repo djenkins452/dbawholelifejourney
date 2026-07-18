@@ -145,10 +145,11 @@ class StartTruthValidationView(AdminRequiredMixin, View):
             scope_kind, scope_key = "domain", scope.split(":", 1)[1]
         elif scope.startswith("object:"):
             scope_kind, scope_key = "object", scope.split(":", 1)[1]
+        prompt_mode = "natural" if request.POST.get("prompt_mode") == "natural" else "resolved"
 
         run = AcceptanceRun.objects.create(
             validation_type="truth", suite_name="truth", depth="truth",
-            scope_kind=scope_kind, scope_key=scope_key,
+            scope_kind=scope_kind, scope_key=scope_key, prompt_mode=prompt_mode,
             created_by=request.user, target_user=request.user,
             environment=environment_label(), git_commit=git_commit(),
             suite_version=SUITE_VERSION, provider_version=provider_version(),

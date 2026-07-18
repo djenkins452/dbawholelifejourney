@@ -1712,6 +1712,10 @@ class AcceptanceRun(models.Model):
     validation_type = models.CharField(max_length=24, default="behavior")
     scope_kind = models.CharField(max_length=16, blank=True, default="")   # full|domain|object
     scope_key = models.CharField(max_length=64, blank=True, default="")    # "health" / "health.weigh_in"
+    # Truth prompt mode: "resolved" (send a prompt naming the deterministically-resolved
+    # object — removes ambiguity) | "natural" (send the raw NL discovery prompt, testing the
+    # CoS's own "current/latest" resolution). Default resolved.
+    prompt_mode = models.CharField(max_length=16, blank=True, default="resolved")
     suite_version = models.CharField(max_length=24, blank=True, default="")
     provider_version = models.CharField(max_length=24, blank=True, default="")
     db_version = models.CharField(max_length=40, blank=True, default="")

@@ -61,15 +61,34 @@ def prompts_for_scope(scope_kind, scope_key):
 
 
 # ---- one object ------------------------------------------------------------
-def validate_one(ask, prompt, resolver, *, today=None):
-    """Send ONE discovery prompt through the gateway and grade it deterministically.
-    `resolver(prompt) -> ExpectedObject` is the user-bound deterministic truth resolver
-    (passed in, never a module global — so concurrent runs never cross). Returns a dict
-    ready to persist as an AcceptanceResult. Never raises."""
+def validate_one(ask, prompt, resolver, *, today=None, prompt_mode="resolved"):
+    """Resolve the object FIRST (using the app's own selection rule), then send the prompt
+    through the gateway and grade the answer deterministically. `resolver(prompt) ->
+    ExpectedObject` is the user-bound deterministic truth resolver (passed in, never a module
+    global — so concurrent runs never cross). In "resolved" mode, when the object resolves we
+    send a prompt that NAMES the resolved object (removing ambiguity); "natural" mode always
+    sends the raw NL discovery prompt. Returns a dict ready to persist. Never raises."""
     from apps.core.truth.validation import (
         compare_object, flatten_entity, grade_checks,
     )
-    text = prompt.get("prompt", "")
+    # 1) Resolve the deterministic object BEFORE asking — object resolution must never be a
+    #    side effect of the answer, and the operator must see exactly what is being validated.
+    expected = resolver(prompt) if resolver else None
+    resolution = expected.resolution() if expected is not None else {}
+
+    # 2) Choose the prompt. Resolved mode binds to the resolved identity when available.
+    nl_prompt = prompt.get("prompt", "")
+    text = nl_prompt
+    bound = False
+    if (prompt_mode == "resolved" and expected is not None and expected.present
+            and expected.resolved_identity):
+        tmpl = prompt.get("bind_template") or 'Tell me everything you know about "{identity}".'
+        try:
+            text = tmpl.format(identity=expected.resolved_identity)
+            bound = True
+        except (KeyError, IndexError):
+            text = nl_prompt
+
     t0 = time.monotonic()
     answer, evidence = "", {}
     try:
@@ -81,8 +100,6 @@ def validate_one(ask, prompt, resolver, *, today=None):
     evidence = evidence or {}
     answer = answer or ""
     elapsed = round((time.monotonic() - t0) * 1000)
-
-    expected = resolver(prompt) if resolver else None
 
     forbidden = prompt.get("must_not_surface") or []
     checks = []
@@ -110,7 +127,11 @@ def validate_one(ask, prompt, resolver, *, today=None):
     return {
         "object_key": prompt.get("id", ""),
         "domain": prompt.get("domain", ""),
-        "question": text,
+        "question": text,                 # the prompt actually SENT to the CoS
+        "nl_prompt": nl_prompt,           # the original natural-language discovery prompt
+        "bound": bound,
+        "prompt_mode": prompt_mode,
+        "resolution": resolution,         # Resolved Object / From / Rule / Provider
         "answer": answer,
         "ms": elapsed,
         "passed": passed,
@@ -190,7 +211,8 @@ def execute_truth_run(run, ask=None):
                         run.id, i, total)
             break
         _write_heartbeat(run, prompt.get("id", ""), i, total)
-        r = validate_one(ask, prompt, resolver, today=today)
+        r = validate_one(ask, prompt, resolver, today=today,
+                         prompt_mode=(run.prompt_mode or "resolved"))
         rows.append(r)
         _write_heartbeat(run, prompt.get("id", ""), i + 1, total)
         AcceptanceResult.objects.create(
@@ -204,7 +226,12 @@ def execute_truth_run(run, ask=None):
                 checks=r["checks"] or [],
                 check_pass_count=r["check_pass_count"], check_total=r["check_total"],
                 openai_called=r["openai_called"], sort_order=i,
-                raw_result_json={"reason": r["reason"], "selector": r["selector"]},
+                raw_result_json={"reason": r["reason"], "selector": r["selector"],
+                                 "resolution": r.get("resolution") or {},
+                                 "sent_prompt": r.get("question", ""),
+                                 "nl_prompt": r.get("nl_prompt", ""),
+                                 "bound": r.get("bound", False),
+                                 "prompt_mode": r.get("prompt_mode", "")},
                 runtime_used=r.get("runtime_used", ""),
                 selected_tool=r.get("selected_tool", ""),
                 tool_arguments=r.get("tool_arguments") or {},

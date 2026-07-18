@@ -169,6 +169,65 @@ class GradeTests(SimpleTestCase):
         self.assertFalse(g.passed)
 
 
+class ObjectResolutionTests(SimpleTestCase):
+    """The validator must select the SAME object the app considers current/active/latest —
+    never a silent describe()[0]. (Regression: 'current Bible study' resolved the most
+    recently STARTED plan instead of the plan_status='active' plan.)"""
+
+    def _patch_entity(self, entities):
+        from unittest import mock
+        env = {"status": "ready", "entities": entities}
+        return mock.patch("apps.ai.cos_services.domain_entity.get_domain_entity",
+                          return_value=env)
+
+    def test_active_rule_picks_active_not_first(self):
+        from apps.core.truth.validation.surface import resolve_expected_object
+        # provider order (newest-started first) puts the COMPLETED plan first
+        entities = [
+            {"kind": "reading_plan", "identity": "Journey Through Matthew", "status": "completed"},
+            {"kind": "reading_plan", "identity": "Walking With God Through Scripture", "status": "active"},
+        ]
+        prompt = {"domain": "faith", "surface": "faith.entity(reading_plan)",
+                  "selection": {"rule": "active", "status": "active"}}
+        with self._patch_entity(entities):
+            obj = resolve_expected_object(None, prompt)
+        self.assertTrue(obj.present)
+        self.assertEqual(obj.resolved_identity, "Walking With God Through Scripture")
+        self.assertEqual(obj.object_status, "active")
+        self.assertIn("active", obj.selection_rule.lower())
+
+    def test_latest_rule_picks_first(self):
+        from apps.core.truth.validation.surface import resolve_expected_object
+        entities = [{"kind": "prayer", "identity": "Newest", "status": "unanswered"},
+                    {"kind": "prayer", "identity": "Older", "status": "unanswered"}]
+        prompt = {"domain": "faith", "surface": "faith.entity(prayer)",
+                  "selection": {"rule": "latest"}}
+        with self._patch_entity(entities):
+            obj = resolve_expected_object(None, prompt)
+        self.assertEqual(obj.resolved_identity, "Newest")
+
+    def test_active_with_no_active_record_is_absent(self):
+        from apps.core.truth.validation.surface import resolve_expected_object
+        entities = [{"kind": "reading_plan", "identity": "Done", "status": "completed"}]
+        prompt = {"domain": "faith", "surface": "faith.entity(reading_plan)",
+                  "selection": {"rule": "active", "status": "active"}}
+        with self._patch_entity(entities):
+            obj = resolve_expected_object(None, prompt)
+        self.assertFalse(obj.present)
+        self.assertIn("active", obj.reason.lower())
+
+    def test_resolution_card_is_populated(self):
+        from apps.core.truth.validation.surface import resolve_expected_object
+        entities = [{"kind": "reading_plan", "identity": "Walking", "status": "active"}]
+        prompt = {"domain": "faith", "surface": "faith.entity(reading_plan)",
+                  "selection": {"rule": "active", "status": "active"}}
+        with self._patch_entity(entities):
+            card = resolve_expected_object(None, prompt).resolution()
+        self.assertEqual(card["resolved_object"], "Walking")
+        self.assertEqual(card["provider"], "faith.entity(reading_plan)")
+        self.assertTrue(card["resolved_from"].startswith("Faith"))
+
+
 class SurfaceParseTests(SimpleTestCase):
     def test_entity_type(self):
         p = parse_surface("health.entity(weight)")

@@ -248,6 +248,10 @@ DISCOVERY_PROMPTS = [
      "prompt": "Tell me everything you know about my current Bible study.",
      "anchor": "active UserReadingPlan",
      "surface": "faith.entity(reading_plan)",
+     # "current Bible study" == the ACTIVE plan (plan_status='active'), NOT the most
+     # recently STARTED plan. Resolve by the app's active marker, never describe()[0].
+     "selection": {"rule": "active", "status": "active"},
+     "bind_template": "Tell me everything you know about my Bible reading plan \"{identity}\".",
      "must_surface": ["the plan title & category", "duration", "what day I'm on",
                       "my progress", "today's reading", "reminder time",
                       "my per-day reflection notes"]},
@@ -256,6 +260,8 @@ DISCOVERY_PROMPTS = [
      "prompt": "Tell me everything you know about my most recent prayer request.",
      "anchor": "most recent PrayerRequest",
      "surface": "faith.entity(prayer)",
+     "selection": {"rule": "latest"},   # prayers are composed newest-first (-created_at)
+     "bind_template": "Tell me everything you know about my prayer request \"{identity}\".",
      "must_surface": ["what I'm praying about", "priority", "who/what it's for",
                       "when I recorded it", "answered/unanswered status",
                       "answer notes if answered", "whether it reminds daily"]},

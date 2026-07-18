@@ -49,6 +49,30 @@ evaluator is shared with the live-behavior suite:
 - `apps/ai/chatgpt_cos/tasks.py :: run_truth_validation` — worker task.
 - `apps/admin_console/truth_validation_views.py` + `templates/admin_console/truth_validation_{center,run}.html`.
 
+## Object resolution — the validator selects the SAME object the app does
+**The validator must never invent its own meaning of "current/active/latest".** Before asking
+the CoS, `resolve_expected_object` (`apps/core/truth/validation/surface.py`) resolves the object
+using the application's own deterministic rule, declared per discovery prompt as a `selection`
+contract:
+- `by_name` → `get_domain_entity(name=…)` (unambiguous).
+- `active` → among `describe(type)`, the record whose status matches the app's active marker
+  (e.g. reading plan `plan_status='active'`) — **never** simply `describe()[0]`.
+- `current` → resolve the current object's name via the domain's own `current(metric)` accessor
+  (the exact production query), then fetch that record.
+- `latest` → the most-recent record (provider composes newest-first).
+
+Every resolution returns a **resolution card** — Resolved Object · Resolved From · Selection Rule ·
+Provider · Status — shown to the operator on the run detail, so the expected truth is never a
+surprise. (Origin: the first operator validation resolved "current Bible study" to the most
+recently *started* plan instead of the `plan_status='active'` plan — a validator bug, not a CoS
+bug. Fixed by the `selection` contract; regression-locked in
+`apps/faith/tests/test_truth_validation_faith.py`.)
+
+**Prompt modes** (`AcceptanceRun.prompt_mode`): `resolved` (default) sends a prompt that NAMES the
+resolved object — removing ambiguity so the comparison validates one specific object; `natural`
+sends the raw NL discovery prompt — testing the CoS's OWN "current/latest" resolution. Both are
+preserved as first-class modes.
+
 ## The comparison engine — why it is never AI-vs-AI
 Scoring is 100% deterministic. WLJ's expected object is the authority. The engine flattens the
 object into typed scalar values and asks a **typed deterministic question** of the response text

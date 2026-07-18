@@ -1,26 +1,31 @@
 # ==============================================================================
 # File: apps/core/truth/validation/surface.py
 # Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
-# Description: Resolve a discovery prompt's `surface` string to the deterministic WLJ
-#   truth object it names, using the SAME read surfaces the model calls
-#   (get_domain_entity / get_domain_state). This is how the validator obtains the
-#   "expected truth" — WLJ is always the authority; nothing is fabricated.
+# Description: Resolve a discovery prompt's OBJECT to the deterministic WLJ record it is
+#   about, using the SAME read surfaces and business rules the production application uses
+#   ("current"/"active"/"latest"/"by name"). The validator must never invent its own
+#   interpretation of these words. Object resolution is EXPLICIT and reported to the
+#   operator (rule + resolved identity + provider), never a silent first-row guess.
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # ==============================================================================
-"""Surface resolution — discovery `surface` string -> expected deterministic object.
+"""Surface resolution — discovery prompt -> expected deterministic object.
 
-A discovery prompt carries a `surface` field that names the provider entity its answer
-should be composed from, e.g.:
+A discovery prompt carries a `surface` (which provider entity its answer is composed from)
+and a `selection` contract (HOW the singular object is chosen — the app's own rule):
 
-    "health.entity(weight)"              -> get_domain_entity(domain="health", entity_type="weight")[0]
-    "medicine.entity_one('Metformin')"  -> get_domain_entity(domain="medicine", name="Metformin")
-    "relationships.current(most_connected)" -> get_domain_state(domain="relationships")
-    "calendar.current(next_event) / entity(event)"  -> first parseable selector wins
+    selection.rule = "by_name"  -> get_domain_entity(name=...)      (unambiguous)
+                     "active"   -> among describe(type), the record whose status matches
+                                   the app's active marker (e.g. reading plan plan_status=
+                                   'active') — NEVER simply the first described row
+                     "current"  -> resolve the current object's NAME via the domain's own
+                                   current(metric) accessor, then fetch that record
+                     "latest"   -> the most-recent record (provider composes newest-first)
 
-We resolve the FIRST parseable `entity_one('X')` or `entity(type)` selector (record-level
-truth — the natural target of a "tell me everything about <object>" prompt); if the surface
-carries only a `current(...)` selector we fall back to the composed domain state. When no
-selector resolves to a present record we return an ABSENT object (honest N/A), never a guess.
+If no `selection` is declared, we infer: entity_one surface -> by_name; else -> latest
+(explicitly labelled "most recent (provider order)" so the operator SEES the rule used).
+
+Every resolution returns an ExpectedObject that names the rule, the resolved identity, the
+provider, and where it came from — so the operator is never surprised by the expected truth.
 """
 import logging
 import re
@@ -29,25 +34,30 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-# entity_one('Name') / entity_one("Name") / entity_one(yesterday)
 _ENTITY_ONE = re.compile(r"entity_one\(\s*['\"]?([^'\")]+?)['\"]?\s*\)")
-# entity(type)  or  entity(type, extra...)  -> capture the leading type token
 _ENTITY = re.compile(r"entity\(\s*([a-z_][a-z0-9_]*)")
-# current(key)
 _CURRENT = re.compile(r"current\(")
-# leading "domain." — the domain owning the surface
 _DOMAIN = re.compile(r"^([a-z_][a-z0-9_]*)\s*\.")
 
 
 @dataclass
 class ExpectedObject:
-    """The deterministic WLJ truth object a discovery prompt is about."""
+    """The deterministic WLJ object a discovery prompt is about — with its provenance."""
     domain: str
-    selector: str                       # human description of how it was resolved
-    present: bool                       # a concrete record was found
-    entity: Dict[str, Any] = field(default_factory=dict)   # the CompleteEntity dict (or state dict)
+    provider: str                       # the surface consulted, e.g. "faith.entity(reading_plan)"
+    present: bool
+    entity: Dict[str, Any] = field(default_factory=dict)   # the CompleteEntity/state dict
     reason: str = ""                    # why absent / unresolved (operator-facing)
     resolvable: bool = True             # the surface named a machine-resolvable selector
+    selection_rule: str = ""            # human label of the rule used
+    resolved_identity: str = ""         # the resolved object's name/title
+    resolved_from: str = ""             # "Faith → reading_plan"
+    object_status: str = ""             # the resolved record's lifecycle status
+
+    # Back-compat: older callers read `.selector`.
+    @property
+    def selector(self) -> str:
+        return self.provider
 
     @property
     def status(self) -> str:
@@ -55,14 +65,21 @@ class ExpectedObject:
             return "unresolvable"
         return "present" if self.present else "absent"
 
+    def resolution(self) -> Dict[str, str]:
+        """The operator-facing resolution card (Resolved Object / From / Rule / Provider)."""
+        return {
+            "resolved_object": self.resolved_identity,
+            "resolved_from": self.resolved_from,
+            "selection_rule": self.selection_rule,
+            "provider": self.provider,
+            "status": self.object_status,
+            "present": self.present,
+            "reason": self.reason,
+        }
+
 
 def parse_surface(surface: str) -> Dict[str, Optional[str]]:
-    """Parse a `surface` string into {domain, name, entity_type, wants_current}.
-
-    Returns the FIRST record-level selector found (name preferred over type), plus a
-    `wants_current` flag when a current(...) selector is present. `domain` is the leading
-    token before the first dot.
-    """
+    """Parse a `surface` string into {domain, name, entity_type, wants_current}."""
     surface = surface or ""
     domain = None
     m = _DOMAIN.match(surface.strip())
@@ -81,76 +98,168 @@ def parse_surface(surface: str) -> Dict[str, Optional[str]]:
             "wants_current": "1" if wants_current else ""}
 
 
-def resolve_expected_object(user, prompt: Dict[str, Any]) -> ExpectedObject:
-    """Resolve a discovery prompt to its deterministic WLJ truth object.
+def _default_selection(parsed) -> Dict[str, str]:
+    if parsed["name"]:
+        return {"rule": "by_name"}
+    return {"rule": "latest"}
 
-    Uses the model-facing read surfaces so the validator compares against exactly what a
-    correct answer would have been composed from. Never raises — a failure to resolve is an
-    honest `unresolvable`/`absent` ExpectedObject the operator can review.
+
+def _entity_identity(entity: Dict[str, Any]) -> str:
+    return str((entity or {}).get("identity") or "").strip()
+
+
+def resolve_expected_object(user, prompt: Dict[str, Any]) -> ExpectedObject:
+    """Resolve a discovery prompt to its deterministic WLJ object, using the app's own
+    selection rule. Never raises — an unresolved surface is an honest ExpectedObject the
+    operator can review. Never silently returns describe()[0] for a "current/active" object.
     """
     surface = prompt.get("surface", "") or ""
     parsed = parse_surface(surface)
     domain = parsed["domain"] or (prompt.get("domain") or "").strip().lower()
+    entity_type = parsed["entity_type"]
+    selection = dict(prompt.get("selection") or _default_selection(parsed))
+    rule = selection.get("rule", "latest")
+    resolved_from = f"{domain.title()} → {entity_type or ('name' if parsed['name'] else 'current')}"
 
     if not domain:
-        return ExpectedObject(domain="", selector=surface, present=False,
-                              resolvable=False,
+        return ExpectedObject(domain="", provider=surface, present=False, resolvable=False,
                               reason="No domain could be parsed from the surface.")
 
-    # ── record-level truth (the natural target of an object prompt) ──────────────
-    if parsed["name"] or parsed["entity_type"]:
-        try:
-            from apps.ai.cos_services.domain_entity import get_domain_entity
-        except Exception:
-            logger.warning("validation.surface: domain_entity import failed", exc_info=True)
-            return ExpectedObject(domain=domain, selector=surface, present=False,
-                                  resolvable=False, reason="Entity read surface unavailable.")
-        try:
-            if parsed["name"]:
-                env = get_domain_entity(user, domain, name=parsed["name"])
-                sel = f"{domain}.entity_one('{parsed['name']}')"
-            else:
-                env = get_domain_entity(user, domain, entity_type=parsed["entity_type"])
-                sel = f"{domain}.entity({parsed['entity_type']})"
-        except Exception:
-            logger.warning("validation.surface: get_domain_entity failed domain=%s",
-                           domain, exc_info=True)
-            return ExpectedObject(domain=domain, selector=surface, present=False,
-                                  resolvable=False, reason="Entity read raised; see logs.")
-        status = (env or {}).get("status")
-        if status == "ready":
-            entity = env.get("entity")
-            if entity is None:
-                entities = env.get("entities") or []
-                # "most recent <object>" -> the provider composes most-recent-first.
-                entity = entities[0] if entities else None
-            if isinstance(entity, dict):
-                return ExpectedObject(domain=domain, selector=sel, present=True, entity=entity)
-            return ExpectedObject(domain=domain, selector=sel, present=False,
-                                  reason="Surface ready but exposed no record to compare.")
-        if status == "empty":
-            return ExpectedObject(domain=domain, selector=sel, present=False,
-                                  reason="No such record exists for this user (nothing to surface).")
-        # unsupported / unsupported_domain / error
-        return ExpectedObject(domain=domain, selector=sel, present=False, resolvable=False,
+    # ── by name (unambiguous) ────────────────────────────────────────────────
+    if rule == "by_name" or parsed["name"]:
+        name = selection.get("name") or parsed["name"]
+        entity = _describe_one(user, domain, name)
+        prov = f"{domain}.entity_one('{name}')"
+        if isinstance(entity, dict):
+            return ExpectedObject(
+                domain=domain, provider=prov, present=True, entity=entity,
+                selection_rule=f"By name: '{name}'", resolved_identity=_entity_identity(entity) or name,
+                resolved_from=resolved_from, object_status=str(entity.get("status") or ""))
+        return ExpectedObject(domain=domain, provider=prov, present=False, resolvable=(entity is not False),
+                              selection_rule=f"By name: '{name}'", resolved_from=resolved_from,
+                              reason="No record matches that name." if entity is None
+                              else "This domain cannot look an entity up by name.")
+
+    # ── current via the domain's own current(metric) accessor ────────────────
+    if rule == "current" and selection.get("metric"):
+        return _resolve_current(user, domain, entity_type, selection, surface, resolved_from)
+
+    # ── active: the record whose status matches the app's active marker ──────
+    if rule == "active":
+        return _resolve_from_list(user, domain, entity_type, surface, resolved_from,
+                                  active_status=selection.get("status", "active"))
+
+    # ── latest: most recent (provider composes newest-first) ─────────────────
+    return _resolve_from_list(user, domain, entity_type, surface, resolved_from,
+                              active_status=None)
+
+
+# ---------------------------------------------------------------------------
+def _describe_one(user, domain, name):
+    """Return the CompleteEntity dict for `name`, None if not found, False if the domain
+    cannot look up by name / surface unavailable."""
+    try:
+        from apps.ai.cos_services.domain_entity import get_domain_entity
+    except Exception:
+        logger.warning("validation.surface: domain_entity import failed", exc_info=True)
+        return False
+    try:
+        env = get_domain_entity(user, domain, name=name)
+    except Exception:
+        logger.warning("validation.surface: describe_one failed domain=%s", domain, exc_info=True)
+        return False
+    status = (env or {}).get("status")
+    if status == "ready" and isinstance(env.get("entity"), dict):
+        return env["entity"]
+    if status == "empty":
+        return None
+    return False
+
+
+def _list_entities(user, domain, entity_type):
+    """(entities_list, envelope_status). entities is [] on any non-ready status."""
+    try:
+        from apps.ai.cos_services.domain_entity import get_domain_entity
+    except Exception:
+        logger.warning("validation.surface: domain_entity import failed", exc_info=True)
+        return [], "error"
+    try:
+        env = get_domain_entity(user, domain, entity_type=entity_type)
+    except Exception:
+        logger.warning("validation.surface: describe failed domain=%s type=%s",
+                       domain, entity_type, exc_info=True)
+        return [], "error"
+    status = (env or {}).get("status")
+    if status == "ready":
+        return list(env.get("entities") or []), status
+    return [], status
+
+
+def _resolve_from_list(user, domain, entity_type, surface, resolved_from, *, active_status):
+    """Resolve the singular object from the describe() list.
+
+    active_status is None -> "latest" (first row, provider newest-first). Otherwise pick the
+    FIRST record whose status matches active_status (the app's active marker) — matching the
+    production pattern `filter(status=active).first()` on the provider's own ordering."""
+    prov = f"{domain}.entity({entity_type})"
+    entities, status = _list_entities(user, domain, entity_type)
+    if status not in ("ready", "empty"):
+        return ExpectedObject(domain=domain, provider=prov, present=False, resolvable=False,
+                              resolved_from=resolved_from,
+                              selection_rule=("Current active" if active_status else "Most recent"),
                               reason=f"Entity surface returned '{status}' — not auto-resolvable yet.")
+    if active_status:
+        rule_label = f"Current active {entity_type} (status='{active_status}')"
+        chosen = next((e for e in entities
+                       if str(e.get("status") or "").strip().lower() == active_status.lower()), None)
+    else:
+        rule_label = f"Most recent {entity_type} (provider order, newest-first)"
+        chosen = entities[0] if entities else None
+    if not isinstance(chosen, dict):
+        return ExpectedObject(
+            domain=domain, provider=prov, present=False, resolved_from=resolved_from,
+            selection_rule=rule_label,
+            reason=(f"No {entity_type} with status='{active_status}' exists (nothing active to surface)."
+                    if active_status else "No such record exists for this user."))
+    return ExpectedObject(
+        domain=domain, provider=prov, present=True, entity=chosen, selection_rule=rule_label,
+        resolved_identity=_entity_identity(chosen), resolved_from=resolved_from,
+        object_status=str(chosen.get("status") or ""))
 
-    # ── composed-state fallback (current(...)-only surfaces) ─────────────────────
-    if parsed["wants_current"]:
-        try:
-            from apps.ai.cos_services.domain_state import get_domain_state
-            env = get_domain_state(user, domain)
-        except Exception:
-            logger.warning("validation.surface: get_domain_state failed domain=%s",
-                           domain, exc_info=True)
-            return ExpectedObject(domain=domain, selector=surface, present=False,
-                                  resolvable=False, reason="State read surface unavailable.")
-        state = (env or {}).get("state") if isinstance(env, dict) else None
-        if isinstance(state, dict) and state:
-            return ExpectedObject(domain=domain, selector=f"{domain}.current",
-                                  present=True, entity=state)
-        return ExpectedObject(domain=domain, selector=f"{domain}.current", present=False,
-                              reason="Composed state carried no comparable values.")
 
-    return ExpectedObject(domain=domain, selector=surface, present=False, resolvable=False,
-                          reason="Surface names no machine-resolvable selector (manual review).")
+def _resolve_current(user, domain, entity_type, selection, surface, resolved_from):
+    """Resolve "the current X" by asking the domain provider's OWN current(metric) accessor
+    for the current object's name (the exact production rule), then fetching that record —
+    by describe_one if the domain supports it, else by matching the describe() list."""
+    metric = selection["metric"]
+    prov = f"{domain}.current({metric})"
+    rule_label = f"Current via {domain}.current({metric})"
+    name = None
+    try:
+        from apps.core.truth.domain import get_domain_truth
+        truth = get_domain_truth(user, domain)
+        ct = truth.current(metric)
+        if getattr(ct, "found", False) or getattr(ct, "status", "") == "found":
+            name = str(getattr(ct, "value", "") or "").strip()
+    except Exception:
+        logger.warning("validation.surface: current(%s) failed domain=%s", metric, domain,
+                       exc_info=True)
+    if not name:
+        return ExpectedObject(domain=domain, provider=prov, present=False,
+                              selection_rule=rule_label, resolved_from=resolved_from,
+                              reason=f"The domain reports no current {metric}.")
+    # fetch the full record for that name
+    entity = _describe_one(user, domain, name)
+    if not isinstance(entity, dict):
+        # domain can't look up by name — match the describe() list by identity
+        entities, _ = _list_entities(user, domain, entity_type)
+        entity = next((e for e in entities
+                       if _entity_identity(e).lower() == name.lower()), None)
+    if isinstance(entity, dict):
+        return ExpectedObject(
+            domain=domain, provider=prov, present=True, entity=entity, selection_rule=rule_label,
+            resolved_identity=_entity_identity(entity) or name, resolved_from=resolved_from,
+            object_status=str(entity.get("status") or ""))
+    return ExpectedObject(domain=domain, provider=prov, present=False, selection_rule=rule_label,
+                          resolved_identity=name, resolved_from=resolved_from,
+                          reason=f"Current {metric} is '{name}' but its full record could not be composed.")

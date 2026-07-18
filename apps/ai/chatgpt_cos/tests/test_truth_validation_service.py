@@ -19,15 +19,16 @@ User = get_user_model()
 def _present_weight(user, prompt):
     # A realistic weight entity: a numeric value+unit and a text source. (The `kind`
     # metadata key is skipped by the flattener; identity here is a real surfaced value.)
-    return ExpectedObject(domain="health", selector="health.entity(weight)",
-                          present=True,
+    return ExpectedObject(domain="health", provider="health.entity(weight)",
+                          present=True, resolved_identity="",
+                          selection_rule="Most recent weight (provider order)",
                           entity={"kind": "weight",
                                   "standing": {"value": 185, "unit": "lb"},
                                   "definition": {"source": "Apple Health"}})
 
 
 def _absent(user, prompt):
-    return ExpectedObject(domain="health", selector="health.entity(weight)",
+    return ExpectedObject(domain="health", provider="health.entity(weight)",
                           present=False, reason="No record.")
 
 
@@ -96,6 +97,60 @@ class ExecuteTruthRunTests(TestCase):
         self.assertTrue(result.is_na)
         self.assertEqual(run.na_count, 1)
         self.assertEqual(run.fail_count, 0)
+
+
+def _present_named(user, prompt):
+    return ExpectedObject(
+        domain="faith", provider="faith.entity(reading_plan)", present=True,
+        resolved_identity="Walking With God Through Scripture",
+        selection_rule="Current active reading_plan (status='active')",
+        resolved_from="Faith → reading_plan", object_status="active",
+        entity={"kind": "reading_plan", "identity": "Walking With God Through Scripture",
+                "status": "active", "plan": {"current_day": 2}})
+
+
+class PromptResolutionModeTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="tv3@example.com", password="x")
+
+    def _run(self, prompt_mode="resolved"):
+        return AcceptanceRun.objects.create(
+            validation_type="truth", suite_name="truth", depth="truth",
+            scope_kind="object", scope_key="faith.reading_plan", prompt_mode=prompt_mode,
+            target_user=self.user, created_by=self.user, status="running")
+
+    @patch("apps.core.truth.validation.resolve_expected_object", _present_named)
+    def test_resolved_mode_binds_prompt_to_resolved_object(self):
+        from apps.ai.chatgpt_cos.truth_validation_service import execute_truth_run
+        sent = {}
+        def ask(text):
+            sent["text"] = text
+            return ("You're on day 2 of Walking With God Through Scripture.", {})
+        execute_truth_run(self._run("resolved"), ask=ask)
+        # the CoS was asked about the RESOLVED object by name, not "my current Bible study"
+        self.assertIn("Walking With God Through Scripture", sent["text"])
+        self.assertNotIn("my current Bible study", sent["text"])
+
+    @patch("apps.core.truth.validation.resolve_expected_object", _present_named)
+    def test_natural_mode_sends_raw_prompt(self):
+        from apps.ai.chatgpt_cos.truth_validation_service import execute_truth_run
+        sent = {}
+        def ask(text):
+            sent["text"] = text
+            return ("...", {})
+        execute_truth_run(self._run("natural"), ask=ask)
+        self.assertEqual(sent["text"], "Tell me everything you know about my current Bible study.")
+
+    @patch("apps.core.truth.validation.resolve_expected_object", _present_named)
+    def test_resolution_card_persisted(self):
+        from apps.ai.chatgpt_cos.truth_validation_service import execute_truth_run
+        run = self._run("resolved")
+        execute_truth_run(run, ask=lambda t: ("day 2", {}))
+        res = run.results.get().raw_result_json["resolution"]
+        self.assertEqual(res["resolved_object"], "Walking With God Through Scripture")
+        self.assertEqual(res["status"], "active")
+        self.assertIn("active", res["selection_rule"])
 
 
 class OverrideRecomputeTests(TestCase):

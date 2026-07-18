@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Discovery Validation Suite — the permanent object-level Owner-2 suite
+
+**The permanent production validation suite for the deterministic Truth Layer** (before the CRUD milestone). Object-level, not field-level: each entry is a natural "tell me everything about <object>" prompt (exactly as a user asks — no field names) paired with `must_surface` — the deterministic truths the CoS's answer MUST contain for that object. If the CoS omits a stored `must_surface` item, that is a Truth Layer bug, not a reasoning miss.
+
+- **`apps/core/truth/discovery_suite.py`** — 40 object-discovery prompts spanning all 18 registered non-finance domains: latest weigh-in / BP / glucose / body-measurement session / sleep / activity; most recent meal, yesterday's nutrition, last-pizza, dietary profile; most recent & named workout; a named medication (full schedule/adherence/refill/prescriber); France-2027 mission, latest completed milestone, word-of-the-year, a habit; yesterday's journal (with journal-only `must_not_surface` guards); a person (full cross-WLJ footprint), most-important people, upcoming birthday; grandfather, childhood, most-recent memory, meaningful places; current Bible study, latest prayer, reading consistency; today's schedule, next meeting; next task, oldest overdue task; most active project; upcoming events (all types); most recent capture, note, brain session; most recent lab result & panel. Each carries `anchor` (deterministic resolution) + `surface` (provider entity, for traceability).
+- **`apps/core/tests/test_discovery_suite.py`** — integrity guard: every prompt well-formed + unique id, and **every registered truth domain must have ≥1 object-discovery prompt** (fails when a new domain is added without one) — keeps the suite self-maintaining, mirroring the field-coverage contract.
+
+No provider/exposure code changed — this is the validation asset. Owner-2 execution (running the prompts through the Acceptance Center and checking each answer against `must_surface`) is the operator's pass. `check` clean; 3 integrity tests green.
+
+**Files:** `apps/core/truth/discovery_suite.py` (new), `apps/core/tests/test_discovery_suite.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(cos): Operations Awareness UX — platform state as a pinned banner, not conversation
 
 **Operations is platform state, treated like Wi-Fi/battery: visible while active, out of the way when healthy, never buried in chat.** Consumes existing deterministic Operations truth (the `executive` payload) — NO change to detection, scoring, SAME/ISE, recovery, or incident lifecycle. Staff-only (the Ops Wall is `is_staff`-gated).

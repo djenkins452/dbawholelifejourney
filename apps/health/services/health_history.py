@@ -61,3 +61,46 @@ class HealthHistory:
             [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
              for r in rows],
             unit="lb")
+
+    @classmethod
+    def glucose(cls, user, period="last_7_days", *, today=None, start=None, end=None):
+        """Per-day AVERAGE glucose (mg/dL) — answers "my glucose trend this week".
+        Closes the measured glucose-trend gap (2026-07-18): current gave only
+        yesterday, and `glucose_avg_*` SAE fields were not a per-day series."""
+        from apps.health.models import GlucoseEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (GlucoseEntry.objects.filter(user=user,
+                                            recorded_at__date__range=(p.start, p.end))
+                .values("recorded_at__date").annotate(v=Avg("value"))
+                .order_by("recorded_at__date"))
+        return series_from_rows(
+            "health", "glucose", p,
+            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="mg/dL")
+
+    # Blood pressure is two numbers; a HistorySeries point is one value, so systolic
+    # and diastolic are separate metrics (the model narrates them together as "126/83
+    # → 120/79"). Closes the measured BP-trend gap (2026-07-18) — there was NO BP
+    # query authority at all; SAE held only the single latest reading.
+    @classmethod
+    def _bp_series(cls, user, field, metric, period, today, start, end):
+        from apps.health.models import BloodPressureEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (BloodPressureEntry.objects.filter(
+                    user=user, recorded_at__date__range=(p.start, p.end))
+                .values("recorded_at__date").annotate(v=Avg(field))
+                .order_by("recorded_at__date"))
+        return series_from_rows(
+            "health", metric, p,
+            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="mmHg")
+
+    @classmethod
+    def bp_systolic(cls, user, period="last_month", *, today=None, start=None, end=None):
+        return cls._bp_series(user, "systolic", "bp_systolic", period, today, start, end)
+
+    @classmethod
+    def bp_diastolic(cls, user, period="last_month", *, today=None, start=None, end=None):
+        return cls._bp_series(user, "diastolic", "bp_diastolic", period, today, start, end)

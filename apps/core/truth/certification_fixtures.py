@@ -106,9 +106,40 @@ def build_nutrition_fixture(email="cert_nutrition@example.com"):
     }
 
 
+def build_vitals_fixture(email="cert_vitals@example.com"):
+    """Glucose + blood-pressure readings across the last week, one per day, so the
+    per-day series and its average are exact. Window [today-5, today-1] holds three
+    readings each — enough for a timeline, an average, and a latest-vs-previous
+    comparison ("how has my BP changed")."""
+    from apps.health.models import GlucoseEntry, BloodPressureEntry
+    u = _mk_user(email)
+    today = get_user_today(u)
+    # (day-offset, glucose mg/dL, systolic, diastolic)
+    rows = [
+        (5, 100, 122, 78),
+        (3, 120, 130, 85),
+        (1, 110, 120, 80),
+    ]
+    for off, g, sys, dia in rows:
+        d = _at(today - timedelta(days=off))
+        GlucoseEntry.objects.create(user=u, value=Decimal(g), unit="mg/dL", recorded_at=d)
+        BloodPressureEntry.objects.create(user=u, systolic=sys, diastolic=dia, recorded_at=d)
+    # Averages over the three in-window days:
+    #   glucose (100+120+110)/3 = 110 · systolic (122+130+120)/3 = 124 ·
+    #   diastolic (78+85+80)/3 = 81. Latest (today-1) systolic 120 < previous 130.
+    return u, {
+        "range_start": today - timedelta(days=5),
+        "range_end": today - timedelta(days=1),
+        "glucose_week_avg": 110.0,
+        "bp_systolic_week_avg": 124.0,
+        "bp_diastolic_week_avg": 81.0,
+    }
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
+    "vitals": build_vitals_fixture,
 }

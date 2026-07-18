@@ -144,6 +144,37 @@ SLICE_SPECS = [
                   "start": "@week_start", "end": "@week_end"},
                  {"kind": "series_average_equals", "value": "@avg_fat_week"},
                  "nutrition", provider="nutrition"),
+
+    # ---- HEALTH VITALS TRENDS — glucose + blood pressure (health) ------------------
+    # Closes the measured glucose/BP TREND gap (2026-07-18): current facts passed but
+    # history_metrics excluded glucose & BP. Now answerable via get_history.
+    QuestionSpec("health.glucose_timeline", "health", TIMELINE,
+                 "What was my glucose trend this week?", "history",
+                 {"metric": "glucose", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 3}, "vitals", provider="health"),
+    QuestionSpec("health.glucose_week_avg", "health", TIMELINE,
+                 "What is my average glucose this week?", "history",
+                 {"metric": "glucose", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_average_equals", "value": "@glucose_week_avg"},
+                 "vitals", provider="health"),
+    QuestionSpec("health.bp_systolic_timeline", "health", TIMELINE,
+                 "How has my blood pressure changed this month?", "history",
+                 {"metric": "bp_systolic", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 3}, "vitals", provider="health"),
+    QuestionSpec("health.bp_diastolic_avg", "health", TIMELINE,
+                 "What is my average diastolic pressure this month?", "history",
+                 {"metric": "bp_diastolic", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_average_equals", "value": "@bp_diastolic_week_avg"},
+                 "vitals", provider="health"),
+    QuestionSpec("health.bp_change", "health", COMPARISON,
+                 "Is my latest blood pressure lower than before?", "history",
+                 {"metric": "bp_systolic", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_latest_lt_prev"}, "vitals", provider="health"),
 ]
 
 

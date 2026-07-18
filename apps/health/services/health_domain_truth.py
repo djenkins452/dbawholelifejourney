@@ -16,7 +16,8 @@ from apps.health.services.workout_history import WorkoutHistory
 class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
-    history_metrics = ("steps", "sleep", "weight", "workouts")
+    history_metrics = ("steps", "sleep", "weight", "workouts",
+                       "glucose", "bp_systolic", "bp_diastolic")
     entity_types = ("workout",)
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
@@ -27,6 +28,7 @@ class HealthDomainTruth(DomainTruth):
         "weight":   {"history_metric": "weight"},
         "sleep":    {"history_metric": "sleep"},
         "steps":    {"history_metric": "steps"},
+        "glucose":  {"history_metric": "glucose"},
     }
 
     _HISTORY = {
@@ -34,6 +36,9 @@ class HealthDomainTruth(DomainTruth):
         "sleep": HealthHistory.sleep,
         "weight": HealthHistory.weight,
         "workouts": WorkoutHistory.sessions,
+        "glucose": HealthHistory.glucose,
+        "bp_systolic": HealthHistory.bp_systolic,
+        "bp_diastolic": HealthHistory.bp_diastolic,
     }
 
     def current(self, metric):

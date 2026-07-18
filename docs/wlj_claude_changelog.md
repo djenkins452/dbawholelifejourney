@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Completion Slice 2 — Health vitals trends (glucose + blood pressure history)
+
+**The Chief of Staff can now deterministically answer glucose and blood-pressure TREND questions.** Closes the measured glucose/BP trend gap (Customer Truth PROD run 1, 2026-07-18: current facts passed but `history_metrics` excluded glucose & BP — BP had NO query authority at all). Existing architecture only — new `history()` metrics on the already-certified `HealthDomainTruth`. No model change, no migration.
+
+**Customer questions now certified (Owner-1 deterministic, no OpenAI):**
+- "What was my glucose trend this week?" / "average glucose this week?" — per-day glucose series + windowed average.
+- "How has my blood pressure changed this month?" — per-day systolic & diastolic series + latest-vs-previous comparison.
+
+- **History provider (`apps/health/services/health_history.py`):** new `HealthHistory.glucose` (per-day avg mg/dL over `GlucoseEntry`) and `bp_systolic` / `bp_diastolic` (per-day avg mmHg over `BloodPressureEntry`, via a shared `_bp_series`). BP is two numbers and a `HistorySeries` point is one value, so systolic/diastolic are separate metrics (the model narrates them together as "126/83 → 120/79"). One grouped query each, request-path safe; mirrors `HealthHistory.weight`.
+- **Registration (`apps/health/services/health_domain_truth.py`):** `history_metrics` gains `glucose, bp_systolic, bp_diastolic`; `_HISTORY` maps them; `analysis_subjects` gains `glucose`. Surfaced automatically by the generic catalog-driven `get_history` tool. No `current()` change (glucose-yesterday already exists; BP current reaches the model via `get_domain_state`/foundational facts).
+- **Certification (`apps/core/truth/question_specs.py`, `certification_fixtures.py`):** new `build_vitals_fixture` (glucose + BP, one reading/day with exact averages) + 5 `QuestionSpec`s (glucose timeline & average, BP systolic timeline, diastolic average, systolic latest-vs-previous comparison). Health `historical`/`timeline`/`comparison` were already certified via weight; these extend coverage to the vitals.
+
+**Validation:** `manage.py check` clean; `makemigrations --check` no changes; **88 tests green** (`test_truth_retrieval_slice`, `test_domain_history`, `test_truth_history`, `test_domain_truth`, `test_truth_surface_contract`, `test_medicine_domain_truth`, workout truth). Owner-2 (live Customer Truth) is Danny's prod re-run.
+
+**Files:** `apps/health/services/health_history.py`, `apps/health/services/health_domain_truth.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Truth Completion Slice 1 — Nutrition date-scoped history (calories/macros)
 
 **Certification slice: the Chief of Staff can now deterministically answer date-scoped and windowed nutrition questions.** Closes the measured nutrition HISTORICAL/TIMELINE gap (Customer Truth PROD run 1, 2026-07-18) using the existing architecture only — one new `history()` surface on the existing `NutritionDomainTruth`, delegating to the canonical `NutritionQueries` authority. No new abstraction, no model change, no migration.

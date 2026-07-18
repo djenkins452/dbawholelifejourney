@@ -6,6 +6,13 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — chore(ops): TEMPORARY incident glass-box — OPS-1 Beat-task runtime diagnostic (capture reminders MISSED)
+
+**Incident scaffolding (to be removed after verification).** `capture.send_pending_capture_reminders` is reporting MISSED_RUN on the Ops Wall while the worker pool is healthy. Pool-level evidence cannot distinguish "never dispatched/executed" from "executed but the OPS-1 heartbeat (`ScheduledTaskRun.ran_at`) never advanced". Added a read-only, operator-only diagnostic that assembles every durable/lightweight runtime fact for one canonical task name so Phase-2 branch selection is evidence-driven, not plausibility-driven.
+
+- Reuses the EXISTING Claude API auth framework (`X-Claude-API-Key` + `APIRateLimitMixin`) — no new auth surface. Reports: Beat config (settings + effective runtime schedule + queue/options), OPS-1 `ScheduledTaskRun` row + computed freshness, OPS-7 task-health (failures/retries/revoked/active — the only persisted Celery lifecycle telemetry; success leaves no trace under `CELERY_TASK_IGNORE_RESULT`), Celery registration, recovery `RecoveryAttempt` audit, the monitored-registry membership guard (the OPS-1 recorder's silent-skip condition), and the active `OpsAnomaly` incident.
+- **Files:** `apps/admin_console/ops_beat_diagnostic.py` (new, temporary), `apps/admin_console/urls.py` (one temporary route). Read-only; no model change → no migration. NOTE: concurrent Meal-Intelligence + People sessions have uncommitted work (`apps/meals/*`, `apps/people/*`, `apps/relationships/*`); committed ONLY my two incident files by explicit path.
+
 ## 2026-07-18 — feat(people): relationship-derived recognition — "my wife"/"my daughter"/"my father" resolve automatically
 
 **Deterministic projections of the relationship graph — NOT stored RecognitionPhrases. Recognition engine, canonical identity and Journal all unchanged; every consumer benefits through the one canonical resolver.**

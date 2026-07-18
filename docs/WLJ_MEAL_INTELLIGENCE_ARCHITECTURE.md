@@ -1,7 +1,8 @@
 # WLJ Meal Intelligence — Canonical Domain Architecture
 
-**Version:** 1.0 (Governing)
+**Version:** 1.0 (Governing) · finalized 2026-07-18
 **Authority:** Governing architecture for the Meal Intelligence domain. All future Meal Intelligence development conforms to this document; deviations require deliberate amendment, not drift.
+**Companion documents:** `docs/WLJ_MEAL_INTELLIGENCE_TRUTH_CERTIFICATION.md` (the certification standard for each food truth) and `docs/WLJ_MEAL_INTELLIGENCE_ROADMAP.md` (the implementation milestones that realize this architecture).
 **Audience:** Engineers and architects building any food, nutrition, pantry, recipe, shopping, or meal capability in WLJ.
 **Scope note:** This document defines Meal Intelligence as a standalone Personal Truth Domain. It does not describe Chief of Staff integration; the Chief of Staff consumes this domain's truth through the standard truth boundary like any other domain.
 
@@ -12,6 +13,8 @@
 Meal Intelligence is the Whole Life Journey domain responsible for a person's complete relationship with food. Its purpose is not "meal planning" — it is to become the deterministic operating system for the entire food lifecycle: from health goals and nutrition targets, through recipes, planning, shopping, and pantry, into preparation, consumption, and the health outcomes that result, and finally into the historical truth that makes the next cycle smarter.
 
 The domain is organized around a single idea: **the food lifecycle is a stream of events, and every deterministic truth the user sees is a reproducible function of those events.** A user performs one real-world action — scans a receipt, cooks a meal, records that they ate — and Meal Intelligence deterministically propagates every downstream consequence. The user never does the same work twice.
+
+That idea has a name, and it is the domain's defining workflow philosophy: **Capture Once. Reuse Everywhere.** One capture updates every downstream truth that depends on it — automatically, deterministically, without the user reconciling anything. It is not a convenience feature; it is the reason the domain's truth is modeled as events and folds, and it is the test every proposed feature must pass. (Full treatment in its own section below.)
 
 Truth in this domain is partitioned along two axes. **Supply is shared; consumption is personal.** A household has one pantry, one grocery run, one shared recipe library; an individual has their own portions, targets, allergies, and physiological responses. This boundary is load-bearing: it is what allows WLJ to grow into genuine multi-person household support without a redesign, while never diluting the individual as the root of personal truth.
 
@@ -316,10 +319,10 @@ This is the domain's defining product principle (P1) and the reason its truth is
 ```
 Receipt scanned  ──►  Inventory ledger updated (items added)
                  ──►  Pantry state recomputed
-                 ──►  Purchase history recorded
+                 ──►  Purchase / shopping history recorded
                  ──►  Price history updated (PriceObservation)
-                 ──►  Budget / spend recorded (Finance)
-                 ──►  Future grocery projections refreshed
+                 ──►  Budget / spend history recorded (Finance)
+                 ──►  Recommendation engine refreshed (grocery projections)
 ```
 
 **Preparing a meal — one action:**

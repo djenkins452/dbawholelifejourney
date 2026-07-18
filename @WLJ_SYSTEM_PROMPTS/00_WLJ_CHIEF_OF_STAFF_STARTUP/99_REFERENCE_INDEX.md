@@ -40,6 +40,8 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` | Governing | Engineer | CURRENT | Reflection observes, never overrides. |
 | `LAYER1_DOMAIN_FRAMEWORK.md` | Governing | Engineer | CURRENT | How a new canonical truth domain is built (Article III.1). |
 | `WLJ_MEAL_INTELLIGENCE_ARCHITECTURE.md` | Governing | Engineer | CURRENT | **Meal Intelligence domain v1.0** — canonical food-lifecycle architecture. Meals owns operational recipe truth (Legacy projects meaning); supply is household-scoped, consumption/health person-scoped; two authoritative ledgers (inventory, consumption); *Capture Once, Reuse Everywhere*. Read before ANY meal/nutrition/pantry/recipe/shopping work. |
+| `WLJ_MEAL_INTELLIGENCE_TRUTH_CERTIFICATION.md` | Governing | Engineer | CURRENT | Certification standard for each food truth — 7 gates, M0–M5 maturity ladder, per-truth register (owner/primary-truth/maturity/criteria/representative deterministic questions). The bar Meal Intelligence must clear to be a certified truth domain. |
+| `WLJ_MEAL_INTELLIGENCE_ROADMAP.md` | Reference | Engineer | CURRENT | Implementation milestones (M1 consolidation → M2 recipe enrichment → M3 lifecycle spine → M4 supply intelligence → M5 automation → M6 external). Foundations first (recipe-structured-at-write; prep/consume spine). No time estimates; next milestone = implementation. |
 | `WLJ_MODEL_INTERFACE_DESIGN.md` | Reference | Engineer | CURRENT | The Model Interface seam + executive context envelope. |
 | `WLJ_REQUEST_PATH_SAFETY.md` | Governing | Engineer | CURRENT | Never compute/LLM on the request path. |
 | `WLJ_RUNTIME_TRACE_DEBUGGING.md` | Governing | Engineer | CURRENT | Prove the runtime path before editing. |

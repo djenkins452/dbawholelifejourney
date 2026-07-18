@@ -47,8 +47,8 @@ class RelationshipRecognitionTests(TestCase):
     def _resolve(self, text):
         return resolution.resolve(self.user, text)
 
-    def test_my_wife_resolves_to_the_spouse(self):
-        self._contact("Heather", "spouse", last="Jenkins")
+    def test_my_wife_resolves_when_presented_as_wife(self):
+        self._contact("Heather", "wife", last="Jenkins")
         r = self._resolve("my wife")
         self.assertEqual(r.status, resolution.RESOLVED)
         self.assertEqual(r.source_type, resolution.RELATIONSHIP_ROLE)
@@ -56,13 +56,32 @@ class RelationshipRecognitionTests(TestCase):
         # No custom phrase was created — it's a pure projection.
         self.assertFalse(RecognitionPhrase.objects.filter(person=r.person).exists())
 
-    def test_spouse_variants_and_daughter_and_father(self):
-        self._contact("Heather", "spouse")
+    def test_presentation_label_drives_the_phrase_no_contradiction(self):
+        # A person presented as "Wife" derives ONLY "my wife" — never "my husband"/"my spouse".
+        heather = self._contact("Heather", "wife")
+        person = self._resolve("my wife").person
+        self.assertEqual(hooks.person_roles(self.user, person), ["my wife"])
+        self.assertEqual(self._resolve("my husband").status, resolution.UNRESOLVED)
+        self.assertEqual(self._resolve("my spouse").status, resolution.UNRESOLVED)
+
+    def test_each_spouse_presentation_maps_to_its_phrase(self):
+        # Distinct users so each presentation is isolated (a user has one spouse).
+        for rtype, phrase in [("spouse", "my spouse"), ("wife", "my wife"),
+                              ("husband", "my husband"), ("partner", "my partner")]:
+            with self.subTest(rtype=rtype):
+                user = make_user(f"{rtype}@example.com")
+                from apps.relationships.models import Person as RP
+                RP.objects.create(owner=user, first_name="Alex", display_name="Alex",
+                                  relationship_type=rtype, status="active")
+                r = resolution.resolve(user, phrase)
+                self.assertEqual(r.status, resolution.RESOLVED)
+                self.assertEqual(hooks.person_roles(user, r.person), [phrase])
+
+    def test_daughter_and_father(self):
         self._contact("Haley", "daughter")
         self._contact("Robert", "father")
-        for phrase, name in [("my wife", "Heather"), ("my spouse", "Heather"),
-                             ("my husband", "Heather"), ("my daughter", "Haley"),
-                             ("my father", "Robert"), ("my dad", "Robert")]:
+        for phrase, name in [("my daughter", "Haley"), ("my father", "Robert"),
+                             ("my dad", "Robert")]:
             r = self._resolve(phrase)
             self.assertEqual(r.status, resolution.RESOLVED, phrase)
             self.assertEqual(r.person.display_name, name, phrase)
@@ -84,7 +103,7 @@ class RelationshipRecognitionTests(TestCase):
         self.assertIn("my daughter", hooks.all_role_phrases(self.user))
 
     def test_passive_journal_recognizes_my_wife(self):
-        self._contact("Heather", "spouse", last="Jenkins")
+        self._contact("Heather", "wife", last="Jenkins")
         spouse = self._resolve("my wife").person
         e = JournalEntry.objects.create(
             user=self.user, title="x", entry_date=date(2026, 7, 18),
@@ -99,10 +118,10 @@ class RelationshipRecognitionTests(TestCase):
         self.assertEqual(mentions.first().source_type, PersonMention.Source.RELATIONSHIP_ROLE)
 
     def test_hover_card_lists_role_phrase(self):
-        self._contact("Heather", "spouse")
-        person = self._resolve("my spouse").person
+        self._contact("Heather", "wife")
+        person = self._resolve("my wife").person
         req = _rf.get("/x")
         req.user = self.user
         card = json.loads(api.card(req, person.pk).content)
         self.assertIn("my wife", card["recognition"])
-        self.assertIn("my spouse", card["recognition"])
+        self.assertNotIn("my husband", card["recognition"])   # no contradictory phrase

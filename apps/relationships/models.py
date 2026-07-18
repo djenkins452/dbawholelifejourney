@@ -45,6 +45,9 @@ class Person(RichTextMixin, SoftDeleteModel):
 
     RELATIONSHIP_TYPE_CHOICES = [
         ('spouse', 'Spouse'),
+        ('wife', 'Wife'),
+        ('husband', 'Husband'),
+        ('partner', 'Partner'),
         ('father', 'Father'),
         ('mother', 'Mother'),
         ('son', 'Son'),

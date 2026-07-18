@@ -16,12 +16,15 @@ to a future contextual engine and are intentionally out of scope.
 from .canonical_bridge import ensure_canonical
 
 # relationship_type → first-person role phrases (normalized form: lowercase, "my …").
-# Parent/child/sibling types are gendered, so they map cleanly. `spouse` is gender-neutral
-# and no gender field exists, so it derives every first-person variant — all resolve to the
-# one spouse, which is unambiguous. (Gender-aware display — only "my wife" for a female
-# spouse — awaits a pronoun/gender field; tracked as a follow-up.)
+# The relationship TYPE is the presentation label (as it already is for Mother/Father/
+# Son/Daughter/…), so each type derives ONLY the phrase appropriate to it — never
+# contradictory phrases. A spouse is presented as Wife, Husband, Partner or the neutral
+# Spouse, and each derives just its own phrase. No biological-gender attribute is modelled.
 ROLE_PHRASES = {
-    "spouse":        ["my spouse", "my wife", "my husband"],
+    "spouse":        ["my spouse"],
+    "wife":          ["my wife"],
+    "husband":       ["my husband"],
+    "partner":       ["my partner"],
     "mother":        ["my mom", "my mother"],
     "father":        ["my dad", "my father"],
     "son":           ["my son"],

@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(people): relationship phrases follow the presentation relationship — never contradictory
+
+**Presentation fix. Resolver, canonical identity and Journal unchanged.** A spouse used to derive "my spouse" + "my wife" + "my husband" together — all correct, but seeing "my wife" and "my husband" on one person is confusing. Now each relationship derives ONLY the phrase appropriate to how it is presented.
+
+- **Where the presentation label lives (investigated):** `relationships.Person.relationship_type` already IS the presentation label — it carries gendered values for every other family role (Mother/Father/Son/Daughter/Brother/Sister/…). Only `spouse` was coarse. The canonical fix is to make `spouse` consistent with the rest, not to add a biological-gender attribute. Added **Wife / Husband / Partner** as `relationship_type` choices (migration `relationships/0006`); `PersonForm` exposes them in the existing dropdown automatically, so a user simply picks how the relationship is presented.
+- **One type → one phrase (no contradiction).** `ROLE_PHRASES` now maps `spouse → my spouse`, `wife → my wife`, `husband → my husband`, `partner → my partner` (each single-valued). Resolution and display both flow from this, so a person presented as Wife derives and resolves only "my wife" — never "my husband"/"my spouse". All other types (mother/father/…) are unchanged.
+- **Files:** `apps/relationships/models.py` (+Wife/Husband/Partner choices), `apps/relationships/migrations/0006_alter_person_relationship_type.py` (new), `apps/relationships/relationship_recognition.py` (`ROLE_PHRASES`), `apps/people/tests/test_relationship_recognition.py`.
+
+**Verification:** `test_relationship_recognition` (9, incl. presentation-drives-the-phrase + no-contradiction + each-spouse-presentation) + people/card/mentions/architecture suites (34) GREEN (isolated SQLite; shared Postgres test DB busy under concurrent sessions); `check` + `makemigrations --check` clean. Browser-verified: a contact presented as **Wife** shows "Automatically recognized: Heather, Heather Jenkins, **my wife**" (no "my husband"/"my spouse"); a journal entry "Dinner with my wife. Later called my husband …" → "my wife" → canonical Heather (112) chip, while "my husband" stays plain text (correctly does not resolve). NOTE: several concurrent sessions have uncommitted work in the tree (`apps/meals/*`, `apps/ai/*`, `apps/core/truth/*`, …); committed ONLY my 4 files by explicit path.
+
 ## 2026-07-18 — feat(meals): Foundation 2 Increment 3 — Consumption bridge (the food lifecycle is now operationally complete)
 
 **Closes the food lifecycle:** Preparation → Consumption → canonical `FoodEntry` → Nutrition → Leftover reduced → Health. A prepared meal can now be eaten with one action that logs nutrition and reduces leftovers — no duplicate entry (Capture Once, Reuse Everywhere). Waste/discard is intentionally left for a later increment (the model leaves room without implementing it).

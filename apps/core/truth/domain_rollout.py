@@ -23,6 +23,7 @@ def _absent(domain, metric, reason="no recent data"):
 class JournalDomainTruth(DomainTruth):
     domain = "journal"
     current_metrics = ("days_since_entry", "last_entry")
+    history_metrics = ("mood",)
     # Record-level truth: journal entries (title, body, MOOD, emotions, tags). Additive —
     # `describe()` delegates to the canonical JournalQueries authority (no new store).
     # This makes "what was my journal about yesterday?" / "what was my mood yesterday?"
@@ -56,11 +57,22 @@ class JournalDomainTruth(DomainTruth):
         from apps.journal.services.journal_queries import JournalQueries
         return JournalQueries.describe_one(self.user, name)
 
+    def history(self, metric, period="last_7_days", **kwargs):
+        """Per-day mood series — 'how has my mood changed recently'. Journal-only truth."""
+        if metric != "mood":
+            raise KeyError(f"journal history unsupported: {metric!r} "
+                           f"(have {self.history_metrics})")
+        from apps.journal.services.journal_queries import JournalQueries
+        return JournalQueries.mood_series(self.user, period, **kwargs)
+
 
 @register_domain_truth
 class CalendarDomainTruth(DomainTruth):
     domain = "calendar"
-    current_metrics = ("today_event_count", "next_event")
+    current_metrics = ("today_event_count", "next_event",
+                       "tomorrow_event_count", "upcoming_count")
+    history_metrics = ("events",)
+    entity_types = ("event",)
 
     def current(self, metric):
         st = self.state()
@@ -75,13 +87,88 @@ class CalendarDomainTruth(DomainTruth):
             label = (f"{ne.get('title')} at {ne.get('start')}"
                      if isinstance(ne, dict) else str(ne))
             return _found(self.domain, metric, label)
+        if metric == "tomorrow_event_count":
+            from datetime import timedelta
+            from apps.core.utils import get_user_today
+            from apps.calendar_engine.services.calendar_queries import CalendarQueries
+            tomorrow = get_user_today(self.user) + timedelta(days=1)
+            return _found(self.domain, metric,
+                          CalendarQueries.events_on_date(self.user, tomorrow).count())
+        if metric == "upcoming_count":
+            from apps.calendar_engine.services.calendar_queries import CalendarQueries
+            return _found(self.domain, metric,
+                          CalendarQueries.upcoming(self.user).count())
         return _absent(self.domain, metric, "unsupported metric")
+
+    def history(self, metric, period="last_7_days", **kwargs):
+        """Per-day scheduled/completed event COUNT — 'how many meetings last week'."""
+        from django.db.models import Count
+        from django.db.models.functions import TruncDate
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.calendar_engine.services.calendar_queries import CalendarQueries
+        if metric != "events":
+            raise KeyError(f"calendar history unsupported: {metric!r}")
+        p = resolve_period(period, get_user_today(self.user),
+                           start=kwargs.get("start"), end=kwargs.get("end"))
+        rows = (CalendarQueries.events_in_range(self.user, p.start, p.end)
+                .annotate(d=TruncDate("start_dt")).values("d")
+                .annotate(v=Count("id")).order_by("d"))
+        return series_from_rows("calendar", metric, p,
+            [{"date": r["d"], "value": r["v"]} for r in rows], unit="events")
+
+    def describe(self, entity_type="event"):
+        """Recent + upcoming events as CompleteEntity objects — 'what do I have
+        today/tomorrow', 'meetings coming up', 'appointments recently completed'."""
+        if entity_type not in (None, "event"):
+            raise KeyError(f"calendar domain cannot describe {entity_type!r}")
+        from apps.calendar_engine.services.calendar_queries import CalendarQueries
+        seen, out = set(), []
+        for ev in (list(CalendarQueries.past(self.user, lookback_days=7))
+                   + list(CalendarQueries.upcoming(self.user, horizon_days=14))):
+            if ev.id in seen:
+                continue
+            seen.add(ev.id)
+            out.append(self._event_entity(ev))
+        return out
+
+    def describe_one(self, name):
+        from apps.calendar_engine.services.calendar_queries import CalendarQueries
+        q = (name or "").strip()
+        if not q:
+            return None
+        ev = (CalendarQueries._base(self.user)
+              .filter(title__icontains=q).order_by("-start_dt").first())
+        return self._event_entity(ev) if ev else None
+
+    def _event_entity(self, ev):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="event",
+            identity=ev.title,
+            definition={
+                "start": ev.start_dt.isoformat(),
+                "end": ev.end_dt.isoformat(),
+                "all_day": ev.is_all_day,
+                "domain": ev.domain.name if ev.domain else "",
+                "kind": ev.event_kind,
+                "commitment_level": ev.commitment_level,
+            },
+            status=ev.status,
+            standing={"is_protected": ev.is_protected},
+            extensions={"description": ev.description or ""},
+            freshness=F.CURRENT,
+        )
 
 
 @register_domain_truth
 class TaskDomainTruth(DomainTruth):
     domain = "tasks"
     current_metrics = ("overdue_count", "tasks_due_today")
+    history_metrics = ("completed",)
+    entity_types = ("task",)
 
     def current(self, metric):
         st = self.state()
@@ -95,11 +182,88 @@ class TaskDomainTruth(DomainTruth):
             return _found(self.domain, metric, n)
         return _absent(self.domain, metric, "unsupported metric")
 
+    def history(self, metric, period="this_week", **kwargs):
+        """Per-day COMPLETED-task count — 'what have I accomplished this week'.
+        Grouped on completed_at (momentum), not due_date."""
+        from django.db.models import Count
+        from django.db.models.functions import TruncDate
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.life.services.task_queries import TaskQueries
+        if metric != "completed":
+            raise KeyError(f"tasks history unsupported: {metric!r}")
+        p = resolve_period(period, get_user_today(self.user),
+                           start=kwargs.get("start"), end=kwargs.get("end"))
+        rows = (TaskQueries.completed_between(self.user, p.start, p.end)
+                .annotate(d=TruncDate("completed_at")).values("d")
+                .annotate(v=Count("id")).order_by("d"))
+        return series_from_rows("tasks", metric, p,
+            [{"date": r["d"], "value": r["v"]} for r in rows], unit="tasks")
+
+    def describe(self, entity_type="task"):
+        """Actionable tasks (overdue + due-today + recently completed) as
+        CompleteEntity objects. NOTE: 'what should I work on NEXT' is NOT here — that
+        is served only by decision_authority.current_action (single decision producer)."""
+        if entity_type not in (None, "task"):
+            raise KeyError(f"tasks domain cannot describe {entity_type!r}")
+        from datetime import timedelta
+        from apps.core.utils import get_user_today
+        from apps.life.services.task_queries import TaskQueries
+        today = get_user_today(self.user)
+        seen, out = set(), []
+        buckets = (list(TaskQueries.overdue(self.user, today))
+                   + list(TaskQueries.due_today(self.user, today))
+                   + list(TaskQueries.completed_between(
+                       self.user, today - timedelta(days=1), today)))
+        for t in buckets:
+            if t.id in seen:
+                continue
+            seen.add(t.id)
+            out.append(self._task_entity(t, today))
+        return out
+
+    def describe_one(self, name):
+        from apps.life.models import Task
+        from apps.core.utils import get_user_today
+        q = (name or "").strip()
+        if not q:
+            return None
+        t = (Task.objects.filter(user=self.user, title__icontains=q)
+             .order_by("completion_status", "-completed_at", "due_date").first())
+        return self._task_entity(t, get_user_today(self.user)) if t else None
+
+    def _task_entity(self, t, today):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        overdue = (t.completion_status == "pending"
+                   and t.due_date is not None and t.due_date < today)
+        return CompleteEntity(
+            kind="task",
+            identity=t.title,
+            definition={
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+                "priority": t.priority,
+                "commitment_level": t.commitment_level,
+                "is_routine": t.is_routine,
+            },
+            status=t.completion_status,
+            standing={
+                "overdue": overdue,
+                "progress_percentage": t.progress_percentage,
+                "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+            },
+            extensions={"notes": t.notes or ""},
+            freshness=F.CURRENT,
+        )
+
 
 @register_domain_truth
 class FaithDomainTruth(DomainTruth):
     domain = "faith"
     current_metrics = ("reading_streak", "days_since_reading", "unanswered_prayers")
+    history_metrics = ("reading",)
+    entity_types = ("prayer",)
 
     def current(self, metric):
         st = self.state()
@@ -108,11 +272,36 @@ class FaithDomainTruth(DomainTruth):
             return _absent(self.domain, metric)
         return _found(self.domain, metric, v, st.get("last_scripture_read"))
 
+    def describe(self, entity_type="prayer"):
+        """Recent prayer requests as CompleteEntity objects — 'what have I been
+        praying about'. Faith truth only."""
+        if entity_type not in (None, "prayer"):
+            raise KeyError(f"faith domain cannot describe {entity_type!r} "
+                           f"(have {self.entity_types})")
+        from apps.faith.services.faith_queries import FaithQueries
+        return FaithQueries.describe(self.user)
+
+    def describe_one(self, name):
+        from apps.faith.services.faith_queries import FaithQueries
+        return FaithQueries.describe_one(self.user, name)
+
+    def history(self, metric, period="last_7_days", **kwargs):
+        """Per-day Bible-reading completion — 'how consistent has my reading been'."""
+        if metric != "reading":
+            raise KeyError(f"faith history unsupported: {metric!r} "
+                           f"(have {self.history_metrics})")
+        from apps.faith.services.faith_queries import FaithQueries
+        return FaithQueries.reading_series(self.user, period, **kwargs)
+
 
 @register_domain_truth
 class RelationshipDomainTruth(DomainTruth):
     domain = "relationships"
-    current_metrics = ("neglected_count", "birthdays_today")
+    current_metrics = ("neglected_count", "birthdays_today", "upcoming_birthdays")
+    # Record-level truth over the REAL relationships.Person (interaction analytics live
+    # there). Answers "tell me about Heather", "when did I last spend time with Heather",
+    # "most important people" (by interaction volume), "who have I not connected with".
+    entity_types = ("person",)
 
     def current(self, metric):
         contract = self.state().get("_contract") or {}
@@ -126,7 +315,73 @@ class RelationshipDomainTruth(DomainTruth):
             b = today.get("birthdays")
             n = len(b) if isinstance(b, (list, tuple)) else (b or 0)
             return _found(self.domain, metric, n)
+        if metric == "upcoming_birthdays":
+            return self._upcoming_birthdays()
         return _absent(self.domain, metric, "unsupported metric")
+
+    def _upcoming_birthdays(self, within_days=14):
+        # Reads life.SignificantEvent directly — the _contract birthday path reads a
+        # nonexistent attribute and is always empty (state_builder defect); this uses
+        # the real days_until_next()/get_next_occurrence() methods.
+        from apps.life.models import SignificantEvent
+        upcoming = []
+        for ev in SignificantEvent.objects.filter(user=self.user, event_type="birthday"):
+            days = ev.days_until_next()
+            if days is not None and 0 <= days <= within_days:
+                upcoming.append({"name": ev.person_name or ev.title,
+                                 "date": ev.get_next_occurrence().isoformat(),
+                                 "days_until": days})
+        upcoming.sort(key=lambda e: e["days_until"])
+        if not upcoming:
+            return _absent(self.domain, "upcoming_birthdays",
+                           f"no birthdays in the next {within_days} days")
+        return _found(self.domain, "upcoming_birthdays", upcoming)
+
+    def describe(self, entity_type="person"):
+        if entity_type not in (None, "person"):
+            raise KeyError(f"relationships domain cannot describe {entity_type!r} "
+                           f"(have {self.entity_types})")
+        from apps.relationships.models import Person
+        people = (Person.objects.filter(owner=self.user)
+                  .order_by("-interaction_count", "-last_interaction_date"))
+        return [self._person_entity(p) for p in people]
+
+    def describe_one(self, name):
+        from apps.relationships.models import Person
+        norm = (name or "").strip().lower()
+        if not norm:
+            return None
+        matches = [p for p in Person.objects.filter(owner=self.user)
+                   if norm in (p.get_display_name().lower(),
+                               (p.first_name or "").lower())]
+        if len(matches) != 1:        # 0 = unresolved, >1 = ambiguous → never guess
+            return None
+        return self._person_entity(matches[0])
+
+    def _person_entity(self, p):
+        from apps.core.truth.entity import CompleteEntity
+        from apps.relationships.services import RelationshipAnalyticsService as R
+        last = p.last_interaction_date
+        days_since = R.days_since_last_interaction(p)
+        rtype = (p.relationship_type or "").strip()
+        definition = {
+            "name": p.get_display_name(),
+            "relationship_type": p.get_relationship_type_display() if rtype else None,
+            "last_contact": last.isoformat() if last else None,
+            "days_since_contact": days_since,
+            "interaction_count": p.interaction_count,
+            "notes": p.notes_plain or None,
+        }
+        return CompleteEntity(
+            kind="person",
+            identity=p.get_display_name(),
+            definition={k: v for k, v in definition.items() if v is not None},
+            status=("neglected" if days_since is not None and days_since > 30
+                    else ("never_contacted" if last is None else "active")),
+            performance={"interaction_count": p.interaction_count,
+                         "days_since_contact": days_since},
+            freshness=F.CURRENT,
+        )
 
 
 @register_domain_truth

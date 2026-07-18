@@ -35,3 +35,29 @@ class GoalQueries:
             target_date__isnull=False,
             target_date__lt=as_of,
         )
+
+    @classmethod
+    def completed(cls, user):
+        """Completed life goals. MUST use all_objects — the default SoftDeleteManager
+        filters status='active', so LifeGoal.objects can never return completed goals
+        (apps/core/models.py). This is why apps/purpose/views.py's completed count is
+        latently always 0."""
+        return LifeGoal.all_objects.filter(user=user, status='completed')
+
+    @classmethod
+    def completed_milestones(cls, user):
+        """Completed milestones across the user's ACTIVE goals."""
+        from apps.purpose.models import GoalMilestone
+        return GoalMilestone.objects.filter(goal__in=cls.active(user), completed=True)
+
+    @classmethod
+    def overdue_milestones(cls, user, as_of=None):
+        """Incomplete milestones past target_date, across active goals."""
+        from apps.purpose.models import GoalMilestone
+        if as_of is None:
+            from django.utils import timezone
+            as_of = timezone.localdate()
+        return GoalMilestone.objects.filter(
+            goal__in=cls.active(user), completed=False,
+            target_date__isnull=False, target_date__lt=as_of,
+        ).order_by('target_date')

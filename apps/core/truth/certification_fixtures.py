@@ -161,6 +161,131 @@ def build_body_measurements_fixture(email="cert_body@example.com"):
     }
 
 
+def build_journal_fixture(email="cert_journal@example.com"):
+    """Journal entries with moods across the last week (mood history) + a titled
+    entry yesterday (entity lookup by date)."""
+    from apps.journal.models import JournalEntry
+    u = _mk_user(email)
+    today = get_user_today(u)
+    rows = [(0, "great", "Grateful morning"), (1, "good", "Steady day"),
+            (3, "okay", "A bit tired"), (5, "low", "Rough patch")]
+    for off, mood, title in rows:
+        JournalEntry.objects.create(
+            user=u, entry_date=today - timedelta(days=off), mood=mood,
+            title=title, body=f"<p>{title}.</p>")
+    return u, {"range_start": today - timedelta(days=5),
+              "range_end": today - timedelta(days=1),
+              "yesterday": (today - timedelta(days=1)).isoformat()}
+
+
+def build_faith_fixture(email="cert_faith@example.com"):
+    """Prayer requests (entity) — one unanswered 'Healing for Mom', one answered."""
+    from apps.faith.models import PrayerRequest
+    u = _mk_user(email)
+    PrayerRequest.objects.create(user=u, title="Healing for Mom", priority="urgent",
+                                 is_answered=False, description="Please heal her.")
+    PrayerRequest.objects.create(user=u, title="New job", priority="normal",
+                                 is_answered=True, description="Thankful.")
+    return u, {"prayer_name": "Healing"}
+
+
+def build_relationships_fixture(email="cert_rel@example.com"):
+    """relationships.Person rows — Heather (recent contact) + others."""
+    from apps.relationships.models import Person
+    u = _mk_user(email)
+    today = get_user_today(u)
+    heather_last = today - timedelta(days=3)
+    Person.objects.create(owner=u, first_name="Heather", last_name="Jones",
+                          relationship_type="friend", interaction_count=12,
+                          last_interaction_date=heather_last, notes="College friend.")
+    Person.objects.create(owner=u, first_name="Marcus", relationship_type="colleague",
+                          interaction_count=4, last_interaction_date=today - timedelta(days=40))
+    return u, {"heather": "Heather", "heather_last": heather_last.isoformat()}
+
+
+def build_calendar_fixture(email="cert_cal@example.com"):
+    """CalendarEvents: one tomorrow, one 2 days out, two in the past week."""
+    from apps.calendar_engine.models import CalendarEvent
+    from apps.calendar_engine.utils.idempotency import compute_idempotency_key
+    u = _mk_user(email)
+    today = get_user_today(u)
+
+    def _ev(title, day_offset, hour=10):
+        start = timezone.make_aware(datetime.combine(
+            today + timedelta(days=day_offset), time(hour, 0)))
+        end = start + timedelta(hours=1)
+        CalendarEvent.objects.create(
+            user=u, title=title, start_dt=start, end_dt=end, status="scheduled",
+            idempotency_key=compute_idempotency_key(u.id, title, start, end))
+    _ev("Dentist", 1)
+    _ev("Team sync", 2)
+    _ev("Past meeting A", -2)
+    _ev("Past meeting B", -4)
+    return u, {"range_start": today - timedelta(days=5),
+              "range_end": today, "event_name": "Dentist"}
+
+
+def build_tasks_fixture(email="cert_tasks@example.com"):
+    """Tasks: overdue pending, due today, and two completed in the last few days."""
+    from apps.life.models import Task
+    u = _mk_user(email)
+    today = get_user_today(u)
+    Task.objects.create(user=u, title="File taxes", completion_status="pending",
+                        due_date=today - timedelta(days=3))
+    Task.objects.create(user=u, title="Call plumber", completion_status="pending",
+                        due_date=today)
+    for off in (1, 2):
+        Task.objects.create(user=u, title=f"Done task {off}",
+                            completion_status="completed",
+                            completed_at=_at(today - timedelta(days=off)),
+                            due_date=today - timedelta(days=off))
+    return u, {"range_start": today - timedelta(days=5),
+              "range_end": today, "task_name": "File taxes"}
+
+
+def build_goals_fixture(email="cert_goals@example.com"):
+    """A primary-mission LifeGoal ('France 2027') with milestones (some completed,
+    one overdue) + momentum snapshots (progress history)."""
+    from apps.purpose.models import LifeGoal, GoalMilestone
+    from apps.dashboard_v2.models import GoalMomentumSnapshot
+    u = _mk_user(email)
+    today = get_user_today(u)
+    g = LifeGoal.objects.create(user=u, title="Move to France 2027", status="active",
+                                is_primary_mission=True, is_foundational=True,
+                                target_date=today + timedelta(days=400),
+                                why_it_matters="A lifelong dream.",
+                                success_looks_like="Living in Lyon.")
+    GoalMilestone.objects.create(goal=g, title="Learn A2 French", completed=True,
+                                 completed_date=today - timedelta(days=10),
+                                 target_date=today - timedelta(days=15), sort_order=1)
+    GoalMilestone.objects.create(goal=g, title="Save €10k", completed=False,
+                                 target_date=today - timedelta(days=2), sort_order=2)
+    GoalMilestone.objects.create(goal=g, title="Visa research", completed=False,
+                                 target_date=today + timedelta(days=30), sort_order=3)
+    for off, prog, mom in [(6, 30, 40), (3, 45, 55), (1, 55, 60)]:
+        GoalMomentumSnapshot.objects.create(
+            user=u, goal=g, snapshot_date=today - timedelta(days=off),
+            progress_score=prog, momentum_score=mom)
+    return u, {"mission": "France 2027", "range_start": today - timedelta(days=6),
+              "range_end": today}
+
+
+def build_legacy_fixture(email="cert_legacy@example.com"):
+    """Legacy Person (Harold Keck), a Place, and a Memory."""
+    from apps.legacy.models import Memory, Person, Place
+    u = _mk_user(email)
+    Person.objects.create(user=u, display_name="Harold Keck",
+                          relationship_label="grandfather", birth_year=1921,
+                          death_year=1998, significance=5)
+    Person.objects.create(user=u, display_name="Edith Keck",
+                          relationship_label="grandmother", significance=4)
+    Place.objects.create(user=u, name="The Farmhouse",
+                         location_text="Iowa", significance=5)
+    Memory.objects.create(user=u, title="Summers at the farm",
+                          entry_type="MEMORY", entry_state="legacy")
+    return u, {"person": "Harold Keck", "place": "Farmhouse"}
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
@@ -168,4 +293,11 @@ FIXTURES = {
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,
     "body": build_body_measurements_fixture,
+    "journal": build_journal_fixture,
+    "faith": build_faith_fixture,
+    "relationships": build_relationships_fixture,
+    "calendar": build_calendar_fixture,
+    "tasks": build_tasks_fixture,
+    "goals": build_goals_fixture,
+    "legacy": build_legacy_fixture,
 }

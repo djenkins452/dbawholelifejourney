@@ -60,6 +60,31 @@
 
 **Files:** `apps/meals/tests/test_foundation1_certification.py` (new), `docs/wlj_claude_changelog.md`.
 
+## 2026-07-18 — feat(truth): Truth Completion Milestone — 7 life domains (Journal, Faith, People, Goals, Legacy, Calendar, Tasks)
+
+**One coordinated milestone completing deterministic truth surfaces across seven domains** so the Chief of Staff can retrieve current facts, history/trends, and entities — grounded in each domain's own canonical truth. Existing DomainTruth + query-authority pattern only; no new abstractions. No model changes, no migrations. Owner-1 (deterministic) certified; Owner-2 (production) is Danny's live run.
+
+**Capabilities added (per domain):**
+- **Journal** — `JournalQueries.mood_series` (per-day mood, scores mirror the SAE) → `JournalDomainTruth.history("mood")`. Answers "how has my mood changed recently" from JOURNAL truth only; entity `describe` already answered "what did I journal". 
+- **Faith** — `FaithQueries.describe`/`describe_one` (prayer entities) + `reading_series` (per-day Bible reading from the CANONICAL unified completion set) → `FaithDomainTruth` entity `prayer` + `history("reading")`. Answers "what have I been praying about", "how consistent has my reading been".
+- **People/Relationships** — `RelationshipDomainTruth` gains entity `person` (`describe`/`describe_one` over the real `relationships.Person` — interaction analytics) + `upcoming_birthdays` current. Answers "tell me about Heather", "when did I last spend time with Heather", "who have I not connected with". *(Also routes around a pre-existing state-builder birthday defect — see below.)*
+- **Goals/Missions** — NEW `GoalDomainTruth` (`apps/purpose/services/goal_domain_truth.py`, registered) over `GoalQueries` (+new `completed`/`completed_milestones`/`overdue_milestones`), `select_active_mission_goal`/`_mission_facts`, and `GoalMomentumSnapshot`. Current `active_goals`/`primary_mission`/`completion_rate`/`milestones_overdue`; entity `goal`/`milestone`; history `progress`/`momentum`. Answers active goals, primary mission, milestones completed/overdue, progress, "France 2027 mission".
+- **Legacy** — `LegacyDomainTruth.describe_one` (name lookup → person/place/memory; refactored the 3 describe loops into shared mappers, behavior-preserving). Answers "tell me about Harold Keck / my grandfather". Entity `describe` already answered memories/places.
+- **Calendar** — NEW `CalendarQueries` authority (`apps/calendar_engine/services/calendar_queries.py`: events_on_date/in_range/upcoming/past) → `CalendarDomainTruth` entity `event`, `history("events")`, `tomorrow_event_count`/`upcoming_count` current. Answers tomorrow, upcoming meetings, recently completed, "last Tuesday".
+- **Tasks** — `TaskQueries.completed_between` → `TaskDomainTruth` entity `task`, `history("completed")`. Answers "what did I complete yesterday", "what is overdue", "accomplished this week". ("What next" stays with `decision_authority` — the single decision producer.)
+
+**Certification:** 12 new fixtures/specs are wired — `certification_fixtures.py` gains `build_{journal,faith,relationships,calendar,tasks,goals,legacy}_fixture`; `question_specs.py` gains ~26 `QuestionSpec`s (entities, entity lookups, current facts, history/trend). All pass Owner-1 deterministically.
+
+**Two pre-existing defects flagged (NOT fixed here — routed around):**
+1. `state_builder.py` relationship birthday path reads a nonexistent `ev.next_occurrence` → birthdays silently empty; the new `upcoming_birthdays` reads `SignificantEvent.days_until_next()` directly.
+2. `LifeGoal.objects` (SoftDeleteManager) filters `status='active'`, so `LifeGoal.objects.filter(status='completed')` is always empty (latent bug in `purpose/views.py`); `GoalQueries.completed` uses `all_objects`.
+
+**Honest RED/AMBER (not claimed green):** "how often have I eaten fast food" (no count tool); "most important people" (only interaction-volume proxy, no importance field); "whose birthday coming up" (data not FK-joined to the person graph); "childhood memories" (no canonical life-stage field); "which goal needs attention most" (no deterministic attention rank); calendar recurrence (materialized rows only). Owner-2 production validation pending for all.
+
+**Validation:** `manage.py check` clean; `makemigrations --check` no changes; **all 11 registered domains resolve**; certification slice green (incl. 26 new specs); regression green across `test_domain_truth_contracts`, `test_domain_history`, `test_domain_truth`, `test_truth_surface_contract`, `test_nutrition_trust`, `test_journal_entity_truth` (92 tests).
+
+**Files:** `apps/journal/services/journal_queries.py`, `apps/faith/services/faith_queries.py`, `apps/core/truth/domain_rollout.py`, `apps/calendar_engine/services/calendar_queries.py` (new), `apps/life/services/task_queries.py`, `apps/purpose/services/goal_queries.py`, `apps/purpose/services/goal_domain_truth.py` (new), `apps/core/truth/domain.py`, `apps/legacy/services/legacy_domain_truth.py`, `apps/core/truth/certification_fixtures.py`, `apps/core/truth/question_specs.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Truth Completion Slice 3 — Body measurements trend (waist / body composition)
 
 **The Chief of Staff can now deterministically answer body-measurement TREND questions.** Closes the measured Body-Measurements gap (Customer Truth PROD run 1, 2026-07-18): `BodyCompositionEntry` data existed with NO point-in-time/series accessor. Completes the top-priority health block (nutrition → glucose/BP → body). Existing architecture only; no model change, no migration.

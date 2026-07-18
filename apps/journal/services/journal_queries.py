@@ -61,6 +61,41 @@ class JournalQueries:
         """Most recent journal entry (or None)."""
         return JournalEntry.objects.filter(user=user).order_by('-entry_date').first()
 
+    # ── Point-in-Time History (per-day mood) ──────────────────────────────────────
+    # Mood is a categorical CharField; scores mirror the SAE's mood mapping
+    # (state_builder mood_avg_7d) so the windowed average matches the current-truth
+    # narration. Surface behind JournalDomainTruth.history("mood") — answers "how has
+    # my mood changed recently" from JOURNAL truth only. One grouped query.
+    _MOOD_SCORES = {"great": 5, "good": 4, "okay": 3, "low": 2, "difficult": 1}
+    HISTORY_METRICS = ("mood",)
+
+    @classmethod
+    def mood_series(cls, user, period="last_7_days", *,
+                    today=None, start=None, end=None):
+        """Per-day AVERAGE mood (1-5) over a resolved period as a HistorySeries."""
+        from django.db.models import Avg, Case, IntegerField, Value, When
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        if today is None:
+            from apps.core.utils import get_user_today
+            today = get_user_today(user)
+        p = resolve_period(period, today, start=start, end=end)
+        score = Case(
+            *[When(mood=k, then=Value(v)) for k, v in cls._MOOD_SCORES.items()],
+            output_field=IntegerField(),
+        )
+        rows = (JournalEntry.objects
+                .filter(user=user, mood__isnull=False,
+                        entry_date__range=(p.start, p.end))
+                .exclude(mood="")
+                .values("entry_date").annotate(v=Avg(score))
+                .order_by("entry_date"))
+        return series_from_rows(
+            "journal", "mood", p,
+            [{"date": r["entry_date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="score")
+
     # ── Entity Completeness Law (record-level truth for the Model Interface) ──────
     # `describe` / `describe_one` return `CompleteEntity` objects so the Chief of Staff
     # can answer "what did I write about yesterday?", "what was my MOOD yesterday?",

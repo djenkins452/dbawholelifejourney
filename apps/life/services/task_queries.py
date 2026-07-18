@@ -101,6 +101,16 @@ class TaskQueries:
         )
 
     @classmethod
+    def completed_between(cls, user, start_date, end_date):
+        """Tasks whose completion timestamp's local date is within
+        [start_date, end_date] inclusive (history/momentum)."""
+        return Task.objects.filter(
+            user=user,
+            completion_status='completed',
+            completed_at__date__range=(start_date, end_date),
+        )
+
+    @classmethod
     def non_negotiable_at_risk(cls, user, skip_threshold=2):
         """Foundational tasks with consecutive skips >= threshold."""
         return cls.pending(user).filter(

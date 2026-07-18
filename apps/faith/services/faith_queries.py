@@ -164,6 +164,74 @@ class FaithQueries:
         """Unanswered prayer requests marked as urgent."""
         return cls.unanswered_prayers(user).filter(priority='urgent')
 
+    # ── Entity Completeness Law (prayer records for the Model Interface) ──────────
+    # describe / describe_one return CompleteEntity objects so the Chief of Staff can
+    # answer "what have I been praying about" from a SINGLE deterministic retrieval,
+    # grounded in FAITH truth only. Surface behind FaithDomainTruth.describe("prayer").
+    _DESCRIBE_LIMIT = 20
+
+    @classmethod
+    def describe(cls, user, *, limit=None):
+        """Recent prayer requests, each a CompleteEntity (newest-first)."""
+        qs = (PrayerRequest.objects.filter(user=user)
+              .order_by("-created_at")[: (limit or cls._DESCRIBE_LIMIT)])
+        return [cls._prayer_to_entity(p) for p in qs]
+
+    @classmethod
+    def describe_one(cls, user, name):
+        """Most recent prayer whose title matches `name`, or None."""
+        name = (name or "").strip()
+        if not name:
+            return None
+        p = (PrayerRequest.objects.filter(user=user, title__icontains=name)
+             .order_by("-created_at").first())
+        return cls._prayer_to_entity(p) if p else None
+
+    @classmethod
+    def _prayer_to_entity(cls, p):
+        """One PrayerRequest → CompleteEntity."""
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="prayer",
+            identity=(p.title or "").strip() or "Prayer request",
+            definition={
+                "title": p.title,
+                "priority": p.priority,
+                "is_personal": p.is_personal,
+                "person_or_situation": (p.person_or_situation or None),
+                "request": p.description_plain or "",
+                "created": p.created_at.date() if p.created_at else None,
+            },
+            status=("answered" if p.is_answered else "unanswered"),
+            standing={
+                "answered_at": (p.answered_at.date() if p.answered_at else None),
+                "answer_notes": (p.answer_notes_plain or None) if p.is_answered else None,
+            },
+            freshness=F.CURRENT,
+        )
+
+    # ── Point-in-Time History (per-day Bible reading) ─────────────────────────────
+    # Sourced from the CANONICAL unified completion set (plan + routine bridge) — the
+    # same source reading_streak / days_since_reading use — so it can never diverge
+    # from the dashboard. Surface behind FaithDomainTruth.history("reading").
+    HISTORY_METRICS = ("reading",)
+
+    @classmethod
+    def reading_series(cls, user, period="last_7_days", *,
+                       today=None, start=None, end=None):
+        """Per-day Bible-reading completion (1 = read) over a resolved period."""
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        if today is None:
+            from apps.core.utils import get_user_today
+            today = get_user_today(user)
+        p = resolve_period(period, today, start=start, end=end)
+        span_days = (p.end - p.start).days + 1
+        done = set(cls.bible_completion_dates(user, limit=max(span_days, 90)))
+        rows = [{"date": d, "value": 1} for d in done if p.start <= d <= p.end]
+        return series_from_rows("faith", "reading", p, rows, unit="days")
+
     # ── Faith Tasks ──────────────────────────────────────────────
 
     @classmethod

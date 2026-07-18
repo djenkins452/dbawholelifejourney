@@ -1258,7 +1258,17 @@ CELERY_BEAT_SCHEDULE = {
     },
     "capture-pending-reminders-hourly": {
         "task": "capture.send_pending_capture_reminders",
-        "schedule": 3600.0,  # Hourly (was APScheduler)
+        # Fires at :00 every hour. MUST be crontab (absolute), NOT a 3600.0
+        # interval: Beat runs the default PersistentScheduler on Railway's
+        # EPHEMERAL filesystem, so every Beat restart resets interval timers to
+        # boot. A pure-interval task whose period exceeds Beat's uptime-between-
+        # restarts can never complete a full interval and starves (chronic
+        # MISSED_RUN). Crontab schedules fire at wall-clock time and are
+        # restart-robust — the reason every other periodic job here uses one.
+        # (Incident 2026-07-18: this hourly interval was MISSED for days while
+        # the worker had it registered + executed it 0 times.) Enforced by
+        # apps/core/tests/test_beat_schedule_durability.py.
+        "schedule": crontab(minute=0),  # Hourly, top of the hour
     },
     # ── NIGHTLY CRON TASKS (ordered by UTC time) ─────────────────────
     "health-reminders-evening-midnight-utc": {

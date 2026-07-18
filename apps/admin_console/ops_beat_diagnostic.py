@@ -78,6 +78,41 @@ class OpsBeatTaskDiagnosticAPIView(APIRateLimitMixin, View):
         report["classification_hint"] = self._hint(report)
         return JsonResponse(report, json_dumps_params={"indent": 2})
 
+    def post(self, request):
+        """TEMPORARY sanctioned one-shot execution (Phase-6 verification only).
+
+        POST ?action=verify_run  → enqueue ONE run of the task via the same
+        non-blocking safe path recovery uses. The task is idempotent (guards to
+        at most one reminder per capture per day via ``last_reminder_at``), so a
+        manual run cannot create duplicate customer reminders. Operator-gated by
+        the same X-Claude-API-Key. Removed with the rest of this glass-box.
+        """
+        if not settings.CLAUDE_API_KEY or not secure_compare_api_key(
+            request.headers.get("X-Claude-API-Key", ""), settings.CLAUDE_API_KEY
+        ):
+            return JsonResponse({"error": "Invalid or missing API key."}, status=401)
+        if request.GET.get("action") != "verify_run":
+            return JsonResponse({"error": "pass ?action=verify_run"}, status=400)
+        task = request.GET.get("task", DEFAULT_TASK).strip() or DEFAULT_TASK
+        from celery import current_app
+
+        # Enqueue BY NAME: the web process does not autodiscover capture tasks,
+        # but the worker has it registered and will execute it. send_task
+        # publishes by name without needing a local task object.
+        try:
+            result = current_app.send_task(task)
+            enqueued, task_id = True, getattr(result, "id", None)
+        except Exception as exc:  # broker unreachable — never block/raise
+            logger.warning("glass-box verify_run: send_task(%s) failed: %s", task, exc)
+            enqueued, task_id = False, None
+        logger.warning(
+            "OPS incident glass-box: manual verify_run enqueue of %s -> enqueued=%s id=%s",
+            task, enqueued, task_id,
+        )
+        return JsonResponse(
+            {"task": task, "enqueued": enqueued, "task_id": task_id}, status=200
+        )
+
     # ── 1. Beat configuration ────────────────────────────────────────────
     def _beat_config(self, task):
         out = {"schedule_entries": [], "in_settings_schedule": False,

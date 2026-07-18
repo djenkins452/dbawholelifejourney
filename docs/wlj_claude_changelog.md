@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(journal): explicit @mention labels from the selected Person's canonical surface, never the search fragment
+
+**Presentation-only fix from production validation (no identity/recognition/passive-behavior change).** The previous milestone used the typed query as the explicit chip label — so `@hea` + selecting Heather Jenkins saved the partial fragment "hea". An explicit selection now labels from the **selected canonical Person's** surfaces: the smallest one the query fully corresponds to.
+
+- **Label rule (client-side, deterministic):** `chooseMentionLabel(query, item)` in `static/js/wlj-rich-text.js` picks the shortest canonical surface the query is a **prefix** of — first-name query → first name (`@hea`/`@heather` → "Heather"), surname-bearing query → full name (`@heather j` → "Heather Jenkins"), alias query → the confirmed phrase (`@hon` → "Honey"), and an unsupported/ambiguous query falls back to the display name. A partial fragment is never saved. Passive recognition is untouched — it still preserves the author's prose with capitalization normalization only.
+- **`allowSpaces: true`** on the suggestion so a full-name query ("@heather j") stays one mention instead of terminating at the space.
+- **Picker API enrichment:** `/people/api/lookup` now returns each person's canonical `surfaces` (first / full / display name + confirmed custom phrases) via the shared `person_surfaces()` helper, and **matches those surfaces** — so "@hon" surfaces the person whose alias is "Honey", not only name matches. `_person_surfaces` promoted to public `person_surfaces` (one source of truth for matching, case-normalization, and label selection; now deduped).
+- **Unchanged:** canonical `data-person-id`, `PersonMention` provenance (explicit stays `explicit_at_mention`), passive recognition + wording/case behavior, the sanitizer allow-list, no `@` in the finished journal. Server-side `normalize_mention_case` still runs as defense (a canonical label is already correct → no-op).
+- **Cache-bust:** RTE assets `?v=20260718c → 20260718d`. `collectstatic` clean. No schema change.
+- **Files:** `static/js/wlj-rich-text.js`, `apps/people/api.py`, `apps/people/services/mentions.py`, `apps/people/tests/test_api_lookup.py` (new), `templates/base.html`, `templates/components/_rich_text_editor_assets.html`.
+
+**Verification:** `test_request_path_safety_contract` + `test_api_lookup` (new) + `test_mentions` + `test_rich_text` (52) GREEN; `manage.py check` + `makemigrations --check` clean; `collectstatic` clean. Browser-verified ALL eight cases: (1) `@hea`→"Heather", (2) `@heather`+Enter→"Heather", (3) `@heather j`→"Heather Jenkins", (4) `@hon`→confirmed alias "Honey", (5) passive "heather"→"Heather", (6) canonical id 112 + provenance `explicit_at_mention` unchanged, (7) save/reopen preserves the label, (8) no `@` shown.
+
 ## 2026-07-18 — docs(meals): Meal Intelligence architecture finalized — certification standard + implementation roadmap (pre-implementation milestone)
 
 **Final documentation milestone before Meal Intelligence implementation begins.** Polished the governing architecture for internal consistency, reinforced the accepted refinements, and added the two companion documents that make the domain implementation-ready. No production code, migrations, or application behavior changed — documentation only.

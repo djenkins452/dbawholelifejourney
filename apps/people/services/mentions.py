@@ -112,17 +112,19 @@ _PROTECT_RE = re.compile(
 _TAG_SPLIT_RE = re.compile(r'(<[^>]+>)')
 
 
-def _person_surfaces(person):
-    """The canonical-cased surface strings for a person — first/full/display name plus
-    custom recognition phrases. The SAME forms used both to match a name in prose and to
-    normalize a chip's capitalization back to how the Person is actually recorded."""
+def person_surfaces(person):
+    """The canonical-cased surface strings for a person — first name, full name, display
+    name, then custom recognition phrases (deduped, order preserved). The SAME forms used
+    to match a name in prose, to normalize a chip's capitalization, and (in the picker
+    API) to choose the display label for an explicit @mention selection."""
     out = []
     for s in (person.first_name, person.last_name and person.full_name, person.display_name):
-        if s and s.strip():
+        if s and s.strip() and s.strip() not in out:
             out.append(s.strip())
     for rp in person.recognition_phrases.all():
-        if rp.phrase and rp.phrase.strip():
-            out.append(rp.phrase.strip())
+        phrase = (rp.phrase or "").strip()
+        if phrase and phrase not in out:
+            out.append(phrase)
     return out
 
 
@@ -133,7 +135,7 @@ def _member_surfaces(user):
     member_ids = {p.pk for p in members}
     surfaces = set()
     for p in members:
-        for s in _person_surfaces(p):
+        for s in person_surfaces(p):
             surfaces.add(s)
     # Compact/@handle derived forms are for typed lookup, not prose — skip them.
     surfaces = {s for s in surfaces if s and not s.isspace()}
@@ -164,7 +166,7 @@ def normalize_mention_case(user, html):
     def surfaces_for(pid):
         if pid not in surfaces_by_pid:
             p = Person.objects.filter(user=user, pk=pid).first()
-            surfaces_by_pid[pid] = _person_surfaces(p) if p else []
+            surfaces_by_pid[pid] = person_surfaces(p) if p else []
         return surfaces_by_pid[pid]
 
     def _repl(m):

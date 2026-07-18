@@ -120,16 +120,36 @@
   // Canonical @mention suggestion. Items resolve through the ONE canonical lookup
   // (/people/api/lookup, members only) — never a legacy Person store, never a second
   // resolver. Selecting inserts a mention node carrying the canonical people.Person id.
+  // Choose the visible chip label for an EXPLICIT selection. The typed query only
+  // identifies the suggestion; the SELECTED canonical person determines the label. We
+  // pick the smallest canonical surface the query fully corresponds to (is a prefix of) —
+  // first-name query -> first name, surname-bearing query -> full/display name, alias
+  // query -> the confirmed phrase — so a partial fragment like "hea" is never saved.
+  function chooseMentionLabel(query, item) {
+    var q = (query || '').trim();
+    if (!q) return item.label;                       // nothing meaningful typed
+    var ql = q.toLowerCase();
+    var matches = (item.surfaces || []).filter(function (s) {
+      return s && s.toLowerCase().indexOf(ql) === 0; // query is a prefix of this surface
+    });
+    if (matches.length) {
+      matches.sort(function (a, b) { return a.length - b.length; });
+      return matches[0];                             // smallest fully-corresponding surface
+    }
+    return item.label;                               // ambiguous/unsupported -> display name
+  }
+
   function buildMentionSuggestion() {
     return {
       char: '@',
+      allowSpaces: true,   // let a full-name query ("@heather j") stay one suggestion
       items: function (props) {
         var query = props.query || '';
         return fetch('/people/api/lookup/?members=1&q=' + encodeURIComponent(query))
           .then(function (r) { return r.json(); })
           .then(function (data) {
             return (data.results || []).slice(0, 8).map(function (p) {
-              return { id: String(p.id), label: p.display_name };
+              return { id: String(p.id), label: p.display_name, surfaces: p.surfaces || [] };
             });
           })
           .catch(function () { return []; });
@@ -156,14 +176,10 @@
         }
         function pick(i) {
           var it = items[i];
-          // Preserve the author's wording: the visible chip shows exactly what they typed
-          // after "@" (the query), NOT the person's full display name — so an explicit
-          // mention and a passive one render identically ("Heather"), differing only in
-          // stored provenance. The canonical Person is carried by the id, not the text.
-          // Fall back to the display name only if nothing meaningful was typed.
+          // The selected canonical person determines the label (a canonical surface),
+          // never the raw search fragment. The id still carries the canonical identity.
           if (it && command) {
-            var typed = (query || '').trim();
-            command({ id: it.id, label: typed || it.label });
+            command({ id: it.id, label: chooseMentionLabel(query, it) });
           }
         }
         return {

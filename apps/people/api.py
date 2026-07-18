@@ -12,6 +12,7 @@ from django.http import JsonResponse
 from .models import Person
 from .normalization import normalize_name
 from .services import resolution
+from .services.mentions import person_surfaces
 
 
 def _person_json(p):
@@ -22,6 +23,10 @@ def _person_json(p):
         "last_name": p.last_name,
         "is_self": p.is_self,
         "is_deceased": p.is_deceased,
+        # Canonical display surfaces (first / full / display name + confirmed custom
+        # phrases). The @mention picker chooses the label from these — never the raw typed
+        # query — so an explicit selection can never save a partial search fragment.
+        "surfaces": person_surfaces(p),
     }
 
 
@@ -36,9 +41,11 @@ def lookup(request):
     if request.GET.get("members") in ("1", "true", "yes"):
         people = people.filter(membership__isnull=False)
     if q:
+        # Match any canonical surface — name OR a confirmed custom phrase — so "@hon"
+        # surfaces the person whose alias is "Honey", not just name matches.
         people = [
             p for p in people
-            if q in normalize_name(p.display_name) or q in normalize_name(p.full_name)
+            if any(q in normalize_name(s) for s in person_surfaces(p))
         ]
     else:
         people = list(people[:20])

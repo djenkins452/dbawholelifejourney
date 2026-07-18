@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(cos): first LIVE Customer Truth Certification slice executed (Weight/Medication/Nutrition) — 10/15, every failure attributed
+
+**The architecture proved end-to-end.** Ran the 15 milestone questions through the REAL production pipeline — `CoSGateway.respond(stream=False)` → `model_interface` runtime → live OpenAI tool loop → `DomainTruth` → structured evidence → grounded answer — against DETERMINISTIC fixtures (not prod records). Report: `docs/WLJ_CUSTOMER_TRUTH_CERT_SLICE1.md`.
+
+- **Result: 10/15 PASS.** Correct end-to-end: weight-yesterday, highest-this-month, med list/active/dosage/history, meals today/yesterday, have-eaten-pizza. **Zero failures were "missing deterministic truth"** — the Owner-1 slice floor held; every failure is model tool-selection or a test-env artifact.
+- **Prove-before-editing saved a wrong fix.** The 3 weight failures (`what do I weigh / latest / comparison`) showed `get_foundational_health_facts` returning 185 (oldest). Traced it: the SAE `weight_current` builder is CORRECT (`-recorded_at` DESC → 180); the 185 was a **STALE snapshot** because the worker-less test env never ran the deferred rebuild — **forced `rebuild_user_state` → 180**. So NOT a production bug; **no code changed.** First failing layer = evidence-delivery (stale SAE, test-env). Real follow-on observation: `current_weight` (SAE, can be stale) vs `weight_yesterday` (live) are two current-weight paths that can disagree.
+- **Other failures attributed (not patched, per 'fix only the deterministic first layer'):** nutrition latest-meal + last-pizza = model **tool-selection** (chose `get_foundational_health_facts` date-only fact / erroring `search_history` over `get_entity`); med last-taken = weak pass (audit-flagged truth gap, no last-taken surface). `search_history` erroring on nutrition = a real secondary deterministic defect (follow-on).
+- **Next priorities FROM EVIDENCE:** (1) re-run the slice in PRODUCTION (fresh worker) to confirm #1/#3/#5 pass; (2) close measured in-slice gaps (current-weight consistency, search_history error, last-taken surface); (3) only THEN certify a new domain — this run measured no impact for Goals/People/Body-Measurements, so prioritizing them now would be assumption (which the milestone forbids).
+- **No production code, migration, or committed test changed** (the live-run harness was a throwaway that makes real OpenAI calls — run then deleted, never committed). Docs only.
+
+**Success criteria met:** live slice executed (1); structured evidence per question (2); first-failing-layer per failure (3); diagnosed without guesswork incl. proving a suspected bug was a test artifact (4); next priorities from evidence (5).
+
 ## 2026-07-18 — fix(health): dev comment rendered as visible text atop Body Intelligence — eliminate the multi-line `{# #}` class
 
 **Symptom (production):** The Body Intelligence page rendered a raw developer note as visible body text between the page subtitle and the assessment card:

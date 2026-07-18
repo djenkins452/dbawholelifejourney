@@ -113,7 +113,7 @@ def entity_capable_domains():
     return sorted(entity_capability_index().keys())
 
 
-def get_domain_entity(user, domain, *, entity_type=None, name=None):
+def get_domain_entity(user, domain, *, entity_type=None, name=None, filters=None):
     """
     Return canonical ENTITY (record-level) truth for `domain` as a JSON-safe envelope.
     Delegates to `DomainTruth(user, domain).describe(entity_type)` (a list) or
@@ -232,7 +232,16 @@ def get_domain_entity(user, domain, *, entity_type=None, name=None):
             supported_entity_types=sorted(supported),
         )
     try:
-        entities = truth.describe(type_norm)
+        # Optional deterministic SCOPING (meal/period/on_date/involves/contains). Passed
+        # through to providers that accept it; providers that don't simply ignore it
+        # (TypeError → unscoped call), so this stays backward-compatible.
+        if filters:
+            try:
+                entities = truth.describe(type_norm, filters=filters)
+            except TypeError:
+                entities = truth.describe(type_norm)
+        else:
+            entities = truth.describe(type_norm)
     except (KeyError, NotImplementedError) as exc:
         # Advertised in entity_types but describe() does not resolve it — a
         # provider-contract gap, not a runtime error. Honest "unsupported".

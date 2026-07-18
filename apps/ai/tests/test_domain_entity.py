@@ -75,8 +75,24 @@ class DomainEntityServiceTests(TestCase):
 
     # --- name lookup on a provider without describe_one → honest unsupported ---
     def test_name_lookup_without_describe_one_is_unsupported(self):
-        r = get_domain_entity(self.user, "legacy", name="Grandpa Joe")
-        self.assertEqual(r["status"], "unsupported")
+        # A domain that lists entity_types but implements no describe_one → "unsupported"
+        # name lookup. Uses a synthetic provider so the test does not depend on a real
+        # domain lacking the capability (legacy/goals/etc. now implement describe_one).
+        from apps.core.truth.domain import DomainTruth, _REGISTRY
+
+        class _NoLookupTruth(DomainTruth):
+            domain = "_cert_no_lookup"
+            entity_types = ("thing",)
+
+            def describe(self, entity_type="thing", filters=None):
+                return []
+
+        _REGISTRY[_NoLookupTruth.domain] = _NoLookupTruth
+        try:
+            r = get_domain_entity(self.user, "_cert_no_lookup", name="Grandpa Joe")
+            self.assertEqual(r["status"], "unsupported")
+        finally:
+            _REGISTRY.pop(_NoLookupTruth.domain, None)
 
 
 class EntityCatalogTests(TestCase):

@@ -397,6 +397,7 @@ class ModelInterfaceService:
                 raw = get_domain_entity(
                     user, args.get("domain", ""),
                     entity_type=args.get("entity_type"), name=args.get("name"),
+                    filters=args.get("filters"),
                 )
                 out = _wrap_truth(
                     raw,

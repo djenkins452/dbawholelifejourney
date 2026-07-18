@@ -108,12 +108,49 @@ class JournalQueries:
     _DESCRIBE_LIMIT = 10
 
     @classmethod
-    def describe(cls, user, *, since_days=30, limit=None):
-        """Recent journal entries, each a `CompleteEntity` (bounded, newest-first)."""
+    def describe(cls, user, *, since_days=30, limit=None,
+                 period=None, start=None, end=None):
+        """Journal entries, each a `CompleteEntity`. Deterministic scoping: a `period`
+        (or start/end) returns the FULL set for that window ('what have I written this
+        week/month') from JOURNAL truth only; unscoped stays a recent bounded browse."""
+        if period or start or end:
+            from apps.core.truth.periods import resolve_period
+            from apps.core.utils import get_user_today
+            p = resolve_period(period or "custom", get_user_today(user),
+                               start=start, end=end)
+            qs = (JournalEntry.objects.filter(
+                    user=user, entry_date__range=(p.start, p.end))
+                  .prefetch_related("emotions", "tags", "categories")
+                  .order_by("-entry_date"))
+            return [cls._to_entity(e) for e in qs]
         qs = (cls.recent(user, days=since_days)
               .prefetch_related("emotions", "tags", "categories")
               [: (limit or cls._DESCRIBE_LIMIT)])
         return [cls._to_entity(e) for e in qs]
+
+    @classmethod
+    def theme_counts(cls, user, period="this_month", *, today=None,
+                     start=None, end=None):
+        """Deterministic tag + emotion frequency over a window — answers 'what topics
+        have I written about' and 'what concerns have I repeated' (repeated = count>1),
+        grounded in JOURNAL truth only. Returns {'tags': {name: n}, 'emotions': {name: n}}."""
+        from apps.core.truth.periods import resolve_period
+        if today is None:
+            from apps.core.utils import get_user_today
+            today = get_user_today(user)
+        p = resolve_period(period, today, start=start, end=end)
+        entries = (JournalEntry.objects
+                   .filter(user=user, entry_date__range=(p.start, p.end))
+                   .prefetch_related("tags", "emotions"))
+        tags, emotions = {}, {}
+        for e in entries:
+            for t in e.tags.all():
+                tags[t.name] = tags.get(t.name, 0) + 1
+            for em in e.emotions.all():
+                emotions[em.name] = emotions.get(em.name, 0) + 1
+        srt = lambda d: dict(sorted(d.items(), key=lambda kv: -kv[1]))
+        return {"tags": srt(tags), "emotions": srt(emotions),
+                "repeated": [k for k, v in {**tags, **emotions}.items() if v > 1]}
 
     @classmethod
     def describe_one(cls, user, name):

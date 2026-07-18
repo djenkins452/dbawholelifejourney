@@ -583,6 +583,16 @@ def truth_tools():
                 "name": {"type": "string",
                          "description": ("Fetch ONE entity by name instead of listing "
                                          "(optional; takes precedence over entity_type).")},
+                "filters": {"type": "object", "description": (
+                    "Optional DETERMINISTIC scoping of the listed records — so the answer "
+                    "is WLJ truth, not your own filtering. Keys (all optional): "
+                    "'meal' (nutrition: breakfast|lunch|dinner|snack), 'period' (a named "
+                    "period like this_week|this_month|last_week) OR 'start'+'end' ISO dates, "
+                    "'on_date' (calendar: events that day, e.g. 'last Tuesday'), 'involves' "
+                    "(legacy: a person's name → memories they appear in), 'contains' "
+                    "(nutrition: a food-name substring → matches, whose COUNT answers 'how "
+                    "often have I eaten X'). Example: {\"entity_type\":\"food\",\"filters\":"
+                    "{\"meal\":\"lunch\",\"period\":\"this_week\"}} = every lunch this week.")},
             }, "required": ["domain"]}}},
         {"type": "function", "function": {
             "name": "get_analysis",

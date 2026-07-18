@@ -7,7 +7,7 @@ Each builder seeds a KNOWN user state at explicit USER-LOCAL dates and returns
 month boundaries can never make a test flaky). The SAME fixtures back both the
 deterministic Layer-1 tests and — via the shared QuestionSpec — the Customer Truth run.
 """
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -164,17 +164,22 @@ def build_body_measurements_fixture(email="cert_body@example.com"):
 def build_journal_fixture(email="cert_journal@example.com"):
     """Journal entries with moods across the last week (mood history) + a titled
     entry yesterday (entity lookup by date)."""
-    from apps.journal.models import JournalEntry
+    from apps.journal.models import Emotion, JournalEntry
     u = _mk_user(email)
     today = get_user_today(u)
+    anxious, _ = Emotion.objects.get_or_create(
+        slug="anxious", defaults={"name": "anxious", "emoji": "\U0001F630"})
     rows = [(0, "great", "Grateful morning"), (1, "good", "Steady day"),
             (3, "okay", "A bit tired"), (5, "low", "Rough patch")]
     for off, mood, title in rows:
-        JournalEntry.objects.create(
+        e = JournalEntry.objects.create(
             user=u, entry_date=today - timedelta(days=off), mood=mood,
             title=title, body=f"<p>{title}.</p>")
+        if off in (1, 3):            # repeated concern across two entries
+            e.emotions.add(anxious)
     return u, {"range_start": today - timedelta(days=5),
               "range_end": today - timedelta(days=1),
+              "week_start": today - timedelta(days=6), "week_end": today,
               "yesterday": (today - timedelta(days=1)).isoformat()}
 
 
@@ -190,16 +195,26 @@ def build_faith_fixture(email="cert_faith@example.com"):
 
 
 def build_relationships_fixture(email="cert_rel@example.com"):
-    """relationships.Person rows — Heather (recent contact) + others."""
-    from apps.relationships.models import Person
+    """relationships.Person rows — Heather (recent contact + interaction log) + others,
+    plus an upcoming birthday (SignificantEvent)."""
+    from apps.relationships.models import Person, RelationshipInteraction
+    from apps.life.models import SignificantEvent
     u = _mk_user(email)
     today = get_user_today(u)
     heather_last = today - timedelta(days=3)
-    Person.objects.create(owner=u, first_name="Heather", last_name="Jones",
-                          relationship_type="friend", interaction_count=12,
-                          last_interaction_date=heather_last, notes="College friend.")
+    heather = Person.objects.create(
+        owner=u, first_name="Heather", last_name="Jones", relationship_type="friend",
+        interaction_count=12, last_interaction_date=heather_last, notes="College friend.")
     Person.objects.create(owner=u, first_name="Marcus", relationship_type="colleague",
                           interaction_count=4, last_interaction_date=today - timedelta(days=40))
+    for off, ctx in [(3, "manual"), (10, "meal"), (20, "task")]:
+        RelationshipInteraction.objects.create(
+            person=heather, user=u, context_type_label=ctx,
+            interaction_date=today - timedelta(days=off))
+    bday = today + timedelta(days=5)
+    SignificantEvent.objects.create(
+        user=u, title="Heather's Birthday", event_type="birthday",
+        event_date=datetime(1985, bday.month, bday.day).date(), person_name="Heather")
     return u, {"heather": "Heather", "heather_last": heather_last.isoformat()}
 
 
@@ -222,7 +237,8 @@ def build_calendar_fixture(email="cert_cal@example.com"):
     _ev("Past meeting A", -2)
     _ev("Past meeting B", -4)
     return u, {"range_start": today - timedelta(days=5),
-              "range_end": today, "event_name": "Dentist"}
+              "range_end": today, "event_name": "Dentist",
+              "past_date": (today - timedelta(days=2)).isoformat()}
 
 
 def build_tasks_fixture(email="cert_tasks@example.com"):
@@ -281,14 +297,46 @@ def build_legacy_fixture(email="cert_legacy@example.com"):
                           relationship_label="grandmother", significance=4)
     Place.objects.create(user=u, name="The Farmhouse",
                          location_text="Iowa", significance=5)
-    Memory.objects.create(user=u, title="Summers at the farm",
-                          entry_type="MEMORY", entry_state="legacy")
-    return u, {"person": "Harold Keck", "place": "Farmhouse"}
+    harold = Person.objects.get(user=u, display_name="Harold Keck")
+    m = Memory.objects.create(user=u, title="Summers at the farm",
+                              entry_type="MEMORY", entry_state="legacy",
+                              occurred_on=date(1930, 6, 1), occurred_precision="year")
+    m.people.add(harold)
+    m2 = Memory.objects.create(user=u, title="Learning to fish",
+                               entry_type="MEMORY", entry_state="legacy",
+                               occurred_on=date(1935, 7, 1), occurred_precision="year")
+    m2.people.add(harold)
+    return u, {"person": "Harold Keck", "place": "Farmhouse", "involves": "Harold"}
+
+
+def build_nutrition_scoped_fixture(email="cert_nut_scoped@example.com"):
+    """Meals across this week for scoped retrieval — every-lunch/breakfast/dinner,
+    fast-food occurrences (count), and a lasagna (last-eaten). Separate from the
+    macro-average fixture so those exact averages are undisturbed."""
+    from apps.health.models import FoodEntry
+    u = _mk_user(email)
+    today = get_user_today(u)
+    B, L, D = (FoodEntry.MEAL_BREAKFAST, FoodEntry.MEAL_LUNCH, FoodEntry.MEAL_DINNER)
+    # (name, meal, day-offset)
+    rows = [
+        ("Oatmeal", B, 0), ("Eggs", B, 2), ("Toast", B, 4),          # 3 breakfasts
+        ("Caesar Salad", L, 1), ("Turkey Wrap", L, 3),                # 2 lunches
+        ("Grilled Salmon", D, 0), ("Lasagna", D, 2),                  # dinners
+        ("McDonald's Big Mac", L, 1), ("McDonald's Fries", L, 5),     # 2 fast food
+    ]
+    for name, meal, off in rows:
+        FoodEntry.objects.create(
+            user=u, food_name=name, quantity=Decimal("1"), serving_size=Decimal("1"),
+            serving_unit="serving", meal_type=meal, logged_date=today - timedelta(days=off),
+            logged_time=time(12, 0), status="active", total_calories=Decimal("400"))
+    return u, {"week_start": today - timedelta(days=6), "week_end": today,
+              "pizza_or_last": "Lasagna", "fast_food": "McDonald", "fast_food_count": 2}
 
 
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
+    "nutrition_scoped": build_nutrition_scoped_fixture,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,

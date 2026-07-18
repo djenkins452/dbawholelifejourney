@@ -22,7 +22,7 @@ def _absent(domain, metric, reason="no recent data"):
 @register_domain_truth
 class JournalDomainTruth(DomainTruth):
     domain = "journal"
-    current_metrics = ("days_since_entry", "last_entry")
+    current_metrics = ("days_since_entry", "last_entry", "themes")
     history_metrics = ("mood",)
     # Record-level truth: journal entries (title, body, MOOD, emotions, tags). Additive —
     # `describe()` delegates to the canonical JournalQueries authority (no new store).
@@ -32,6 +32,13 @@ class JournalDomainTruth(DomainTruth):
     entity_types = ("entry",)
 
     def current(self, metric):
+        if metric == "themes":
+            from apps.journal.services.journal_queries import JournalQueries
+            tc = JournalQueries.theme_counts(self.user)
+            if not (tc["tags"] or tc["emotions"]):
+                return _absent(self.domain, metric, "no journal themes yet")
+            return CurrentTruth.found(self.domain, metric, tc["repeated"], F.CURRENT,
+                                      source="journal", detail=tc)
         st = self.state()
         if metric == "days_since_entry":
             v = st.get("days_since_entry")
@@ -43,14 +50,17 @@ class JournalDomainTruth(DomainTruth):
                 _absent(self.domain, metric, "no journal entries")
         return _absent(self.domain, metric, "unsupported metric")
 
-    def describe(self, entity_type="entry"):
-        """Recent journal entries as CompleteEntity objects — answers "what did I write
-        about", "what was my mood", "what emotions/tags". entity_type ∈ entry."""
+    def describe(self, entity_type="entry", filters=None):
+        """Journal entries as CompleteEntity objects — "what did I write about", "what
+        was my mood/emotions/tags". A `filters={period|start,end}` scopes to a window
+        ('what have I written this week'). entity_type ∈ entry. JOURNAL truth only."""
         if entity_type not in (None, "entry"):
             raise KeyError(f"journal domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
         from apps.journal.services.journal_queries import JournalQueries
-        return JournalQueries.describe(self.user)
+        f = filters or {}
+        return JournalQueries.describe(self.user, period=f.get("period"),
+                                       start=f.get("start"), end=f.get("end"))
 
     def describe_one(self, name):
         """The journal entry matching `name` (a date or title), or None."""
@@ -118,12 +128,29 @@ class CalendarDomainTruth(DomainTruth):
         return series_from_rows("calendar", metric, p,
             [{"date": r["d"], "value": r["v"]} for r in rows], unit="events")
 
-    def describe(self, entity_type="event"):
-        """Recent + upcoming events as CompleteEntity objects — 'what do I have
-        today/tomorrow', 'meetings coming up', 'appointments recently completed'."""
+    def describe(self, entity_type="event", filters=None):
+        """Events as CompleteEntity objects. Deterministic scoping via filters:
+          * on_date (ISO) — events that day ('what did I have last Tuesday').
+          * period / start+end — events in a window.
+        Unscoped: recent past + upcoming ('meetings coming up', 'recently completed')."""
         if entity_type not in (None, "event"):
             raise KeyError(f"calendar domain cannot describe {entity_type!r}")
+        from datetime import date as _date
         from apps.calendar_engine.services.calendar_queries import CalendarQueries
+        f = filters or {}
+        if f.get("on_date"):
+            d = f["on_date"]
+            if isinstance(d, str):
+                d = _date.fromisoformat(d[:10])
+            return [self._event_entity(ev)
+                    for ev in CalendarQueries.events_on_date(self.user, d)]
+        if f.get("start") or f.get("end") or f.get("period"):
+            from apps.core.truth.periods import resolve_period
+            from apps.core.utils import get_user_today
+            p = resolve_period(f.get("period") or "custom", get_user_today(self.user),
+                               start=f.get("start"), end=f.get("end"))
+            return [self._event_entity(ev)
+                    for ev in CalendarQueries.events_in_range(self.user, p.start, p.end)]
         seen, out = set(), []
         for ev in (list(CalendarQueries.past(self.user, lookback_days=7))
                    + list(CalendarQueries.upcoming(self.user, horizon_days=14))):
@@ -261,11 +288,21 @@ class TaskDomainTruth(DomainTruth):
 @register_domain_truth
 class FaithDomainTruth(DomainTruth):
     domain = "faith"
-    current_metrics = ("reading_streak", "days_since_reading", "unanswered_prayers")
+    current_metrics = ("reading_streak", "days_since_reading", "unanswered_prayers",
+                       "studying")
     history_metrics = ("reading",)
     entity_types = ("prayer",)
 
     def current(self, metric):
+        if metric == "studying":
+            from apps.faith.services.faith_queries import FaithQueries
+            plans = list(FaithQueries.active_reading_plans(self.user))
+            if not plans:
+                return _absent(self.domain, metric, "no active reading plan")
+            names = [getattr(getattr(pl, "template", None), "name", None) or str(pl)
+                     for pl in plans]
+            return CurrentTruth.found(self.domain, metric, names[0], F.CURRENT,
+                                      source="faith", detail={"plans": names})
         st = self.state()
         v = st.get(metric)
         if v is None:
@@ -297,7 +334,8 @@ class FaithDomainTruth(DomainTruth):
 @register_domain_truth
 class RelationshipDomainTruth(DomainTruth):
     domain = "relationships"
-    current_metrics = ("neglected_count", "birthdays_today", "upcoming_birthdays")
+    current_metrics = ("neglected_count", "birthdays_today", "upcoming_birthdays",
+                       "most_connected")
     # Record-level truth over the REAL relationships.Person (interaction analytics live
     # there). Answers "tell me about Heather", "when did I last spend time with Heather",
     # "most important people" (by interaction volume), "who have I not connected with".
@@ -317,6 +355,19 @@ class RelationshipDomainTruth(DomainTruth):
             return _found(self.domain, metric, n)
         if metric == "upcoming_birthdays":
             return self._upcoming_birthdays()
+        if metric == "most_connected":
+            from apps.relationships.services import RelationshipAnalyticsService as R
+            people = list(R.top_interacted(self.user, limit=5))
+            if not people:
+                return _absent(self.domain, metric, "no people yet")
+            return CurrentTruth.found(
+                self.domain, metric, [p.get_display_name() for p in people],
+                F.CURRENT, source="relationships",
+                detail={"people": [
+                    {"name": p.get_display_name(),
+                     "interaction_count": p.interaction_count,
+                     "last_contact": p.last_interaction_date.isoformat()
+                     if p.last_interaction_date else None} for p in people]})
         return _absent(self.domain, metric, "unsupported metric")
 
     def _upcoming_birthdays(self, within_days=14):
@@ -360,10 +411,18 @@ class RelationshipDomainTruth(DomainTruth):
 
     def _person_entity(self, p):
         from apps.core.truth.entity import CompleteEntity
+        from apps.relationships.models import RelationshipInteraction
         from apps.relationships.services import RelationshipAnalyticsService as R
         last = p.last_interaction_date
         days_since = R.days_since_last_interaction(p)
         rtype = (p.relationship_type or "").strip()
+        # Recent interaction log → "what have Heather and I been working on / doing".
+        recent = list(RelationshipInteraction.objects.filter(person=p)
+                      .order_by("-interaction_date")[:10])
+        interactions = [{"date": i.interaction_date.isoformat(),
+                         "context": i.get_context_type_label_display()
+                         if hasattr(i, "get_context_type_label_display")
+                         else i.context_type_label} for i in recent]
         definition = {
             "name": p.get_display_name(),
             "relationship_type": p.get_relationship_type_display() if rtype else None,
@@ -378,6 +437,7 @@ class RelationshipDomainTruth(DomainTruth):
             definition={k: v for k, v in definition.items() if v is not None},
             status=("neglected" if days_since is not None and days_since > 30
                     else ("never_contacted" if last is None else "active")),
+            standing={"recent_interactions": interactions},
             performance={"interaction_count": p.interaction_count,
                          "days_since_contact": days_since},
             freshness=F.CURRENT,
@@ -406,12 +466,15 @@ class NutritionDomainTruth(DomainTruth):
         from apps.health.services.nutrition_queries import NutritionQueries
         return NutritionQueries.macro_series(self.user, metric, period, **kwargs)
 
-    def describe(self, entity_type="food"):
+    def describe(self, entity_type="food", filters=None):
         if entity_type not in (None, "food"):
             raise KeyError(f"nutrition domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
         from apps.health.services.nutrition_queries import NutritionQueries
-        return NutritionQueries.describe(self.user)
+        f = filters or {}
+        return NutritionQueries.describe(
+            self.user, meal=f.get("meal"), period=f.get("period"),
+            start=f.get("start"), end=f.get("end"), contains=f.get("contains"))
 
     def describe_one(self, name):
         from apps.health.services.nutrition_queries import NutritionQueries

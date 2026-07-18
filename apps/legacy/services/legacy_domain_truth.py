@@ -46,10 +46,10 @@ class LegacyDomainTruth(DomainTruth):
         )
 
     # ── Canonical entities (the Entity Completeness contract) ──────────
-    def describe(self, entity_type: str = None) -> List[CompleteEntity]:
+    def describe(self, entity_type: str = None, filters=None) -> List[CompleteEntity]:
         et = entity_type or "memory"
         if et == "memory":
-            return self._describe_memories()
+            return self._describe_memories(filters or {})
         if et == "person":
             return self._describe_people()
         if et == "place":
@@ -82,11 +82,21 @@ class LegacyDomainTruth(DomainTruth):
              .order_by("-created_at").first())
         return self._memory_entity(m) if m else None
 
-    def _describe_memories(self) -> List[CompleteEntity]:
+    def _describe_memories(self, filters=None) -> List[CompleteEntity]:
         from apps.legacy.models import Memory
+        filters = filters or {}
         qs = (Memory.objects.filter(user=self.user)
               .prefetch_related("people", "places", "media").order_by("-created_at"))
-        return [self._memory_entity(m) for m in qs]
+        # Deterministic scoping (truth, not model inference):
+        #   involves — person name → memories that person appears in ("memories with X")
+        #   occurred_from / occurred_to — year bounds ("childhood memories")
+        if filters.get("involves"):
+            qs = qs.filter(people__display_name__icontains=filters["involves"])
+        if filters.get("occurred_from"):
+            qs = qs.filter(occurred_on__year__gte=int(filters["occurred_from"]))
+        if filters.get("occurred_to"):
+            qs = qs.filter(occurred_on__year__lte=int(filters["occurred_to"]))
+        return [self._memory_entity(m) for m in qs.distinct()]
 
     def _describe_people(self) -> List[CompleteEntity]:
         from apps.legacy.models import Person
@@ -126,6 +136,7 @@ class LegacyDomainTruth(DomainTruth):
         )
 
     def _person_entity(self, p) -> CompleteEntity:
+        mems = list(p.memories.all()[:25])
         return CompleteEntity(
             kind="person",
             identity=p.display_name,
@@ -135,7 +146,8 @@ class LegacyDomainTruth(DomainTruth):
                 "birth_year": p.birth_year,
                 "death_year": p.death_year,
             },
-            standing={"memory_count": p.memories.count()},
+            standing={"memory_count": p.memories.count(),
+                      "memories": [m.title or "(untitled)" for m in mems]},
             extensions={"significance": p.significance},
         )
 

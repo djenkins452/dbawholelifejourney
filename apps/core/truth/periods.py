@@ -32,14 +32,28 @@ def _quarter_start(d):
     return date(d.year, ((d.month - 1) // 3) * 3 + 1, 1)
 
 
+def _coerce_date(d):
+    """Accept a date, datetime, or ISO 'YYYY-MM-DD' string (None passes through).
+    Callers reaching this via model-supplied JSON filters send ISO strings; callers
+    from Python send dates. Both must resolve identically."""
+    from datetime import date as _date, datetime as _dt
+    if d is None or (isinstance(d, _date) and not isinstance(d, _dt)):
+        return d
+    if isinstance(d, _dt):
+        return d.date()
+    return _dt.strptime(str(d)[:10], "%Y-%m-%d").date()
+
+
 def resolve_period(name, today, *, start=None, end=None):
     """Return a `Period` for a named period (or a custom range when name=='custom').
 
     Args:
         name: one of NAMED_PERIODS or "custom".
         today: the user's local today (date).
-        start, end: required when name == "custom" (inclusive).
+        start, end: required when name == "custom" (inclusive). Accepts date or
+            ISO 'YYYY-MM-DD' string (model-supplied filters arrive as strings).
     """
+    start, end = _coerce_date(start), _coerce_date(end)
     if name == "custom":
         if not (start and end):
             raise ValueError("custom period requires start and end")

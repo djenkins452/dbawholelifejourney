@@ -23,7 +23,7 @@ def _today(user):
 class GoalDomainTruth(DomainTruth):
     domain = "goals"
     current_metrics = ("active_goals", "primary_mission", "completion_rate",
-                       "milestones_overdue")
+                       "milestones_overdue", "milestones_completed")
     history_metrics = ("progress", "momentum")
     entity_types = ("goal", "milestone")
     analysis_subjects = {
@@ -88,6 +88,17 @@ class GoalDomainTruth(DomainTruth):
                                         "days_overdue": -(m.days_until_due or 0)}
                                        for m in overdue]})
 
+        if metric == "milestones_completed":
+            done = list(GoalQueries.completed_milestones(self.user)
+                        .select_related("goal").order_by("-completed_date"))
+            return CurrentTruth.found(
+                _DOMAIN, metric, len(done),
+                CURRENT if done else MISSING, source="goal_queries",
+                detail={"milestones": [
+                    {"goal": m.goal.title, "title": m.title,
+                     "completed_date": m.completed_date.isoformat()
+                     if m.completed_date else None} for m in done]})
+
         raise KeyError(f"goals current unsupported: {metric!r} "
                        f"(have {self.current_metrics})")
 
@@ -149,6 +160,20 @@ class GoalDomainTruth(DomainTruth):
         ms = list(g.milestones.all())
         done = [m for m in ms if m.completed]
         nxt = g.next_milestone
+        # Latest momentum snapshot → what has improved / still needs work (deterministic
+        # facts the model reasons over; no verdict invented here).
+        snap = g.momentum_snapshots.first() if hasattr(g, "momentum_snapshots") else None
+        perf = {"progress_percent": g.milestone_progress_percent,
+                "completed_date": g.completed_date.isoformat()
+                if g.completed_date else None}
+        if snap is not None:
+            drivers = snap.drivers if isinstance(snap.drivers, dict) else {}
+            perf.update({
+                "momentum_score": snap.momentum_score,
+                "momentum_trend": snap.momentum_trend,
+                "improved": drivers.get("success_drivers") or drivers.get("improved"),
+                "needs_work": drivers.get("risk_drivers") or drivers.get("needs_work"),
+                "as_of": snap.snapshot_date.isoformat()})
         return CompleteEntity(
             kind="goal", identity=g.title, status=g.status,
             definition={"why_it_matters": (g.why_it_matters_plain or "").strip(),
@@ -163,9 +188,7 @@ class GoalDomainTruth(DomainTruth):
                       "milestone_count": len(ms),
                       "completed_milestones": len(done),
                       "overdue_milestones": [m.title for m in g.overdue_milestones]},
-            performance={"progress_percent": g.milestone_progress_percent,
-                         "completed_date": g.completed_date.isoformat()
-                         if g.completed_date else None})
+            performance=perf)
 
     def _milestone_entity(self, m):
         return CompleteEntity(

@@ -315,6 +315,80 @@ SLICE_SPECS = [
                  "What places have special meaning to me?", "entity",
                  {"entity_type": "place"}, {"kind": "entities_min", "n": 1},
                  "legacy", provider="legacy"),
+
+    # ---- NUTRITION — scoped retrieval (deterministic, not model inference) ---------
+    QuestionSpec("nutrition.lunch_this_week", "nutrition", LIST,
+                 "Show every lunch this week.", "entity",
+                 {"entity_type": "food",
+                  "filters": {"meal": "lunch", "period": "custom",
+                              "start": "@week_start", "end": "@week_end"}},
+                 {"kind": "entities_min", "n": 2}, "nutrition_scoped", provider="nutrition"),
+    QuestionSpec("nutrition.breakfast_this_week", "nutrition", LIST,
+                 "Show every breakfast this week.", "entity",
+                 {"entity_type": "food",
+                  "filters": {"meal": "breakfast", "period": "custom",
+                              "start": "@week_start", "end": "@week_end"}},
+                 {"kind": "entities_min", "n": 3}, "nutrition_scoped", provider="nutrition"),
+    QuestionSpec("nutrition.dinner_this_week", "nutrition", LIST,
+                 "Show every dinner this month.", "entity",
+                 {"entity_type": "food",
+                  "filters": {"meal": "dinner", "period": "custom",
+                              "start": "@week_start", "end": "@week_end"}},
+                 {"kind": "entities_min", "n": 2}, "nutrition_scoped", provider="nutrition"),
+    QuestionSpec("nutrition.fast_food_count", "nutrition", COUNT,
+                 "How often have I eaten fast food?", "entity",
+                 {"entity_type": "food",
+                  "filters": {"contains": "@fast_food", "period": "custom",
+                              "start": "@week_start", "end": "@week_end"}},
+                 {"kind": "entities_count_equals", "n": 2}, "nutrition_scoped",
+                 provider="nutrition"),
+    QuestionSpec("nutrition.last_lasagna", "nutrition", EXISTENCE,
+                 "When did I last eat lasagna?", "entity_one",
+                 {"name": "@pizza_or_last"}, {"kind": "entity_found"},
+                 "nutrition_scoped", provider="nutrition"),
+
+    # ---- PEOPLE — most important + upcoming birthday ------------------------------
+    QuestionSpec("rel.most_connected", "relationships", LIST,
+                 "Who are the most important people in my life?", "current",
+                 {"metric": "most_connected"}, {"kind": "present"},
+                 "relationships", provider="relationships"),
+    QuestionSpec("rel.upcoming_birthday", "relationships", CURRENT_FACT,
+                 "Whose birthday is coming up?", "current",
+                 {"metric": "upcoming_birthdays"}, {"kind": "present"},
+                 "relationships", provider="relationships"),
+
+    # ---- JOURNAL — scoped + themes -----------------------------------------------
+    QuestionSpec("journal.this_week", "journal", LIST,
+                 "What have I written this week?", "entity",
+                 {"entity_type": "entry",
+                  "filters": {"period": "custom", "start": "@week_start",
+                              "end": "@week_end"}},
+                 {"kind": "entities_min", "n": 3}, "journal", provider="journal"),
+    QuestionSpec("journal.themes", "journal", CURRENT_FACT,
+                 "What concerns have I repeated / topics this month?", "current",
+                 {"metric": "themes"}, {"kind": "present"}, "journal", provider="journal"),
+
+    # ---- GOALS — milestones completed --------------------------------------------
+    QuestionSpec("goals.milestones_completed", "goals", CURRENT_FACT,
+                 "Which milestones have I completed?", "current",
+                 {"metric": "milestones_completed"}, {"kind": "present"},
+                 "goals", provider="goals"),
+
+    # ---- LEGACY — memories scoped by person / era --------------------------------
+    QuestionSpec("legacy.memories_involving", "legacy", LIST,
+                 "Show memories involving Harold.", "entity",
+                 {"entity_type": "memory", "filters": {"involves": "@involves"}},
+                 {"kind": "entities_min", "n": 2}, "legacy", provider="legacy"),
+    QuestionSpec("legacy.childhood", "legacy", LIST,
+                 "Show childhood memories.", "entity",
+                 {"entity_type": "memory", "filters": {"occurred_to": 1940}},
+                 {"kind": "entities_min", "n": 2}, "legacy", provider="legacy"),
+
+    # ---- CALENDAR — specific past day --------------------------------------------
+    QuestionSpec("cal.last_tuesday", "calendar", LIST,
+                 "What did I have last Tuesday?", "entity",
+                 {"entity_type": "event", "filters": {"on_date": "@past_date"}},
+                 {"kind": "entities_min", "n": 1}, "calendar", provider="calendar"),
 ]
 
 
@@ -343,7 +417,11 @@ CAPABILITY_GAPS = {
 # Deterministic evaluator — Owner-1 checks a spec with NO model.
 # ===================================================================================
 def _resolve(v, anchors):
-    return anchors[v[1:]] if isinstance(v, str) and v.startswith("@") else v
+    if isinstance(v, str) and v.startswith("@"):
+        return anchors[v[1:]]
+    if isinstance(v, dict):          # resolve nested anchors (e.g. inside `filters`)
+        return {k: _resolve(x, anchors) for k, x in v.items()}
+    return v
 
 
 def _num(x):
@@ -396,9 +474,13 @@ def run_spec(user, spec, anchors):
                    {"average": avg, "want": want}
 
     elif spec.surface == "entity":
-        ents = truth.describe(args.get("entity_type", "food")) or []
+        _f = args.get("filters")
+        ents = (truth.describe(args.get("entity_type", "food"), filters=_f) if _f
+                else truth.describe(args.get("entity_type", "food"))) or []
         if kind == "entities_min":
             return len(ents) >= exp["n"], {"count": len(ents)}
+        if kind == "entities_count_equals":
+            return len(ents) == exp["n"], {"count": len(ents)}
         if kind == "entities_contain":
             sub = str(_resolve(exp["value"], anchors)).lower()
             return (any(sub in (getattr(e, "identity", "") or "").lower() for e in ents)), \

@@ -229,13 +229,34 @@ class NutritionQueries:
     _DESCRIBE_LIMIT = 40   # recent foods across the last few days, newest-first
 
     @classmethod
-    def describe(cls, user, *, limit=None):
-        """Recent logged foods, each a `CompleteEntity` (bounded, newest-first). The
-        model reasons over them to answer "what did I eat yesterday?" and to ground a
-        recommendation in foods the user actually eats."""
-        qs = (FoodEntry.objects.filter(user=user, status='active')
-              .order_by('-logged_date', '-logged_time', '-created_at')
-              [: (limit or cls._DESCRIBE_LIMIT)])
+    def describe(cls, user, *, limit=None, meal=None, period=None,
+                start=None, end=None, contains=None, today=None):
+        """Logged foods as CompleteEntity objects (newest-first). Deterministic
+        SCOPING (so the answer is truth, not model inference):
+          * meal      — 'breakfast'|'lunch'|'dinner'|'snack' → only that meal.
+          * period    — a named period, OR start/end dates → only that window
+                        ('every lunch this week', 'every dinner this month').
+          * contains  — substring of food_name → only matching foods
+                        ('how often have I eaten pizza' = len of the result).
+        Unscoped, returns the recent bounded list as before."""
+        qs = FoodEntry.objects.filter(user=user, status='active')
+        if meal:
+            qs = qs.filter(meal_type=meal)
+        if contains:
+            qs = qs.filter(food_name__icontains=contains)
+        scoped = bool(period or start or end)
+        if scoped:
+            from apps.core.truth.periods import resolve_period
+            if today is None:
+                from apps.core.utils import get_user_today
+                today = get_user_today(user)
+            p = resolve_period(period or "custom", today, start=start, end=end)
+            qs = qs.filter(logged_date__range=(p.start, p.end))
+        qs = qs.order_by('-logged_date', '-logged_time', '-created_at')
+        # A scoped query returns the FULL matching set (that IS the deterministic
+        # answer); an unscoped browse stays bounded.
+        if not scoped:
+            qs = qs[: (limit or cls._DESCRIBE_LIMIT)]
         return [cls._to_entity(f) for f in qs]
 
     @classmethod

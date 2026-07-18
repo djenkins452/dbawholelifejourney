@@ -6,6 +6,15 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(cos): certification-driven operating model + evidence-ranked backlog + next-slice recommendation
+
+**Certification — not intuition — now drives the roadmap.** New governing doc `docs/WLJ_CERTIFICATION_BACKLOG.md`: the per-domain loop (fixtures → Owner-1 → Customer Truth → attribute → fix first layer → re-certify), the local-vs-production complementary standard, and a backlog sorted by MEASURED customer impact.
+
+- **Evidence discipline (3 tiers):** ① MEASURED (Customer Truth run) — only Weight/Med/Nutrition, LOCAL, so far; ② DETERMINISTIC-ASSESSED (`capability_matrix()` surface availability, NOT impact); ③ UNASSESSED. Rule enforced: *absence of evidence ≠ low priority* — untested domains are ranked "impact UNMEASURED," never "low."
+- **Backlog:** Tier-① measured gaps ranked (current-weight consistency HIGH; nutrition tool-selection + `search_history` error MEDIUM; med last-taken LOW-MED). Tier-② surface gaps listed with impact explicitly UNMEASURED (Goals/People/Medical-labs/Body-Measurements/Documents = hard ✗ no provider).
+- **Recommended next slice = CLOSE the Weight/Med/Nutrition loop, NOT a new domain.** Evidence-based: slice-1 ran LOCAL only, so it is INCOMPLETE under the new local+production standard; the PROD re-cert resolves whether the 3 weight failures are test-env staleness or real (the single highest-value MEASURED open question). New-domain selection is explicitly deferred — no evidence yet ranks Goals/People/etc.; the evidence-generating move is cheap Owner-1 certs across candidates first.
+- **No implementation this milestone** (prioritization + documentation only, per the directive). Next concrete action (PROD re-cert of slice-1) needs production access — Danny's to run; harness/evidence/panel already in place. Docs only.
+
 ## 2026-07-18 — docs(cos): first LIVE Customer Truth Certification slice executed (Weight/Medication/Nutrition) — 10/15, every failure attributed
 
 **The architecture proved end-to-end.** Ran the 15 milestone questions through the REAL production pipeline — `CoSGateway.respond(stream=False)` → `model_interface` runtime → live OpenAI tool loop → `DomainTruth` → structured evidence → grounded answer — against DETERMINISTIC fixtures (not prod records). Report: `docs/WLJ_CUSTOMER_TRUTH_CERT_SLICE1.md`.

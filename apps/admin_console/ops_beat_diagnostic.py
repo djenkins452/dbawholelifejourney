@@ -72,6 +72,8 @@ class OpsBeatTaskDiagnosticAPIView(APIRateLimitMixin, View):
             "5_recovery_evidence": self._recovery(task),
             "6_registry_comparison": self._registry_comparison(task),
             "7_active_incident": self._incident(task),
+            "8_worker_side_truth": self._worker_side(task),
+            "9_all_task_states": self._all_states(now),
         }
         report["classification_hint"] = self._hint(report)
         return JsonResponse(report, json_dumps_params={"indent": 2})
@@ -265,6 +267,71 @@ class OpsBeatTaskDiagnosticAPIView(APIRateLimitMixin, View):
             "summary": (latest.summary or "")[:300],
             "evidence": latest.evidence,
         }
+
+    # ── 8. Worker-side truth (Celery inspect — registration + exec count) ─
+    def _worker_side(self, task):
+        """The decisive per-task evidence: is the task REGISTERED on the live
+        worker, and how many times has that worker EXECUTED it (stats.total)?
+        Bounded 3s inspect broadcast; operator-only, low-frequency."""
+        try:
+            from config.celery import app
+        except Exception as e:
+            return {"available": False, "error": str(e)[:200]}
+        out = {"available": True}
+        try:
+            import redis
+            broker = getattr(settings, "CELERY_BROKER_URL", None)
+            if broker:
+                client = redis.Redis.from_url(broker, socket_timeout=2)
+                out["default_queue_depth"] = client.llen("celery")
+        except Exception as e:
+            out["queue_depth_error"] = str(e)[:150]
+        try:
+            insp = app.control.inspect(timeout=3.0)
+            ping = insp.ping() or {}
+            workers = list(ping.keys())
+            registered = insp.registered() or {}
+            stats = insp.stats() or {}
+            per_worker = []
+            for w in workers:
+                reg_list = registered.get(w, []) or []
+                totals = (stats.get(w, {}) or {}).get("total", {}) or {}
+                per_worker.append({
+                    "worker": w,
+                    "task_registered": task in reg_list,
+                    "worker_executed_count_for_task": totals.get(task, 0),
+                    "capture_tasks_registered": [
+                        r for r in reg_list if r.startswith("capture.")
+                    ],
+                })
+            out["workers"] = per_worker
+            out["worker_count"] = len(workers)
+            out["note"] = (
+                "task_registered=False on a worker => beat dispatches by name but "
+                "the worker rejects it as unregistered (never executes). "
+                "worker_executed_count_for_task is the worker's own monotonic "
+                "processed counter for this task since worker start."
+            )
+        except Exception as e:
+            out["inspect_error"] = str(e)[:200]
+        return out
+
+    # ── 9. All monitored task states (systemic vs isolated) ──────────────
+    def _all_states(self, now):
+        from apps.core.ai_observability.scheduled_task_monitor import (
+            compute_scheduled_task_states,
+        )
+        rows = compute_scheduled_task_states(now)
+        return sorted(
+            [{
+                "task_name": s["task_name"],
+                "status": s["status"],
+                "last_run_at": s["last_run_at"],
+                "interval_seconds": s["interval_seconds"],
+                "lateness_seconds": s["lateness_seconds"],
+            } for s in rows],
+            key=lambda r: (r["status"] != "OK", r["task_name"]),
+        )
 
     # ── classification hint (advisory, not authoritative) ────────────────
     def _hint(self, r):

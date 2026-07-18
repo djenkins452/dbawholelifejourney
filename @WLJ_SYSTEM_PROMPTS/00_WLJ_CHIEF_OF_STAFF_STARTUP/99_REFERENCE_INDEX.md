@@ -64,6 +64,7 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md` | Reference | Engineer | Page-coverage audit + CC/HELP backlog. |
 | `WLJ_RELEASE_POLICY.md` | Governing | All | Three publication levels. |
 | `WLJ_PRODUCTION_RUNBOOKS.md` | Operational | Operator | Failures, rollback, recovery, streaming, OpenAI, workers, Redis, Postgres. |
+| `WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md` | Governing | Engineer | **RATIFIED 2026-07-18 (architecture only — not implemented).** The complete long-term *authorization* model: primitives **Identity · Space · Capability · Ownership · Delegation · Trust**; one deterministic PDP; roles = capability bundles; **Space is the canonical container** (every resource belongs to exactly one; ownership/capabilities/authorization evaluated within a Space; the Platform is NOT a Space); AI is a derived principal that never self-authorizes; platform authority is separate from data ownership. Fits within the Constitution (no Review; Article VI NOT created). Distinct from `WLJ_SECURITY_PRIVACY_RETENTION.md` (that = privacy/retention/audit-of-data; this = who-may-do-what). Read before ANY authorization/identity/admin/sharing/AI-authority work. |
 | `WLJ_SECURITY_PRIVACY_RETENTION.md` | Governing | Engineer | Ownership, 72h image retention (locked), audit, provenance. |
 | `WLJ_KNOWN_LIMITATIONS.md` | Reference | All | Honest, phased limitations. |
 

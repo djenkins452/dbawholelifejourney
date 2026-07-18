@@ -79,4 +79,5 @@ This package is the **onboarding experience**; the detail is the **supporting li
 - Laws & development model: `docs/WLJ_ARCHITECTURE_LAWS.md`, `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md`
 - Pillars: `docs/WLJ_CURRENT_CONTEXT_CONTRACT.md`, `docs/WLJ_VISUAL_TRUTH_CONTRACT.md`, `docs/WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md`
 - Domains: `docs/LAYER1_DOMAIN_FRAMEWORK.md`, `docs/WLJ_LEGACY_DOMAIN_ARCHITECTURE.md`
+- Security & authorization (RATIFIED 2026-07-18, architecture only): `docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md` — Identity · **Space** · Capability · Ownership · Delegation · Trust; one deterministic PDP; Space is the canonical container; the Platform is not a Space; the CoS is a derived principal. Not yet implemented.
 - Milestone record: `docs/WLJ_MILESTONE_COS_ARCHITECTURE.md` and its coverage docs.

@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(architecture): RATIFY the WLJ Security & Authorization Framework (Rev 2) — Space is now a first-class primitive
+
+**Architecture milestone — documentation only. NO production authorization changed, NO permissions introduced, NO migrations, NO implementation.** Promotes `docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md` from a PROPOSED design artifact to a **RATIFIED governing architecture document** (a peer of the CoS Constitution, the LLM Truth/Action Contract, the Current Context Contract, the Layer 1 Domain Framework, and the Operations Vision).
+
+- **Ratified governing primitives:** Identity · **Space** · Capability · Ownership · Delegation · Trust. Authorization is decided by a single deterministic **PDP**; roles are capability *bundles*; the CoS/AI is a **derived principal** that never self-authorizes and never exceeds the human it acts for; **platform authority is fully separate from data ownership, and the Platform is NOT a Space.**
+- **Space is now canonical architectural truth.** Every resource belongs to exactly one Space; ownership belongs to a Space; capabilities are granted within a Space; delegation occurs within/across Spaces; authorization is evaluated within the resource's Space. Added a ratified guard (§0A.1): today's `user_id`/`owner` is only the *physical stand-in* for a person's **Personal Space** — Space is the architectural truth and MUST NOT be allowed to re-entrench as a permanent `user_id` model at implementation time (a first-class Phase-0/2 exit criterion).
+- **Constitution:** Fits entirely within the existing Constitution — **no Constitutional Review required and none performed.** The optional **Article VI is deliberately NOT created and NOT elevated**; it remains future discussion only.
+- **Files (docs only):** `docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md` (status → RATIFIED; §0A.1 conceptual-vs-physical guard; §14 ratification decision). References wired without duplication (single-responsibility): `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md` (the catalog/map), `…/01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md` (curated highlights), `CLAUDE.md` (operating reference table). NOTE: concurrent Meal-Intelligence/People sessions have uncommitted work in the tree; committed ONLY my documentation files by explicit path.
+
+**Verification:** all four references resolve to the one governing doc; no duplicate authorization architecture introduced; zero code/migrations/authorization changes (documentation only); startup package + Reference Index remain coherent.
+
 ## 2026-07-18 — feat(meals): live client-side Pantry search (instant filter, no page reload)
 
 **Pantry usability — the list no longer requires scrolling through everything.** A search box sits above the pantry list and filters items live as the user types, entirely client-side on the already-loaded data (no server call per keystroke, no Search button, no page reload).

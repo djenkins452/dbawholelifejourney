@@ -135,7 +135,7 @@
           .catch(function () { return []; });
       },
       render: function () {
-        var box = null, items = [], selected = 0, command = null;
+        var box = null, items = [], selected = 0, command = null, query = '';
         function paint() {
           if (!box) return;
           box.innerHTML = '';
@@ -156,11 +156,19 @@
         }
         function pick(i) {
           var it = items[i];
-          if (it && command) command({ id: it.id, label: it.label });
+          // Preserve the author's wording: the visible chip shows exactly what they typed
+          // after "@" (the query), NOT the person's full display name — so an explicit
+          // mention and a passive one render identically ("Heather"), differing only in
+          // stored provenance. The canonical Person is carried by the id, not the text.
+          // Fall back to the display name only if nothing meaningful was typed.
+          if (it && command) {
+            var typed = (query || '').trim();
+            command({ id: it.id, label: typed || it.label });
+          }
         }
         return {
           onStart: function (props) {
-            items = props.items; command = props.command; selected = 0;
+            items = props.items; command = props.command; selected = 0; query = props.query || '';
             box = document.createElement('div');
             box.className = 'wlj-mention-dropdown';
             document.body.appendChild(box);
@@ -168,7 +176,7 @@
             place(props.clientRect && props.clientRect());
           },
           onUpdate: function (props) {
-            items = props.items; command = props.command; selected = 0;
+            items = props.items; command = props.command; selected = 0; query = props.query || '';
             paint();
             place(props.clientRect && props.clientRect());
           },

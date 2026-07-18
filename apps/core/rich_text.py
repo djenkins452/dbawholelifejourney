@@ -78,6 +78,23 @@ RICH_TEXT_URL_SCHEMES = {"http", "https", "mailto"}
 _LINK_REL = "noopener noreferrer nofollow"
 
 
+# A recognized-person chip must behave like ordinary inline text. The editor's mention
+# command appends a trailing space after the inserted node (good for continuing to type a
+# word); when the author's next character is punctuation that space becomes a typographic
+# error ("Heather ."). After sanitization the ONLY surviving <span> is a mention chip, so
+# collapsing whitespace between a </span> and following punctuation is safe and targeted.
+_MENTION_SPACE_BEFORE_PUNCT_RE = re.compile(r"</span>\s+([,.;:!?…)\]}»”’])")
+
+
+def normalize_mention_whitespace(html: str) -> str:
+    """Remove editor-inserted whitespace between a recognized-person chip and the
+    punctuation that follows it, so the finished text reads like ordinary prose.
+    Presentation only — never touches the mention's identity or the author's words."""
+    if not html:
+        return ""
+    return _MENTION_SPACE_BEFORE_PUNCT_RE.sub(r"</span>\1", html)
+
+
 def sanitize_rich_html(html: str) -> str:
     """Return an XSS-safe HTML string containing only allow-listed markup.
 
@@ -86,7 +103,7 @@ def sanitize_rich_html(html: str) -> str:
     """
     if not html:
         return ""
-    return nh3.clean(
+    clean = nh3.clean(
         html,
         tags=RICH_TEXT_TAGS,
         attributes=RICH_TEXT_ATTRIBUTES,
@@ -94,6 +111,7 @@ def sanitize_rich_html(html: str) -> str:
         link_rel=_LINK_REL,
         strip_comments=True,
     )
+    return normalize_mention_whitespace(clean)
 
 
 # --------------------------------------------------------------------------- #

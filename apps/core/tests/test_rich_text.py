@@ -14,12 +14,44 @@ from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from apps.core.rich_text import (
+    normalize_mention_whitespace,
     plaintext_to_html,
     rich_text_to_plaintext,
     sanitize_rich_html,
 )
 
 User = get_user_model()
+
+
+class MentionWhitespaceTest(SimpleTestCase):
+    """A recognized-person chip must read like ordinary inline text — no
+    editor-inserted space before the punctuation that follows it."""
+
+    def _chip(self, label="Heather"):
+        return f'<span data-mention data-person-id="112">{label}</span>'
+
+    def test_space_before_punctuation_removed(self):
+        for punct in [".", ",", ";", ":", "!", "?", ")"]:
+            html = f"<p>Lunch with {self._chip()} {punct} rest</p>"
+            out = normalize_mention_whitespace(html)
+            self.assertIn(f"</span>{punct}", out, punct)
+            self.assertNotIn(f"</span> {punct}", out, punct)
+
+    def test_legitimate_trailing_space_before_word_kept(self):
+        html = f"<p>Lunch with {self._chip()} and then home</p>"
+        self.assertEqual(normalize_mention_whitespace(html), html)  # space before a word stays
+
+    def test_applied_by_sanitize_and_idempotent(self):
+        html = f"<p>Saw {self._chip()} , then left.</p>"
+        once = sanitize_rich_html(html)
+        self.assertIn("</span>,", once)
+        self.assertNotIn("</span> ,", once)
+        self.assertEqual(once, sanitize_rich_html(once))
+
+    def test_plain_shadow_reads_naturally(self):
+        html = f"<p>Saw {self._chip()} , then left.</p>"
+        shadow = rich_text_to_plaintext(sanitize_rich_html(html))
+        self.assertEqual(shadow, "Saw Heather, then left.")
 
 
 class SanitizeRichHtmlTest(SimpleTestCase):

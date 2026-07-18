@@ -173,6 +173,18 @@ class PassiveProseRecognitionTests(TestCase):
         self.assertIn(">Honey</span>", e.body)
         self.assertNotIn("@Honey", e.body)
 
+    def test_saved_mention_has_no_space_before_punctuation(self):
+        # An explicit chip stored with the editor's trailing space + punctuation is
+        # normalized on save so the finished journal reads naturally.
+        token = f'<span data-mention data-person-id="{self.heather.pk}">Heather</span>'
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body=f"<p>Lunch with {token} , then home.</p>")
+        e.refresh_from_db()
+        self.assertIn("</span>,", e.body)
+        self.assertNotIn("</span> ,", e.body)
+        self.assertEqual(e.body_plain, "Lunch with Heather, then home.")
+
     def test_existing_explicit_token_not_rewrapped(self):
         token = f'<span data-mention data-person-id="{self.heather.pk}">@Heather Jenkins</span>'
         e = JournalEntry.objects.create(

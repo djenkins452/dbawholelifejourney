@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(journal): mentions read like ordinary prose — no space before punctuation, preserve the author's wording
+
+**Two presentation-only fixes from production validation (no identity/recognition/provenance change).**
+
+1. **No space before punctuation.** The editor's mention command appends a trailing space after an inserted chip (helpful when the next thing is a word); when the author's next character was punctuation, that space became a typographic error — "Heather ." / "Heather , then". New shared helper `normalize_mention_whitespace(html)` (in `apps/core/rich_text.py`) collapses whitespace between a recognized-person chip and following punctuation. It runs inside `sanitize_rich_html`, so **every** rich-text field is corrected on save and the plain-text shadow is re-derived from the corrected HTML. After sanitization the only surviving `<span>` is a mention chip, so the rule is safe and targeted. Data migration `journal/0013_normalize_mention_whitespace` applies the same normalization to already-stored entries (idempotent; scoped to entries containing a chip; `bulk_update`, no signals; reverse no-op). Verified: comma now sits flush against the chip (0px gap); shadow reads "Lunch with Heather, then home."
+
+2. **Preserve the author's wording (explicit == passive).** An explicit `@mention` used to render the person's full display name ("Heather Jenkins") even when the author only typed "Heather" — a visible difference from passive recognition. The editor glue (`static/js/wlj-rich-text.js`) now inserts the **typed query** as the chip label (falling back to the display name only if nothing meaningful was typed), so typing `@Heather` → chip "Heather", exactly like the passive "Heather". Explicit and passive now render **identically**; the only difference is stored provenance. The canonical Person is still carried by `data-person-id` (unchanged), and the dropdown still shows the full display name to identify the right person.
+
+- **Unchanged by design:** canonical `data-person-id`, `PersonMention` rows, `source_type` provenance, the `[data-mention]` chip styling, the `@` autocomplete trigger, the resolver, and the sanitizer allow-list. `_MENTION_RE` keeps its optional `@?` for legacy markup.
+- **Cache-bust:** RTE assets `?v=20260718b → 20260718c`. `collectstatic` clean.
+- **Files:** `apps/core/rich_text.py`, `apps/core/tests/test_rich_text.py` (+`MentionWhitespaceTest`), `static/js/wlj-rich-text.js`, `apps/people/tests/test_mentions.py` (+save-path whitespace test), `apps/journal/migrations/0013_normalize_mention_whitespace.py`, `templates/base.html`, `templates/components/_rich_text_editor_assets.html`. No schema change (0013 is data-only).
+
+**Verification:** `test_rich_text` + `test_mentions` + `test_request_path_safety_contract` (45) GREEN; `manage.py check` + `makemigrations --check` clean; `collectstatic` clean; migration applied locally. Browser-verified end-to-end: typed `@Heather` → selected → chip "Heather" (not "Heather Jenkins", pid 112); typed ", then home." → saved body `…Heather</span>, then home.` (no space char, 0px gap to the comma), shadow "Lunch with Heather, then home." NOTE: parallel session has an uncommitted temp file (`apps/core/tests/test_live_ct_slice_temp.py`) in the tree — committed ONLY my files by explicit path.
+
 ## 2026-07-18 — feat(cos): Owner-1 deterministic Truth Retrieval Certification — QuestionSpec + first vertical slice + capability matrix + operational panel
 
 **Depth-first: certify the deterministic foundation so future Customer Truth failures are real product defects, not missing coverage.** No new framework/registry/console — extends Owner-1 (`apps/core/truth/`) and the existing Acceptance Center.

@@ -226,6 +226,7 @@ class WorkoutQueries:
                 "date": session.date.isoformat(),
                 "mode": session.session_mode,                   # structured | activity
                 "workout_type": session.workout_type or "",
+                "notes": session.notes or "",                  # stored note, was dropped
                 "exercise_count": len(exercises),
                 "exercises": exercises,                         # names → "did I do calf raises?"
             },

@@ -181,6 +181,19 @@ class JournalQueries:
         title = (e.title or "").strip() or "Journal entry"
         # emotions / tags / categories are ManyToMany → render their names.
         _names = lambda mgr: sorted(mgr.values_list("name", flat=True))
+        # Prompt that inspired the entry (FK → JournalPrompt, nullable — guard on _id).
+        prompt = None
+        if getattr(e, "prompt_id", None):
+            prompt = {"text": e.prompt.text,
+                      "scripture_reference": (e.prompt.scripture_reference or None),
+                      "is_faith_specific": e.prompt.is_faith_specific}
+        # NLP behavioral signals extracted from this entry (the app's AI-derived journal
+        # truth; reverse FK, may be empty) + cross-module links out of the entry.
+        signals = [{"type": s.signal_type, "domain": s.domain,
+                    "confidence": round(s.confidence, 2), "text": s.extracted_text}
+                   for s in e.signals.all()]
+        links = [{"target": lk.target_type, "target_id": lk.target_id,
+                  "link_type": lk.link_type} for lk in e.outgoing_links.all()]
         return CompleteEntity(
             kind="journal_entry",
             identity=f"{title} — {e.entry_date}",
@@ -192,8 +205,12 @@ class JournalQueries:
                 "categories": _names(e.categories),
                 "tags": _names(e.tags),
                 "word_count": e.word_count,
+                "prompt": prompt,               # inspiration source
+                "created_via": e.created_via,   # manual vs routine vs ai_camera
             },
             status="written",
             freshness=F.CURRENT,
-            extensions={"content": e.body_plain or ""},
+            extensions={"content": e.body_plain or "",
+                        **({"signals": signals} if signals else {}),
+                        **({"links": links} if links else {})},
         )

@@ -175,6 +175,39 @@ SLICE_SPECS = [
                  {"metric": "bp_systolic", "period": "custom",
                   "start": "@range_start", "end": "@range_end"},
                  {"kind": "series_latest_lt_prev"}, "vitals", provider="health"),
+    QuestionSpec("health.bp_pulse", "health", TIMELINE,
+                 "What has my resting pulse been?", "history",
+                 {"metric": "bp_pulse", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 3}, "vitals", provider="health"),
+    QuestionSpec("health.sleep_detail", "health", LIST,
+                 "How were my sleep stages / efficiency recently?", "entity",
+                 {"entity_type": "sleep"}, {"kind": "entities_min", "n": 3},
+                 "sleep", provider="health"),
+
+    # ---- PROJECTS (whole domain — previously no provider) -------------------------
+    QuestionSpec("projects.active", "projects", CURRENT_FACT,
+                 "What projects am I working on?", "current",
+                 {"metric": "active_projects"}, {"kind": "present"},
+                 "projects", provider="projects", criticality="critical"),
+    QuestionSpec("projects.list", "projects", LIST,
+                 "List my projects and their progress.", "entity",
+                 {"entity_type": "project"}, {"kind": "entities_min", "n": 2},
+                 "projects", provider="projects"),
+    QuestionSpec("projects.lookup", "projects", EXISTENCE,
+                 "How is my kitchen project going?", "entity_one",
+                 {"name": "@project"}, {"kind": "entity_found"},
+                 "projects", provider="projects"),
+
+    # ---- MEALS (whole domain — previously no provider) ---------------------------
+    QuestionSpec("meals.recipes", "meals", LIST,
+                 "What recipes do I have?", "entity",
+                 {"entity_type": "recipe"}, {"kind": "entities_min", "n": 2},
+                 "meals", provider="meals"),
+    QuestionSpec("meals.recipe_lookup", "meals", EXISTENCE,
+                 "Show me my stir fry recipe.", "entity_one",
+                 {"name": "@recipe"}, {"kind": "entity_found"},
+                 "meals", provider="meals"),
 
     # ---- BODY MEASUREMENTS — waist / body composition (health) ---------------------
     # Closes the measured Body-Measurements gap (2026-07-18): BodyCompositionEntry data

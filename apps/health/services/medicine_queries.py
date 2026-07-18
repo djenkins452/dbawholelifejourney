@@ -180,16 +180,41 @@ class MedicineQueries:
             standing = cls._summarize_doses(doses)
             standing["doses"] = doses                       # per-dose detail (not collapsed)
             last_taken = cls._last_taken(m)
+            _g = lambda a: getattr(m, a, None)
             entities.append(CompleteEntity(
                 kind=kind,
                 identity=m.name,
-                definition={"dose": m.dose, "category": classify_intake(m),
-                            "purpose": m.purpose or "", "is_prn": bool(getattr(m, "is_prn", False))},
+                definition={"dose": m.dose, "dosage_unit": _g("dosage_unit") or None,
+                            "category": classify_intake(m),
+                            "purpose": m.purpose or "",
+                            "frequency": (m.get_frequency_display()
+                                          if hasattr(m, "get_frequency_display")
+                                          else _g("frequency")),
+                            "is_prn": bool(getattr(m, "is_prn", False)),
+                            "priority": _g("priority") or None,
+                            "intake_subtype": _g("intake_subtype") or None},
                 status=m.intake_status,
-                plan={"schedule": times},
-                standing={"today": standing},
+                plan={"schedule": times,
+                      "start_date": (m.start_date.isoformat() if _g("start_date") else None),
+                      "end_date": (m.end_date.isoformat() if _g("end_date") else None),
+                      "instructions": (_g("instructions") or "").strip() or None,
+                      "monitoring": (_g("monitoring_requirements") or "").strip() or None},
+                standing={"today": standing,
+                          "refill": {"current_supply": _g("current_supply"),
+                                     "threshold": _g("refill_threshold"),
+                                     "needs_refill": bool(_g("needs_refill")),
+                                     "requested": bool(_g("refill_requested")),
+                                     "days_until_empty": _g("days_until_empty")}},
                 performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)},
                              "last_taken": last_taken.isoformat() if last_taken else None},
+                extensions={k: v for k, v in {
+                    "notes": (_g("notes") or "").strip() or None,
+                    "prescriber": (getattr(m.provider, "name", None) if m.provider_id
+                                   else (_g("prescribing_doctor") or None)),
+                    "pharmacy": (getattr(m.pharmacy_ref, "name", None) if _g("pharmacy_ref")
+                                 else (_g("pharmacy") or None)),
+                    "rx_number": (_g("rx_number") or None),
+                }.items() if v is not None},
             ))
         entities.sort(key=lambda e: e.identity.lower())
         return entities

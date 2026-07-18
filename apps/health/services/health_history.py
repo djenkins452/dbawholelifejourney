@@ -95,7 +95,7 @@ class HealthHistory:
             "health", metric, p,
             [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
              for r in rows],
-            unit="mmHg")
+            unit=("bpm" if field == "pulse" else "mmHg"))
 
     @classmethod
     def bp_systolic(cls, user, period="last_month", *, today=None, start=None, end=None):
@@ -104,6 +104,12 @@ class HealthHistory:
     @classmethod
     def bp_diastolic(cls, user, period="last_month", *, today=None, start=None, end=None):
         return cls._bp_series(user, "diastolic", "bp_diastolic", period, today, start, end)
+
+    @classmethod
+    def bp_pulse(cls, user, period="last_month", *, today=None, start=None, end=None):
+        """Per-day resting pulse (bpm) captured alongside BP — `BloodPressureEntry.pulse`
+        was stored but had no accessor (gap)."""
+        return cls._bp_series(user, "pulse", "bp_pulse", period, today, start, end)
 
     @classmethod
     def body_measurement(cls, user, metric, period="last_month", *,

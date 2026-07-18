@@ -202,12 +202,51 @@ class FaithQueries:
                 "person_or_situation": (p.person_or_situation or None),
                 "request": p.description_plain or "",
                 "created": p.created_at.date() if p.created_at else None,
+                "created_via": getattr(p, "created_via", None),
             },
             status=("answered" if p.is_answered else "unanswered"),
+            plan={"remind_daily": getattr(p, "remind_daily", None)},
             standing={
                 "answered_at": (p.answered_at.date() if p.answered_at else None),
                 "answer_notes": (p.answer_notes_plain or None) if p.is_answered else None,
             },
+            freshness=F.CURRENT,
+        )
+
+    @classmethod
+    def describe_plans(cls, user, *, limit=10):
+        """Active/recent Bible reading plans as CompleteEntity objects — exposes the
+        UserReadingPlan/Progress study truth that had no entity surface."""
+        qs = (UserReadingPlan.objects.filter(user=user)
+              .select_related("template").order_by("-started_at")[:limit])
+        return [cls._plan_to_entity(pl) for pl in qs]
+
+    @classmethod
+    def _plan_to_entity(cls, pl):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        tmpl = pl.template
+        ctx = {}
+        try:
+            ctx = pl.get_context_summary() or {}
+        except Exception:
+            ctx = {}
+        return CompleteEntity(
+            kind="reading_plan",
+            identity=(getattr(tmpl, "title", None) or getattr(tmpl, "name", None)
+                      or "Reading plan"),
+            definition={"title": getattr(tmpl, "title", None) or getattr(tmpl, "name", None),
+                        "category": getattr(tmpl, "category", None),
+                        "duration_days": getattr(tmpl, "duration_days", None)},
+            status=getattr(pl, "plan_status", None),
+            plan={"current_day": getattr(pl, "current_day", None),
+                  "started": pl.started_at.date().isoformat() if pl.started_at else None},
+            standing={"progress_percentage": getattr(pl, "progress_percentage", None),
+                      "days_completed": getattr(pl, "days_completed", None),
+                      "is_complete": getattr(pl, "is_complete", None),
+                      "completed_at": (pl.completed_at.date().isoformat()
+                                       if pl.completed_at else None)},
+            extensions={"current_reading": ctx.get("content", "")},
             freshness=F.CURRENT,
         )
 

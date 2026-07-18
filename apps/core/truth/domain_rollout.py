@@ -172,6 +172,14 @@ class CalendarDomainTruth(DomainTruth):
     def _event_entity(self, ev):
         from apps.core.truth import freshness as F
         from apps.core.truth.entity import CompleteEntity
+        rrule = getattr(ev, "recurrence", None)   # RecurrenceRule OneToOne or None
+        recurrence = None
+        if rrule is not None:
+            recurrence = {"frequency": rrule.frequency, "interval": rrule.interval,
+                          "byweekday": getattr(rrule, "byweekday", None),
+                          "until": (rrule.until_dt.isoformat()
+                                    if getattr(rrule, "until_dt", None) else None),
+                          "count": getattr(rrule, "count", None)}
         return CompleteEntity(
             kind="event",
             identity=ev.title,
@@ -182,10 +190,15 @@ class CalendarDomainTruth(DomainTruth):
                 "domain": ev.domain.name if ev.domain else "",
                 "kind": ev.event_kind,
                 "commitment_level": ev.commitment_level,
+                "duration_minutes": getattr(ev, "duration_minutes", None),
+                "source_type": ev.source_type,
+                "is_projected": getattr(ev, "is_projected", None),
             },
             status=ev.status,
             standing={"is_protected": ev.is_protected},
-            extensions={"description": ev.description or ""},
+            extensions={"description": ev.description or "",
+                        "recurrence": recurrence,
+                        "source_id": ev.source_id or None},
             freshness=F.CURRENT,
         )
 
@@ -265,6 +278,11 @@ class TaskDomainTruth(DomainTruth):
         from apps.core.truth.entity import CompleteEntity
         overdue = (t.completion_status == "pending"
                    and t.due_date is not None and t.due_date < today)
+        recurrence = None
+        if getattr(t, "is_recurring", False):
+            recurrence = {"pattern": t.recurrence_pattern,
+                          "start_date": t.start_date.isoformat() if t.start_date else None,
+                          "end_date": t.end_date.isoformat() if t.end_date else None}
         return CompleteEntity(
             kind="task",
             identity=t.title,
@@ -273,14 +291,27 @@ class TaskDomainTruth(DomainTruth):
                 "priority": t.priority,
                 "commitment_level": t.commitment_level,
                 "is_routine": t.is_routine,
+                "project": (t.project.title if t.project_id else None),
+                "module": t.module or None,
+                "effort": getattr(t, "effort", None) or None,
+                "is_foundational": t.is_foundational,
             },
             status=t.completion_status,
             standing={
                 "overdue": overdue,
                 "progress_percentage": t.progress_percentage,
                 "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+                "skip_streak": getattr(t, "effective_skip_streak", None),
             },
-            extensions={"notes": t.notes or ""},
+            extensions={k: v for k, v in {
+                "notes": t.notes or "",
+                "scheduled_time": (t.scheduled_time.isoformat()
+                                   if getattr(t, "scheduled_time", None) else None),
+                "scheduled_end_time": (t.scheduled_end_time.isoformat()
+                                       if getattr(t, "scheduled_end_time", None) else None),
+                "estimated_duration_minutes": getattr(t, "estimated_duration_minutes", None),
+                "recurrence": recurrence,
+            }.items() if v not in (None, "")},
             freshness=F.CURRENT,
         )
 
@@ -291,7 +322,7 @@ class FaithDomainTruth(DomainTruth):
     current_metrics = ("reading_streak", "days_since_reading", "unanswered_prayers",
                        "studying")
     history_metrics = ("reading",)
-    entity_types = ("prayer",)
+    entity_types = ("prayer", "reading_plan")
 
     def current(self, metric):
         if metric == "studying":
@@ -310,12 +341,15 @@ class FaithDomainTruth(DomainTruth):
         return _found(self.domain, metric, v, st.get("last_scripture_read"))
 
     def describe(self, entity_type="prayer"):
-        """Recent prayer requests as CompleteEntity objects — 'what have I been
-        praying about'. Faith truth only."""
+        """Faith record-level truth. entity_type ∈ prayer | reading_plan. Prayers →
+        'what have I been praying about'; reading plans → 'what am I studying' with
+        progress/current-reading. Faith truth only."""
+        from apps.faith.services.faith_queries import FaithQueries
+        if entity_type == "reading_plan":
+            return FaithQueries.describe_plans(self.user)
         if entity_type not in (None, "prayer"):
             raise KeyError(f"faith domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
-        from apps.faith.services.faith_queries import FaithQueries
         return FaithQueries.describe(self.user)
 
     def describe_one(self, name):
@@ -420,10 +454,17 @@ class RelationshipDomainTruth(DomainTruth):
         recent = list(RelationshipInteraction.objects.filter(person=p)
                       .order_by("-interaction_date")[:10])
         interactions = [{"date": i.interaction_date.isoformat(),
-                         "context": i.context_type_label} for i in recent]
+                         "context": i.context_type_label,
+                         "title": (getattr(i.source_object, "title", None)
+                                   or getattr(i.source_object, "name", None))}
+                        for i in recent]
         definition = {
             "name": p.get_display_name(),
             "relationship_type": p.get_relationship_type_display() if rtype else None,
+            "email": p.email or None,
+            "phone": p.phone or None,
+            "household": (p.household.name if p.household_id else None),
+            "groups": [g.name for g in p.groups.all()],
             "last_contact": last.isoformat() if last else None,
             "days_since_contact": days_since,
             "interaction_count": p.interaction_count,

@@ -114,16 +114,17 @@ def build_vitals_fixture(email="cert_vitals@example.com"):
     from apps.health.models import GlucoseEntry, BloodPressureEntry
     u = _mk_user(email)
     today = get_user_today(u)
-    # (day-offset, glucose mg/dL, systolic, diastolic)
+    # (day-offset, glucose mg/dL, systolic, diastolic, pulse)
     rows = [
-        (5, 100, 122, 78),
-        (3, 120, 130, 85),
-        (1, 110, 120, 80),
+        (5, 100, 122, 78, 64),
+        (3, 120, 130, 85, 70),
+        (1, 110, 120, 80, 66),
     ]
-    for off, g, sys, dia in rows:
+    for off, g, sys, dia, pul in rows:
         d = _at(today - timedelta(days=off))
         GlucoseEntry.objects.create(user=u, value=Decimal(g), unit="mg/dL", recorded_at=d)
-        BloodPressureEntry.objects.create(user=u, systolic=sys, diastolic=dia, recorded_at=d)
+        BloodPressureEntry.objects.create(user=u, systolic=sys, diastolic=dia,
+                                          pulse=pul, recorded_at=d)
     # Averages over the three in-window days:
     #   glucose (100+120+110)/3 = 110 · systolic (122+130+120)/3 = 124 ·
     #   diastolic (78+85+80)/3 = 81. Latest (today-1) systolic 120 < previous 130.
@@ -364,10 +365,61 @@ def build_nutrition_scoped_fixture(email="cert_nut_scoped@example.com"):
               "pizza_or_last": "Lasagna", "fast_food": "McDonald", "fast_food_count": 2}
 
 
+def build_sleep_fixture(email="cert_sleep@example.com"):
+    """Sleep nights with full stage/efficiency detail (previously unreachable)."""
+    from apps.health.models import SleepEntry
+    u = _mk_user(email)
+    today = get_user_today(u)
+    for off in (1, 2, 3):
+        night = today - timedelta(days=off)
+        bedtime = timezone.make_aware(datetime.combine(
+            night - timedelta(days=1), time(22, 30)))
+        wake = timezone.make_aware(datetime.combine(night, time(6, 30)))
+        SleepEntry.objects.create(
+            user=u, sleep_date=night, bedtime=bedtime, wake_time=wake,
+            total_duration_minutes=480, asleep_duration_minutes=445,
+            stage_deep_minutes=80, stage_rem_minutes=110, stage_light_minutes=255,
+            stage_awake_minutes=35, sleep_efficiency=Decimal("92.7"),
+            quality_rating="good")
+    return u, {}
+
+
+def build_projects_fixture(email="cert_proj@example.com"):
+    """Active + completed projects (Project had no provider at all)."""
+    from apps.life.models import Project
+    u = _mk_user(email)
+    today = get_user_today(u)
+    Project.objects.create(user=u, title="Kitchen remodel", status="active",
+                           priority="now", target_date=today + timedelta(days=60),
+                           purpose="Modernize the kitchen.")
+    Project.objects.create(user=u, title="Garden refresh", status="active",
+                           priority="soon")
+    Project.all_objects.create(user=u, title="Tax filing 2025", status="completed",
+                               completed_date=today - timedelta(days=20))
+    return u, {"project": "Kitchen"}
+
+
+def build_meals_fixture_recipes(email="cert_meals@example.com"):
+    """Recipes (Meal Intelligence had no provider — a whole domain unreachable)."""
+    from apps.meals.models import Recipe
+    u = _mk_user(email)
+    Recipe.objects.create(user=u, title="Chicken Stir Fry",
+                          ingredients="chicken breast\nbroccoli\nsoy sauce\nrice",
+                          instructions="Stir fry it all.", servings=4,
+                          category="dinner", difficulty="easy")
+    Recipe.objects.create(user=u, title="Overnight Oats",
+                          ingredients="oats\nmilk\nchia seeds\nberries",
+                          instructions="Combine and refrigerate.", servings=1)
+    return u, {"recipe": "Stir Fry"}
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
     "nutrition_scoped": build_nutrition_scoped_fixture,
+    "sleep": build_sleep_fixture,
+    "projects": build_projects_fixture,
+    "meals": build_meals_fixture_recipes,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,

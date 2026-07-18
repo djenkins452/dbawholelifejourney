@@ -6,6 +6,37 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): whole-WLJ truth-inventory — expose every stored deterministic truth to the Chief of Staff
+
+**Systematic audit of every active domain: for each, inventoried the stored model fields/relations, compared against what the CoS could reach, and exposed the delta — additively, using the existing DomainTruth/entity-composer pattern.** No new models, no schema change, no migration; two new *providers* for domains that had none.
+
+**Two whole domains had NO provider — now registered:**
+- **Projects** — new `ProjectQueries` + `ProjectDomainTruth` (`apps/life/services/`): current `active_projects`; entity `project` (status/priority/target/progress/task counts/reflection). Uses `all_objects` for non-active (SoftDeleteManager trap). "What projects am I working on?" now answerable.
+- **Meals** — new `MealsDomainTruth` (`apps/meals/services/`): entities `recipe`/`pantry_item`/`meal_plan`. Keystone honored — `ingredient_count`/`ingredients_text` come from the AUTHORITATIVE free-text `Recipe.ingredients`, with `structured_ingredients` as a best-effort overlay (never "0 ingredients" off an empty parse).
+
+**New entity/metric surfaces for stored-but-unreachable truth:**
+- **Sleep** — new `sleep` entity (reuses the canonical `sleep_queries`): stages (deep/rem/light/awake), efficiency, quality, bedtime/waketime, HRV, respiratory rate — all stored on `SleepEntry`, previously only hours were reachable.
+- **Blood-pressure `pulse`** — stored but had no accessor → new `bp_pulse` history metric.
+- **Faith reading plans** — new `reading_plan` entity (`UserReadingPlan`/`Progress` study truth: progress, current-day reading) — the largest Faith gap.
+
+**Entity composers enriched with every stored field/relation:**
+- **Journal**: prompt, `created_via`, the NLP `signals` (the app's real AI-derived journal truth), cross-module links.
+- **Legacy**: memory story `body`, people-with-roles, milestones, cover media; person `bio`/portrait/sex/birth-death dates/`is_self`/preserved-facts and the **family `Relationship` graph**; place coordinates/description/maps-link.
+- **Nutrition**: saturated fat, sodium, cholesterol, potassium, net-carbs, logged-time, source, and eating-context (location/pace/hunger/fullness/mood/notes).
+- **Medicine** (certified ref, still additive): frequency, start/end dates, instructions, monitoring, full refill set, prescriber, pharmacy, rx number, priority, dosage unit, subtype, notes.
+- **Goals**: description/reflection/motivation, commitment/timeframe/mission-icon, annual direction, victory milestones, motivation links, linked habits, signal sources; milestone objectives.
+- **Tasks**: project, module, effort, foundational, skip-streak, scheduling, recurrence.
+- **Calendar**: recurrence rule, duration, source, is-projected.
+- **People**: email/phone/household/groups + interaction source titles.
+- **Faith prayer**: `remind_daily`, created_via.
+- **Workout**: the stored `notes`.
+
+**Certification:** +9 QuestionSpecs (projects ×3, meals ×2, sleep, bp_pulse, and the enrichments covered by existing entity specs); +5 fixtures (sleep, projects, meals, +pulse/plan data). All Owner-1 green; **55 regression tests green**; `check` + `makemigrations --check` clean; live retrieval executed for every new/enriched surface. **13 domains now register** in the truth layer.
+
+**Truth that CANNOT exist (not stored anywhere — do not fabricate):** journal photos/@mentions/typed-links; prayer tags/linked-scripture/prayer-streak; medicine side-effects; recipe stored nutrition; calendar location/attendees/reminders; task tags/subtasks; project momentum history; legacy memory tags/sentiment; a per-day *categorical* series (glucose context/trend, BP arm/position). Remaining accessible-but-uncertified-by-fixture: Faith `reading_plan` and Legacy full genealogy graph (code live; needs heavier seed data).
+
+**Files:** `apps/life/services/project_queries.py` (new), `apps/life/services/project_domain_truth.py` (new), `apps/meals/services/meals_domain_truth.py` (new), `apps/health/services/{sleep_queries,health_history,health_domain_truth,nutrition_queries,workout_queries,medicine_queries}.py`, `apps/journal/services/journal_queries.py`, `apps/legacy/services/legacy_domain_truth.py`, `apps/purpose/services/goal_domain_truth.py`, `apps/faith/services/faith_queries.py`, `apps/core/truth/{domain,domain_rollout,question_specs,certification_fixtures}.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): close the last People gaps — goals & trips involving a person (deterministic, from existing data)
 
 **Follow-up to `52d12347`** (Journal/Legacy/People to production quality). Closes the two questions previously reported RED, using existing data only — no new models, no schema change, no migration.

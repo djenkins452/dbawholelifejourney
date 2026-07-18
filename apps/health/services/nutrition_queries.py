@@ -294,12 +294,15 @@ class NutritionQueries:
             identity=f"{label} — {f.logged_date}",
             definition={
                 "date": f.logged_date,
+                "logged_time": (f.logged_time.strftime("%-I:%M %p")
+                                if f.logged_time else None),
                 "meal_type": (f.meal_type or None),
                 "food_name": name,
                 "brand": brand or None,
                 "quantity": _num(f.quantity),
                 "serving_size": _num(f.serving_size),
                 "serving_unit": (f.serving_unit or None),
+                "source": (getattr(f, "data_source_used", None) or None),
             },
             status="eaten",
             performance={
@@ -309,7 +312,20 @@ class NutritionQueries:
                 "fat_g": _num(f.total_fat_g),
                 "fiber_g": _num(f.total_fiber_g),
                 "sugar_g": _num(f.total_sugar_g),
+                "saturated_fat_g": _num(f.total_saturated_fat_g),
+                "sodium_mg": _num(f.total_sodium_mg),
+                "cholesterol_mg": _num(f.total_cholesterol_mg),
+                "potassium_mg": _num(getattr(f, "total_potassium_mg", None)),
+                "net_carbs_g": _num(getattr(f, "total_net_carbs_g", None)),
             },
+            extensions={k: v for k, v in {
+                "notes": (f.notes or "").strip() or None,
+                "location": (f.location or None),
+                "eating_pace": (f.eating_pace or None),
+                "hunger_before": f.hunger_level_before,
+                "fullness_after": f.fullness_level_after,
+                "mood_tags": (f.mood_tags or None),
+            }.items() if v is not None},
             freshness=F.CURRENT,
         )
 

@@ -137,3 +137,72 @@ def recent_average_hours(user, days=7):
         return None
     total = sum(_canonical_minutes(r) for r in by_night.values())
     return round((total / len(by_night)) / 60, 1)
+
+
+# ── Entity Completeness (record-level sleep detail for the Model Interface) ──────
+# `describe`/`describe_one` return CompleteEntity objects exposing EVERY stored sleep
+# dimension (stages, efficiency, quality, bedtime/waketime, HRV, respiratory rate…) —
+# all stored on SleepEntry but previously unreachable (only hours were surfaced). One
+# authoritative record per night (most recent row per sleep_date).
+def _sleep_entity(e):
+    from apps.core.truth.entity import CompleteEntity
+    from apps.core.truth.freshness import CURRENT
+
+    def _hrs(mins):
+        return round(mins / 60.0, 2) if mins is not None else None
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    g = lambda a: getattr(e, a, None)
+    return CompleteEntity(
+        kind="sleep",
+        identity=f"Sleep — {e.sleep_date.isoformat()}",
+        definition={
+            "date": e.sleep_date.isoformat(),
+            "bedtime": e.bedtime.isoformat() if g("bedtime") else None,
+            "wake_time": e.wake_time.isoformat() if g("wake_time") else None,
+            "source": g("source"),
+        },
+        status="logged",
+        performance={
+            "asleep_hours": _hrs(g("asleep_duration_minutes")),
+            "in_bed_hours": _hrs(g("total_duration_minutes")),
+            "deep_hours": _hrs(g("stage_deep_minutes")),
+            "rem_hours": _hrs(g("stage_rem_minutes")),
+            "light_hours": _hrs(g("stage_light_minutes")),
+            "awake_hours": _hrs(g("stage_awake_minutes")),
+            "efficiency_pct": _f(g("sleep_efficiency")),
+            "quality_rating": g("quality_rating") or None,
+            "quality_score": g("quality_score"),
+            "interruptions": g("interruption_count"),
+            "hrv_ms": _f(g("hrv_value")),
+            "respiratory_rate": _f(g("respiratory_rate")),
+            "heart_rate_avg": g("heart_rate_avg"),
+        },
+        freshness=CURRENT,
+    )
+
+
+def describe(user, *, since_days=30, limit=20):
+    """Recent nights, each a CompleteEntity (one authoritative row per night)."""
+    from apps.core.utils import get_user_today
+    from apps.health.models import SleepEntry
+    cutoff = get_user_today(user) - timedelta(days=since_days)
+    seen, out = set(), []
+    for e in (SleepEntry.objects.filter(user=user, sleep_date__gte=cutoff)
+              .order_by("-sleep_date", "-id")):
+        if e.sleep_date in seen:
+            continue
+        seen.add(e.sleep_date)
+        out.append(_sleep_entity(e))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def describe_one(user, name=None):
+    """The most recent night as a CompleteEntity (name ignored — sleep has no label)."""
+    from apps.health.models import SleepEntry
+    e = SleepEntry.objects.filter(user=user).order_by("-sleep_date", "-id").first()
+    return _sleep_entity(e) if e else None

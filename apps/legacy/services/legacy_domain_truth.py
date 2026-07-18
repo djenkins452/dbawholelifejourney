@@ -122,6 +122,12 @@ class LegacyDomainTruth(DomainTruth):
 
     # ── per-record mappers (shared by describe + describe_one) ──────────
     def _memory_entity(self, m) -> CompleteEntity:
+        cover = None
+        try:
+            c = m.cover_media()
+            cover = c.file.url if (c and getattr(c, "file", None)) else None
+        except Exception:
+            cover = None
         return CompleteEntity(
             kind="memory",
             identity=m.title or "(untitled memory)",
@@ -132,18 +138,24 @@ class LegacyDomainTruth(DomainTruth):
             },
             status=m.entry_state,
             standing={
-                "people": [p.display_name for p in m.people.all()],
+                "people": [{"name": mp.person.display_name, "role": mp.role or None}
+                           for mp in m.memoryperson_set.select_related("person").all()],
                 "places": [p.name for p in m.places.all()],
+                "milestones": [ms.title for ms in m.milestones.all()],
                 "media_count": m.media.count(),
                 "has_audio": m.has_audio,
+                "cover_media": cover,
             },
             extensions={
+                "story": m.body or None,              # the actual narrative/transcript
                 "provenance": {
                     "source_kind": m.source_kind,
                     "attributed_to": m.attributed_to.display_name if m.attributed_to else None,
                     "contributor": m.contributor.name if m.contributor else None,
                     "created_via": m.created_via,
                     "note": m.provenance_note,
+                    "updated_by": (m.updated_by.get_full_name()
+                                   if m.updated_by_id else None),
                 },
                 "significance": m.significance,
             },
@@ -151,25 +163,53 @@ class LegacyDomainTruth(DomainTruth):
 
     def _person_entity(self, p) -> CompleteEntity:
         mems = list(p.memories.all()[:25])
+        # Family history: the typed relationship graph (both directions).
+        related = []
+        for r in p.relationships_from.select_related("to_person").all():
+            related.append({"person": r.to_person.display_name, "type": r.type_label,
+                            "status": r.rel_status,
+                            "since": r.display_started or None,
+                            "until": r.display_ended or None})
+        for r in p.relationships_to.select_related("from_person").all():
+            related.append({"person": r.from_person.display_name, "type": r.type_label,
+                            "status": r.rel_status,
+                            "since": r.display_started or None,
+                            "until": r.display_ended or None})
+        facts = [{"concept": f.concept, "label": f.label, "value": f.summary}
+                 for f in p.preserved_facts.all()[:50]]
         return CompleteEntity(
             kind="person",
             identity=p.display_name,
             definition={
                 "also_known_as": p.also_known_as,
                 "relationship": p.relationship_label,
+                "sex": p.sex or None,
+                "birth": p.display_birth or None,
+                "death": p.display_death or None,
                 "birth_year": p.birth_year,
                 "death_year": p.death_year,
+                "is_self": p.is_self,
             },
             standing={"memory_count": p.memories.count(),
-                      "memories": [m.title or "(untitled)" for m in mems]},
-            extensions={"significance": p.significance},
+                      "memories": [m.title or "(untitled)" for m in mems],
+                      "relationships": related},
+            extensions={"significance": p.significance,
+                        "bio": p.bio_plain or None,
+                        "portrait_url": p.portrait_url or None,
+                        "preserved_facts": facts},
         )
 
     def _place_entity(self, pl) -> CompleteEntity:
         return CompleteEntity(
             kind="place",
             identity=pl.name,
-            definition={"location": pl.location_text},
+            definition={
+                "location": pl.location_text,
+                "coordinates": ({"lat": float(pl.latitude), "lng": float(pl.longitude)}
+                                if pl.has_coordinates else None),
+            },
             standing={"memory_count": pl.memories.count()},
-            extensions={"significance": pl.significance},
+            extensions={"significance": pl.significance,
+                        "description": pl.description_plain or None,
+                        "maps_link": pl.maps_link_url or None},
         )

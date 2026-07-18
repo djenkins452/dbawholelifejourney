@@ -174,6 +174,30 @@ class GoalDomainTruth(DomainTruth):
                 "improved": drivers.get("success_drivers") or drivers.get("improved"),
                 "needs_work": drivers.get("risk_drivers") or drivers.get("needs_work"),
                 "as_of": snap.snapshot_date.isoformat()})
+        # Additive truth previously stranded on the model.
+        ad = g.annual_direction
+        victories = (list(g.victory_milestones.all())
+                     if hasattr(g, "victory_milestones") else [])
+        extensions = {
+            "description": (g.description_plain or "").strip(),
+            "reflection": (g.reflection_plain or "").strip(),
+            "motivation_note": (g.motivation_note_plain or "").strip(),
+            "commitment_level": g.commitment_level,
+            "timeframe": g.timeframe,
+            "mission_icon": g.mission_icon or "",
+            "annual_direction": ({"year": ad.year, "word_of_year": ad.word_of_year}
+                                 if ad else None),
+            "victory_milestones": {
+                "total": len(victories),
+                "completed": sum(1 for v in victories if v.completed),
+                "titles": [v.title for v in victories]},
+            "motivation_links": [{"title": ln.title, "url": ln.url}
+                                 for ln in g.motivation_links.all()],
+            "linked_habits": [hl.habit.name
+                              for hl in g.habit_links.select_related("habit").all()],
+            "signal_sources": [{"signal_type": s.signal_type, "weight": s.weight}
+                               for s in g.signal_sources.all()],
+        }
         return CompleteEntity(
             kind="goal", identity=g.title, status=g.status,
             definition={"why_it_matters": (g.why_it_matters_plain or "").strip(),
@@ -188,9 +212,15 @@ class GoalDomainTruth(DomainTruth):
                       "milestone_count": len(ms),
                       "completed_milestones": len(done),
                       "overdue_milestones": [m.title for m in g.overdue_milestones]},
-            performance=perf)
+            performance=perf,
+            extensions=extensions)
 
     def _milestone_entity(self, m):
+        objective = None
+        if m.objective_metric:
+            objective = {"metric": m.objective_metric, "operator": m.objective_operator,
+                         "target_value": (float(m.objective_target_value)
+                                          if m.objective_target_value is not None else None)}
         return CompleteEntity(
             kind="milestone", identity=m.title,
             status="completed" if m.completed else "open",
@@ -199,4 +229,5 @@ class GoalDomainTruth(DomainTruth):
                   "days_until_due": m.days_until_due},
             standing={"is_overdue": m.is_overdue},
             performance={"completed_date": m.completed_date.isoformat()
-                         if m.completed_date else None})
+                         if m.completed_date else None},
+            extensions=({"objective": objective} if objective else {}))

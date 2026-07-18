@@ -23,8 +23,9 @@ class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
     history_metrics = (("steps", "sleep", "weight", "workouts",
-                        "glucose", "bp_systolic", "bp_diastolic") + _BODY_METRICS)
-    entity_types = ("workout",)
+                        "glucose", "bp_systolic", "bp_diastolic", "bp_pulse")
+                       + _BODY_METRICS)
+    entity_types = ("workout", "sleep")
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
     # surfaces into one evidence bundle (see DomainTruth.analysis_subjects). Subjects
@@ -45,6 +46,7 @@ class HealthDomainTruth(DomainTruth):
         "glucose": HealthHistory.glucose,
         "bp_systolic": HealthHistory.bp_systolic,
         "bp_diastolic": HealthHistory.bp_diastolic,
+        "bp_pulse": HealthHistory.bp_pulse,
     }
 
     def current(self, metric):
@@ -62,9 +64,12 @@ class HealthDomainTruth(DomainTruth):
     # -- Entity Completeness Contract (record-level truth) --------------------
     # Delegates to the canonical WorkoutQueries authority (no new retrieval logic).
     def describe(self, entity_type="workout"):
-        """Recent completed workouts as CompleteEntity objects — answers "what
-        exercises did I do", "did I do calf raises", "my sets/weight/volume",
-        "summarize my workout". entity_type ∈ workout."""
+        """Record-level health truth. entity_type ∈ workout | sleep. Workouts →
+        exercises/sets/reps/weight/PRs; sleep → stages/efficiency/quality/HRV
+        (all stored on SleepEntry, previously unreachable)."""
+        if entity_type == "sleep":
+            from apps.health.services import sleep_queries
+            return sleep_queries.describe(self.user)
         if entity_type not in (None, "workout"):
             raise KeyError(f"health domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")

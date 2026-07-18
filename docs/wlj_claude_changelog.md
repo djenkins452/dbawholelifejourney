@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-17 — session-transition(cos): development priority → bottom-up Truth Retrieval Certification (bootloader regenerated)
+
+**Close-out only — no feature work.** Ran the `99_PREPARE_NEXT_CHAT` workflow. The session's central conclusion: *we began optimizing executive reasoning before fully proving deterministic truth retrieval.* The architecture is correct; the **implementation order** changes — the CoS is now developed strictly bottom-up (Phase 1 **Truth Retrieval Certification** → Phase 2 single-domain understanding → Phase 3 cross-domain → Phase 4 executive), and higher-order reasoning/coaching/synthesis and all derived-fact work are deferred until retrieval is certified.
+
+- **Bootloader regenerated** (`@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`): new bottom-up priority + Phase-1 certification questions + trace-on-failure procedure + the ownership-model guardrail; carries every deferred item (derived Personal Truth, favorite foods, preferred shake, more reasoning/synthesis/coaching) and every open item (meals-retrieval routing bug; 2 pre-existing `test_health_facts` failures; worker-vs-web deploy caveat; UTC-vs-local calendar-day attribution at the top of the architecture backlog). Operations Phase-II O2 pilot preserved as an operator-gated **parallel track** (separate session), not the CoS priority.
+- **Permanent package docs: NO CHANGE (verified, not assumed).** No constitutional principle, architecture doctrine, engineering rule, or Danny preference changed this session — only sprint priority. Personal Truth is already in `01_…ARCHITECTURE`, and the deeper PTP architecture doc is a concurrent effort (`docs/DRAFT_THREE_TRUTH_SURFACES_AND_PTP.md`, the `docs(architecture)` commits) — not touched here to avoid collision. Reference Index unchanged (no governing doc moved/added/reclassified).
+- **Coordination:** parallel CoS development is ending — CoS architecture stays in ONE authoritative session until stabilized; Dashboard / Health Sync / Body Intelligence / Legacy / Operations continue in their own threads.
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`.
+
 ## 2026-07-17 — fix(cos): evidence UTILIZATION — surface Personal Truth as binding CONSTRAINTS, not buried JSON
 
 **Not retrieval, not prompt-size — an evidence-utilization defect, traced before any change.** Production: "Build me a meal plan using my WLJ profile" returned a generic plan (egg whites/Greek yogurt/quinoa…) that VIOLATED the stored targets — against a stored carb target of 90g it produced 185g. The model *had* the numbers and ignored them.

@@ -506,8 +506,10 @@ class DashboardAI:
             # Health - Nutrition Tracking
             try:
 
-                # Today's nutrition progress
-                nutrition_progress = self.prefs.get_nutrition_progress(today)
+                # Today's nutrition progress (canonical: one composer over the single
+                # NutritionGoals target store; replaced UserPreferences.get_nutrition_progress)
+                from apps.health.services.nutrition_summary import build_nutrition_progress
+                nutrition_progress = build_nutrition_progress(self.prefs.user, target_date=today)
                 if nutrition_progress:
                     calories = nutrition_progress.get('calories', {})
                     if calories.get('current', 0) > 0:

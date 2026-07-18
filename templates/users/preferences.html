@@ -2039,129 +2039,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                 </div>
                             </button>
                             <div class="accordion-body">
-                                <p class="text-muted mb-4">Set your daily nutrition targets. Weight goals have moved to <a href="{% url 'health:health_profile' %}">Health Profile</a>.</p>
-
-                                <!-- Nutrition Goals Section -->
-                                <div class="goal-section mt-6">
-                                    <h4 class="module-section-title">
-                                        <span class="goal-icon">🍎</span> Nutrition Goals
-                                    </h4>
-                                    <p class="text-muted text-sm mb-4">
-                                        Set your daily caloric intake and macro split. Research your personal needs based on your age, activity level, and goals.
-                                    </p>
-
-                                    <div class="form-group">
-                                        <label for="id_daily_calorie_goal" class="form-label">Daily Calorie Goal</label>
-                                        <input
-                                            type="number"
-                                            inputmode="numeric"
-                                            pattern="[0-9]*"
-                                            name="daily_calorie_goal"
-                                            id="id_daily_calorie_goal"
-                                            class="form-input calorie-input"
-                                            value="{{ form.daily_calorie_goal.value|default:'' }}"
-                                            placeholder="e.g., 2000"
-                                            min="500"
-                                            max="10000"
-                                        >
-                                        <p class="form-help">Your target daily caloric intake in calories.</p>
-                                    </div>
-
-                                    <div class="macro-section mt-4">
-                                        <label class="form-label">Macro Split (must total 100%)</label>
-                                        <div class="macro-inputs">
-                                            <div class="macro-input-group">
-                                                <label for="id_protein_percentage" class="macro-label">
-                                                    <span class="macro-icon protein">🥩</span> Protein
-                                                </label>
-                                                <div class="macro-input-wrapper">
-                                                    <input
-                                                        type="number"
-                                                        inputmode="numeric"
-                                                        pattern="[0-9]*"
-                                                        name="protein_percentage"
-                                                        id="id_protein_percentage"
-                                                        class="form-input macro-input"
-                                                        value="{{ form.protein_percentage.value|default:'' }}"
-                                                        placeholder="30"
-                                                        min="0"
-                                                        max="100"
-                                                    >
-                                                    <span class="macro-percent">%</span>
-                                                </div>
-                                                <span class="macro-grams" id="protein-grams"></span>
-                                            </div>
-
-                                            <div class="macro-input-group">
-                                                <label for="id_carbs_percentage" class="macro-label">
-                                                    <span class="macro-icon carbs">🍞</span> Carbs
-                                                </label>
-                                                <div class="macro-input-wrapper">
-                                                    <input
-                                                        type="number"
-                                                        inputmode="numeric"
-                                                        pattern="[0-9]*"
-                                                        name="carbs_percentage"
-                                                        id="id_carbs_percentage"
-                                                        class="form-input macro-input"
-                                                        value="{{ form.carbs_percentage.value|default:'' }}"
-                                                        placeholder="40"
-                                                        min="0"
-                                                        max="100"
-                                                    >
-                                                    <span class="macro-percent">%</span>
-                                                </div>
-                                                <span class="macro-grams" id="carbs-grams"></span>
-                                            </div>
-
-                                            <div class="macro-input-group">
-                                                <label for="id_fat_percentage" class="macro-label">
-                                                    <span class="macro-icon fat">🥑</span> Fat
-                                                </label>
-                                                <div class="macro-input-wrapper">
-                                                    <input
-                                                        type="number"
-                                                        inputmode="numeric"
-                                                        pattern="[0-9]*"
-                                                        name="fat_percentage"
-                                                        id="id_fat_percentage"
-                                                        class="form-input macro-input"
-                                                        value="{{ form.fat_percentage.value|default:'' }}"
-                                                        placeholder="30"
-                                                        min="0"
-                                                        max="100"
-                                                    >
-                                                    <span class="macro-percent">%</span>
-                                                </div>
-                                                <span class="macro-grams" id="fat-grams"></span>
-                                            </div>
-                                        </div>
-
-                                        <div class="macro-total-row mt-3">
-                                            <span class="macro-total-label">Total:</span>
-                                            <span id="macro-total" class="macro-total-value">0%</span>
-                                            <span id="macro-status" class="macro-status"></span>
-                                        </div>
-                                    </div>
-
-                                    <div class="nutrition-tips mt-4">
-                                        <h4 class="tips-title">Common Macro Splits:</h4>
-                                        <div class="macro-presets">
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="30" data-carbs="40" data-fat="30">
-                                                Balanced (30/40/30)
-                                            </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="40" data-carbs="30" data-fat="30">
-                                                High Protein (40/30/30)
-                                            </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="30" data-carbs="20" data-fat="50">
-                                                Low Carb (30/20/50)
-                                            </button>
-                                            <button type="button" class="btn btn-ghost btn-sm macro-preset" data-protein="20" data-carbs="5" data-fat="75">
-                                                Keto (20/5/75)
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+                                <p class="text-muted mb-4">Your nutrition targets — daily calories and macros — are set on the <a href="{% url 'health:nutrition_goals' %}">Nutrition Goals</a> page. Weight goals are on <a href="{% url 'health:health_profile' %}">Health Profile</a>.</p>
                             </div>
                         </div>
 
@@ -3855,72 +3733,6 @@ if (healthToggle) {
     });
 }
 
-// Macro percentage calculations
-function updateMacroTotal() {
-    const protein = parseInt(document.getElementById('id_protein_percentage').value) || 0;
-    const carbs = parseInt(document.getElementById('id_carbs_percentage').value) || 0;
-    const fat = parseInt(document.getElementById('id_fat_percentage').value) || 0;
-
-    const total = protein + carbs + fat;
-    const totalEl = document.getElementById('macro-total');
-    const statusEl = document.getElementById('macro-status');
-
-    if (totalEl) {
-        totalEl.textContent = total + '%';
-        totalEl.classList.remove('valid', 'invalid');
-        statusEl.classList.remove('valid', 'invalid');
-
-        if (total === 100) {
-            totalEl.classList.add('valid');
-            statusEl.textContent = '✓ Perfect!';
-            statusEl.classList.add('valid');
-        } else if (total > 0) {
-            totalEl.classList.add('invalid');
-            if (total < 100) {
-                statusEl.textContent = `Need ${100 - total}% more`;
-            } else {
-                statusEl.textContent = `${total - 100}% over`;
-            }
-            statusEl.classList.add('invalid');
-        } else {
-            statusEl.textContent = '';
-        }
-    }
-
-    updateMacroGrams();
-}
-
-function updateMacroGrams() {
-    const calories = parseInt(document.getElementById('id_daily_calorie_goal').value) || 0;
-    const protein = parseInt(document.getElementById('id_protein_percentage').value) || 0;
-    const carbs = parseInt(document.getElementById('id_carbs_percentage').value) || 0;
-    const fat = parseInt(document.getElementById('id_fat_percentage').value) || 0;
-
-    const proteinGrams = calories > 0 && protein > 0 ? Math.round((calories * protein / 100) / 4) : 0;
-    const carbsGrams = calories > 0 && carbs > 0 ? Math.round((calories * carbs / 100) / 4) : 0;
-    const fatGrams = calories > 0 && fat > 0 ? Math.round((calories * fat / 100) / 9) : 0;
-
-    const proteinEl = document.getElementById('protein-grams');
-    const carbsEl = document.getElementById('carbs-grams');
-    const fatEl = document.getElementById('fat-grams');
-
-    if (proteinEl) proteinEl.textContent = proteinGrams > 0 ? `≈ ${proteinGrams}g` : '';
-    if (carbsEl) carbsEl.textContent = carbsGrams > 0 ? `≈ ${carbsGrams}g` : '';
-    if (fatEl) fatEl.textContent = fatGrams > 0 ? `≈ ${fatGrams}g` : '';
-}
-
-function setMacroPreset(protein, carbs, fat) {
-    document.getElementById('id_protein_percentage').value = protein;
-    document.getElementById('id_carbs_percentage').value = carbs;
-    document.getElementById('id_fat_percentage').value = fat;
-    updateMacroTotal();
-}
-
-// Initialize macro calculations on page load
-document.addEventListener('DOMContentLoaded', function() {
-    updateMacroTotal();
-});
-
 // Fasting type descriptions and UI
 const fastingDescriptions = {
     "16:8": "The most popular fasting method. Fast for 16 hours and eat within an 8-hour window. Example: Eat between 12pm-8pm.",
@@ -4770,19 +4582,10 @@ document.getElementById('quick-link-edit-modal')?.addEventListener('click', func
     if (e.target === this) this.style.display = 'none';
 });
 document.getElementById('id_default_fasting_type')?.addEventListener('change', updateFastingDescription);
-document.getElementById('id_daily_calorie_goal')?.addEventListener('input', updateMacroGrams);
-document.getElementById('id_protein_percentage')?.addEventListener('input', updateMacroTotal);
-document.getElementById('id_carbs_percentage')?.addEventListener('input', updateMacroTotal);
-document.getElementById('id_fat_percentage')?.addEventListener('input', updateMacroTotal);
 document.getElementById('cycle-tracking-toggle')?.addEventListener('change', function() { handleCycleTrackingToggle(this); });
 
 // Delegated click handlers for dynamic content
 document.addEventListener('click', function(e) {
-    var presetBtn = e.target.closest('.macro-preset[data-protein]');
-    if (presetBtn) {
-        setMacroPreset(parseInt(presetBtn.dataset.protein), parseInt(presetBtn.dataset.carbs), parseInt(presetBtn.dataset.fat));
-        return;
-    }
 
     var deleteBtn = e.target.closest('.quick-link-delete[data-link-id]');
     if (deleteBtn) {

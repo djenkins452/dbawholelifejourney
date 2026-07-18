@@ -1165,29 +1165,10 @@ class UserPreferences(models.Model):
         help_text="Target date to achieve weight goal",
     )
 
-    # ===================
-    # NUTRITION GOALS
-    # ===================
-    daily_calorie_goal = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text="Daily caloric intake goal",
-    )
-    protein_percentage = models.PositiveSmallIntegerField(
-        null=True,
-        blank=True,
-        help_text="Target percentage of calories from protein (0-100)",
-    )
-    carbs_percentage = models.PositiveSmallIntegerField(
-        null=True,
-        blank=True,
-        help_text="Target percentage of calories from carbohydrates (0-100)",
-    )
-    fat_percentage = models.PositiveSmallIntegerField(
-        null=True,
-        blank=True,
-        help_text="Target percentage of calories from fat (0-100)",
-    )
+    # NOTE: Nutrition targets are NOT stored here. The single canonical target store
+    # is health.NutritionGoals (absolute grams), set on the Nutrition Goals page.
+    # (Foundation 1A — Nutrition Truth Consolidation; the former calorie/macro-percentage
+    # fields here were a duplicate store and were removed.)
 
     # ===================
     # FASTING PREFERENCES
@@ -1292,40 +1273,6 @@ class UserPreferences(models.Model):
         except HealthProfile.DoesNotExist:
             return False
 
-    @property
-    def has_nutrition_goals(self):
-        """Check if user has nutrition goals set."""
-        return self.daily_calorie_goal is not None
-
-    @property
-    def macro_percentages_valid(self):
-        """Check if macro percentages add up to 100%."""
-        if self.protein_percentage is None or self.carbs_percentage is None or self.fat_percentage is None:
-            return True  # If not all set, skip validation
-        total = (self.protein_percentage or 0) + (self.carbs_percentage or 0) + (self.fat_percentage or 0)
-        return total == 100
-
-    def get_macro_goal_grams(self):
-        """Derive daily macro targets in grams from the calorie goal + macro
-        percentages. Single source of the percentage->grams formula so the
-        Preferences editor, NutritionGoals sync, and progress display never
-        drift. Returns dict with calorie_goal and per-macro grams (None when a
-        percentage is unset)."""
-        calorie_goal = self.daily_calorie_goal or 2000
-        protein_g = carbs_g = fat_g = None
-        if self.protein_percentage is not None:
-            protein_g = round((calorie_goal * self.protein_percentage / 100) / 4)
-        if self.carbs_percentage is not None:
-            carbs_g = round((calorie_goal * self.carbs_percentage / 100) / 4)
-        if self.fat_percentage is not None:
-            fat_g = round((calorie_goal * self.fat_percentage / 100) / 9)
-        return {
-            'calorie_goal': calorie_goal,
-            'protein_g': protein_g,
-            'carbs_g': carbs_g,
-            'fat_g': fat_g,
-        }
-
     def get_weight_progress(self):
         """Delegates to HealthProfile.get_weight_progress()."""
         from apps.health.models import HealthProfile
@@ -1334,85 +1281,9 @@ class UserPreferences(models.Model):
         except HealthProfile.DoesNotExist:
             return None
 
-    def get_nutrition_progress(self, date=None):
-        """
-        Calculate today's nutrition progress toward goals.
-        Returns dict with current totals, goals, and progress percentages.
-        """
-        from django.utils import timezone
-        from apps.health.models import FoodEntry, DailyNutritionSummary
-        from apps.core.utils import get_user_today
-
-        if not self.has_nutrition_goals:
-            return None
-
-        if date is None:
-            date = get_user_today(self.user) if self.user_id else timezone.now().date()
-
-        # Get today's nutrition data
-        summary = DailyNutritionSummary.objects.filter(
-            user=self.user,
-            summary_date=date,
-            status='active'
-        ).first()
-
-        if not summary:
-            # Calculate from food entries if no summary
-            entries = FoodEntry.objects.filter(
-                user=self.user,
-                logged_date=date,
-                status='active'
-            )
-            total_calories = sum(float(e.total_calories) for e in entries)
-            total_protein_g = sum(float(e.total_protein_g) for e in entries)
-            total_carbs_g = sum(float(e.total_carbohydrates_g) for e in entries)
-            total_fat_g = sum(float(e.total_fat_g) for e in entries)
-        else:
-            total_calories = float(summary.total_calories)
-            total_protein_g = float(summary.total_protein_g)
-            total_carbs_g = float(summary.total_carbohydrates_g)
-            total_fat_g = float(summary.total_fat_g)
-
-        # Calculate goal targets in grams from percentages (shared formula)
-        macro_grams = self.get_macro_goal_grams()
-        calorie_goal = macro_grams['calorie_goal']
-        protein_goal_g = macro_grams['protein_g']
-        carbs_goal_g = macro_grams['carbs_g']
-        fat_goal_g = macro_grams['fat_g']
-
-        # Calculate progress percentages
-        calorie_progress = round((total_calories / calorie_goal) * 100, 1) if calorie_goal else 0
-        protein_progress = round((total_protein_g / protein_goal_g) * 100, 1) if protein_goal_g else None
-        carbs_progress = round((total_carbs_g / carbs_goal_g) * 100, 1) if carbs_goal_g else None
-        fat_progress = round((total_fat_g / fat_goal_g) * 100, 1) if fat_goal_g else None
-
-        return {
-            'date': date,
-            'calories': {
-                'current': round(total_calories),
-                'goal': calorie_goal,
-                'remaining': calorie_goal - round(total_calories),
-                'progress_percent': min(100, calorie_progress),
-            },
-            'protein': {
-                'current_g': round(total_protein_g, 1),
-                'goal_g': protein_goal_g,
-                'goal_percent': self.protein_percentage,
-                'progress_percent': min(100, protein_progress) if protein_progress else None,
-            },
-            'carbs': {
-                'current_g': round(total_carbs_g, 1),
-                'goal_g': carbs_goal_g,
-                'goal_percent': self.carbs_percentage,
-                'progress_percent': min(100, carbs_progress) if carbs_progress else None,
-            },
-            'fat': {
-                'current_g': round(total_fat_g, 1),
-                'goal_g': fat_goal_g,
-                'goal_percent': self.fat_percentage,
-                'progress_percent': min(100, fat_progress) if fat_progress else None,
-            },
-        }
+    # Nutrition progress moved to the canonical composer
+    # apps.health.services.nutrition_summary.build_nutrition_progress (reads the single
+    # NutritionGoals target store). UserPreferences no longer holds nutrition targets.
 
 
 class WebAuthnCredential(models.Model):

@@ -248,7 +248,10 @@ class DashboardCacheService:
         from apps.health.models import HealthProfile
         health_profile = HealthProfile.get_for_user(user)
         weight_progress = health_profile.get_weight_progress()
-        nutrition_progress = user.preferences.get_nutrition_progress(today)
+        # Canonical nutrition truth: one composer over NutritionQueries + NutritionGoals
+        # (the single target store). Replaced UserPreferences.get_nutrition_progress.
+        from apps.health.services.nutrition_summary import build_nutrition_progress
+        nutrition_progress = build_nutrition_progress(user, target_date=today)
 
         return {
             'latest_weight': latest_weight,

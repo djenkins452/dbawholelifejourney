@@ -79,3 +79,47 @@ def build_nutrition_summary(user, *, target_date=None):
         "targets": targets,
         "progress": progress,
     }
+
+
+def build_nutrition_progress(user, *, target_date=None):
+    """Dashboard-tile-shaped nutrition progress, derived from the SAME canonical
+    summary (build_nutrition_summary → NutritionQueries + NutritionGoals). Returns
+    None when the user has no calorie target set (the tile hides) — this replaced
+    UserPreferences.get_nutrition_progress so nutrition targets live in ONE store.
+
+    Shape (unchanged from the retired producer, minus the dropped goal_percent):
+        {
+          "date": date,
+          "calories": {current, goal, remaining, progress_percent},
+          "protein"|"carbs"|"fat": {current_g, goal_g, progress_percent},
+        }
+    """
+    s = build_nutrition_summary(user, target_date=target_date)
+    targets = s["targets"]
+    if not targets or not targets.get("calories"):
+        return None
+
+    totals = s["totals"]
+    progress = s["progress"]
+
+    def _macro(key):
+        return {
+            "current_g": round(float(totals[key]), 1),
+            "goal_g": targets.get(key),
+            "progress_percent": progress.get(key),
+        }
+
+    cal_current = round(float(totals["calories"]))
+    cal_goal = targets["calories"]
+    return {
+        "date": s["date"],
+        "calories": {
+            "current": cal_current,
+            "goal": cal_goal,
+            "remaining": cal_goal - cal_current,
+            "progress_percent": progress.get("calories"),
+        },
+        "protein": _macro("protein_g"),
+        "carbs": _macro("carbs_g"),
+        "fat": _macro("fat_g"),
+    }

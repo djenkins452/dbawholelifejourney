@@ -16,7 +16,9 @@ from django.test import TestCase
 
 from apps.core.current_context import _PAGE_SUMMARY_PROVIDERS
 from apps.health.models import FoodEntry, NutritionGoals
-from apps.health.services.nutrition_summary import build_nutrition_summary
+from apps.health.services.nutrition_summary import (
+    build_nutrition_progress, build_nutrition_summary,
+)
 
 User = get_user_model()
 
@@ -73,6 +75,34 @@ class BuildNutritionSummaryTests(TestCase):
         self.assertEqual(s["targets"]["calories"], 2000)
         self.assertEqual(s["progress"]["calories"], 50)   # 1000/2000
         self.assertEqual(s["progress"]["protein_g"], 50)  # 50/100
+
+
+class BuildNutritionProgressTests(TestCase):
+    """The dashboard-tile builder — the canonical replacement for the retired
+    UserPreferences.get_nutrition_progress (single NutritionGoals target store)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="nprog@test.com", password="x")
+        self.today = date.today()
+
+    def test_returns_none_without_a_calorie_target(self):
+        _food(self.user, self.today, 500, 40, 50, 20)
+        self.assertIsNone(build_nutrition_progress(self.user, target_date=self.today))
+
+    def test_tile_shape_from_nutrition_goals(self):
+        _food(self.user, self.today, 1000, 60, 100, 30)
+        NutritionGoals.objects.create(
+            user=self.user, daily_calorie_target=2000,
+            daily_protein_target_g=120, daily_carb_target_g=200,
+            daily_fat_target_g=60, effective_until=None)
+        p = build_nutrition_progress(self.user, target_date=self.today)
+        self.assertEqual(p["calories"]["current"], 1000)
+        self.assertEqual(p["calories"]["goal"], 2000)
+        self.assertEqual(p["calories"]["remaining"], 1000)
+        self.assertEqual(p["calories"]["progress_percent"], 50)
+        self.assertEqual(p["protein"]["current_g"], 60.0)
+        self.assertEqual(p["protein"]["goal_g"], 120)
+        self.assertEqual(p["protein"]["progress_percent"], 50)
 
 
 class NutritionPageSummaryProviderTests(TestCase):

@@ -499,11 +499,8 @@ class PreferencesForm(forms.ModelForm):
             # Health
             "default_fasting_type",
             # Weight Goals — moved to Health Profile (apps/health/models.py HealthProfile)
-            # Nutrition Goals
-            "daily_calorie_goal",
-            "protein_percentage",
-            "carbs_percentage",
-            "fat_percentage",
+            # Nutrition Goals — moved to the canonical NutritionGoals store (set on the
+            # Nutrition Goals page); no longer stored on UserPreferences.
             # SMS Notifications
             "sms_enabled",
             "sms_consent",
@@ -632,31 +629,7 @@ class PreferencesForm(forms.ModelForm):
                 "class": "form-select",
             }),
             # Weight Goals — moved to Health Profile
-            # Nutrition Goals
-            "daily_calorie_goal": forms.NumberInput(attrs={
-                "class": "form-input",
-                "placeholder": "Daily calories",
-                "min": "500",
-                "max": "10000",
-            }),
-            "protein_percentage": forms.NumberInput(attrs={
-                "class": "form-input",
-                "placeholder": "% protein",
-                "min": "0",
-                "max": "100",
-            }),
-            "carbs_percentage": forms.NumberInput(attrs={
-                "class": "form-input",
-                "placeholder": "% carbs",
-                "min": "0",
-                "max": "100",
-            }),
-            "fat_percentage": forms.NumberInput(attrs={
-                "class": "form-input",
-                "placeholder": "% fat",
-                "min": "0",
-                "max": "100",
-            }),
+            # Nutrition Goals — moved to the canonical NutritionGoals store
             # SMS Notifications
             "sms_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
@@ -823,24 +796,3 @@ class PreferencesForm(forms.ModelForm):
             attrs={"class": "form-select"},
         )
 
-    def clean(self):
-        """Validate form data, especially macro percentages."""
-        cleaned_data = super().clean()
-
-        # Validate macro percentages sum to 100% if all are provided
-        protein = cleaned_data.get('protein_percentage')
-        carbs = cleaned_data.get('carbs_percentage')
-        fat = cleaned_data.get('fat_percentage')
-
-        # If any macro percentage is set, encourage setting all of them
-        if any([protein, carbs, fat]) and not all([protein, carbs, fat]):
-            # Don't error, just allow partial entry
-            pass
-        elif all([protein, carbs, fat]):
-            total = protein + carbs + fat
-            if total != 100:
-                raise forms.ValidationError(
-                    f"Macro percentages must add up to 100%. Current total: {total}%"
-                )
-
-        return cleaned_data

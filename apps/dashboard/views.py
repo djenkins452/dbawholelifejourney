@@ -1042,7 +1042,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
             "weight_progress": cached.get('weight_progress'),
             "nutrition_progress": cached.get('nutrition_progress'),
             "has_weight_goal": cached.get('weight_progress') is not None,
-            "has_nutrition_goals": user.preferences.has_nutrition_goals,
+            "has_nutrition_goals": cached.get('nutrition_progress') is not None,
             # Cycle Tracking
             "cycle_tracking_enabled": cycle_tracking_enabled,
             "cycle_data": cycle_data,

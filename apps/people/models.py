@@ -17,6 +17,8 @@ apps/people/tests/test_architecture_boundary.py.
 """
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
 from apps.core.models import TimeStampedModel, UserOwnedModel
@@ -288,3 +290,50 @@ class PersonSourceLink(models.Model):
 
     def __str__(self):
         return f"{self.source_domain}#{self.source_pk} → person {self.person_id}"
+
+
+class PersonMention(TimeStampedModel):
+    """The canonical, structured link between a Person and a source object that
+    references them (a journal entry, task, prayer, …).
+
+    THE deterministic authority for "who is linked to this object." The rich-text
+    editor's mention token is the interaction artifact; this row is the truth. One
+    canonical mention store, many consumers — never a per-module mention table, and
+    never a consumer of a legacy Person. GenericForeignKey keeps the Core Person domain
+    free of any feature import (dependency direction: features → Core Person).
+    """
+
+    class Source(models.TextChoices):
+        EXPLICIT_AT_MENTION = "explicit_at_mention", "Explicit @mention"
+        EXACT_NAME = "exact_name", "Recognized by name"
+        RELATIONSHIP_ROLE = "relationship_role", "Recognized by role"
+        CONFIRMED_ALIAS = "confirmed_alias", "Recognized by phrase"
+        REVIEWED_RESOLUTION = "reviewed_resolution", "Confirmed in review"
+
+    person = models.ForeignKey(
+        "people.Person", on_delete=models.CASCADE, related_name="content_mentions"
+    )
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey("content_type", "object_id")
+
+    source_type = models.CharField(
+        max_length=24, choices=Source.choices, default=Source.EXPLICIT_AT_MENTION
+    )
+    # The text as written in the source ("Heather", "my wife") — provenance, never an ID.
+    surface_text = models.CharField(max_length=120, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["person", "content_type", "object_id"],
+                name="unique_person_mention_per_object",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+            models.Index(fields=["person"]),
+        ]
+
+    def __str__(self):
+        return f"@{self.person_id} in {self.content_type.model}#{self.object_id}"

@@ -28,9 +28,13 @@ def _person_json(p):
 @login_required
 def lookup(request):
     """Autocomplete / picker: people whose name matches the query prefix.
-    Deterministic, capped, user-scoped."""
+    Deterministic, capped, user-scoped. ``members=1`` restricts to People members
+    (living/everyday people) so @mention suggestions don't surface genealogy-only
+    ancestors."""
     q = normalize_name(request.GET.get("q", ""))
     people = Person.objects.filter(user=request.user)
+    if request.GET.get("members") in ("1", "true", "yes"):
+        people = people.filter(membership__isnull=False)
     if q:
         people = [
             p for p in people

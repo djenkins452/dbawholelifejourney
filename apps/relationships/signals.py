@@ -78,10 +78,12 @@ def _extract_mentions_from_instance(instance, text_fields, context_type):
 
 @receiver(post_save, sender='journal.JournalEntry')
 def extract_mentions_from_journal(sender, instance, created, **kwargs):
-    """Extract mentions from journal entries on creation."""
-    if not created:
-        return
-    _extract_mentions_from_instance(instance, ['title', 'body'], 'journal')
+    """RETIRED for Journal (Phase 0d): Journal person recognition now runs through the
+    canonical @mention path (apps/journal/signals.reconcile_journal_person_mentions →
+    canonical PersonMention), so this legacy relationships.Mention path no longer fires
+    for journal entries. Other surfaces (Tasks, etc.) still use the legacy path until
+    their own consumer migration. No new legacy Journal consumer."""
+    return
 
 
 @receiver(post_save, sender='life.Task')

@@ -260,6 +260,18 @@ Background Enrichment [FEATURE-FLAGGED; may ship disabled]
 
 Multi-week program. Phase 0 alone is large; it lands in reviewable stages, not one commit.
 
+### As-built status (2026-07-18)
+
+| Phase | Status | Notes |
+|---|---|---|
+| **0b** | ✅ shipped | `apps/people` models + services + read APIs (`api/lookup`, `api/resolve`). |
+| **0c-A** | ✅ shipped | `people/0002_backfill_living_people` — relationships (A) + ai_relationships (C) → canonical, via `ingest_source_person` with the new `NAME_IDENTITY` match mode (unify a bare extraction "Heather" with the contact "Heather Jenkins"; ambiguous → review; never merge two full names sharing a first name). Idempotent, PersonSourceLink-keyed, no consumer redirect. |
+| **0c-B** | ✅ shipped | `people/0003_backfill_legacy_genealogy` — legacy (B) → canonical, `SOURCE_LINK_ONLY` (create-distinct, never name-merge; GEDCOM = source_batch+xref). No People membership; only display_name projected (never collides with a living person on a bare first name); `also_known_as` + `RelationshipAlias` → `RecognitionPhrase(custom)`. Verified on the local snapshot: 111 legacy people migrated create-distinct. |
+| **1 (Journal slice)** | ✅ shipped | Canonical @mention in the shared editor + `people.PersonMention` (the canonical mention store) + `reconcile_journal_person_mentions`. Journal's legacy recognition paths (ai_relationships + relationships.Mention) retired for Journal. **Name + custom-phrase recognition only** — role phrases ("my wife") deferred: the inventory proved no role resolver is registered and the relationship graph is not canonical until 0d proper. Browser-verified end-to-end (autocomplete → token → save → PersonMention → visible chip on reopen → deletion reconciles). |
+| **0c self-anchor / 0d consumer repoint / 0e legacy / 0f retire** | ⏳ pending | Identity rows now exist canonically, but relationships/legacy/ai_relationships identity tables are **not** yet retired and consumers (SAE, dashboards, mobile import, relationship graph) still read their own stores. Role-phrase resolution ("my wife" → canonical) needs the relationship graph repointed (0d) + a role resolver registered. |
+
+**Not run in 0c-A/0c-B:** contact self-anchor (A/C have no `is_self`; the self-anchor comes from legacy B in 0c-B). **Deferred deliberately:** role-phrase resolution; consumer redirection; legacy-table retirement.
+
 ---
 
 ## 11. Retirement criteria (per Decision 1)

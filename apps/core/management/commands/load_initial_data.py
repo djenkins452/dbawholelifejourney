@@ -1103,6 +1103,8 @@ class Command(BaseCommand):
         self._reset_health_sync_truth_release_notes(DataLoadConfig, force, verbosity)
         # Chief of Staff Focus Mode (PK 276)
         self._reset_cos_focus_mode_release_notes(DataLoadConfig, force, verbosity)
+        # Journal @mention person recognition (PK 277)
+        self._reset_journal_mentions_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8168,6 +8170,30 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset background chat release notes FAILED: {e}'))
+
+    def _reset_journal_mentions_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 277 (Journal @mention
+        person recognition — type @ to tag canonical people in a journal entry)."""
+        reset_tracker_name = 'reset_journal_mentions_2026_07_18'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for Journal @mentions (PK 277)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Journal @mentions', 'command',
+                'One-time reset: added PK 277 for Journal @mention person recognition')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset journal mentions release notes FAILED: {e}'))
 
     def _reset_cos_focus_mode_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

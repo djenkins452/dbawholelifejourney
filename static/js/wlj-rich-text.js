@@ -117,6 +117,79 @@
   }
 
   // ---- mount one editor ----------------------------------------------------
+  // Canonical @mention suggestion. Items resolve through the ONE canonical lookup
+  // (/people/api/lookup, members only) — never a legacy Person store, never a second
+  // resolver. Selecting inserts a mention node carrying the canonical people.Person id.
+  function buildMentionSuggestion() {
+    return {
+      char: '@',
+      items: function (props) {
+        var query = props.query || '';
+        return fetch('/people/api/lookup/?members=1&q=' + encodeURIComponent(query))
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            return (data.results || []).slice(0, 8).map(function (p) {
+              return { id: String(p.id), label: p.display_name };
+            });
+          })
+          .catch(function () { return []; });
+      },
+      render: function () {
+        var box = null, items = [], selected = 0, command = null;
+        function paint() {
+          if (!box) return;
+          box.innerHTML = '';
+          if (!items.length) { box.style.display = 'none'; return; }
+          box.style.display = 'block';
+          items.forEach(function (it, i) {
+            var row = document.createElement('div');
+            row.className = 'wlj-mention-item' + (i === selected ? ' is-selected' : '');
+            row.textContent = it.label;
+            row.addEventListener('mousedown', function (e) { e.preventDefault(); pick(i); });
+            box.appendChild(row);
+          });
+        }
+        function place(rect) {
+          if (!box || !rect) return;
+          box.style.left = (window.scrollX + rect.left) + 'px';
+          box.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+        }
+        function pick(i) {
+          var it = items[i];
+          if (it && command) command({ id: it.id, label: it.label });
+        }
+        return {
+          onStart: function (props) {
+            items = props.items; command = props.command; selected = 0;
+            box = document.createElement('div');
+            box.className = 'wlj-mention-dropdown';
+            document.body.appendChild(box);
+            paint();
+            place(props.clientRect && props.clientRect());
+          },
+          onUpdate: function (props) {
+            items = props.items; command = props.command; selected = 0;
+            paint();
+            place(props.clientRect && props.clientRect());
+          },
+          onKeyDown: function (props) {
+            var e = props.event, n = items.length;
+            if (!n) { return e.key === 'Escape'; }
+            if (e.key === 'ArrowDown') { selected = (selected + 1) % n; paint(); return true; }
+            if (e.key === 'ArrowUp') { selected = (selected - 1 + n) % n; paint(); return true; }
+            if (e.key === 'Enter' || e.key === 'Tab') { pick(selected); return true; }
+            if (e.key === 'Escape') { if (box) box.style.display = 'none'; return true; }
+            return false;
+          },
+          onExit: function () {
+            if (box && box.parentNode) box.parentNode.removeChild(box);
+            box = null;
+          },
+        };
+      },
+    };
+  }
+
   function mount(textarea) {
     var T = window.WLJTipTap;
     textarea.setAttribute('data-wlj-rte-ready', 'true');
@@ -172,6 +245,10 @@
         T.TableHeader,
         T.TableCell,
         T.Placeholder.configure({ placeholder: placeholder }),
+        T.Mention.configure({
+          HTMLAttributes: { class: 'wlj-mention' },
+          suggestion: buildMentionSuggestion(),
+        }),
       ],
       content: textarea.value || '',
       editorProps: {

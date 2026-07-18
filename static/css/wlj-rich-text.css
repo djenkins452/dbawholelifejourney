@@ -274,3 +274,46 @@
     .wlj-rte-toolbar { display: none !important; }
     .wlj-rte, .wlj-rte-content { border: 0; }
 }
+
+/* ── Canonical person mention chip ─────────────────────────────────────────
+   Styled via the [data-mention] attribute selector (not a class), so the sanitizer
+   never needs to allow `class` on span. Renders both live (editor) and on reload
+   (from sanitized HTML) — a visible, unmistakable "this person was recognized". */
+span[data-mention] {
+    display: inline;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--color-accent-soft, rgba(184, 134, 11, 0.14));
+    color: var(--color-accent, #b8860b);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: default;
+}
+
+/* @mention autocomplete dropdown (appended to <body> by the editor glue) */
+.wlj-mention-dropdown {
+    position: absolute;
+    z-index: 1100;
+    min-width: 180px;
+    max-width: 320px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: var(--color-background, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+    padding: 4px;
+}
+.wlj-mention-item {
+    padding: 7px 10px;
+    border-radius: 7px;
+    font-size: 14px;
+    color: var(--color-text, #1f2937);
+    cursor: pointer;
+}
+.wlj-mention-item.is-selected,
+.wlj-mention-item:hover {
+    background: var(--color-accent-soft, rgba(184, 134, 11, 0.14));
+    color: var(--color-accent, #b8860b);
+}

@@ -4406,5 +4406,21 @@
       "created_at": "2026-07-17T13:00:00Z",
       "updated_at": "2026-07-17T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 277,
+    "fields": {
+      "title": "Mention people in your journal with @",
+      "description": "You can now tag the people in your life directly in a journal entry. Type @ followed by a name — like @Heather — and a list of your people appears; pick one and it becomes a highlighted mention. When you reopen the entry, the mention is clearly shown as a styled tag, so you can see at a glance that the person was recognized and linked. Behind the scenes, WLJ connects the entry to that person in your canonical People list, so mentions stay consistent everywhere. If you delete a mention and save, the link is removed too. This is the first place @mentions go live; more writing spaces will follow.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-18",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/journal/new/",
+      "created_at": "2026-07-18T02:00:00Z",
+      "updated_at": "2026-07-18T02:00:00Z"
+    }
   }
 ]

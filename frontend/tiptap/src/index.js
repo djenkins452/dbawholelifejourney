@@ -8,8 +8,9 @@
  *
  * Rebuild after any change: see frontend/tiptap/README.md
  */
-import { Editor } from '@tiptap/core';
+import { Editor, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+import MentionBase from '@tiptap/extension-mention';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Image from '@tiptap/extension-image';
@@ -143,9 +144,41 @@ const ResizableImage = Image.extend({
   },
 });
 
+/**
+ * WLJMention — a canonical person mention node. Stores the canonical people.Person id
+ * (attr `id`) + the visible `label`, and renders the WLJ markup contract:
+ *   <span data-mention data-person-id="123" class="wlj-mention">@Heather</span>
+ * matched exactly by the server-side sanitizer allow-list (rich_text.py). The plain-text
+ * shadow is "@Heather" (no id) — `renderText` + the span's text content both agree.
+ * The suggestion behaviour (@ trigger, canonical lookup, dropdown) is configured by the
+ * shared editor glue (static/js/wlj-rich-text.js), not here.
+ */
+const Mention = MentionBase.extend({
+  renderHTML({ node, HTMLAttributes }) {
+    const label = node.attrs.label ?? node.attrs.id;
+    return ['span', mergeAttributes(
+      { 'data-mention': '', 'data-person-id': node.attrs.id, class: 'wlj-mention' },
+      HTMLAttributes,
+    ), `@${label}`];
+  },
+  renderText({ node }) {
+    return `@${node.attrs.label ?? node.attrs.id}`;
+  },
+  parseHTML() {
+    return [{
+      tag: 'span[data-mention]',
+      getAttrs: (el) => ({
+        id: el.getAttribute('data-person-id'),
+        label: (el.textContent || '').replace(/^@/, ''),
+      }),
+    }];
+  },
+});
+
 export {
   Editor,
   StarterKit,
+  Mention,
   Underline,
   Link,
   Image,

@@ -63,6 +63,13 @@ RICH_TEXT_ATTRIBUTES = {
     # simple-table cell spans
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan"},
+    # Canonical person mention token: <span data-mention data-person-id="123">@Name</span>.
+    # Narrow by design — only these two data-attributes. `data-person-id` is validated as
+    # an integer AND checked for user ownership server-side during mention reconciliation
+    # (apps/people/services/mentions.py); the sanitizer only guarantees the shape survives.
+    # `class` is deliberately NOT allowed — the chip is styled via the [data-mention]
+    # attribute selector, so no arbitrary class can ride in.
+    "span": {"data-mention", "data-person-id"},
 }
 
 RICH_TEXT_URL_SCHEMES = {"http", "https", "mailto"}

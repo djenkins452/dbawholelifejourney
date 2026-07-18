@@ -47,27 +47,12 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
         logger.warning("Journal signal gate check failed: %s", e)
         return
 
-    # --- People extraction ---
-    try:
-        from apps.core.ai_relationships.models import Person
-        if Person.objects.filter(user=user, is_active=True).exists():
-            text_parts = []
-            if instance.title:
-                text_parts.append(instance.title)
-            if instance.body:
-                text_parts.append(instance.body)
-
-            text = ' '.join(text_parts)
-            if text.strip():
-                from apps.core.ai_relationships.relationship_engine import extract_people_from_text
-                extract_people_from_text(
-                    user=user,
-                    text=text,
-                    source_type='journal',
-                    source_id=str(instance.pk),
-                )
-    except Exception as e:
-        logger.warning("Journal people extraction failed: %s", e)
+    # --- People recognition ---
+    # REPLACED (Phase 0d) by canonical @mention reconciliation — see
+    # `reconcile_journal_person_mentions` below, which consumes ONLY the canonical
+    # people resolver/lookup and writes canonical PersonMention truth. The legacy
+    # ai_relationships extraction path is intentionally gone; Journal is a consumer of
+    # the canonical Person system, never a legacy Person consumer.
 
     # --- Auto-complete matching RoutineSchedule items ---
     # Behavioral truth: the journal rhythm completes for the day the entry is
@@ -101,6 +86,21 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
         extract_emotion_signals(instance)
     except Exception as e:
         logger.warning("Emotion signal extraction failed for entry %s: %s", instance.pk, e)
+
+
+@receiver(post_save, sender='journal.JournalEntry')
+def reconcile_journal_person_mentions(sender, instance, created, **kwargs):
+    """Canonical Journal person recognition (Phase 0d). Runs on create AND update so
+    editing an entry keeps mentions in sync — a deleted @mention token deletes the
+    canonical PersonMention link. Deterministic + request-path-safe (no LLM): reads the
+    saved body's mention tokens and reconciles PersonMention through the ONE canonical
+    writer. Never breaks a save."""
+    try:
+        from apps.people.services.mentions import reconcile_object_mentions
+        reconcile_object_mentions(instance, instance.body or "", instance.user)
+    except Exception as e:  # pragma: no cover - defensive; recognition never blocks save
+        logger.warning("Journal canonical mention reconcile failed for %s: %s",
+                       getattr(instance, "pk", "?"), e)
 
 
 def _dispatch_signal_extraction(entry):

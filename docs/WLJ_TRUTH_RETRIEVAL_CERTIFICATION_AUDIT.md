@@ -212,3 +212,38 @@ The per-question harness runs on `ChatGPTCoS`, which **cannot** call `get_entity
 ---
 
 *Produced as a read-only audit + Phase 2 runtime proof. No production application code was modified. Implementation (Phase 3+) proceeds on the proven `ModelInterface` path, domain by domain, bottom-up.*
+
+---
+
+## Phase 3 Addendum — Acceptance Center execution surface (CORRECTED, 2026-07-18)
+
+A prior status note claimed "redeploying `wlj-worker` validates the Acceptance Center." That was imprecise. Traced exactly:
+
+### Which process executes an Acceptance Center run
+| Suite | Trigger | Process | Path |
+|---|---|---|---|
+| **Deep / foundation / Truth Certification** | `StartBethAcceptanceView` → `safe_enqueue(run_beth_acceptance)` → Celery `run_beth_acceptance` (`@shared_task`, `chatgpt_cos/tasks.py:253`) → `execute_run` | **WORKER** (`safe_enqueue` = `.delay` async in prod; inline under `CELERY_TASK_ALWAYS_EAGER` in tests) | `CoSGateway.respond(stream=False)` → `ModelInterfaceService.generate` **synchronously** |
+| **Chief-of-Staff (judgment)** | `create_and_execute_cos(...)` called **inline** (`admin_console/ai_views.py:83`) | **WEB** (gunicorn request thread) | same synchronous `generate` |
+
+So the **Deep "Truth Certification" run executes in the WORKER** — not the web process. The premise "`stream=False` ⇒ web" holds for a real `/api/chat/` HTTP request, but the Deep run is *wrapped in a Celery task*, so its synchronous `generate` runs in the worker. The CoS suite, by contrast, runs inline in **web**.
+
+### Sync vs streaming ModelInterface — what is shared (proven)
+Both the synchronous path AND the streaming task call the **same** `ModelInterfaceService.generate`:
+- sync: `runtime.py:197` (non-streaming) and the acceptance asker via the gateway;
+- streaming: `run_model_interface_generation` (`model_interface/tasks.py:85`, `surface="chat_stream"`).
+
+Shared, therefore certified-by-the-sync-run: **service selection · tool registry (`all_tools`) · provider dispatch (`get_domain_entity/history/state`, `service.py:321-407`) · evidence logging (`_audit.record_tool_call`) · final-answer assembly.** The Acceptance Center Deep run exercises all of these.
+
+### What the Acceptance Center Deep run does NOT validate (needs separate certification)
+The **streaming-specific wrapper**: the `chat_stream_bus` SSE relay, token/observer streaming assembly, and streaming-only failure modes (mid-stream error, empty-final relay) in `run_model_interface_generation`. The retrieval CORE is shared, so streaming certification is a thin wrapper suite (same answer + same tools as the sync run, delivered over SSE), not a re-certification of retrieval.
+
+### Deployment-state ledger (source control ≠ deployment ≠ runtime)
+| State | Status |
+|---|---|
+| committed | ✅ `a009c35b` |
+| pushed to main | ✅ `78ee852f..a009c35b` |
+| **web deployed** | ❓ **cannot inspect Railway from here** — Danny verifies via `/_health/` (reports the WEB commit) |
+| **worker deployed** | ❓ **cannot inspect** — `/_health/` does NOT report the worker; verify via Railway `wlj-worker` logs / dashboard (per the deploy-topology rule) |
+| runtime verified | ❌ not until a **Deep** run executes on the deployed **worker** at `a009c35b` and the new evidence columns populate |
+
+**What Danny must verify for a Deep Truth-Certification run to be valid:** the **`wlj-worker`** service is deployed at `a009c35b` (the Deep run runs there). For a **CoS-suite** run, the **web** service must be at `a009c35b` (it runs inline in web). A Git push alone deploys neither.

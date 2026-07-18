@@ -202,8 +202,8 @@
   <div class="stat-card">
     <table class="ac-table">
       <thead><tr>
-        <th>Result</th><th>Question</th><th>Suite</th><th>Intent</th><th>Lane</th>
-        <th>OpenAI</th><th>Fallback</th><th>Time</th><th>Failed rules</th>
+        <th>Result</th><th>Question</th><th>Suite</th><th>Runtime</th><th>Provider</th>
+        <th>Intent</th><th>Lane</th><th>OpenAI</th><th>Time</th><th>Layer</th><th>Failed rules</th>
       </tr></thead>
       <tbody>
         {% for r in results %}
@@ -212,7 +212,7 @@
           <td>
             {{ r.question_text }}
             <details class="ac-det">
-              <summary>response</summary>
+              <summary>response &amp; retrieval evidence</summary>
               <div class="ac-resp">{{ r.response_text }}</div>
               <div class="ac-note" style="margin-top:6px;">
                 expected_intent: <code>{{ r.expected_intent|default:"—" }}</code> ·
@@ -220,14 +220,35 @@
                 lane: <code>{{ r.actual_lane|default:"—" }}</code><br>
                 required: {{ r.required_concepts }} · forbidden: {{ r.forbidden_concepts }}
               </div>
+              <div class="ac-note" style="margin-top:6px;">
+                <strong>Retrieval evidence</strong> ·
+                runtime: <code>{{ r.runtime_used|default:"—" }}</code> ·
+                selected_tool: <code>{{ r.selected_tool|default:"—" }}</code> ·
+                provider: <code>{{ r.canonical_provider|default:"—" }}</code> ·
+                latency: <code>{{ r.response_time_ms }} ms</code>
+                {% if not r.passed %}<br>first_failing_layer:
+                  <code class="ac-bad">{{ r.first_failing_layer|default:"—" }}</code>{% endif %}
+                <br>tool_arguments: <code>{{ r.tool_arguments|default:"—" }}</code>
+                <br>retrieved_records: <code>{{ r.retrieved_records|default:"—" }}</code>
+                {% if r.retrieval_evidence %}
+                <br>tool ledger ({{ r.retrieval_evidence|length }}):
+                <ul style="margin:4px 0 0 16px; padding:0;">
+                  {% for ev in r.retrieval_evidence %}
+                  <li><code>{{ ev.tool|default:"—" }}</code>
+                      [{{ ev.status|default:"—" }}] · args={{ ev.args }}</li>
+                  {% endfor %}
+                </ul>{% endif %}
+              </div>
             </details>
           </td>
           <td>{{ r.suite }}</td>
+          <td><code>{{ r.runtime_used|default:"—" }}</code></td>
+          <td><code>{{ r.canonical_provider|default:"—" }}</code></td>
           <td><code>{{ r.actual_intent|default:"—" }}</code></td>
           <td><code>{{ r.actual_lane|default:"—" }}</code></td>
           <td>{{ r.openai_called|yesno:"yes,no" }}</td>
-          <td>{{ r.fallback_used|yesno:"yes,no,—" }}</td>
           <td>{{ r.response_time_ms }} ms</td>
+          <td>{% if not r.passed %}<code class="ac-bad">{{ r.first_failing_layer|default:"—" }}</code>{% else %}<span class="ac-ok">—</span>{% endif %}</td>
           <td class="ac-rules">{{ r.failed_rules|join:", " }}</td>
         </tr>
         {% endfor %}

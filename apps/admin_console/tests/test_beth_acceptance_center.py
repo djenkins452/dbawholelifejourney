@@ -144,3 +144,33 @@ class AcceptanceViewTests(AdminTestMixin, TestCase):
         self.assertContains(resp, "Copy Claude Fix Prompt")
         self.assertContains(resp, "REVIEW PROMPT BODY")
         self.assertContains(resp, "gate_actionable")
+
+    def test_run_detail_shows_structured_retrieval_evidence(self):
+        # The operator can inspect, per question: runtime, selected tool, provider,
+        # tool args, retrieved evidence, and the first failing layer — in the EXISTING
+        # result detail (progressive disclosure), no separate page.
+        run = AcceptanceRun.objects.create(
+            suite_name="health", target_user=self.staff, status="completed",
+            total_count=1, pass_count=0, fail_count=1, score_percent=0)
+        AcceptanceResult.objects.create(
+            run=run, question_key="weight_current",
+            question_text="What do I weigh?", passed=False,
+            failed_rules=["gate_value"], response_text="I'm not sure.",
+            runtime_used="model_interface", selected_tool="get_entity",
+            canonical_provider="health",
+            tool_arguments={"domain": "health", "entity_type": "measurement"},
+            retrieved_records={"status": "empty"},
+            retrieval_evidence=[{"tool": "get_entity", "status": "empty",
+                                 "args": {"domain": "health"}}],
+            first_failing_layer="evidence", sort_order=0)
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse("admin_console:beth_acceptance_run",
+                                       kwargs={"pk": run.pk}))
+        self.assertEqual(resp.status_code, 200)
+        # prominent: runtime, provider, and the first failing layer
+        self.assertContains(resp, "model_interface")
+        self.assertContains(resp, "evidence")            # first_failing_layer
+        # expandable technical evidence
+        self.assertContains(resp, "Retrieval evidence")
+        self.assertContains(resp, "get_entity")          # selected tool / ledger
+        self.assertContains(resp, "tool ledger")

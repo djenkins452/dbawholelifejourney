@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(cos): Truth Retrieval Certification — corrected runtime-execution proof + operable retrieval evidence in the Acceptance Center UI
+
+**The two gate prerequisites before expanding the question bank.** (1) Corrected a deployment claim; (2) made the structured evidence operator-visible.
+
+- **Deployment/execution proof (CORRECTED).** A prior note implied "redeploy `wlj-worker` validates the Acceptance Center" via loose reasoning. Traced precisely (`docs/WLJ_TRUTH_RETRIEVAL_CERTIFICATION_AUDIT.md` Phase-3 addendum): the **Deep/Truth-Certification run executes in the WORKER** (Celery `run_beth_acceptance`, `chatgpt_cos/tasks.py:253` → `execute_run` → `CoSGateway.respond(stream=False)` → `ModelInterfaceService.generate` synchronously), while the **CoS suite runs INLINE in WEB** (`ai_views.py:83`). Both exercise the SAME synchronous `generate` — service selection, tool registry, provider dispatch (`service.py:321-407`), evidence logging (`_audit.record_tool_call`), final-answer — which is ALSO the core the streaming task calls (`model_interface/tasks.py:85`). What the sync run does NOT cover: the streaming SSE wrapper (`chat_stream_bus` relay) — a thin separate cert. Documented the committed≠pushed≠web-deployed≠worker-deployed≠runtime-verified ledger; `/_health/` reports WEB only, so worker deploy must be verified separately.
+- **Evidence operable in the EXISTING UI (no new page).** `templates/admin_console/beth_acceptance_run.html` results table now shows **Runtime · Provider · Layer** columns prominently, with full retrieval evidence (runtime, selected_tool, provider, tool_arguments, retrieved_records, per-tool ledger, first_failing_layer, latency) in the existing expandable `<details>` (progressive disclosure). Operator workflow preserved.
+- **Files:** `docs/WLJ_TRUTH_RETRIEVAL_CERTIFICATION_AUDIT.md`, `templates/admin_console/beth_acceptance_run.html`, `apps/admin_console/tests/test_beth_acceptance_center.py` (new `test_run_detail_shows_structured_retrieval_evidence`).
+
+**Verification:** `test_beth_acceptance_center` GREEN (9 tests, incl. the new evidence-visibility test). No model/migration change in this commit. **Deployment state:** committed + pushed; web/worker deploy NOT verified from here — Danny confirms `wlj-worker` at the tested commit for a Deep run. NOTE: parallel session's rich-text/people work left untouched; committed only my 4 files by explicit path.
+
 ## 2026-07-18 — feat(journal): passive person recognition — recognize canonical people named naturally in prose
 
 **Completes the original Journal person-recognition requirement.** The explicit @mention slice (Phase 0d) recognized a person only when the user deliberately typed `@` and picked from the dropdown. But "Today I had dinner with Heather." (no `@`), saved and reopened, stayed plain text. Journal now recognizes a canonical person named naturally in prose — **when, and only when, resolution is deterministic** — and renders them exactly as an explicit mention would.

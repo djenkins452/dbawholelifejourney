@@ -23,7 +23,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, TemplateView, View
@@ -1584,7 +1584,50 @@ class RecipeIntelligenceDetailView(
                         substitutions[gap.ingredient_name] = subs
         context["substitutions"] = substitutions
 
+        # Idempotency key for the "record preparation" form — a re-submit of the SAME
+        # rendered form (double-click / back-and-resubmit) replays instead of double-deducting.
+        import uuid
+        context["preparation_idempotency_key"] = uuid.uuid4().hex
+
         return context
+
+
+class PrepareRecipeView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Record that the household prepared a recipe (Foundation 2 execution spine).
+
+    Deducts the recipe's structured ingredients from the pantry through the canonical
+    InventoryTransaction authority and records leftovers. Fail-closed + idempotent
+    (handled in the service). Synchronous, deterministic, bounded — request-path-safe.
+    """
+
+    def post(self, request, pk):
+        from apps.meals.services.preparation import prepare_recipe
+
+        household = self.get_household()
+        recipe = get_object_or_404(Recipe, pk=pk, user=request.user)
+
+        def _dec(field_name):
+            raw = (request.POST.get(field_name) or "").strip()
+            if not raw:
+                return None
+            try:
+                return Decimal(raw)
+            except Exception:
+                return None
+
+        result = prepare_recipe(
+            household=household,
+            user=request.user,
+            recipe=recipe,
+            servings=_dec("servings"),
+            leftover_servings=_dec("leftover_servings"),
+            idempotency_key=(request.POST.get("idempotency_key") or "").strip() or None,
+            notes=(request.POST.get("notes") or "").strip(),
+        )
+        return render(request, "meals/preparation_result.html", {
+            "recipe": recipe,
+            "result": result,
+        })
 
 
 # =============================================================================

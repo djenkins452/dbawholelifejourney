@@ -224,3 +224,31 @@ def is_weight_unit(unit: str) -> bool:
 
 def is_volume_unit(unit: str) -> bool:
     return unit in VOLUME_TO_ML
+
+
+def _canonical_unit(unit: str) -> str:
+    """Best-effort canonical form of a unit string (alias-normalized, lowercased)."""
+    if not unit:
+        return ""
+    return normalize_unit(unit) or unit.strip().lower().rstrip(".")
+
+
+def convert_between(quantity: "Decimal", from_unit: str, to_unit: str) -> Optional["Decimal"]:
+    """Convert ``quantity`` from ``from_unit`` to ``to_unit``.
+
+    Deterministic + closed: only same-unit, weight↔weight, and volume↔volume
+    conversions are supported. Cross-dimension conversions (e.g. cups↔grams, which
+    need ingredient density) return None so callers can fail closed rather than
+    guess. This is the single canonical unit-conversion authority.
+    """
+    if quantity is None:
+        return None
+    fu = _canonical_unit(from_unit)
+    tu = _canonical_unit(to_unit)
+    if fu == tu:
+        return quantity
+    if fu in WEIGHT_TO_GRAMS and tu in WEIGHT_TO_GRAMS:
+        return quantity * WEIGHT_TO_GRAMS[fu] / WEIGHT_TO_GRAMS[tu]
+    if fu in VOLUME_TO_ML and tu in VOLUME_TO_ML:
+        return quantity * VOLUME_TO_ML[fu] / VOLUME_TO_ML[tu]
+    return None

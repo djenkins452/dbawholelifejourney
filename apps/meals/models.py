@@ -622,6 +622,7 @@ class InventoryTransaction(TimeStampedModel):
         ("manual", "Manual Entry"),
         ("receipt", "Receipt Scan"),
         ("meal_plan", "Meal Plan Deduction"),
+        ("preparation", "Meal Preparation"),
         ("expiration", "Expired Removal"),
         ("correction", "User Correction"),
         ("photo_scan", "Photo Scan"),
@@ -642,6 +643,15 @@ class InventoryTransaction(TimeStampedModel):
         max_length=20,
         choices=SOURCE_CHOICES,
         default="manual",
+    )
+    # Provenance for preparation deductions (Foundation 2) — ties a deduction to the
+    # PreparationEvent that produced it. Null for all other sources.
+    preparation = models.ForeignKey(
+        "meals.PreparationEvent",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="inventory_transactions",
     )
     notes = models.CharField(max_length=200, blank=True)
 
@@ -1212,3 +1222,123 @@ class PantryPhotoDetection(TimeStampedModel):
     def __str__(self):
         status = "confirmed" if self.confirmed else ("rejected" if self.rejected else "pending")
         return f"{self.detected_label} ({status})"
+
+
+# =============================================================================
+# Foundation 2 — Preparation execution spine (household-scoped)
+# =============================================================================
+
+class PreparationEvent(UserOwnedModel):
+    """A household preparation event: "we cooked recipe X".
+
+    The first real execution event in the food lifecycle. Deducts pantry stock
+    (through the canonical InventoryTransaction authority) and may produce
+    Leftovers. Household-scoped supply truth; consumption/nutrition is a SEPARATE
+    later increment and is NOT recorded here.
+
+    ``preparation_status`` and ``deduction_status`` are distinct on purpose — a meal
+    can be genuinely cooked (completed) even if the pantry could not be fully
+    deducted (partial / skipped). We never record false completion.
+    """
+
+    PREP_INTENDED = "intended"
+    PREP_COMPLETED = "completed"
+    PREP_FAILED = "failed"
+    PREPARATION_STATUS_CHOICES = [
+        (PREP_INTENDED, "Intended"),
+        (PREP_COMPLETED, "Completed"),
+        (PREP_FAILED, "Failed"),
+    ]
+
+    DED_PENDING = "pending"
+    DED_APPLIED = "applied"
+    DED_PARTIAL = "partial"
+    DED_SKIPPED = "skipped"
+    DED_FAILED = "failed"
+    DEDUCTION_STATUS_CHOICES = [
+        (DED_PENDING, "Pending"),
+        (DED_APPLIED, "Applied"),
+        (DED_PARTIAL, "Partially applied"),
+        (DED_SKIPPED, "Skipped (no structured ingredients)"),
+        (DED_FAILED, "Failed"),
+    ]
+
+    household = models.ForeignKey(
+        Household, on_delete=models.CASCADE, related_name="preparation_events",
+    )
+    recipe = models.ForeignKey(
+        "meals.Recipe", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="preparation_events",
+    )
+    recipe_title = models.CharField(
+        max_length=200, blank=True,
+        help_text="Snapshot of the recipe title (provenance; survives recipe deletion)",
+    )
+    servings_prepared = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("1"),
+        help_text="How many servings were prepared (scales the deduction)",
+    )
+    preparation_status = models.CharField(
+        max_length=12, choices=PREPARATION_STATUS_CHOICES, default=PREP_COMPLETED,
+    )
+    deduction_status = models.CharField(
+        max_length=12, choices=DEDUCTION_STATUS_CHOICES, default=DED_PENDING,
+    )
+    prepared_at = models.DateTimeField(default=timezone.now)
+    idempotency_key = models.CharField(
+        max_length=100, null=True, blank=True, unique=True, db_index=True,
+        help_text="Client-supplied key; a repeat with the same key is a no-op replay",
+    )
+    deduction_summary = models.JSONField(
+        default=dict, blank=True,
+        help_text="Per-ingredient audit: required / available / deducted / shortage / "
+                  "unsupported-conversion (deterministic provenance)",
+    )
+    notes = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-prepared_at"]
+        verbose_name = "Preparation Event"
+        verbose_name_plural = "Preparation Events"
+
+    def __str__(self):
+        return f"Prepared {self.recipe_title or 'recipe'} ({self.preparation_status})"
+
+
+class Leftover(UserOwnedModel):
+    """Deterministic leftover truth produced by an actual PreparationEvent.
+
+    Recorded ONLY from a real preparation. Expiration and storage location are
+    never invented — they stay null unless the user provides them.
+    """
+
+    household = models.ForeignKey(
+        Household, on_delete=models.CASCADE, related_name="leftovers",
+    )
+    preparation = models.ForeignKey(
+        PreparationEvent, on_delete=models.CASCADE, related_name="leftovers",
+    )
+    recipe = models.ForeignKey(
+        "meals.Recipe", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="leftovers",
+    )
+    recipe_title = models.CharField(max_length=200, blank=True)
+    servings = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("1"),
+        help_text="Servings of leftovers remaining (as stated at preparation)",
+    )
+    # Optional, user-provided ONLY — never auto-invented.
+    storage_location = models.CharField(
+        max_length=10, choices=PantryItem.STORAGE_LOCATION_CHOICES,
+        null=True, blank=True,
+    )
+    expiration_date = models.DateField(null=True, blank=True)
+    notes = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Leftover"
+        verbose_name_plural = "Leftovers"
+
+    def __str__(self):
+        return f"{self.servings} serving(s) of {self.recipe_title or 'a meal'}"

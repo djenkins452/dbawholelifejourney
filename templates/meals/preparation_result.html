@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Preparation recorded — Meal Intelligence — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 720px; margin: 0 auto; padding: var(--space-4);">
+    <a href="{% url 'meals:recipe_detail' recipe.pk %}" class="text-muted"
+       style="font-size: var(--font-size-sm);">&larr; Back to {{ recipe.title }}</a>
+
+    <h1 style="margin-top: var(--space-3);">Preparation recorded</h1>
+
+    {% if result.status == "replayed" %}
+    <p class="text-muted">This preparation was already recorded — no ingredients were deducted again.</p>
+    {% elif result.status == "failed" %}
+    <p style="color: var(--color-error, #ef4444);">Could not record preparation: {{ result.message }}</p>
+    {% endif %}
+
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-3) 0;">
+        <span class="badge">Preparation: {{ result.preparation_status|default:"—" }}</span>
+        <span class="badge">Pantry deduction: {{ result.deduction_status|default:"—" }}</span>
+    </div>
+
+    {% if result.deductions %}
+    <h2 style="font-size: var(--font-size-lg); margin-top: var(--space-3);">Ingredients deducted</h2>
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: var(--font-size-sm);">
+            <thead>
+                <tr style="text-align: left; border-bottom: 1px solid var(--color-border, #e5e7eb);">
+                    <th style="padding: var(--space-2);">Ingredient</th>
+                    <th style="padding: var(--space-2);">Required</th>
+                    <th style="padding: var(--space-2);">Deducted</th>
+                    <th style="padding: var(--space-2);">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in result.deductions %}
+                <tr style="border-bottom: 1px solid var(--color-border, #f0f0f0);">
+                    <td style="padding: var(--space-2);">{{ d.ingredient }}</td>
+                    <td style="padding: var(--space-2);">
+                        {% if d.required is not None %}{{ d.required }} {{ d.required_unit }}{% else %}—{% endif %}
+                    </td>
+                    <td style="padding: var(--space-2);">{{ d.deducted }}</td>
+                    <td style="padding: var(--space-2);">{{ d.status }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif result.deduction_status == "skipped" %}
+    <p class="text-muted">No structured ingredients to deduct for this recipe yet.</p>
+    {% endif %}
+
+    {% if result.leftover_id %}
+    <p style="margin-top: var(--space-3);">Leftovers recorded.</p>
+    {% endif %}
+</div>
+{% endblock %}

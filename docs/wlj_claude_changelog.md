@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(meals): Foundation 2 Increment 2 — Preparation execution spine (pantry deduction + leftovers)
+
+**The first real execution event in the food lifecycle:** Recipe → PreparationEvent → InventoryTransaction deduction → Leftovers. Household-scoped supply truth. Consumption / FoodEntry / nutrition is intentionally the NEXT increment and is not touched here.
+
+- **Models (additive migration `meals/0012`):** `PreparationEvent` (household-scoped; separate `preparation_status` [intended/completed/failed] and `deduction_status` [pending/applied/partial/skipped/failed] so a genuinely-cooked meal is never recorded as a false completion; `idempotency_key` unique; `deduction_summary` JSON audit; recipe-title snapshot for provenance) and `Leftover` (derived only from a real preparation; expiration/storage are NEVER invented — null unless user-provided). Added `"preparation"` to `InventoryTransaction.SOURCE_CHOICES` + a nullable `preparation` provenance FK.
+- **Canonical deduction authority:** new `deduct_pantry_item` in `pantry_ingestion.py` — the ONE place pantry quantity is decremented (floored at 0), always logging the signed `InventoryTransaction`. Pantry is never mutated directly.
+- **Canonical conversion:** new `convert_between` in `unit_conversion.py` — same-unit / weight↔weight / volume↔volume only; cross-dimension (e.g. cups↔grams) returns None so callers fail closed rather than guess.
+- **Execution service `prepare_recipe`** (`services/preparation.py`): validate recipe + structured ingredients → resolve pantry (`select_for_update`) → convert + scale by servings → deduct via the canonical authority → record per-ingredient audit → create Leftover. **Fail-closed** (whole event+deductions+leftover in one `transaction.atomic` → a failure leaves NO partial truth) and **idempotent** (a repeat with the same `idempotency_key` is a no-op replay; never double-deducts — robust to refresh / retry / replay).
+- **Focused UI:** `PrepareRecipeView` (POST) + `meals:prepare_recipe` URL + a "Record Preparation" form on the recipe detail page (CSP-safe; hidden idempotency key so a double-submit replays) + a deterministic result page. Admin registered for both models.
+- **Deduction behavior:** scales by servings; supports multiple ingredients; rejects unsupported conversions and unresolved pantry mappings (records them in the audit, deducts nothing for those); insufficient stock deducts what's available and flags `partial` (pantry never goes negative).
+- **Validation:** `makemigrations --check` clean; `check` clean; request-path-safety contract passes; **17 preparation tests** (event creation, deduction+transaction, scaling, leftovers, idempotency/no-double-deduct, unsupported units, shortage, no-pantry, no-structured-ingredients, unquantified, fail-closed rollback, view + view-refresh-idempotent); **390 meals tests green on a FRESH database** (fresh-migration path) and on the upgrade path (`--keepdb`); **Foundation 1 certification still 20/20**.
+
+**Remaining before the consumption bridge (next increment):** eat → person-scoped `health.FoodEntry` carrying real recipe macros; leftover consumption; nutrition/health linkage.
+
+**Files:** `apps/meals/models.py`, `apps/meals/migrations/0012_alter_inventorytransaction_source_preparationevent_and_more.py` (new), `apps/meals/services/preparation.py` (new), `apps/meals/services/pantry_ingestion.py`, `apps/meals/services/unit_conversion.py`, `apps/meals/views.py`, `apps/meals/urls.py`, `apps/meals/admin.py`, `templates/meals/recipe_detail.html`, `templates/meals/preparation_result.html` (new), `apps/meals/tests/test_preparation.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(people): reframed "Names & Recognition" + a shared Person hover card (one component, many consumers)
 
 **UX + discoverability refinement. Recognition engine, canonical identity and Journal truth all unchanged.**

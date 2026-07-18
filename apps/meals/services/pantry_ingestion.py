@@ -180,6 +180,58 @@ def finalize_pantry_item(
     return pantry_item, created
 
 
+def deduct_pantry_item(
+    *,
+    pantry_item: PantryItem,
+    amount: Decimal,
+    source: str,
+    notes: str,
+    preparation=None,
+) -> Decimal:
+    """Canonical pantry DEDUCTION authority (Foundation 2).
+
+    Subtracts ``amount`` (already expressed in the pantry item's own unit) from
+    stock, floored at 0, and logs the signed InventoryTransaction. Pantry quantity
+    is NEVER mutated outside this function (or finalize_pantry_item for adds).
+    Returns the amount actually deducted — less than ``amount`` when stock was short.
+    """
+    if amount is None:
+        return Decimal("0")
+    if not isinstance(amount, Decimal):
+        amount = Decimal(str(amount))
+    if amount <= 0:
+        return Decimal("0")
+
+    available = pantry_item.quantity or Decimal("0")
+    deducted = min(amount, available)
+    if deducted <= 0:
+        return Decimal("0")
+
+    pantry_item.quantity = available - deducted
+    pantry_item.save(update_fields=["quantity", "updated_at"])
+
+    InventoryTransaction.objects.create(
+        pantry_item=pantry_item,
+        delta_quantity=-deducted,
+        source=source,
+        notes=(notes or "")[:200],
+        preparation=preparation,
+    )
+
+    transaction.on_commit(
+        lambda: _emit_pantry_event(
+            pantry_item=pantry_item,
+            ingredient=pantry_item.ingredient,
+            household=pantry_item.household,
+            source=source,
+            quantity=-deducted,
+            unit=pantry_item.unit,
+            created=False,
+        )
+    )
+    return deducted
+
+
 def _emit_pantry_event(
     *,
     pantry_item: PantryItem,

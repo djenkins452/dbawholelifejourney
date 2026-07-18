@@ -6,13 +6,31 @@ from .models import (
     HouseholdMembership,
     Ingredient,
     InventoryTransaction,
+    Leftover,
     MealPlan,
     MealPlanEntry,
     PantryItem,
+    PreparationEvent,
     Receipt,
     ReceiptItem,
     RecipeIngredient,
 )
+
+
+@admin.register(PreparationEvent)
+class PreparationEventAdmin(admin.ModelAdmin):
+    list_display = ("recipe_title", "household", "preparation_status",
+                    "deduction_status", "servings_prepared", "prepared_at")
+    list_filter = ("preparation_status", "deduction_status")
+    search_fields = ("recipe_title", "idempotency_key")
+    readonly_fields = ("deduction_summary",)
+    date_hierarchy = "prepared_at"
+
+
+@admin.register(Leftover)
+class LeftoverAdmin(admin.ModelAdmin):
+    list_display = ("recipe_title", "household", "servings", "created_at")
+    search_fields = ("recipe_title",)
 
 
 @admin.register(Ingredient)

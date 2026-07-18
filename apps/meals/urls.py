@@ -70,6 +70,12 @@ urlpatterns = [
         views.PrepareRecipeView.as_view(),
         name="prepare_recipe",
     ),
+    # Foundation 2 — record consumption of a prepared meal (FoodEntry + reduce leftovers)
+    path(
+        "preparation/<int:prep_pk>/consume/",
+        views.ConsumeMealView.as_view(),
+        name="consume_meal",
+    ),
     # Phase 12: Pantry Photo Scan
     path("pantry/scan/", views.PantryScanStartView.as_view(), name="pantry_scan"),
     path(

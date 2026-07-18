@@ -7,6 +7,7 @@ from .models import (
     Ingredient,
     InventoryTransaction,
     Leftover,
+    MealConsumption,
     MealPlan,
     MealPlanEntry,
     PantryItem,
@@ -15,6 +16,14 @@ from .models import (
     ReceiptItem,
     RecipeIngredient,
 )
+
+
+@admin.register(MealConsumption)
+class MealConsumptionAdmin(admin.ModelAdmin):
+    list_display = ("recipe_title", "user", "servings_consumed", "meal_type",
+                    "consumed_at", "food_entry")
+    search_fields = ("recipe_title", "idempotency_key")
+    date_hierarchy = "consumed_at"
 
 
 @admin.register(PreparationEvent)

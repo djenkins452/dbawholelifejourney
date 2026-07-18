@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(meals): Foundation 2 Increment 3 — Consumption bridge (the food lifecycle is now operationally complete)
+
+**Closes the food lifecycle:** Preparation → Consumption → canonical `FoodEntry` → Nutrition → Leftover reduced → Health. A prepared meal can now be eaten with one action that logs nutrition and reduces leftovers — no duplicate entry (Capture Once, Reuse Everywhere). Waste/discard is intentionally left for a later increment (the model leaves room without implementing it).
+
+- **No duplicate nutrition writer:** `consume_meal` reuses the recipe-nutrition authority (`recipe_nutrition.calculate_recipe_nutrition` → per-serving) as the `FoodEntry.snapshot_nutrients`, sets `quantity=servings`, and calls `FoodEntry.calculate_totals()` — so totals are computed by the EXISTING `nutrition_calculator` (`snapshot × quantity`), never re-derived here. The canonical nutrition record is a `health.FoodEntry`; the new `MealConsumption` model stores only provenance (preparation/leftover/recipe → FoodEntry link + servings), no macros.
+- **Health truth updates via the existing path:** the created `FoodEntry` flows into the canonical `NutritionQueries` daily read (proven by test), and `consume_meal` emits the same `health.nutrition.logged` event every other intake log emits — health/SAE update identically.
+- **Leftovers:** each consumption reduces the preparation's `Leftover` (floored at 0); supports **multiple consumptions from one preparation** (Prepared 8 → eat 2 → 6 → eat 3 → 3) and **partial servings** (0.5). Does not assume leftovers exist — consumption still logs nutrition when there are none.
+- **Idempotent + fail-closed:** unique `idempotency_key` replays (never double-logs / double-reduces; browser-refresh safe); `FoodEntry` + leftover reduction + `MealConsumption` are one `transaction.atomic` (a failure leaves no partial truth).
+- **Model + additive migration `meals/0013`** (`MealConsumption`). **Focused UI:** `ConsumeMealView` (POST) + `meals:consume_meal` URL + an "I ate this" form on the preparation result + a consumption result page. Admin registered.
+- **Validation:** `makemigrations --check` clean; `check` clean; request-path-safety contract passes; **12 consumption tests** (scaled macros, partial servings, no-duplicate-writer, nutrition-in-canonical-daily-read, leftover reduction, multiple consumptions, leftovers-not-assumed, never-negative, idempotency, fail-closed, **end-to-end lifecycle via views**, view-refresh-idempotent); **406 meals tests green** (upgrade path + regression) and **29 tests on a FRESH database** (fresh-migration path); **Foundation 1 certification still 20/20**.
+
+**Remaining before lifecycle completion:** waste/discard events; leftover-list UI for consuming days later; grocery-list generation (M4) and richer meal-history analytics are separate roadmap milestones.
+
+**Files:** `apps/meals/models.py`, `apps/meals/migrations/0013_mealconsumption.py` (new), `apps/meals/services/consumption.py` (new), `apps/meals/views.py`, `apps/meals/urls.py`, `apps/meals/admin.py`, `templates/meals/preparation_result.html`, `templates/meals/consumption_result.html` (new), `apps/meals/tests/test_consumption.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — chore(ops): TEMPORARY incident glass-box — OPS-1 Beat-task runtime diagnostic (capture reminders MISSED)
 
 **Incident scaffolding (to be removed after verification).** `capture.send_pending_capture_reminders` is reporting MISSED_RUN on the Ops Wall while the worker pool is healthy. Pool-level evidence cannot distinguish "never dispatched/executed" from "executed but the OPS-1 heartbeat (`ScheduledTaskRun.ran_at`) never advanced". Added a read-only, operator-only diagnostic that assembles every durable/lightweight runtime fact for one canonical task name so Phase-2 branch selection is evidence-driven, not plausibility-driven.

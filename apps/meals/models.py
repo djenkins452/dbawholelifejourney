@@ -1342,3 +1342,50 @@ class Leftover(UserOwnedModel):
 
     def __str__(self):
         return f"{self.servings} serving(s) of {self.recipe_title or 'a meal'}"
+
+
+class MealConsumption(UserOwnedModel):
+    """Person-scoped provenance link for eating a prepared meal (Foundation 2).
+
+    Ties a consumption to (a) the PreparationEvent / Leftover it came from and (b) the
+    canonical nutrition record it produced — ``health.FoodEntry`` (the SOLE nutrition
+    authority; this model stores NO macros). Reducing leftovers, idempotency, and
+    "which FoodEntry came from which preparation" live here; the nutrition itself
+    lives in FoodEntry. Supports multiple consumptions from one preparation.
+    """
+
+    household = models.ForeignKey(
+        Household, on_delete=models.CASCADE, related_name="meal_consumptions",
+    )
+    preparation = models.ForeignKey(
+        PreparationEvent, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="consumptions",
+    )
+    leftover = models.ForeignKey(
+        Leftover, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="consumptions",
+    )
+    recipe = models.ForeignKey(
+        "meals.Recipe", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="consumptions",
+    )
+    recipe_title = models.CharField(max_length=200, blank=True)
+    # The canonical nutrition record this consumption created (owned by Health).
+    food_entry = models.ForeignKey(
+        "health.FoodEntry", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="meal_consumptions",
+    )
+    servings_consumed = models.DecimalField(max_digits=6, decimal_places=2)
+    meal_type = models.CharField(max_length=20, blank=True)
+    consumed_at = models.DateTimeField(default=timezone.now)
+    idempotency_key = models.CharField(
+        max_length=100, null=True, blank=True, unique=True, db_index=True,
+    )
+
+    class Meta:
+        ordering = ["-consumed_at"]
+        verbose_name = "Meal Consumption"
+        verbose_name_plural = "Meal Consumptions"
+
+    def __str__(self):
+        return f"Ate {self.servings_consumed} serving(s) of {self.recipe_title or 'a meal'}"

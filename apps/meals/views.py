@@ -43,6 +43,7 @@ from .models import (
     PantryPhotoDetection,
     PantryPhotoUpload,
     PantryScanSession,
+    PreparationEvent,
     Receipt,
     ReceiptItem,
     RecipeIngredient,
@@ -1624,8 +1625,41 @@ class PrepareRecipeView(LoginRequiredMixin, MealsHouseholdMixin, View):
             idempotency_key=(request.POST.get("idempotency_key") or "").strip() or None,
             notes=(request.POST.get("notes") or "").strip(),
         )
+        import uuid
         return render(request, "meals/preparation_result.html", {
             "recipe": recipe,
+            "result": result,
+            "consumption_idempotency_key": uuid.uuid4().hex,
+        })
+
+
+class ConsumeMealView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Record that a person ate servings of a prepared meal (Foundation 2 consumption
+    bridge): creates a canonical health.FoodEntry (nutrition) and reduces leftovers.
+    Idempotent + fail-closed (in the service). Synchronous, deterministic — safe."""
+
+    def post(self, request, prep_pk):
+        from apps.meals.services.consumption import consume_meal
+
+        household = self.get_household()
+        prep = get_object_or_404(PreparationEvent, pk=prep_pk, household=household)
+
+        raw = (request.POST.get("servings") or "").strip()
+        try:
+            servings = Decimal(raw) if raw else Decimal("1")
+        except Exception:
+            servings = Decimal("1")
+
+        result = consume_meal(
+            user=request.user,
+            household=household,
+            preparation=prep,
+            servings=servings,
+            meal_type=(request.POST.get("meal_type") or "").strip() or None,
+            idempotency_key=(request.POST.get("idempotency_key") or "").strip() or None,
+        )
+        return render(request, "meals/consumption_result.html", {
+            "preparation": prep,
             "result": result,
         })
 

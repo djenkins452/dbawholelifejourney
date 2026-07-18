@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Meal logged — Meal Intelligence — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 640px; margin: 0 auto; padding: var(--space-4);">
+    <a href="{% url 'meals:dashboard' %}" class="text-muted" style="font-size: var(--font-size-sm);">&larr; Meal Intelligence</a>
+
+    <h1 style="margin-top: var(--space-3);">Meal logged</h1>
+
+    {% if result.status == "replayed" %}
+    <p class="text-muted">This serving was already recorded — nothing was logged twice.</p>
+    {% elif result.status == "failed" %}
+    <p style="color: var(--color-error, #ef4444);">Could not log this meal: {{ result.message }}</p>
+    {% endif %}
+
+    {% if result.food_entry_id %}
+    <p>Logged <strong>{{ result.servings_consumed }}</strong> serving(s) to your nutrition.</p>
+    <div style="display: flex; gap: var(--space-3); flex-wrap: wrap; margin: var(--space-3) 0;">
+        <span class="badge">{{ result.nutrition.calories|floatformat:0 }} cal</span>
+        <span class="badge">{{ result.nutrition.protein_g|floatformat:0 }} g protein</span>
+        <span class="badge">{{ result.nutrition.carbohydrates_g|floatformat:0 }} g carbs</span>
+        <span class="badge">{{ result.nutrition.fat_g|floatformat:0 }} g fat</span>
+    </div>
+    {% endif %}
+
+    {% if result.leftover_id %}
+    <p class="text-muted">Leftovers remaining: <strong>{{ result.leftover_remaining }}</strong> serving(s).</p>
+    {% endif %}
+
+    <p style="margin-top: var(--space-4);">
+        <a href="{% url 'health:nutrition_home' %}" class="btn btn-primary">View today's nutrition</a>
+    </p>
+</div>
+{% endblock %}

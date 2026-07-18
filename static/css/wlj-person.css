@@ -24,6 +24,12 @@ span[data-mention]:hover {
     font-size: 14px;
     line-height: 1.4;
     color: var(--color-text, #1f2937);
+    cursor: pointer;   /* the whole card is one link — click anywhere to open the person */
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.wlj-person-card:hover {
+    border-color: var(--color-accent, #b8860b);
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.22);
 }
 .wlj-pc-name {
     font-weight: 700;
@@ -55,14 +61,4 @@ span[data-mention]:hover {
     color: var(--color-accent, #b8860b);
     font-weight: 600;
     font-size: 12px;
-}
-.wlj-pc-open {
-    display: inline-block;
-    margin-top: 10px;
-    font-weight: 600;
-    color: var(--color-accent, #b8860b);
-    text-decoration: none;
-}
-.wlj-pc-open:hover {
-    text-decoration: underline;
 }

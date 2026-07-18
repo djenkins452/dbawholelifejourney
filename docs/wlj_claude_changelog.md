@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(people): Person hover card is one smart clickable surface
+
+**Interaction polish on the shared hover card. Data, resolution and edit-mode behavior unchanged.**
+
+- **Smart card navigation.** Removed the "Open Person →" link; the **entire card** is now one link — clicking anywhere on it opens the person's page (`static/js/wlj-person-hover.js`: a single click handler on the card element navigates to the cached `data.url`; `render()` no longer emits the link). Cursor is `pointer` with a subtle border/shadow lift on hover (`static/css/wlj-person.css`), and the card carries `role="link"`. A future interactive control inside the card can `stopPropagation()` to opt out of navigation — today the whole surface is the link. Modern card navigation, not a hyperlink buried in the card.
+- **Edit mode unchanged (intentional).** The `inEditor` guard still suppresses the card AND navigation for chips inside `.ProseMirror`/`[contenteditable]`, so cursor placement, selection, typing and editing are never interrupted. Read mode remains the place for exploration/navigation.
+- **Files:** `static/js/wlj-person-hover.js`, `static/css/wlj-person.css`, `templates/base.html` (cache-bust `wlj-person.*` `?v=20260718a → b`). No backend/model change → no migration.
+
+**Verification:** browser-verified. Read mode: hovering a recognized chip shows the card (Heather Jenkins / Recognized as: Heather, Heather Jenkins, Honey, Sweetie, Babe) with **no "Open Person" link**, `cursor: pointer`; clicking a NON-name element of the card (the "Recognized as" label) navigated to `/people/112/`. Edit mode: hovering + clicking the same chip in the editor → no card shown, no navigation. `check` + `collectstatic` clean. NOTE: a concurrent Meal-Intelligence session has extensive uncommitted work (`apps/meals/*`, `config/settings.py`, …); committed ONLY my 4 files by explicit path.
+
 ## 2026-07-18 — feat(truth): Scoped entity retrieval + per-domain enrichment (deferred changelog for 739ffc16)
 
 *(Deferred per the concurrent-session protocol — code shipped in commit `739ffc16`; a concurrent session held an uncommitted changelog entry at commit time, so this line was added separately to avoid clobbering it.)*

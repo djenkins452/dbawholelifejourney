@@ -18,7 +18,7 @@
   "use strict";
 
   var cache = {};                 // pk -> Promise<data|null>
-  var card = null, showTimer = null, hideTimer = null, currentPk = null;
+  var card = null, showTimer = null, hideTimer = null, currentPk = null, currentUrl = null;
 
   function inEditor(el) {
     return !!(el.closest && el.closest('.ProseMirror, [contenteditable="true"]'));
@@ -46,10 +46,15 @@
     if (card) return card;
     card = document.createElement("div");
     card.className = "wlj-person-card";
-    card.setAttribute("role", "dialog");
+    card.setAttribute("role", "link");
     card.style.display = "none";
     card.addEventListener("mouseenter", function () { clearTimeout(hideTimer); });
     card.addEventListener("mouseleave", scheduleHide);
+    // The ENTIRE card is one smart link — click anywhere to open the person. A future
+    // interactive control inside the card can call e.stopPropagation() to opt out.
+    card.addEventListener("click", function () {
+      if (currentUrl) window.location.href = currentUrl;
+    });
     document.body.appendChild(card);
     return card;
   }
@@ -63,8 +68,7 @@
       + (chips
           ? '<div class="wlj-pc-section-label">Recognized as</div>'
             + '<div class="wlj-pc-chips">' + chips + "</div>"
-          : "")
-      + '<a class="wlj-pc-open" href="' + esc(data.url) + '">Open Person →</a>';
+          : "");
   }
 
   function position(chip) {
@@ -86,6 +90,7 @@
     ensureCard();
     fetchCard(pk).then(function (data) {
       if (currentPk !== pk || !data) return;   // hover moved on, or no data
+      currentUrl = data.url;                    // the whole card links here
       card.innerHTML = render(data);
       card.style.display = "block";
       position(chip);

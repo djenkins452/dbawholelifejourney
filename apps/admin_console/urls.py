@@ -14,7 +14,6 @@ from django.urls import path
 
 from . import views
 from . import ai_views
-from . import ops_beat_diagnostic  # TEMPORARY incident glass-box — remove after verification
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
 
@@ -210,8 +209,6 @@ urlpatterns = [
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
     path("api/claude/restore-deleted-tasks/", views.RestoreDeletedTasksAPIView.as_view(), name="api_claude_restore_tasks"),
-    # TEMPORARY incident glass-box (OPS-1 Beat-task runtime diagnostic) — remove after verification.
-    path("api/claude/ops-beat-diag/", ops_beat_diagnostic.OpsBeatTaskDiagnosticAPIView.as_view(), name="api_claude_ops_beat_diag"),
 
     # Test Results Ingest API (local → production sync)
     path("api/test-results/ingest/", views.TestResultIngestAPIView.as_view(), name="api_test_results_ingest"),

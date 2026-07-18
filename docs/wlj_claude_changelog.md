@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — chore(session-transition): CoS Truth Certification milestone close-out — fold durable knowledge up, regenerate bootloader
+
+**Session Transition Protocol for the completed CoS Truth Certification milestone.** Folded this session's durable knowledge into the permanent startup package; regenerated the lean bootloader.
+
+- **`03_ENGINEERING_OPERATING_GUIDE §3c` (new):** the certification-driven development loop + two-owner model (Deterministic Owner-1 → Customer Truth Owner-2 → Executive Judgment; local AND production; attribute the first failing layer, fix only that; evidence—not intuition—sets priority; untested = NOT YET MEASURED).
+- **`01_…ARCHITECTURE`:** added the **Truth Surfaces** pillar (§4) + two lessons (§6) — certification drives the roadmap; *a missing provider changes which surface answered, not whether an answer is possible.*
+- **`04_DANNY_WORKING_PREFERENCES`:** generalized the copy-box rule — **every reusable artifact** (prompt, doc text, startup/close-out content, audit, recommendation) goes in a copy box; conversational explanation stays outside. Future sessions must not rely on Danny remembering it.
+- **`99_PREPARE_NEXT_CHAT.md` (executor):** permanent output-format rule — all reusable close-out artifacts incl. the Transition Audit are emitted in copy boxes (workflow self-improvement).
+- **`99_REFERENCE_INDEX`:** indexed the new cert docs (`WLJ_TRUTH_SURFACES`, `WLJ_CERTIFICATION_BACKLOG`, `WLJ_CERTIFICATION_PLATFORM_FUTURE` [DEFERRED], + scorecards).
+- **`00_NEXT_CHAT_STARTUP` regenerated:** 90→54 lines; live sprint state only (measured backlog, concurrency with the Meal-Intelligence + Person threads, waiting-on-Danny production trace, the deferred Certification Platform, carried UTC-attribution + Operations track).
+- **Constitution: NO change** (certification is a development discipline, not a protected Article — no Constitutional Review needed). New session docs this milestone: `WLJ_TRUTH_RETRIEVAL_CERTIFICATION_AUDIT`, `_COVERAGE`, `WLJ_CUSTOMER_TRUTH_CERT_SLICE1`, `_PROD1`, `WLJ_CERTIFICATION_BACKLOG`, `WLJ_CERTIFICATION_PLATFORM_FUTURE`, `WLJ_TRUTH_SURFACES`.
+
 ## 2026-07-18 — feat(health/users): Foundation 1A — Nutrition Target Truth Consolidation (production data migration)
 
 **Consolidated the nutrition target duplicate stores into ONE canonical deterministic authority.** Before: `health.NutritionGoals` (grams) AND `users.UserPreferences` (calorie goal + macro percentages) both stored targets, mirrored one-way by a `_sync_nutrition_goals` writer — a drift class. After: `NutritionGoals` (grams) is the single store, `NutritionGoalsView` its single writer, and `build_nutrition_summary` the single calculation path feeding the nutrition page, the `health.nutrition` Current Context provider, and the dashboard tile. Isolated milestone; the Recipe `life→meals` move remains deferred.

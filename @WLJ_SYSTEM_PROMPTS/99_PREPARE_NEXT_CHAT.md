@@ -10,6 +10,8 @@
 
 This is a **self-improving** close-out: it improves the permanent package *and* improves itself. Do every step.
 
+> **Output format (permanent rule):** every **reusable** artifact this close-out produces — the regenerated bootloader text, any documentation text, recommendations meant for reuse, and the **Transition Audit** — must be presented **inside a copy box** (fenced block), paste-ready with no cleanup. Ordinary conversational explanation stays outside copy boxes. (Owner: `04_DANNY_WORKING_PREFERENCES.md` → "Every reusable artifact goes in a copy box.")
+
 ### 1. Review the session
 Summarize everything accomplished: what shipped, what was decided, what was investigated, what's still open, what was intentionally postponed.
 

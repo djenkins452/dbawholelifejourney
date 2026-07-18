@@ -46,6 +46,7 @@ Load-bearing pillars:
 - **Model Interface + Executive Context Envelope** — the single seam and the structured per-turn context (AI Relationship + Current Context + deterministic understanding) handed to the model.
 - **Conversation integrity** — the transcript stays a faithful record of what the user actually submitted; artifacts derived from an upload become deterministic truth with provenance, but the transcript still preserves the original submission.
 - **Reflection** — sits *above* the four layers and only observes; learning is default-deny and never learns around a deterministic defect.
+- **Truth Surfaces** — the CoS reasons from **several complementary deterministic truth surfaces**, not `DomainTruth` alone: **Current Context · Standing Context · Personal Truth · DomainTruth · Domain Entity Surfaces · Executive Briefings · Decision Authority.** Each supplies a truth type (summary/detailed/execution/contextual/historical); they are complementary views of one life, not rivals. **A missing `DomainTruth` provider does not make an answer impossible** — the fact may legitimately arrive via another surface (Goals answered from Standing Context; Fitness from a Domain Entity Surface). Validated by production certification, 2026-07-18. Full catalog: `docs/WLJ_TRUTH_SURFACES.md`.
 
 Stack: Django 4.2.27 (note: CLAUDE.md says "5.x"; runtime is 4.2), PostgreSQL/Redis, Celery worker+beat, Gunicorn, Railway (Nixpacks), OpenAI. iOS SwiftUI wrapper. ~4,400 tests. Soft deletes, not hard deletes.
 
@@ -67,6 +68,8 @@ Stack: Django 4.2.27 (note: CLAUDE.md says "5.x"; runtime is 4.2), PostgreSQL/Re
 - **Prove the runtime path before editing.** A passing unit test is not proof; trace Browser→…→Composer→DB and find ALL producers (persisted ≠ live).
 - **Request-path safety.** Never compute heavy analytics or call the LLM inline on a request; read snapshots or return "pending." Live fallbacks caused production timeouts.
 - **Improve truth before adding intelligence.** Most "make the assistant smarter" asks are really "give the model better truth."
+- **Certification drives the roadmap, not intuition** (proven 2026-07-18). Two-owner model — Deterministic (Owner-1) → Customer Truth (Owner-2) → Executive Judgment — with per-question structured evidence and first-failing-layer attribution. Rank work by *measured* customer impact; untested = **NOT YET MEASURED**, never "low priority." The loop and instrument are in `03_ENGINEERING_OPERATING_GUIDE §3c`.
+- **A missing provider is not a missing answer.** *"A missing provider changes which deterministic truth surface supplied the answer; it does not necessarily determine whether the answer is possible."* Trace which surface served an answer before concluding a gap exists (`docs/WLJ_TRUTH_SURFACES.md`).
 
 ## 7. Where the authoritative detail lives
 

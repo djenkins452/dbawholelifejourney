@@ -42,6 +42,17 @@ The model reasons; it never invents a WLJ fact. When the model answers wrong, th
 ### 3b. Current Context precedence
 Answer from the authoritative Current Context **before** retrieving anything. The precedence order is: **Current Context → the conversation → truth already in context → a truth tool → general reasoning.** If Current Context already answers the question, answer from it — don't retrieve further. Never let scraped DOM or related truth override the page's declared, server-resolved Current Context (constitutional: II.1–II.4).
 
+### 3c. Certification drives implementation (the CoS development loop)
+**Certification — not intuition or architecture — now drives the Chief of Staff roadmap.** Architecture no longer leads development unless certification *proves* architecture must change. Per truth domain, run the loop and do not skip steps:
+
+**choose a truth domain → Owner-1 certification → Customer Truth certification → attribute the first failing layer → smallest deterministic fix → re-certify → repeat.**
+
+- **Two owners, complementary, sequential:** **Owner-1 = Deterministic Truth Certification** (the provider returns the right value, no OpenAI; `apps/core/truth/question_specs.py` `QuestionSpec` + `capability_matrix()` + `apps/core/tests/test_truth_retrieval_slice.py`). **Owner-2 = Customer Truth Certification** (real question → real production pipeline → grounded answer; the existing **Beth Acceptance Center** routed through `CoSGateway` — never a second framework). Deterministic → Customer → Executive Judgment; each gates the next.
+- **Local AND production are complementary certifications** — neither replaces the other. Local proves deterministic truth on fixtures; production proves the real customer experience on real data (a Deep run executes in `wlj-worker`).
+- **Attribute every failure to its first failing layer** (source truth · provider · registration · routing · tool-selection · tool-arguments · evidence retrieval · evidence delivery · grounded answer · transport · product-design) using the structured evidence the Acceptance Center captures. **Fix only that layer.** Do NOT prompt-patch, special-case routing, hardcode question handling, or "improve AI" to paper over a truth gap.
+- **A missing provider is not a missing answer** — the CoS reasons from multiple **Truth Surfaces** (Standing Context, Personal Truth, Domain Entity, Executive Briefings, Decision Authority, Current Context, DomainTruth). Trace *which surface* served an answer before concluding anything. (`docs/WLJ_TRUTH_SURFACES.md`; `01_…ARCHITECTURE §6`.)
+- **Evidence, not assumption, sets priority.** Rank the backlog by *measured* customer impact; mark untested domains **NOT YET MEASURED** — absence of testing is never evidence of low priority. Governing docs: `docs/WLJ_CERTIFICATION_BACKLOG.md`, `docs/WLJ_CUSTOMER_TRUTH_CERT_PROD1.md`.
+
 ## 4. Prove root cause before changing code (runtime tracing)
 
 **Never modify code until you have PROVEN — not guessed — that it executed on the request that produced the behavior.** For any "app shows X, should show Y" (governing doc: `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`):

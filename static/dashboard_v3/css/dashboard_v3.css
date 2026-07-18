@@ -137,6 +137,20 @@ a.v3-pill-weather:hover { border-color: var(--v3-ink); }
     gap: 10px;
 }
 .v3-cockpit-row .v2-cockpit-dial { box-shadow: var(--v3-shadow); }
+/* Keyboard focus ring for the (role="button") cockpit dials. */
+.v3-cockpit-row .v2-cockpit-dial:focus-visible {
+    outline: 2px solid var(--color-accent, #6366f1);
+    outline-offset: 2px;
+}
+/* Expand-panel loading / error states (fetched via cockpit_panel endpoint). */
+.v2-cockpit-panel-loading,
+.v2-cockpit-panel-error {
+    padding: 12px;
+    font-size: 0.8rem;
+    color: var(--color-text-muted, #6b7280);
+    text-align: center;
+}
+.v2-cockpit-panel-error { color: var(--color-error, #ef4444); }
 
 /* Fallback gauges */
 .v3-gauges-row {

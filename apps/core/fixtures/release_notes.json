@@ -4422,5 +4422,21 @@
       "created_at": "2026-07-18T02:00:00Z",
       "updated_at": "2026-07-18T20:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 278,
+    "fields": {
+      "title": "Search your pantry instantly",
+      "description": "Your Pantry now has a search box at the top of the list. Just start typing and the list filters as you go — no button to press, no waiting. It's not picky about capitalization and matches anywhere in an item's name, so \"ket\" finds Ketchup, \"prot\" finds Protein Powder and Protein Bar, and \"burger\" finds Hamburger Bun and Hamburger Patties. While you're searching, a small line shows how many items match out of your full pantry, and if nothing matches you get a friendly message with a one-tap Clear Search. Everything else about your pantry works exactly as before.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-07-18",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/meals/pantry/",
+      "created_at": "2026-07-18T21:00:00Z",
+      "updated_at": "2026-07-18T21:00:00Z"
+    }
   }
 ]

@@ -163,14 +163,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (dial.classList.contains('expanded')) {
             dial.classList.remove('expanded');
+            dial.setAttribute('aria-expanded', 'false');
             panel.innerHTML = '';
         } else {
             document.querySelectorAll('.v2-cockpit-dial.expanded').forEach(function(other) {
                 other.classList.remove('expanded');
+                other.setAttribute('aria-expanded', 'false');
                 var otherPanel = other.querySelector('.v2-cockpit-panel');
                 if (otherPanel) otherPanel.innerHTML = '';
             });
             dial.classList.add('expanded');
+            dial.setAttribute('aria-expanded', 'true');
             var url = dial.dataset.expandUrl;
             if (url) {
                 fetch(url, { headers: {'X-Requested-With': 'XMLHttpRequest'} })
@@ -178,6 +181,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(function(html) { panel.innerHTML = html; });
             }
         }
+    });
+
+    // Keyboard affordance for the cockpit dials (role="button" + tabindex).
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var dial = e.target.closest && e.target.closest('.v2-cockpit-dial');
+        if (!dial) return;
+        if (e.target.closest('a, button')) return;
+        e.preventDefault();
+        dial.click();
     });
 
     // Action group collapse/expand

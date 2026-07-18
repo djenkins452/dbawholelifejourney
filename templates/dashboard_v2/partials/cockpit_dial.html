@@ -6,7 +6,12 @@
 
 <div class="v2-cockpit-dial{% if domain_data.priority %} v2-cockpit-priority{% endif %}{% if domain_data.score >= 100 %} v2-cockpit-perfect{% endif %}"
      data-domain="{{ domain_key }}"
-     data-expand-url="{% url 'dashboard_v2:cockpit_panel' domain=domain_key %}">
+     data-expand-url="{% url 'dashboard_v2:cockpit_panel' domain=domain_key %}"
+     role="button"
+     tabindex="0"
+     aria-expanded="false"
+     aria-controls="cockpit-panel-{{ domain_key }}"
+     aria-label="{{ domain_data.label }} score {{ domain_data.score }} percent — show details">
 
     {# Domain label #}
     <div class="v2-dial-label" style="color: {{ domain_data.color }};">

@@ -10,7 +10,7 @@ Bump ?v= whenever dashboard_v3.css changes: the markup and the stylesheet ship
 together, so a cached stylesheet against new markup renders a broken dashboard
 (e.g. the completed-items list stuck permanently hidden).
 {% endcomment %}
-<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260717a">
+<link rel="stylesheet" href="{% static 'dashboard_v3/css/dashboard_v3.css' %}?v=20260718a">
 {% endblock %}
 
 {% block content %}
@@ -196,6 +196,67 @@ together, so a cached stylesheet against new markup renders a broken dashboard
         if (!card) return;
         e.preventDefault();
         v3Navigate(card);
+    });
+
+    // ── Cockpit dial expand/collapse ──
+    // The goal-cockpit dials (Health, Faith, …) are the shared v2 partial
+    // (dashboard_v2/partials/cockpit_dial.html), reused by v3's gauges section.
+    // Each dial advertises "Tap for details" and carries a data-expand-url to the
+    // cockpit_panel endpoint plus an empty .v2-cockpit-panel to fill. The behavior
+    // that powers it lives in v2's home template; when v3 was promoted to default
+    // the markup came along but this handler did not — so the affordance was live
+    // in the DOM with nothing listening (it "did nothing"). Delegated on
+    // document.body like every other v3 control, so it survives the #v3-live
+    // hx-swap that would kill a per-node listener.
+    function v3ToggleDial(dial) {
+        var panel = dial.querySelector('.v2-cockpit-panel');
+        if (!panel) return;
+        if (dial.classList.contains('expanded')) {
+            dial.classList.remove('expanded');
+            dial.setAttribute('aria-expanded', 'false');
+            panel.innerHTML = '';
+            return;
+        }
+        // One panel open at a time.
+        document.querySelectorAll('.v2-cockpit-dial.expanded').forEach(function(other) {
+            other.classList.remove('expanded');
+            other.setAttribute('aria-expanded', 'false');
+            var op = other.querySelector('.v2-cockpit-panel');
+            if (op) op.innerHTML = '';
+        });
+        dial.classList.add('expanded');
+        dial.setAttribute('aria-expanded', 'true');
+        var url = dial.dataset.expandUrl;
+        if (url) {
+            panel.innerHTML = '<div class="v2-cockpit-panel-loading">Loading…</div>';
+            fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function(r) { return r.text(); })
+                .then(function(html) { panel.innerHTML = html; })
+                .catch(function() {
+                    panel.innerHTML =
+                        '<div class="v2-cockpit-panel-error">Couldn’t load details. Tap to retry.</div>';
+                    dial.classList.remove('expanded');
+                    dial.setAttribute('aria-expanded', 'false');
+                });
+        }
+    }
+    function v3DialTarget(e) {
+        var dial = e.target.closest('.v2-cockpit-dial');
+        if (!dial) return null;
+        // Never hijack a real control nested in the dial.
+        if (e.target.closest('a, button, input')) return null;
+        return dial;
+    }
+    document.body.addEventListener('click', function(e) {
+        var dial = v3DialTarget(e);
+        if (dial) v3ToggleDial(dial);
+    });
+    document.body.addEventListener('keydown', function(e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var dial = v3DialTarget(e);
+        if (!dial) return;
+        e.preventDefault();
+        v3ToggleDial(dial);
     });
 
     // ── Latency: tag v3-toggle / v3-partial HTMX requests so the

@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(meals): live client-side Pantry search (instant filter, no page reload)
+
+**Pantry usability — the list no longer requires scrolling through everything.** A search box sits above the pantry list and filters items live as the user types, entirely client-side on the already-loaded data (no server call per keystroke, no Search button, no page reload).
+
+- **Instant, case-insensitive, substring-anywhere.** Matches partial text anywhere in the item name (and aliases): "ket" → Ketchup; "prot" → Protein Powder, Protein Bar; "burger" → Hamburger Bun, Hamburger Patties. Each row carries a lowercased `data-search-name` (name + joined aliases); the JS filters with a plain `indexOf`, so it operates instantly on the loaded DOM.
+- **Live feedback.** While filtering, a status line shows "Showing X of Y pantry items", section headers hide when they have no visible items (and their count badges reflect the visible count), and clearing the box restores the full grouped list and badge counts.
+- **Friendly empty state.** When nothing matches, a "No matching items" panel appears with the searched term and a **Clear Search** action; a clear (×) button and the Escape key also reset. All existing pantry functionality (confirm/used actions, barcode scan, container display, badges) is preserved untouched.
+- **CSP-compliant.** No inline handlers — one nonce'd script using `addEventListener`; the search UI renders only when the pantry has items.
+
+**Files:** `templates/meals/pantry.html` (search box, status/empty-state markup, `data-search-name` per item, CSS, and the live-filter script), `apps/meals/tests/test_pantry_search.py` (new — 4 UI-contract tests), `apps/core/fixtures/release_notes.json`.
+
+**Verification:** 4/4 UI-contract tests (search markup + lowercased per-item keys + aliases folded in + no search bar when empty); the exact `indexOf` predicate simulated against the real server-rendered keys confirms ket/Prot/BURGER/olive/no-match/empty all filter as specified; template compiles; `check` clean. Template-only change (no migration).
+
 ## 2026-07-18 — refine(meals): Pantry Remaining Truth stored as exact base quantity (fractions become presentation)
 
 **Focused refinement of Pantry Container Truth — stored truth vs presentation.** Real-world validation showed the deterministic model was stronger if the *remaining* amount were stored as an exact base quantity rather than a container fraction. Container Truth (net contents of one full container) and the substance/density/resolution architecture are unchanged; only the internal representation of Remaining Truth is refined.

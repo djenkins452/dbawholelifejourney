@@ -107,15 +107,41 @@
     </div>
 
     {% if sections %}
+    <div class="pantry-search" id="pantrySearchBar">
+        <div class="pantry-search-box">
+            <svg class="pantry-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="search" id="pantrySearch" class="pantry-search-input"
+                   placeholder="Search pantry…" autocomplete="off" aria-label="Search pantry items">
+            <button type="button" id="pantrySearchClear" class="pantry-search-clear" aria-label="Clear search" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div id="pantrySearchStatus" class="pantry-search-status" role="status" aria-live="polite" hidden></div>
+    </div>
+
+    <div id="pantrySearchEmpty" class="meals-empty-state pantry-search-empty" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <h2>No matching items</h2>
+        <p>Nothing in your pantry matches “<span id="pantrySearchEmptyTerm"></span>”.</p>
+        <button type="button" class="btn btn-secondary" id="pantrySearchClearEmpty">Clear Search</button>
+    </div>
+
     {% for section_name, items in sections %}
     <div class="pantry-section">
         <div class="pantry-section-header">
             <h2 class="pantry-section-title">{{ section_name }}</h2>
-            <span class="pantry-section-count">{{ items|length }}</span>
+            <span class="pantry-section-count" data-full-count="{{ items|length }}">{{ items|length }}</span>
         </div>
         <div class="pantry-items">
             {% for item in items %}
-            <div class="pantry-item" data-pantry-id="{{ item.pk }}">
+            <div class="pantry-item" data-pantry-id="{{ item.pk }}"
+                 data-search-name="{{ item.ingredient.canonical_name|lower }} {{ item.ingredient.aliases|join:' '|lower }}">
                 <div class="pantry-item-info">
                     <div class="pantry-item-name">{{ item.ingredient.canonical_name|title }}</div>
                     <div class="pantry-item-meta">
@@ -318,6 +344,63 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* Live pantry search */
+.pantry-search {
+    margin-bottom: var(--space-3);
+}
+.pantry-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.pantry-search-icon {
+    position: absolute;
+    left: 12px;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted, #6b7280);
+    pointer-events: none;
+}
+.pantry-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 0 40px 0 40px;
+    font-size: 16px; /* prevent iOS zoom */
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 10px;
+    background: var(--color-bg, #fff);
+    color: var(--color-text, #111827);
+}
+.pantry-search-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #4f46e5);
+    box-shadow: 0 0 0 3px var(--color-primary-soft, rgba(79,70,229,0.15));
+}
+.pantry-search-clear {
+    position: absolute;
+    right: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted, #6b7280);
+    cursor: pointer;
+    border-radius: 50%;
+}
+.pantry-search-clear:hover { background: var(--color-surface-2, #f3f4f6); }
+.pantry-search-clear svg { width: 18px; height: 18px; }
+.pantry-search-status {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted, #6b7280);
+}
+.pantry-item.is-hidden,
+.pantry-section.is-hidden { display: none; }
+
 /* Storage badges */
 .pantry-item-meta {
     display: flex;
@@ -487,6 +570,77 @@
     'use strict';
 
     var csrfToken = '{{ csrf_token }}';
+
+    // ── Live pantry search (client-side; operates on already-loaded data) ──
+    (function initPantrySearch() {
+        var input = document.getElementById('pantrySearch');
+        if (!input) return;  // no items -> no search bar
+        var clearBtn = document.getElementById('pantrySearchClear');
+        var clearEmptyBtn = document.getElementById('pantrySearchClearEmpty');
+        var statusEl = document.getElementById('pantrySearchStatus');
+        var emptyEl = document.getElementById('pantrySearchEmpty');
+        var emptyTermEl = document.getElementById('pantrySearchEmptyTerm');
+        var items = Array.prototype.slice.call(document.querySelectorAll('.pantry-item'));
+        var sections = Array.prototype.slice.call(document.querySelectorAll('.pantry-section'));
+        var total = items.length;
+
+        function apply() {
+            var term = input.value.trim().toLowerCase();
+            clearBtn.hidden = term.length === 0;
+
+            if (!term) {
+                // Reset to the full, unfiltered list.
+                items.forEach(function(el) { el.classList.remove('is-hidden'); });
+                sections.forEach(function(sec) {
+                    sec.classList.remove('is-hidden');
+                    var badge = sec.querySelector('.pantry-section-count');
+                    if (badge && badge.dataset.fullCount) badge.textContent = badge.dataset.fullCount;
+                });
+                statusEl.hidden = true;
+                emptyEl.hidden = true;
+                return;
+            }
+
+            var visible = 0;
+            items.forEach(function(el) {
+                var name = el.getAttribute('data-search-name') || '';
+                var match = name.indexOf(term) !== -1;
+                el.classList.toggle('is-hidden', !match);
+                if (match) visible++;
+            });
+
+            // Hide sections with no visible items; reflect visible count in the badge.
+            sections.forEach(function(sec) {
+                var shown = sec.querySelectorAll('.pantry-item:not(.is-hidden)').length;
+                sec.classList.toggle('is-hidden', shown === 0);
+                var badge = sec.querySelector('.pantry-section-count');
+                if (badge) badge.textContent = shown;
+            });
+
+            if (visible === 0) {
+                emptyTermEl.textContent = input.value.trim();
+                emptyEl.hidden = false;
+                statusEl.hidden = true;
+            } else {
+                emptyEl.hidden = true;
+                statusEl.textContent = 'Showing ' + visible + ' of ' + total + ' pantry items';
+                statusEl.hidden = false;
+            }
+        }
+
+        function clearSearch() {
+            input.value = '';
+            apply();
+            input.focus();
+        }
+
+        input.addEventListener('input', apply);
+        clearBtn.addEventListener('click', clearSearch);
+        if (clearEmptyBtn) clearEmptyBtn.addEventListener('click', clearSearch);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') clearSearch();
+        });
+    })();
 
     // ── Pantry item actions (confirm/used) ──
     document.addEventListener('click', function(e) {

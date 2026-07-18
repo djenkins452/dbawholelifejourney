@@ -25,6 +25,7 @@ _KNOWN_PROVIDER_MODULES = (
     "apps.finance.services.finance_domain_truth",
     "apps.purpose.services.goal_domain_truth",       # Goals / Missions Canonical Truth
     "apps.life.services.project_domain_truth",        # Projects Canonical Truth
+    "apps.life.services.event_domain_truth",          # Significant Events Canonical Truth
     "apps.meals.services.meals_domain_truth",         # Meal Intelligence Canonical Truth
     "apps.medical.services.medical_domain_truth",     # Medical / Lab Canonical Truth
     "apps.purpose.services.habit_domain_truth",       # Habits Canonical Truth

@@ -19,6 +19,14 @@ class BodyMeasurementQueries:
             entries = [e for e in s.entries.all()
                        if getattr(e, "status", "active") == "active"]
             performance = {e.metric_name: float(e.value) for e in entries}
+            # Per-entry detail — unit / notes / source / measurement_date, previously dropped.
+            measurements = [{"metric_name": e.metric_name, "value": float(e.value),
+                             "unit": e.unit or None,
+                             "measurement_date": (e.measurement_date.isoformat()
+                                                  if e.measurement_date else None),
+                             "notes": getattr(e, "notes", None) or None,
+                             "source": getattr(e, "source", None) or None}
+                            for e in entries]
             when = s.checked_in_at.date().isoformat() if s.checked_in_at else None
             out.append(CompleteEntity(
                 kind="body_measurement",
@@ -27,7 +35,8 @@ class BodyMeasurementQueries:
                             "source": s.source or None},
                 status="active",
                 performance=performance,
-                extensions={"notes": s.notes} if s.notes else {},
+                extensions={k: v for k, v in {
+                    "notes": s.notes or None, "measurements": measurements}.items() if v},
                 freshness=CURRENT,
             ))
         return out

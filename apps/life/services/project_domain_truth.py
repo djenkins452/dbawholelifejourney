@@ -66,7 +66,9 @@ class ProjectDomainTruth(DomainTruth):
                         "purpose": (p.purpose_plain or "").strip(),
                         "priority": p.priority,
                         "category": p.category or None,
-                        "tags": list(p.tags or [])},
+                        "tags": list(p.tags or []),
+                        "cover_image_url": (p.cover_image.url
+                                            if getattr(p, "cover_image", None) else None)},
             status=p.status,
             plan={"target_date": p.target_date.isoformat() if p.target_date else None,
                   "start_date": p.start_date.isoformat() if p.start_date else None},

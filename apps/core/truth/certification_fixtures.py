@@ -58,9 +58,12 @@ def build_medication_fixture(email="cert_med@example.com"):
         m = Intake.objects.create(
             user=u, name=name, dose="10mg", frequency="daily",
             start_date=today - timedelta(days=30), intake_status="active",
-            intake_type="medication", category="prescription")
+            intake_type="medication", category="prescription",
+            instructions="Take with food", current_supply=12, refill_threshold=5,
+            notes="generic ok")
         IntakeSchedule.objects.create(intake=m, scheduled_time=time(0, 1),
-                                      days_of_week="0,1,2,3,4,5,6", is_active=True)
+                                      days_of_week="0,1,2,3,4,5,6", label="Morning",
+                                      is_active=True)
         for i in range(1, 8):
             IntakeLog.objects.create(user=u, intake=m,
                                      scheduled_date=today - timedelta(days=i),
@@ -292,13 +295,19 @@ def build_tasks_fixture(email="cert_tasks@example.com"):
 def build_goals_fixture(email="cert_goals@example.com"):
     """A primary-mission LifeGoal ('France 2027') with milestones (some completed,
     one overdue) + momentum snapshots (progress history)."""
-    from apps.purpose.models import LifeGoal, GoalMilestone
+    from apps.purpose.models import AnnualDirection, LifeGoal, GoalMilestone
     from apps.dashboard_v2.models import GoalMomentumSnapshot
     u = _mk_user(email)
     today = get_user_today(u)
+    ad = AnnualDirection.objects.create(
+        user=u, year=today.year, word_of_year="Courage",
+        word_explanation="Act despite fear.", theme="Bold moves",
+        theme_description="Take the leap.", anchor_text="Be strong and courageous.",
+        anchor_source="Joshua 1:9", is_current=True)
     g = LifeGoal.objects.create(user=u, title="Move to France 2027", status="active",
                                 is_primary_mission=True, is_foundational=True,
                                 target_date=today + timedelta(days=400),
+                                annual_direction=ad,
                                 why_it_matters="A lifelong dream.",
                                 success_looks_like="Living in Lyon.")
     GoalMilestone.objects.create(goal=g, title="Learn A2 French", completed=True,
@@ -511,6 +520,69 @@ def build_body_session_fixture(email="cert_bodysession@example.com"):
     return u, {}
 
 
+def build_health_records_fixture(email="cert_hrec@example.com"):
+    """Full health records — steps (activity ring), weight (+body comp), glucose in BOTH
+    mg/dL and mmol/L (correctness), BP with context/notes."""
+    from apps.health.models import (
+        BloodPressureEntry, GlucoseEntry, StepsEntry, WeightEntry)
+    u = _mk_user(email)
+    today = get_user_today(u)
+    for off, steps in ((1, 8200), (2, 10500), (3, 6400)):
+        StepsEntry.objects.create(
+            user=u, count=steps, logged_date=today - timedelta(days=off),
+            recorded_at=_at(today - timedelta(days=off)), goal=10000,
+            distance_miles=Decimal("3.9"), calories_burned=Decimal("420"),
+            resting_calories=Decimal("1600"), flights_climbed=12,
+            exercise_minutes=35, stand_hours=10, notes="felt good", source="apple_health")
+    for off, w in ((1, "182.4"), (5, "184.0")):
+        WeightEntry.objects.create(
+            user=u, value=Decimal(w), unit="lb", recorded_at=_at(today - timedelta(days=off)),
+            body_fat_percentage=Decimal("21.5"), lean_body_mass=Decimal("143.2"),
+            notes="morning", source="manual")
+    GlucoseEntry.objects.create(user=u, value=Decimal("100"), unit="mg/dL",
+                                recorded_at=_at(today - timedelta(days=5)),
+                                context="fasting", notes="pre-breakfast", source="dexcom")
+    GlucoseEntry.objects.create(user=u, value=Decimal("6.0"), unit="mmol/L",
+                                recorded_at=_at(today - timedelta(days=1)), source="manual")
+    BloodPressureEntry.objects.create(user=u, systolic=124, diastolic=80, pulse=66,
+                                      context="resting", arm="left", position="seated",
+                                      notes="after coffee", source="manual",
+                                      recorded_at=_at(today - timedelta(days=1)))
+    return u, {"glucose_start": today - timedelta(days=6), "glucose_end": today,
+              "glucose_mmol_mgdl": round(6.0 * 18.0182, 1)}   # mmol normalized to mg/dL
+
+
+def build_events_fixture(email="cert_events@example.com"):
+    """SignificantEvents across every type (not just birthdays)."""
+    from apps.life.models import SignificantEvent
+    u = _mk_user(email)
+    today = get_user_today(u)
+    up = today + timedelta(days=10)
+    SignificantEvent.objects.create(user=u, title="Wedding Anniversary",
+                                    event_type="anniversary",
+                                    event_date=datetime(2010, up.month, up.day).date(),
+                                    original_year=2010, person_name="Spouse",
+                                    description="Married in Napa.",
+                                    custom_message="Plan a getaway.")
+    SignificantEvent.objects.create(user=u, title="Grandpa's Memorial",
+                                    event_type="memorial",
+                                    event_date=date(1998, 3, 15), person_name="Harold")
+    SignificantEvent.objects.create(user=u, title="10 Years Sober", event_type="milestone",
+                                    event_date=date(2016, 6, 1))
+    return u, {"event": "Anniversary"}
+
+
+def build_dietary_fixture(email="cert_dietary@example.com"):
+    """A DietaryProfile (targets + flags + diabetes-sensitivity)."""
+    from apps.meals.models import DietaryProfile
+    u = _mk_user(email)
+    DietaryProfile.objects.create(
+        user=u, carb_limit_daily=Decimal("100"), protein_target_daily=Decimal("150"),
+        calorie_target=Decimal("2000"), fat_limit_daily=Decimal("70"),
+        dietary_flags=["low_carb"], diabetes_sensitive=True)
+    return u, {}
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
@@ -524,6 +596,9 @@ FIXTURES = {
     "capture": build_capture_fixture,
     "brain_training": build_brain_training_fixture,
     "body_session": build_body_session_fixture,
+    "health_records": build_health_records_fixture,
+    "events": build_events_fixture,
+    "dietary": build_dietary_fixture,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,

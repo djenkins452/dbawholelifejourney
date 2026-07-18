@@ -19,13 +19,27 @@ def _today(user):
     return get_user_today(user)
 
 
+def annual_direction_dict(ad):
+    """Full AnnualDirection truth (not a 2-field stub). Reused by goals + habits."""
+    if ad is None:
+        return None
+    g = lambda a: getattr(ad, a, None)
+    return {"year": g("year"), "word_of_year": g("word_of_year"),
+            "word_explanation": (g("word_explanation") or "").strip() or None,
+            "theme": g("theme") or None,
+            "theme_description": (g("theme_description") or "").strip() or None,
+            "anchor_text": (g("anchor_text") or "").strip() or None,
+            "anchor_source": g("anchor_source") or None,
+            "is_current": g("is_current")}
+
+
 @register_domain_truth
 class GoalDomainTruth(DomainTruth):
     domain = "goals"
     current_metrics = ("active_goals", "primary_mission", "completion_rate",
                        "milestones_overdue", "milestones_completed")
     history_metrics = ("progress", "momentum")
-    entity_types = ("goal", "milestone")
+    entity_types = ("goal", "milestone", "annual_direction")
     analysis_subjects = {
         "goals":   {"entity_type": "goal", "history_metric": "progress"},
         "mission": {"entity_type": "goal", "history_metric": "momentum"},
@@ -137,6 +151,15 @@ class GoalDomainTruth(DomainTruth):
             ms = GoalMilestone.objects.filter(
                 goal__in=GoalQueries.active(self.user)).select_related("goal")
             return [self._milestone_entity(m) for m in ms]
+        if entity_type == "annual_direction":
+            from apps.purpose.models import AnnualDirection
+            return [CompleteEntity(kind="annual_direction",
+                                   identity=f"{ad.year}: {ad.word_of_year}",
+                                   status=("current" if getattr(ad, "is_current", False)
+                                           else "past"),
+                                   definition=annual_direction_dict(ad))
+                    for ad in AnnualDirection.objects.filter(user=self.user)
+                    .order_by("-year")]
         raise KeyError(f"goals cannot describe {entity_type!r} "
                        f"(have {self.entity_types})")
 
@@ -185,8 +208,8 @@ class GoalDomainTruth(DomainTruth):
             "commitment_level": g.commitment_level,
             "timeframe": g.timeframe,
             "mission_icon": g.mission_icon or "",
-            "annual_direction": ({"year": ad.year, "word_of_year": ad.word_of_year}
-                                 if ad else None),
+            "hero_image_url": (g.hero_image.url if getattr(g, "hero_image", None) else None),
+            "annual_direction": annual_direction_dict(ad),
             "victory_milestones": {
                 "total": len(victories),
                 "completed": sum(1 for v in victories if v.completed),

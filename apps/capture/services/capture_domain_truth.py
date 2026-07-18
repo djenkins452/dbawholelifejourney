@@ -85,6 +85,7 @@ class CaptureDomainTruth(DomainTruth):
                       "audio_available": bool(e.audio_file_url),
                       "error_message": e.error_message or None},
             performance={"has_transcript": bool(e.transcript),
+                         "transcript": (e.transcript or "").strip() or None,
                          "summary": (e.summary or "").strip() or None},
             extensions={"linked_signals": {
                 "count": len(signals),

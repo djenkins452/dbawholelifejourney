@@ -303,6 +303,8 @@ class NutritionQueries:
                 "serving_size": _num(f.serving_size),
                 "serving_unit": (f.serving_unit or None),
                 "source": (getattr(f, "data_source_used", None) or None),
+                "entry_source": (getattr(f, "entry_source", None) or None),
+                "is_favorite": bool(getattr(f, "is_favorite", False)),
             },
             status="eaten",
             performance={

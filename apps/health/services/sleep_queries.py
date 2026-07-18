@@ -172,6 +172,7 @@ def _sleep_entity(e):
             "rem_hours": _hrs(g("stage_rem_minutes")),
             "light_hours": _hrs(g("stage_light_minutes")),
             "awake_hours": _hrs(g("stage_awake_minutes")),
+            "total_awake_minutes": g("total_awake_minutes"),
             "efficiency_pct": _f(g("sleep_efficiency")),
             "quality_rating": g("quality_rating") or None,
             "quality_score": g("quality_score"),
@@ -179,7 +180,16 @@ def _sleep_entity(e):
             "hrv_ms": _f(g("hrv_value")),
             "respiratory_rate": _f(g("respiratory_rate")),
             "heart_rate_avg": g("heart_rate_avg"),
+            "heart_rate_min": g("heart_rate_min"),
+            "heart_rate_max": g("heart_rate_max"),
+            "vo2_max": _f(g("vo2_max")),
         },
+        extensions={k: v for k, v in {
+            "notes": g("notes") or None,
+            "factors": g("factors") or None,
+            "caffeine_mg": g("caffeine_mg"),
+            "mindful_minutes": g("mindful_minutes"),
+        }.items() if v is not None},
         freshness=CURRENT,
     )
 

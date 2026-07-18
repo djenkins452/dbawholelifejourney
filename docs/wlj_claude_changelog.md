@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Layer field-completion — expose every remaining hidden deterministic field + drift contract
+
+**Implements every hidden field from the final field-level audit.** Existing composer pattern only; no new models, no migration. **19 domains register** (added `events`).
+
+**Whole models newly surfaced:** DietaryProfile (6 fields → `meals` current + entity); AnnualDirection (8 fields → `goals` entity + full dict on linked goals/habits, no more 2-field stub); SignificantEvent → NEW `events` provider (all types — anniversary/memorial/milestone/holiday/other, not just birthdays — + description/original_year/person/custom_message; upcoming + entity + person lookup).
+
+**Health records — complete entities added** (scalars/series kept): new `steps`/`glucose`/`blood_pressure`/`weight` entities expose every stored field (activity ring, CGM context/trend/device, BP arm/position/context, weigh-in body-fat/lean-mass, notes, source). Sleep entity gains WASO/HR-min-max/VO2max/caffeine/mindful/notes/factors. **Correctness fix:** glucose history normalizes mmol/L→mg/dL via canonical `value_in_mg_dl` before averaging (never averages mixed units); certified with both units.
+
+**Enrichments:** Intake lifecycle + full IntakeSchedule (days_of_week/label → "which days do I take X"); FoodEntry entry_source/is_favorite; MealPlan header; image URLs for Recipe/LifeGoal/Project/Place (safe `.url`); HabitEntry per-session payload; Task progress_state + depends_on; Workout started_at/source; Faith reminder_time + reading reflections; Capture transcript; Legacy Relationship notes / PreservedFact subject_label / Media caption+taken_on; PersonGroup description; RecurrenceRule timezone. **Removed** `MedicalDocument.file_hash` (implementation metadata, per decision).
+
+**Field-coverage CONTRACT** (`apps/core/tests/test_truth_field_coverage.py`): classifies every concrete field of the audited models as exposed or intentionally-excluded and **fails when a new field is added unclassified** — replaces manual field-counting.
+
+**Certification:** +13 QuestionSpecs (full-record health entities, glucose-unit correctness, events, dietary, annual-direction). **91 regression tests green**; `check` + `makemigrations --check` clean; live retrieval verified.
+
+**Files:** `apps/health/services/{health_entities(new),health_domain_truth,health_history,sleep_queries,workout_queries,nutrition_queries,medicine_queries,body_measurement_queries}.py`, `apps/life/services/{event_domain_truth(new),project_domain_truth}.py`, `apps/purpose/services/{goal_domain_truth,habit_domain_truth}.py`, `apps/meals/services/meals_domain_truth.py`, `apps/faith/services/faith_queries.py`, `apps/capture/services/capture_domain_truth.py`, `apps/medical/services/medical_domain_truth.py`, `apps/legacy/services/legacy_domain_truth.py`, `apps/core/truth/{domain,domain_rollout,question_specs,certification_fixtures}.py`, `apps/core/tests/test_truth_field_coverage.py (new)`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — fix(meals): expose the Foundation 2 "Record Preparation" entry point on the recipe page users actually browse
 
 **Defect from the first real-world validation:** the preparation workflow had no visible entry point. **Runtime trace (proven, not assumed):** there are TWO recipe detail pages — `life:recipe_detail` (`templates/life/recipe_detail.html`), the page users reach via Recipes → list → detail, which exposed only Favorites / Edit / Delete; and `meals:recipe_detail` (`RecipeIntelligenceDetailView`), where the "Record Preparation" form was added — but that page is linked ONLY from the meals dashboard / meal cards, never from recipe browsing. So the entry point existed but was stranded on a page the user never lands on.

@@ -171,6 +171,14 @@ class MedicineQueries:
             times = sorted(s.scheduled_time.strftime("%-I:%M %p")
                            for s in m.schedules.all()
                            if getattr(s, "is_active", True) and s.scheduled_time)
+            # Complete schedule detail → "which DAYS do I take X" (weekly/custom regimens).
+            schedule_detail = [
+                {"time": (s.scheduled_time.strftime("%-I:%M %p")
+                          if s.scheduled_time else None),
+                 "time_of_day": getattr(s, "time_of_day", None) or None,
+                 "label": getattr(s, "label", None) or None,
+                 "days_of_week": getattr(s, "days_of_week", None) or None}
+                for s in m.schedules.all() if getattr(s, "is_active", True)]
             doses = cls._med_doses_today(m, by_med.get(m.id, []), dow, now_time)
 
             def _adh(days):
@@ -195,15 +203,21 @@ class MedicineQueries:
                             "intake_subtype": _g("intake_subtype") or None},
                 status=m.intake_status,
                 plan={"schedule": times,
+                      "schedule_detail": schedule_detail,
+                      "grace_period_minutes": _g("grace_period_minutes"),
                       "start_date": (m.start_date.isoformat() if _g("start_date") else None),
                       "end_date": (m.end_date.isoformat() if _g("end_date") else None),
                       "instructions": (_g("instructions") or "").strip() or None,
                       "monitoring": (_g("monitoring_requirements") or "").strip() or None},
                 standing={"today": standing,
+                          "paused_at": (m.paused_at.isoformat() if _g("paused_at") else None),
+                          "paused_reason": (_g("paused_reason") or "").strip() or None,
                           "refill": {"current_supply": _g("current_supply"),
                                      "threshold": _g("refill_threshold"),
                                      "needs_refill": bool(_g("needs_refill")),
                                      "requested": bool(_g("refill_requested")),
+                                     "requested_at": (m.refill_requested_at.isoformat()
+                                                      if _g("refill_requested_at") else None),
                                      "days_until_empty": _g("days_until_empty")}},
                 performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)},
                              "last_taken": last_taken.isoformat() if last_taken else None},

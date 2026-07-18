@@ -221,7 +221,8 @@ class MedicalDomainTruth(DomainTruth):
     def _document_entity(self, d):
         return CompleteEntity(
             kind="document", identity=d.original_filename, status="stored",
-            definition={"page_count": d.page_count, "file_hash": d.file_hash,
+            # file_hash intentionally excluded — implementation metadata (Danny's decision).
+            definition={"page_count": d.page_count,
                         "extraction_method": d.extraction_method},
             standing={"uploaded_at": d.created_at.isoformat()},
             performance={"result_count": d.results.count()},

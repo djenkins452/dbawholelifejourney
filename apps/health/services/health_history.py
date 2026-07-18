@@ -64,20 +64,21 @@ class HealthHistory:
 
     @classmethod
     def glucose(cls, user, period="last_7_days", *, today=None, start=None, end=None):
-        """Per-day AVERAGE glucose (mg/dL) — answers "my glucose trend this week".
-        Closes the measured glucose-trend gap (2026-07-18): current gave only
-        yesterday, and `glucose_avg_*` SAE fields were not a per-day series."""
+        """Per-day AVERAGE glucose in canonical mg/dL — "my glucose trend this week".
+        CORRECTNESS: readings may be stored in mg/dL OR mmol/L; each is normalized to
+        mg/dL via GlucoseEntry.value_in_mg_dl (the canonical converter) BEFORE averaging,
+        so mixed-unit rows are never blindly averaged. The series unit is always mg/dL."""
+        from collections import defaultdict
         from apps.health.models import GlucoseEntry
         p = resolve_period(period, today or _today(user), start=start, end=end)
-        rows = (GlucoseEntry.objects.filter(user=user,
-                                            recorded_at__date__range=(p.start, p.end))
-                .values("recorded_at__date").annotate(v=Avg("value"))
-                .order_by("recorded_at__date"))
-        return series_from_rows(
-            "health", "glucose", p,
-            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
-             for r in rows],
-            unit="mg/dL")
+        by_day = defaultdict(list)
+        for e in (GlucoseEntry.objects.filter(
+                    user=user, recorded_at__date__range=(p.start, p.end))
+                  .only("value", "unit", "recorded_at")):
+            by_day[e.recorded_at.date()].append(e.value_in_mg_dl)
+        rows = [{"date": d, "value": round(sum(vals) / len(vals), 1)}
+                for d, vals in sorted(by_day.items())]
+        return series_from_rows("health", "glucose", p, rows, unit="mg/dL")
 
     # Blood pressure is two numbers; a HistorySeries point is one value, so systolic
     # and diastolic are separate metrics (the model narrates them together as "126/83

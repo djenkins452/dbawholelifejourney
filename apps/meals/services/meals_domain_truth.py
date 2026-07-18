@@ -29,9 +29,23 @@ def _household_for(user):
 @register_domain_truth
 class MealsDomainTruth(DomainTruth):
     domain = _DOMAIN
-    current_metrics = ()
+    current_metrics = ("dietary_profile",)
     history_metrics = ()
-    entity_types = ("recipe", "pantry_item", "meal_plan", "leftover", "consumption")
+    entity_types = ("recipe", "pantry_item", "meal_plan", "leftover", "consumption",
+                    "dietary_profile")
+
+    def current(self, metric):
+        from apps.core.truth.current import CurrentTruth
+        from apps.core.truth.freshness import CURRENT as _C, MISSING as _M
+        if metric == "dietary_profile":
+            prof = self._dietary_profile()
+            if prof is None:
+                return CurrentTruth.absent(_DOMAIN, metric, _M, source="meals",
+                                           reason="no dietary profile set")
+            d = self._dietary_dict(prof)
+            return CurrentTruth.found(_DOMAIN, metric, "set", _C, source="meals", detail=d)
+        raise KeyError(f"meals current unsupported: {metric!r} "
+                       f"(have {self.current_metrics})")
 
     def describe(self, entity_type="recipe"):
         if entity_type in (None, "recipe"):
@@ -44,8 +58,28 @@ class MealsDomainTruth(DomainTruth):
             return self._leftovers()
         if entity_type == "consumption":
             return self._consumptions()
+        if entity_type == "dietary_profile":
+            prof = self._dietary_profile()
+            return ([CompleteEntity(kind="dietary_profile", identity="Dietary profile",
+                                    status="active", definition=self._dietary_dict(prof),
+                                    freshness=CURRENT)] if prof else [])
         raise KeyError(f"meals describe unsupported: {entity_type!r} "
                        f"(have {self.entity_types})")
+
+    def _dietary_profile(self):
+        from apps.meals.models import DietaryProfile
+        return DietaryProfile.objects.filter(user=self.user).first()
+
+    @staticmethod
+    def _dietary_dict(p):
+        _g = lambda a: getattr(p, a, None)
+        num = lambda v: float(v) if v is not None else None
+        return {"carb_limit_daily": num(_g("carb_limit_daily")),
+                "protein_target_daily": num(_g("protein_target_daily")),
+                "calorie_target": num(_g("calorie_target")),
+                "fat_limit_daily": num(_g("fat_limit_daily")),
+                "dietary_flags": _g("dietary_flags") or None,
+                "diabetes_sensitive": _g("diabetes_sensitive")}
 
     def describe_one(self, name):
         name = (name or "").strip().lower()
@@ -98,6 +132,7 @@ class MealsDomainTruth(DomainTruth):
                     "description": (getattr(r, "description", "") or "").strip() or None,
                     "notes": (getattr(r, "notes", "") or "").strip() or None,
                     "source_url": (getattr(r, "source_url", None) or None),
+                    "image_url": (r.image.url if getattr(r, "image", None) else None),
                 }.items() if v},
                 freshness=CURRENT,
             ))
@@ -140,12 +175,18 @@ class MealsDomainTruth(DomainTruth):
         for e in (MealPlanEntry.objects.filter(meal_plan__household=hh)
                   .select_related("recipe", "meal_plan").order_by("date", "meal_type")):
             rt = getattr(e.recipe, "title", None) if e.recipe_id else None
+            mp = e.meal_plan
             out.append(CompleteEntity(
                 kind="meal_plan",
                 identity=f"{e.date} {e.meal_type}: {rt or '(unset)'}",
                 definition={"date": e.date.isoformat(), "meal_type": e.meal_type,
                             "recipe": rt, "serving_count": getattr(e, "serving_count", None)},
                 status="planned",
+                plan={"plan_start": (mp.start_date.isoformat()
+                                     if getattr(mp, "start_date", None) else None),
+                      "plan_end": (mp.end_date.isoformat()
+                                   if getattr(mp, "end_date", None) else None),
+                      "plan_notes": (getattr(mp, "notes", "") or "").strip() or None},
                 freshness=CURRENT,
             ))
         return out

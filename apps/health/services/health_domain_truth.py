@@ -25,7 +25,8 @@ class HealthDomainTruth(DomainTruth):
     history_metrics = (("steps", "sleep", "weight", "workouts",
                         "glucose", "bp_systolic", "bp_diastolic", "bp_pulse")
                        + _BODY_METRICS)
-    entity_types = ("workout", "sleep", "body_measurement")
+    entity_types = ("workout", "sleep", "body_measurement",
+                    "steps", "glucose", "blood_pressure", "weight")
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
     # surfaces into one evidence bundle (see DomainTruth.analysis_subjects). Subjects
@@ -73,6 +74,11 @@ class HealthDomainTruth(DomainTruth):
         if entity_type == "body_measurement":
             from apps.health.services.body_measurement_queries import BodyMeasurementQueries
             return BodyMeasurementQueries.describe(self.user)
+        if entity_type in ("steps", "glucose", "blood_pressure", "weight"):
+            from apps.health.services import health_entities as HE
+            return {"steps": HE.StepsEntities, "glucose": HE.GlucoseEntities,
+                    "blood_pressure": HE.BloodPressureEntities,
+                    "weight": HE.WeightEntities}[entity_type].describe(self.user)
         if entity_type not in (None, "workout"):
             raise KeyError(f"health domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")

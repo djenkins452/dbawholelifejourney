@@ -179,7 +179,8 @@ class CalendarDomainTruth(DomainTruth):
                           "byweekday": getattr(rrule, "byweekday", None),
                           "until": (rrule.until_dt.isoformat()
                                     if getattr(rrule, "until_dt", None) else None),
-                          "count": getattr(rrule, "count", None)}
+                          "count": getattr(rrule, "count", None),
+                          "timezone": getattr(rrule, "timezone", None)}
         return CompleteEntity(
             kind="event",
             identity=ev.title,
@@ -273,6 +274,29 @@ class TaskDomainTruth(DomainTruth):
              .order_by("completion_status", "-completed_at", "due_date").first())
         return self._task_entity(t, get_user_today(self.user)) if t else None
 
+    def _resolve_dependency(self, t):
+        """depends_on_key as deterministic truth: the raw key + the dependent task's
+        title/status when it maps to a real task (no second task authority)."""
+        key = getattr(t, "depends_on_key", None)
+        if not key:
+            return None
+        out = {"key": key, "hidden_until_ready": getattr(t, "hide_until_ready", None)}
+        try:
+            from apps.life.models import Task
+            dep = None
+            for fld in ("depends_on_key", "task_key", "key"):
+                if any(f.name == fld for f in Task._meta.concrete_fields):
+                    dep = Task.objects.filter(user=t.user, **{fld: key}).exclude(
+                        pk=t.pk).first()
+                    if dep:
+                        break
+            if dep is not None:
+                out["task"] = dep.title
+                out["task_status"] = dep.completion_status
+        except Exception:
+            pass
+        return out
+
     def _task_entity(self, t, today):
         from apps.core.truth import freshness as F
         from apps.core.truth.entity import CompleteEntity
@@ -311,6 +335,8 @@ class TaskDomainTruth(DomainTruth):
                                        if getattr(t, "scheduled_end_time", None) else None),
                 "estimated_duration_minutes": getattr(t, "estimated_duration_minutes", None),
                 "recurrence": recurrence,
+                "progress_state": getattr(t, "progress_state", None) or None,
+                "depends_on": self._resolve_dependency(t),
             }.items() if v not in (None, "")},
             freshness=F.CURRENT,
         )
@@ -464,7 +490,10 @@ class RelationshipDomainTruth(DomainTruth):
             "email": p.email or None,
             "phone": p.phone or None,
             "household": (p.household.name if p.household_id else None),
-            "groups": [g.name for g in p.groups.all()],
+            "groups": [{"name": g.name,
+                        "description": (getattr(g, "description_plain", None)
+                                        or getattr(g, "description", None) or None)}
+                       for g in p.groups.all()],
             "last_contact": last.isoformat() if last else None,
             "days_since_contact": days_since,
             "interaction_count": p.interaction_count,

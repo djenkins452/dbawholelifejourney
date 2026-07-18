@@ -224,6 +224,9 @@ class WorkoutQueries:
             identity=f"{title} — {session.date.isoformat()}",
             definition={
                 "date": session.date.isoformat(),
+                "started_at": (session.started_at.isoformat()
+                               if getattr(session, "started_at", None) else None),
+                "source": getattr(session, "source", None) or None,
                 "mode": session.session_mode,                   # structured | activity
                 "workout_type": session.workout_type or "",
                 "notes": session.notes or "",                  # stored note, was dropped

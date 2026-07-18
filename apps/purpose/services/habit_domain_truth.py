@@ -93,10 +93,21 @@ class HabitDomainTruth(DomainTruth):
         return self._habit_entity(h) if h else None
 
     def _habit_entity(self, h):
+        from apps.purpose.services.goal_domain_truth import annual_direction_dict
         from apps.purpose.services.streak_service import get_streak_data
         sd = get_streak_data(h)
         last_entry = (h.habit_entries.filter(completed=True)
                       .order_by("-date").values_list("date", flat=True).first())
+        # Per-entry payload (notes / duration / count / target) — previously aggregated away.
+        recent_entries = [{"date": en.date.isoformat(), "completed": en.completed,
+                           "notes": (en.notes or "").strip() or None,
+                           "duration_minutes": (float(en.duration_minutes)
+                                                if en.duration_minutes is not None else None),
+                           "count_value": (float(en.count_value)
+                                           if en.count_value is not None else None),
+                           "target_value": (float(en.target_value)
+                                            if en.target_value is not None else None)}
+                          for en in h.habit_entries.order_by("-date")[:30]]
         definition = {
             "purpose": (h.purpose or "").strip(),
             "description": (h.description or "").strip(),
@@ -110,6 +121,7 @@ class HabitDomainTruth(DomainTruth):
             "commitment_level": h.commitment_level,
             "is_foundational": h.is_foundational,
             "domain": getattr(h.domain, "name", None),
+            "annual_direction": annual_direction_dict(getattr(h, "annual_direction", None)),
         }
         performance = {
             "completion_rate_percent": round(h.completion_rate, 1),
@@ -128,5 +140,6 @@ class HabitDomainTruth(DomainTruth):
                                             if sd.streak_start_date else None),
                       "elapsed_days": h.elapsed_days},
             performance=performance,
-            extensions={"linked_goals": [gl.goal.title for gl in h.goal_links.all()]},
+            extensions={"linked_goals": [gl.goal.title for gl in h.goal_links.all()],
+                        "recent_entries": recent_entries},
             freshness=F.CURRENT)

@@ -145,6 +145,13 @@ class LegacyDomainTruth(DomainTruth):
                 "media_count": m.media.count(),
                 "has_audio": m.has_audio,
                 "cover_media": cover,
+                # Media detail — caption + taken_on (were dropped; only counts flowed).
+                "media": [{"type": getattr(md, "media_type", None),
+                           "caption": getattr(md, "caption", None) or None,
+                           "taken_on": (md.taken_on.isoformat()
+                                        if getattr(md, "taken_on", None) else None),
+                           "url": (md.file.url if getattr(md, "file", None) else None)}
+                          for md in m.media.all()[:25]],
             },
             extensions={
                 "story": m.body or None,              # the actual narrative/transcript
@@ -169,13 +176,18 @@ class LegacyDomainTruth(DomainTruth):
             related.append({"person": r.to_person.display_name, "type": r.type_label,
                             "status": r.rel_status,
                             "since": r.display_started or None,
-                            "until": r.display_ended or None})
+                            "until": r.display_ended or None,
+                            "notes": (getattr(r, "notes_plain", None)
+                                      or getattr(r, "notes", None) or None)})
         for r in p.relationships_to.select_related("from_person").all():
             related.append({"person": r.from_person.display_name, "type": r.type_label,
                             "status": r.rel_status,
                             "since": r.display_started or None,
-                            "until": r.display_ended or None})
-        facts = [{"concept": f.concept, "label": f.label, "value": f.summary}
+                            "until": r.display_ended or None,
+                            "notes": (getattr(r, "notes_plain", None)
+                                      or getattr(r, "notes", None) or None)})
+        facts = [{"concept": f.concept, "label": f.label, "value": f.summary,
+                  "subject": getattr(f, "subject_label", None) or None}
                  for f in p.preserved_facts.all()[:50]]
         return CompleteEntity(
             kind="person",
@@ -211,5 +223,9 @@ class LegacyDomainTruth(DomainTruth):
             standing={"memory_count": pl.memories.count()},
             extensions={"significance": pl.significance,
                         "description": pl.description_plain or None,
-                        "maps_link": pl.maps_link_url or None},
+                        "maps_link": pl.maps_link_url or None,
+                        "photo_url": (pl.primary_photo.file.url
+                                      if (getattr(pl, "primary_photo", None)
+                                          and getattr(pl.primary_photo, "file", None))
+                                      else None)},
         )

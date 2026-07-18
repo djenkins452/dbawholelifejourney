@@ -240,15 +240,31 @@ class FaithQueries:
                         "duration_days": getattr(tmpl, "duration_days", None)},
             status=getattr(pl, "plan_status", None),
             plan={"current_day": getattr(pl, "current_day", None),
+                  "reminder_time": (pl.reminder_time.strftime("%-I:%M %p")
+                                    if getattr(pl, "reminder_time", None) else None),
                   "started": pl.started_at.date().isoformat() if pl.started_at else None},
             standing={"progress_percentage": getattr(pl, "progress_percentage", None),
                       "days_completed": getattr(pl, "days_completed", None),
                       "is_complete": getattr(pl, "is_complete", None),
                       "completed_at": (pl.completed_at.date().isoformat()
                                        if pl.completed_at else None)},
-            extensions={"current_reading": ctx.get("content", "")},
+            extensions={"current_reading": ctx.get("content", ""),
+                        "reflections": cls._plan_reflections(pl)},
             freshness=F.CURRENT,
         )
+
+    @classmethod
+    def _plan_reflections(cls, pl):
+        """Per-day reading reflection notes (UserReadingProgress.notes) — was orphaned."""
+        try:
+            from apps.faith.models import UserReadingProgress
+            rows = (UserReadingProgress.objects.filter(user_plan=pl)
+                    .exclude(notes="").order_by("-completed_at")[:30])
+            return [{"completed_at": (r.completed_at.date().isoformat()
+                                      if r.completed_at else None),
+                     "notes": r.notes} for r in rows if (r.notes or "").strip()]
+        except Exception:
+            return []
 
     # ── Point-in-Time History (per-day Bible reading) ─────────────────────────────
     # Sourced from the CANONICAL unified completion set (plan + routine bridge) — the

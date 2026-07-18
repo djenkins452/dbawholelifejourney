@@ -97,16 +97,13 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
         ctx['breakdown'] = RelationshipAnalyticsService.context_breakdown(person)
 
         # Recognition phrases live on the CANONICAL people.Person (the one authority every
-        # module reads). Resolve it from this legacy Person via the migration bridge and
-        # surface derived (read-only) + custom phrases for management here. Journal, the
-        # resolver, the lookup API and passive recognition all consume these automatically.
-        from apps.people.models import PersonSourceLink
+        # module reads). This IS the production Person page, so it must always offer
+        # recognition management — we ENSURE the canonical mirror for this contact rather
+        # than only querying it (a contact created after the 0c backfill has no link yet,
+        # and phrases only work for a People member). Journal, the resolver, the lookup API
+        # and passive recognition all consume these automatically.
         from apps.people.services.phrases import derived_phrases
-        link = (PersonSourceLink.objects
-                .filter(source_domain=PersonSourceLink.Source.RELATIONSHIPS,
-                        source_pk=person.pk)
-                .select_related('person').first())
-        canonical = link.person if link else None
+        canonical = self._ensure_canonical_person(person)
         ctx['canonical_person'] = canonical
         if canonical is not None:
             ctx['derived_phrases'] = derived_phrases(canonical)
@@ -121,6 +118,38 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
             [:20]
         )
         return ctx
+
+    def _ensure_canonical_person(self, person):
+        """Bridge this legacy contact to its canonical people.Person so recognition
+        management is available on the production Person page.
+
+        Uses the canonical, idempotent reconciliation path: after the first view the
+        PersonSourceLink exists and this short-circuits to a single indexed lookup (no
+        write). Grants People membership so the phrases actually take effect (passive
+        recognition and the @mention picker are members-only). Defensive — a bridge
+        failure must never break the person page."""
+        try:
+            from apps.people.models import PersonMembership, PersonOrigin
+            from apps.people.services.reconciliation import (
+                MATCH_NAME_IDENTITY, ingest_source_person,
+            )
+            canonical, _outcome = ingest_source_person(
+                self.request.user,
+                source_domain="relationships", source_pk=person.pk,
+                display_name=person.display_name or "",
+                first_name=person.first_name or "", last_name=person.last_name or "",
+                email=getattr(person, "email", "") or "",
+                phone=getattr(person, "phone", "") or "",
+                origin=PersonOrigin.CONTACT_IMPORT,
+                membership_via=PersonMembership.Grant.CONTACT_IMPORT,
+                match_mode=MATCH_NAME_IDENTITY,
+            )
+            return canonical
+        except Exception:
+            logger.warning(
+                "canonical bridge for relationships person %s failed",
+                getattr(person, "pk", "?"), exc_info=True)
+            return None
 
 
 class PersonUpdateView(LoginRequiredMixin, HelpContextMixin, UpdateView):

@@ -118,3 +118,54 @@ class PhraseManagementTests(TestCase):
         mentions = PersonMention.objects.filter(content_type=ct, object_id=e.pk)
         self.assertEqual(mentions.count(), 1)             # no duplicate mentions
         self.assertEqual(mentions.first().person_id, self.heather.pk)
+
+
+class ProductionPersonPageBridgeTests(TestCase):
+    """The production Person page (legacy relationships detail) must always offer
+    recognition management — it ENSURES the canonical mirror rather than only querying a
+    link that a post-backfill contact wouldn't have."""
+
+    def setUp(self):
+        self.user = make_user()
+
+    def _rel_person(self, **kw):
+        from apps.relationships.models import Person as RP
+        return RP.objects.create(owner=self.user, **kw)
+
+    def _canonical_for(self, rel_person):
+        from apps.relationships.views import PersonDetailView
+        view = PersonDetailView()
+        view.request = _rf.get("/relationships/x/")
+        view.request.user = self.user
+        return view._ensure_canonical_person(rel_person)
+
+    def test_view_ensures_canonical_mirror_and_membership(self):
+        rel = self._rel_person(first_name="Nadia", last_name="Okoro", display_name="Nadia Okoro")
+        canonical = self._canonical_for(rel)
+        self.assertIsNotNone(canonical)
+        from apps.people.models import PersonSourceLink, PersonMembership
+        self.assertTrue(PersonSourceLink.objects.filter(
+            source_domain="relationships", source_pk=rel.pk, person=canonical).exists())
+        self.assertTrue(PersonMembership.objects.filter(person=canonical).exists())  # phrases take effect
+
+    def test_bridge_is_idempotent(self):
+        rel = self._rel_person(first_name="Sam", display_name="Sam")
+        a = self._canonical_for(rel)
+        b = self._canonical_for(rel)
+        self.assertEqual(a.pk, b.pk)
+        from apps.people.models import PersonSourceLink
+        self.assertEqual(PersonSourceLink.objects.filter(
+            source_domain="relationships", source_pk=rel.pk).count(), 1)  # no duplicate link
+
+    def test_bridge_dedups_to_existing_canonical_by_name(self):
+        # An existing canonical person of the same name is REUSED (no duplicate identity),
+        # so their phrases show on the legacy page immediately.
+        existing = Person.objects.create(
+            user=self.user, first_name="Heather", last_name="Jenkins", display_name="Heather Jenkins")
+        grant_membership(existing, PersonMembership.Grant.CONTACT_IMPORT)
+        views.phrase_add(_post(self.user, {"phrase": "Honey", "next": "/"}), existing.pk)
+
+        rel = self._rel_person(first_name="Heather", last_name="Jenkins", display_name="Heather Jenkins")
+        canonical = self._canonical_for(rel)
+        self.assertEqual(canonical.pk, existing.pk)                      # linked, not duplicated
+        self.assertIn("honey", [p.normalized for p in canonical.recognition_phrases.all()])

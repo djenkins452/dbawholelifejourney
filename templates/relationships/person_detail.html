@@ -41,6 +41,11 @@
         </div>
     {% endif %}
 
+    {% comment %} Recognition management on the canonical people.Person (bridged from this legacy Person). {% endcomment %}
+    {% if canonical_person %}
+        {% include "people/_recognition_section.html" with person_label=person.get_display_name %}
+    {% endif %}
+
     <!-- Interaction Summary -->
     <div class="stats-grid mb-6">
         <div class="stat-card">

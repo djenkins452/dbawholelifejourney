@@ -74,7 +74,7 @@ any in-flight stream survive a focus-mode toggle untouched.
             {% if request.user.is_staff %}
             {% comment %}Operations shortcut — always-available operator surface. The dot is a foundation for future status overlay (JS sets data-ops-status).{% endcomment %}
             <a href="{% url 'admin_console:ops_wall' %}" class="ap-ops-link" id="ap-ops-link"
-               data-ops-status="healthy" title="Operations">
+               data-ops-status="healthy" title="WLJ is operating normally.">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
@@ -2228,8 +2228,15 @@ any in-flight stream survive a focus-mode toggle untouched.
         var lastState = 'healthy';
         var recoveredTimer = null;
 
+        var OPS_TOOLTIPS = {
+            healthy: 'WLJ is operating normally.',
+            degraded: 'WLJ is operating with reduced reliability. Background processing may delay reminders and AI insights.',
+            critical: 'WLJ requires attention. Some platform capabilities may be temporarily unavailable.'
+        };
         function setHeaderStatus(s) {
-            if (headerLink) headerLink.setAttribute('data-ops-status', s);
+            if (!headerLink) return;
+            headerLink.setAttribute('data-ops-status', s);
+            headerLink.setAttribute('title', OPS_TOOLTIPS[s] || OPS_TOOLTIPS.healthy);
         }
         function paintLines(lines) {
             linesEl.innerHTML = '';

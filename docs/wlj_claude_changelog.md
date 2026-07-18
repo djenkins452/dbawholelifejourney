@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(cos): Operations header icon is now a live health indicator (🟢/🟡/🔴 + tooltip)
+
+**Small refinement to the Operations Awareness UX.** The permanent Operations header icon now communicates platform health at a glance via its status dot, so when WLJ is healthy the icon alone carries the signal and the conversation stays entirely about the user. Consumes the SAME deterministic status the banner already polls — no new source of truth, no backend change.
+
+- **Live status dot.** The icon is unchanged; only its small dot changes colour: 🟢 healthy (always visible now — previously transparent), 🟡 degraded, 🔴 critical. Driven by `setHeaderStatus()` from the existing `operations-status` poll. Green is static; yellow has a subtle pulse (2.6s), red a slightly stronger pulse (1.4s); both are disabled under `prefers-reduced-motion` (colour + tooltip still convey status).
+- **Status tooltip.** Hovering the icon shows a plain-English summary from the same status — "WLJ is operating normally." / "WLJ is operating with reduced reliability. Background processing may delay reminders and AI insights." / "WLJ requires attention. Some platform capabilities may be temporarily unavailable."
+- **Unchanged (deliberately):** banner behaviour (healthy → no banner; degraded/critical → pinned banner; recovered → transient), one-click → `/admin-console/ops/`, and the intentional absence of any persistent "healthy" banner.
+- **Files:** `static/css/assistant-panel.css` (dot colours + pulses + reduced-motion), `templates/components/assistant_panel.html` (tooltip map in `setHeaderStatus` + initial title). No Python, no migration.
+
+**Verification:** browser-verified all three states via computed styles + tooltip text (green `rgb(39,174,96)` / yellow `rgb(245,166,35)` / red `rgb(231,76,60)`; exact tooltip wording) and an enlarged side-by-side; banner behaviour unchanged; `check` clean; `collectstatic` 0 errors; mobile unaffected (CSS-only, desktop panel).
+
 ## 2026-07-18 — feat(truth): Truth Discovery Validation Suite — the permanent object-level Owner-2 suite
 
 **The permanent production validation suite for the deterministic Truth Layer** (before the CRUD milestone). Object-level, not field-level: each entry is a natural "tell me everything about <object>" prompt (exactly as a user asks — no field names) paired with `must_surface` — the deterministic truths the CoS's answer MUST contain for that object. If the CoS omits a stored `must_surface` item, that is a Truth Layer bug, not a reasoning miss.

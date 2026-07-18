@@ -2592,27 +2592,39 @@ body.has-desktop-nav .desktop-main-area {
     color: var(--color-accent);
     background: var(--color-border);
 }
-/* Status dot — foundation for 🟢/🟡/🔴. Hidden when healthy; the JS sets
-   [data-ops-status] from deterministic status, so coloring is natural. */
+/* Live status dot — 🟢/🟡/🔴. Always visible (the icon is the healthy
+   indicator, so there is no persistent "healthy" banner). The JS sets
+   [data-ops-status] from the SAME deterministic status the banner uses. A thin
+   ring matched to the header keeps the dot legible over any header shade. */
 .ap-ops-dot {
     position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 7px;
-    height: 7px;
+    top: 2px;
+    right: 2px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: transparent;
-    border: 1.5px solid transparent;
+    background: #27ae60;              /* healthy default — green, static */
+    border: 1.5px solid var(--color-surface, #fff);
     box-sizing: border-box;
     pointer-events: none;
     transition: background 0.2s;
 }
-.ap-ops-link[data-ops-status="degraded"] .ap-ops-dot { background: #f5a623; }
-.ap-ops-link[data-ops-status="critical"] .ap-ops-dot {
-    background: var(--color-danger, #e74c3c);
-    animation: ap-ops-pulse 1.6s ease-in-out infinite;
+.ap-ops-link[data-ops-status="healthy"] .ap-ops-dot { background: #27ae60; }
+.ap-ops-link[data-ops-status="degraded"] .ap-ops-dot {
+    background: #f5a623;             /* yellow — subtle pulse */
+    animation: ap-ops-pulse-soft 2.6s ease-in-out infinite;
 }
-@keyframes ap-ops-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.ap-ops-link[data-ops-status="critical"] .ap-ops-dot {
+    background: var(--color-danger, #e74c3c);  /* red — stronger pulse */
+    animation: ap-ops-pulse-strong 1.4s ease-in-out infinite;
+}
+@keyframes ap-ops-pulse-soft { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes ap-ops-pulse-strong { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* Accessibility: never animate for reduced-motion users. Colour alone conveys
+   status; the tooltip conveys it in text for non-visual/colour-blind users. */
+@media (prefers-reduced-motion: reduce) {
+    .ap-ops-link .ap-ops-dot { animation: none !important; }
+}
 
 /* Pinned banner — sits above the message stream inside the chat tab. */
 .ap-ops-banner {

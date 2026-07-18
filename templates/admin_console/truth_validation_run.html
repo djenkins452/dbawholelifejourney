@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Truth Validation Run #{{ run.id }} - Admin Console{% endblock %}
+
+{% block content %}
+{% if is_running %}<meta http-equiv="refresh" content="5">{% endif %}
+<style nonce="{{ csp_nonce }}">
+  .tv-sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:12px; margin:14px 0; }
+  .tv-sum .box { background:var(--surface,#fff); border:1px solid var(--border-color,#e5e7eb); border-radius:10px; padding:12px; }
+  .tv-sum .n { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .tv-sum .l { color:#6b7280; font-size:12px; }
+  .tv-chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; color:#fff; }
+  .st-present{background:#10b981;} .st-missing{background:#ef4444;} .st-mismatch{background:#b91c1c;}
+  .st-na{background:#9ca3af;} .st-forbidden{background:#7c3aed;}
+  .tv-obj { border:1px solid var(--border-color,#e5e7eb); border-radius:12px; margin:14px 0; overflow:hidden; }
+  .tv-obj > summary { list-style:none; cursor:pointer; padding:12px 16px; display:flex; gap:10px; align-items:center; background:#f9fafb; }
+  .tv-obj > summary::-webkit-details-marker { display:none; }
+  .tv-obj .body { padding:14px 16px; }
+  .tv-obj h4 { margin:12px 0 6px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:#6b7280; }
+  .tv-resp { background:#f9fafb; border:1px solid #eee; border-radius:8px; padding:10px; white-space:pre-wrap; font-size:13px; max-height:220px; overflow:auto; }
+  .tv-ck { width:100%; border-collapse:collapse; font-size:13px; }
+  .tv-ck th, .tv-ck td { text-align:left; padding:6px 8px; border-bottom:1px solid #f0f0f0; vertical-align:top; }
+  .tv-ck th { color:#6b7280; }
+  .tv-ov { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .tv-ov select, .tv-ov input { padding:4px 6px; font-size:12px; border:1px solid #d1d5db; border-radius:6px; min-height:32px; }
+  .tv-btn { padding:6px 12px; border-radius:8px; border:1px solid var(--border-color,#d1d5db); background:var(--surface,#fff); color:var(--text,#111); font-weight:600; cursor:pointer; min-height:36px; font-size:13px; }
+  .tv-btn-primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .tv-btn-danger { background:#fff; color:#b91c1c; border-color:#fecaca; }
+  .tv-note { color:#6b7280; font-size:13px; }
+  .bug-dump { width:100%; min-height:120px; font-family:ui-monospace,monospace; font-size:12px; border:1px solid #e5e7eb; border-radius:8px; padding:10px; }
+</style>
+
+<div class="container" data-testid="tv-run">
+  <div class="page-header">
+    <div>
+      <nav class="breadcrumb">
+        <a href="{% url 'admin_console:dashboard' %}">Admin Console</a><span>/</span>
+        <a href="{% url 'admin_console:truth_validation' %}">Truth Validation Center</a><span>/</span>
+        <span>Run #{{ run.id }}</span>
+      </nav>
+      <h1 class="page-title">Truth Validation Run #{{ run.id }}</h1>
+      <p class="page-subtitle">
+        Scope: <strong>{{ run.scope_kind }}{% if run.scope_key %}:{{ run.scope_key }}{% endif %}</strong>
+        · Suite v{{ run.suite_version }} · {{ run.provider_version }} · commit {{ run.git_commit }}
+        {% if run.approved %}· <span class="tv-chip" style="background:#10b981;">APPROVED</span>{% endif %}
+      </p>
+    </div>
+  </div>
+
+  {% if run.error_message %}<div class="stat-card" style="border-left:4px solid #f59e0b;">{{ run.error_message }}</div>{% endif %}
+  {% if is_running %}<div class="stat-card" style="border-left:4px solid #6b7280;">Running… {{ run.questions_completed }}/{{ run.heartbeat_total }} objects ({{ run.progress_pct }}%). This page auto-refreshes.</div>{% endif %}
+
+  <div class="tv-sum">
+    <div class="box"><div class="n">{% if run.status == 'completed' %}{{ run.score_percent }}%{% else %}—{% endif %}</div><div class="l">Truth Health</div></div>
+    <div class="box"><div class="n">{{ run.pass_count }}/{{ run.total_count }}</div><div class="l">Objects Certified</div></div>
+    <div class="box"><div class="n">{{ run.checks_passed }}/{{ run.checks_total }}</div><div class="l">Checks Passed</div></div>
+    <div class="box"><div class="n">{{ run.fail_count }}</div><div class="l">Objects Failed</div></div>
+    <div class="box"><div class="n">{{ run.na_count }}</div><div class="l">N/A (no record)</div></div>
+    <div class="box"><div class="n"><span class="tv-chip" style="background:{{ run.grade_color }};">{{ run.grade|default:"—" }}</span></div><div class="l">Grade</div></div>
+  </div>
+
+  <!-- lifecycle controls -->
+  <div class="tv-ov" style="margin:10px 0 18px;">
+    {% if can_cancel %}
+    <form method="post" action="{% url 'admin_console:truth_validation_cancel' run.pk %}">{% csrf_token %}<button class="tv-btn tv-btn-danger">Cancel run</button></form>
+    {% endif %}
+    {% if run.is_terminal and not run.approved %}
+    <form method="post" action="{% url 'admin_console:truth_validation_approve' run.pk %}">{% csrf_token %}<button class="tv-btn tv-btn-primary" data-testid="tv-approve">Approve (certify)</button></form>
+    {% endif %}
+    {% if run.is_terminal %}
+    <form method="post" action="{% url 'admin_console:truth_validation_delete' run.pk %}">{% csrf_token %}<button class="tv-btn tv-btn-danger">Delete</button></form>
+    {% endif %}
+  </div>
+
+  <!-- Truth bugs -->
+  {% if bugs %}
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Truth bugs ({{ bugs|length }})</h2>
+    <textarea class="bug-dump" readonly>{% for b in bugs %}[{{ b.object }}] {{ b.field }} — {{ b.difference }}
+  prompt: {{ b.prompt }}
+  expected: {{ b.expected_truth }}
+  record: {{ b.underlying_record }} · owner: {{ b.suggested_owner }}
+{% endfor %}</textarea>
+    <p class="tv-note">Select-all inside the box to copy the full bug list.</p>
+  </div>
+  {% endif %}
+
+  <!-- Per-object results -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Objects</h2>
+    {% for r in results %}
+    <details class="tv-obj" {% if not r.passed and not r.is_na %}open{% endif %}>
+      <summary>
+        {% if r.is_na %}<span class="tv-chip st-na">N/A</span>
+        {% elif r.passed %}<span class="tv-chip st-present">PASS</span>
+        {% else %}<span class="tv-chip st-missing">FAIL</span>{% endif %}
+        <strong>{{ r.object_key }}</strong>
+        <span class="tv-note">{{ r.check_pass_count }}/{{ r.check_total }} checks</span>
+      </summary>
+      <div class="body">
+        <h4>Prompt</h4><div>{{ r.question_text }}</div>
+
+        <h4>Chief of Staff response</h4>
+        <div class="tv-resp">{{ r.response_text|default:"(no response)" }}</div>
+        {% if r.selected_tool %}<p class="tv-note">Retrieved via <code>{{ r.selected_tool }}</code>{% if r.canonical_provider %} · provider <code>{{ r.canonical_provider }}</code>{% endif %}{% if r.first_failing_layer %} · first failing layer: <strong>{{ r.first_failing_layer }}</strong>{% endif %}</p>{% endif %}
+
+        {% if r.is_na %}
+        <p class="tv-note">No deterministic record to surface for this object ({{ r.raw_result_json.reason }}). Nothing to score.</p>
+        {% endif %}
+
+        <h4>Automatic comparison</h4>
+        <table class="tv-ck">
+          <thead><tr><th>Expected truth</th><th>Status</th><th>Found</th><th>Operator decision</th></tr></thead>
+          <tbody>
+          {% for c in r.checks %}
+            <tr>
+              <td><strong>{{ c.label }}</strong>{% if c.is_forbidden %} <span class="tv-chip st-forbidden">forbidden</span>{% else %}: {{ c.expected }}{% endif %}</td>
+              <td><span class="tv-chip st-{{ c.status }}">{% if c.status == 'present' %}✓ present{% elif c.status == 'missing' %}✗ missing{% elif c.status == 'mismatch' %}⚠ mismatch{% else %}{{ c.status }}{% endif %}</span></td>
+              <td class="tv-note">{{ c.extracted|default:"—" }}{% if c.operator_override %}<br><em>override: {{ c.override_reason }}</em>{% endif %}</td>
+              <td>
+                <form method="post" action="{% url 'admin_console:truth_validation_override' r.pk %}" class="tv-ov">
+                  {% csrf_token %}
+                  <input type="hidden" name="check_index" value="{{ forloop.counter0 }}">
+                  <select name="status">{% for s in override_statuses %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+                  <input type="text" name="reason" placeholder="reason" maxlength="200">
+                  <button class="tv-btn">Override</button>
+                </form>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="tv-note">No checks (no comparable values).</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+
+        <div style="margin-top:12px;">
+          <form method="post" action="{% url 'admin_console:truth_validation_rerun_object' %}">
+            {% csrf_token %}
+            <input type="hidden" name="object_key" value="{{ r.object_key }}">
+            <button class="tv-btn" data-testid="tv-rerun-{{ r.object_key }}">Re-run object</button>
+          </form>
+        </div>
+      </div>
+    </details>
+    {% empty %}
+    <p class="tv-note">No object results yet.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

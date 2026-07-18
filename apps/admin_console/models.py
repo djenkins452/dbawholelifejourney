@@ -1703,10 +1703,34 @@ class AcceptanceRun(models.Model):
     claude_fix_prompt = models.TextField(blank=True)
     raw_report_json = models.JSONField(default=dict, blank=True)
 
+    # -- Truth Validation Center (typed validation runs) -------------------------
+    # One engine, typed by `validation_type`: "behavior" (the legacy live-behavior
+    # suite) | "truth" (Truth Layer object validation) | future types (crud/reasoning/
+    # executive_briefing/checkin/domain). scope_kind/scope_key describe WHAT was
+    # validated: full | a single domain | one object. Version columns pin the run to
+    # the code/data it certified. `approved` turns a run into a certification of record.
+    validation_type = models.CharField(max_length=24, default="behavior")
+    scope_kind = models.CharField(max_length=16, blank=True, default="")   # full|domain|object
+    scope_key = models.CharField(max_length=64, blank=True, default="")    # "health" / "health.weigh_in"
+    suite_version = models.CharField(max_length=24, blank=True, default="")
+    provider_version = models.CharField(max_length=24, blank=True, default="")
+    db_version = models.CharField(max_length=40, blank=True, default="")
+    # Structured-check rollup (sum across objects) for the "Truth Checks Passed" metric.
+    checks_total = models.PositiveIntegerField(default=0)
+    checks_passed = models.PositiveIntegerField(default=0)
+    na_count = models.PositiveIntegerField(default=0)     # objects with an absent record
+    # Operator sign-off (Final Approval) — permanent.
+    approved = models.BooleanField(default=False)
+    approved_by = models.ForeignKey(
+        _dj_settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        blank=True, related_name="validation_runs_approved")
+    approved_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [models.Index(fields=["-created_at"]),
-                   models.Index(fields=["status"])]
+                   models.Index(fields=["status"]),
+                   models.Index(fields=["validation_type", "-created_at"])]
 
     def __str__(self):
         return f"AcceptanceRun #{self.pk} {self.suite_name} {self.score_percent}%"
@@ -1879,8 +1903,71 @@ class AcceptanceResult(models.Model):
     # routing | tool_arguments | evidence | answer | transport. Blank when passed.
     first_failing_layer = models.CharField(max_length=32, blank=True, default="")
 
+    # -- Truth Validation (object-level structured comparison) -------------------
+    # For validation_type == "truth", one AcceptanceResult is ONE object (discovery
+    # prompt). `expected_truth` is the deterministic WLJ object it was compared against;
+    # `extracted_truth` is a digest of the structured values found in the response;
+    # `checks` is the per-value checklist (each Check.to_dict + any operator override).
+    object_key = models.CharField(max_length=64, blank=True, default="")   # discovery prompt id
+    expected_truth = models.JSONField(default=dict, blank=True)
+    extracted_truth = models.JSONField(default=dict, blank=True)
+    checks = models.JSONField(default=list, blank=True)
+    check_pass_count = models.PositiveIntegerField(default=0)
+    check_total = models.PositiveIntegerField(default=0)     # excludes N/A
+    is_na = models.BooleanField(default=False)               # record absent — nothing to surface
+    override_log = models.JSONField(default=list, blank=True)  # immutable operator-override history
+
     class Meta:
         ordering = ["run", "sort_order"]
 
     def __str__(self):
         return f"{self.question_key} {'PASS' if self.passed else 'FAIL'}"
+
+    # ---- operator override (final authority; permanently recorded) --------------
+    def apply_override(self, *, check_index, new_status, reason, by_user):
+        """Set an operator override on one check, recompute the object grade, and append
+        an immutable entry to override_log. Returns True on success."""
+        from django.utils import timezone
+        checks = list(self.checks or [])
+        if not (0 <= check_index < len(checks)):
+            return False
+        prev = checks[check_index].get("status")
+        checks[check_index]["operator_override"] = new_status
+        checks[check_index]["override_reason"] = reason
+        checks[check_index]["status"] = new_status
+        self.checks = checks
+        log = list(self.override_log or [])
+        log.append({
+            "at": timezone.now().isoformat(),
+            "by": getattr(by_user, "email", "") or getattr(by_user, "id", ""),
+            "check": checks[check_index].get("label", ""),
+            "check_index": check_index, "from": prev, "to": new_status,
+            "reason": reason,
+        })
+        self.override_log = log
+        self.recompute_grade()
+        self.save(update_fields=["checks", "override_log", "passed", "is_na",
+                                 "check_pass_count", "check_total"])
+        return True
+
+    def recompute_grade(self):
+        """Recompute pass/N-A + check counts from the current `checks` (post-override)."""
+        present = missing = mismatch = forbidden_hits = 0
+        for c in (self.checks or []):
+            status = c.get("status")
+            if c.get("is_forbidden"):
+                if status == "mismatch":
+                    forbidden_hits += 1
+                continue
+            if status == "present":
+                present += 1
+            elif status == "missing":
+                missing += 1
+            elif status == "mismatch":
+                mismatch += 1
+        total = present + missing + mismatch
+        self.check_pass_count = present
+        self.check_total = total
+        self.is_na = (total == 0 and forbidden_hits == 0)
+        self.passed = (total > 0 and missing == 0 and mismatch == 0
+                       and forbidden_hits == 0)

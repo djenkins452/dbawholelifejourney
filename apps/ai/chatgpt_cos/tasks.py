@@ -273,3 +273,31 @@ def run_beth_acceptance(self, run_id, evening=True):
         run.completed_at = _tz.now()
         run.save(update_fields=["status", "error_message", "completed_at"])
         return {"status": "failed", "error": str(exc)}
+
+
+@shared_task(name="apps.ai.chatgpt_cos.run_truth_validation", bind=True,
+             soft_time_limit=600, time_limit=660)
+def run_truth_validation(self, run_id):
+    """Execute a persisted Truth Validation run (validation_type='truth') against the
+    live production Chief of Staff, comparing each object's response to deterministic
+    WLJ truth. Worker-only — never inline (LLM + heavy retrieval per object)."""
+    from apps.admin_console.models import AcceptanceRun
+    from apps.ai.chatgpt_cos.truth_validation_service import execute_truth_run
+    try:
+        run = AcceptanceRun.objects.get(pk=run_id)
+    except AcceptanceRun.DoesNotExist:
+        logger.warning("run_truth_validation: run %s not found", run_id)
+        return {"status": "missing", "run_id": run_id}
+    try:
+        execute_truth_run(run)
+        return {"status": run.status, "score": run.score_percent,
+                "objects_passed": run.pass_count, "objects_failed": run.fail_count,
+                "checks_passed": run.checks_passed, "checks_total": run.checks_total}
+    except Exception as exc:
+        logger.error("run_truth_validation failed run=%s", run_id, exc_info=True)
+        run.status = "failed"
+        run.error_message = f"{type(exc).__name__}: {exc}"[:2000]
+        from django.utils import timezone as _tz
+        run.completed_at = _tz.now()
+        run.save(update_fields=["status", "error_message", "completed_at"])
+        return {"status": "failed", "error": str(exc)}

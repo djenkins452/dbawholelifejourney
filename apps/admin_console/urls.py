@@ -14,6 +14,7 @@ from django.urls import path
 
 from . import views
 from . import ai_views
+from . import truth_validation_views as tv_views
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
 
@@ -37,6 +38,29 @@ urlpatterns = [
     path("ai/beth-acceptance/runs/<int:pk>/delete/",
          ai_views.DeleteBethAcceptanceView.as_view(),
          name="beth_acceptance_delete"),
+
+    # AI Operations — Truth Validation Center
+    path("ai/truth-validation/", tv_views.TruthValidationCenterView.as_view(),
+         name="truth_validation"),
+    path("ai/truth-validation/run/", tv_views.StartTruthValidationView.as_view(),
+         name="truth_validation_start"),
+    path("ai/truth-validation/rerun-object/", tv_views.RerunObjectView.as_view(),
+         name="truth_validation_rerun_object"),
+    path("ai/truth-validation/runs/<int:pk>/",
+         tv_views.TruthValidationRunDetailView.as_view(),
+         name="truth_validation_run"),
+    path("ai/truth-validation/runs/<int:pk>/cancel/",
+         tv_views.CancelTruthValidationView.as_view(),
+         name="truth_validation_cancel"),
+    path("ai/truth-validation/runs/<int:pk>/delete/",
+         tv_views.DeleteTruthValidationView.as_view(),
+         name="truth_validation_delete"),
+    path("ai/truth-validation/runs/<int:pk>/approve/",
+         tv_views.ApproveRunView.as_view(),
+         name="truth_validation_approve"),
+    path("ai/truth-validation/results/<int:pk>/override/",
+         tv_views.OverrideCheckView.as_view(),
+         name="truth_validation_override"),
 
     # Diagnostics Console (Truth Layer)
     path("diagnostics/", diag_views.DiagnosticsConsoleView.as_view(), name="diagnostics_console"),

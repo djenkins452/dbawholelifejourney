@@ -1,5 +1,12 @@
 # WLJ Certification Platform — DISCOVERED FUTURE INITIATIVE (deferred, not current work)
 
+> **UPDATE (opened):** The first type of this platform is now built — the **Truth Validation
+> Center** (`docs/WLJ_TRUTH_VALIDATION_CENTER.md`). It realizes the design below: one
+> evidence-capturing runner (the generalized Acceptance engine, typed by `validation_type`),
+> the two-owner model, the discovery suite as the object work-list, and first-failing-layer
+> attribution. Remaining types (CRUD / Reasoning / Executive Briefing / Check-in / Domain) plug
+> into the same engine as their evaluators are added. The text below is the original reservation.
+
 **Status:** 🔮 **Discovered architectural initiative. Intentionally deferred.** Recorded here so it is not lost — **not** to be implemented now. The current milestone (Chief of Staff Truth Certification) must be completed and production-validated first. Do NOT refactor Production Test Plans, the Admin Console, or generalize certification across subsystems yet.
 
 ---

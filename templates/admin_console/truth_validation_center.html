@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Truth Validation Center - Admin Console{% endblock %}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .tv-wrap { --tv-green:#10b981; --tv-red:#ef4444; --tv-amber:#f59e0b; --tv-gray:#9ca3af; }
+  .tv-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin:16px 0; }
+  .tv-metric { background:var(--surface,#fff); border:1px solid var(--border-color,#e5e7eb); border-radius:12px; padding:14px 16px; }
+  .tv-metric .n { font-size:30px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .tv-metric .l { color:#6b7280; font-size:12px; text-transform:uppercase; letter-spacing:.04em; margin-top:4px; }
+  .tv-health .n { color:var(--tv-green); }
+  .tv-bar { height:8px; border-radius:999px; background:#e5e7eb; overflow:hidden; margin-top:10px; }
+  .tv-bar > i { display:block; height:100%; background:var(--tv-green); }
+  .tv-controls { display:flex; flex-wrap:wrap; gap:10px; margin:12px 0; align-items:center; }
+  .tv-btn { padding:8px 14px; border-radius:8px; border:1px solid var(--border-color,#d1d5db); background:var(--surface,#fff);
+    color:var(--text,#111); font-size:14px; cursor:pointer; min-height:40px; font-weight:600; }
+  .tv-btn:hover { background:#f3f4f6; }
+  .tv-btn-primary { background:#4f46e5; color:#fff; border-color:#4f46e5; }
+  .tv-btn-primary:hover { background:#4338ca; }
+  .tv-btn-mini { padding:4px 10px; min-height:32px; font-size:12px; }
+  .tv-domain { border:1px solid var(--border-color,#e5e7eb); border-radius:12px; margin:12px 0; overflow:hidden; }
+  .tv-domain > summary { list-style:none; cursor:pointer; padding:12px 16px; display:flex; justify-content:space-between;
+    align-items:center; background:#f9fafb; font-weight:700; }
+  .tv-domain > summary::-webkit-details-marker { display:none; }
+  .tv-obj { display:flex; align-items:center; gap:10px; padding:9px 16px; border-top:1px solid #f0f0f0; }
+  .tv-obj .name { flex:1; font-size:14px; }
+  .tv-obj .prompt { color:#9ca3af; font-size:12px; }
+  .tv-chip { display:inline-block; min-width:78px; text-align:center; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; color:#fff; }
+  .chip-passed { background:var(--tv-green); } .chip-failed { background:var(--tv-red); }
+  .chip-na { background:var(--tv-gray); } .chip-unvalidated { background:#e5e7eb; color:#6b7280; }
+  .tv-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:14px; }
+  .tv-table th, .tv-table td { text-align:left; padding:8px 10px; border-bottom:1px solid #eee; }
+  .tv-table th { color:#6b7280; font-weight:600; }
+  .tv-trend { display:flex; gap:3px; align-items:flex-end; height:44px; }
+  .tv-trend > i { width:10px; background:#c7d2fe; border-radius:2px 2px 0 0; }
+  .tv-note { color:#6b7280; font-size:13px; }
+</style>
+
+<div class="container tv-wrap" data-testid="tv-center">
+  <div class="page-header">
+    <div>
+      <nav class="breadcrumb">
+        <a href="{% url 'admin_console:dashboard' %}">Admin Console</a><span>/</span>
+        <span>AI Operations</span><span>/</span><span>Truth Validation Center</span>
+      </nav>
+      <h1 class="page-title">Truth Validation Center</h1>
+      <p class="page-subtitle">Continuously validate that the Chief of Staff faithfully represents what WLJ deterministically knows. WLJ is the authority — every comparison is deterministic.</p>
+    </div>
+  </div>
+
+  <!-- Executive dashboard -->
+  <div class="tv-metrics">
+    <div class="tv-metric tv-health" data-testid="tv-health">
+      <div class="n">{{ metrics.truth_health }}%</div>
+      <div class="l">Overall Truth Health</div>
+      <div class="tv-bar"><i style="width:{{ metrics.truth_health }}%;"></i></div>
+    </div>
+    <div class="tv-metric"><div class="n">{{ metrics.objects_certified }}<span style="font-size:16px;color:#9ca3af;">/{{ metrics.objects_total }}</span></div><div class="l">Objects Certified</div></div>
+    <div class="tv-metric"><div class="n">{{ metrics.checks_passed }}<span style="font-size:16px;color:#9ca3af;">/{{ metrics.checks_total }}</span></div><div class="l">Truth Checks Passed</div></div>
+    <div class="tv-metric"><div class="n" style="color:{% if metrics.outstanding_bugs %}var(--tv-red){% else %}var(--tv-green){% endif %};">{{ metrics.outstanding_bugs }}</div><div class="l">Outstanding Bugs</div></div>
+    <div class="tv-metric"><div class="n">{{ metrics.objects_remaining }}</div><div class="l">Not Yet Validated</div></div>
+    <div class="tv-metric"><div class="n">{{ metrics.success_rate }}%</div><div class="l">Historical Success</div></div>
+    <div class="tv-metric">
+      <div class="tv-trend">
+        {% for t in metrics.trend %}<i style="height:{{ t.score }}%;" title="#{{ t.id }} · {{ t.at }} · {{ t.score }}%"></i>{% endfor %}
+        {% if not metrics.trend %}<span class="tv-note">no runs yet</span>{% endif %}
+      </div>
+      <div class="l">Regression Trend</div>
+    </div>
+    <div class="tv-metric"><div class="n">{{ metrics.avg_seconds }}s</div><div class="l">Avg Validation Time</div></div>
+  </div>
+
+  {% if active_runs %}
+  <div class="stat-card" style="border-left:4px solid var(--tv-amber);">
+    <strong>Running now:</strong>
+    {% for r in active_runs %}<a href="{% url 'admin_console:truth_validation_run' r.pk %}">#{{ r.id }} ({{ r.progress_pct }}%)</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Run controls -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Run validation</h2>
+    <form method="post" action="{% url 'admin_console:truth_validation_start' %}">
+      {% csrf_token %}
+      <div class="tv-controls">
+        <button class="tv-btn tv-btn-primary" name="scope" value="full" data-testid="tv-run-full">Run Truth Layer Certification</button>
+        <span class="tv-note">All {{ metrics.objects_total }} objects through the production Chief of Staff. Worker-only; auto-refreshes while running.</span>
+      </div>
+    </form>
+  </div>
+
+  <!-- Object grid, by domain -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Objects by domain</h2>
+    <p class="tv-note">Run a whole domain, or a single object. Each object is a "tell me everything about &lt;object&gt;" prompt, auto-compared to the deterministic WLJ record.</p>
+    {% for d in domains %}
+    <details class="tv-domain" {% if d.passed < d.total %}open{% endif %}>
+      <summary>
+        <span>{{ d.domain|title }} <span class="tv-note">— {{ d.passed }}/{{ d.total }} certified</span></span>
+        <form method="post" action="{% url 'admin_console:truth_validation_start' %}">
+          {% csrf_token %}
+          <button class="tv-btn tv-btn-mini" name="scope" value="domain:{{ d.domain }}" data-testid="tv-run-domain-{{ d.domain }}">Run {{ d.domain|title }}</button>
+        </form>
+      </summary>
+      {% for o in d.objects %}
+      <div class="tv-obj">
+        <span class="tv-chip chip-{{ o.status }}">{{ o.status }}</span>
+        <span class="name">{{ o.object }}<div class="prompt">{{ o.prompt }}</div></span>
+        {% if o.detail_run %}<a class="tv-btn tv-btn-mini" href="{% url 'admin_console:truth_validation_run' o.detail_run %}">View</a>{% endif %}
+        <form method="post" action="{% url 'admin_console:truth_validation_rerun_object' %}">
+          {% csrf_token %}
+          <input type="hidden" name="object_key" value="{{ o.id }}">
+          <button class="tv-btn tv-btn-mini" data-testid="tv-run-object-{{ o.id }}">Run Test</button>
+        </form>
+      </div>
+      {% endfor %}
+    </details>
+    {% endfor %}
+  </div>
+
+  <!-- History -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Validation history</h2>
+    <table class="tv-table">
+      <thead><tr><th>Run</th><th>Scope</th><th>Health</th><th>Objects</th><th>Checks</th><th>Grade</th><th>When</th><th>Approved</th></tr></thead>
+      <tbody>
+        {% for r in runs %}
+        <tr>
+          <td><a href="{% url 'admin_console:truth_validation_run' r.pk %}">#{{ r.id }}</a></td>
+          <td>{{ r.scope_kind }}{% if r.scope_key %}:{{ r.scope_key }}{% endif %}</td>
+          <td>{% if r.status == 'completed' %}{{ r.score_percent }}%{% else %}<em>{{ r.get_status_display|default:r.status }}</em>{% endif %}</td>
+          <td>{{ r.pass_count }}/{{ r.total_count }}{% if r.na_count %} <span class="tv-note">(+{{ r.na_count }} n/a)</span>{% endif %}</td>
+          <td>{{ r.checks_passed }}/{{ r.checks_total }}</td>
+          <td><span class="tv-chip" style="background:{{ r.grade_color }};">{{ r.grade|default:"—" }}</span></td>
+          <td class="tv-note">{{ r.created_at|date:"M d, H:i" }}</td>
+          <td>{% if r.approved %}✓{% else %}—{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="tv-note">No validation runs yet. Run the Truth Layer Certification to begin.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

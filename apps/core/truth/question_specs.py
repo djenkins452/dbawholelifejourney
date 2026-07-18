@@ -90,6 +90,10 @@ SLICE_SPECS = [
                  {"metric": "adherence", "period": "custom",
                   "start": "@range_start", "end": "@range_end"},
                  {"kind": "series_min_points", "n": 1}, "medication", provider="medicine"),
+    QuestionSpec("med.last_taken", "medicine", LATEST, "When did I last take Metformin?",
+                 "entity_one", {"name": "Metformin"},
+                 {"kind": "entity_field", "path": "performance.last_taken",
+                  "value": "@last_taken_date"}, "medication", provider="medicine"),
 
     # ---- NUTRITION (nutrition) ----------------------------------------------------
     QuestionSpec("nutrition.list", "nutrition", LIST, "What have I eaten?",
@@ -193,6 +197,17 @@ def run_spec(user, spec, anchors):
             return ent is not None, {"found": ent is not None}
         if kind == "entity_absent":
             return ent is None, {"found": ent is not None}
+        if kind == "entity_field":
+            if ent is None:
+                return False, {"found": False}
+            cur = ent
+            for part in exp["path"].split("."):
+                cur = (cur.get(part) if isinstance(cur, dict)
+                       else getattr(cur, part, None))
+                if cur is None:
+                    break
+            want = _resolve(exp["value"], anchors)
+            return str(cur) == str(want), {"got": str(cur), "want": str(want)}
 
     return False, {"error": f"unhandled surface/kind {spec.surface}/{kind}"}
 

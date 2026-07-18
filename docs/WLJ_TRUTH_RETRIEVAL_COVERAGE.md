@@ -26,7 +26,7 @@
 | domain | current | historical | latest | timeline | list | count | existence | comparison |
 |---|---|---|---|---|---|---|---|---|
 | **health** (weight) | ✓ | ✓ | ✓ | ✓ | ◐ | ✗ | ◐ | ✓ |
-| **medicine** | ✓ | ✓ | ◐ | ◐ | ✓ | ✗ | ✓ | ✗ |
+| **medicine** | ✓ | ✓ | ✓ | ◐ | ✓ | ✗ | ✓ | ✗ |
 | **nutrition** | ✗ | ✗ | ✓ | ✗ | ✓ | — | ✓ | ✗ |
 | calendar | ◐ | — | ◐ | — | — | — | — | — |
 | faith | ◐ | — | ◐ | — | — | — | — | — |

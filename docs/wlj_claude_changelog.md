@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(health): certification-driven — add medicine "last-taken" truth surface (closes the med.last_take gap) + record the future Certification Platform
+
+**The certification loop, working: a measured gap → smallest deterministic fix → re-certify.** The live Customer Truth run (2026-07-18) flagged `med.last_take` as a weak pass — the medicine domain exposed today's dose status but no "last-taken" surface (first failing layer = truth gap). Closed it additively.
+
+- **Fix (Owner-1, smallest correction to the first failing layer):** `MedicineQueries._last_taken(intake)` — most recent `taken|late` `IntakeLog` (prefers `taken_at`, falls back to `scheduled_date`) — surfaced on the medication `CompleteEntity` as `performance.last_taken`. Flows to `describe`/`describe_one`, so `get_entity("Metformin")` now answers "when did I last take X". No new tool, no routing change, no model change (no migration).
+- **Re-certified deterministically:** new `entity_field` check in `run_spec` + `med.last_taken` QuestionSpec (`When did I last take Metformin?` → `performance.last_taken` == seeded yesterday). Slice now 16 specs, all green (`test_truth_retrieval_slice`); `test_medicine_domain_truth` green; **medicine `latest` capability ◐→✓** in `capability_matrix()`. Backlog #4 marked FIXED; coverage matrix updated.
+- **Future initiative RECORDED, not implemented:** `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md` — the unified WLJ Certification Platform discovered while building this (two-owner model + QuestionSpec + capability matrix + Acceptance-Center-as-orchestrator generalize across all subsystems). Explicitly DEFERRED: open it as its own initiative only after CoS Truth is production-validated. No Production-Test-Plans / Admin-Console refactor.
+- **Files:** `apps/health/services/medicine_queries.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md` (new), `docs/WLJ_CERTIFICATION_BACKLOG.md`, `docs/WLJ_TRUTH_RETRIEVAL_COVERAGE.md`.
+
+**Verification:** 26 scoped tests green; `check` + `makemigrations --check` clean. Remaining CoS-Truth milestone work is production-gated (slice-1 PROD re-cert to reclassify the current-weight staleness) — Danny's to run. NOTE: parallel meals/rich-text work untouched; committed only my files by explicit path.
+
 ## 2026-07-18 — docs(meals): Meal Intelligence Canonical Domain Architecture v1.0 (GOVERNING)
 
 **Established the governing architecture for the Meal Intelligence domain.** Concludes a four-phase design exercise (inventory → canonical architecture → independent review → final decisions) with a clean, from-scratch v1.0 governing document. No production code, migrations, or application behavior changed — documentation only.

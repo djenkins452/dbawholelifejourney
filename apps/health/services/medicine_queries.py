@@ -132,6 +132,20 @@ class MedicineQueries:
              "otc": "otc", "wellness": "wellness"}
 
     @classmethod
+    def _last_taken(cls, intake):
+        """The most recent date this item was actually TAKEN (taken|late), or None.
+        Answers 'when did I last take X' — the audited truth gap surfaced by the live
+        Customer Truth run (med.last_take, 2026-07-18). Prefers the precise `taken_at`
+        timestamp, falls back to the dose's scheduled_date."""
+        lg = (IntakeLog.objects.filter(intake=intake, log_status__in=("taken", "late"))
+              .order_by("-scheduled_date", "-taken_at")
+              .values_list("scheduled_date", "taken_at").first())
+        if not lg:
+            return None
+        scheduled_date, taken_at = lg
+        return (taken_at.date() if taken_at else scheduled_date)
+
+    @classmethod
     def describe(cls, user, classification=PRESCRIPTION):
         """Each active item of `classification` as a CompleteEntity describing itself
         across the contract dimensions (identity / definition / status / plan / standing /
@@ -165,6 +179,7 @@ class MedicineQueries:
 
             standing = cls._summarize_doses(doses)
             standing["doses"] = doses                       # per-dose detail (not collapsed)
+            last_taken = cls._last_taken(m)
             entities.append(CompleteEntity(
                 kind=kind,
                 identity=m.name,
@@ -173,7 +188,8 @@ class MedicineQueries:
                 status=m.intake_status,
                 plan={"schedule": times},
                 standing={"today": standing},
-                performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)}},
+                performance={"adherence": {"7d": _adh(7), "30d": _adh(30), "90d": _adh(90)},
+                             "last_taken": last_taken.isoformat() if last_taken else None},
             ))
         entities.sort(key=lambda e: e.identity.lower())
         return entities

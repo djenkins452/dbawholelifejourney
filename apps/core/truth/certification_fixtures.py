@@ -66,7 +66,8 @@ def build_medication_fixture(email="cert_med@example.com"):
                                      scheduled_date=today - timedelta(days=i),
                                      log_status="taken")
     return u, {"med_names": ["Lisinopril", "Metformin"],
-               "range_start": today - timedelta(days=7), "range_end": today}
+               "range_start": today - timedelta(days=7), "range_end": today,
+               "last_taken_date": (today - timedelta(days=1)).isoformat()}
 
 
 def build_nutrition_fixture(email="cert_nutrition@example.com"):

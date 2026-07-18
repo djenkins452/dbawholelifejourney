@@ -6,6 +6,27 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(dashboard): cockpit gauge cards advertised "Tap for details" but did nothing in prod — honest expand affordance + uniform "Open <domain> →" action
+
+**Reported:** the dashboard gauge cards (Health / Faith / Work / …) show "Tap for details" but tapping does nothing.
+
+**Runtime investigation (not a guess — traced Browser → view → composer → CSS):**
+- `/dashboard/` serves **dashboard_v3** (`DASHBOARD_V3_DEFAULT=True`). Its gauges section renders the shared v2 partial `cockpit_dial.html`. Rendered `/dashboard/` for the real account (pk 1) via the test client: the dial markup, `role="button"`, `data-expand-url`, and the `v3ToggleDial` handler are **all present**, and the `cockpit_panel` endpoint returns **200** with real HTML. Then drove the **actual browser** logged in as the user: clicking Health expanded a rich 8-day breakdown; keyboard Enter toggled `aria-expanded`; no console errors.
+- **Root cause of the report = deployment lag, not missing code.** The orphaned-handler fix (commit `62ce983a`, earlier today) is correct and works on current code (proven by click + keyboard in-browser); it simply was not live in production when the card was tapped. The v3 handler was already delegated on `document.body` (swap-proof) and the panel CSS ships in `dashboard_v2.css` (which v3 loads).
+- **Latent bug found while tracing:** `apps/dashboard_v3/services/composer.py :: _build_gauges` did `components[:3]`, but cockpit scorers return `components` as a metric-group **dict**, not a list → `TypeError: unhashable type: 'slice'` on **every** cockpit render (masked only because `_safe` swallowed it and the template prefers `cockpit_domains`). Guarded to slice only a genuine list; `_build_gauges` now returns cleanly (no per-render traceback).
+
+**Product decision (confirmed with Danny): keep inline expand — the dashboard is an executive command center, not a nav menu.** Clicking a gauge answers "why?" in place; the full domain page is one explicit step further. Refinements shipped:
+1. **Removed the misleading "Tap for details" text.** Replaced with a subtle **chevron disclosure** (`.v2-dial-disclosure`) that rotates when expanded — a non-instructional cue, not a fake instruction. The whole card stays `role="button"` / `tabindex="0"` with `cursor: pointer`, hover lift, a `:focus-visible` ring, and correct ARIA (`aria-expanded`/`aria-controls`).
+2. **Every expanded panel now ends with ONE uniform, prominent "Open <domain> →" button** (`_open_action.html`, injected centrally by `CockpitPanelView` so no panel behaves differently). It navigates to the **authoritative** domain page via a slug→URL map (health→`/health/physical/`, faith→`/faith/`, work/purpose→`/purpose/`, family→`/legacy/family/`, … fallback `purpose:goal_list`). This replaced the old inconsistent ad-hoc links ("View Health Dashboard", "View **Reading Plans**", "View Tasks/Goals") that varied per panel and sometimes pointed at a sub-page instead of the domain home.
+
+**Also fixed a self-inflicted regression during this work:** the two new template comments were multi-line `{# #}` (single-line-only in Django) and rendered as literal text — caught by browser verification and converted to `{% comment %}`. Re-swept every template: zero multi-line `{# #}` remain.
+
+**Verification:**
+- In-browser (logged in as pk 1): Health & Faith expand on click; keyboard Enter expands (focusable, `aria-expanded` flips); all dials `cursor: pointer`; "Open Health →" **navigated to `/health/physical/`**; "Open Faith →" → `/faith/`; no "Tap for details" visible; no comment leak; no console errors.
+- `apps.dashboard_v2.tests.test_cockpit_service` + `apps.dashboard_v3.tests.test_composer` + `test_views` — **173 passed**. `manage.py check` clean. `collectstatic` clean (516 post-processed, 0 errors).
+
+- **Files:** `apps/dashboard_v2/views.py` (destination map + central action injection), `apps/dashboard_v3/services/composer.py` (`_build_gauges` slice guard), `templates/dashboard_v2/partials/cockpit_dial.html` (chevron replaces tap-hint), `templates/dashboard_v2/partials/cockpit_panels/_open_action.html` (new shared action), `.../cockpit_panels/{health,faith,work,generic}_panel.html` (drop ad-hoc links), `templates/dashboard_v3/home.html` (stale comment), `static/css/dashboard_v2.css` (disclosure + focus ring + Open button; `{% static %}` manifest-hash auto-busts in prod). No schema/migration change.
+
 ## 2026-07-18 — docs(architecture): RATIFY the WLJ Security & Authorization Framework (Rev 2) — Space is now a first-class primitive
 
 **Architecture milestone — documentation only. NO production authorization changed, NO permissions introduced, NO migrations, NO implementation.** Promotes `docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md` from a PROPOSED design artifact to a **RATIFIED governing architecture document** (a peer of the CoS Constitution, the LLM Truth/Action Contract, the Current Context Contract, the Layer 1 Domain Framework, and the Operations Vision).

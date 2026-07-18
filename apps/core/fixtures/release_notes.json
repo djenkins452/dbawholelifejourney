@@ -4438,5 +4438,21 @@
       "created_at": "2026-07-18T21:00:00Z",
       "updated_at": "2026-07-18T21:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 279,
+    "fields": {
+      "title": "Dashboard gauges now open to the full story",
+      "description": "The Health, Faith, and other gauge cards on your dashboard now clearly expand when you tap them — showing a quick breakdown right there without leaving the page. Each expanded card ends with an “Open” button that takes you straight to that area's full page. We removed the old “Tap for details” label and replaced it with a small chevron so it's obvious the card opens, and the cards are now fully keyboard-accessible.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-18",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/dashboard/",
+      "created_at": "2026-07-18T21:00:00Z",
+      "updated_at": "2026-07-18T21:00:00Z"
+    }
   }
 ]

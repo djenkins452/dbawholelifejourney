@@ -1888,14 +1888,22 @@ def _build_gauges(user, cockpit_data=None, execution_contract=None) -> list[dict
         else:
             trend_label = "—"
 
+        # Cockpit scorers return ``components`` as a metric-group DICT
+        # (e.g. {'medication': {...}, 'workout': {...}}), not a list of
+        # display drivers. Only build drivers from a genuine list of
+        # {label, status, detail} items; a dict here is not sliceable and
+        # would raise ``TypeError: unhashable type: 'slice'`` on every
+        # cockpit render. (These drivers feed only the empty-cockpit
+        # ``gauges`` fallback, which never runs for cockpit users anyway.)
         components = d.get("components") or []
+        driver_items = components if isinstance(components, list) else []
         drivers = [
             {
                 "label": c.get("label", ""),
                 "status": c.get("status", "info"),
                 "detail": c.get("detail", ""),
             }
-            for c in components[:3]
+            for c in driver_items[:3]
         ]
 
         out.append({

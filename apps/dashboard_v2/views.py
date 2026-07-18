@@ -172,6 +172,38 @@ class CockpitPanelView(LoginRequiredMixin, View):
         'work': 'dashboard_v2/partials/cockpit_panels/work_panel.html',
     }
 
+    # Authoritative "Open <domain>" destination per cockpit domain slug.
+    # The dashboard is an executive overview: the inline panel answers "why?"
+    # and this single button is the one way to open the full domain. Any slug
+    # not listed falls back to the Goals command center (every cockpit domain
+    # is goal-driven), so a new domain is never left without an action.
+    DOMAIN_DESTINATIONS = {
+        'health': 'health:home',
+        'faith': 'faith:home',
+        'work': 'purpose:home',
+        'purpose': 'purpose:home',
+        'family': 'legacy:family',
+        'life': 'life:home',
+        'journal': 'journal:home',
+        'finance': 'finance:dashboard',
+        'meals': 'meals:dashboard',
+        'medical': 'medical:home',
+        'legacy': 'legacy:home',
+    }
+    DEFAULT_DESTINATION = 'purpose:goal_list'
+
+    def _open_action_url(self, domain):
+        """Reverse the authoritative domain page, falling back safely."""
+        from django.urls import reverse, NoReverseMatch
+        name = self.DOMAIN_DESTINATIONS.get(domain, self.DEFAULT_DESTINATION)
+        try:
+            return reverse(name)
+        except NoReverseMatch:
+            try:
+                return reverse(self.DEFAULT_DESTINATION)
+            except NoReverseMatch:
+                return None
+
     def get(self, request, domain):
         from .services.cockpit_service import GoalCockpitService
 
@@ -188,12 +220,26 @@ class CockpitPanelView(LoginRequiredMixin, View):
             domain,
             'dashboard_v2/partials/cockpit_panels/generic_panel.html',
         )
-        html = render_to_string(
+        panel_html = render_to_string(
             template,
             {domain: data, 'domain_data': data, "request": request},
             request=request,
         )
-        return HttpResponse(html)
+
+        # Append the ONE uniform "Open <domain> →" action to every panel, so no
+        # card behaves differently and every panel offers the authoritative
+        # navigation out to the full domain page.
+        label = (data or {}).get('label') or domain.replace('_', ' ').title()
+        action_html = render_to_string(
+            'dashboard_v2/partials/cockpit_panels/_open_action.html',
+            {
+                'open_url': self._open_action_url(domain),
+                'open_label': label,
+                'open_slug': domain,
+            },
+            request=request,
+        )
+        return HttpResponse(panel_html + action_html)
 
 
 # ── HTMX Section Endpoints ──────────────────────────────────────────

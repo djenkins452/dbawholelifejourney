@@ -1800,21 +1800,80 @@ a.v2-action-title:hover {
     border-radius: 2px;
 }
 
-/* Tap hint */
-.v2-dial-tap-hint {
-    font-size: 0.65rem;
+/* Disclosure chevron — non-instructional affordance that the card expands.
+   Replaces the old "Tap for details" text. Subtle at rest, clearer on hover,
+   flips when expanded. Never intercepts the card click. */
+.v2-dial-disclosure {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.4rem;
     color: var(--color-text-muted, #9ca3af);
-    margin-top: 0.5rem;
-    opacity: 0.6;
-    transition: opacity 0.2s;
+    opacity: 0.5;
+    transition: opacity 0.2s ease, transform 0.25s ease, color 0.2s ease;
+    pointer-events: none;
 }
 
-.v2-cockpit-dial:hover .v2-dial-tap-hint {
-    opacity: 1;
+.v2-cockpit-dial:hover .v2-dial-disclosure,
+.v2-cockpit-dial:focus-visible .v2-dial-disclosure {
+    opacity: 0.9;
+    color: var(--color-accent, #6366f1);
 }
 
-.v2-cockpit-dial.expanded .v2-dial-tap-hint {
-    display: none;
+.v2-cockpit-dial.expanded .v2-dial-disclosure {
+    transform: rotate(180deg);
+    opacity: 0.9;
+}
+
+/* Keyboard focus ring — the card is role="button" tabindex="0". */
+.v2-cockpit-dial:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-soft, rgba(99, 102, 241, 0.35));
+    border-color: var(--color-accent, #6366f1);
+}
+
+/* The ONE uniform "Open <domain> →" action at the foot of every expanded panel.
+   Prominent (button, not a faint link) — the dashboard explains inline, this is
+   how you open the full domain. */
+.v2-cockpit-open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: var(--space-3, 0.75rem) 0 var(--space-1, 0.25rem);
+    padding: 0.6rem 1rem;
+    border-radius: var(--radius-md, 0.5rem);
+    background: var(--color-accent, #6366f1);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+    transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.v2-cockpit-open:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    color: #fff;
+    text-decoration: none;
+}
+
+.v2-cockpit-open:active {
+    transform: translateY(0);
+}
+
+.v2-cockpit-open:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--color-accent-soft, rgba(99, 102, 241, 0.4));
+}
+
+.v2-cockpit-open-arrow {
+    font-weight: 800;
+    transition: transform 0.15s ease;
+}
+
+.v2-cockpit-open:hover .v2-cockpit-open-arrow {
+    transform: translateX(3px);
 }
 
 /* Expanded panel container */

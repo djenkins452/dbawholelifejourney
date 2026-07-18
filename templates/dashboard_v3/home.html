@@ -201,13 +201,14 @@ together, so a cached stylesheet against new markup renders a broken dashboard
     // ── Cockpit dial expand/collapse ──
     // The goal-cockpit dials (Health, Faith, …) are the shared v2 partial
     // (dashboard_v2/partials/cockpit_dial.html), reused by v3's gauges section.
-    // Each dial advertises "Tap for details" and carries a data-expand-url to the
-    // cockpit_panel endpoint plus an empty .v2-cockpit-panel to fill. The behavior
-    // that powers it lives in v2's home template; when v3 was promoted to default
-    // the markup came along but this handler did not — so the affordance was live
-    // in the DOM with nothing listening (it "did nothing"). Delegated on
-    // document.body like every other v3 control, so it survives the #v3-live
-    // hx-swap that would kill a per-node listener.
+    // The whole card is a role="button" that carries a data-expand-url to the
+    // cockpit_panel endpoint plus an empty .v2-cockpit-panel to fill; a chevron
+    // signals it expands, and each expanded panel ends with an "Open <domain> →"
+    // action. The behavior that powers it lives in v2's home template; when v3 was
+    // promoted to default the markup came along but this handler did not — so the
+    // affordance was live in the DOM with nothing listening (it "did nothing").
+    // Delegated on document.body like every other v3 control, so it survives the
+    // #v3-live hx-swap that would kill a per-node listener.
     function v3ToggleDial(dial) {
         var panel = dial.querySelector('.v2-cockpit-panel');
         if (!panel) return;

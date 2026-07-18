@@ -1,0 +1,11 @@
+{% comment %}Uniform, prominent domain action appended to EVERY cockpit expanded panel
+   (health / faith / work / generic / any future domain) by CockpitPanelView.
+   The dashboard answers "why?" inline; this button is the one authoritative way
+   to open the full domain. Kept identical across panels so no card behaves
+   differently. `open_url` + `open_label` are supplied by the view.{% endcomment %}
+{% if open_url %}
+<a href="{{ open_url }}" class="v2-cockpit-open" data-testid="cockpit-open-{{ open_slug }}">
+    Open {{ open_label }}
+    <span class="v2-cockpit-open-arrow" aria-hidden="true">&#x2192;</span>
+</a>
+{% endif %}

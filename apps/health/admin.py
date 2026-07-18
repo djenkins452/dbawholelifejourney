@@ -365,7 +365,11 @@ class FoodItemAdmin(admin.ModelAdmin):
             "fields": ("data_source", "source_reference", "is_verified", "version", "verified_by_user", "external_ids")
         }),
         ("Serving", {
-            "fields": ("serving_size", "serving_unit", "servings_per_container")
+            # net_content / net_content_unit = the product's package net contents
+            # (from Open Food Facts product_quantity) — the highest-priority source
+            # for Pantry Container Truth resolution during recipe preparation.
+            "fields": ("serving_size", "serving_unit", "servings_per_container",
+                       ("net_content", "net_content_unit"))
         }),
         ("Macronutrients", {
             "fields": (

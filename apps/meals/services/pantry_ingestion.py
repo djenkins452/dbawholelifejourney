@@ -142,6 +142,18 @@ def finalize_pantry_item(
             update_fields.append("storage_location")
         pantry_item.save(update_fields=update_fields)
 
+    # Populate Container Truth deterministically (net contents per container) so recipe
+    # deduction can bridge package units -> culinary units. Acquisition-independent
+    # (every path lands here); idempotent; manual entry only if no source resolves.
+    try:
+        from apps.meals.services.container_truth import populate_container_truth
+        if populate_container_truth(pantry_item):
+            pantry_item.save(update_fields=[
+                "net_content", "net_content_unit", "updated_at"])
+    except Exception:  # pragma: no cover — resolution is best-effort, never blocks ingest
+        logger.warning("container-truth resolution failed for pantry item %s",
+                       getattr(pantry_item, "pk", None), exc_info=True)
+
     # Audit trail — every ingestion event is logged.
     InventoryTransaction.objects.create(
         pantry_item=pantry_item,

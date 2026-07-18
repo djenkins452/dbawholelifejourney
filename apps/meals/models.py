@@ -151,6 +151,28 @@ class Ingredient(TimeStampedModel):
         help_text="Default quantity in default_unit",
     )
 
+    # ── Pantry Container Truth: canonical substance measurement (Foundation 2) ──
+    # base_measure is how this substance is intrinsically measured; density bridges
+    # mass<->volume deterministically (only where a real density is known). Canonical
+    # and reusable across every household — the single home for this truth.
+    MEASURE_MASS = "mass"
+    MEASURE_VOLUME = "volume"
+    MEASURE_COUNT = "count"
+    BASE_MEASURE_CHOICES = [
+        (MEASURE_MASS, "Mass (grams)"),
+        (MEASURE_VOLUME, "Volume (millilitres)"),
+        (MEASURE_COUNT, "Count (discrete units)"),
+    ]
+    base_measure = models.CharField(
+        max_length=6, choices=BASE_MEASURE_CHOICES, default=MEASURE_COUNT,
+        help_text="How this ingredient is intrinsically measured for deduction",
+    )
+    density_g_per_ml = models.DecimalField(
+        max_digits=6, decimal_places=3, null=True, blank=True,
+        help_text="Grams per millilitre — bridges mass<->volume deterministically "
+                  "(only set where a real density is known)",
+    )
+
     class Meta:
         ordering = ["canonical_name"]
         verbose_name = "Ingredient"
@@ -573,6 +595,31 @@ class PantryItem(TimeStampedModel):
         null=True,
         blank=True,
         help_text="Estimated expiration based on shelf life",
+    )
+
+    # ── Pantry Container Truth (Foundation 2) ──
+    # STABLE "what was purchased": net contents of ONE container in a base unit (g/ml/
+    # count), plus an optional container type for display. Sourced deterministically at
+    # ingestion (OFF product_quantity -> FoodItem -> Ingredient default -> manual).
+    # The REMAINING truth is the existing `quantity` — now read as "how many containers
+    # remain" (fractional allowed: 0.5 = half a bottle). Usable base quantity for
+    # deduction = quantity * net_content. When net_content is null, deduction falls back
+    # to the legacy unit-matching path (fully backward-compatible).
+    CONTAINER_CHOICES = [
+        ("bottle", "Bottle"), ("jar", "Jar"), ("can", "Can"), ("bag", "Bag"),
+        ("box", "Box"), ("carton", "Carton"), ("package", "Package"),
+        ("tub", "Tub"), ("count", "Loose / count"),
+    ]
+    net_content = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text="Usable amount in ONE full container, in net_content_unit (g/ml/count)",
+    )
+    net_content_unit = models.CharField(
+        max_length=10, blank=True,
+        help_text="Base unit for net_content: 'g', 'ml', or 'count'",
+    )
+    container_type = models.CharField(
+        max_length=16, choices=CONTAINER_CHOICES, blank=True,
     )
 
     class Meta:

@@ -3799,6 +3799,18 @@ class FoodItem(models.Model):
         blank=True,
     )
 
+    # Pantry Container Truth (Foundation 2): net contents of one package, captured
+    # deterministically from the barcode source (Open Food Facts product_quantity).
+    # Reused when this product enters the pantry, so the user rarely enters it.
+    net_content = models.DecimalField(
+        max_digits=10, decimal_places=3, null=True, blank=True,
+        help_text="Net package contents in net_content_unit (from OFF product_quantity)",
+    )
+    net_content_unit = models.CharField(
+        max_length=10, blank=True,
+        help_text="Base unit for net_content: 'g' or 'ml'",
+    )
+
     # Core Macronutrients (per serving)
     calories = models.DecimalField(max_digits=8, decimal_places=2)
     protein_g = models.DecimalField(max_digits=8, decimal_places=2, default=0)

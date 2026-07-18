@@ -56,8 +56,11 @@ class FoodWasteEventAdmin(admin.ModelAdmin):
 
 @admin.register(Ingredient)
 class IngredientAdmin(admin.ModelAdmin):
-    list_display = ["canonical_name", "category", "storage_type", "shelf_life_days"]
-    list_filter = ["category", "storage_type"]
+    # base_measure + density_g_per_ml are the canonical Container Truth substance
+    # properties that let package units bridge to culinary units during preparation.
+    list_display = ["canonical_name", "category", "base_measure", "density_g_per_ml",
+                    "storage_type", "shelf_life_days"]
+    list_filter = ["category", "storage_type", "base_measure"]
     search_fields = ["canonical_name", "aliases"]
 
 
@@ -94,8 +97,11 @@ class DietaryProfileAdmin(admin.ModelAdmin):
 
 @admin.register(PantryItem)
 class PantryItemAdmin(admin.ModelAdmin):
-    list_display = ["ingredient", "household", "quantity", "unit", "confidence_score"]
-    list_filter = ["household"]
+    # net_content / net_content_unit = Container Truth (stable contents of one full
+    # container); quantity = Remaining Truth (how many containers are left, fractional).
+    list_display = ["ingredient", "household", "quantity", "unit",
+                    "net_content", "net_content_unit", "container_type", "confidence_score"]
+    list_filter = ["household", "container_type"]
     search_fields = ["ingredient__canonical_name"]
 
 

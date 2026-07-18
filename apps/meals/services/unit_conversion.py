@@ -233,13 +233,26 @@ def _canonical_unit(unit: str) -> str:
     return normalize_unit(unit) or unit.strip().lower().rstrip(".")
 
 
-def convert_between(quantity: "Decimal", from_unit: str, to_unit: str) -> Optional["Decimal"]:
+def base_unit_for(base_measure: str) -> str:
+    """Canonical base unit for an Ingredient.base_measure: g / ml / count."""
+    if base_measure == "mass":
+        return "g"
+    if base_measure == "volume":
+        return "ml"
+    return "count"
+
+
+COUNT_UNITS = {"count", "piece", "pieces", "each", "unit", "units", "ct"}
+
+
+def convert_between(quantity: "Decimal", from_unit: str, to_unit: str,
+                    density_g_per_ml: "Optional[Decimal]" = None) -> Optional["Decimal"]:
     """Convert ``quantity`` from ``from_unit`` to ``to_unit``.
 
-    Deterministic + closed: only same-unit, weight↔weight, and volume↔volume
-    conversions are supported. Cross-dimension conversions (e.g. cups↔grams, which
-    need ingredient density) return None so callers can fail closed rather than
-    guess. This is the single canonical unit-conversion authority.
+    Deterministic + closed. Supported: same-unit, weight↔weight, volume↔volume, and —
+    ONLY when a real ``density_g_per_ml`` is supplied — mass↔volume. Count units are
+    only interconvertible among themselves. Everything else returns None so callers
+    fail closed rather than guess. The single canonical unit-conversion authority.
     """
     if quantity is None:
         return None
@@ -247,8 +260,21 @@ def convert_between(quantity: "Decimal", from_unit: str, to_unit: str) -> Option
     tu = _canonical_unit(to_unit)
     if fu == tu:
         return quantity
+    if fu in COUNT_UNITS or tu in COUNT_UNITS:
+        # count ↔ count only (already caught by fu == tu); count ↔ measurable is undefined.
+        return quantity if (fu in COUNT_UNITS and tu in COUNT_UNITS) else None
     if fu in WEIGHT_TO_GRAMS and tu in WEIGHT_TO_GRAMS:
         return quantity * WEIGHT_TO_GRAMS[fu] / WEIGHT_TO_GRAMS[tu]
     if fu in VOLUME_TO_ML and tu in VOLUME_TO_ML:
         return quantity * VOLUME_TO_ML[fu] / VOLUME_TO_ML[tu]
+    # Cross-dimension mass↔volume — deterministic ONLY with a known density.
+    if density_g_per_ml and density_g_per_ml > 0:
+        if fu in WEIGHT_TO_GRAMS and tu in VOLUME_TO_ML:
+            grams = quantity * WEIGHT_TO_GRAMS[fu]
+            ml = grams / density_g_per_ml
+            return ml / VOLUME_TO_ML[tu]
+        if fu in VOLUME_TO_ML and tu in WEIGHT_TO_GRAMS:
+            ml = quantity * VOLUME_TO_ML[fu]
+            grams = ml * density_g_per_ml
+            return grams / WEIGHT_TO_GRAMS[tu]
     return None

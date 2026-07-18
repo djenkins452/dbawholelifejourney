@@ -65,9 +65,23 @@ Each milestone advances specific truths up the certification ladder; the "Certif
 `FoodEntry` with real macros; nutrition flows into `NutritionQueries`), (4) leftover
 inventory + later consumption + `discard_leftover`/`FoodWasteEvent` + deterministic
 expiration + leftover legal state machine. Every transition passes automated behavioral
-certification (see `WLJ_MEAL_INTELLIGENCE_TRUTH_CERTIFICATION.md §4b`). **Awaiting Danny's
-real-world validation.** Grocery/meal-plan automation and meal-history analytics remain
-future milestones.
+certification (see `WLJ_MEAL_INTELLIGENCE_TRUTH_CERTIFICATION.md §4b`).
+
+**Pantry Container Truth (2026-07-18, closes the deduction seam).** Real-world validation
+exposed that a *package* pantry item ("1 bottle of ketchup") could not deduct against a
+*culinary* recipe amount ("2 tbsp") — preparation dead-ended at `unsupported_conversion`.
+The fix is the smallest deterministic package-to-usable-quantity model: **Container Truth**
+(the stable net contents of one full container — `PantryItem.net_content`) distinct from
+**Remaining Truth** (fractional containers left — `PantryItem.quantity`); canonical substance
+properties on the Ingredient (`base_measure`, `density_g_per_ml`, seeded); acquisition-independent
+resolution (`container_truth.resolve_net_content`, priority OFF→FoodItem→Ingredient→ask);
+a conversion engine that bridges mass↔volume **only** with a density and otherwise fails
+closed; and the dead-end replaced by the actionable `needs_container_info` ("add its net
+contents once and this becomes automatic"). Count substances stay on the legacy path so no
+existing weight/volume deduction regresses. Validated across 8 reference ingredients. **Awaiting
+Danny's real-world validation.**
+
+Grocery/meal-plan automation and meal-history analytics remain future milestones.
 
 **Objective.** Close the food lifecycle: make cooking and eating first-class events that deterministically update inventory and nutrition — the transition that turns features into an operating system.
 

@@ -181,6 +181,17 @@ Each entity owns a precise, exclusive slice of truth.
 
 Where an entity is a **fold** (PantryItem, DailyNutritionSummary), its ledger is authoritative and the fold is disposable and rebuildable. Where an entity is an **event** (InventoryTransaction, FoodEntry, PreparationEvent), it is immutable and append-only.
 
+### Container Truth vs Remaining Truth (the deduction bridge)
+
+A pantry item is a **package** ("1 bottle of ketchup"), but a recipe calls for a **culinary amount** ("2 tbsp"). Bridging the two deterministically requires two distinct truths, kept separate:
+
+- **Container Truth** — the *stable net contents of one full container*: `PantryItem.net_content` + `net_content_unit` (e.g. 591 ml). It does not change as the container is used, and it is acquisition-independent (a 591 ml bottle holds 591 ml whether it arrived by barcode, receipt, vision, or manual entry).
+- **Remaining Truth** — *how many containers are left*, expressed as a possibly-fractional count in `PantryItem.quantity` (e.g. 0.5 = about half a bottle). This is what the inventory ledger folds into and what deduction decrements.
+
+The **substance properties** that make the bridge possible are canonical and live on the **Ingredient**, shared across every household: `base_measure` (mass / volume / count) and `density_g_per_ml` (what converts mass↔volume — a cup of flour → ml → grams). These are intrinsic to the substance, not to any one person's jar.
+
+Resolution is deterministic and priority-ordered (`services/container_truth.py`): **Open Food Facts `product_quantity` → FoodItem serving × servings-per-container → Ingredient default → ask the user once.** It runs inside the single canonical write (`finalize_pantry_item`), so acquisition method never changes stored truth (*Capture Once, Reuse Everywhere*). The conversion engine (`services/unit_conversion.py`) resolves within-dimension and count↔count freely, mass↔volume **only when a density exists**, and returns `None` for every other pair — **no estimation, ever**. When the one bridging fact is genuinely absent, preparation fails **closed** with the actionable `needs_container_info` ("add its net contents once and this becomes automatic"), never a silent dead-end.
+
 ---
 
 ## The Food Lifecycle

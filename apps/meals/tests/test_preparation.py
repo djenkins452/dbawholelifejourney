@@ -140,15 +140,19 @@ class PreparationEdgeCaseTests(PreparationBase):
         self.assertEqual(r.deduction_status, PreparationEvent.DED_PARTIAL)
         self.assertEqual(r.deductions[0]["status"], "partial")
 
-    def test_unsupported_conversion_rejected(self):
-        # recipe wants cups (volume); pantry is grams (weight) → no density → unsupported
+    def test_cross_dimension_without_truth_asks_for_container_info(self):
+        # recipe wants cups (volume); pantry is grams (weight); ingredient has no density
+        # and no resolvable net-content → we cannot bridge. Rather than the old dead-end
+        # 'unsupported_conversion', we return the actionable 'needs_container_info' and
+        # leave stock UNTOUCHED (fail closed). Pantry Container Truth (Foundation 2).
         self.pantry.unit = "g"
         self.pantry.quantity = Decimal("500")
+        self.pantry.net_content = None          # no container truth resolved
         self.pantry.save()
         r = self._prepare()
         self.pantry.refresh_from_db()
-        self.assertEqual(self.pantry.quantity, Decimal("500"))  # untouched
-        self.assertEqual(r.deductions[0]["status"], "unsupported_conversion")
+        self.assertEqual(self.pantry.quantity, Decimal("500"))  # untouched — fail closed
+        self.assertEqual(r.deductions[0]["status"], "needs_container_info")
 
     def test_no_pantry_item(self):
         self.pantry.delete()

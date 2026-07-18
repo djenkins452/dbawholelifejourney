@@ -52,6 +52,9 @@ class BarcodeResult:
     sodium_mg: Optional[float] = None
     serving_size: Optional[float] = None
     serving_unit: str = ''
+    # Pantry Container Truth (Foundation 2): net package contents from OFF product_quantity.
+    net_content: Optional[float] = None
+    net_content_unit: str = ''
     confidence: float = 0.0
     error: Optional[str] = None
     food_item_id: Optional[int] = None  # If found in database
@@ -443,6 +446,17 @@ class BarcodeService:
             categories = product.get('categories', '')
             description = categories.split(',')[0].strip() if categories else ''
 
+            # Pantry Container Truth: OFF product_quantity is the net package contents in
+            # a base unit (g or ml) — the deterministic bridge from "1 package" to a
+            # culinary quantity. Captured here, never estimated.
+            net_content = self._safe_float(product.get('product_quantity'))
+            net_content_unit = (product.get('product_quantity_unit') or '').strip().lower()
+            if net_content and net_content_unit not in ('g', 'ml'):
+                # OFF stores product_quantity in grams/ml; if the unit is missing/odd,
+                # don't guess — leave it for the other deterministic sources.
+                net_content = None
+                net_content_unit = ''
+
             return BarcodeResult(
                 barcode=barcode,
                 found=True,
@@ -460,6 +474,8 @@ class BarcodeService:
                 sodium_mg=self._safe_float(sodium),
                 serving_size=self._safe_float(serving_size) or 100,
                 serving_unit=serving_unit,
+                net_content=net_content,
+                net_content_unit=net_content_unit,
                 confidence=0.95  # Open Food Facts data is generally reliable
             )
 
@@ -512,6 +528,8 @@ class BarcodeService:
                 sugar_g=result.sugar_g or 0,
                 saturated_fat_g=result.saturated_fat_g or 0,
                 sodium_mg=result.sodium_mg,
+                net_content=result.net_content,          # Pantry Container Truth
+                net_content_unit=result.net_content_unit or '',
                 is_verified=True  # Open Food Facts data is community-verified
             )
 

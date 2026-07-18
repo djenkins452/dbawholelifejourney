@@ -40,12 +40,37 @@
                         {% if d.required is not None %}{{ d.required }} {{ d.required_unit }}{% else %}—{% endif %}
                     </td>
                     <td style="padding: var(--space-2);">{{ d.deducted }}</td>
-                    <td style="padding: var(--space-2);">{{ d.status }}</td>
+                    <td style="padding: var(--space-2);">
+                        {% if d.status == "applied" %}Deducted
+                        {% elif d.status == "partial" %}Partial (low stock)
+                        {% elif d.status == "no_pantry_item" %}Not in pantry
+                        {% elif d.status == "needs_container_info" %}Needs pantry info
+                        {% elif d.status == "unsupported_conversion" %}Needs density
+                        {% else %}{{ d.status }}{% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+
+    {# Actionable callout: one missing fact stands between us and a clean deduction. #}
+    {% for d in result.deductions %}
+        {% if d.status == "needs_container_info" or d.status == "unsupported_conversion" %}
+        <div style="margin-top: var(--space-3); padding: var(--space-3);
+                    border: 1px solid var(--color-warning, #f59e0b);
+                    border-radius: var(--radius-md, 8px); background: var(--color-warning-bg, #fffbeb);">
+            <strong>{{ d.ingredient|capfirst }} needs one more piece of pantry information.</strong>
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin: var(--space-2) 0 0;">
+                {{ d.note|default:"Tell us how much is in one container of this item and we'll deduct it precisely every time — capture it once, reuse it everywhere." }}
+            </p>
+            <a href="{% url 'meals:pantry' %}" class="btn btn-secondary"
+               style="min-height: 44px; display: inline-flex; align-items: center; margin-top: var(--space-2);">
+                Update pantry item
+            </a>
+        </div>
+        {% endif %}
+    {% endfor %}
     {% elif result.deduction_status == "skipped" %}
     <p class="text-muted">No structured ingredients to deduct for this recipe yet.</p>
     {% endif %}

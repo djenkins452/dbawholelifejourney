@@ -182,6 +182,16 @@ transition has a canonical producer and a passing behavioral proof. Tests live i
 | 9 | Leftover → discard/waste (final disposition) | `discard_leftover` → `FoodWasteEvent` | `test_leftover_management` · `test_food_lifecycle_certification` | ✅ |
 | 10 | Leftover → deterministic expiration | `expire_due_leftovers` (scheduled) | `test_leftover_management` | ✅ |
 | 11 | Retry/replay → no duplicate effects | idempotency keys (prep/consume/discard) | all four suites | ✅ |
+| 12 | Package pantry unit → culinary recipe unit deduction | `container_truth.resolve_net_content` + `convert_between` (via `_deduct_one`) | `test_pantry_container_truth` (8 reference ingredients + partial/insufficient) | ✅ |
+| 13 | Missing bridging fact → actionable ask (fail closed) | `_deduct_one` → `needs_container_info` | `test_pantry_container_truth` · `test_preparation` | ✅ |
+
+**Container Truth invariants** (enforced): net contents of one container (`net_content`)
+is distinct from remaining fractional containers (`quantity`); mass↔volume converts
+**only** with an Ingredient density and is otherwise refused (no estimation); count
+substances stay on the legacy unit-matching path so no existing weight/volume deduction
+regresses; resolution is acquisition-independent (one resolver inside `finalize_pantry_item`)
+and idempotent; when no source resolves the fact, deduction leaves stock **untouched** and
+returns `needs_container_info` rather than the retired dead-end `unsupported_conversion`.
 
 **Leftover legal state transitions** (enforced): `AVAILABLE → {CONSUMED, DISCARDED,
 EXPIRED}`; the latter three are terminal. Invariants proven by test: quantities never

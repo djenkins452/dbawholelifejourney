@@ -33,6 +33,13 @@ _role_resolvers: list[Callable] = []
 # idempotent and preservation-safe.
 _merge_participants: list[Callable] = []
 
+# ── Person summary providers ────────────────────────────────────────────────
+# fn(user, person) -> dict  (e.g. {"relationship": "Spouse", "url": "/relationships/5/"})
+# A feature contributes lightweight, DISPLAY-ONLY facts about a canonical Person for
+# shared surfaces (the Person hover card). Providers MUST be cheap — a couple of indexed
+# lookups, never heavy analytics — because they run on a hover-triggered request.
+_person_summary_providers: list[Callable] = []
+
 
 def register_role_resolver(fn: Callable) -> Callable:
     if fn not in _role_resolvers:
@@ -72,6 +79,29 @@ def run_merge_participants(user, loser, winner) -> None:
         fn(user, loser, winner)
 
 
+def register_person_summary_provider(fn: Callable) -> Callable:
+    if fn not in _person_summary_providers:
+        _person_summary_providers.append(fn)
+    return fn
+
+
+def person_summary(user, person) -> dict:
+    """Merge lightweight, display-only facts about a canonical Person from registered
+    feature providers (for the shared hover card). First provider to supply a key wins;
+    a failing provider is skipped so a feature can never break the card."""
+    out: dict = {}
+    for fn in _person_summary_providers:
+        try:
+            data = fn(user, person) or {}
+        except Exception:
+            continue
+        for key, value in data.items():
+            if key not in out and value:
+                out[key] = value
+    return out
+
+
 def _reset_for_tests() -> None:
     _role_resolvers.clear()
     _merge_participants.clear()
+    _person_summary_providers.clear()

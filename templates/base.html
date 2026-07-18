@@ -41,6 +41,9 @@
     <link rel="stylesheet" href="{% static 'css/assistant-panel.css' %}?v=20260717a">
     <!-- Rich Text render styles (.wlj-rich); editor JS bundle is loaded per-page -->
     <link rel="stylesheet" href="{% static 'css/wlj-rich-text.css' %}?v=20260718d">
+    <!-- Shared Person hover card + click-to-open, for any recognized-person chip. -->
+    <link rel="stylesheet" href="{% static 'css/wlj-person.css' %}?v=20260718a">
+    <script src="{% static 'js/wlj-person-hover.js' %}?v=20260718a" defer></script>
     {% block extra_css %}{% endblock %}
 
     <title>{% block title %}Whole Life Journey{% endblock %}</title>

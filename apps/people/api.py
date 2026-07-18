@@ -8,11 +8,14 @@ suggestions, people pickers, and mention resolution across every consumer.
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.urls import reverse
 
 from .models import Person
 from .normalization import normalize_name
 from .services import resolution
+from .services import hooks
 from .services.mentions import person_surfaces
+from .services.phrases import derived_display_names
 
 
 def _person_json(p):
@@ -50,6 +53,30 @@ def lookup(request):
     else:
         people = list(people[:20])
     return JsonResponse({"results": [_person_json(p) for p in people[:20]]})
+
+
+@login_required
+def card(request, pk):
+    """Lightweight data for the shared Person hover card — canonical identity + the
+    words WLJ recognizes for this person + where to open them. User-scoped; cheap
+    (canonical Person data + one hook round for feature facts). Used by the shared
+    `wlj-person-hover` component on ANY page that renders a recognized person chip."""
+    person = Person.objects.filter(user=request.user, pk=pk).first()
+    if person is None:
+        return JsonResponse({"error": "not_found"}, status=404)
+    summary = hooks.person_summary(request.user, person)   # feature facts (relationship, url)
+    return JsonResponse({
+        "id": person.pk,
+        "name": person.display_name,
+        # Human-readable recognition surfaces: auto-recognized names + user nicknames.
+        "auto_names": derived_display_names(person),
+        "nicknames": [rp.phrase for rp in person.recognition_phrases.all().order_by("phrase")],
+        "recognition": person_surfaces(person),
+        "relationship": summary.get("relationship", ""),
+        # Prefer the rich feature page (relationships) when available; else the canonical
+        # Person page. Both host the same Recognition management.
+        "url": summary.get("url") or reverse("people:person_detail", args=[person.pk]),
+    })
 
 
 @login_required

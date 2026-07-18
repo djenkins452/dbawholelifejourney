@@ -13,6 +13,7 @@ app_name = "people"
 urlpatterns = [
     path("api/lookup/", api.lookup, name="lookup"),
     path("api/resolve/", api.resolve, name="resolve"),
+    path("api/<int:pk>/card/", api.card, name="card"),  # shared hover-card data
     # Canonical Person page (recognition-phrase management home).
     path("<int:pk>/", views.PersonDetailView.as_view(), name="person_detail"),
     # Canonical recognition-phrase management (host-agnostic; any page passes ?next).

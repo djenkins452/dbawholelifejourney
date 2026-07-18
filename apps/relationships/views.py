@@ -102,11 +102,11 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
         # than only querying it (a contact created after the 0c backfill has no link yet,
         # and phrases only work for a People member). Journal, the resolver, the lookup API
         # and passive recognition all consume these automatically.
-        from apps.people.services.phrases import derived_phrases
+        from apps.people.services.phrases import derived_display_names
         canonical = self._ensure_canonical_person(person)
         ctx['canonical_person'] = canonical
         if canonical is not None:
-            ctx['derived_phrases'] = derived_phrases(canonical)
+            ctx['auto_names'] = derived_display_names(canonical)
             ctx['custom_phrases'] = list(
                 canonical.recognition_phrases.all().order_by('phrase'))
         # Recent interactions

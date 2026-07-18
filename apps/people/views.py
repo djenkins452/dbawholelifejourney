@@ -42,7 +42,7 @@ class PersonDetailView(LoginRequiredMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         person = self.object
         ctx["person_label"] = person.display_name
-        ctx["derived_phrases"] = phrase_service.derived_phrases(person)
+        ctx["auto_names"] = phrase_service.derived_display_names(person)
         ctx["custom_phrases"] = list(
             person.recognition_phrases.all().order_by("phrase"))
         return ctx

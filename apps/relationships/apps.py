@@ -19,3 +19,8 @@ class RelationshipsConfig(AppConfig):
 
     def ready(self):
         import apps.relationships.signals  # noqa: F401
+        # Contribute relationship label + rich person-page URL to the shared canonical
+        # Person hover card, without Core ever importing this feature app.
+        from apps.people.services.hooks import register_person_summary_provider
+        from .person_summary import relationship_person_summary
+        register_person_summary_provider(relationship_person_summary)

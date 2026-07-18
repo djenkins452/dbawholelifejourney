@@ -17,9 +17,11 @@ from .provenance import record_person_event
 
 
 def derived_phrases(person) -> list[str]:
-    """Name-derived phrases for a person (normalized, deduped). Relationship-role
-    derived phrases ("wife") are resolved dynamically via registered feature
-    resolvers — see resolution.resolve — and are not enumerated here."""
+    """Name-derived phrases for a person (normalized, deduped) — the internal MATCHING
+    surfaces, including lowercase and compact ("heatherjenkins") forms. For display, use
+    ``derived_display_names`` instead. Relationship-role derived phrases ("wife") are
+    resolved dynamically via registered feature resolvers — see resolution.resolve — and
+    are not enumerated here."""
     candidates = {
         normalize_name(person.display_name),
         normalize_name(person.full_name),
@@ -28,6 +30,18 @@ def derived_phrases(person) -> list[str]:
         compact_name(person.full_name),
     }
     return sorted(c for c in candidates if c)
+
+
+def derived_display_names(person) -> list[str]:
+    """Human-readable auto-recognized names (ORIGINAL case), deduped: first name and
+    full/display name. Excludes the lowercase-normalized and compact matching forms
+    ("heatherjenkins") — those are internal artifacts, not shown to users."""
+    out: list[str] = []
+    for s in (person.first_name, person.last_name and person.full_name, person.display_name):
+        s = (s or "").strip()
+        if s and s not in out:
+            out.append(s)
+    return out
 
 
 def _store(person, phrase, source, *, learned_from="", actor="user"):

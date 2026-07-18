@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(health): dev comment rendered as visible text atop Body Intelligence — eliminate the multi-line `{# #}` class
+
+**Symptom (production):** The Body Intelligence page rendered a raw developer note as visible body text between the page subtitle and the assessment card:
+`{# —— YOUR BODY ASSESSMENT — the ONE canonical executive interpretation. … —— #}`.
+
+**Runtime trace (Browser → HTML → Template):** Traced from the rendered HTML back to `templates/health/body_intelligence.html:49`. **Root cause is NOT "a stray string" — it's a Django template semantics bug.** Django's inline comment `{# … #}` is **single-line only**: the tokenizer regex `({%.*?%}|{{.*?}}|{#.*?#})` is compiled **without** `re.DOTALL`, so a `{# … #}` that contains a newline never matches as a comment token and falls through as literal `TEXT` — Django emits it verbatim. The comment on lines 49–50 spanned two lines, so it rendered. (The block comment two lines above, `{% comment %}…{% endcomment %}`, was already correct — `{% comment %}` is the only multi-line-safe form.)
+
+**Fix (eliminate the class, not the symptom):** Converted the two-line `{# #}` to `{% comment %}…{% endcomment %}`. Then swept **all** templates for the same defect class and found one more identical instance — `templates/admin_console/_ac_restart.html:1` (a 3-line `{# P33: … #}` header rendering dev notes atop the admin restart control) — and fixed it the same way. Single-line `{# #}` comments across the codebase are unaffected and correct.
+
+**Verified:** Rendered the real fragment through Django's engine — the broken form emits the literal `{# … #}` text; the fixed form emits nothing. The page now flows directly from "What is happening to your body — from your own measurements." → "Your Body Assessment" with no intervening text. Also scanned the BI templates + `views_body_intelligence.py` + `services/body_intelligence.py` + `services/measurement_interpretation.py` for TODO/FIXME/placeholder/debug artifacts — none found. `manage.py check` clean.
+
+- **Files:** `templates/health/body_intelligence.html`, `templates/admin_console/_ac_restart.html`. No schema/migration/behavior change — comment-rendering only.
+
 ## 2026-07-18 — refine(journal): mentions read like ordinary prose — no space before punctuation, preserve the author's wording
 
 **Two presentation-only fixes from production validation (no identity/recognition/provenance change).**

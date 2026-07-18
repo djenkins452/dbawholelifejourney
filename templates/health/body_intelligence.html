@@ -46,8 +46,8 @@
     </div>
     {% endif %}
 
-    {# ── YOUR BODY ASSESSMENT — the ONE canonical executive interpretation. Facts establish
-       truth; this explains it; the cards below are its supporting evidence. ── #}
+    {% comment %}YOUR BODY ASSESSMENT — the ONE canonical executive interpretation. Facts establish
+       truth; this explains it; the cards below are its supporting evidence.{% endcomment %}
     {% with a=bi.body_assessment %}
     {% if a and a.grade %}
     <section class="bi-assessment bi-assessment-{{ a.status }}" data-testid="bi-assessment">

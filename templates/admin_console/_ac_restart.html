@@ -1,6 +1,6 @@
-{# P33: restart an interrupted/failed run as a FRESH run at the CURRENT commit.
+{% comment %}P33: restart an interrupted/failed run as a FRESH run at the CURRENT commit.
    We do NOT resume — an interrupted run was almost certainly stopped by a deploy,
-   so mixing old+new code would be untrustworthy. A clean re-run is the safe path. #}
+   so mixing old+new code would be untrustworthy. A clean re-run is the safe path.{% endcomment %}
 <form method="post" action="{% url 'admin_console:beth_acceptance_start' %}" style="margin-top:8px;">
   {% csrf_token %}
   <input type="hidden" name="suite" value="{{ run.suite_name }}">

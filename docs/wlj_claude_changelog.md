@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(meals): Meal Intelligence Canonical Domain Architecture v1.0 (GOVERNING)
+
+**Established the governing architecture for the Meal Intelligence domain.** Concludes a four-phase design exercise (inventory → canonical architecture → independent review → final decisions) with a clean, from-scratch v1.0 governing document. No production code, migrations, or application behavior changed — documentation only.
+
+- **New governing doc:** `docs/WLJ_MEAL_INTELLIGENCE_ARCHITECTURE.md` (v1.0). Product philosophy, eight architectural principles, six-layer canonical domain model, per-entity ownership + scope table, the household/person boundary, truth ownership, the full food lifecycle, relationships, protected production assets, boundaries, future extension points, and binding constraints.
+- **Accepted decisions encoded:** (1) **Meal Intelligence canonically owns the operational recipe** (ingredients, instructions, servings, nutrition, prep, substitutions, cost, planning) — *"Meals owns what a recipe is and how it functions; Legacy owns what it means."* (2) **Supply is household-scoped; consumption + health are person-scoped.** (3) **Recipes are household-*accessible* knowledge assets, not household-scoped records** — supports shared / public / imported / future-marketplace libraries with person-scoped relationships (favorites, ratings, notes) layered over them. (4) **Legacy projects meaning, never owns operational truth.** (5) **Safety composes as a union across the household; targets / portions / outcomes stay per-person.**
+- **New governing principle:** *Capture Once. Reuse Everywhere.* — one user action deterministically propagates to every dependent truth (receipt → inventory / pantry / price / budget / history; preparation → inventory / leftovers / meal-history; consumption → food-entry / nutrition / outcomes / analytics).
+- **Two authoritative ledgers** (inventory `InventoryTransaction`→`PantryItem`; consumption `FoodEntry`→daily nutrition); all other state is a reproducible fold; recipes are structured at write time (removes the never-written-`RecipeIngredient` class found in the inventory phase).
+- **Discoverability wired:** CLAUDE.md Reference-Docs table + startup package `99_REFERENCE_INDEX.md` (§B) as a CURRENT governing doc.
+- **Two open product decisions retained** (vision, not engineering): restaurant-meal depth; preparation as an explicit vs inferred step. **Constitution and Chief of Staff architecture untouched. Design only — nothing implemented.**
+
+**Files:** `docs/WLJ_MEAL_INTELLIGENCE_ARCHITECTURE.md` (new), `CLAUDE.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — refine(journal): normalize recognized-name capitalization to the canonical Person (wording preserved)
 
 **Presentation-only fix from production validation (no identity/recognition/provenance change).** Passive recognition preserved the author's wording verbatim, including non-canonical capitalization — "dinner with heather" stayed "heather". It now normalizes a chip's **case** to how the Person is actually recorded, while keeping exactly which words the author used.

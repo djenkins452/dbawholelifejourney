@@ -39,6 +39,7 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_VISUAL_TRUTH_CONTRACT.md` | Governing | Engineer | CURRENT | Only real completion may look complete (Article V.1). |
 | `WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` | Governing | Engineer | CURRENT | Reflection observes, never overrides. |
 | `LAYER1_DOMAIN_FRAMEWORK.md` | Governing | Engineer | CURRENT | How a new canonical truth domain is built (Article III.1). |
+| `WLJ_MEAL_INTELLIGENCE_ARCHITECTURE.md` | Governing | Engineer | CURRENT | **Meal Intelligence domain v1.0** — canonical food-lifecycle architecture. Meals owns operational recipe truth (Legacy projects meaning); supply is household-scoped, consumption/health person-scoped; two authoritative ledgers (inventory, consumption); *Capture Once, Reuse Everywhere*. Read before ANY meal/nutrition/pantry/recipe/shopping work. |
 | `WLJ_MODEL_INTERFACE_DESIGN.md` | Reference | Engineer | CURRENT | The Model Interface seam + executive context envelope. |
 | `WLJ_REQUEST_PATH_SAFETY.md` | Governing | Engineer | CURRENT | Never compute/LLM on the request path. |
 | `WLJ_RUNTIME_TRACE_DEBUGGING.md` | Governing | Engineer | CURRENT | Prove the runtime path before editing. |

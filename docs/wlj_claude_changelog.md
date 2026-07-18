@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(architecture): Truth Surfaces — validated as-built catalog (production-certification insight, read-only)
+
+**Preserve an architectural discovery, no code.** Production certification proved the CoS receives deterministic truth from MULTIPLE surfaces, not primarily `DomainTruth`. New reference doc `docs/WLJ_TRUTH_SURFACES.md` defines a **Truth Surface** ("a deterministic source of truth that can legitimately supply facts to the CoS") and catalogs the 7 validated surfaces — DomainTruth, Domain Entity Surfaces, Standing Context, Personal Truth, Current Context, Executive Briefings, Decision Authority — each with purpose/ownership/use/strengths/limitations/when-preferred and the truth type it supplies (summary/detailed/execution/contextual/historical), with `file:line` ownership. States they are COMPLEMENTARY not competing (precedence: Current Context → conversation → Standing/Personal → tools → general), and elevates the key principle: **"a missing provider changes WHICH truth surface supplied the answer; it does not necessarily determine whether the answer is possible"** (proven: Goals←Standing Context, Fitness←Domain Entity). Cross-links the separate design draft `DRAFT_THREE_TRUTH_SURFACES_AND_PTP.md` (PTP proposal, not canonical) for reconciliation — not edited (separate effort). No runtime/routing/certification change.
+
 ## 2026-07-18 — docs(cos): first PRODUCTION Customer Truth Certification scorecard (Danny's real data) + corrected the DomainTruth-only assumption
 
 **Production evidence supersedes the local fixture run.** Operator ran the CoS against real WLJ data across 11 domains; scorecard in `docs/WLJ_CUSTOMER_TRUTH_CERT_PROD1.md`. Analysis + prioritization ONLY — no code changed.

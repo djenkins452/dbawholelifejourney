@@ -389,3 +389,82 @@ def process_receipt_image_task(self, receipt_id):
             ]
         )
         return {"status": "error", "receipt_id": receipt_id, "reason": str(exc)}
+
+
+# =============================================================================
+# Foundation 2 — Recipe enrichment at the write boundary
+# =============================================================================
+@shared_task(
+    bind=True,
+    max_retries=1,
+    soft_time_limit=60,
+    time_limit=90,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def enrich_recipe_ingredients(self, recipe_id):
+    """Populate a recipe's structured RecipeIngredient rows from its free-text
+    ``ingredients`` block — the write-boundary enrichment (architecture P3:
+    "enrich at the write boundary, never lazily on read").
+
+    Deterministic + idempotent: rebuilds the recipe's structured ingredients from
+    the canonical parser + ingredient matcher, so recipe nutrition / inventory-gap /
+    scoring (which read RecipeIngredient) operate on real data. Fire-and-forget from
+    the Recipe post_save signal via safe_enqueue (request-path-safe).
+    """
+    import re
+
+    from apps.meals.models import Recipe, RecipeIngredient
+    from apps.meals.services.ingredient_matching import get_or_create_ingredient
+    from apps.meals.services.ingredient_parser import parse_ingredient_line
+
+    recipe = Recipe.objects.filter(pk=recipe_id).first()
+    if recipe is None:
+        return {"status": "skipped", "reason": "recipe_not_found"}
+
+    raw = recipe.ingredients or ""
+    if not raw.strip():
+        # No free-text ingredients → nothing to enrich (and don't clobber any
+        # structured rows written by another path).
+        return {"status": "skipped", "reason": "no_ingredients_text", "recipe_id": recipe_id}
+
+    # Keep the original line alongside the parsed structure (for provenance).
+    parsed_lines = []
+    for original in raw.splitlines():
+        line = original.strip()
+        if not line or line.endswith(":"):  # skip blanks + section headers
+            continue
+        cleaned = re.sub(r"^[-•*]\s*", "", line)  # strip bullets
+        if cleaned:
+            parsed_lines.append((original.strip(), parse_ingredient_line(cleaned)))
+
+    created = 0
+    with transaction.atomic():
+        RecipeIngredient.objects.filter(recipe=recipe).delete()
+        for idx, (original_text, p) in enumerate(parsed_lines):
+            name = (p.name or "").strip()
+            if not name:
+                continue
+            ingredient = get_or_create_ingredient(name)
+            RecipeIngredient.objects.create(
+                recipe=recipe,
+                ingredient=ingredient,
+                quantity=p.quantity,  # may be None ("to taste")
+                unit=(p.unit or "piece")[:20],
+                preparation_notes=(p.preparation or "")[:200],
+                is_optional=bool(p.is_optional),
+                order_index=idx,
+                original_text=original_text[:300],
+                parse_confidence=p.confidence,
+            )
+            created += 1
+
+    # Recipe-derived nutrition is now stale — drop its cache so the next read recomputes.
+    try:
+        from apps.meals.services.recipe_nutrition import invalidate_recipe_nutrition_cache
+        invalidate_recipe_nutrition_cache(recipe_id)
+    except Exception:  # pragma: no cover - cache invalidation is best-effort
+        logger.warning("enrich_recipe_ingredients: nutrition cache invalidation failed",
+                       exc_info=True)
+
+    return {"status": "ok", "recipe_id": recipe_id, "ingredients": created}

@@ -140,6 +140,8 @@ def get_or_create_ingredient(name: str, category: str = "other") -> "Ingredient"
     Used when the matching service can't find a match and we need
     to create a new canonical ingredient.
     """
+    from django.db import IntegrityError, transaction
+
     from apps.meals.models import Ingredient
 
     name_lower = name.lower().strip()
@@ -149,10 +151,18 @@ def get_or_create_ingredient(name: str, category: str = "other") -> "Ingredient"
     if ingredient:
         return ingredient
 
-    # Create new
-    ingredient = Ingredient.objects.create(
-        canonical_name=name_lower,
-        category=category,
-    )
-    logger.info(f"Created new ingredient: {name_lower} (category: {category})")
-    return ingredient
+    # Create new — guard the unique(canonical_name) constraint so concurrent recipe
+    # enrichment racing on the same ingredient re-fetches instead of crashing.
+    try:
+        with transaction.atomic():
+            ingredient = Ingredient.objects.create(
+                canonical_name=name_lower,
+                category=category,
+            )
+        logger.info(f"Created new ingredient: {name_lower} (category: {category})")
+        return ingredient
+    except IntegrityError:
+        existing = Ingredient.objects.filter(canonical_name__iexact=name_lower).first()
+        if existing:
+            return existing
+        raise

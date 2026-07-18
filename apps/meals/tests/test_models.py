@@ -122,7 +122,7 @@ class TestRecipeIngredientModel(TestUserMixin, TestCase):
         self.recipe = Recipe.objects.create(
             user=self.user,
             title="Test Recipe",
-            ingredients="2 cups flour\n1 tsp salt",
+            ingredients="",
             instructions="Mix and bake.",
         )
         self.flour = Ingredient.objects.create(

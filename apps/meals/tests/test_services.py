@@ -68,7 +68,7 @@ class ServicesTestDataMixin(TestUserMixin):
         return Recipe.objects.create(
             user=user,
             title=title,
-            ingredients="placeholder",
+            ingredients="",
             instructions="Cook it.",
             servings=servings,
             prep_time_minutes=prep_time,

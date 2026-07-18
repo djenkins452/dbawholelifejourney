@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(meals): Foundation 2 (Complete the Food Lifecycle) — Recipe enrichment at the write boundary [keystone gap CLOSED]
+
+**Closes the keystone gap the entire Meal Intelligence exercise identified:** `RecipeIngredient` was never written in production, so recipe nutrition / inventory-gap / scoring ran on empty input. Now, whenever a Recipe is saved with free-text ingredients, WLJ deterministically (re)builds its structured `RecipeIngredient` rows — architecture Principle P3 ("enrich at the write boundary, never lazily on read"). This is the prerequisite for the food-lifecycle spine (a cooked/eaten meal needs real ingredient structure to deduct pantry and carry macros).
+
+- **Enrichment task** (`apps/meals/tasks.py :: enrich_recipe_ingredients`): parses `recipe.ingredients` via the canonical `ingredient_parser` + matches each line to a canonical `Ingredient` via `ingredient_matching`, writing `RecipeIngredient` (quantity/unit/prep/order/original-text/parse-confidence). Idempotent rebuild.
+- **Write-boundary signal** (`apps/meals/signals.py`, wired in `apps/meals/apps.py::ready`): `post_save` on `meals.Recipe` → `safe_enqueue` (request-path-safe — enqueues only, never computes inline). Guarded to skip when there's no ingredients text (so paths that manage structured rows directly are untouched).
+- **Hardened `get_or_create_ingredient`** against the `unique(canonical_name)` constraint (concurrent recipe enrichment racing on the same ingredient now re-fetches instead of crashing).
+- **Keystone proven:** new `test_recipe_enrichment.py` (6 tests) incl. `test_enrichment_unblocks_real_recipe_nutrition` — a recipe whose ingredient matches a canonical `Ingredient` with a `FoodItem` now yields **real per-serving nutrition** (previously always None).
+- **Validation:** `makemigrations --check` no changes; request-path-safety contract passes; **586 tests** green (`apps.meals` + `apps.life` recipe + `apps.scan`) + Foundation-1 certification still 20/20. Updated 5 service-isolation test fixtures to empty recipe text (they manage `RecipeIngredient` directly, so auto-enrichment must not interfere).
+
+**Foundation 2 status:** enrichment prerequisite SHIPPED. Next increments: the execution spine — `PreparationEvent` (cook → deduct pantry + produce leftovers) and the consumption bridge (eat → `FoodEntry` with real recipe macros).
+
+**Files:** `apps/meals/tasks.py`, `apps/meals/signals.py` (new), `apps/meals/apps.py`, `apps/meals/services/ingredient_matching.py`, `apps/meals/tests/test_recipe_enrichment.py` (new), 5 meals test fixtures, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — test(meals): Foundation 1 CERTIFICATION — behavioral proof of canonical truth (20/20)
 
 **Foundation 1 (Canonical Truth) is CERTIFIED and COMPLETE.** New behavioral certification suite `apps/meals/tests/test_foundation1_certification.py` exercises every canonical truth surface through the REAL request/service paths (not code inspection) against deterministic fixtures — 20/20 green.

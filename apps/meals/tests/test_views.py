@@ -349,7 +349,9 @@ class TestRecipeIntelligenceDetailView(TestUserMixin, TestCase):
         from apps.meals.models import Recipe
         self.recipe = Recipe.objects.create(
             user=self.user, title="Chicken Stir Fry",
-            ingredients="2 cups chicken breast\n1 cup broccoli",
+            # Empty free-text: this class manages structured RecipeIngredient rows
+            # directly, so write-boundary enrichment must not also create ingredients.
+            ingredients="",
             instructions="Stir fry everything.",
         )
 

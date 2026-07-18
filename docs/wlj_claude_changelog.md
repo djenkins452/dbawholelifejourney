@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — test(meals): Foundation 1 CERTIFICATION — behavioral proof of canonical truth (20/20)
+
+**Foundation 1 (Canonical Truth) is CERTIFIED and COMPLETE.** New behavioral certification suite `apps/meals/tests/test_foundation1_certification.py` exercises every canonical truth surface through the REAL request/service paths (not code inspection) against deterministic fixtures — 20/20 green.
+
+- **Recipe (meals-owned) — 12 surfaces certified:** model ownership (`app_label=meals`, `db_table=life_recipe`); create + edit via the real `life:recipe_*` views persist a `meals.Recipe`; browse/detail render; search; favorite toggle; scan-confirm creates a `meals.Recipe`; meal-planning reference (`MealPlanEntry`→recipe + reverse); pantry gap + nutrition + scoring references over `RecipeIngredient`; bulk-import cross-app FK (`life.RecipeBulkImportPhoto`→`meals.Recipe`); Legacy unaffected.
+- **Nutrition (single `NutritionGoals` store) — 5 surfaces:** no duplicate store on `UserPreferences`; goals update via `health:nutrition_goals` writes the one store; dashboard progress (`build_nutrition_progress`) from that store; `health.nutrition` Current Context provider matches totals; progress calculations + nutrition-home render.
+- **Existing workflows — pantry (`finalize_pantry_item` + view), receipt parse, meal planning, meals dashboard** all render/function.
+- **Defects found: 0.** (One initial error was a test-fixture omission — a `UserOwnedModel` needing `user` — fixed in the harness; no production defect.)
+
+**Foundation 1 complete:** execution-truth single-source · nutrition summary/authority · nutrition target-store consolidation (1A) · Recipe ownership (1B). Every food truth now has one canonical owner, one store/writer, no duplicate producers, no cross-app ownership seams — behaviorally proven. Next: Foundation 2 — Complete the Food Lifecycle.
+
+**Files:** `apps/meals/tests/test_foundation1_certification.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Truth Completion Slice 3 — Body measurements trend (waist / body composition)
 
 **The Chief of Staff can now deterministically answer body-measurement TREND questions.** Closes the measured Body-Measurements gap (Customer Truth PROD run 1, 2026-07-18): `BodyCompositionEntry` data existed with NO point-in-time/series accessor. Completes the top-priority health block (nutrition → glucose/BP → body). Existing architecture only; no model change, no migration.

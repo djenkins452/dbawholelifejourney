@@ -104,3 +104,23 @@ class HealthHistory:
     @classmethod
     def bp_diastolic(cls, user, period="last_month", *, today=None, start=None, end=None):
         return cls._bp_series(user, "diastolic", "bp_diastolic", period, today, start, end)
+
+    @classmethod
+    def body_measurement(cls, user, metric, period="last_month", *,
+                         today=None, start=None, end=None):
+        """Per-day AVERAGE of a single body-composition metric (waist, body_fat_pct,
+        lean_mass, …) over `BodyCompositionEntry.measurement_date` — answers "how has
+        my waist changed over time". `BodyMeasurementSession` data existed but had no
+        point-in-time/series accessor (measured gap, 2026-07-18); this is it. Unit
+        varies per metric, so the point value is the number and unit stays None."""
+        from apps.health.models import BodyCompositionEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (BodyCompositionEntry.objects.filter(
+                    user=user, metric_name=metric,
+                    measurement_date__range=(p.start, p.end))
+                .values("measurement_date").annotate(v=Avg("value"))
+                .order_by("measurement_date"))
+        return series_from_rows(
+            "health", metric, p,
+            [{"date": r["measurement_date"], "value": round(float(r["v"]), 1)}
+             for r in rows])

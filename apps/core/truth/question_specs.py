@@ -175,6 +175,27 @@ SLICE_SPECS = [
                  {"metric": "bp_systolic", "period": "custom",
                   "start": "@range_start", "end": "@range_end"},
                  {"kind": "series_latest_lt_prev"}, "vitals", provider="health"),
+
+    # ---- BODY MEASUREMENTS — waist / body composition (health) ---------------------
+    # Closes the measured Body-Measurements gap (2026-07-18): BodyCompositionEntry data
+    # existed with NO point-in-time/series accessor. ("Latest measurements" already
+    # reach the model via get_domain_state('health') SAE; trend is the true gap.)
+    QuestionSpec("health.waist_timeline", "health", TIMELINE,
+                 "How has my waist changed over time?", "history",
+                 {"metric": "waist", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 3}, "body", provider="health"),
+    QuestionSpec("health.waist_avg", "health", TIMELINE,
+                 "What is my average waist measurement this month?", "history",
+                 {"metric": "waist", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_average_equals", "value": "@waist_avg"},
+                 "body", provider="health"),
+    QuestionSpec("health.waist_change", "health", COMPARISON,
+                 "Is my waist smaller than it was before?", "history",
+                 {"metric": "waist", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_latest_lt_prev"}, "body", provider="health"),
 ]
 
 

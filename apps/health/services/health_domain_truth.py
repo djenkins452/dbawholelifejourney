@@ -7,17 +7,23 @@ Current Truth (`CurrentHealth`), Point-in-Time History (`HealthHistory`,
 every consumer (Beth, dashboards, reports, engines) now has one entry point.
 """
 from apps.core.truth.domain import DomainTruth, register_domain_truth
+from apps.health.models import BODY_COMPOSITION_METRIC_CHOICES
 from apps.health.services.current_health import CurrentHealth
 from apps.health.services.health_history import HealthHistory
 from apps.health.services.workout_history import WorkoutHistory
+
+# Body-composition metrics are data-driven from the model's own choice list (single
+# source of truth — the trendable set can never drift from what the model can store).
+# Each is a per-day series over BodyCompositionEntry (see HealthHistory.body_measurement).
+_BODY_METRICS = tuple(k for k, _ in BODY_COMPOSITION_METRIC_CHOICES)
 
 
 @register_domain_truth
 class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
-    history_metrics = ("steps", "sleep", "weight", "workouts",
-                       "glucose", "bp_systolic", "bp_diastolic")
+    history_metrics = (("steps", "sleep", "weight", "workouts",
+                        "glucose", "bp_systolic", "bp_diastolic") + _BODY_METRICS)
     entity_types = ("workout",)
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
@@ -45,6 +51,8 @@ class HealthDomainTruth(DomainTruth):
         return CurrentHealth.get(self.user, metric)
 
     def history(self, metric, period="last_7_days", **kwargs):
+        if metric in _BODY_METRICS:
+            return HealthHistory.body_measurement(self.user, metric, period, **kwargs)
         fn = self._HISTORY.get(metric)
         if fn is None:
             raise KeyError(f"health history unsupported: {metric!r} "

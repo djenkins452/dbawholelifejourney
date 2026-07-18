@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Completion Slice 3 — Body measurements trend (waist / body composition)
+
+**The Chief of Staff can now deterministically answer body-measurement TREND questions.** Closes the measured Body-Measurements gap (Customer Truth PROD run 1, 2026-07-18): `BodyCompositionEntry` data existed with NO point-in-time/series accessor. Completes the top-priority health block (nutrition → glucose/BP → body). Existing architecture only; no model change, no migration.
+
+**Customer questions now certified (Owner-1 deterministic, no OpenAI):**
+- "How has my waist changed over time?" — per-day waist series + latest-vs-previous comparison.
+- "What is my average waist this month?" — windowed average. (All ~20 body-composition metrics — body_fat_pct, lean_mass, hips, arms, thighs, … — are trendable the same way.)
+
+*("What are my latest body measurements?" already reaches the model via `get_domain_state('health')` SAE — `waist_current`/`body_fat_current`/etc. The genuine gap was the TREND, now closed.)*
+
+- **History provider (`apps/health/services/health_history.py`):** new `HealthHistory.body_measurement(user, metric, period)` — one grouped query over `BodyCompositionEntry.measurement_date` for the given `metric_name` → per-day average `HistorySeries`. Unit varies per metric, so the point value is the number.
+- **Registration (`apps/health/services/health_domain_truth.py`):** `_BODY_METRICS` is derived from the model's own `BODY_COMPOSITION_METRIC_CHOICES` (single source — the trendable set can never drift from what's storable); all are added to `history_metrics`, and `history()` routes any body metric to `body_measurement()`. Surfaced automatically by the generic `get_history` tool.
+- **Certification (`apps/core/truth/question_specs.py`, `certification_fixtures.py`):** new `build_body_measurements_fixture` (waist + body-fat trending down across a month) + 3 `QuestionSpec`s (waist timeline, average, latest-vs-previous comparison).
+
+**Validation:** `manage.py check` clean; `makemigrations --check` no changes; **26 tests green** (`test_truth_retrieval_slice` incl. the waist specs, `test_domain_history`, `test_domain_truth`). Owner-2 (live Customer Truth) is Danny's prod re-run.
+
+**Files:** `apps/health/services/health_history.py`, `apps/health/services/health_domain_truth.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Truth Completion Slice 2 — Health vitals trends (glucose + blood pressure history)
 
 **The Chief of Staff can now deterministically answer glucose and blood-pressure TREND questions.** Closes the measured glucose/BP trend gap (Customer Truth PROD run 1, 2026-07-18: current facts passed but `history_metrics` excluded glucose & BP — BP had NO query authority at all). Existing architecture only — new `history()` metrics on the already-certified `HealthDomainTruth`. No model change, no migration.

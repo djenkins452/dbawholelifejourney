@@ -136,10 +136,36 @@ def build_vitals_fixture(email="cert_vitals@example.com"):
     }
 
 
+def build_body_measurements_fixture(email="cert_body@example.com"):
+    """Waist + body-fat measurements trending DOWN across the last month, one per
+    check-in date, so the series, its average, and latest-vs-previous are exact.
+    Window [today-30, today-2] holds three waist readings: 36 → 35 → 34."""
+    from apps.health.models import BodyCompositionEntry
+    u = _mk_user(email)
+    today = get_user_today(u)
+    # (day-offset, waist in, body_fat_pct)
+    rows = [(30, "36.0", "26.0"), (14, "35.0", "24.0"), (2, "34.0", "22.0")]
+    for off, waist, bf in rows:
+        d = today - timedelta(days=off)
+        BodyCompositionEntry.objects.create(
+            user=u, metric_name="waist", value=Decimal(waist), unit="in",
+            measurement_date=d)
+        BodyCompositionEntry.objects.create(
+            user=u, metric_name="body_fat_pct", value=Decimal(bf), unit="%",
+            measurement_date=d)
+    # waist avg (36+35+34)/3 = 35; latest (today-2) 34 < previous 35.
+    return u, {
+        "range_start": today - timedelta(days=30),
+        "range_end": today - timedelta(days=2),
+        "waist_avg": 35.0,
+    }
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,
+    "body": build_body_measurements_fixture,
 }

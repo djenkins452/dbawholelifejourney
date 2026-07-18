@@ -103,10 +103,12 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
         # and phrases only work for a People member). Journal, the resolver, the lookup API
         # and passive recognition all consume these automatically.
         from apps.people.services.phrases import derived_display_names
+        from apps.people.services import hooks
         canonical = self._ensure_canonical_person(person)
         ctx['canonical_person'] = canonical
         if canonical is not None:
             ctx['auto_names'] = derived_display_names(canonical)
+            ctx['role_phrases'] = hooks.person_roles(self.request.user, canonical)
             ctx['custom_phrases'] = list(
                 canonical.recognition_phrases.all().order_by('phrase'))
         # Recent interactions
@@ -121,35 +123,10 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
 
     def _ensure_canonical_person(self, person):
         """Bridge this legacy contact to its canonical people.Person so recognition
-        management is available on the production Person page.
-
-        Uses the canonical, idempotent reconciliation path: after the first view the
-        PersonSourceLink exists and this short-circuits to a single indexed lookup (no
-        write). Grants People membership so the phrases actually take effect (passive
-        recognition and the @mention picker are members-only). Defensive — a bridge
-        failure must never break the person page."""
-        try:
-            from apps.people.models import PersonMembership, PersonOrigin
-            from apps.people.services.reconciliation import (
-                MATCH_NAME_IDENTITY, ingest_source_person,
-            )
-            canonical, _outcome = ingest_source_person(
-                self.request.user,
-                source_domain="relationships", source_pk=person.pk,
-                display_name=person.display_name or "",
-                first_name=person.first_name or "", last_name=person.last_name or "",
-                email=getattr(person, "email", "") or "",
-                phone=getattr(person, "phone", "") or "",
-                origin=PersonOrigin.CONTACT_IMPORT,
-                membership_via=PersonMembership.Grant.CONTACT_IMPORT,
-                match_mode=MATCH_NAME_IDENTITY,
-            )
-            return canonical
-        except Exception:
-            logger.warning(
-                "canonical bridge for relationships person %s failed",
-                getattr(person, "pk", "?"), exc_info=True)
-            return None
+        management is available on the production Person page. Shared, idempotent bridge
+        (also used by relationship-role resolution)."""
+        from .canonical_bridge import ensure_canonical
+        return ensure_canonical(self.request.user, person)
 
 
 class PersonUpdateView(LoginRequiredMixin, HelpContextMixin, UpdateView):

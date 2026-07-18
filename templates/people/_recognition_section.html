@@ -21,13 +21,18 @@ RecognitionPhrase is the ONE authority; the copy is presentation only — the us
 
     <div class="rec-group">
         <div class="rec-group-label">Automatically recognized</div>
-        {% if auto_names %}
+        {% if auto_names or role_phrases %}
             <div class="rec-chips">
                 {% for name in auto_names %}
                     <span class="rec-chip rec-chip-derived">{{ name }}</span>
                 {% endfor %}
+                {% for phrase in role_phrases %}
+                    <span class="rec-chip rec-chip-derived">{{ phrase }}</span>
+                {% endfor %}
             </div>
-            <p class="text-muted text-xs mt-1">Generated from {{ person_label }}’s name — always on.</p>
+            <p class="text-muted text-xs mt-1">
+                Generated from {{ person_label }}’s name{% if role_phrases %} and your relationship{% endif %} — always on, no setup needed.
+            </p>
         {% else %}
             <p class="text-muted text-sm">No name on file yet.</p>
         {% endif %}

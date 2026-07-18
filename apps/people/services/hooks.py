@@ -40,6 +40,23 @@ _merge_participants: list[Callable] = []
 # lookups, never heavy analytics — because they run on a hover-triggered request.
 _person_summary_providers: list[Callable] = []
 
+# ── Relationship-derived recognition ────────────────────────────────────────
+# Deterministic first-person role phrases ("my wife") projected from a feature's
+# relationship graph. NOT stored RecognitionPhrases — computed, read-only.
+#   person_roles:     fn(user, person) -> [str]   (the phrases that resolve to this person)
+#   role phrases:     fn(user)         -> [str]   (all currently-resolving role phrases)
+_person_roles_providers: list[Callable] = []
+_role_phrases_providers: list[Callable] = []
+
+
+def _dedup(seq):
+    seen, out = set(), []
+    for item in seq:
+        if item and item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
 
 def register_role_resolver(fn: Callable) -> Callable:
     if fn not in _role_resolvers:
@@ -101,7 +118,45 @@ def person_summary(user, person) -> dict:
     return out
 
 
+def register_person_roles_provider(fn: Callable) -> Callable:
+    if fn not in _person_roles_providers:
+        _person_roles_providers.append(fn)
+    return fn
+
+
+def register_role_phrases_provider(fn: Callable) -> Callable:
+    if fn not in _role_phrases_providers:
+        _role_phrases_providers.append(fn)
+    return fn
+
+
+def person_roles(user, person) -> list:
+    """Deterministic first-person role phrases that resolve to this canonical Person
+    ("my wife", "my daughter") — read-only projections, for the Person page + hover card."""
+    out: list = []
+    for fn in _person_roles_providers:
+        try:
+            out.extend(fn(user, person) or [])
+        except Exception:
+            continue
+    return _dedup(out)
+
+
+def all_role_phrases(user) -> list:
+    """Every first-person role phrase that currently resolves for the user — candidate
+    surfaces for passive prose recognition."""
+    out: list = []
+    for fn in _role_phrases_providers:
+        try:
+            out.extend(fn(user) or [])
+        except Exception:
+            continue
+    return _dedup(out)
+
+
 def _reset_for_tests() -> None:
     _role_resolvers.clear()
     _merge_participants.clear()
     _person_summary_providers.clear()
+    _person_roles_providers.clear()
+    _role_phrases_providers.clear()

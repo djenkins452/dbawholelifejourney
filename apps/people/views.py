@@ -43,6 +43,8 @@ class PersonDetailView(LoginRequiredMixin, DetailView):
         person = self.object
         ctx["person_label"] = person.display_name
         ctx["auto_names"] = phrase_service.derived_display_names(person)
+        from .services import hooks
+        ctx["role_phrases"] = hooks.person_roles(self.request.user, person)
         ctx["custom_phrases"] = list(
             person.recognition_phrases.all().order_by("phrase"))
         return ctx

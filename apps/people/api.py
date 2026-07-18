@@ -65,13 +65,14 @@ def card(request, pk):
     if person is None:
         return JsonResponse({"error": "not_found"}, status=404)
     summary = hooks.person_summary(request.user, person)   # feature facts (relationship, url)
+    role_phrases = hooks.person_roles(request.user, person)  # "my wife", "my daughter"
     return JsonResponse({
         "id": person.pk,
         "name": person.display_name,
         # Human-readable recognition surfaces: auto-recognized names + user nicknames.
         "auto_names": derived_display_names(person),
         "nicknames": [rp.phrase for rp in person.recognition_phrases.all().order_by("phrase")],
-        "recognition": person_surfaces(person),
+        "recognition": person_surfaces(person) + role_phrases,
         "relationship": summary.get("relationship", ""),
         # Prefer the rich feature page (relationships) when available; else the canonical
         # Person page. Both host the same Recognition management.

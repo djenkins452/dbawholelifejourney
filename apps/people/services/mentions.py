@@ -129,14 +129,21 @@ def person_surfaces(person):
 
 
 def _member_surfaces(user):
-    """Searchable name/phrase surfaces for the user's People MEMBERS (not genealogy).
-    Candidate strings only — the resolver makes the identity decision."""
+    """Searchable name/phrase surfaces for the user's People MEMBERS (not genealogy),
+    plus deterministic relationship-role phrases ("my wife"). Candidate strings only —
+    the resolver makes the identity decision."""
+    from . import hooks
     members = list(Person.objects.filter(user=user, membership__isnull=False))
     member_ids = {p.pk for p in members}
     surfaces = set()
     for p in members:
         for s in person_surfaces(p):
             surfaces.add(s)
+    # Relationship-derived role phrases resolve deterministically to a canonical relative
+    # (see resolution step 4); add them as candidates regardless of member status.
+    for phrase in hooks.all_role_phrases(user):
+        if phrase and phrase.strip():
+            surfaces.add(phrase.strip())
     # Compact/@handle derived forms are for typed lookup, not prose — skip them.
     surfaces = {s for s in surfaces if s and not s.isspace()}
     return member_ids, surfaces
@@ -217,12 +224,12 @@ def recognize_prose_mentions(user, html):
         key = text.lower()
         if key not in resolved_cache:
             r = resolution.resolve(user, text)
-            resolved_cache[key] = (
-                (r.person, r.source_type)
-                if (r.status == resolution.RESOLVED and r.person
-                    and r.person.pk in member_ids)
-                else (None, None)
-            )
+            # A member name/alias, OR a deterministic relationship-role match (which
+            # points at a canonical relative even if not yet a "member").
+            ok = (r.status == resolution.RESOLVED and r.person
+                  and (r.person.pk in member_ids
+                       or r.source_type == resolution.RELATIONSHIP_ROLE))
+            resolved_cache[key] = (r.person, r.source_type) if ok else (None, None)
         return resolved_cache[key]
 
     source_by_pk = {}

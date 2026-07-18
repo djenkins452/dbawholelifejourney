@@ -6,7 +6,13 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
-## 2026-07-18 — feat(people): Person Consolidation Phase 0c-A — populate canonical people.Person from living stores
+## 2026-07-18 — feat(people): Person Consolidation Phase 0c-B — populate canonical people.Person from legacy genealogy
+
+**The genealogy identity domain, migrated separately from living contacts** (`legacy.Person` → canonical, via `backfill_legacy_genealogy` + migration `people/0003`). **CREATE-DISTINCT (`SOURCE_LINK_ONLY`): never match by name** — same-name individuals are normal in a family tree and GEDCOM identity is `source_batch + xref`, never a name. Each legacy person becomes its own canonical `people.Person` with a `PersonSourceLink(legacy, pk)`, `is_deceased` derived from death year/date, `is_self` carried, origin `gedcom` (when `gedcom_xref`/`source_batch`) else `manual`, and **NO People membership** (genealogy stays in the Legacy view, per design §13). Custom aliases (`also_known_as` + `RelationshipAlias`, e.g. "Dad") migrate to `RecognitionPhrase(source=custom)`, provenance retained. **Only the display name is projected (first/last left blank)** so a genealogy record never collides with a LIVING person on a bare first name — `resolve("Heather")` returns the living contact, not a deceased ancestor.
+
+Forward-only, `atomic=False` (resumable), idempotent (PersonSourceLink-keyed; aliases migrated once on create), reverse = no-op. Depends on people 0002 + legacy 0037.
+
+**Verification:** 6 tests green (`test_backfill_legacy_genealogy`: canonical-distinct + provenance, **same-name ancestors never merge**, no cross-merge with a living person, `resolve("Heather")`→living not genealogy, aliases→custom phrases, idempotent, soft-deleted skipped). **Migration executed on the local snapshot — populated 111 real legacy people, create-distinct, 1 alias — real proof of the create-distinct path.** `check` + `makemigrations --check` clean; legacy foundation suite green in isolation (a combined-run ordering flake on `test_module_catalog_seeded` is pre-existing and unrelated — my migrations run after `legacy/0002` seeds it and only add people rows).
 
 **The ONE population path (prerequisite for canonical Journal recognition).** Canonical `people.Person` was empty (no populator existed); this backfills it from the LIVING identity stores — `relationships.Person` (A) + `ai_relationships.Person` (C) — via the approved seam `reconciliation.ingest_source_person`. Genealogy (`legacy.Person`) is a separate identity domain (0c-B). **No consumer redirected, no legacy row mutated/deleted.**
 

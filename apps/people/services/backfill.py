@@ -113,3 +113,53 @@ def backfill_living_people(PersonA, PersonC, *, user_ids=None):
     c = backfill_ai_relationships(PersonC, user_ids=user_ids)
     logger.info("[0c-A] relationships=%s ai_relationships=%s", a, c)
     return {"relationships": a, "ai_relationships": c}
+
+
+def backfill_legacy_genealogy(PersonB, RelationshipAliasB, *, user_ids=None):
+    """Phase 0c-B: B = legacy.Person (GEDCOM genealogy). CREATE-DISTINCT — never match
+    by name (same-name individuals are normal; GEDCOM identity = source_batch + xref).
+    No People membership (genealogy stays in the Legacy view). Custom aliases
+    (`also_known_as` + RelationshipAlias) migrate to RecognitionPhrase(source=custom),
+    provenance retained. Only the display name is projected (first/last left blank) so a
+    genealogy record never collides with a LIVING person on a bare first name."""
+    from .phrases import add_custom_phrase
+
+    summary = {"source": "legacy", "seen": 0, "created": 0, "already_linked": 0,
+               "aliases": 0, "errors": 0}
+    qs = PersonB.objects.filter(status="active")
+    if user_ids is not None:
+        qs = qs.filter(user_id__in=user_ids)
+
+    for row in qs.iterator():
+        summary["seen"] += 1
+        try:
+            user = user_id_to_user(PersonB, row.user_id)
+            is_deceased = bool(row.death_year or row.death_date)
+            origin = PersonOrigin.GEDCOM if (row.gedcom_xref or row.source_batch_id) \
+                else PersonOrigin.MANUAL
+            person, outcome = recon.ingest_source_person(
+                user, source_domain="legacy", source_pk=row.pk,
+                display_name=row.display_name or "",
+                is_deceased=is_deceased, is_self=bool(row.is_self),
+                origin=origin,
+                membership_via=None,                    # genealogy: NOT a People member
+                match_mode=recon.MATCH_SOURCE_LINK_ONLY,
+            )
+            _tally(summary, outcome)
+
+            if outcome == recon.CREATED:                # migrate aliases once, on create
+                for raw in (row.also_known_as or "").split(","):
+                    if raw.strip():
+                        add_custom_phrase(person, raw.strip(), actor="import")
+                        summary["aliases"] += 1
+                for al in RelationshipAliasB.objects.filter(person_id=row.pk):
+                    label = (al.label or al.alias or "").strip()
+                    if label:
+                        add_custom_phrase(person, label, actor="import")
+                        summary["aliases"] += 1
+        except Exception:
+            summary["errors"] += 1
+            logger.warning("backfill legacy pk=%s failed", row.pk, exc_info=True)
+
+    logger.info("[0c-B] legacy=%s", summary)
+    return summary

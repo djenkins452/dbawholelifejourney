@@ -407,22 +407,20 @@ class RelationshipDomainTruth(DomainTruth):
                                (p.first_name or "").lower())]
         if len(matches) != 1:        # 0 = unresolved, >1 = ambiguous → never guess
             return None
-        return self._person_entity(matches[0])
+        # Single-person lookup → the FULL cross-WLJ composition ("everything about X").
+        return self._person_entity(matches[0], full=True)
 
-    def _person_entity(self, p):
+    def _person_entity(self, p, full=False):
         from apps.core.truth.entity import CompleteEntity
         from apps.relationships.models import RelationshipInteraction
         from apps.relationships.services import RelationshipAnalyticsService as R
         last = p.last_interaction_date
         days_since = R.days_since_last_interaction(p)
         rtype = (p.relationship_type or "").strip()
-        # Recent interaction log → "what have Heather and I been working on / doing".
         recent = list(RelationshipInteraction.objects.filter(person=p)
                       .order_by("-interaction_date")[:10])
         interactions = [{"date": i.interaction_date.isoformat(),
-                         "context": i.get_context_type_label_display()
-                         if hasattr(i, "get_context_type_label_display")
-                         else i.context_type_label} for i in recent]
+                         "context": i.context_type_label} for i in recent]
         definition = {
             "name": p.get_display_name(),
             "relationship_type": p.get_relationship_type_display() if rtype else None,
@@ -431,17 +429,69 @@ class RelationshipDomainTruth(DomainTruth):
             "interaction_count": p.interaction_count,
             "notes": p.notes_plain or None,
         }
+        standing = {"recent_interactions": interactions}
+        extensions = {}
+        if full:
+            # Compose the person's footprint ACROSS WLJ from deterministic truth:
+            # interactions grouped by domain-context (journal/task/meal/event →
+            # "journal entries mentioning X", "what we're working on", "events with X"),
+            # legacy memories they appear in, and their upcoming birthday.
+            extensions = self._compose_person_footprint(p)
         return CompleteEntity(
             kind="person",
             identity=p.get_display_name(),
             definition={k: v for k, v in definition.items() if v is not None},
             status=("neglected" if days_since is not None and days_since > 30
                     else ("never_contacted" if last is None else "active")),
-            standing={"recent_interactions": interactions},
+            standing=standing,
             performance={"interaction_count": p.interaction_count,
                          "days_since_contact": days_since},
+            extensions=extensions,
             freshness=F.CURRENT,
         )
+
+    def _compose_person_footprint(self, p):
+        """Deterministic cross-WLJ truth about ONE person (bounded queries)."""
+        from collections import defaultdict
+        from apps.relationships.models import RelationshipInteraction
+        name = p.get_display_name()
+        # Interactions grouped by context, with the source record's title.
+        by_ctx = defaultdict(list)
+        for i in (RelationshipInteraction.objects.filter(person=p)
+                  .select_related("content_type").order_by("-interaction_date")[:50]):
+            obj = None
+            try:
+                obj = i.source_object
+            except Exception:
+                obj = None
+            title = (getattr(obj, "title", None) or getattr(obj, "name", None)
+                     or (str(obj) if obj is not None else None))
+            by_ctx[i.context_type_label].append(
+                {"date": i.interaction_date.isoformat(), "title": title})
+        footprint = {"interactions_by_context": dict(by_ctx)}
+        footprint["journal_entries"] = by_ctx.get("journal", [])
+        footprint["events"] = by_ctx.get("event", [])
+        # Legacy memories the person appears in (matched by display name).
+        try:
+            from apps.legacy.models import Memory
+            mems = (Memory.objects.filter(user=self.user,
+                                          people__display_name__icontains=name)
+                    .distinct().order_by("-created_at")[:25])
+            footprint["memories"] = [m.title or "(untitled)" for m in mems]
+        except Exception:
+            footprint["memories"] = []
+        # Their upcoming birthday, if recorded.
+        try:
+            from apps.life.models import SignificantEvent
+            ev = SignificantEvent.objects.filter(
+                user=self.user, event_type="birthday",
+                person_name__icontains=name.split()[0]).first()
+            if ev is not None:
+                footprint["birthday"] = {"date": ev.get_next_occurrence().isoformat(),
+                                         "days_until": ev.days_until_next()}
+        except Exception:
+            pass
+        return footprint
 
 
 @register_domain_truth

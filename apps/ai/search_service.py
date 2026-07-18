@@ -1475,40 +1475,52 @@ class SearchService:
         module_results = {}
         all_results = []
 
+        def _tag(results, domain):
+            # Stamp every result with its TRUE source domain. Without this, the merged
+            # cross-domain list is domain-blind and a health/mobility/audio record can
+            # be mislabeled as a journal entry (the journal-contamination class). With
+            # it, each record's origin is explicit and mislabeling is impossible.
+            for r in results:
+                r['domain'] = domain
+                meta = r.get('metadata')
+                if isinstance(meta, dict):
+                    meta.setdefault('source_domain', domain)
+            return results
+
         # Journal
         journal = self.search_journal(keywords=keywords, limit=per_module_limit)
         module_results['journal'] = journal['count']
-        all_results.extend(journal['results'])
+        all_results.extend(_tag(journal['results'], 'journal'))
 
         # Health
         health = self.search_health(keywords=keywords, limit=per_module_limit)
         module_results['health'] = health['count']
-        all_results.extend(health['results'])
+        all_results.extend(_tag(health['results'], 'health'))
 
         # Goals/Purpose
         goals = self.search_goals(keywords=keywords, limit=per_module_limit)
         module_results['purpose'] = goals['count']
-        all_results.extend(goals['results'])
+        all_results.extend(_tag(goals['results'], 'purpose'))
 
         # Faith
         faith = self.search_faith(keywords=keywords, limit=per_module_limit)
         module_results['faith'] = faith['count']
-        all_results.extend(faith['results'])
+        all_results.extend(_tag(faith['results'], 'faith'))
 
         # Organize
         organize = self.search_organize(keywords=keywords, limit=per_module_limit)
         module_results['organize'] = organize['count']
-        all_results.extend(organize['results'])
+        all_results.extend(_tag(organize['results'], 'organize'))
 
         # Finance
         finance = self.search_finance(keywords=keywords, limit=per_module_limit)
         module_results['finance'] = finance['count']
-        all_results.extend(finance['results'])
+        all_results.extend(_tag(finance['results'], 'finance'))
 
         # Capture
         capture = self.search_capture(keywords=keywords, limit=per_module_limit)
         module_results['capture'] = capture['count']
-        all_results.extend(capture['results'])
+        all_results.extend(_tag(capture['results'], 'capture'))
 
         # Sort all results by date (most recent first)
         all_results.sort(key=lambda x: x.get('date') or '', reverse=True)

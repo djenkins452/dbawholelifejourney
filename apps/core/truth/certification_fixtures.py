@@ -207,6 +207,16 @@ def build_relationships_fixture(email="cert_rel@example.com"):
         interaction_count=12, last_interaction_date=heather_last, notes="College friend.")
     Person.objects.create(owner=u, first_name="Marcus", relationship_type="colleague",
                           interaction_count=4, last_interaction_date=today - timedelta(days=40))
+    from django.contrib.contenttypes.models import ContentType
+    from apps.journal.models import JournalEntry
+    # A journal entry that mentions Heather, linked as a journal-context interaction →
+    # "what journal entries mention Heather" resolves to a real titled record.
+    je = JournalEntry.objects.create(user=u, entry_date=today - timedelta(days=3),
+                                     title="Coffee with Heather", body="<p>Great chat.</p>")
+    RelationshipInteraction.objects.create(
+        person=heather, user=u, context_type_label="journal",
+        interaction_date=today - timedelta(days=3),
+        content_type=ContentType.objects.get_for_model(JournalEntry), object_id=je.pk)
     for off, ctx in [(3, "manual"), (10, "meal"), (20, "task")]:
         RelationshipInteraction.objects.create(
             person=heather, user=u, context_type_label=ctx,
@@ -306,7 +316,15 @@ def build_legacy_fixture(email="cert_legacy@example.com"):
                                entry_type="MEMORY", entry_state="legacy",
                                occurred_on=date(1935, 7, 1), occurred_precision="year")
     m2.people.add(harold)
-    return u, {"person": "Harold Keck", "place": "Farmhouse", "involves": "Harold"}
+    Person.objects.create(user=u, display_name="Robert Keck",
+                          relationship_label="father", significance=5)
+    Person.objects.create(user=u, display_name="Mary Keck",
+                          relationship_label="mother", significance=5)
+    Memory.objects.create(user=u, title="Grandma's 90th birthday party",
+                          entry_type="event", entry_state="legacy",
+                          occurred_on=date(1988, 5, 1), significance=5)
+    return u, {"person": "Harold Keck", "place": "Farmhouse", "involves": "Harold",
+              "grandfather": "grandfather"}
 
 
 def build_nutrition_scoped_fixture(email="cert_nut_scoped@example.com"):

@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Journal / Legacy / People to production quality — contamination made structurally impossible + cross-WLJ person composition
+
+**Raised the three below-bar domains to Body/Fitness/Medication quality.** Existing architecture only; no model change, no migration. Owner-1 certified; Owner-2 is Danny's live run.
+
+**JOURNAL — contamination made structurally impossible (customer-trust fix).** Root cause: `SearchService.search_all` merged every module's results into one **domain-blind** list, so a health / mobility / audio-exposure record was indistinguishable from a journal entry and got mislabeled. Fix: `search_all` now **stamps every result with its true source domain** (`result['domain']` + `metadata.source_domain`). A health record is permanently labeled `health` and can never be presented as journal — the class is removed, not detected. Enforced by a new contract test (`test_search_service.py :: SearchAllDomainTaggingContractTests`). Journal's own truth surfaces remain journal-only by construction (entity/history/themes), so journal questions ("yesterday", "this week", "topics/repeated concerns", "mood", "thinking about", "summarize", "stressing me") are fully answerable from journal truth.
+
+**LEGACY — signature retrieval.** `describe(person, filters={relationship})` with **word-boundary** matching (Python, backend-portable) so "my parents" (`father`/`mother`) never returns grandparents; `describe(memory, filters={entry_type|min_significance})` → "important life events"; "recently recorded" via newest-first ordering; plus the existing name lookup (grandfather / Harold Keck), involves-person, and childhood-era scoping. 
+
+**PEOPLE — the CoS now *knows* a person, not just recognizes the name.** Single-person lookup composes a deterministic **cross-WLJ footprint** from existing truth (bounded queries; the list view stays lean): `RelationshipInteraction` grouped by context → "what have Heather and I been working on", **journal entries mentioning her** (journal-context interactions → titled records), events; legacy **memories involving her** (by name); her **upcoming birthday**. Plus `most_connected` (interaction-ranked "most important") and `upcoming_birthdays` from prior work.
+
+**Certification:** +10 QuestionSpecs (person composition, journal-mention, legacy grandfather/parents/life-events/recent), an `entity_field_present` evaluator, an anti-contamination contract test; relationships + legacy fixtures gain a journal-linked interaction and event/parent records. **106 regression tests green**; `check` + `makemigrations --check` clean; live retrieval executed for every question.
+
+**Honest RED (no deterministic truth exists):** "what goals involve Heather" (no goal↔person link in the schema); "what trips have Heather and I taken" (no trip/travel model); Faith "themes God is teaching / last journaled about faith" (no structured themes / cross-domain faith-journal link).
+
+**Files:** `apps/ai/search_service.py`, `apps/ai/tests/test_search_service.py`, `apps/legacy/services/legacy_domain_truth.py`, `apps/core/truth/domain_rollout.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(meals): Foundation 2 Increment 4 — Leftover management, waste truth & Food Lifecycle Certification
 
 **Makes leftovers a durable, usable truth surface** (not just a post-preparation flash) and closes the remaining operational gaps: later consumption, explicit discard/waste, deterministic expiration, and a legal leftover state machine. Reuses every canonical asset — no parallel models/writers/nutrition/inventory paths.

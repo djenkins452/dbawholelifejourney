@@ -51,7 +51,7 @@ class LegacyDomainTruth(DomainTruth):
         if et == "memory":
             return self._describe_memories(filters or {})
         if et == "person":
-            return self._describe_people()
+            return self._describe_people(filters or {})
         if et == "place":
             return self._describe_places()
         raise NotImplementedError(f"legacy domain truth cannot describe {entity_type!r}")
@@ -96,11 +96,25 @@ class LegacyDomainTruth(DomainTruth):
             qs = qs.filter(occurred_on__year__gte=int(filters["occurred_from"]))
         if filters.get("occurred_to"):
             qs = qs.filter(occurred_on__year__lte=int(filters["occurred_to"]))
+        if filters.get("entry_type"):     # 'important life events' → entry_type='event'
+            qs = qs.filter(entry_type=filters["entry_type"])
+        if filters.get("min_significance"):
+            qs = qs.filter(significance__gte=int(filters["min_significance"]))
         return [self._memory_entity(m) for m in qs.distinct()]
 
-    def _describe_people(self) -> List[CompleteEntity]:
+    def _describe_people(self, filters=None) -> List[CompleteEntity]:
+        import re
         from apps.legacy.models import Person
-        return [self._person_entity(p) for p in Person.objects.filter(user=self.user)]
+        filters = filters or {}
+        people = list(Person.objects.filter(user=self.user))
+        # 'my parents' / 'my grandparents' → relationship_label match. WORD-BOUNDARY
+        # (in Python, backend-portable) so 'father' does not match 'grandfather'
+        # (parents ≠ grandparents).
+        rel = filters.get("relationship")
+        if rel:
+            pat = re.compile(r"\b" + re.escape(rel) + r"\b", re.I)
+            people = [p for p in people if pat.search(p.relationship_label or "")]
+        return [self._person_entity(p) for p in people]
 
     def _describe_places(self) -> List[CompleteEntity]:
         from apps.legacy.models import Place

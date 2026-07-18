@@ -389,6 +389,40 @@ SLICE_SPECS = [
                  "What did I have last Tuesday?", "entity",
                  {"entity_type": "event", "filters": {"on_date": "@past_date"}},
                  {"kind": "entities_min", "n": 1}, "calendar", provider="calendar"),
+
+    # ---- PEOPLE — cross-WLJ composition about one person -------------------------
+    QuestionSpec("rel.everything", "relationships", EXISTENCE,
+                 "Tell me everything you know about Heather.", "entity_one",
+                 {"name": "@heather"}, {"kind": "entity_found"},
+                 "relationships", provider="relationships"),
+    QuestionSpec("rel.working_on", "relationships", EXISTENCE,
+                 "What have Heather and I been working on?", "entity_one",
+                 {"name": "@heather"},
+                 {"kind": "entity_field_present", "path": "extensions.interactions_by_context"},
+                 "relationships", provider="relationships"),
+    QuestionSpec("rel.journal_mentions", "relationships", EXISTENCE,
+                 "What journal entries mention Heather?", "entity_one",
+                 {"name": "@heather"},
+                 {"kind": "entity_field_present", "path": "extensions.journal_entries"},
+                 "relationships", provider="relationships"),
+
+    # ---- LEGACY — signature retrieval --------------------------------------------
+    QuestionSpec("legacy.grandfather", "legacy", EXISTENCE,
+                 "Tell me about my grandfather.", "entity_one",
+                 {"name": "@grandfather"}, {"kind": "entity_found"},
+                 "legacy", provider="legacy"),
+    QuestionSpec("legacy.parents", "legacy", LIST,
+                 "Tell me about my parents.", "entity",
+                 {"entity_type": "person", "filters": {"relationship": "father"}},
+                 {"kind": "entities_min", "n": 1}, "legacy", provider="legacy"),
+    QuestionSpec("legacy.life_events", "legacy", LIST,
+                 "What important life events have I captured?", "entity",
+                 {"entity_type": "memory", "filters": {"entry_type": "event"}},
+                 {"kind": "entities_min", "n": 1}, "legacy", provider="legacy"),
+    QuestionSpec("legacy.recent", "legacy", LIST,
+                 "What memories have I recorded recently?", "entity",
+                 {"entity_type": "memory"}, {"kind": "entities_min", "n": 3},
+                 "legacy", provider="legacy"),
 ]
 
 
@@ -492,7 +526,7 @@ def run_spec(user, spec, anchors):
             return ent is not None, {"found": ent is not None}
         if kind == "entity_absent":
             return ent is None, {"found": ent is not None}
-        if kind == "entity_field":
+        if kind in ("entity_field", "entity_field_present"):
             if ent is None:
                 return False, {"found": False}
             cur = ent
@@ -501,6 +535,8 @@ def run_spec(user, spec, anchors):
                        else getattr(cur, part, None))
                 if cur is None:
                     break
+            if kind == "entity_field_present":
+                return bool(cur), {"got": str(cur)[:80]}
             want = _resolve(exp["value"], anchors)
             return str(cur) == str(want), {"got": str(cur), "want": str(want)}
 

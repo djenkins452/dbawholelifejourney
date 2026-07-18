@@ -379,3 +379,32 @@ class SearchServiceGlobalTests(SearchServiceTestMixin, TestCase):
         self.assertEqual(result['module'], 'all')
         self.assertGreaterEqual(result['count'], 2)
         self.assertIn('by_module', result)
+
+
+class SearchAllDomainTaggingContractTests(SearchServiceTestMixin, TestCase):
+    """CONTRACT: every cross-domain search result carries its TRUE source domain, so a
+    health / mobility / audio-exposure record can never be mislabeled as a journal
+    entry. This is the structural guarantee behind 'journal answers only return journal
+    truth' — it makes the journal-contamination class impossible, not merely detected."""
+
+    def setUp(self):
+        self.user = self.create_user(email="tagging@example.com")
+        self.service = SearchService(self.user)
+
+    def test_search_all_tags_every_result_with_source_domain(self):
+        from apps.journal.models import JournalEntry
+        from apps.core.utils import get_user_today
+        JournalEntry.objects.create(
+            user=self.user, entry_date=get_user_today(self.user),
+            title="Morning reflection", body="<p>A calm reflection today.</p>")
+        out = self.service.search_all(keywords=["reflection"], limit=20)
+        results = out.get("results", [])
+        self.assertTrue(results, "expected at least the journal entry")
+        # Every result is domain-tagged (no domain-blind record can slip through).
+        for r in results:
+            self.assertIn("domain", r, f"untagged result: {r.get('title')}")
+        # The journal entry is tagged 'journal' — and only journal.
+        journal_hits = [r for r in results if "reflection" in (r.get("title", "").lower())]
+        self.assertTrue(journal_hits)
+        for r in journal_hits:
+            self.assertEqual(r["domain"], "journal")

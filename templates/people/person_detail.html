@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ canonical_person.display_name }} - People - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="content-container">
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">{{ canonical_person.display_name }}</h1>
+            <p class="page-subtitle">
+                <span class="text-muted text-sm">Recognition &amp; identity</span>
+            </p>
+        </div>
+    </div>
+
+    {% include "people/_recognition_section.html" %}
+</div>
+{% endblock %}

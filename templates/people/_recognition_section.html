@@ -1,0 +1,107 @@
+{% comment %}
+Recognition management for a canonical people.Person.
+
+Context required:
+  canonical_person  — the people.Person being managed
+  derived_phrases   — read-only name-derived phrases (list of strings)
+  custom_phrases    — editable RecognitionPhrase rows (custom + learned)
+  person_label      — display name to show in copy
+
+Every write posts to the canonical people endpoints with this page's own `next`, so the
+same section works on the canonical Person page and on any host page (e.g. the legacy
+relationships detail page). RecognitionPhrase is the ONE authority; there is no
+module-specific nickname logic — Journal @mentions, passive recognition, the resolver and
+the lookup API all consume these automatically.
+{% endcomment %}
+<div class="card mb-6">
+    <h2 class="card-title">Recognition</h2>
+    <p class="text-muted text-sm mb-4">
+        How {{ person_label }} is recognized when you write about them — in your journal
+        and anywhere @mentions work. Add nicknames and terms of endearment so a natural
+        reference is understood as this person.
+    </p>
+
+    <div class="rec-group">
+        <div class="rec-group-label">Automatically recognized</div>
+        {% if derived_phrases %}
+            <div class="rec-chips">
+                {% for d in derived_phrases %}
+                    <span class="rec-chip rec-chip-derived">{{ d }}</span>
+                {% endfor %}
+            </div>
+            <p class="text-muted text-xs mt-1">Derived from this person’s name — always on, can’t be removed.</p>
+        {% else %}
+            <p class="text-muted text-sm">No name on file yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="rec-group">
+        <div class="rec-group-label">Custom recognition phrases</div>
+        {% if custom_phrases %}
+            <div class="rec-list">
+                {% for rp in custom_phrases %}
+                <div class="rec-row">
+                    <form method="post"
+                          action="{% url 'people:phrase_edit' canonical_person.pk rp.pk %}"
+                          class="rec-edit-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <input type="text" name="phrase" value="{{ rp.phrase }}"
+                               class="rec-input" aria-label="Edit recognition phrase" maxlength="120">
+                        <button type="submit" class="btn btn-ghost btn-sm">Save</button>
+                    </form>
+                    <form method="post"
+                          action="{% url 'people:phrase_delete' canonical_person.pk rp.pk %}"
+                          class="inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <button type="submit" class="btn btn-ghost btn-sm btn-danger-text"
+                                aria-label="Remove phrase">Remove</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted text-sm">No custom phrases yet. Add a nickname like “Honey”.</p>
+        {% endif %}
+
+        <form method="post" action="{% url 'people:phrase_add' canonical_person.pk %}"
+              class="rec-add-form mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <input type="text" name="phrase" class="rec-input"
+                   placeholder="Add a phrase (e.g. Honey)" aria-label="New recognition phrase" maxlength="120">
+            <button type="submit" class="btn btn-secondary btn-sm">+ Add Phrase</button>
+        </form>
+    </div>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.rec-group { margin-bottom: var(--space-5); }
+.rec-group:last-child { margin-bottom: 0; }
+.rec-group-label {
+    font-size: var(--font-size-sm); font-weight: 600;
+    color: var(--color-text); margin-bottom: var(--space-2);
+}
+.rec-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.rec-chip {
+    display: inline-block; padding: 2px 10px;
+    border-radius: var(--radius-full, 999px);
+    font-size: var(--font-size-sm); font-weight: 600;
+}
+.rec-chip-derived {
+    background: var(--color-accent-soft, rgba(184, 134, 11, 0.14));
+    color: var(--color-accent, #b8860b);
+}
+.rec-list { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-3); }
+.rec-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.rec-edit-form { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 auto; }
+.rec-add-form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.inline-form { display: inline; }
+.rec-input {
+    flex: 1 1 180px; min-width: 0; padding: 8px 10px;
+    font-size: 16px;                 /* prevents iOS zoom */
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    background: var(--color-surface); color: var(--color-text);
+}
+</style>

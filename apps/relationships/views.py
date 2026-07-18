@@ -95,6 +95,23 @@ class PersonDetailView(LoginRequiredMixin, HelpContextMixin, DetailView):
         ctx['summary'] = RelationshipAnalyticsService.get_summary(person)
         ctx['days_since'] = RelationshipAnalyticsService.days_since_last_interaction(person)
         ctx['breakdown'] = RelationshipAnalyticsService.context_breakdown(person)
+
+        # Recognition phrases live on the CANONICAL people.Person (the one authority every
+        # module reads). Resolve it from this legacy Person via the migration bridge and
+        # surface derived (read-only) + custom phrases for management here. Journal, the
+        # resolver, the lookup API and passive recognition all consume these automatically.
+        from apps.people.models import PersonSourceLink
+        from apps.people.services.phrases import derived_phrases
+        link = (PersonSourceLink.objects
+                .filter(source_domain=PersonSourceLink.Source.RELATIONSHIPS,
+                        source_pk=person.pk)
+                .select_related('person').first())
+        canonical = link.person if link else None
+        ctx['canonical_person'] = canonical
+        if canonical is not None:
+            ctx['derived_phrases'] = derived_phrases(canonical)
+            ctx['custom_phrases'] = list(
+                canonical.recognition_phrases.all().order_by('phrase'))
         # Recent interactions
         from .models import RelationshipInteraction
         ctx['recent_interactions'] = (

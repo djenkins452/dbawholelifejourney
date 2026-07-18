@@ -192,6 +192,12 @@ def build_faith_fixture(email="cert_faith@example.com"):
                                  is_answered=False, description="Please heal her.")
     PrayerRequest.objects.create(user=u, title="New job", priority="normal",
                                  is_answered=True, description="Thankful.")
+    # Active Bible reading plan → certify the reading_plan entity ("what am I studying").
+    from apps.faith.models import ReadingPlanTemplate, UserReadingPlan
+    tmpl = ReadingPlanTemplate.objects.create(
+        title="Gospel of John in 7 Days", slug="john-7-day-cert",
+        description="A week through John.", duration_days=7)
+    UserReadingPlan.objects.create(user=u, template=tmpl, plan_status="active")
     return u, {"prayer_name": "Healing"}
 
 
@@ -337,6 +343,11 @@ def build_legacy_fixture(email="cert_legacy@example.com"):
     Memory.objects.create(user=u, title="Grandma's 90th birthday party",
                           entry_type="event", entry_state="legacy",
                           occurred_on=date(1988, 5, 1), significance=5)
+    # Family-graph edge → certify the genealogy ("tell me about my family history").
+    from apps.legacy.models import Relationship
+    robert = Person.objects.get(user=u, display_name="Robert Keck")
+    Relationship.objects.create(user=u, from_person=harold, to_person=robert,
+                                relationship_type="father of")
     return u, {"person": "Harold Keck", "place": "Farmhouse", "involves": "Harold",
               "grandfather": "grandfather"}
 
@@ -413,6 +424,93 @@ def build_meals_fixture_recipes(email="cert_meals@example.com"):
     return u, {"recipe": "Stir Fry"}
 
 
+def build_medical_fixture(email="cert_medical@example.com"):
+    """Lab results (2 rows same test → history), a panel, a document."""
+    from apps.medical.models import LabPanel, LabResult, MedicalDocument
+    u = _mk_user(email)
+    now = timezone.now()
+    for days, val in ((40, "100"), (5, "108")):
+        LabResult.objects.create(
+            user=u, raw_test_name="Glucose", value_text=val, value_numeric=Decimal(val),
+            unit="mg/dL", range_low=Decimal("70"), range_high=Decimal("99"),
+            collected_at=now - timedelta(days=days))
+    LabPanel.objects.create(user=u, name="Basic Metabolic Panel", panel_type="bmp",
+                            collected_at=now)
+    MedicalDocument.objects.create(user=u, original_filename="labcorp_2026.pdf")
+    return u, {"test": "Glucose", "range_start": (now - timedelta(days=60)).date(),
+              "range_end": now.date()}
+
+
+def build_habits_fixture(email="cert_habits@example.com"):
+    """A habit + completion entries (per-day consistency history)."""
+    from apps.purpose.models import HabitEntry, HabitGoal
+    u = _mk_user(email)
+    today = get_user_today(u)
+    h = HabitGoal.objects.create(
+        user=u, name="Read 10 pages", purpose="Grow through daily reading",
+        start_date=today - timedelta(days=10), end_date=today + timedelta(days=30))
+    for off in (0, 1, 3):
+        HabitEntry.objects.create(goal=h, date=today - timedelta(days=off), completed=True)
+    return u, {"habit": "Read", "range_start": today - timedelta(days=5),
+              "range_end": today}
+
+
+def build_notes_fixture(email="cert_notes@example.com"):
+    """Notes (title/body/tags/pinned)."""
+    from apps.notes.models import Note
+    u = _mk_user(email)
+    Note.objects.create(user=u, title="Ideas", body="<p>Ship the truth layer.</p>",
+                        is_pinned=True)
+    Note.objects.create(user=u, title="Groceries", body="<p>Milk, eggs, bread.</p>")
+    return u, {"note": "Ideas"}
+
+
+def build_capture_fixture(email="cert_capture@example.com"):
+    """Captured audio entries (ready + pending)."""
+    from apps.capture.models import CaptureEntry, PendingCapture
+    u = _mk_user(email)
+    CaptureEntry.objects.create(user=u, title="Sunday sermon notes", status="ready",
+                                category="faith", subcategory="sermon",
+                                transcript="...", summary="Key takeaways.")
+    PendingCapture.objects.create(
+        user=u, client_id="00000000-0000-0000-0000-000000000001", status="pending")
+    return u, {"capture": "sermon"}
+
+
+def build_brain_training_fixture(email="cert_brain@example.com"):
+    """A game session + daily stats + overall streak."""
+    from apps.brain_training.models import (
+        Challenge, DailyStats, Game, GameSession, UserOverallStats)
+    u = _mk_user(email)
+    today = get_user_today(u)
+    game = Game.objects.create(slug="sudoku", name="Sudoku", category="logic")
+    ch = Challenge.objects.create(game=game, challenge_id="testchallenge0001",
+                                  difficulty="medium", puzzle_data={},
+                                  solution_hash="0" * 64, solution_data={})
+    GameSession.objects.create(user=u, challenge=ch, status="completed", score=118,
+                               time_spent_seconds=95, completed_at=timezone.now())
+    for off in (0, 1, 3):
+        DailyStats.objects.create(user=u, game=game, date=today - timedelta(days=off),
+                                  sessions_completed=1, total_score=118, best_score=118)
+    UserOverallStats.objects.create(user=u, current_streak=3, last_played_date=today)
+    return u, {"game": "Sudoku", "range_start": today - timedelta(days=5),
+              "range_end": today}
+
+
+def build_body_session_fixture(email="cert_bodysession@example.com"):
+    """A body-measurement check-in session grouping multiple metrics."""
+    from apps.health.models import BodyCompositionEntry, BodyMeasurementSession
+    u = _mk_user(email)
+    today = get_user_today(u)
+    s = BodyMeasurementSession.objects.create(
+        user=u, checked_in_at=timezone.now(), title="Monthly check-in", source="manual")
+    for metric, val in (("waist", "34.0"), ("body_fat_pct", "22.0"), ("lean_mass", "140.0")):
+        BodyCompositionEntry.objects.create(
+            user=u, session=s, metric_name=metric, value=Decimal(val), unit="in",
+            measurement_date=today)
+    return u, {}
+
+
 # The fixture registry — a QuestionSpec references a builder by key.
 FIXTURES = {
     "weight": build_weight_fixture,
@@ -420,6 +518,12 @@ FIXTURES = {
     "sleep": build_sleep_fixture,
     "projects": build_projects_fixture,
     "meals": build_meals_fixture_recipes,
+    "medical": build_medical_fixture,
+    "habits": build_habits_fixture,
+    "notes": build_notes_fixture,
+    "capture": build_capture_fixture,
+    "brain_training": build_brain_training_fixture,
+    "body_session": build_body_session_fixture,
     "medication": build_medication_fixture,
     "nutrition": build_nutrition_fixture,
     "vitals": build_vitals_fixture,

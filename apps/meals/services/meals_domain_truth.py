@@ -31,7 +31,7 @@ class MealsDomainTruth(DomainTruth):
     domain = _DOMAIN
     current_metrics = ()
     history_metrics = ()
-    entity_types = ("recipe", "pantry_item", "meal_plan")
+    entity_types = ("recipe", "pantry_item", "meal_plan", "leftover", "consumption")
 
     def describe(self, entity_type="recipe"):
         if entity_type in (None, "recipe"):
@@ -40,6 +40,10 @@ class MealsDomainTruth(DomainTruth):
             return self._pantry_items()
         if entity_type == "meal_plan":
             return self._meal_plan_entries()
+        if entity_type == "leftover":
+            return self._leftovers()
+        if entity_type == "consumption":
+            return self._consumptions()
         raise KeyError(f"meals describe unsupported: {entity_type!r} "
                        f"(have {self.entity_types})")
 
@@ -142,6 +146,60 @@ class MealsDomainTruth(DomainTruth):
                 definition={"date": e.date.isoformat(), "meal_type": e.meal_type,
                             "recipe": rt, "serving_count": getattr(e, "serving_count", None)},
                 status="planned",
+                freshness=CURRENT,
+            ))
+        return out
+
+    def _leftovers(self):
+        from apps.meals.services import leftover_queries
+        hh = _household_for(self.user)
+        if hh is None:
+            return []
+        out = []
+        for lo in leftover_queries.available_leftovers(hh):
+            title = lo.recipe_title or (lo.recipe.title if lo.recipe_id else "a meal")
+            prepared = (lo.preparation.prepared_at.isoformat()
+                        if lo.preparation_id and getattr(lo.preparation, "prepared_at", None)
+                        else None)
+            out.append(CompleteEntity(
+                kind="leftover",
+                identity=f"{lo.servings} serving(s) of {title}",
+                definition={"recipe_title": title,
+                            "recipe": (lo.recipe.title if lo.recipe_id else None),
+                            "servings": float(lo.servings),
+                            "storage_location": lo.storage_location or None},
+                status=lo.disposition,
+                plan={"expiration_date": (lo.expiration_date.isoformat()
+                                          if lo.expiration_date else None),
+                      "prepared_at": prepared},
+                standing={"is_available": bool(lo.is_available),
+                          "depleted_at": (lo.depleted_at.isoformat()
+                                          if lo.depleted_at else None)},
+                extensions={"notes": lo.notes} if lo.notes else {},
+                freshness=CURRENT,
+            ))
+        return out
+
+    def _consumptions(self):
+        from apps.meals.models import MealConsumption
+        hh = _household_for(self.user)
+        if hh is None:
+            return []
+        out = []
+        for c in (MealConsumption.objects.filter(household=hh, status="active")
+                  .select_related("recipe", "leftover", "food_entry")
+                  .order_by("-consumed_at")):
+            title = c.recipe_title or (c.recipe.title if c.recipe_id else "a meal")
+            out.append(CompleteEntity(
+                kind="consumption",
+                identity=f"Ate {c.servings_consumed} serving(s) of {title}",
+                definition={"recipe_title": title,
+                            "servings_consumed": float(c.servings_consumed),
+                            "meal_type": c.meal_type or None,
+                            "from_leftover": bool(c.leftover_id)},
+                status="logged",
+                plan={"consumed_at": (c.consumed_at.isoformat()
+                                      if c.consumed_at else None)},
                 freshness=CURRENT,
             ))
         return out

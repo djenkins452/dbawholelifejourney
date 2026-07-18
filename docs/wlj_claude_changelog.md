@@ -6,6 +6,28 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Layer completion — expose the last un-provided domains (Medical/Habits/Notes/Capture/Brain-training) + residuals
+
+**Follow-up to the whole-WLJ truth inventory (`02f54f58`): every remaining domain that stored deterministic user truth but had NO provider is now exposed.** Existing DomainTruth pattern only; no new models, no migration. **18 domains now register** in the truth layer.
+
+**Five whole domains that had NO provider — now registered:**
+- **Medical (labs)** — `MedicalDomainTruth` (`apps/medical/services/`): current (tracked tests, abnormal results, panels, documents, latest); entity `lab_result` (value/range/abnormal-flag/units/education + full per-test **trend**), `lab_panel`, `document`; history `lab_value` (a test's numeric value over time). *(Conditions/allergies/immunizations/procedures have no model — see below.)*
+- **Habits** — `HabitDomainTruth` (`apps/purpose/services/`): current `active_habits` (with streaks); entity `habit` (measurement/frequency/target/streak/completion/linked-goals); history `consistency` (per-day `HabitEntry` completions).
+- **Notes** — `NotesDomainTruth` (`apps/notes/`): current `note_count`; entity `note` (title/content/tags/color/pinned/attachments).
+- **Capture** — `CaptureDomainTruth` (`apps/capture/services/`): current `unprocessed_count`; entity `capture` (audio → transcript/summary, category/status, linked NLP signals).
+- **Brain-training** — `BrainTrainingDomainTruth` (`apps/brain_training/services/`): current (games-7d, recent scores, streak); entity `game_session`; history `daily_best_score`/`games_played`.
+
+**Residual surfaces closed:**
+- **Meals** leftovers + consumption entities (reusing `leftover_queries`).
+- **Health** body-measurement **session** entity (all metrics for one check-in date grouped) via new `BodyMeasurementQueries`.
+- **Faith** reading-plan + **Legacy** family-relationship-graph — now certified with fixture data (were code-live, cert-deferred).
+
+**Certification:** +18 QuestionSpecs across the new domains + residuals; +8 fixtures; a `test` history kwarg passthrough for per-lab-test trends. All Owner-1 green; **40 regression tests green**; `check` + `makemigrations --check` clean; live retrieval executed for every new surface.
+
+**Truth that CANNOT exist (no backing model — do not fabricate):** medical conditions/diagnoses, allergies, immunizations, procedures, structured provider directory (provider is free-text only on labs); capture user-typed body / due-date; brain-training user-entered score / per-difficulty streaks; habit stored streak columns (derived) / reminder time / category taxonomy; notes folders/notebooks / note-to-note links / per-day history.
+
+**Files:** `apps/medical/services/medical_domain_truth.py` (new), `apps/purpose/services/habit_domain_truth.py` (new), `apps/notes/notes_domain_truth.py` (new), `apps/capture/services/capture_domain_truth.py` (new), `apps/brain_training/services/brain_training_domain_truth.py` (new), `apps/health/services/body_measurement_queries.py` (new), `apps/meals/services/meals_domain_truth.py`, `apps/health/services/health_domain_truth.py`, `apps/core/truth/{domain,question_specs,certification_fixtures}.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): whole-WLJ truth-inventory — expose every stored deterministic truth to the Chief of Staff
 
 **Systematic audit of every active domain: for each, inventoried the stored model fields/relations, compared against what the CoS could reach, and exposed the delta — additively, using the existing DomainTruth/entity-composer pattern.** No new models, no schema change, no migration; two new *providers* for domains that had none.

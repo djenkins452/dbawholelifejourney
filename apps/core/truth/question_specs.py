@@ -471,6 +471,97 @@ SLICE_SPECS = [
                  "What memories have I recorded recently?", "entity",
                  {"entity_type": "memory"}, {"kind": "entities_min", "n": 3},
                  "legacy", provider="legacy"),
+
+    # ---- MEALS leftovers ---------------------------------------------------------
+    QuestionSpec("meals.leftovers", "meals", LIST,
+                 "What leftovers do I have?", "entity",
+                 {"entity_type": "leftover"}, {"kind": "entities_min", "n": 0},
+                 "meals", provider="meals"),
+
+    # ---- MEDICAL / LABS (whole domain — previously no provider) -------------------
+    QuestionSpec("medical.tracked_labs", "medical", CURRENT_FACT,
+                 "What lab tests are being tracked?", "current",
+                 {"metric": "tracked_lab_tests"}, {"kind": "present"},
+                 "medical", provider="medical", criticality="critical"),
+    QuestionSpec("medical.labs", "medical", LIST,
+                 "Show my lab results.", "entity",
+                 {"entity_type": "lab_result"}, {"kind": "entities_min", "n": 1},
+                 "medical", provider="medical"),
+    QuestionSpec("medical.lab_lookup", "medical", EXISTENCE,
+                 "What's my glucose lab result?", "entity_one",
+                 {"name": "@test"}, {"kind": "entity_found"},
+                 "medical", provider="medical"),
+    QuestionSpec("medical.lab_trend", "medical", TIMELINE,
+                 "How has my glucose lab trended?", "history",
+                 {"metric": "lab_value", "period": "custom", "test": "@test",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 2}, "medical", provider="medical"),
+
+    # ---- HABITS (whole domain — previously no provider) --------------------------
+    QuestionSpec("habits.active", "habits", CURRENT_FACT,
+                 "What habits am I building?", "current",
+                 {"metric": "active_habits"}, {"kind": "present"},
+                 "habits", provider="habits", criticality="critical"),
+    QuestionSpec("habits.list", "habits", LIST,
+                 "List my habits and streaks.", "entity",
+                 {"entity_type": "habit"}, {"kind": "entities_min", "n": 1},
+                 "habits", provider="habits"),
+    QuestionSpec("habits.consistency", "habits", TIMELINE,
+                 "How consistent have my habits been?", "history",
+                 {"metric": "consistency", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 2}, "habits", provider="habits"),
+
+    # ---- NOTES (whole domain — previously no provider) ---------------------------
+    QuestionSpec("notes.count", "notes", CURRENT_FACT,
+                 "How many notes do I have?", "current",
+                 {"metric": "note_count"}, {"kind": "present"},
+                 "notes", provider="notes"),
+    QuestionSpec("notes.list", "notes", LIST,
+                 "Show my notes.", "entity",
+                 {"entity_type": "note"}, {"kind": "entities_min", "n": 2},
+                 "notes", provider="notes"),
+
+    # ---- CAPTURE (whole domain — previously no provider) -------------------------
+    QuestionSpec("capture.unprocessed", "capture", CURRENT_FACT,
+                 "What have I captured that needs review?", "current",
+                 {"metric": "unprocessed_count"}, {"kind": "present"},
+                 "capture", provider="capture"),
+    QuestionSpec("capture.list", "capture", LIST,
+                 "Show my captures.", "entity",
+                 {"entity_type": "capture"}, {"kind": "entities_min", "n": 1},
+                 "capture", provider="capture"),
+
+    # ---- BRAIN TRAINING (whole domain — previously no provider) ------------------
+    QuestionSpec("brain.recent", "brain_training", CURRENT_FACT,
+                 "How have I been doing in brain games?", "current",
+                 {"metric": "recent_scores"}, {"kind": "present"},
+                 "brain_training", provider="brain_training"),
+    QuestionSpec("brain.sessions", "brain_training", LIST,
+                 "Show my brain-game sessions.", "entity",
+                 {"entity_type": "game_session"}, {"kind": "entities_min", "n": 1},
+                 "brain_training", provider="brain_training"),
+    QuestionSpec("brain.score_history", "brain_training", TIMELINE,
+                 "How have my game scores trended?", "history",
+                 {"metric": "daily_best_score", "period": "custom",
+                  "start": "@range_start", "end": "@range_end"},
+                 {"kind": "series_min_points", "n": 2}, "brain_training",
+                 provider="brain_training"),
+
+    # ---- Residual surfaces: body-session, faith reading plan, legacy genealogy ---
+    QuestionSpec("health.body_session", "health", LIST,
+                 "Show my body-measurement check-ins.", "entity",
+                 {"entity_type": "body_measurement"}, {"kind": "entities_min", "n": 1},
+                 "body_session", provider="health"),
+    QuestionSpec("faith.reading_plan", "faith", LIST,
+                 "What am I studying / reading plan?", "entity",
+                 {"entity_type": "reading_plan"}, {"kind": "entities_min", "n": 1},
+                 "faith", provider="faith"),
+    QuestionSpec("legacy.genealogy", "legacy", EXISTENCE,
+                 "Tell me about my family history (relationships).", "entity_one",
+                 {"name": "@person"},
+                 {"kind": "entity_field_present", "path": "standing.relationships"},
+                 "legacy", provider="legacy"),
 ]
 
 
@@ -538,7 +629,8 @@ def run_spec(user, spec, anchors):
 
     elif spec.surface == "history":
         hs = truth.history(args["metric"], args.get("period", "last_7_days"),
-                           **{k: v for k, v in args.items() if k in ("start", "end")})
+                           **{k: v for k, v in args.items()
+                              if k in ("start", "end", "test")})
         pts = list(getattr(hs, "points", []))
         if kind == "series_min_points":
             return len(pts) >= exp["n"], {"points": len(pts)}

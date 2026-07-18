@@ -102,19 +102,23 @@ def reconcile_journal_person_mentions(sender, instance, created, **kwargs):
     Deterministic + request-path-safe (no LLM). Never breaks a save."""
     try:
         from apps.people.services.mentions import (
-            recognize_prose_mentions, reconcile_object_mentions,
+            normalize_mention_case, recognize_prose_mentions, reconcile_object_mentions,
         )
-        # Passive recognition rewrites the body once, then re-saves so the canonical
-        # token is stored + the plain shadow ("@Heather") is regenerated. The re-save
-        # re-fires this signal with the guard set, which skips recognition and falls
-        # through to reconcile — so reconcile runs exactly once, on the final body.
+        # Recognition + presentation run once, then the body is re-saved so the canonical
+        # token is stored and the plain shadow regenerated. The re-save re-fires this
+        # signal with the guard set, which skips this block and falls through to reconcile
+        # — so reconcile runs exactly once, on the final body.
         if not getattr(instance, "_prose_recognized", False):
             original = instance.body or ""
-            new_body, passive_src = recognize_prose_mentions(instance.user, original)
-            if new_body != original:   # a prose name was wrapped into a token
+            recognized, passive_src = recognize_prose_mentions(instance.user, original)
+            # Normalize every chip's capitalization to the canonical Person (passive AND
+            # explicit), preserving the author's wording — "heather" → "Heather", never
+            # "Heather Jenkins".
+            final_body = normalize_mention_case(instance.user, recognized)
+            if final_body != original:
                 instance._prose_recognized = True
                 instance._passive_sources = passive_src   # survives to the reconcile pass
-                instance.body = new_body
+                instance.body = final_body
                 instance.save(update_fields=["body", "body_plain", "updated_at"])
                 return
         reconcile_object_mentions(

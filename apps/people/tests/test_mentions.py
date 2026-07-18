@@ -129,6 +129,43 @@ class PassiveProseRecognitionTests(TestCase):
             person=self.heather, content_type=self._ct(), object_id=e.pk)
         self.assertEqual(m.source_type, PersonMention.Source.EXACT_NAME)
 
+    def test_passive_normalizes_capitalization_to_canonical(self):
+        # The author's wording is preserved, but proper-name case is normalized to the
+        # canonical Person — "heather"/"HEATHER"/"hEaThEr" all render "Heather".
+        for typed in ("heather", "HEATHER", "hEaThEr"):
+            e = JournalEntry.objects.create(
+                user=self.user, title="x", entry_date=self.today,
+                body=f"<p>dinner with {typed} tonight</p>")
+            e.refresh_from_db()
+            self.assertIn(">Heather</span>", e.body, typed)
+            self.assertIn("dinner with Heather tonight", e.body_plain, typed)
+
+    def test_passive_does_not_expand_first_name_to_full_name(self):
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>saw heather today</p>")
+        e.refresh_from_db()
+        self.assertIn(">Heather</span>", e.body)          # normalized case
+        self.assertNotIn("Heather Jenkins", e.body)        # never expanded
+
+    def test_passive_full_name_lowercase_normalized(self):
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>lunch with heather jenkins today</p>")
+        e.refresh_from_db()
+        self.assertIn(">Heather Jenkins</span>", e.body)   # full name, canonical case
+
+    def test_explicit_chip_capitalization_normalized_on_save(self):
+        # An explicit chip stored lowercase (author typed "@heather") is normalized too,
+        # so explicit and passive render identically.
+        token = f'<span data-mention data-person-id="{self.heather.pk}">heather</span>'
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body=f"<p>Met {token} for coffee.</p>")
+        e.refresh_from_db()
+        self.assertIn(">Heather</span>", e.body)
+        self.assertNotIn(">heather</span>", e.body)
+
     def test_ambiguous_name_stays_plain_text(self):
         from apps.people.services.membership import grant_membership
         h2 = Person.objects.create(user=self.user, first_name="Heather", last_name="Smith")

@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — refine(journal): normalize recognized-name capitalization to the canonical Person (wording preserved)
+
+**Presentation-only fix from production validation (no identity/recognition/provenance change).** Passive recognition preserved the author's wording verbatim, including non-canonical capitalization — "dinner with heather" stayed "heather". It now normalizes a chip's **case** to how the Person is actually recorded, while keeping exactly which words the author used.
+
+- **New `normalize_mention_case(user, html)`** (`apps/people/services/mentions.py`): for each recognized-person chip, if the visible text case-insensitively matches one of that Person's canonical surfaces (first / full / display name or a custom recognition phrase), it rewrites the text to the canonical casing. "heather" / "HEATHER" / "hEaThEr" → "Heather". It **never expands wording** (a first name is never turned into a full name — "Heather" stays "Heather", not "Heather Jenkins"), and a chip whose text isn't a canonical surface is left exactly as written. Shared `_person_surfaces(person)` helper backs both matching and case-normalization (one source of truth).
+- **Covers passive AND explicit.** Wired into `reconcile_journal_person_mentions` right after recognition, so both a passively-recognized name and an explicit `@`-chip typed lowercase render identically (the previous milestone made the explicit chip preserve the typed query; this normalizes its case too). Identity (`data-person-id`) untouched; the dropdown still shows the full display name to identify the person.
+- **Existing entries:** data migration `journal/0014_normalize_mention_case` applies the same normalization to already-stored entries and re-derives the plain shadow (idempotent, chip-scoped, per-entry guarded so one odd row can't block a deploy, `bulk_update` no signals, reverse no-op; depends on `people` + `atomic=False` for the cross-app Person reads).
+- **No client change** — server-side only, so no bundle rebuild or cache-bust.
+- **Files:** `apps/people/services/mentions.py`, `apps/journal/signals.py`, `apps/people/tests/test_mentions.py` (+capitalization tests), `apps/journal/migrations/0014_normalize_mention_case.py`.
+
+**Verification:** `test_mentions` + `test_rich_text` + `test_request_path_safety_contract` (49) GREEN; `manage.py check` + `makemigrations --check` clean; migration applied locally. Browser-verified the exact reproduction: typed "dinner with heather" (lowercase, no @) → detail renders "dinner with Heather"; stored `…data-person-id="112">Heather</span>`, shadow "dinner with Heather", `PersonMention` person 112 / `exact_name` / surface "Heather". NOTE: parallel sessions have uncommitted work in the tree (`@WLJ_SYSTEM_PROMPTS/.../99_REFERENCE_INDEX.md`, `docs/WLJ_MEAL_INTELLIGENCE_ARCHITECTURE.md`) — committed ONLY my files by explicit path.
+
 ## 2026-07-18 — docs(cos): certification-driven operating model + evidence-ranked backlog + next-slice recommendation
 
 **Certification — not intuition — now drives the roadmap.** New governing doc `docs/WLJ_CERTIFICATION_BACKLOG.md`: the per-domain loop (fixtures → Owner-1 → Customer Truth → attribute → fix first layer → re-certify), the local-vs-production complementary standard, and a backlog sorted by MEASURED customer impact.

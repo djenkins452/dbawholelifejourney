@@ -112,23 +112,72 @@ _PROTECT_RE = re.compile(
 _TAG_SPLIT_RE = re.compile(r'(<[^>]+>)')
 
 
+def _person_surfaces(person):
+    """The canonical-cased surface strings for a person — first/full/display name plus
+    custom recognition phrases. The SAME forms used both to match a name in prose and to
+    normalize a chip's capitalization back to how the Person is actually recorded."""
+    out = []
+    for s in (person.first_name, person.last_name and person.full_name, person.display_name):
+        if s and s.strip():
+            out.append(s.strip())
+    for rp in person.recognition_phrases.all():
+        if rp.phrase and rp.phrase.strip():
+            out.append(rp.phrase.strip())
+    return out
+
+
 def _member_surfaces(user):
     """Searchable name/phrase surfaces for the user's People MEMBERS (not genealogy).
     Candidate strings only — the resolver makes the identity decision."""
-    from .phrases import derived_phrases
     members = list(Person.objects.filter(user=user, membership__isnull=False))
     member_ids = {p.pk for p in members}
     surfaces = set()
     for p in members:
-        for s in (p.first_name, p.last_name and p.full_name, p.display_name):
-            if s and s.strip():
-                surfaces.add(s.strip())
-        for rp in p.recognition_phrases.all():
-            if rp.phrase.strip():
-                surfaces.add(rp.phrase.strip())
+        for s in _person_surfaces(p):
+            surfaces.add(s)
     # Compact/@handle derived forms are for typed lookup, not prose — skip them.
     surfaces = {s for s in surfaces if s and not s.isspace()}
     return member_ids, surfaces
+
+
+# Match a stored chip so we can rewrite ONLY its visible text, never its attributes:
+#   (<span … data-person-id="N" …>)(text)(</span>)
+_CHIP_TEXT_RE = re.compile(
+    r'(<span[^>]*\bdata-person-id="(\d+)"[^>]*>)([^<]*)(</span>)', re.IGNORECASE
+)
+
+
+def normalize_mention_case(user, html):
+    """Normalize each recognized-person chip's visible text to the canonical Person's
+    capitalization — WITHOUT changing which words the author used.
+
+    "dinner with heather" / "HEATHER" / "hEaThEr" → "Heather" (the Person's recorded
+    first name). It never expands wording ("Heather" is never turned into "Heather
+    Jenkins" unless the author wrote the full name), and a chip whose text isn't one of
+    the Person's canonical surfaces is left exactly as written. Presentation only — the
+    identity (``data-person-id``) is untouched. Applies to BOTH passive and explicit
+    chips so they render identically."""
+    if not html or "data-mention" not in html.lower():
+        return html
+    surfaces_by_pid = {}
+
+    def surfaces_for(pid):
+        if pid not in surfaces_by_pid:
+            p = Person.objects.filter(user=user, pk=pid).first()
+            surfaces_by_pid[pid] = _person_surfaces(p) if p else []
+        return surfaces_by_pid[pid]
+
+    def _repl(m):
+        open_tag, pid_s, text, close = m.group(1), m.group(2), m.group(3), m.group(4)
+        norm = text.strip().casefold()
+        if not norm:
+            return m.group(0)
+        for surface in surfaces_for(int(pid_s)):
+            if surface.casefold() == norm and surface != text.strip():
+                return f"{open_tag}{surface}{close}"   # same words, canonical case
+        return m.group(0)
+
+    return _CHIP_TEXT_RE.sub(_repl, html)
 
 
 def recognize_prose_mentions(user, html):

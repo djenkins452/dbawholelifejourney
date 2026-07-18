@@ -16,6 +16,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from ..models import Person, PersonMembership, PersonMention
 from .membership import grant_membership
+from . import resolution
 
 # The sanitized mention markup: <span data-mention data-person-id="123">@Heather</span>
 _MENTION_RE = re.compile(
@@ -35,13 +36,19 @@ def extract_mentions_from_html(html):
 
 
 def reconcile_object_mentions(
-    source_obj, html, user, *, source_type=PersonMention.Source.EXPLICIT_AT_MENTION
+    source_obj, html, user, *, source_type=PersonMention.Source.EXPLICIT_AT_MENTION,
+    source_overrides=None,
 ):
     """Reconcile PersonMention rows for ``source_obj`` from its saved ``html``.
 
     Deterministic + idempotent: re-saving unchanged HTML changes nothing. Returns an
     auditable summary. Never raises on a bad token — an unknown/foreign id is simply
-    dropped (ownership boundary)."""
+    dropped (ownership boundary).
+
+    ``source_overrides`` ({person_id: source_type}) records faithful provenance for
+    passively-recognized names (e.g. ``exact_name``) so a prose match is never audited as
+    an explicit ``@mention``; ids absent from it keep the default ``source_type``."""
+    overrides = source_overrides or {}
     ct = ContentType.objects.get_for_model(source_obj.__class__)
     oid = source_obj.pk
 
@@ -68,7 +75,8 @@ def reconcile_object_mentions(
         if pid not in existing:
             PersonMention.objects.create(
                 person_id=pid, content_type=ct, object_id=oid,
-                source_type=source_type, surface_text=surface_by_id.get(pid, ""),
+                source_type=overrides.get(pid, source_type),
+                surface_text=surface_by_id.get(pid, ""),
             )
             created += 1
             person = Person.objects.get(pk=pid)        # a reference promotes to People
@@ -84,3 +92,113 @@ def mentions_for(source_obj):
     return (PersonMention.objects
             .filter(content_type=ct, object_id=source_obj.pk)
             .select_related("person"))
+
+
+# ── Passive prose recognition ───────────────────────────────────────────────
+# Turn a natural reference ("dinner with Heather") into the SAME mention token an
+# explicit @mention produces — but ONLY when the reference deterministically resolves
+# to exactly one canonical Person. This is not a second recognition system: it produces
+# the identical `<span data-mention data-person-id>` token, reconciled by the same
+# `reconcile_object_mentions`, and every identity decision is delegated to the ONE
+# canonical resolver (`resolution.resolve`). It NEVER guesses — an ambiguous name (two
+# people share it) stays plain text.
+
+# Text inside an existing mention token or a link is protected from re-scanning.
+_PROTECT_RE = re.compile(
+    r'<span[^>]*\bdata-mention\b[^>]*>.*?</span>|<a\b[^>]*>.*?</a>', re.IGNORECASE | re.DOTALL
+)
+_TAG_SPLIT_RE = re.compile(r'(<[^>]+>)')
+
+
+def _member_surfaces(user):
+    """Searchable name/phrase surfaces for the user's People MEMBERS (not genealogy).
+    Candidate strings only — the resolver makes the identity decision."""
+    from .phrases import derived_phrases
+    members = list(Person.objects.filter(user=user, membership__isnull=False))
+    member_ids = {p.pk for p in members}
+    surfaces = set()
+    for p in members:
+        for s in (p.first_name, p.last_name and p.full_name, p.display_name):
+            if s and s.strip():
+                surfaces.add(s.strip())
+        for rp in p.recognition_phrases.all():
+            if rp.phrase.strip():
+                surfaces.add(rp.phrase.strip())
+    # Compact/@handle derived forms are for typed lookup, not prose — skip them.
+    surfaces = {s for s in surfaces if s and not s.isspace()}
+    return member_ids, surfaces
+
+
+def recognize_prose_mentions(user, html):
+    """Return (new_html, source_by_pk): wrap deterministically-resolved MEMBER names found
+    in the prose into canonical mention tokens. Idempotent — text already inside a mention
+    token (or a link) is never re-scanned, so re-saving is stable.
+
+    ``source_by_pk`` maps each newly-recognized person to the resolver's faithful match
+    provenance (``exact_name`` / ``confirmed_alias`` / …) for the PersonMention audit — a
+    passive match is never recorded as an explicit ``@mention``. A person already carrying
+    an explicit token is excluded (their deliberate token is the stronger provenance)."""
+    if not html:
+        return html, {}
+    member_ids, surfaces = _member_surfaces(user)
+    if not surfaces:
+        return html, {}
+
+    # People the user already @mentioned explicitly keep that (stronger) provenance.
+    explicit_ids = {pid for pid, _ in extract_mentions_from_html(html)}
+
+    # Protect existing tokens/links, then build a longest-first, word-boundary matcher.
+    protected = []
+
+    def _stash(m):
+        protected.append(m.group(0))
+        return f"\x00{len(protected) - 1}\x00"
+
+    work = _PROTECT_RE.sub(_stash, html)
+    ordered = sorted(surfaces, key=len, reverse=True)
+    matcher = re.compile(r"\b(" + "|".join(re.escape(s) for s in ordered) + r")\b", re.IGNORECASE)
+
+    resolved_cache = {}
+
+    def _resolve_member(text):
+        key = text.lower()
+        if key not in resolved_cache:
+            r = resolution.resolve(user, text)
+            resolved_cache[key] = (
+                (r.person, r.source_type)
+                if (r.status == resolution.RESOLVED and r.person
+                    and r.person.pk in member_ids)
+                else (None, None)
+            )
+        return resolved_cache[key]
+
+    source_by_pk = {}
+
+    def _scan_text(text):
+        out, idx = [], 0
+        for m in matcher.finditer(text):
+            person, src = _resolve_member(m.group(0))
+            if not person:
+                continue
+            out.append(text[idx:m.start()])
+            out.append(f'<span data-mention data-person-id="{person.pk}">@{m.group(0)}</span>')
+            idx = m.end()
+            if person.pk not in explicit_ids:
+                source_by_pk.setdefault(person.pk, src or resolution.EXACT_NAME)
+        out.append(text[idx:])
+        return "".join(out)
+
+    # Only rewrite TEXT segments (never a tag). Protected tokens/links are inert
+    # placeholders (\x00N\x00, no letters) so the matcher can safely scan around them.
+    pieces = _TAG_SPLIT_RE.split(work)
+    rebuilt = []
+    for piece in pieces:
+        if piece.startswith("<") or not piece.strip():
+            rebuilt.append(piece)
+        else:
+            rebuilt.append(_scan_text(piece))
+    work = "".join(rebuilt)
+
+    # Restore protected tokens/links.
+    work = re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], work)
+    return work, source_by_pk

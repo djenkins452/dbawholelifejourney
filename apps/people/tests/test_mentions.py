@@ -93,3 +93,92 @@ class JournalSignalIntegrationTests(TestCase):
         entry.body = "<p>She is no longer mentioned.</p>"
         entry.save()
         self.assertFalse(PersonMention.objects.filter(object_id=entry.pk).exists())
+
+
+class PassiveProseRecognitionTests(TestCase):
+    """Natural prose references resolve to the SAME canonical token as an explicit
+    @mention — deterministic only, never guessing."""
+
+    def setUp(self):
+        from datetime import date
+        from apps.people.services.membership import grant_membership
+        self.today = date(2026, 7, 18)
+        self.user = make_user()
+        self.heather = Person.objects.create(user=self.user, first_name="Heather", last_name="Jenkins")
+        grant_membership(self.heather, PersonMembership.Grant.CONTACT_IMPORT)
+
+    def _ct(self):
+        return ContentType.objects.get_for_model(JournalEntry)
+
+    def test_prose_name_becomes_a_canonical_mention(self):
+        e = JournalEntry.objects.create(
+            user=self.user, title="Dinner", entry_date=self.today,
+            body="<p>Today I had dinner with Heather.</p>")
+        e.refresh_from_db()
+        # The stored body now carries the canonical token (renders as a chip on reopen).
+        self.assertIn(f'data-person-id="{self.heather.pk}"', e.body)
+        self.assertIn("@Heather", e.body)
+        # Plain shadow reads cleanly.
+        self.assertIn("@Heather", e.body_plain)
+        # And the canonical PersonMention link exists — same authority as explicit,
+        # but recorded with faithful provenance (recognized by name, not "@mention").
+        m = PersonMention.objects.get(
+            person=self.heather, content_type=self._ct(), object_id=e.pk)
+        self.assertEqual(m.source_type, PersonMention.Source.EXACT_NAME)
+
+    def test_ambiguous_name_stays_plain_text(self):
+        from apps.people.services.membership import grant_membership
+        h2 = Person.objects.create(user=self.user, first_name="Heather", last_name="Smith")
+        grant_membership(h2, PersonMembership.Grant.CONTACT_IMPORT)
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>I saw Heather today.</p>")   # two Heathers → ambiguous
+        e.refresh_from_db()
+        self.assertNotIn("data-mention", e.body)          # left as plain prose
+        self.assertEqual(PersonMention.objects.filter(object_id=e.pk).count(), 0)
+
+    def test_resave_is_idempotent_no_double_wrap(self):
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>Dinner with Heather.</p>")
+        e.refresh_from_db()
+        first_body = e.body
+        e.title = "edited"
+        e.save()
+        e.refresh_from_db()
+        self.assertEqual(e.body, first_body)              # no second token wrapped
+        self.assertEqual(e.body.count("data-person-id"), 1)
+
+    def test_non_member_prose_name_not_recognized(self):
+        # A genealogy person (no membership) referenced in prose is NOT auto-recognized.
+        Person.objects.create(user=self.user, display_name="Ada Lovelace", is_deceased=True)
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>Reading about Ada Lovelace.</p>")
+        e.refresh_from_db()
+        self.assertNotIn("data-mention", e.body)
+
+    def test_custom_phrase_prose_recognition(self):
+        from apps.people.services.phrases import add_custom_phrase
+        add_custom_phrase(self.heather, "Honey")
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body="<p>Coffee with Honey this morning.</p>")
+        e.refresh_from_db()
+        self.assertIn(f'data-person-id="{self.heather.pk}"', e.body)
+        self.assertIn("@Honey", e.body)
+
+    def test_existing_explicit_token_not_rewrapped(self):
+        token = f'<span data-mention data-person-id="{self.heather.pk}">@Heather Jenkins</span>'
+        e = JournalEntry.objects.create(
+            user=self.user, title="x", entry_date=self.today,
+            body=f"<p>Dinner with {token} and later Heather again.</p>")
+        e.refresh_from_db()
+        # The explicit token is untouched; the second bare "Heather" is recognized too,
+        # but still ONE PersonMention (deduped per person+object).
+        self.assertEqual(e.body.count("data-mention"), 2)
+        self.assertEqual(PersonMention.objects.filter(object_id=e.pk).count(), 1)
+        # The person was explicitly @mentioned → keeps explicit provenance (the passive
+        # occurrence never downgrades it).
+        m = PersonMention.objects.get(object_id=e.pk)
+        self.assertEqual(m.source_type, PersonMention.Source.EXPLICIT_AT_MENTION)

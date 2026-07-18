@@ -90,14 +90,37 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender='journal.JournalEntry')
 def reconcile_journal_person_mentions(sender, instance, created, **kwargs):
-    """Canonical Journal person recognition (Phase 0d). Runs on create AND update so
-    editing an entry keeps mentions in sync — a deleted @mention token deletes the
-    canonical PersonMention link. Deterministic + request-path-safe (no LLM): reads the
-    saved body's mention tokens and reconciles PersonMention through the ONE canonical
-    writer. Never breaks a save."""
+    """Canonical Journal person recognition (Phase 0d). Runs on create AND update.
+
+    TWO capabilities, ONE canonical authority (no second recognition system):
+      * EXPLICIT @mentions — tokens the user selected in the editor.
+      * PASSIVE recognition — a natural reference ("dinner with Heather") that
+        deterministically resolves to exactly one canonical Person is wrapped into the
+        SAME token, so it renders identically. Ambiguous names stay plain text (never
+        guess). Every identity decision is delegated to the ONE resolver.
+
+    Deterministic + request-path-safe (no LLM). Never breaks a save."""
     try:
-        from apps.people.services.mentions import reconcile_object_mentions
-        reconcile_object_mentions(instance, instance.body or "", instance.user)
+        from apps.people.services.mentions import (
+            recognize_prose_mentions, reconcile_object_mentions,
+        )
+        # Passive recognition rewrites the body once, then re-saves so the canonical
+        # token is stored + the plain shadow ("@Heather") is regenerated. The re-save
+        # re-fires this signal with the guard set, which skips recognition and falls
+        # through to reconcile — so reconcile runs exactly once, on the final body.
+        if not getattr(instance, "_prose_recognized", False):
+            original = instance.body or ""
+            new_body, passive_src = recognize_prose_mentions(instance.user, original)
+            if new_body != original:   # a prose name was wrapped into a token
+                instance._prose_recognized = True
+                instance._passive_sources = passive_src   # survives to the reconcile pass
+                instance.body = new_body
+                instance.save(update_fields=["body", "body_plain", "updated_at"])
+                return
+        reconcile_object_mentions(
+            instance, instance.body or "", instance.user,
+            source_overrides=getattr(instance, "_passive_sources", None),
+        )
     except Exception as e:  # pragma: no cover - defensive; recognition never blocks save
         logger.warning("Journal canonical mention reconcile failed for %s: %s",
                        getattr(instance, "pk", "?"), e)

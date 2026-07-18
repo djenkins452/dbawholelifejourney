@@ -37,7 +37,6 @@ any in-flight stream survive a focus-mode toggle untouched.
                 <path d="m9 12 2 2 4-4"/>
             </svg>
             <span>{{ cos_display_name|default:"Chief of Staff" }}{% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}<span class="ap-cos-badge">AI</span>{% endif %}</span>
-            {% if feature_flags.WLJ_COS_EVIDENCE_TOOLS_ENABLED %}<span class="ap-cos-sublabel">Powered by ChatGPT</span>{% endif %}
             <button class="ap-header-icon-btn" data-action="ap-clear-chat" title="Clear conversation">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
@@ -72,6 +71,16 @@ any in-flight stream survive a focus-mode toggle untouched.
                     <polyline points="12 6 12 12 16 14"/>
                 </svg>
             </a>
+            {% if request.user.is_staff %}
+            {% comment %}Operations shortcut — always-available operator surface. The dot is a foundation for future status overlay (JS sets data-ops-status).{% endcomment %}
+            <a href="{% url 'admin_console:ops_wall' %}" class="ap-ops-link" id="ap-ops-link"
+               data-ops-status="healthy" title="Operations">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                <span class="ap-ops-dot" aria-hidden="true"></span>
+            </a>
+            {% endif %}
         </div>
         <div class="ap-tabs">
             <button class="ap-tab active" data-action="switch-ap-tab" data-tab="chat">Chat</button>
@@ -82,6 +91,25 @@ any in-flight stream survive a focus-mode toggle untouched.
     <div class="assistant-panel-body">
         {# ====== CHAT TAB (default) ====== #}
         <div class="ap-tab-content ap-tab-chat" id="ap-tab-chat">
+            {% if request.user.is_staff %}
+            {% comment %}Pinned Operations banner — platform state, NOT a chat message. Hidden when healthy; shown while an issue is active; briefly shows the recovered cue then hides. Populated by JS from the deterministic executive payload (customer language only).{% endcomment %}
+            <div class="ap-ops-banner" id="ap-ops-banner" data-state="healthy" hidden>
+                <div class="ap-ops-banner-head">
+                    <span class="ap-ops-banner-emoji" id="ap-ops-banner-emoji">🟡</span>
+                    <span class="ap-ops-banner-title" id="ap-ops-banner-title">Operations Alert</span>
+                    <button type="button" class="ap-ops-banner-toggle" id="ap-ops-banner-toggle"
+                            data-action="ap-ops-toggle" aria-expanded="true" title="Toggle details">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                </div>
+                <div class="ap-ops-banner-body" id="ap-ops-banner-body">
+                    <div class="ap-ops-banner-lines" id="ap-ops-banner-lines"></div>
+                    <a class="ap-ops-banner-action" id="ap-ops-banner-action" href="/admin-console/ops/">
+                        Open Operations Wall →
+                    </a>
+                </div>
+            </div>
+            {% endif %}
             <div class="ap-chat-messages" id="ap-chat-messages" data-testid="cos-chat-messages">
                 <div id="ap-chat-loading" class="ap-chat-loading">
                     <div class="ap-chat-loading-spinner"></div>
@@ -619,6 +647,45 @@ any in-flight stream survive a focus-mode toggle untouched.
 
         if (msgData && msgData.is_proactive) msg.classList.add('proactive');
         if (msgData && msgData.id) msg.dataset.messageId = msgData.id;
+
+        // Operations Update recovery note — its OWN distinct timeline card, never
+        // a coaching/check-in bubble. Platform state stays visually separated
+        // from the life conversation.
+        if (msgData && msgData.message_type === 'operations_alert') {
+            msg.classList.remove('proactive', 'assistant');
+            msg.classList.add('ap-ops-msg');
+            var om = msgData.ops_meta || {};
+            msg.dataset.opsLevel = om.level || 'recovered';
+            var oHead = document.createElement('div');
+            oHead.className = 'ap-ops-msg-head';
+            var oEmoji = document.createElement('span');
+            oEmoji.className = 'ap-ops-msg-emoji';
+            oEmoji.textContent = '🟢';
+            var oTitle = document.createElement('span');
+            oTitle.className = 'ap-ops-msg-title';
+            oTitle.textContent = om.title || 'Operations Update';
+            oHead.appendChild(oEmoji); oHead.appendChild(oTitle);
+            msg.appendChild(oHead);
+            var oBody = document.createElement('div');
+            oBody.className = 'ap-ops-msg-body';
+            oBody.textContent = content;
+            msg.appendChild(oBody);
+            if (om.action_url) {
+                var oAction = document.createElement('a');
+                oAction.className = 'ap-ops-msg-action';
+                oAction.href = om.action_url;
+                oAction.textContent = (om.action_label || 'View Operations') + ' →';
+                msg.appendChild(oAction);
+            }
+            var oTs = document.createElement('div');
+            oTs.className = 'ap-msg-time assistant';
+            oTs.textContent = formatTime(msgDate);
+            container.appendChild(msg);
+            container.appendChild(oTs);
+            if (scroll) container.scrollTop = container.scrollHeight;
+            hasMessages = true;
+            return;
+        }
 
         if (!isUser) {
             if (msgData && msgData.is_proactive) {
@@ -2142,6 +2209,100 @@ any in-flight stream survive a focus-mode toggle untouched.
         })
         .catch(function() {});
     }, 60000);
+
+    /* ================================================================
+       OPERATIONS AWARENESS BANNER (staff-only; platform state, NOT chat)
+       Polls the deterministic executive status and renders the pinned banner.
+       Recovered cue is a client-derived transient on a non-healthy → healthy
+       transition; the permanent recovery note arrives via the timeline.
+       ================================================================ */
+    (function initOpsBanner() {
+        var banner = document.getElementById('ap-ops-banner');
+        if (!banner) return;  // non-staff: no banner rendered, no polling
+        var emojiEl = document.getElementById('ap-ops-banner-emoji');
+        var titleEl = document.getElementById('ap-ops-banner-title');
+        var linesEl = document.getElementById('ap-ops-banner-lines');
+        var actionEl = document.getElementById('ap-ops-banner-action');
+        var toggleEl = document.getElementById('ap-ops-banner-toggle');
+        var headerLink = document.getElementById('ap-ops-link');
+        var lastState = 'healthy';
+        var recoveredTimer = null;
+
+        function setHeaderStatus(s) {
+            if (headerLink) headerLink.setAttribute('data-ops-status', s);
+        }
+        function paintLines(lines) {
+            linesEl.innerHTML = '';
+            (lines || []).forEach(function(line) {
+                var d = document.createElement('div');
+                d.className = 'ap-ops-banner-line';
+                d.textContent = line;
+                linesEl.appendChild(d);
+            });
+        }
+        function renderActive(data) {
+            if (recoveredTimer) { clearTimeout(recoveredTimer); recoveredTimer = null; }
+            banner.dataset.state = data.state;
+            banner.removeAttribute('data-collapsed');
+            if (toggleEl) toggleEl.setAttribute('aria-expanded', 'true');
+            emojiEl.textContent = data.emoji || (data.state === 'critical' ? '🔴' : '🟡');
+            titleEl.textContent = data.title || 'Operations Alert';
+            paintLines(data.lines);
+            if (actionEl) {
+                actionEl.href = data.action_url || '/admin-console/ops/';
+                actionEl.textContent = (data.action_label || 'Open Operations Wall') + ' →';
+            }
+            banner.hidden = false;
+        }
+        function renderRecovered() {
+            if (recoveredTimer) clearTimeout(recoveredTimer);
+            banner.dataset.state = 'recovered';
+            banner.removeAttribute('data-collapsed');
+            emojiEl.textContent = '🟢';
+            titleEl.textContent = 'Operations Update';
+            paintLines(['WLJ has recovered. Everything is operating normally again.']);
+            if (actionEl) { actionEl.href = '/admin-console/ops/'; actionEl.textContent = 'View Operations →'; }
+            banner.hidden = false;
+            recoveredTimer = setTimeout(function() {
+                banner.hidden = true;
+                banner.dataset.state = 'healthy';
+            }, 12000);
+        }
+        function apply(data) {
+            var state = (data && data.state) || 'healthy';
+            setHeaderStatus(state === 'recovered' ? 'healthy' : state);
+            if (state === 'degraded' || state === 'critical') {
+                renderActive(data);
+            } else {
+                if (lastState === 'degraded' || lastState === 'critical') {
+                    renderRecovered();
+                } else if (banner.dataset.state !== 'recovered') {
+                    banner.hidden = true;
+                }
+            }
+            lastState = state;
+        }
+        function poll() {
+            fetch('/assistant/api/operations-status/', {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                .then(function(r) { return r.json(); })
+                .then(apply)
+                .catch(function() {});
+        }
+        if (toggleEl) {
+            toggleEl.addEventListener('click', function() {
+                if (banner.hasAttribute('data-collapsed')) {
+                    banner.removeAttribute('data-collapsed');
+                    toggleEl.setAttribute('aria-expanded', 'true');
+                } else {
+                    banner.setAttribute('data-collapsed', '');
+                    toggleEl.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+        poll();
+        setInterval(poll, 60000);
+        window.__opsBannerApply = apply;  // drive states for verification/screenshots
+    })();
 
     /* ================================================================
        VISIBILITY SYNC

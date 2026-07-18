@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(cos): Operations Awareness UX — platform state as a pinned banner, not conversation
+
+**Operations is platform state, treated like Wi-Fi/battery: visible while active, out of the way when healthy, never buried in chat.** Consumes existing deterministic Operations truth (the `executive` payload) — NO change to detection, scoring, SAME/ISE, recovery, or incident lifecycle. Staff-only (the Ops Wall is `is_staff`-gated).
+
+- **Pinned banner (not a chat message).** New `apps/ai/operations_banner.py` translates the cached `executive.overall_status` into customer language — 🟡 DEGRADED / 🔴 CRITICAL / (none when HEALTHY). Request-path-safe (cache read only; fails SAFE to healthy). Served by `GET /assistant/api/operations-status/` (`OperationsStatusView`, staff-gated → non-staff always "healthy"). The CoS panel polls it (60s) and renders a pinned banner above the conversation with the exact reassurance copy ("Your information is safe.") + an **Open Operations Wall** deep link (`/admin-console/ops/`). Optional collapse toggle. NEVER exposes ISE/SAME/OPS/Celery/Redis/Beat/drift/queue/worker terminology.
+- **Recovery = exactly one timeline note.** Active incidents create NO chat message (banner only). On recovery, `operational_alerts.py` writes ONE plain-English "Operations Update" (`message_type="operations_alert"`, new choice + migration `ai/0033`) rendered as its OWN distinct card (never a coaching/check-in bubble); a cache guard (`cache.add`) guarantees a single message even if several subsystems recover in one cycle. The client also shows a transient 🟢 recovered banner (non-healthy→healthy transition) that auto-dismisses. Removed the old active-incident chat injection and its engineering-language wording.
+- **Header.** Removed "Powered by ChatGPT"; added a permanent, staff-only **Operations** shortcut icon (kept the existing Time-Command-Center icon) with a status-dot foundation (`data-ops-status` → 🟢/🟡/🔴; wired from deterministic status).
+- **Files:** `apps/ai/operations_banner.py` (new), `apps/ai/views.py` (+`OperationsStatusView`, ops_meta serialization), `apps/ai/urls.py`, `apps/ai/models.py` + `apps/ai/migrations/0033_*`, `apps/core/ai_observability/operational_alerts.py`, `templates/components/assistant_panel.html`, `static/css/assistant-panel.css`, `apps/ai/tests/test_operations_banner.py` (new). Staff-only operator surface → no customer release note; desktop CoS panel (mobile pull-up unchanged/clean).
+
+**Verification:** `test_operations_banner` (12) + `tests_coas` + `test_request_path_safety_contract` (55 total) GREEN; `check` + `makemigrations --check` clean; `collectstatic` 0 errors. Browser-verified all states (healthy/degraded/critical/recovered banners, distinct recovery timeline card, header icon, Ops Wall launch, mobile 375px clean). Caught + fixed a multi-line `{# #}` Django-comment leak during browser verification.
+
 ## 2026-07-18 — feat(truth): Truth Layer field-completion — expose every remaining hidden deterministic field + drift contract
 
 **Implements every hidden field from the final field-level audit.** Existing composer pattern only; no new models, no migration. **19 domains register** (added `events`).

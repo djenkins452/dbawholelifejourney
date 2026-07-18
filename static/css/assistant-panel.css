@@ -2568,3 +2568,142 @@ body.has-desktop-nav .desktop-main-area {
     .assistant-panel { transition: width 0.24s cubic-bezier(0.4, 0, 0.2, 1); }
     .ap-focus-backdrop { transition: opacity 0.2s ease; }
 }
+
+/* =====================================================================
+   OPERATIONS AWARENESS (staff-only) — header shortcut + pinned banner +
+   recovery timeline card. Platform state, visually separated from the
+   life conversation. Added 2026-07-18 (Operations Awareness UX).
+   ===================================================================== */
+
+/* Header Operations shortcut — mirrors .ap-tcc-link; relative for the dot. */
+.ap-ops-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md, 6px);
+    color: var(--color-text-muted);
+    transition: color 0.15s, background 0.15s;
+    margin-left: 4px;
+    position: relative;
+}
+.ap-ops-link:hover {
+    color: var(--color-accent);
+    background: var(--color-border);
+}
+/* Status dot — foundation for 🟢/🟡/🔴. Hidden when healthy; the JS sets
+   [data-ops-status] from deterministic status, so coloring is natural. */
+.ap-ops-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1.5px solid transparent;
+    box-sizing: border-box;
+    pointer-events: none;
+    transition: background 0.2s;
+}
+.ap-ops-link[data-ops-status="degraded"] .ap-ops-dot { background: #f5a623; }
+.ap-ops-link[data-ops-status="critical"] .ap-ops-dot {
+    background: var(--color-danger, #e74c3c);
+    animation: ap-ops-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ap-ops-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Pinned banner — sits above the message stream inside the chat tab. */
+.ap-ops-banner {
+    flex: 0 0 auto;
+    margin: 8px 10px 4px;
+    border: 1px solid var(--color-border);
+    border-left-width: 3px;
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-surface-raised, var(--color-surface));
+    padding: 10px 12px;
+    font-size: 13px;
+}
+.ap-ops-banner[data-state="degraded"] { border-left-color: #f5a623; }
+.ap-ops-banner[data-state="critical"] { border-left-color: var(--color-danger, #e74c3c); }
+.ap-ops-banner[data-state="recovered"] { border-left-color: #27ae60; }
+.ap-ops-banner-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ap-ops-banner-emoji { font-size: 15px; line-height: 1; }
+.ap-ops-banner-title {
+    font-weight: 600;
+    color: var(--color-text, #1f2937);
+    flex: 1 1 auto;
+}
+.ap-ops-banner-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    border-radius: var(--radius-md, 6px);
+    transition: transform 0.15s, background 0.15s;
+    flex: 0 0 auto;
+}
+.ap-ops-banner-toggle:hover { background: var(--color-border); }
+.ap-ops-banner[data-collapsed] .ap-ops-banner-toggle svg { transform: rotate(-90deg); }
+.ap-ops-banner-body {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.ap-ops-banner[data-collapsed] .ap-ops-banner-body { display: none; }
+.ap-ops-banner-line { color: var(--color-text-muted); line-height: 1.4; }
+.ap-ops-banner-action {
+    align-self: flex-start;
+    margin-top: 4px;
+    font-weight: 600;
+    color: var(--color-accent);
+    text-decoration: none;
+    padding: 5px 10px;
+    border: 1px solid var(--color-accent);
+    border-radius: 9999px;
+    font-size: 12.5px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+}
+.ap-ops-banner-action:hover { background: var(--color-accent-bg, var(--color-border)); }
+
+/* Recovery note in the conversation timeline — its own distinct card. */
+.ap-chat-message.ap-ops-msg {
+    background: var(--color-surface-raised, var(--color-surface));
+    border: 1px solid var(--color-border);
+    border-left: 3px solid #27ae60;
+    border-radius: var(--radius-md, 8px);
+    padding: 10px 12px;
+    max-width: 100%;
+    align-self: stretch;
+}
+.ap-ops-msg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ap-ops-msg-emoji { font-size: 14px; }
+.ap-ops-msg-title { font-weight: 600; color: var(--color-text, #1f2937); }
+.ap-ops-msg-body { color: var(--color-text-muted); line-height: 1.45; font-size: 13px; }
+.ap-ops-msg-action {
+    display: inline-block;
+    margin-top: 6px;
+    font-weight: 600;
+    font-size: 12.5px;
+    color: var(--color-accent);
+    text-decoration: none;
+}
+.ap-ops-msg-action:hover { text-decoration: underline; }
+
+@media (max-width: 480px) {
+    .ap-ops-banner { margin: 6px 8px 4px; font-size: 12.5px; }
+    .ap-ops-banner-action { min-height: 36px; }
+}

@@ -1392,6 +1392,28 @@ class BethTelemetryView(View):
         return HttpResponse(status=204)
 
 
+class OperationsStatusView(LoginRequiredMixin, View):
+    """Customer-language Operations banner state for the CoS panel.
+
+    Request-path-safe: reads ONLY the pre-computed ops executive payload from
+    cache (via ``get_customer_operations_status``) — no compute, no rebuild, no
+    heavy query. Operations is the authority; this only translates impact.
+
+    Staff-gated: the pinned banner + Ops Wall are an operator surface (the Ops
+    Wall is is_staff-only), so non-staff always receive "healthy" (no banner)
+    and never see infrastructure state.
+    """
+
+    def get(self, request, *args, **kwargs):
+        from apps.ai.operations_banner import get_customer_operations_status
+
+        if not request.user.is_staff:
+            return JsonResponse({"state": "healthy", "staff": False})
+        status = get_customer_operations_status()
+        status["staff"] = True
+        return JsonResponse(status)
+
+
 class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
     """
     Get conversation history.
@@ -1447,6 +1469,15 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                     }
                     if _lifecycle:
                         msg_data['lifecycle'] = _lifecycle
+                # Operations Update recovery notes render as their own distinct
+                # timeline card (never a coaching bubble) — surface the action
+                # link + level the client needs to render it.
+                if msg.message_type == 'operations_alert' and msg.metadata:
+                    msg_data['ops_meta'] = {
+                        k: msg.metadata.get(k)
+                        for k in ('level', 'action_url', 'action_label')
+                        if k in msg.metadata
+                    }
                 messages_list.append(msg_data)
 
             # Add calibration state for chat auto-start

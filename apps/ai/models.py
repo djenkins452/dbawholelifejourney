@@ -662,6 +662,7 @@ class AssistantMessage(models.Model):
         ('priority_list', 'Priority List'),
         ('state_assessment', 'State Assessment'),
         ('fallback', 'Fallback Response'),
+        ('operations_alert', 'Operations Alert'),
     ]
     message_type = models.CharField(
         max_length=20,

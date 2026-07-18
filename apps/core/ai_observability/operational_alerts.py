@@ -119,12 +119,15 @@ def check_and_alert(scores):
                         subsystem_name,
                         score,
                     )
-                    # Notify recovery if it was an alert/critical level
-                    if was_severe:
+                    # Notify recovery if it was an alert/critical level. Exactly
+                    # ONE customer-language "Operations Update" enters the
+                    # timeline per recovery event, even if several subsystems
+                    # recover in the same cycle (cache guard below).
+                    if was_severe and _claim_recovery_message_slot():
                         recovery_msg = _build_recovery_message(
                             subsystem_name, score, latest_open
                         )
-                        _inject_admin_alert(recovery_msg, latest_open)
+                        _inject_admin_alert(recovery_msg, latest_open, level="recovered")
                 continue
 
             # --- DEGRADED: determine if state changed ---
@@ -188,9 +191,13 @@ def check_and_alert(scores):
                 score,
             )
 
-            # Inject into admin CoS chats (alert and critical only, not warning)
-            if new_severity in ("alert", "critical"):
-                _inject_admin_alert(message, alert)
+            # NOTE (Operations Awareness UX, 2026-07-18): active-incident state is
+            # now shown as a PINNED, customer-language banner in the CoS panel
+            # (polled from the deterministic executive payload), NOT as a chat
+            # message. Injecting during an active incident would blend platform
+            # state into the life conversation. We therefore do NOT inject here;
+            # only the RECOVERY transition writes exactly one timeline message
+            # (see the HEALTHY branch above). Detection/lifecycle are unchanged.
 
         except Exception as e:
             logger.error(
@@ -290,12 +297,38 @@ def _build_alert_message(subsystem, score, severity, details):
 
 
 def _build_recovery_message(subsystem, score, alert):
-    """Build a recovery notification message."""
-    subsystem_label = _SUBSYSTEM_LABELS.get(subsystem, subsystem)
+    """Customer-language recovery note for the conversation timeline.
+
+    Intentionally free of infrastructure terminology (no subsystem name, score,
+    severity, ISE/SAME/drift). This is the ONE permanent history entry the user
+    sees after an incident clears; the active state was shown only in the banner.
+    """
     return (
-        f"[COAS Recovery] {subsystem_label} has recovered to {score}/100. "
-        f"Previous {alert.severity} alert has been resolved."
+        "WLJ automatically recovered from a temporary operational issue. "
+        "Everything is operating normally again."
     )
+
+
+# One "Operations Update" per recovery event. Guards against several subsystems
+# resolving in the same COAS cycle producing duplicate timeline messages.
+_RECOVERY_MSG_GUARD_KEY = "wlj:ops:recovery_msg_sent"
+_RECOVERY_MSG_GUARD_TTL = 900  # 15 min — comfortably longer than a COAS cycle
+
+
+def _claim_recovery_message_slot():
+    """Return True for the FIRST recovery in a window, False afterwards.
+
+    Uses an atomic cache add so concurrent workers cannot both claim the slot.
+    Fails OPEN (returns True) only if the cache is entirely unavailable, so a
+    recovery is never silently dropped in dev/degraded-cache conditions.
+    """
+    try:
+        from django.core.cache import cache
+        # cache.add is atomic: only the first caller in the TTL window succeeds.
+        return bool(cache.add(_RECOVERY_MSG_GUARD_KEY, 1, _RECOVERY_MSG_GUARD_TTL))
+    except Exception as e:
+        logger.warning("recovery message guard unavailable (%s) — allowing", e)
+        return True
 
 
 def _build_diagnostic_prompt(subsystem, score, details):
@@ -401,16 +434,20 @@ def _build_diagnostic_prompt(subsystem, score, details):
 # ADMIN CHAT INJECTION
 # =============================================================================
 
-def _inject_admin_alert(message, alert):
+def _inject_admin_alert(message, alert, level="recovered"):
     """
-    Inject an alert message into all admin users' CoS chat conversations.
+    Inject ONE customer-language Operations Update into staff CoS timelines.
 
-    Uses the exact pattern from ProactiveCheckInService._create_proactive_message()
-    (apps/ai/proactive_checkins.py lines 488-521).
+    As of the Operations Awareness UX (2026-07-18) this is used ONLY for the
+    recovery transition — active-incident state is shown in the pinned banner,
+    never as a chat message. The message renders as its own distinct
+    ``operations_alert`` timeline card (not a coaching/check-in bubble), and
+    carries the Ops Wall deep link in metadata.
 
     Args:
-        message: str — the alert text
+        message: str — the customer-language update text
         alert: OperationalAlert — the alert record (for metadata)
+        level: str — banner/card level ("recovered")
     """
     from apps.users.models import User
 
@@ -434,12 +471,13 @@ def _inject_admin_alert(message, alert):
                 conversation=conversation,
                 role="assistant",
                 content=message,
-                message_type="insight",
+                message_type="operations_alert",
                 metadata={
-                    "alert_type": "coas",
-                    "subsystem": alert.subsystem,
-                    "severity": alert.severity,
-                    "health_score": alert.health_score,
+                    "alert_type": "operations",
+                    "level": level,
+                    "title": "Operations Update",
+                    "action_url": "/admin-console/ops/",
+                    "action_label": "View Operations",
                     "alert_id": alert.id,
                 },
                 quick_replies=[],

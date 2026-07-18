@@ -118,7 +118,7 @@ class TestDinnerSuggestionsView(TestUserMixin, TestCase):
 
     def test_suggestions_with_recipes_below_threshold(self):
         """Suggestions page shows setup required when below activation threshold."""
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         Recipe.objects.create(
             user=self.user,
             title="Test Recipe",
@@ -247,7 +247,7 @@ class TestMealPlanView(TestUserMixin, TestCase):
             start_date=today,
             end_date=today + timezone.timedelta(days=6),
         )
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         recipe = Recipe.objects.create(
             user=self.user, title="Chicken Stir Fry",
             ingredients="chicken", instructions="Cook.",
@@ -265,7 +265,7 @@ class TestMealPlanView(TestUserMixin, TestCase):
         self.assertEqual(response.status_code, 302)  # redirect
 
     def test_generate_plan_with_recipes(self):
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         Recipe.objects.create(
             user=self.user, title="Pasta",
             ingredients="pasta", instructions="Boil.",
@@ -346,7 +346,7 @@ class TestRecipeIntelligenceDetailView(TestUserMixin, TestCase):
         HouseholdMembership.objects.create(
             household=self.household, user=self.user, role="admin"
         )
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         self.recipe = Recipe.objects.create(
             user=self.user, title="Chicken Stir Fry",
             ingredients="2 cups chicken breast\n1 cup broccoli",
@@ -378,7 +378,7 @@ class TestRecipeIntelligenceDetailView(TestUserMixin, TestCase):
     def test_recipe_detail_other_user(self):
         """Can't view another user's recipe."""
         other_user = self.create_user("other@example.com")
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         other_recipe = Recipe.objects.create(
             user=other_user, title="Secret Recipe",
             ingredients="secret", instructions="secret",

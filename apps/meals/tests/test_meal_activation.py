@@ -77,7 +77,7 @@ class TestActivationService(TestUserMixin, TestCase):
 
     def _add_recipes(self, count):
         """Add recipes for the user."""
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         for i in range(count):
             Recipe.objects.create(
@@ -276,7 +276,7 @@ class TestDashboardSetupMode(TestUserMixin, TestCase):
                 quantity=Decimal("100"),
                 unit="g",
             )
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         for i in range(RECIPE_REQUIRED):
             Recipe.objects.create(
@@ -315,7 +315,7 @@ class TestSuggestionsSetupMode(TestUserMixin, TestCase):
 
     def test_suggestions_no_scoring_in_setup_mode(self):
         """Suggestions does NOT run scoring engine when below threshold."""
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         Recipe.objects.create(
             user=self.user,
@@ -383,7 +383,7 @@ class TestSetupWizard(TestUserMixin, TestCase):
                 quantity=Decimal("100"),
                 unit="g",
             )
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         for i in range(RECIPE_REQUIRED):
             Recipe.objects.create(
@@ -480,7 +480,7 @@ class TestCoSActivationContext(TestUserMixin, TestCase):
                 quantity=Decimal("100"),
                 unit="g",
             )
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         for i in range(RECIPE_REQUIRED):
             Recipe.objects.create(

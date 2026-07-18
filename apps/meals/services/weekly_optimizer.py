@@ -65,7 +65,7 @@ def generate_meal_plan(
         dietary_profile: Optional dietary constraints
         recipes: Optional queryset of recipes to consider
     """
-    from apps.life.models import Recipe
+    from apps.meals.models import Recipe
     from apps.meals.models import MealPlan, MealPlanEntry
 
     if meal_types is None:
@@ -191,7 +191,7 @@ def save_meal_plan(household, plan_result, user) -> "MealPlan":
     )
 
     for slot, score in plan_result.entries:
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         recipe = Recipe.objects.get(pk=score.recipe_id)
 
         MealPlanEntry.objects.create(

@@ -64,7 +64,7 @@ class ServicesTestDataMixin(TestUserMixin):
 
     def create_recipe(self, user, title="Test Recipe", servings=4,
                       prep_time=10, cook_time=20, is_favorite=False):
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         return Recipe.objects.create(
             user=user,
             title=title,
@@ -584,7 +584,7 @@ class TestGenerateMealPlan(ServicesTestDataMixin, TestCase):
 
     def test_plan_with_no_recipes(self):
         """No available recipes should return empty plan with warning."""
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         result = generate_meal_plan(
             self.household,
             start_date=self.start_date,

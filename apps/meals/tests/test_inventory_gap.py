@@ -53,7 +53,7 @@ class MealsTestDataMixin(TestUserMixin):
 
     def create_recipe(self, user, title="Test Recipe", servings=4,
                       prep_time=10, cook_time=20):
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         return Recipe.objects.create(
             user=user,
             title=title,

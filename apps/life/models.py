@@ -1178,105 +1178,6 @@ class PetRecord(models.Model):
 
 
 # =============================================================================
-# Recipes
-# =============================================================================
-
-class Recipe(UserOwnedModel):
-    """
-    Favorite recipes and family traditions.
-    
-    About preserving family culture, not just storing instructions.
-    """
-
-    DIFFICULTY_CHOICES = [
-        ('easy', 'Easy'),
-        ('medium', 'Medium'),
-        ('hard', 'Hard'),
-    ]
-
-    title = models.CharField(max_length=200)
-    description = models.TextField(
-        blank=True,
-        help_text="Brief description or story behind this recipe"
-    )
-
-    # Recipe details
-    ingredients = models.TextField(help_text="One ingredient per line")
-    instructions = models.TextField()
-
-    # Metadata
-    prep_time_minutes = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text="Preparation time in minutes"
-    )
-    cook_time_minutes = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        help_text="Cooking time in minutes"
-    )
-    servings = models.PositiveIntegerField(null=True, blank=True)
-    difficulty = models.CharField(
-        max_length=20,
-        choices=DIFFICULTY_CHOICES,
-        blank=True
-    )
-
-    # Organization
-    category = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="e.g., Breakfast, Dinner, Dessert, Holiday"
-    )
-    tags = models.JSONField(
-        default=list,
-        blank=True,
-        help_text="Tags like 'vegetarian', 'quick', 'family-favorite'"
-    )
-
-    # Source
-    source = models.CharField(
-        max_length=200,
-        blank=True,
-        help_text="Where did this recipe come from?"
-    )
-    source_url = models.URLField(blank=True)
-
-    # Image
-    image = models.ImageField(
-        upload_to='life/recipes/',
-        blank=True,
-        null=True
-    )
-
-    # Personal notes
-    notes = models.TextField(
-        blank=True,
-        help_text="Your variations, tips, or memories"
-    )
-
-    # Favorites
-    is_favorite = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ['-is_favorite', 'title']
-        verbose_name = "Recipe"
-        verbose_name_plural = "Recipes"
-
-    def __str__(self):
-        return self.title
-
-    def get_absolute_url(self):
-        return reverse('life:recipe_detail', kwargs={'pk': self.pk})
-
-    @property
-    def total_time_minutes(self):
-        prep = self.prep_time_minutes or 0
-        cook = self.cook_time_minutes or 0
-        return prep + cook if (prep or cook) else None
-
-
-# =============================================================================
 # Documents
 # =============================================================================
 
@@ -2560,12 +2461,12 @@ class RecipeBulkImportPhoto(UserOwnedModel):
     confidence = models.FloatField(null=True, blank=True)
     error_message = models.TextField(blank=True)
     recipe = models.ForeignKey(
-        Recipe,
+        "meals.Recipe",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='bulk_import_photo',
-        help_text="The Recipe created when user confirms this photo",
+        help_text="The Recipe created when user confirms this photo (owned by Meal Intelligence)",
     )
 
     class Meta:

@@ -118,7 +118,7 @@ class TestRecipeIngredientModel(TestUserMixin, TestCase):
 
     def setUp(self):
         self.user = self.create_user()
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         self.recipe = Recipe.objects.create(
             user=self.user,
             title="Test Recipe",
@@ -220,7 +220,7 @@ class TestRecipeIngredientModel(TestUserMixin, TestCase):
         self.recipe.soft_delete()
         # RecipeIngredient still exists (recipe is soft-deleted, not hard-deleted)
         # but if we hard delete the recipe, cascade should work
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         Recipe.all_objects.filter(pk=self.recipe.pk).delete()
         self.assertEqual(RecipeIngredient.objects.count(), 0)
 

@@ -46,7 +46,7 @@ class NutritionTestDataMixin(TestUserMixin):
     """Provides standard test data for recipe nutrition tests."""
 
     def create_recipe(self, user, title="Test Recipe", servings=4):
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
         return Recipe.objects.create(
             user=user,
             title=title,

@@ -73,7 +73,7 @@ def get_activation_status(user, household) -> ActivationStatus:
     if cached is not None:
         return cached
 
-    from apps.life.models import Recipe
+    from apps.meals.models import Recipe
 
     from apps.meals.models import PantryItem
 

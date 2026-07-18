@@ -822,7 +822,7 @@ class LifeDashboardStatsTest(LifeTestMixin, TestCase):
 
     def test_stats_includes_recipes_count(self):
         """Stats includes recipes count."""
-        from apps.life.models import Recipe
+        from apps.meals.models import Recipe
 
         Recipe.objects.create(
             user=self.user,

@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(meals): Foundation 1B — Recipe Ownership Migration (life → meals, zero-DDL state move)
+
+**Meal Intelligence now canonically owns the Recipe model** — completing the Foundation 1 canonical-truth ownership. The `Recipe` model moved from `apps.life` to `apps.meals` via a pure Django STATE change: the physical table `life_recipe` and every FK constraint are untouched, so **no DDL, no data movement, all recipe IDs preserved**. This removes the cross-app ownership seam where the Meal Intelligence layer (RecipeIngredient/nutrition/gap/scoring) reached across to `life.Recipe`.
+
+- **Model move:** `Recipe` class relocated to `apps/meals/models.py` with `Meta.db_table = 'life_recipe'`; removed from `apps/life/models.py`. Migrations `meals/0011` (CreateModel + re-target `RecipeIngredient`/`MealPlanEntry` FKs) and `life/0059` (re-target `RecipeBulkImportPhoto` FK + DeleteModel) are both `SeparateDatabaseAndState` with **empty `database_operations`** (state-only; the table/constraints already exist and are correct). `life/0059` depends on `meals/0011` for ordering.
+- **Every consumer rewired** (blast radius, all 8 categories): FK string-refs (`meals.RecipeIngredient`, `meals.MealPlanEntry`, `RecipeBulkImportPhoto`, `scan/signals.py` post_save sender → `meals.Recipe`); imports (`meals/views.py`, `weekly_optimizer`, `activation`, `life/views.py`, `life/admin.py`, + 6 test modules → `from apps.meals.models import Recipe`). Zero remaining production refs to `life.Recipe`.
+- **Preserved (unchanged):** recipe URLs (`life:recipe_*`), templates (`templates/life/recipe_*.html`), scanning, bulk import, browsing, editing, `get_absolute_url` → `life:recipe_detail`, `RecipeBulkImportSession/Photo` (stay in `life`, now cross-app FK to `meals.Recipe`). The recipe **UI/presentation remains under the `life` namespace** presenting the Meal-Intelligence-owned model (architecturally sanctioned "Life retains a presentation link"); relocating the UI *namespace* to `meals` is optional future organizational work with no truth-ownership benefit (deferred, high-churn). Legacy has no Recipe coupling to preserve.
+- **Validation:** `makemigrations --check` no drift; `manage.py check` clean; migrations apply to an existing DB AND build from a **fresh DB** from zero (CI path); **540 tests** green (full `apps.meals` + `apps.life` recipe + `apps.scan`) + 20 recipe-scan + 201 recipe-consumer runs; ORM smoke confirms `Recipe._meta.app_label == 'meals'`, `db_table == 'life_recipe'`, all FKs (same-app + cross-app) resolve, URLs preserved.
+
+**Foundation 1 (Canonical Truth) is now COMPLETE:** execution truth (1), nutrition summary/authority (1A slice), nutrition target-store consolidation (1A), and Recipe ownership (1B). No remaining Foundation 1 migration work.
+
+**Files:** `apps/meals/models.py`, `apps/life/models.py`, `apps/life/views.py`, `apps/life/admin.py`, `apps/scan/signals.py`, `apps/meals/views.py`, `apps/meals/services/{activation,weekly_optimizer}.py`, `apps/meals/migrations/0011_recipe_alter_mealplanentry_recipe_and_more.py` (new), `apps/life/migrations/0059_alter_recipebulkimportphoto_recipe_delete_recipe.py` (new), 6 meals/life test modules, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — fix(people): Recognition management now appears on the production Person page users actually use
 
 **UX-integration fix. Production validation was right — the section was invisible on `/relationships/<id>` (the page the "People" menu opens). Root cause traced to TWO compounding bugs (both mine, from the prior milestone):**

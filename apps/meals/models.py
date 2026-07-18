@@ -7,9 +7,10 @@ Purpose: Models for the Meal Intelligence pillar
 
 Description:
     Structured ingredient normalization, household management, pantry tracking,
-    meal planning, receipt parsing, and meal scoring. Bridges the Recipe model
-    (apps/life) with the FoodItem library (apps/health) to enable intelligent
-    meal recommendations.
+    meal planning, receipt parsing, and meal scoring. Meal Intelligence owns the
+    canonical Recipe model (moved here in Foundation 1B; table preserved as
+    life_recipe) and bridges it with the FoodItem library (apps/health) to enable
+    intelligent meal recommendations.
 
 Key Models:
     Phase 1: Ingredient, RecipeIngredient
@@ -23,6 +24,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.models import SoftDeleteModel, TimeStampedModel, UserOwnedModel
@@ -168,11 +170,115 @@ class Ingredient(TimeStampedModel):
         )
 
 
+class Recipe(UserOwnedModel):
+    """
+    A recipe — the canonical operational food asset (Meal Intelligence owns it).
+
+    Meal Intelligence owns what a recipe IS and how it functions (ingredients,
+    instructions, servings, nutrition, prep, cost, planning). Legacy projects
+    MEANING (family history, stories, traditions) onto it without owning the record.
+
+    Moved here from apps.life in Foundation 1B (Recipe Ownership Migration); the
+    physical table is preserved as ``life_recipe`` (no data migration). The recipe
+    UI/URLs remain under the ``life`` namespace for now and present this
+    Meal-Intelligence-owned model.
+    """
+
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    ]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField(
+        blank=True,
+        help_text="Brief description or story behind this recipe"
+    )
+
+    # Recipe details
+    ingredients = models.TextField(help_text="One ingredient per line")
+    instructions = models.TextField()
+
+    # Metadata
+    prep_time_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Preparation time in minutes"
+    )
+    cook_time_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Cooking time in minutes"
+    )
+    servings = models.PositiveIntegerField(null=True, blank=True)
+    difficulty = models.CharField(
+        max_length=20,
+        choices=DIFFICULTY_CHOICES,
+        blank=True
+    )
+
+    # Organization
+    category = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text="e.g., Breakfast, Dinner, Dessert, Holiday"
+    )
+    tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Tags like 'vegetarian', 'quick', 'family-favorite'"
+    )
+
+    # Source
+    source = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Where did this recipe come from?"
+    )
+    source_url = models.URLField(blank=True)
+
+    # Image
+    image = models.ImageField(
+        upload_to='life/recipes/',
+        blank=True,
+        null=True
+    )
+
+    # Personal notes
+    notes = models.TextField(
+        blank=True,
+        help_text="Your variations, tips, or memories"
+    )
+
+    # Favorites
+    is_favorite = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'life_recipe'   # preserve the existing table (no data migration)
+        ordering = ['-is_favorite', 'title']
+        verbose_name = "Recipe"
+        verbose_name_plural = "Recipes"
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        # Recipe UI/URLs remain under the life namespace (presentation layer).
+        return reverse('life:recipe_detail', kwargs={'pk': self.pk})
+
+    @property
+    def total_time_minutes(self):
+        prep = self.prep_time_minutes or 0
+        cook = self.cook_time_minutes or 0
+        return prep + cook if (prep or cook) else None
+
+
 class RecipeIngredient(TimeStampedModel):
     """
     Structured ingredient line for a Recipe.
 
-    Connects a Recipe (apps/life) to an Ingredient with quantity, unit,
+    Connects a Recipe to an Ingredient with quantity, unit,
     and preparation notes. Replaces the plain-text ingredients field.
     """
 
@@ -206,7 +312,7 @@ class RecipeIngredient(TimeStampedModel):
     ]
 
     recipe = models.ForeignKey(
-        "life.Recipe",
+        "meals.Recipe",
         on_delete=models.CASCADE,
         related_name="structured_ingredients",
     )
@@ -658,7 +764,7 @@ class MealPlanEntry(TimeStampedModel):
         default="dinner",
     )
     recipe = models.ForeignKey(
-        "life.Recipe",
+        "meals.Recipe",
         on_delete=models.CASCADE,
         related_name="meal_plan_entries",
     )

@@ -29,7 +29,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, TemplateView, View
 
 from apps.help.mixins import HelpContextMixin
-from apps.life.models import Recipe
+from apps.meals.models import Recipe
 
 from .models import (
     DietaryProfile,

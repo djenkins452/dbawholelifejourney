@@ -53,7 +53,6 @@ from .models import (
     MaintenanceLog,
     Pet,
     PetRecord,
-    Recipe,
     RecipeBulkImportSession,
     RecipeBulkImportPhoto,
     Document,
@@ -61,6 +60,7 @@ from .models import (
     RoutineSchedule,
     SignificantEvent,
 )
+from apps.meals.models import Recipe
 from .forms import RoutineForm, RoutineScheduleFormSet, SignificantEventForm
 
 

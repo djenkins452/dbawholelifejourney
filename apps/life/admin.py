@@ -1,5 +1,6 @@
 from django.contrib import admin
 
+from apps.meals.models import Recipe  # Recipe is owned by Meal Intelligence (Foundation 1B)
 from .models import (
     Project,
     Task,
@@ -7,7 +8,6 @@ from .models import (
     InventoryItem,
     MaintenanceLog,
     Pet,
-    Recipe,
     SignificantEvent,
 )
 

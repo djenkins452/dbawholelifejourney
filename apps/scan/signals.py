@@ -79,7 +79,7 @@ def analyze_pet_photo(sender, instance, **kwargs):
                       lambda i: i.user)
 
 
-@receiver(post_save, sender='life.Recipe')
+@receiver(post_save, sender='meals.Recipe')
 def analyze_recipe_image(sender, instance, **kwargs):
     """Analyze recipe image when set."""
     _trigger_analysis(instance, 'image', 'recipe',

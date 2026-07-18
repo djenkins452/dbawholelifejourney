@@ -15,7 +15,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from apps.life.models import Recipe
+from apps.meals.models import Recipe
 
 User = get_user_model()
 

@@ -28,19 +28,18 @@ def _mk_user(email, staff=False):
     return u
 
 
-class _FakeBeth:
-    """Stand-in for ChatGPTCoSService: a gold France-progress answer, else a stub."""
-    def __init__(self, user):
-        self.user = user
-
-    def generate(self, conversation, message, **kw):
-        if "progressing" in message:
-            return {"answer": (
-                "'France 2027 Family 18K Mission' is in its weight-loss foundation "
-                "phase and on pace — weight trending down, workouts on schedule. The next "
-                "milestone is a return to running base. Today's lever: complete "
-                "today's scheduled workout.")}
-        return {"answer": "ok"}
+def _fake_ask(text):
+    """Injected asker (deterministic, no OpenAI): a gold France-progress answer, else
+    a stub. Mirrors the (answer, evidence) contract of the production gateway asker."""
+    if "progressing" in text:
+        answer = (
+            "'France 2027 Family 18K Mission' is in its weight-loss foundation "
+            "phase and on pace — weight trending down, workouts on schedule. The next "
+            "milestone is a return to running base. Today's lever: complete "
+            "today's scheduled workout.")
+    else:
+        answer = "ok"
+    return answer, {"runtime_used": "test"}
 
 
 class AcceptanceModelTests(TestCase):
@@ -66,8 +65,7 @@ class AcceptanceServiceTests(TestCase):
         u = _mk_user("owner2@example.com", staff=True)
         run = AcceptanceRun.objects.create(suite_name="goals", target_user=u,
                                            created_by=u, status="running")
-        with patch("apps.ai.chatgpt_cos.service.ChatGPTCoSService", _FakeBeth):
-            execute_run(run, evening=False)
+        execute_run(run, evening=False, ask=_fake_ask)
         run.refresh_from_db()
         self.assertEqual(run.status, "completed")
         self.assertEqual(run.total_count, run.results.count())
@@ -95,8 +93,7 @@ class AcceptanceServiceTests(TestCase):
         u = _mk_user("owner3@example.com", staff=True)
         run = AcceptanceRun.objects.create(suite_name="health", target_user=u, status="running")
         before = AssistantConversation.objects.filter(user=u).count()
-        with patch("apps.ai.chatgpt_cos.service.ChatGPTCoSService", _FakeBeth):
-            execute_run(run, evening=False)
+        execute_run(run, evening=False, ask=_fake_ask)
         self.assertEqual(AssistantConversation.objects.filter(user=u).count(), before)
 
 

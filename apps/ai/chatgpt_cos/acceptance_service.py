@@ -309,19 +309,116 @@ def git_commit():
     return (os.environ.get("RAILWAY_GIT_COMMIT_SHA", "") or "development")[:12]
 
 
-# ---- run a single question through the real chat path ----------------------
-def run_one(svc, conversation, spec, evening=False):
-    # Each bank question is an ISOLATED turn — reset the conversation-planner state
-    # (P31) so it never leaks between unrelated questions. Multi-turn dialogue is
-    # covered by dedicated scenario tests, not the isolated-intent bank.
+# ---- runtime asker: route ONE isolated question through the production gateway ----
+def _gateway_asker(user):
+    """Return `ask(text) -> (answer, evidence)` that routes one ISOLATED question
+    through `CoSGateway.respond` — the SAME production entry point a real customer
+    hits. The gateway resolves the runtime from the user's flags (ModelInterface for
+    the owner), so the harness certifies the runtime the customer actually gets; it
+    never hardwires a runtime. Each question uses a fresh throwaway conversation (no
+    history bleed between unrelated questions), deleted afterwards so chat history is
+    never polluted."""
+    from apps.ai.cos_gateway import CoSGateway, SURFACE_CHAT
+    from apps.ai.models import AssistantConversation
+
+    def ask(text):
+        conv = AssistantConversation.objects.create(
+            user=user, title="[acceptance] isolated turn",
+            session_type="general", is_active=False)
+        try:
+            with _telemetry() as cap:
+                env = CoSGateway.respond(
+                    user=user, surface=SURFACE_CHAT, message=text,
+                    conversation=conv, stream=False)
+            answer = (getattr(env, "text", "") or "").strip()
+            return answer, _extract_evidence(user, env, cap.lines)
+        finally:
+            try:
+                conv.delete()      # never pollute chat history
+            except Exception:
+                pass
+    return ask
+
+
+def _extract_evidence(user, env, log_lines):
+    """Compose structured retrieval evidence from the gateway envelope + the
+    ToolCallLog audit ledger (the ModelInterface runtime writes it per turn). Reuses
+    the existing telemetry parser for the ChatGPT-CoS runtime (intent/lane). Reads
+    existing rows only — NO new evidence store."""
+    meta = getattr(env, "meta", {}) or {}
+    runtime_used = getattr(env, "runtime", "") or ""
+    tools_called = list(meta.get("tools_called") or [])
+    turn_id = meta.get("turn_id") or ""
+
+    truth_rows = []
+    if turn_id:
+        try:
+            from apps.ai.models import ToolCallLog
+            for row in ToolCallLog.objects.filter(
+                    user=user, turn_id=turn_id).order_by("created_at"):
+                truth_rows.append({
+                    "kind": row.kind, "tool": row.tool_name, "args": row.args,
+                    "status": row.result_status, "digest": row.result_digest})
+        except Exception:
+            logger.warning("acceptance: evidence read failed turn=%s", turn_id,
+                           exc_info=True)
+
+    # The primary TRUTH tool call is the retrieval that answered the question.
+    primary = next((r for r in truth_rows if r.get("kind") == "truth"), None)
+    selected_tool = (primary or {}).get("tool") or (tools_called[0] if tools_called else "")
+    tool_arguments = (primary or {}).get("args") or {}
+    canonical_provider = ""
+    if isinstance(tool_arguments, dict):
+        canonical_provider = tool_arguments.get("domain") or tool_arguments.get("entity_type") or ""
+
+    intent, lane, fb, openai = parse_telemetry(log_lines)
+    if truth_rows:
+        openai = True   # a tool loop ran → the model was called
+    return {
+        "runtime_used": runtime_used, "tools_called": tools_called,
+        "selected_tool": selected_tool or "", "tool_arguments": tool_arguments,
+        "canonical_provider": canonical_provider,
+        "retrieved_records": (primary or {}).get("digest") or {},
+        "retrieval_evidence": truth_rows,
+        "intent": intent, "lane": lane, "fallback_used": fb, "openai_called": openai}
+
+
+# Retrieval failure taxonomy — the FIRST layer that failed for a row. Evidence-derived,
+# falling back to the EXISTING acceptance_rules category→layer map where the tool ledger
+# is silent. A classifier over existing evidence, NOT a new framework.
+_UNSUPPORTED_STATUS = {"unsupported", "unsupported_domain", "unsupported_metric",
+                       "unsupported_entity"}
+_EMPTY_STATUS = {"empty", "absent", "none", "no_data", "not_found"}
+
+
+def _first_failing_layer(passed, fails, evidence):
+    if passed:
+        return ""
+    if any(str(f).startswith("exception") for f in fails):
+        return "transport"
+    truth_rows = [r for r in (evidence.get("retrieval_evidence") or [])
+                  if r.get("kind") == "truth"]
+    if not truth_rows and not evidence.get("selected_tool"):
+        return "routing"                # no truth tool was ever selected
+    primary_status = (truth_rows[0].get("status") or "").lower() if truth_rows else ""
+    if primary_status in _UNSUPPORTED_STATUS:
+        return "registration"           # tool asked, domain/metric not registered
+    if primary_status in _EMPTY_STATUS or (truth_rows and not truth_rows[0].get("digest")):
+        return "evidence"               # tool ran, provider returned nothing
+    if truth_rows:
+        return "answer"                 # evidence present, model not grounded in it
     try:
-        if conversation is not None and isinstance(getattr(conversation, "metadata", None), dict):
-            md = dict(conversation.metadata)
-            if md.pop("conversation_state", None) is not None:
-                conversation.metadata = md
-                conversation.save(update_fields=["metadata"])
+        from apps.ai.chatgpt_cos.acceptance_rules import row_layer
+        return row_layer(fails) or "answer"
     except Exception:
-        pass
+        return "answer"
+
+
+# ---- run a single question through the injected asker (production gateway) ---------
+def run_one(ask, spec, evening=False):
+    """Evaluate ONE bank question. `ask(text) -> (answer, evidence)` — the production
+    gateway asker by default, injectable for deterministic tests. Each question is an
+    isolated turn (the asker owns a fresh conversation)."""
     text = spec["text"]
     patches = []
     if spec.get("evening") and evening:
@@ -331,14 +428,9 @@ def run_one(svc, conversation, spec, evening=False):
     for p in patches:
         p.start()
     t0 = time.monotonic()
-    answer, intent, lane, fb, openai = "", None, None, None, False
+    answer, evidence = "", {}
     try:
-        with _telemetry() as cap:
-            res = svc.generate(conversation, text) or {}
-        answer = (res.get("answer") or "").strip()
-        lane = res.get("lane")
-        intent, plane, fb, openai = parse_telemetry(cap.lines)
-        lane = lane or plane
+        answer, evidence = ask(text)
     except Exception as exc:
         logger.warning("beth_acceptance run_one failed key=%s", spec.get("key"),
                        exc_info=True)
@@ -346,21 +438,35 @@ def run_one(svc, conversation, spec, evening=False):
     finally:
         for p in patches:
             p.stop()
+    evidence = evidence or {}
+    answer = answer or ""
     elapsed = round((time.monotonic() - t0) * 1000)
+    intent, lane = evidence.get("intent"), evidence.get("lane")
     fails = evaluate(spec, answer, intent=intent, lane=lane)
     if answer.startswith("<EXCEPTION"):
         fails = ["exception"] + fails
-    return {
+    passed = not fails
+    result = {
         "key": spec["key"], "suite": _suite_of(spec), "question": text,
         "answer": answer, "expected_intent": spec.get("expect_intent", ""),
         "expected_lane": spec.get("expect_lane", ""), "intent": intent, "lane": lane,
-        "fallback_used": fb, "openai_called": openai, "ms": elapsed,
+        "fallback_used": evidence.get("fallback_used"),
+        "openai_called": bool(evidence.get("openai_called")), "ms": elapsed,
         "required": spec.get("required", []) + spec.get("required_any", []),
         "forbidden": spec.get("forbidden", []),
         "distinct_group": spec.get("distinct_group", ""),
         "criticality": spec.get("criticality", "normal"),
-        "spec": spec, "fails": fails, "passed": not fails,
+        "spec": spec, "fails": fails, "passed": passed,
+        # -- structured retrieval evidence (promoted to AcceptanceResult columns) --
+        "runtime_used": evidence.get("runtime_used", ""),
+        "selected_tool": evidence.get("selected_tool", ""),
+        "tool_arguments": evidence.get("tool_arguments", {}),
+        "canonical_provider": evidence.get("canonical_provider", ""),
+        "retrieved_records": evidence.get("retrieved_records", {}),
+        "retrieval_evidence": evidence.get("retrieval_evidence", []),
     }
+    result["first_failing_layer"] = _first_failing_layer(passed, fails, evidence)
+    return result
 
 
 def _suite_of(spec):
@@ -433,12 +539,13 @@ def running_acceptance_runs():
     return [r for r in AcceptanceRun.objects.filter(status="running") if not r.is_stale]
 
 
-def execute_run(run, evening=True):
-    """Run `run.suite_name` against the live stack, persist results onto `run`,
-    compute score + prompts, and mark the run completed/failed. Returns `run`."""
+def execute_run(run, evening=True, ask=None):
+    """Run `run.suite_name` against the PRODUCTION runtime (via the gateway), persist
+    results onto `run`, compute score + prompts, and mark the run completed/failed.
+    `ask` is the per-question asker; when None it routes through `CoSGateway.respond`
+    for the run's target user (the gateway resolves the runtime — ModelInterface for
+    the owner). Injectable for deterministic tests. Returns `run`."""
     from django.contrib.auth import get_user_model
-    from apps.ai.models import AssistantConversation
-    from apps.ai.chatgpt_cos.service import ChatGPTCoSService
     from apps.admin_console.models import AcceptanceResult
 
     run.status = "running"
@@ -456,10 +563,10 @@ def execute_run(run, evening=True):
         run.save()
         return run
 
-    conv = AssistantConversation.objects.create(
-        user=user, title="[acceptance] Beth validation", session_type="general",
-        is_active=False)
-    svc = ChatGPTCoSService(user)
+    # Production entry point: route each isolated question through the gateway so the
+    # harness certifies the runtime the customer actually gets. Never hardwire a runtime.
+    if ask is None:
+        ask = _gateway_asker(user)
     specs = questions_for(run.suite_name, run.depth or "full")
     total = len(specs)
     run.total_count = total
@@ -468,33 +575,33 @@ def execute_run(run, evening=True):
     rows = []
     cancelled = False
     t0 = time.monotonic()
-    try:
-        for i, spec in enumerate(specs):
-            # COOPERATIVE CANCELLATION (P34): check BETWEEN questions. The in-flight
-            # question always finishes; we stop cleanly before starting the next.
-            if _cancel_requested(run.id):
-                cancelled = True
-                logger.info("acceptance: cancel detected run=%s at %s/%s",
-                            run.id, i, total)
-                break
-            _write_heartbeat(run, spec.get("key", ""), i, total)   # before each Q
-            r = run_one(svc, conv, spec, evening=evening)
-            rows.append(r)
-            _write_heartbeat(run, spec.get("key", ""), i + 1, total)  # after each Q
-            AcceptanceResult.objects.create(
-                run=run, question_key=r["key"], suite=r["suite"],
-                question_text=r["question"], expected_intent=r["expected_intent"] or "",
-                expected_lane=r["expected_lane"] or "", actual_intent=r["intent"] or "",
-                actual_lane=r["lane"] or "", response_text=r["answer"],
-                response_time_ms=r["ms"], passed=r["passed"], failed_rules=r["fails"],
-                required_concepts=r["required"], forbidden_concepts=r["forbidden"],
-                openai_called=r["openai_called"],
-                fallback_used=r["fallback_used"], raw_result_json=r, sort_order=i)
-    finally:
-        try:
-            conv.delete()      # never pollute chat history
-        except Exception:
-            pass
+    for i, spec in enumerate(specs):
+        # COOPERATIVE CANCELLATION (P34): check BETWEEN questions. The in-flight
+        # question always finishes; we stop cleanly before starting the next.
+        if _cancel_requested(run.id):
+            cancelled = True
+            logger.info("acceptance: cancel detected run=%s at %s/%s",
+                        run.id, i, total)
+            break
+        _write_heartbeat(run, spec.get("key", ""), i, total)   # before each Q
+        r = run_one(ask, spec, evening=evening)
+        rows.append(r)
+        _write_heartbeat(run, spec.get("key", ""), i + 1, total)  # after each Q
+        AcceptanceResult.objects.create(
+            run=run, question_key=r["key"], suite=r["suite"],
+            question_text=r["question"], expected_intent=r["expected_intent"] or "",
+            expected_lane=r["expected_lane"] or "", actual_intent=r["intent"] or "",
+            actual_lane=r["lane"] or "", response_text=r["answer"],
+            response_time_ms=r["ms"], passed=r["passed"], failed_rules=r["fails"],
+            required_concepts=r["required"], forbidden_concepts=r["forbidden"],
+            openai_called=r["openai_called"], fallback_used=r["fallback_used"],
+            raw_result_json={k: v for k, v in r.items() if k != "spec"}, sort_order=i,
+            runtime_used=r.get("runtime_used", ""), selected_tool=r.get("selected_tool", ""),
+            tool_arguments=r.get("tool_arguments") or {},
+            canonical_provider=r.get("canonical_provider", ""),
+            retrieved_records=r.get("retrieved_records") or {},
+            retrieval_evidence=r.get("retrieval_evidence") or [],
+            first_failing_layer=r.get("first_failing_layer", ""))
 
     if cancelled:
         _finalize_cancelled(run, rows, total)   # clean exit, partial results, no grade

@@ -78,7 +78,7 @@ class CancellationWhileProcessingTests(TestCase):
                  {"key": "q2", "suite": "health", "text": "b"},
                  {"key": "q3", "suite": "health", "text": "c"}]
 
-        def fake_run_one(svc_, conv, spec, evening=False):
+        def fake_run_one(ask, spec, evening=False):
             # admin clicks Cancel right after the FIRST question completes
             if spec["key"] == "q1":
                 AcceptanceRun.objects.filter(pk=run.pk).update(status="cancelling")

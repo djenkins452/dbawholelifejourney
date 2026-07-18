@@ -216,7 +216,10 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         return CoSResponse(
             text=answer, runtime=self.name, surface=surface,
             meta={"conversation_id": conversation.id,
-                  "tools_called": result.get("tools_called", [])},
+                  "tools_called": result.get("tools_called", []),
+                  # turn_id joins this answer to its ToolCallLog audit rows so a
+                  # certification run can capture WHICH tool returned WHICH fact.
+                  "turn_id": result.get("turn_id", "")},
         )
 
 

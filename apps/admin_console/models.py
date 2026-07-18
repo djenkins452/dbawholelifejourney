@@ -1864,6 +1864,21 @@ class AcceptanceResult(models.Model):
     is_critical = models.BooleanField(default=False)    # release-blocking failure
     is_slow = models.BooleanField(default=False)        # response-time warning
 
+    # -- Structured retrieval evidence (Truth Retrieval Certification) --------------
+    # Promoted from raw_result_json into queryable columns so the operator can see
+    # WHICH tool returned WHICH fact per question — not just pass/fail. Populated from
+    # the gateway envelope + the ToolCallLog audit ledger (ModelInterface runtime);
+    # blank on runtimes that expose no tool ledger (honest, never fabricated).
+    runtime_used = models.CharField(max_length=32, blank=True, default="")
+    selected_tool = models.CharField(max_length=64, blank=True, default="")
+    tool_arguments = models.JSONField(default=dict, blank=True)
+    canonical_provider = models.CharField(max_length=64, blank=True, default="")  # domain
+    retrieved_records = models.JSONField(default=dict, blank=True)   # result digest handed to the model
+    retrieval_evidence = models.JSONField(default=list, blank=True)  # full per-tool ledger for the turn
+    # The FIRST failing layer (retrieval taxonomy): fixture | provider | registration |
+    # routing | tool_arguments | evidence | answer | transport. Blank when passed.
+    first_failing_layer = models.CharField(max_length=32, blank=True, default="")
+
     class Meta:
         ordering = ["run", "sort_order"]
 

@@ -87,6 +87,25 @@ class MedicineDomainTruthTests(TestCase):
     def test_medicine_is_a_registered_domain(self):
         self.assertIn("medicine", registered_domains())
 
+    # -- history contract parity (Truth Retrieval audit fix, 2026-07-18) ----------
+    def test_adherence_history_fulfils_the_advertised_contract(self):
+        # The audit found a contract MISMATCH: the provider declared
+        # history_metrics=("adherence",) but history() unconditionally raised KeyError.
+        # It must now return a real HistorySeries so the advertised surface and the
+        # behavior AGREE — without hiding the bug by dropping the declaration.
+        self._seed()
+        truth = get_domain_truth(self.user, "medicine")
+        advertised = truth.supports()["history"]
+        self.assertIn("adherence", advertised)
+        for metric in advertised:
+            series = truth.history(metric, "this_month")
+            self.assertTrue(hasattr(series, "points"))    # a HistorySeries, not an exception
+            self.assertEqual(series.metric, metric)
+            self.assertEqual(series.domain, "medicine")
+        # An UNadvertised metric still raises honestly (never a silent empty).
+        with self.assertRaises(KeyError):
+            truth.history("bogus_metric")
+
     # -- inventory: prescription only -------------------------------------------
     def test_inventory_is_prescription_only(self):
         self._seed()

@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(health): medicine history() contract mismatch — adherence over time now returns a real HistorySeries (Truth Retrieval slice, medication)
+
+**The audited contract mismatch, resolved additively (not hidden).** `MedicineDomainTruth` declared `history_metrics=("adherence",)` but `history()` unconditionally raised `KeyError` — the catalog advertised a surface that crashed. Determined the intended deterministic behavior (adherence rate over time) and implemented it as the smallest additive correction so the advertised contract and actual behavior AGREE.
+
+- **`MedicineQueries.adherence_history(user, period)`** (new): a weekly `HistorySeries` across the resolved period, each point computed by the CANONICAL adherence math (`calculate_medicine_adherence`) — no duplicate calculation. Bounded to whole weeks (≤ ~13 for a quarter) so it is request-path-safe. Reuses `resolve_period` + `series_from_rows` exactly like `HealthHistory`.
+- **`MedicineDomainTruth.history("adherence", period)`** now delegates to it; an unadvertised metric still raises `KeyError` honestly (never a silent empty).
+- **Files:** `apps/health/services/medicine_queries.py`, `apps/health/services/medicine_domain_truth.py`, `apps/health/tests/test_medicine_domain_truth.py` (new `test_adherence_history_fulfils_the_advertised_contract` — every advertised history metric is callable + returns a HistorySeries; bogus metric still raises).
+
+**Verification:** `test_medicine_domain_truth` GREEN (18 tests). This is the Owner-1 (deterministic) fix for the Medication slice's history capability — no OpenAI. Part of the Truth Retrieval Certification first vertical slice.
+
 ## 2026-07-18 — feat(cos): Truth Retrieval Certification — corrected runtime-execution proof + operable retrieval evidence in the Acceptance Center UI
 
 **The two gate prerequisites before expanding the question bank.** (1) Corrected a deployment claim; (2) made the structured evidence operator-visible.

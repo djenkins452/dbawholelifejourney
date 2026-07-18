@@ -376,3 +376,28 @@ class MedicineQueries:
         if recent < prior - 2:
             return "declining"
         return "steady"
+
+    @classmethod
+    def adherence_history(cls, user, period="last_7_days", classification=PRESCRIPTION,
+                          *, today=None, start=None, end=None):
+        """Adherence rate over time as a `HistorySeries` — one WEEKLY point across the
+        resolved period, each computed by the canonical adherence math (no duplicate
+        calculation). Bounded to whole weeks (request-path-safe: ≤ ~13 buckets for a
+        quarter). Fulfils the advertised `history_metrics=("adherence",)` contract
+        deterministically instead of raising."""
+        from datetime import timedelta
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.health.medicine_utils import calculate_medicine_adherence
+
+        p = resolve_period(period, today or get_user_today(user), start=start, end=end)
+        rows, wk_start = [], p.start
+        while wk_start <= p.end:
+            wk_end = min(wk_start + timedelta(days=6), p.end)
+            rate = calculate_medicine_adherence(
+                user, wk_start, wk_end, classification=classification).get("adherence_rate")
+            if rate is not None:
+                rows.append({"date": wk_end, "value": int(rate)})
+            wk_start = wk_end + timedelta(days=1)
+        return series_from_rows("medicine", "adherence", p, rows, unit="%")

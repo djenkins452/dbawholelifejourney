@@ -116,5 +116,10 @@ class MedicineDomainTruth(DomainTruth):
 
     # -- history --------------------------------------------------------------
     def history(self, metric, period="last_7_days", **kwargs):
-        raise KeyError(f"medicine history unsupported: {metric!r} "
-                       f"(use current() adherence_7d/30d/90d)")
+        """Adherence over time. The advertised `history_metrics=("adherence",)` now
+        returns a real weekly HistorySeries (was: raised KeyError — contract mismatch
+        found in the Truth Retrieval audit, 2026-07-18)."""
+        if metric != "adherence":
+            raise KeyError(f"medicine history unsupported: {metric!r} "
+                           f"(have {self.history_metrics})")
+        return MedicineQueries.adherence_history(self.user, period, **kwargs)

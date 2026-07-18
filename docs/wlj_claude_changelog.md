@@ -6,6 +6,12 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(truth): Truth Layer Operator Acceptance Guide — the permanent manual certification instrument
+
+**The human sign-off document that gates the CRUD milestone.** `docs/WLJ_TRUTH_LAYER_ACCEPTANCE_GUIDE.md` turns the object-discovery suite into a manual certification checklist: for each of the 40 objects it gives the natural discovery prompt, an **Expected Information** checklist in plain human language (never field names — "Body fat percentage", not `body_fat_percentage`), and a **Should NEVER appear** guard section where relevant (journal never shows health telemetry; medical never shows internal hashes; people never show internal identifiers; captures never show signed URLs; brain-training never shows the solution). Each item is marked ✓ Present / ✗ Missing / ⚠ Incorrect / N/A; any Missing/Incorrect or violated guard is a Truth Layer bug filed against the composer. Includes global never-appear rules and a certification sign-off block. Companion to the machine-checkable `apps/core/truth/discovery_suite.py`. No code changed.
+
+**Files:** `docs/WLJ_TRUTH_LAYER_ACCEPTANCE_GUIDE.md` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — refine(cos): Operations header icon is now a live health indicator (🟢/🟡/🔴 + tooltip)
 
 **Small refinement to the Operations Awareness UX.** The permanent Operations header icon now communicates platform health at a glance via its status dot, so when WLJ is healthy the icon alone carries the signal and the conversation stays entirely about the user. Consumes the SAME deterministic status the banner already polls — no new source of truth, no backend change.

@@ -140,6 +140,16 @@ class NutritionDomainTruth(DomainTruth):
     get_domain_state('nutrition') — this cannot change that path."""
     domain = "nutrition"
     entity_types = ("food",)
+    # Per-day macro totals over a period → the generic get_history tool now answers
+    # date-scoped totals ("calories yesterday") and windowed averages ("average
+    # protein this week"). Delegates to the canonical NutritionQueries authority; no
+    # new store. (No current() — there is no generic current-fact tool for nutrition;
+    # today's running totals reach the model via get_domain_state('nutrition').)
+    history_metrics = ("calories", "protein", "carbs", "fat", "fiber", "sugar")
+
+    def history(self, metric, period="last_7_days", **kwargs):
+        from apps.health.services.nutrition_queries import NutritionQueries
+        return NutritionQueries.macro_series(self.user, metric, period, **kwargs)
 
     def describe(self, entity_type="food"):
         if entity_type not in (None, "food"):

@@ -108,6 +108,42 @@ SLICE_SPECS = [
     QuestionSpec("nutrition.existence_neg", "nutrition", EXISTENCE,
                  "Have I eaten sushi?", "entity_one", {"name": "sushi"},
                  {"kind": "entity_absent"}, "nutrition", provider="nutrition"),
+    # Date-scoped totals + windowed averages via the new nutrition history() surface
+    # (get_history). Closes the measured HISTORICAL/TIMELINE gap (2026-07-18).
+    QuestionSpec("nutrition.calories_yesterday", "nutrition", HISTORICAL,
+                 "How many calories did I eat yesterday?", "history",
+                 {"metric": "calories", "period": "yesterday"},
+                 {"kind": "series_point_value", "value": "@calories_yesterday"},
+                 "nutrition", provider="nutrition", criticality="critical"),
+    QuestionSpec("nutrition.timeline", "nutrition", TIMELINE,
+                 "What did my calories look like this week?", "history",
+                 {"metric": "calories", "period": "custom",
+                  "start": "@week_start", "end": "@week_end"},
+                 {"kind": "series_min_points", "n": 3}, "nutrition", provider="nutrition"),
+    QuestionSpec("nutrition.calories_week_avg", "nutrition", TIMELINE,
+                 "What are my average calories this week?", "history",
+                 {"metric": "calories", "period": "custom",
+                  "start": "@week_start", "end": "@week_end"},
+                 {"kind": "series_average_equals", "value": "@avg_calories_week"},
+                 "nutrition", provider="nutrition"),
+    QuestionSpec("nutrition.protein_week_avg", "nutrition", TIMELINE,
+                 "What is my average protein this week?", "history",
+                 {"metric": "protein", "period": "custom",
+                  "start": "@week_start", "end": "@week_end"},
+                 {"kind": "series_average_equals", "value": "@avg_protein_week"},
+                 "nutrition", provider="nutrition"),
+    QuestionSpec("nutrition.carbs_week_avg", "nutrition", TIMELINE,
+                 "What are my average carbs this week?", "history",
+                 {"metric": "carbs", "period": "custom",
+                  "start": "@week_start", "end": "@week_end"},
+                 {"kind": "series_average_equals", "value": "@avg_carbs_week"},
+                 "nutrition", provider="nutrition"),
+    QuestionSpec("nutrition.fat_week_avg", "nutrition", TIMELINE,
+                 "What is my average fat this week?", "history",
+                 {"metric": "fat", "period": "custom",
+                  "start": "@week_start", "end": "@week_end"},
+                 {"kind": "series_average_equals", "value": "@avg_fat_week"},
+                 "nutrition", provider="nutrition"),
 ]
 
 
@@ -116,9 +152,10 @@ SLICE_SPECS = [
 # the additive follow-ons; they are NEVER written as passing specs.
 CAPABILITY_GAPS = {
     "nutrition": {
-        CURRENT_FACT: "describe(food) has no date filter — 'what did I eat today' not date-scoped",
-        HISTORICAL: "no date-scoped food retrieval surface",
-        TIMELINE: "NutritionDomainTruth exposes no history()",
+        # HISTORICAL + TIMELINE closed 2026-07-18 by NutritionDomainTruth.history()
+        # (per-day macro totals → get_history date-scoped totals + windowed averages).
+        CURRENT_FACT: "no generic current-fact tool for nutrition; today's running "
+                      "totals reach the model via get_domain_state('nutrition')",
         COMPARISON: "no comparison surface",
     },
     "health": {
@@ -181,6 +218,11 @@ def run_spec(user, spec, anchors):
             want = _num(_resolve(exp["value"], anchors))
             vals = [_num(p.value) for p in pts]
             return (any(v is not None and abs(v - want) < 0.05 for v in vals)), {"vals": vals}
+        if kind == "series_average_equals":
+            want = _num(_resolve(exp["value"], anchors))
+            avg = _num(hs.average()) if hs is not None else None
+            return (avg is not None and want is not None and abs(avg - want) < 0.5), \
+                   {"average": avg, "want": want}
 
     elif spec.surface == "entity":
         ents = truth.describe(args.get("entity_type", "food")) or []

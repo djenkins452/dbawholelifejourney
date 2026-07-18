@@ -6,6 +6,26 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Truth Completion Slice 1 — Nutrition date-scoped history (calories/macros)
+
+**Certification slice: the Chief of Staff can now deterministically answer date-scoped and windowed nutrition questions.** Closes the measured nutrition HISTORICAL/TIMELINE gap (Customer Truth PROD run 1, 2026-07-18) using the existing architecture only — one new `history()` surface on the existing `NutritionDomainTruth`, delegating to the canonical `NutritionQueries` authority. No new abstraction, no model change, no migration.
+
+**Customer questions now certified (Owner-1 deterministic, no OpenAI):**
+- "How many calories did I eat yesterday?" — `get_history('nutrition','calories','yesterday')` → point value.
+- "What are my average calories this week?" and average **protein / carbs / fat** this week — windowed series average (mean of per-day totals).
+- "What did my calories look like this week?" — per-day macro timeline.
+
+*(Item-level "what did I eat for lunch / yesterday" was already answerable via the existing `get_entity`/`describe` surface — each food carries `meal_type` + `date` — and is unchanged.)*
+
+- **Provider (`apps/core/truth/domain_rollout.py`):** `NutritionDomainTruth` gains `history_metrics = (calories, protein, carbs, fat, fiber, sugar)` + `history()`. No `current()` added — there is no generic current-fact tool for nutrition (today's running totals reach the model via `get_domain_state('nutrition')`); adding one would be dead surface. The generic catalog-driven `get_history` tool surfaces this automatically — no per-domain tool plumbing.
+- **Query authority (`apps/health/services/nutrition_queries.py`):** new `NutritionQueries.macro_series()` — ONE grouped query over `FoodEntry` per resolved period → platform `HistorySeries` (mirrors `HealthHistory`). Request-path safe; reuses the canonical macro fields; no new store, no per-day looping.
+- **Certification (`apps/core/truth/question_specs.py`, `certification_fixtures.py`):** 6 new `QuestionSpec`s (the customer questions are the certification unit) + a `series_average_equals` deterministic evaluator; nutrition fixture seeds known macros across the week with exact-average anchors. Nutrition `historical`+`timeline` flip **gap → certified** in `capability_matrix()` (`current_fact`/`comparison` remain honest gaps).
+- **Test fix (`apps/ai/tests/test_domain_history.py`):** `test_declared_but_unimplemented_history_is_unsupported` used medicine `adherence` as its "declared-but-raises" example, but adherence was implemented earlier today (and nutrition is now too) — rewired to a self-contained synthetic provider so it no longer depends on any domain's transient gap.
+
+**Validation:** `manage.py check` clean; `makemigrations --check` no changes; **174 tests green** (`test_truth_retrieval_slice` incl. 6 new nutrition specs, `test_domain_history`, `test_truth_surface_contract`, `test_nutrition_trust`, `test_nutrition_entity_truth`, `test_nutrition`, `test_nutrition_summary`). Owner-2 (live Customer Truth) is Danny's prod re-run on the deployed worker.
+
+**Files:** `apps/core/truth/domain_rollout.py`, `apps/health/services/nutrition_queries.py`, `apps/core/truth/question_specs.py`, `apps/core/truth/certification_fixtures.py`, `apps/ai/tests/test_domain_history.py`, `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(meals): Foundation 1B — Recipe Ownership Migration (life → meals, zero-DDL state move)
 
 **Meal Intelligence now canonically owns the Recipe model** — completing the Foundation 1 canonical-truth ownership. The `Recipe` model moved from `apps.life` to `apps.meals` via a pure Django STATE change: the physical table `life_recipe` and every FK constraint are untouched, so **no DDL, no data movement, all recipe IDs preserved**. This removes the cross-app ownership seam where the Meal Intelligence layer (RecipeIngredient/nutrition/gap/scoring) reached across to `life.Recipe`.

@@ -71,21 +71,39 @@ def build_medication_fixture(email="cert_med@example.com"):
 
 
 def build_nutrition_fixture(email="cert_nutrition@example.com"):
-    """Foods on today (oatmeal), yesterday (pizza), and today-2 (salad)."""
+    """Foods with KNOWN macros across the last week: today (oatmeal), yesterday
+    (pizza), today-3 (chicken), today-5 (salad). One entry per day, so each day's
+    total — and therefore the windowed averages — is exact and deterministic."""
     from apps.health.models import FoodEntry
     u = _mk_user(email)
     today = get_user_today(u)
+    # (name, meal, day-offset, time, calories, protein_g, carbs_g, fat_g)
     rows = [
-        ("Oatmeal", FoodEntry.MEAL_BREAKFAST, today, time(8, 0)),
-        ("Pepperoni Pizza", FoodEntry.MEAL_DINNER, today - timedelta(days=1), time(19, 0)),
-        ("Caesar Salad", FoodEntry.MEAL_LUNCH, today - timedelta(days=2), time(12, 30)),
+        ("Oatmeal", FoodEntry.MEAL_BREAKFAST, 0, time(8, 0), 500, 20, 80, 10),
+        ("Pepperoni Pizza", FoodEntry.MEAL_DINNER, 1, time(19, 0), 600, 40, 50, 20),
+        ("Grilled Chicken", FoodEntry.MEAL_DINNER, 3, time(18, 0), 800, 60, 70, 30),
+        ("Caesar Salad", FoodEntry.MEAL_LUNCH, 5, time(12, 30), 400, 20, 30, 10),
     ]
-    for name, meal, d, t in rows:
+    for name, meal, off, t, cal, pro, carb, fat in rows:
         FoodEntry.objects.create(
             user=u, food_name=name, quantity=Decimal("1"),
             serving_size=Decimal("1"), serving_unit="serving", meal_type=meal,
-            logged_date=d, logged_time=t, status="active")
-    return u, {"pizza_date": today - timedelta(days=1)}
+            logged_date=today - timedelta(days=off), logged_time=t, status="active",
+            total_calories=Decimal(cal), total_protein_g=Decimal(pro),
+            total_carbohydrates_g=Decimal(carb), total_fat_g=Decimal(fat))
+    # Window [today-5, today-1] holds salad / chicken / pizza (today excluded — the
+    # current day's intake is still in progress). Averages are the mean of those
+    # three daily totals: cal (400+800+600)/3, protein (20+60+40)/3, etc.
+    return u, {
+        "pizza_date": today - timedelta(days=1),
+        "week_start": today - timedelta(days=5),
+        "week_end": today - timedelta(days=1),
+        "calories_yesterday": 600.0,
+        "avg_calories_week": 600.0,
+        "avg_protein_week": 40.0,
+        "avg_carbs_week": 50.0,
+        "avg_fat_week": 20.0,
+    }
 
 
 # The fixture registry — a QuestionSpec references a builder by key.

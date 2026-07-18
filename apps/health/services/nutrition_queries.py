@@ -169,6 +169,54 @@ class NutritionQueries:
             "sugar_g": agg["sugar_g"] or Decimal("0"),
         }
 
+    # ── Point-in-Time History (per-day macro totals) ──────────────────────────────
+    # Daily intake TOTAL per macro over a period, handed to the platform History
+    # capability (apps.core.truth.history). This is the surface behind
+    # NutritionDomainTruth.history(): it lets the CoS answer date-scoped totals ("how
+    # many calories yesterday") and windowed averages ("average protein this week")
+    # deterministically via get_history — closing the nutrition HISTORICAL/TIMELINE
+    # gap measured in production (2026-07-18). ONE grouped query, request-path safe;
+    # reuses the canonical FoodEntry macro fields. No new store, no per-day looping.
+    _MACRO_FIELD = {
+        "calories": "total_calories",
+        "protein": "total_protein_g",
+        "carbs": "total_carbohydrates_g",
+        "fat": "total_fat_g",
+        "fiber": "total_fiber_g",
+        "sugar": "total_sugar_g",
+    }
+    _MACRO_UNIT = {"calories": "kcal", "protein": "g", "carbs": "g",
+                   "fat": "g", "fiber": "g", "sugar": "g"}
+    HISTORY_METRICS = tuple(_MACRO_FIELD)
+
+    @classmethod
+    def macro_series(cls, user, metric, period="last_7_days", *,
+                     today=None, start=None, end=None):
+        """Per-day intake total for `metric` (calories|protein|carbs|fat|fiber|sugar)
+        over a resolved period, as a platform `HistorySeries`. The series aggregates
+        (average/total/count) give the windowed average the CoS narrates — the mean of
+        the per-DAY totals, so "average calories this week" is calories-per-day."""
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        field = cls._MACRO_FIELD.get(metric)
+        if field is None:
+            raise KeyError(f"nutrition history unsupported: {metric!r} "
+                           f"(have {cls.HISTORY_METRICS})")
+        if today is None:
+            from apps.core.utils import get_user_today
+            today = get_user_today(user)
+        p = resolve_period(period, today, start=start, end=end)
+        rows = (FoodEntry.objects
+                .filter(user=user, status="active",
+                        logged_date__range=(p.start, p.end))
+                .values("logged_date").annotate(v=Sum(field))
+                .order_by("logged_date"))
+        return series_from_rows(
+            "nutrition", metric, p,
+            [{"date": r["logged_date"], "value": round(float(r["v"] or 0), 1)}
+             for r in rows],
+            unit=cls._MACRO_UNIT[metric])
+
     # ── Entity Completeness Law (record-level "what I ate" for the Model Interface) ──
     # `describe` / `describe_one` return `CompleteEntity` objects — the actual FOODS the
     # user logged (name, brand, meal, macros). Before this, the Model Interface reached

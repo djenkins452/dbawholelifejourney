@@ -83,13 +83,26 @@ class DomainHistoryServiceTests(TestCase):
         self.assertEqual(r["status"], "unsupported")
         self.assertIn("custom", r["valid_periods"])
 
-    # --- provider declares a history metric but doesn't resolve it → unsupported,
-    #     never a generic error (medicine 'adherence' is declared-but-raises today) ---
+    # --- provider declares a history metric but its provider RAISES → unsupported,
+    #     never a generic error (covers the KeyError/NotImplementedError branch). Uses
+    #     a synthetic provider so the test does not depend on any real domain's
+    #     transient gap — medicine 'adherence' and nutrition are both implemented now. ---
     def test_declared_but_unimplemented_history_is_unsupported(self):
-        idx = history_capability_index()
-        if "medicine" in idx and "adherence" in idx["medicine"]:
-            r = get_domain_history(self.user, "medicine", "adherence")
+        from apps.core.truth.domain import DomainTruth, _REGISTRY
+
+        class _RaisingHistoryTruth(DomainTruth):
+            domain = "_cert_raises"
+            history_metrics = ("declared_but_raises",)
+
+            def history(self, metric, period="last_7_days", **kwargs):
+                raise KeyError(metric)
+
+        _REGISTRY[_RaisingHistoryTruth.domain] = _RaisingHistoryTruth
+        try:
+            r = get_domain_history(self.user, "_cert_raises", "declared_but_raises")
             self.assertEqual(r["status"], "unsupported")
+        finally:
+            _REGISTRY.pop(_RaisingHistoryTruth.domain, None)
 
 
 class HistoryCatalogTests(TestCase):

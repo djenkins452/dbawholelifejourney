@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — docs(cos): Truth Retrieval Certification — first coverage report (v0, honest evidence tiers)
+
+New durable report `docs/WLJ_TRUTH_RETRIEVAL_COVERAGE.md` for the first vertical slice (Weight · Medications · Nutrition), by domain / question-category / runtime-surface. **Integrity-first:** every cell carries an explicit evidence tier — ✅ deterministically executed · ◐ provider-assessed (audit, not yet slice-tested) · ⧗ pending live Customer Truth run (needs OpenAI + deployed worker — not runnable from the build env) · ✗ missing provider. Does NOT claim any domain "certified" from the slice. Records: medicine adherence-history **executed ✅**; weight/nutrition provider-assessed ◐ (deterministic tests are the next increment); all Customer Truth ⧗; streaming path ✗ not-yet-certified; body-measurements & nutrition date-scoping flagged as the additive follow-ons. Also documents the user-local date semantics the slice must prove.
+
 ## 2026-07-18 — fix(health): medicine history() contract mismatch — adherence over time now returns a real HistorySeries (Truth Retrieval slice, medication)
 
 **The audited contract mismatch, resolved additively (not hidden).** `MedicineDomainTruth` declared `history_metrics=("adherence",)` but `history()` unconditionally raised `KeyError` — the catalog advertised a surface that crashed. Determined the intended deterministic behavior (adherence rate over time) and implemented it as the smallest additive correction so the advertised contract and actual behavior AGREE.

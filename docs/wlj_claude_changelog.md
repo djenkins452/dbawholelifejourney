@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(people): custom Recognition Phrase management — every Person owns their own nicknames
+
+**Closes the recognition-phrase gap (shipped in a29cf79b; changelog was deferred behind a concurrent uncommitted changelog entry, now added). Investigation first (traced, not assumed):** the canonical `RecognitionPhrase` model + `services/phrases.py` CRUD already existed and were already consumed correctly by the resolver, the lookup API AND passive recognition — but there was **no HTTP endpoint and no UI**, so users could never add a phrase. Honey/Babe/Sweetie didn't resolve simply because they had never been added. A Person-management gap, not a Journal or lookup bug.
+
+- **Canonical endpoints** (`apps/people/views.py`, `apps/people/urls.py`): `people:phrase_add / phrase_edit / phrase_delete` operate on the canonical `people.Person` (ownership-scoped), through the single `services.phrases` write path (provenance events preserved). Add guards duplicates against BOTH derived names and existing phrases; edit renames via remove+store; delete removes custom/learned (derived names stay read-only). Host-agnostic validated `?next`.
+- **Canonical Person page** `GET /people/<pk>/` (`PersonDetailView`, a `UserOwnedModel` DetailView → Current Context auto-declared) — the phrase-management home, working for ANY canonical Person regardless of legacy source links.
+- **Reusable Recognition section** (`templates/people/_recognition_section.html`): "Automatically recognized" (derived, read-only chips) + "Custom recognition phrases" (inline add / edit / remove). On the canonical Person page AND embedded on the legacy relationships person page when a `PersonSourceLink` bridges it (resolved in `relationships.PersonDetailView`). CSP-safe form POSTs, mobile-friendly (16px inputs).
+- **Zero Journal changes.** Journal consumes the canonical resolver; adding a phrase makes it recognized everywhere automatically. RecognitionPhrase stays the ONE authority — no module-specific nickname logic, no second recognition system, no alias duplication.
+- **Files:** `apps/people/views.py` (new), `apps/people/urls.py`, `apps/relationships/views.py`, `templates/people/_recognition_section.html` (new), `templates/people/person_detail.html` (new), `apps/people/tests/test_phrase_management.py` (new). No model change → no migration.
+
+**Verification:** `test_phrase_management` (8, RequestFactory — CRUD, ownership, duplicate handling, and the "add once → resolver + lookup + passive + Journal all recognize it, no duplicate PersonMention" contract) + full people/rich_text/request-path suites (113) GREEN; `manage.py check` + `makemigrations --check` clean. Browser-verified on `/people/112/`: added Honey/Babe/Sweetie → explicit `@bab` → "Babe" chip (pid 112); passive "Dinner with honey, then a walk with Babe and Sweetie." → three canonical gold chips, case-normalized, ONE `PersonMention` (person 112, `confirmed_alias`). **Where phrases are managed:** the canonical `people.Person` page (`people:phrase_*`). **How future modules consume them:** `people.services.resolution.resolve()` or the `/people/api/lookup` picker — never touch `RecognitionPhrase` directly.
+
 ## 2026-07-18 — chore(session-transition): CoS Truth Certification milestone close-out — fold durable knowledge up, regenerate bootloader
 
 **Session Transition Protocol for the completed CoS Truth Certification milestone.** Folded this session's durable knowledge into the permanent startup package; regenerated the lean bootloader.

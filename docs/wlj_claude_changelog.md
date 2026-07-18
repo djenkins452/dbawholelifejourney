@@ -6,6 +6,15 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(meals): expose the Foundation 2 "Record Preparation" entry point on the recipe page users actually browse
+
+**Defect from the first real-world validation:** the preparation workflow had no visible entry point. **Runtime trace (proven, not assumed):** there are TWO recipe detail pages — `life:recipe_detail` (`templates/life/recipe_detail.html`), the page users reach via Recipes → list → detail, which exposed only Favorites / Edit / Delete; and `meals:recipe_detail` (`RecipeIntelligenceDetailView`), where the "Record Preparation" form was added — but that page is linked ONLY from the meals dashboard / meal cards, never from recipe browsing. So the entry point existed but was stranded on a page the user never lands on.
+
+- **Fix:** added a "Cook this" card to `templates/life/recipe_detail.html` (gated on `meals_enabled`) with a direct **Record Preparation** form (servings + leftovers → `meals:prepare_recipe`) plus a link to the full Meal Intelligence page. `life.RecipeDetailView` now supplies a `preparation_idempotency_key` (double-submit replays, never double-deducts). No new preparation writer — reuses the existing `meals:prepare_recipe` workflow.
+- **Behavioral proof + regression guard:** new `test_recipe_prepare_entrypoint.py` — the life recipe detail page now renders the `meals:prepare_recipe` action and "I cooked this" (would have failed before the fix), and preparing from that page records a `PreparationEvent`. `check` clean; 124 life-recipe + preparation tests green (no regression).
+
+**Files:** `apps/life/views.py`, `templates/life/recipe_detail.html`, `apps/meals/tests/test_recipe_prepare_entrypoint.py` (new), `docs/wlj_claude_changelog.md`.
+
 ## 2026-07-18 — feat(truth): Truth Layer completion — expose the last un-provided domains (Medical/Habits/Notes/Capture/Brain-training) + residuals
 
 **Follow-up to the whole-WLJ truth inventory (`02f54f58`): every remaining domain that stored deterministic user truth but had NO provider is now exposed.** Existing DomainTruth pattern only; no new models, no migration. **18 domains now register** in the truth layer.

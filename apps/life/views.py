@@ -1325,6 +1325,14 @@ class RecipeDetailView(LifeAccessMixin, DetailView):
     def get_queryset(self):
         return Recipe.objects.filter(user=self.request.user)
 
+    def get_context_data(self, **kwargs):
+        # Idempotency key for the "Record Preparation" form (Foundation 2 entry point):
+        # a re-submit of the SAME rendered form replays instead of double-deducting.
+        import uuid
+        context = super().get_context_data(**kwargs)
+        context["preparation_idempotency_key"] = uuid.uuid4().hex
+        return context
+
 
 class RecipeCreateView(LifeAccessMixin, CreateView):
     """Add a new recipe."""

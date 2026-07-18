@@ -120,6 +120,13 @@
                     <div class="pantry-item-name">{{ item.ingredient.canonical_name|title }}</div>
                     <div class="pantry-item-meta">
                         <span class="pantry-item-qty">{{ item.quantity|floatformat:1 }} {{ item.unit }}</span>
+                        {% if item.has_container_truth %}
+                        {# Container fraction is DERIVED from the exact base quantity — presentation only. #}
+                        <span class="pantry-item-qty text-muted"
+                              title="{{ item.remaining_percent|floatformat:0 }}% of one {{ item.container_type|default:'container' }} ({{ item.net_content|floatformat:0 }} {{ item.net_content_unit }} full)">
+                            ≈{{ item.remaining_containers|floatformat:1 }} {{ item.container_type|default:'container' }}
+                        </span>
+                        {% endif %}
                         {% if item.storage_location and item.storage_location != "unknown" %}
                         <span class="storage-badge storage-{{ item.storage_location }}">{{ item.get_storage_location_display }}</span>
                         {% endif %}

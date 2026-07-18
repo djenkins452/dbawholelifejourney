@@ -136,23 +136,37 @@ class ContainerDeductionTests(ContainerDeductionBase):
                 self.assertAlmostEqual(d["deducted"], expect, delta=0.5,
                                        msg=f"{name}: deducted {d['deducted']} != {expect}")
 
-    def test_partial_remaining_container(self):
-        # Half a bottle of ketchup (quantity 0.5 containers) still deducts deterministically.
+    def test_stored_truth_is_exact_base_quantity_not_container_fraction(self):
+        # Acquiring ONE 591 ml bottle stores the exact base quantity, never "1 container".
+        ing = self._ingredient("tct_stored", "volume", "1.14", "591", "ml")
+        item = self._acquire(ing, containers=1)
+        item.refresh_from_db()
+        self.assertEqual(item.unit, "ml")            # base unit, not "piece"
+        self.assertEqual(item.quantity, Decimal("591.000"))   # exact base quantity
+        self.assertEqual(item.net_content, Decimal("591.000"))  # container reference
+        # Presentation (DERIVED, not stored): full bottle ≈ 1 container, 100%.
+        self.assertAlmostEqual(float(item.remaining_containers), 1.0, delta=0.001)
+        self.assertAlmostEqual(float(item.remaining_percent), 100.0, delta=0.1)
+
+    def test_partial_remaining_stored_as_base_quantity(self):
+        # Half a bottle of ketchup is stored as 295.5 ml, not "0.5 bottles".
         ing = self._ingredient("ketchup2", "volume", "1.14", "591", "ml")
         item = self._acquire(ing, containers=1)
-        item.quantity = Decimal("0.5")   # "about half a bottle left" (Remaining Truth)
+        item.quantity = Decimal("295.5")   # "about half a bottle left", stored exactly in ml
         item.save()
         r = self._recipe(ing, 2, "tbsp")   # 29.574 ml
         res = self._prepare(r)
         self.assertEqual(res.deductions[0]["status"], "applied")
         item.refresh_from_db()
-        # 0.5*591=295.5 ml available; deduct 29.574 -> 265.926 ml -> 0.45 containers
-        self.assertAlmostEqual(float(item.quantity), 0.45, delta=0.01)
+        # 295.5 ml - 29.574 ml = 265.926 ml (exact base quantity, never a fraction)
+        self.assertAlmostEqual(float(item.quantity), 265.926, delta=0.01)
+        # Container fraction is derived: 265.926 / 591 ≈ 0.45.
+        self.assertAlmostEqual(float(item.remaining_containers), 0.45, delta=0.01)
 
     def test_insufficient_container_partial(self):
         ing = self._ingredient("ketchup3", "volume", "1.14", "591", "ml")
         item = self._acquire(ing, containers=1)
-        item.quantity = Decimal("0.01")  # almost empty (5.91 ml)
+        item.quantity = Decimal("5.91")  # almost empty (5.91 ml), stored in base unit
         item.save()
         r = self._recipe(ing, 2, "tbsp")  # wants 29.574 ml
         res = self._prepare(r)
@@ -198,3 +212,60 @@ class AcquisitionNormalizationTests(ContainerDeductionBase):
                                        quantity=Decimal("1"), source="receipt", notes="", unit="piece")
         self.assertEqual(item.net_content, Decimal("591.000"))
         self.assertEqual(item.net_content_unit, "ml")
+        # Remaining Truth is stored as the exact base quantity, in the base unit.
+        self.assertEqual(item.unit, "ml")
+        self.assertEqual(item.quantity, Decimal("591.000"))
+
+    def test_two_bottles_accumulate_in_base_units(self):
+        ing = self._ingredient("tct_accum", "volume", "1.14", "591", "ml")
+        self._acquire(ing, containers=1)
+        item = self._acquire(ing, containers=1)   # buy a second bottle
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, Decimal("1182.000"))  # 2 × 591 ml, exact
+        self.assertEqual(item.unit, "ml")
+        self.assertAlmostEqual(float(item.remaining_containers), 2.0, delta=0.001)
+
+
+class InWorkflowCaptureTests(ContainerDeductionBase):
+    """The needs_container_info fact can be captured in-flow and makes prep automatic."""
+
+    def _login(self):
+        from django.test import Client
+        c = Client()
+        c.force_login(self.user)
+        return c
+
+    def test_capture_container_then_deduct(self):
+        # Unseeded volume-ish ingredient with no resolvable container truth.
+        ing = Ingredient.objects.create(canonical_name="hotsauce", category="condiment")
+        PantryItem.objects.create(household=self.household, ingredient=ing,
+                                  quantity=Decimal("1"), unit="piece")
+        r = self._recipe(ing, 2, "tbsp")
+
+        # First prep asks for the missing fact.
+        res1 = self._prepare(r)
+        self.assertEqual(res1.deductions[0]["status"], "needs_container_info")
+        item_id = res1.deductions[0]["pantry_item_id"]
+
+        # Capture "one 5 fl oz bottle" in-workflow.
+        resp = self._login().post(
+            f"/meals/pantry/{item_id}/container/",
+            {"net_content_amount": "5", "net_content_unit": "fl_oz",
+             "container_type": "bottle", "next": "/meals/"})
+        self.assertIn(resp.status_code, (302, 303))
+
+        item = PantryItem.objects.get(pk=item_id)
+        # 5 fl oz = 147.87 ml, stored exactly in the base unit.
+        self.assertEqual(item.net_content_unit, "ml")
+        self.assertAlmostEqual(float(item.net_content), 147.87, delta=0.1)
+        self.assertEqual(item.unit, "ml")
+        self.assertAlmostEqual(float(item.quantity), 147.87, delta=0.1)  # 1 container × net
+        # Ingredient learned its substance truth (Capture Once, Reuse Everywhere).
+        ing.refresh_from_db()
+        self.assertEqual(ing.base_measure, "volume")
+
+        # Second prep now deducts deterministically — no more asking.
+        r2 = self._recipe(ing, 1, "tbsp", servings=1)
+        res2 = self._prepare(r2)
+        self.assertEqual(res2.deductions[0]["status"], "applied")
+        self.assertAlmostEqual(res2.deductions[0]["deducted"], 14.787, delta=0.1)

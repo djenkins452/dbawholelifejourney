@@ -29,6 +29,11 @@ urlpatterns = [
         name="pantry_update",
     ),
     path(
+        "pantry/<int:pk>/container/",
+        views.PantrySetContainerView.as_view(),
+        name="pantry_set_container",
+    ),
+    path(
         "pantry/barcode/",
         views.PantryBarcodeLookupView.as_view(),
         name="pantry_barcode",

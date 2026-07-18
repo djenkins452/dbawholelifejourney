@@ -598,13 +598,21 @@ class PantryItem(TimeStampedModel):
     )
 
     # ── Pantry Container Truth (Foundation 2) ──
-    # STABLE "what was purchased": net contents of ONE container in a base unit (g/ml/
-    # count), plus an optional container type for display. Sourced deterministically at
-    # ingestion (OFF product_quantity -> FoodItem -> Ingredient default -> manual).
-    # The REMAINING truth is the existing `quantity` — now read as "how many containers
-    # remain" (fractional allowed: 0.5 = half a bottle). Usable base quantity for
-    # deduction = quantity * net_content. When net_content is null, deduction falls back
-    # to the legacy unit-matching path (fully backward-compatible).
+    # Two SEPARATE truths, stored exactly; container fractions/percentages are PRESENTATION.
+    #
+    #   Container Truth (STABLE) — net contents of ONE full container in a base unit
+    #     (g/ml/count): `net_content` + `net_content_unit`. Sourced deterministically at
+    #     ingestion (OFF product_quantity -> FoodItem -> Ingredient default -> manual).
+    #     A 591 ml bottle is 591 ml whether it is full or nearly empty.
+    #
+    #   Remaining Truth (CANONICAL) — the exact remaining amount, stored in the base unit
+    #     in `quantity` with `unit` == `net_content_unit` (e.g. quantity=312, unit="ml").
+    #     We do NOT store "0.53 bottles"; the container fraction and "% remaining" are
+    #     DERIVED for display only (see remaining_containers / remaining_percent below).
+    #
+    # Deduction subtracts base amounts directly from `quantity`. When net_content is null
+    # the item has no container truth and deduction uses the legacy unit-matching path
+    # (fully backward-compatible). `container_type` is display metadata only.
     CONTAINER_CHOICES = [
         ("bottle", "Bottle"), ("jar", "Jar"), ("can", "Can"), ("bag", "Bag"),
         ("box", "Box"), ("carton", "Carton"), ("package", "Package"),
@@ -643,6 +651,48 @@ class PantryItem(TimeStampedModel):
             return None
         delta = self.expiration_date_estimated - timezone.now().date()
         return delta.days
+
+    # ── Remaining Truth presentation (DERIVED — never stored) ──
+    # `quantity` holds the canonical remaining amount in a base unit. Container fractions
+    # and percentages are computed from it on demand so the UI stays flexible while the
+    # stored truth stays exact.
+    @property
+    def has_container_truth(self):
+        """True when this item stores its remaining amount as a base quantity backed by a
+        known full-container size (so container/percent views can be derived)."""
+        return (self.net_content is not None and self.net_content > 0
+                and bool(self.net_content_unit) and self.unit == self.net_content_unit)
+
+    @property
+    def remaining_containers(self):
+        """DERIVED: remaining amount expressed as (possibly fractional) containers, e.g.
+        312 ml of a 591 ml bottle -> Decimal('0.528'). Presentation only. None if unknown."""
+        if not self.has_container_truth:
+            return None
+        return (self.quantity or Decimal("0")) / self.net_content
+
+    @property
+    def remaining_percent(self):
+        """DERIVED: percent of ONE full container remaining (0-100+, capped for display in
+        the template). Presentation only. None when no container truth exists."""
+        rc = self.remaining_containers
+        if rc is None:
+            return None
+        return rc * Decimal("100")
+
+    @property
+    def remaining_display(self):
+        """DERIVED human string, e.g. "312 ml (≈0.5 bottle)". Presentation only."""
+        qty = self.quantity if self.quantity is not None else Decimal("0")
+        # Trim trailing zeros for a clean number.
+        base = f"{qty.normalize():f}" if isinstance(qty, Decimal) else str(qty)
+        if not self.has_container_truth:
+            return f"{base} {self.unit}".strip()
+        containers = self.remaining_containers
+        noun = self.container_type or "container"
+        approx = containers.quantize(Decimal("0.1"))
+        plural = "" if approx == Decimal("1.0") else "s"
+        return f"{base} {self.unit} (≈{approx.normalize():f} {noun}{plural})"
 
     def decay_confidence(self):
         """Reduce confidence based on time since last confirmation."""

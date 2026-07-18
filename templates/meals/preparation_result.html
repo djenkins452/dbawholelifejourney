@@ -54,20 +54,59 @@
         </table>
     </div>
 
-    {# Actionable callout: one missing fact stands between us and a clean deduction. #}
+    {# Actionable callout: capture the one missing fact right here — no detour. #}
     {% for d in result.deductions %}
         {% if d.status == "needs_container_info" or d.status == "unsupported_conversion" %}
         <div style="margin-top: var(--space-3); padding: var(--space-3);
                     border: 1px solid var(--color-warning, #f59e0b);
                     border-radius: var(--radius-md, 8px); background: var(--color-warning-bg, #fffbeb);">
             <strong>{{ d.ingredient|capfirst }} needs one more piece of pantry information.</strong>
-            <p class="text-muted" style="font-size: var(--font-size-sm); margin: var(--space-2) 0 0;">
-                {{ d.note|default:"Tell us how much is in one container of this item and we'll deduct it precisely every time — capture it once, reuse it everywhere." }}
+            <p class="text-muted" style="font-size: var(--font-size-sm); margin: var(--space-2) 0 var(--space-3);">
+                How much is in one full container? Tell us once and every future recipe deducts it precisely.
             </p>
+            {% if d.pantry_item_id %}
+            <form method="post" action="{% url 'meals:pantry_set_container' d.pantry_item_id %}"
+                  style="display: flex; gap: var(--space-2); align-items: flex-end; flex-wrap: wrap;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'meals:recipe_detail' recipe.pk %}">
+                <label style="display: flex; flex-direction: column; font-size: var(--font-size-sm);">
+                    Container size
+                    <input type="number" name="net_content_amount" min="0" step="any" inputmode="decimal"
+                           placeholder="20" required
+                           style="min-height: 44px; font-size: 16px; max-width: 110px;">
+                </label>
+                <label style="display: flex; flex-direction: column; font-size: var(--font-size-sm);">
+                    Unit
+                    <select name="net_content_unit" required
+                            style="min-height: 44px; font-size: 16px;">
+                        <option value="fl_oz">fl oz</option>
+                        <option value="ml">ml</option>
+                        <option value="l">L</option>
+                        <option value="oz">oz (weight)</option>
+                        <option value="g">g</option>
+                        <option value="lb">lb</option>
+                        <option value="kg">kg</option>
+                    </select>
+                </label>
+                <label style="display: flex; flex-direction: column; font-size: var(--font-size-sm);">
+                    Container
+                    <select name="container_type" style="min-height: 44px; font-size: 16px;">
+                        <option value="bottle">Bottle</option>
+                        <option value="jar">Jar</option>
+                        <option value="can">Can</option>
+                        <option value="bag">Bag</option>
+                        <option value="box">Box</option>
+                        <option value="carton">Carton</option>
+                        <option value="tub">Tub</option>
+                        <option value="package">Package</option>
+                    </select>
+                </label>
+                <button type="submit" class="btn btn-primary" style="min-height: 44px;">Save &amp; make automatic</button>
+            </form>
+            {% else %}
             <a href="{% url 'meals:pantry' %}" class="btn btn-secondary"
-               style="min-height: 44px; display: inline-flex; align-items: center; margin-top: var(--space-2);">
-                Update pantry item
-            </a>
+               style="min-height: 44px; display: inline-flex; align-items: center;">Update pantry item</a>
+            {% endif %}
         </div>
         {% endif %}
     {% endfor %}

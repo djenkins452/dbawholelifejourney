@@ -527,6 +527,69 @@ class PantryUpdateView(LoginRequiredMixin, MealsHouseholdMixin, View):
         return JsonResponse({"status": "ok", "quantity": float(new_qty)})
 
 
+class PantrySetContainerView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Capture the one missing Container Truth fact in-workflow ("what size is this?").
+
+    Invoked from the preparation result when an item returns `needs_container_info`.
+    Sets the container's net contents (deterministically, in a base unit), records the
+    substance's base_measure canonically on the Ingredient so future acquisitions resolve
+    automatically, normalizes the item's stored remaining to an exact base quantity, and
+    returns to where the user was so they can immediately re-cook. No duplicate pantry
+    workflow — this is the same PantryItem, one focused field.
+    """
+
+    def post(self, request, pk):
+        from apps.meals.services.container_truth import set_container_truth
+        from apps.meals.services.unit_conversion import (
+            base_unit_for, convert_between, dimension_of,
+        )
+
+        household = self.get_household()
+        item = get_object_or_404(PantryItem, pk=pk, household=household)
+
+        raw_amount = (request.POST.get("net_content_amount") or "").strip()
+        raw_unit = (request.POST.get("net_content_unit") or "").strip().lower()
+        container_type = (request.POST.get("container_type") or "").strip()
+        next_url = (request.POST.get("next") or "").strip()
+
+        try:
+            amount = Decimal(raw_amount)
+        except Exception:
+            amount = None
+        dimension = dimension_of(raw_unit) if raw_unit else None
+        if amount is None or amount <= 0 or dimension is None:
+            messages.error(request, "Enter a valid container size (amount and unit).")
+            return redirect(next_url or "meals:pantry")
+
+        base_unit = base_unit_for(dimension)
+        base_amount = convert_between(amount, raw_unit, base_unit)
+        if base_amount is None or base_amount <= 0:
+            messages.error(request, "That container size could not be understood.")
+            return redirect(next_url or "meals:pantry")
+
+        # Canonical substance truth on the Ingredient so every future acquisition of this
+        # ingredient resolves the container automatically (Capture Once, Reuse Everywhere).
+        ingredient = item.ingredient
+        ing_fields = []
+        if ingredient.base_measure != dimension:
+            ingredient.base_measure = dimension
+            ing_fields.append("base_measure")
+        if not ingredient.default_quantity or not ingredient.default_unit:
+            ingredient.default_quantity = base_amount
+            ingredient.default_unit = base_unit
+            ing_fields += ["default_quantity", "default_unit"]
+        if ing_fields:
+            ingredient.save(update_fields=ing_fields + ["updated_at"])
+
+        set_container_truth(item, base_amount, base_unit, container_type=container_type)
+        messages.success(
+            request,
+            f"Saved — one {container_type or 'container'} of {ingredient.canonical_name} "
+            f"is {base_amount.normalize():f} {base_unit}. This is now automatic.",
+        )
+        return redirect(next_url or "meals:pantry")
+
+
 class PantryBarcodeLookupView(LoginRequiredMixin, MealsHouseholdMixin, View):
     """
     Create/update a pantry item from a barcode scan.

@@ -185,13 +185,18 @@ transition has a canonical producer and a passing behavioral proof. Tests live i
 | 12 | Package pantry unit → culinary recipe unit deduction | `container_truth.resolve_net_content` + `convert_between` (via `_deduct_one`) | `test_pantry_container_truth` (8 reference ingredients + partial/insufficient) | ✅ |
 | 13 | Missing bridging fact → actionable ask (fail closed) | `_deduct_one` → `needs_container_info` | `test_pantry_container_truth` · `test_preparation` | ✅ |
 
-**Container Truth invariants** (enforced): net contents of one container (`net_content`)
-is distinct from remaining fractional containers (`quantity`); mass↔volume converts
-**only** with an Ingredient density and is otherwise refused (no estimation); count
-substances stay on the legacy unit-matching path so no existing weight/volume deduction
-regresses; resolution is acquisition-independent (one resolver inside `finalize_pantry_item`)
-and idempotent; when no source resolves the fact, deduction leaves stock **untouched** and
-returns `needs_container_info` rather than the retired dead-end `unsupported_conversion`.
+**Container Truth invariants** (enforced): net contents of one full container
+(`net_content`) is distinct from the remaining amount (`quantity`); **Remaining Truth is
+stored as an exact base quantity** in the base unit (e.g. 312 ml), never as a container
+fraction — container counts and percentages are DERIVED at presentation
+(`remaining_containers` / `remaining_percent`) from `quantity ÷ net_content`; the ledger
+folds to that same base quantity; mass↔volume converts **only** with an Ingredient density
+and is otherwise refused (no estimation); count substances stay on the legacy unit-matching
+path so no existing weight/volume deduction regresses; resolution is acquisition-independent
+(one resolver inside `finalize_pantry_item`, which stores the exact base quantity) and
+idempotent; when no source resolves the fact, deduction leaves stock **untouched** and
+returns `needs_container_info` (captured in-workflow) rather than the retired dead-end
+`unsupported_conversion`.
 
 **Leftover legal state transitions** (enforced): `AVAILABLE → {CONSUMED, DISCARDED,
 EXPIRED}`; the latter three are terminal. Invariants proven by test: quantities never

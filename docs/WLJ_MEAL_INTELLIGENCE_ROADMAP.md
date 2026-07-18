@@ -78,8 +78,16 @@ resolution (`container_truth.resolve_net_content`, priority OFF→FoodItem→Ing
 a conversion engine that bridges mass↔volume **only** with a density and otherwise fails
 closed; and the dead-end replaced by the actionable `needs_container_info` ("add its net
 contents once and this becomes automatic"). Count substances stay on the legacy path so no
-existing weight/volume deduction regresses. Validated across 8 reference ingredients. **Awaiting
-Danny's real-world validation.**
+existing weight/volume deduction regresses. Validated across 8 reference ingredients.
+
+**Refinement (2026-07-18) — stored truth vs presentation.** Remaining Truth is now stored
+as an **exact base quantity** (312 ml), never a container fraction (0.53 bottles); container
+counts and percentages are DERIVED at presentation (`remaining_containers`/`remaining_percent`)
+from `quantity ÷ net_content`. Deduction subtracts base amounts directly (no container-fraction
+arithmetic), and the missing-container-info fact is captured **inside the preparation workflow**
+("what size is this bottle?") rather than sending the user to a separate screen — one field,
+same pantry item, and every future preparation becomes automatic. **Awaiting Danny's real-world
+validation.**
 
 Grocery/meal-plan automation and meal-history analytics remain future milestones.
 

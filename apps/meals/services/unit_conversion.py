@@ -245,6 +245,23 @@ def base_unit_for(base_measure: str) -> str:
 COUNT_UNITS = {"count", "piece", "pieces", "each", "unit", "units", "ct"}
 
 
+def dimension_of(unit: str) -> "Optional[str]":
+    """Return the measurement dimension of ``unit``: 'mass', 'volume', 'count', or None.
+
+    Used when capturing container truth from a user-chosen size ("20 fl oz" → volume →
+    base 'ml'; "16 oz" → mass → base 'g') so the ingredient's base_measure and net_content
+    can be set deterministically.
+    """
+    u = _canonical_unit(unit)
+    if u in WEIGHT_TO_GRAMS:
+        return "mass"
+    if u in VOLUME_TO_ML:
+        return "volume"
+    if u in COUNT_UNITS:
+        return "count"
+    return None
+
+
 def convert_between(quantity: "Decimal", from_unit: str, to_unit: str,
                     density_g_per_ml: "Optional[Decimal]" = None) -> Optional["Decimal"]:
     """Convert ``quantity`` from ``from_unit`` to ``to_unit``.

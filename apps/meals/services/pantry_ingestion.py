@@ -70,6 +70,31 @@ logger = logging.getLogger(__name__)
 
 _UNKNOWN_STORAGE = "unknown"
 
+# Units that denote WHOLE containers on acquisition (a "piece" of ketchup = one bottle).
+_CONTAINER_UNITS = {
+    "piece", "pieces", "each", "unit", "units", "ct", "count", "container",
+    "bottle", "jar", "can", "bag", "box", "carton", "package", "pkg", "tub",
+}
+
+
+def _acquire_base_amount(quantity, unit, net_content, base_unit, density):
+    """Convert an acquired amount into the base unit for storage as exact Remaining Truth.
+
+    A count/container acquisition ("1 piece", "2 bottles") means that many WHOLE
+    containers → quantity × net_content. A measured acquisition ("500 ml") converts
+    directly. If it cannot be converted, fall back to treating it as whole containers.
+    Deterministic; no estimation.
+    """
+    from apps.meals.services.unit_conversion import convert_between
+
+    u = (unit or "").strip().lower()
+    if u in _CONTAINER_UNITS or not u:
+        return quantity * net_content
+    conv = convert_between(quantity, unit, base_unit, density)
+    if conv is not None:
+        return conv
+    return quantity * net_content
+
 
 @transaction.atomic
 def finalize_pantry_item(
@@ -97,12 +122,42 @@ def finalize_pantry_item(
     if not isinstance(confidence_score, Decimal):
         confidence_score = Decimal(str(confidence_score))
 
+    # Resolve Container Truth (net contents of one full container) up front so this
+    # acquisition can be stored as an EXACT base quantity (Remaining Truth), never as a
+    # container fraction. Acquisition-independent + idempotent; best-effort, never blocks.
+    net_content = None
+    net_content_unit = ""
+    try:
+        from apps.meals.services.container_truth import resolve_net_content
+        net_content, net_content_unit = resolve_net_content(ingredient)
+    except Exception:  # pragma: no cover — resolution is best-effort, never blocks ingest
+        logger.warning("container-truth resolution failed for ingredient %s",
+                       getattr(ingredient, "pk", None), exc_info=True)
+        net_content, net_content_unit = None, ""
+
+    # Normalize the incoming amount to the canonical stored representation.
+    #   Container truth known -> store the exact base quantity (containers × net_content),
+    #                            unit == base unit (e.g. "ml"); percentages/fractions
+    #                            are derived at presentation, never stored.
+    #   No container truth     -> store as-is (legacy, fully backward-compatible).
+    if net_content and net_content > 0 and net_content_unit:
+        add_amount = _acquire_base_amount(
+            quantity, unit, net_content, net_content_unit,
+            getattr(ingredient, "density_g_per_ml", None))
+        store_unit = net_content_unit
+    else:
+        add_amount = quantity
+        store_unit = unit
+
     defaults = {
-        "quantity": quantity,
-        "unit": unit,
+        "quantity": add_amount,
+        "unit": store_unit,
         "confidence_score": confidence_score,
         "last_confirmed_at": timezone.now(),
     }
+    if net_content and net_content > 0 and net_content_unit:
+        defaults["net_content"] = net_content
+        defaults["net_content_unit"] = net_content_unit
     if storage_location:
         defaults["storage_location"] = storage_location
 
@@ -121,16 +176,21 @@ def finalize_pantry_item(
             )
             pantry_item.save(update_fields=["expiration_date_estimated"])
     else:
-        # Existing row — accumulate quantity and refresh confidence/last-seen.
-        pantry_item.quantity = (pantry_item.quantity or Decimal("0")) + quantity
+        # Existing row — reconcile representation, then accumulate in the stored unit.
+        update_fields = ["quantity", "confidence_score", "last_confirmed_at", "updated_at"]
+        # Backfill container truth onto a pre-existing row that lacked it, converting its
+        # stored quantity from containers to the exact base quantity in one deterministic
+        # step (mirrors the data migration for rows written before this refinement).
+        if (net_content and net_content > 0 and net_content_unit
+                and pantry_item.net_content is None):
+            pantry_item.quantity = (pantry_item.quantity or Decimal("0")) * net_content
+            pantry_item.net_content = net_content
+            pantry_item.net_content_unit = net_content_unit
+            pantry_item.unit = net_content_unit
+            update_fields += ["net_content", "net_content_unit", "unit"]
+        pantry_item.quantity = (pantry_item.quantity or Decimal("0")) + add_amount
         pantry_item.confidence_score = confidence_score
         pantry_item.last_confirmed_at = timezone.now()
-        update_fields = [
-            "quantity",
-            "confidence_score",
-            "last_confirmed_at",
-            "updated_at",
-        ]
         # Upgrade storage_location only when the existing row is "unknown"
         # AND the caller provided a better value. Never downgrade.
         if (
@@ -142,22 +202,11 @@ def finalize_pantry_item(
             update_fields.append("storage_location")
         pantry_item.save(update_fields=update_fields)
 
-    # Populate Container Truth deterministically (net contents per container) so recipe
-    # deduction can bridge package units -> culinary units. Acquisition-independent
-    # (every path lands here); idempotent; manual entry only if no source resolves.
-    try:
-        from apps.meals.services.container_truth import populate_container_truth
-        if populate_container_truth(pantry_item):
-            pantry_item.save(update_fields=[
-                "net_content", "net_content_unit", "updated_at"])
-    except Exception:  # pragma: no cover — resolution is best-effort, never blocks ingest
-        logger.warning("container-truth resolution failed for pantry item %s",
-                       getattr(pantry_item, "pk", None), exc_info=True)
-
-    # Audit trail — every ingestion event is logged.
+    # Audit trail — every ingestion event is logged, in the stored (base) unit so the
+    # ledger folds back to `quantity` exactly.
     InventoryTransaction.objects.create(
         pantry_item=pantry_item,
-        delta_quantity=quantity,
+        delta_quantity=add_amount,
         source=source,
         notes=notes,
     )
@@ -183,8 +232,8 @@ def finalize_pantry_item(
             ingredient=ingredient,
             household=household,
             source=source,
-            quantity=quantity,
-            unit=unit,
+            quantity=add_amount,
+            unit=store_unit,
             created=created,
         )
     )

@@ -68,14 +68,32 @@ def resolve_net_content(ingredient, food_item=None):
     return (None, "")
 
 
-def populate_container_truth(pantry_item, food_item=None, *, overwrite=False):
-    """Fill a PantryItem's net_content / net_content_unit from the resolver if missing
-    (or when overwrite=True). Returns True if a value was set. Deterministic + idempotent."""
-    if pantry_item.net_content is not None and not overwrite:
-        return False
-    net, unit = resolve_net_content(pantry_item.ingredient, food_item)
-    if net is None:
-        return False
+def set_container_truth(pantry_item, net_content, net_content_unit, *,
+                        container_type="", save=True):
+    """Apply Container Truth to a PantryItem and normalize its Remaining Truth to an EXACT
+    base quantity in one deterministic step.
+
+    Used by the in-workflow capture ("what size bottle is this?"). If the item's remaining
+    quantity is currently expressed as containers/pieces (its unit is not the base unit),
+    it is converted to the base quantity (quantity × net_content) so stored truth becomes
+    exact; a quantity already in the base unit is left untouched. Returns the pantry_item.
+    """
+    net = _d(net_content)
+    if net is None or net <= 0 or not net_content_unit:
+        return pantry_item
+
+    fields = ["net_content", "net_content_unit", "updated_at"]
+    if pantry_item.unit != net_content_unit:
+        # Currently "N containers" → store the exact base quantity.
+        pantry_item.quantity = (pantry_item.quantity or Decimal("0")) * net
+        pantry_item.unit = net_content_unit
+        fields.append("quantity")
+        fields.append("unit")
     pantry_item.net_content = net
-    pantry_item.net_content_unit = unit
-    return True
+    pantry_item.net_content_unit = net_content_unit
+    if container_type:
+        pantry_item.container_type = container_type
+        fields.append("container_type")
+    if save:
+        pantry_item.save(update_fields=fields)
+    return pantry_item

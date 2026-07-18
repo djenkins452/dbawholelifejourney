@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(truth): Scoped entity retrieval + per-domain enrichment (deferred changelog for 739ffc16)
+
+*(Deferred per the concurrent-session protocol — code shipped in commit `739ffc16`; a concurrent session held an uncommitted changelog entry at commit time, so this line was added separately to avoid clobbering it.)*
+
+**Turned the remaining AMBER customer questions GREEN (Owner-1)** — all from canonical truth, not model inference. Existing architecture only; no model change, no migration.
+
+- **Deterministic scoped entity retrieval** — `get_entity` gains an optional `filters` passthrough (backward-compatible: providers that don't accept it are unaffected), threaded to `describe()` in nutrition/journal/calendar/legacy. Filters: `meal`, `period`/`start`+`end`, `on_date`, `involves`, `contains`. Closes: "show every lunch/breakfast/dinner this week", "how often have I eaten fast food" (count via `contains`), "show memories involving Heather", "show childhood memories" (`occurred_to`), "what did I have last Tuesday" (`on_date`), "what have I written this week".
+- **`resolve_period` now coerces ISO-string dates** — model-supplied JSON filters arrive as strings; this eliminates the `str.isoformat()` failure class across every filter caller (caught by a live run, not the fixture test).
+- **People** — `most_connected` (interaction-ranked "most important"), a recent-interaction log on the person entity ("what have Heather and I been working on"), and `upcoming_birthdays` (reads `SignificantEvent.days_until_next()` directly, routing around the state-builder `ev.next_occurrence` defect).
+- **Journal** — `theme_counts` (tag/emotion frequency → "topics this month", "concerns repeated") exposed as `current("themes")`; date-scoped `describe`.
+- **Goals** — `milestones_completed` current; goal entity carries latest-snapshot momentum + drivers ("what improved / still needs work").
+- **Faith** — `current("studying")` (active reading plan).
+- **Certification** — +14 QuestionSpecs, an `entities_count_equals` evaluator, nested-anchor resolution in `run_spec`, a scoped nutrition fixture. Stale `describe_one`-absent test rewired to a synthetic provider.
+
+**Validation:** `manage.py check` clean; `makemigrations --check` no changes; **99 regression tests green**; live retrieval executed for every closed question.
+
+**Files:** `apps/ai/cos_services/domain_entity.py`, `apps/ai/model_interface/{constitution,service}.py`, `apps/core/truth/{periods,domain_rollout,question_specs,certification_fixtures}.py`, `apps/health/services/nutrition_queries.py`, `apps/journal/services/journal_queries.py`, `apps/legacy/services/legacy_domain_truth.py`, `apps/purpose/services/goal_domain_truth.py`, `apps/ai/tests/test_domain_entity.py`.
+
 ## 2026-07-18 — refine(people): relationship phrases follow the presentation relationship — never contradictory
 
 **Presentation fix. Resolver, canonical identity and Journal unchanged.** A spouse used to derive "my spouse" + "my wife" + "my husband" together — all correct, but seeing "my wife" and "my husband" on one person is confusing. Now each relationship derives ONLY the phrase appropriate to how it is presented.

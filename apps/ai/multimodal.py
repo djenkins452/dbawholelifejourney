@@ -284,7 +284,28 @@ def frames_for_attachments(user, attachment_ids, *, max_total=16):
     return out
 
 
-def store_and_persist_artifact(user, *, data, content_type, kind, original_filename=""):
+_ASSOC_RE = None
+
+
+def _clean_associations(associations):
+    """Normalize association tokens to a de-duped list of 'domain:id' strings.
+    Rejects anything not shaped like a canonical-entity reference."""
+    import re
+    global _ASSOC_RE
+    if _ASSOC_RE is None:
+        _ASSOC_RE = re.compile(r"^[a-z_]+:[A-Za-z0-9_-]+$")
+    out = []
+    for tok in (associations or []):
+        t = str(tok).strip().lower()
+        if _ASSOC_RE.match(t) and t not in out:
+            out.append(t)
+        if len(out) >= 20:
+            break
+    return out
+
+
+def store_and_persist_artifact(user, *, data, content_type, kind, original_filename="",
+                               associations=None):
     """Shared intake primitive: store an artifact (sha256 dedup + provenance),
     queue durable persistence of its bytes, AND queue deterministic perception
     (text extraction) for perceivable types — all in the background. Used by BOTH
@@ -295,7 +316,7 @@ def store_and_persist_artifact(user, *, data, content_type, kind, original_filen
 
     artifact, created = store_artifact(
         user, data=data, content_type=content_type, kind=kind,
-        original_filename=original_filename,
+        original_filename=original_filename, associations=associations,
     )
     if artifact is not None and data:
         b64 = base64.b64encode(data).decode("utf-8")
@@ -350,20 +371,29 @@ def attach_images_to_message(message, images):
 
 # ── Artifact store (provenance + artifact-level dedup) ───────────────────────
 def store_artifact(user, *, data=None, content_type="", kind="", storage_ref="",
-                   original_filename=""):
+                   original_filename="", associations=None):
     """Store (or return the existing) artifact, keyed by content hash. Returns
     (artifact, created); created=False means the SAME content was already uploaded
     (artifact-level dedup). `data` is raw bytes — WLJ hashes it for identity/integrity and
     never inspects the content. Never raises."""
     from apps.capture.models import MultimodalArtifact
     sha = hashlib.sha256(data).hexdigest() if data else ""
+    assoc = _clean_associations(associations)
     try:
         artifact, created = MultimodalArtifact.objects.get_or_create(
             user=user, sha256=sha,
             defaults={"content_type": content_type, "kind": kind,
                       "storage_ref": storage_ref,
-                      "original_filename": (original_filename or "")[:255]},
+                      "original_filename": (original_filename or "")[:255],
+                      "associations": assoc},
         )
+        # Same content re-uploaded WITH a new association (e.g. attached to a
+        # different meal/project) — merge the new links onto the existing artifact.
+        if not created and assoc:
+            merged = list(dict.fromkeys((artifact.associations or []) + assoc))
+            if merged != (artifact.associations or []):
+                artifact.associations = merged
+                artifact.save(update_fields=["associations"])
         return artifact, created
     except Exception:  # pragma: no cover - defensive
         logger.warning("multimodal.store_artifact failed", exc_info=True)

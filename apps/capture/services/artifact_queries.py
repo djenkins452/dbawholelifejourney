@@ -59,6 +59,27 @@ class ArtifactQueries:
         return ArtifactQueries._base(user).filter(id=artifact_id).first()
 
     @staticmethod
+    def by_association(user, token, *, limit=50):
+        """Artifacts linked to a canonical entity ('meal:12', 'project:5',
+        'mission:3', 'person:8') — via an explicit association OR because the
+        artifact RESOLVED to that domain record (existing provenance). Deterministic."""
+        t = (token or "").strip().lower()
+        if not t:
+            return []
+        qs = ArtifactQueries._base(user).filter(associations__contains=[t])
+        rows = list(qs.order_by("-created_at")[:limit])
+        # Also include artifacts whose resolved record IS this entity (domain:id).
+        if ":" in t:
+            dom, _, ident = t.partition(":")
+            if ident.isdigit():
+                extra = (ArtifactQueries._base(user)
+                         .filter(resolved_object_id=int(ident))
+                         .exclude(id__in=[r.id for r in rows])
+                         .order_by("-created_at")[:limit])
+                rows.extend(list(extra))
+        return rows[:limit]
+
+    @staticmethod
     def last_uploaded(user, *, query=None, kind=None):
         """The most recent artifact (optionally matching a content query / kind).
         Answers 'when did I last upload bloodwork?'."""

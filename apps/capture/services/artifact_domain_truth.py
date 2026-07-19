@@ -36,6 +36,13 @@ class ArtifactDomainTruth(DomainTruth):
         kind = et if et in _KIND_TYPES else None
         filters = filters if isinstance(filters, dict) else {}
 
+        # Domain linkage: retrieve artifacts associated with a canonical entity
+        # ("project:5", "mission:3", "person:8", "meal:12").
+        assoc = (filters.get("associated_with") or filters.get("association") or "").strip()
+        if assoc:
+            return [self._artifact_entity(a)
+                    for a in ArtifactQueries.by_association(self.user, assoc)]
+
         # Date scoping — date phrases are already ISO-resolved by get_domain_entity
         # (on_date / start / end). "the receipt from last month" etc.
         since, until = self._date_bounds(filters)
@@ -126,6 +133,8 @@ class ArtifactDomainTruth(DomainTruth):
                 "object_type": a.resolved_object_type or None,
                 "object_id": a.resolved_object_id,
             }
+        if a.associations:
+            provenance["associations"] = list(a.associations)
 
         return CompleteEntity(
             kind=a.kind or "artifact",

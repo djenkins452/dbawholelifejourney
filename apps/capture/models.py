@@ -112,6 +112,13 @@ class MultimodalArtifact(TimeStampedModel):
     # "what you uploaded earlier in THIS conversation" and answer follow-ups
     # without re-attaching.
     source_conversation_id = models.IntegerField(null=True, blank=True, db_index=True)
+    # Domain linkage: canonical-entity association tokens like "meal:12",
+    # "project:5", "mission:3", "person:8" — set by a consuming page via the
+    # framework's `uploadParams.associate_to` (reuses existing entity ids; no
+    # parallel representation). Lets the CoS answer "documents for my compensation
+    # project", "attachments for France 2027". Artifacts that RESOLVE to a domain
+    # record are ALSO linked via resolved_object_type/id (existing provenance).
+    associations = models.JSONField(default=list, blank=True)
 
     # Provenance: the deterministic record this artifact produced.
     resolved_intent = models.CharField(max_length=80, blank=True)

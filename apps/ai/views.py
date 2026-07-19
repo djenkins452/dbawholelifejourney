@@ -942,6 +942,7 @@ class AssistantAttachmentUploadView(LoginRequiredMixin, AssistantMixin, View):
             artifact, _created = store_and_persist_artifact(
                 request.user, data=raw, content_type=meta['mime'], kind=meta['kind'],
                 original_filename=f.name or '',
+                associations=request.POST.getlist('associate_to'),
             )
             if artifact is None:
                 return JsonResponse(

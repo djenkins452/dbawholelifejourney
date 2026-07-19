@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(cos/truth): analytical-intent discovery — align routing semantics with declared analysis_subjects)
+# Last Updated: 2026-07-19 (🏁 CLOSE: Multimodal Platform initiative — production-readiness certification + completion report)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — 🏁 CLOSE: Multimodal Platform initiative — production-readiness certification + completion report
+
+**The Multimodal Platform initiative is formally CLOSED.** Perception breadth completed with Office documents (`9319ac7e`), then a full production-readiness certification pass validated the entire platform from the customer's perspective, and a closure report was authored.
+
+**Production-readiness certification (customer perspective):** Single certification run over the whole multimodal corpus — **169 tests green**: upload validation · media security (auth + traversal) · durable storage + integrity · all six perception types (image/screenshot/PDF/audio/video/Office) · Truth Surface retrieval · visual re-delivery · conversation linkage · the 13 customer-truth scenarios · library/detail + Current Context · storage monitor · **request-path safety contract** · capability semantics. Validated across all 13 customer dimensions (upload experience, retrieval, perception, Truth Surface, Current Context, provenance, long-term & cross-conversation retrieval, conversation & domain linkage, performance, error handling, processing states). **No material trust gaps outstanding.**
+
+**Final platform (as built):** ONE ingress (WLJ Attachment Framework — domain-agnostic client) → ONE shared byte-sniffing validator (both transports) → ONE artifact seam (`MultimodalArtifact`, sha256 identity + provenance) → background durable storage + `perceive()` dispatch (only the extractor varies by type) → arrival path (perceived content becomes a NORMAL named intent) → deterministic spine (validate→dedup→confirm→execute→audit→link) → Artifacts-as-Truth (first-class `artifacts` DomainTruth retrieved via the EXISTING `get_entity` tool, with visual re-delivery) → surfaces (library gallery + detail + Current Context on every artifact page). Zero parallel truth system; chat is a thin consumer with zero duplicated attachment logic.
+
+**Customer capabilities delivered:** upload any photo/screenshot/PDF/voice-note/video/Office doc from any chat surface (drag-drop, HEIC, auto-rotate, auto-compress); CoS reads/transcribes/watches/extracts; deterministic same-conversation follow-ups; cross-conversation retrieval days later ("what did my MRI say?", "compare these two progress photos" — images/video actually re-perceived); browse uploads in a gallery with full provenance back to the source conversation; every written fact validated/deduped/confirmed/audited/provenance-linked, and missing facts reported honestly.
+
+**Remaining limitations (honest, all opportunistic Phase 5, none gating):** perception is mechanical text/frame extraction not deep document understanding (no OCR for scanned/image-only PDFs); no chunked/resumable large-media; no virus scanning yet; `associations` domain-linkage seam complete but not yet broadly wired into consuming pages.
+
+**Files:** `docs/WLJ_MULTIMODAL_PLATFORM_COMPLETION_REPORT.md` (NEW — closure report: final architecture, accomplishments, customer capabilities, limitations, future opportunities); `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger: Phase 1 / Phase 1.3 / Artifacts-as-Truth → ✅ DONE; certification + closed rows; CLOSED banner); `docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (closure companion + CLOSED status; remains the canonical contract for future multimodal work). **Why:** the initiative's implementation was complete and deployed; this certifies it end-to-end from the customer's perspective and closes it with an honest record. No code change in this commit — certification + documentation only.
 
 ## 2026-07-19 — feat(cos/truth): analytical-intent discovery (Journal conversational routing)
 

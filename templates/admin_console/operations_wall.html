@@ -3509,7 +3509,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         <div class="ops-incidents-grid" id="incidentsGrid"></div>
     </div>
 
-    <!-- Subsystem strip — healthy fades back, problems attract the eye (Phase 6) -->
+    <!-- Subsystem strip — healthy fades back, problems attract the eye (Phase 6).
+         Contributor-agnostic: chips are rendered from data.executive.subsystems and
+         the container is flex-wrap, so a future deterministic contributor (e.g.
+         Configuration Integrity, OPS-14+) appears automatically with no layout change. -->
     <div class="ops-subsystems" id="subsystemStrip"></div>
 
     <!-- ============================================================
@@ -5238,7 +5241,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         renderWatchlist(data.anomalies || []);
         renderFeed(data.feed || []);
         renderScheduledTasks(data.scheduled_tasks);
-        renderRecoveryEvents(data.recovery);
+        renderRecoveryEvents(data.recovery, data);
         renderRecovery(data.recovery);
         // OPS-2/3/4 — infrastructure monitors
         renderStorage(data.storage);
@@ -5524,9 +5527,10 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
         var workerEl = document.getElementById('celeryWorkerCount');
         if (workerEl) {
             workerEl.textContent = celery.worker_count || 0;
+            // One responsive worker is the normal topology → green. Only zero
+            // workers is danger. (Matches the backend classifier; Ops Wall UX fix.)
             workerEl.className = 'ops-celery-metric-value' + (
-                celery.worker_count >= 2 ? ' val-ok' :
-                celery.worker_count >= 1 ? ' val-warn' : ' val-danger'
+                celery.worker_count >= 1 ? ' val-ok' : ' val-danger'
             );
         }
 
@@ -6587,9 +6591,25 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
     // NOT persisted across reloads, and never a timer). Keyed by attempt id.
     var recoveryExpandedIds = {};
 
-    function renderRecoveryEvents(rec) {
+    // Keys of incidents that are CURRENTLY active, so recovery events can be
+    // split into "needs attention now" vs "resolved — history/audit". Without
+    // this, a recovery that FAILED during a now-resolved incident still rendered
+    // as a prominent red card competing with a Healthy Executive Summary.
+    function activeIncidentKeys(data) {
+        var keys = {};
+        function add(t, e) { keys[(t || '') + '|' + (e || '')] = true; }
+        var incs = (data && data.executive && data.executive.incidents) || [];
+        incs.forEach(function(i) { add(i.anomaly_type, i.engine); });
+        var anoms = (data && data.anomalies) || [];
+        anoms.forEach(function(a) { if (a.is_active !== false) add(a.anomaly_type, a.engine_name); });
+        return keys;
+    }
+
+    function renderRecoveryEvents(rec, ctx) {
         var banner = document.getElementById('recoveryEventsBanner');
         if (!banner) return;
+        var activeKeys = activeIncidentKeys(ctx);
+        function incidentActive(e) { return !!activeKeys[(e.anomaly_type || '') + '|' + (e.task || '')]; }
         var events = (rec && rec.events) || [];
         var acked = recoveryAckedIds();
         var visible = events.filter(function(e) { return acked.indexOf(e.id) === -1; });
@@ -6660,38 +6680,43 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 '</div>';
         }
 
-        // Focus the primary view on "what needs attention right now." Escalated/failed
-        // are ACTIONABLE → prominent cards. Success/skipped (observe-only) are
-        // INFORMATIONAL audit records → collapse them into ONE calm, expandable summary
-        // so a healthy system reads as healthy instead of a stack of "Recovery Skipped".
-        // Full audit is preserved: the summary expands to the individual cards, and
-        // every RecoveryAttempt row is untouched in the DB (nothing is deleted).
-        var actionable = visible.filter(function(e) { return e.kind === 'escalated' || e.kind === 'failed'; });
-        var informational = visible.filter(function(e) { return e.kind === 'success' || e.kind === 'skipped'; });
+        // Focus the primary view on "what needs attention RIGHT NOW." A failed or
+        // escalated recovery is only ACTIONABLE while its incident is still ACTIVE;
+        // once the incident is resolved, that failure is HISTORY, not current truth,
+        // and must not compete with a Healthy Executive Summary. So:
+        //   • actionable = failed/escalated recovery for a CURRENTLY ACTIVE incident
+        //     → prominent red cards.
+        //   • historical = everything else (resolved-incident failures, successes,
+        //     observe-only skips) → ONE calm, expandable audit summary.
+        // Full audit is preserved (the summary expands to the individual cards; every
+        // RecoveryAttempt row is untouched in the DB — nothing is deleted).
+        var actionable = visible.filter(function(e) {
+            return (e.kind === 'escalated' || e.kind === 'failed') && incidentActive(e);
+        });
+        var historical = visible.filter(function(e) { return actionable.indexOf(e) === -1; });
         var html = actionable.map(buildEventCard).join('');
-        if (informational.length) {
-            var counts = (rec && rec.counts) || {};
-            var recovered = counts.verified_24h != null ? counts.verified_24h
-                : informational.filter(function(e) { return e.kind === 'success'; }).length;
-            var observed = counts.skipped_24h != null ? counts.skipped_24h
-                : informational.filter(function(e) { return e.kind === 'skipped'; }).length;
+        if (historical.length) {
+            var recovered = historical.filter(function(e) { return e.kind === 'success'; }).length;
+            var observed = historical.filter(function(e) { return e.kind === 'skipped'; }).length;
+            var pastFailures = historical.filter(function(e) { return e.kind === 'failed' || e.kind === 'escalated'; }).length;
             var parts = [];
             if (recovered) parts.push('✔ ' + recovered + ' recovered');
+            if (pastFailures) parts.push('✖ ' + pastFailures + ' earlier failure' + (pastFailures === 1 ? '' : 's') + ' (resolved)');
             if (observed) parts.push('⊘ ' + observed + ' observed · no action');
-            var summaryLabel = (parts.join(' · ') || (informational.length + ' events')) + ' · 24h';
+            var summaryLabel = (parts.join(' · ') || (historical.length + ' events')) + ' · last 24h';
             var sExpanded = recoveryExpandedIds['__informational__'] ? ' expanded' : '';
             html +=
                 '<div class="ops-recovery-event kind-informational' + sExpanded + '" data-recovery-event="__informational__">' +
                     '<div class="ops-recovery-event-head" data-recovery-toggle="__informational__">' +
                         '<span class="ops-recovery-event-icon">✓</span>' +
-                        '<span class="ops-recovery-event-headline">No action needed</span>' +
+                        '<span class="ops-recovery-event-headline">' + (actionable.length ? 'Recovery history' : 'No action needed') + '</span>' +
                         '<span class="ops-recovery-event-sub">' + escapeHtml(summaryLabel) + '</span>' +
                         '<span class="ops-recovery-event-time">recovery audit</span>' +
                         '<span class="ops-recovery-event-chevron">▸</span>' +
                     '</div>' +
                     '<div class="ops-recovery-event-body">' +
-                        '<div class="ops-recovery-summary-note">Observe-only decisions and successful recoveries from the last 24h — informational only; nothing requires attention. Complete history is retained in the recovery audit.</div>' +
-                        informational.map(buildEventCard).join('') +
+                        '<div class="ops-recovery-summary-note">Resolved recoveries and observe-only decisions from the last 24h — historical audit only; nothing here reflects the current platform state. Complete history is retained in the recovery audit.</div>' +
+                        historical.map(buildEventCard).join('') +
                     '</div>' +
                 '</div>';
         }
@@ -6765,11 +6790,13 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                     (counts.would_recover_24h || 0) + ' would-recover · ' +
                     (counts.shadowed_24h || 0) + ' simulated';
             } else {
-                text = 'Active · ' +
-                    (counts.verified_24h || 0) + ' verified · ' +
-                    (counts.recovered_24h || 0) + ' attempts' +
-                    (counts.escalated_24h ? ' · ' + counts.escalated_24h + ' escalated' : '') +
-                    (counts.pending ? ' · ' + counts.pending + ' pending' : '');
+                // Separate the 24h rolling totals from the current live count so the
+                // window of each number is unambiguous.
+                text = 'Active · last 24h: ' +
+                    (counts.recovered_24h || 0) + ' attempts, ' +
+                    (counts.verified_24h || 0) + ' verified' +
+                    (counts.escalated_24h ? ', ' + counts.escalated_24h + ' escalated' : '') +
+                    (counts.pending ? ' · ' + counts.pending + ' pending now' : '');
             }
             summaryEl.textContent = text;
             summaryEl.className = 'ops-sched-status-label ' + (
@@ -6809,7 +6836,7 @@ body.wall-mode .ops-trend-spark-chart { height: 28px; }
                 + tile('Failed (24h)', (counts.failed_24h || 0), (counts.failed_24h ? '#ffb020' : 'var(--ops-text-dim)'))
                 + tile('Escalated (24h)', (counts.escalated_24h || 0), (counts.escalated_24h ? '#ff5a5a' : 'var(--ops-text-dim)'))
                 + tile('Simulations (24h)', (counts.shadowed_24h || 0) + (counts.would_recover_24h ? ' · ' + counts.would_recover_24h + ' would-recover' : ''), (counts.shadowed_24h ? '#b98aff' : 'var(--ops-text-dim)'))
-                + tile('Pending', (counts.pending || 0), (counts.pending ? '#7aa2ff' : 'var(--ops-text-dim)'))
+                + tile('Pending (now)', (counts.pending || 0), (counts.pending ? '#7aa2ff' : 'var(--ops-text-dim)'))
                 + tile('Last Activity', escapeHtml(lastActivity), 'var(--ops-text-dim)')
                 + tile('Telemetry As Of', escapeHtml(asOf), 'var(--ops-text-dim)');
 

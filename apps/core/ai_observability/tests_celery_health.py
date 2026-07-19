@@ -23,10 +23,14 @@ class CeleryHealthClassificationTests(TestCase):
         from apps.core.ai_observability.celery_health import _classify_status
         self.assertEqual(_classify_status(2, 5, 0, True), "HEALTHY")
 
-    def test_degraded_single_worker(self):
-        """Only 1 worker → DEGRADED."""
+    def test_single_worker_healthy(self):
+        """One responsive worker is WLJ's normal topology (one `celery worker`
+        process; the chat queue is a separate service). With a manageable queue
+        and low failures it is HEALTHY — not DEGRADED. (Ops Wall UX fix
+        2026-07-19: the old `< 2 → DEGRADED` rule produced a permanent false
+        DEGRADED against the actual single-worker deployment.)"""
         from apps.core.ai_observability.celery_health import _classify_status
-        self.assertEqual(_classify_status(1, 0, 0, True), "DEGRADED")
+        self.assertEqual(_classify_status(1, 0, 0, True), "HEALTHY")
 
     def test_degraded_queue_rising(self):
         """Queue depth 25 (above warn threshold) → DEGRADED."""
@@ -89,7 +93,7 @@ class CeleryHealthCollectorTests(TestCase):
                      "active_tasks", "reserved_tasks", "failed_1h", "broker_connected"):
             self.assertIn(key, result, f"Missing key: {key}")
 
-        self.assertEqual(result["status"], "DEGRADED")  # 1 worker < 2
+        self.assertEqual(result["status"], "HEALTHY")  # 1 worker is the normal topology
         self.assertEqual(result["worker_count"], 1)
         self.assertEqual(result["queue_depth"], 3)
         self.assertTrue(result["broker_connected"])

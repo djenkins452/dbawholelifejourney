@@ -160,8 +160,12 @@ def _classify_status(worker_count, queue_depth, failed_1h, broker_ok):
         return "DEGRADED"
     if failed_1h >= FAILED_1H_WARN:
         return "DEGRADED"
-    if worker_count < 2:
-        return "DEGRADED"
+    # A single responsive worker is WLJ's normal production topology
+    # (`celery -A config worker --concurrency=2` = one process; the chat queue is
+    # a separate service). Presence of ≥1 worker with a manageable queue and low
+    # failures is HEALTHY. `worker_count == 0` is already DOWN above; the old
+    # `< 2 → DEGRADED` rule assumed a ≥2-process fleet WLJ does not run and
+    # produced a permanent false DEGRADED. (Ops Wall UX fix 2026-07-19.)
     return "HEALTHY"
 
 

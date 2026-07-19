@@ -125,10 +125,8 @@ any in-flight stream survive a focus-mode toggle untouched.
             </div>
 
             <div class="ap-chat-input-area">
-                {# Multi-Image Preview Strip #}
-                <div id="ap-attachment-preview" class="ap-attachment-preview" style="display: none;">
-                    <div id="ap-preview-strip" class="ap-preview-strip"></div>
-                </div>
+                {# Attachment preview — rendered by the WLJ Attachment Framework #}
+                <div id="ap-attachment-preview"></div>
 
                 <form id="ap-chat-form" class="ap-chat-form" data-testid="cos-chat-form">
                     {% csrf_token %}
@@ -313,7 +311,9 @@ any in-flight stream survive a focus-mode toggle untouched.
     var attachBtn = document.getElementById('ap-attach-btn');
     var fileInput = document.getElementById('ap-file-input');
     var attachmentPreview = document.getElementById('ap-attachment-preview');
-    var previewStrip = document.getElementById('ap-preview-strip');
+    // The WLJ Attachment Framework controller (mounted below) owns attachment
+    // state — this surface is a thin CONSUMER, not an owner of upload logic.
+    var apAttach = null;
 
     /* ---- DOM refs (mobile) ---- */
     var mobileChatMessages = document.getElementById('mobile-chat-messages');
@@ -323,8 +323,6 @@ any in-flight stream survive a focus-mode toggle untouched.
 
     /* ---- State ---- */
     var hasMessages = false;
-    var attachedImages = []; // Array of { data: base64, mimeType: string, dataUrl: string }
-    var MAX_IMAGES = 5;
     var calibrationAutoStarted = false;
     // ChatGPT CoS users must ALWAYS use the streaming/background path (the
     // synchronous non-streaming path is not navigation-safe and would re-submit).
@@ -1065,22 +1063,31 @@ any in-flight stream survive a focus-mode toggle untouched.
        SEND MESSAGE — streaming for text, non-streaming for images
        ================================================================ */
     function sendMessage(message, container, inputEl, btnEl, imageOverride) {
-        var sentImages = imageOverride || attachedImages.slice();
-        // Normalize single-image override to array
-        if (sentImages && !Array.isArray(sentImages)) sentImages = [sentImages];
+        // Thin CONSUMER of the WLJ Attachment Framework: images ride inline
+        // (immediate perception), non-image attachments ride as artifact ids.
+        var sentImages, sentAttachmentIds;
+        if (imageOverride) {
+            sentImages = Array.isArray(imageOverride) ? imageOverride : [imageOverride];
+            sentAttachmentIds = [];
+        } else {
+            sentImages = (apAttach ? apAttach.getImagesPayload() : []).map(function(i) {
+                return { data: i.data, mimeType: i.mime, dataUrl: 'data:' + i.mime + ';base64,' + i.data };
+            });
+            sentAttachmentIds = apAttach ? apAttach.getArtifactIds() : [];
+        }
         var imageDataUrls = sentImages && sentImages.length > 0
             ? sentImages.map(function(img) { return img.dataUrl || ('data:' + img.mimeType + ';base64,' + img.data); })
             : null;
 
         inputEl.value = '';
         btnEl.disabled = true;
-        clearAttachment();
+        if (apAttach) apAttach.clear();
 
         // Remove empty state
         var empty = container.querySelector('.ap-chat-empty');
         if (empty) empty.remove();
 
-        addMessage(container, message || '(Images attached)', true, true, imageDataUrls);
+        addMessage(container, message || '(Attachment)', true, true, imageDataUrls);
 
         // Track this request so its background answer survives navigation.
         if (message) {
@@ -1093,18 +1100,18 @@ any in-flight stream survive a focus-mode toggle untouched.
         // who must always use the streaming/background path (and now CARRY the image on it).
         if (sentImages && sentImages.length > 0 && !AP_IS_COS_USER) {
             showTyping(container);
-            apSendNonStreaming(message, container, btnEl, inputEl, sentImages);
+            apSendNonStreaming(message, container, btnEl, inputEl, sentImages, sentAttachmentIds);
             return;
         }
 
         // All text messages — and ALL ChatGPT CoS messages — use streaming. Images (if any)
         // ride ALONG the streaming request body so the model actually receives them.
         showTyping(container);
-        apSendStreaming(message, container, btnEl, inputEl, sentImages);
+        apSendStreaming(message, container, btnEl, inputEl, sentImages, sentAttachmentIds);
     }
 
     // Streaming path — async/await + ReadableStream for immediate token rendering
-    async function apSendStreaming(message, container, btnEl, inputEl, sentImages) {
+    async function apSendStreaming(message, container, btnEl, inputEl, sentImages, sentAttachmentIds) {
         var pageCtx = getFullPageContext();
         // Thread the correlation id to the server (BETH_JOB_CREATED + task stages).
         try { pageCtx.beth_cid = (apGetPending() || {}).cid || null; } catch (e) {}
@@ -1138,7 +1145,8 @@ any in-flight stream survive a focus-mode toggle untouched.
                 body: JSON.stringify({
                     message: message,
                     page_context: pageCtx,
-                    images: imagesPayload
+                    images: imagesPayload,
+                    attachment_ids: (sentAttachmentIds && sentAttachmentIds.length) ? sentAttachmentIds : undefined
                 })
             });
             clearTimeout(streamTimeout);
@@ -1280,7 +1288,7 @@ any in-flight stream survive a focus-mode toggle untouched.
     }
 
     // Non-streaming fallback (also used for image messages)
-    function apSendNonStreaming(message, container, btnEl, inputEl, sentImages) {
+    function apSendNonStreaming(message, container, btnEl, inputEl, sentImages, sentAttachmentIds) {
         var fetchOpts;
         if (sentImages && sentImages.length > 0) {
             var formData = new FormData();
@@ -1293,6 +1301,11 @@ any in-flight stream survive a focus-mode toggle untouched.
                 for (var j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
                 var blob = new Blob([ab], { type: sentImages[i].mimeType });
                 formData.append('images', blob, 'image_' + i + '.png');
+            }
+            if (sentAttachmentIds && sentAttachmentIds.length) {
+                for (var a = 0; a < sentAttachmentIds.length; a++) {
+                    formData.append('attachment_ids', sentAttachmentIds[a]);
+                }
             }
             fetchOpts = {
                 method: 'POST',
@@ -1308,7 +1321,8 @@ any in-flight stream survive a focus-mode toggle untouched.
                 },
                 body: JSON.stringify({
                     message: message,
-                    page_context: getFullPageContext()
+                    page_context: getFullPageContext(),
+                    attachment_ids: (sentAttachmentIds && sentAttachmentIds.length) ? sentAttachmentIds : undefined
                 })
             };
         }
@@ -1633,88 +1647,13 @@ any in-flight stream survive a focus-mode toggle untouched.
     }
 
     /* ================================================================
-       MULTI-IMAGE ATTACHMENT (up to 5 images)
+       ATTACHMENTS — this surface is a thin CONSUMER of the WLJ Attachment
+       Framework (WLJAttachments.mount). All select/normalize/upload/preview/
+       remove logic lives in the framework; the mount config is wired below.
        ================================================================ */
-    function handleImageFile(file) {
-        if (attachedImages.length >= MAX_IMAGES) {
-            alert('Maximum ' + MAX_IMAGES + ' images per message.');
-            return;
-        }
-        // Shared normalization: EXIF orientation, downscale large photos, HEIC→JPEG,
-        // compress under the server cap. Kills "file too large" + sideways photos.
-        WLJAttachments.prepareImage(file).then(function(img) {
-            if (attachedImages.length >= MAX_IMAGES) return;
-            attachedImages.push({ data: img.data, mimeType: img.mimeType, dataUrl: img.dataUrl });
-            renderImagePreviews();
-            updateSendBtn();
-        }).catch(function(err) {
-            if (err && err.message) alert(err.message);
-        });
-    }
-
-    function handleImageFiles(files) {
-        var remaining = MAX_IMAGES - attachedImages.length;
-        var count = Math.min(files.length, remaining);
-        if (files.length > remaining) {
-            alert('You can attach up to ' + MAX_IMAGES + ' images. Adding first ' + remaining + '.');
-        }
-        for (var i = 0; i < count; i++) {
-            handleImageFile(files[i]);
-        }
-    }
-
-    function removeImage(index) {
-        attachedImages.splice(index, 1);
-        renderImagePreviews();
-        updateSendBtn();
-    }
-
-    function renderImagePreviews() {
-        if (!previewStrip) return;
-        previewStrip.innerHTML = '';
-        if (attachedImages.length === 0) {
-            if (attachmentPreview) attachmentPreview.style.display = 'none';
-            if (attachBtn) attachBtn.classList.remove('has-attachment');
-            if (fileInput) fileInput.value = '';
-            return;
-        }
-        if (attachmentPreview) attachmentPreview.style.display = 'flex';
-        if (attachBtn) attachBtn.classList.add('has-attachment');
-        for (var i = 0; i < attachedImages.length; i++) {
-            var thumb = document.createElement('div');
-            thumb.className = 'ap-preview-thumb';
-            var img = document.createElement('img');
-            img.src = attachedImages[i].dataUrl;
-            img.alt = 'Image ' + (i + 1);
-            thumb.appendChild(img);
-            var removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'ap-remove-attachment';
-            removeBtn.title = 'Remove image';
-            removeBtn.setAttribute('data-index', i);
-            removeBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-            thumb.appendChild(removeBtn);
-            previewStrip.appendChild(thumb);
-        }
-        if (attachedImages.length > 1) {
-            var countEl = document.createElement('span');
-            countEl.className = 'ap-image-count';
-            countEl.textContent = attachedImages.length + '/' + MAX_IMAGES;
-            previewStrip.appendChild(countEl);
-        }
-    }
-
-    function clearAttachment() {
-        attachedImages = [];
-        if (previewStrip) previewStrip.innerHTML = '';
-        if (attachmentPreview) attachmentPreview.style.display = 'none';
-        if (attachBtn) attachBtn.classList.remove('has-attachment');
-        if (fileInput) fileInput.value = '';
-        updateSendBtn();
-    }
-
     function updateSendBtn() {
-        if (sendBtn) sendBtn.disabled = !chatInput.value.trim() && attachedImages.length === 0;
+        var hasAttach = apAttach && apAttach.count() > 0;
+        if (sendBtn) sendBtn.disabled = !chatInput.value.trim() && !hasAttach;
     }
 
     /* ================================================================
@@ -2127,7 +2066,7 @@ any in-flight stream survive a focus-mode toggle untouched.
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 var msg = chatInput.value.trim();
-                if (msg || attachedImages.length > 0) sendMessage(msg, chatMessages, chatInput, sendBtn);
+                if (msg || (apAttach && apAttach.count() > 0)) sendMessage(msg, chatMessages, chatInput, sendBtn);
             }
         });
         chatInput.addEventListener('paste', function(e) {
@@ -2137,7 +2076,7 @@ any in-flight stream survive a focus-mode toggle untouched.
                 if (items[i].type.indexOf('image/') === 0) {
                     e.preventDefault();
                     var file = items[i].getAsFile();
-                    if (file) handleImageFile(file);
+                    if (file && apAttach) apAttach.addFiles([file]);
                     break;
                 }
             }
@@ -2148,28 +2087,32 @@ any in-flight stream survive a focus-mode toggle untouched.
         chatForm.addEventListener('submit', function(e) {
             e.preventDefault();
             var msg = chatInput.value.trim();
-            if (msg || attachedImages.length > 0) sendMessage(msg, chatMessages, chatInput, sendBtn);
+            if (msg || (apAttach && apAttach.count() > 0)) sendMessage(msg, chatMessages, chatInput, sendBtn);
         });
     }
 
-    if (attachBtn) attachBtn.addEventListener('click', function() { fileInput.click(); });
-    if (fileInput) fileInput.addEventListener('change', function() {
-        if (fileInput.files && fileInput.files.length > 0) handleImageFiles(fileInput.files);
-    });
-    // Drag-and-drop onto the chat input area (shared helper).
-    if (window.WLJAttachments) {
-        var apDropZone = document.querySelector('.ap-chat-input-area');
-        WLJAttachments.attachDragAndDrop(apDropZone, function(files) {
-            handleImageFiles(files);
+    // Mount the WLJ Attachment Framework — this surface is a thin consumer. All
+    // attachment behavior is declared as CONFIG (images stay inline for immediate
+    // perception via autoUpload predicate; everything else uploads to become an
+    // artifact). The framework owns select/normalize/upload/preview/remove.
+    if (window.WLJAttachments && fileInput) {
+        fileInput.accept = WLJAttachments.UNIVERSAL_ACCEPT;
+        apAttach = WLJAttachments.mount({
+            input: fileInput,
+            triggers: [attachBtn],
+            dropZone: document.querySelector('.ap-chat-input-area'),
+            previewContainer: attachmentPreview,
+            classes: ['image', 'document', 'audio', 'video'],
+            maxItems: 5,
+            previewStyle: 'mixed',
+            keepImageData: true,
+            autoUpload: function(item) { return item.kind !== 'image'; },
+            onChange: function() {
+                if (attachBtn) attachBtn.classList.toggle('has-attachment', apAttach.count() > 0);
+                updateSendBtn();
+            }
         });
     }
-    if (previewStrip) previewStrip.addEventListener('click', function(e) {
-        var btn = e.target.closest('.ap-remove-attachment');
-        if (btn) {
-            var index = parseInt(btn.getAttribute('data-index'), 10);
-            removeImage(index);
-        }
-    });
 
     if (voiceBtn) {
         voiceBtn.addEventListener('click', function() {

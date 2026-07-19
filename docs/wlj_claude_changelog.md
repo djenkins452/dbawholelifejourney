@@ -3,8 +3,21 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.2c): framework consumption foundation — attachment_ids wiring)
+# Last Updated: 2026-07-19 (feat(multimodal P1.2d): chat panel becomes the first WLJ Attachment Framework consumer)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.2d): chat panel becomes the first WLJ Attachment Framework consumer + fix autoUpload predicate
+
+**Phase 1, universal-intake milestone (sub-milestone D — chat as first production consumer).** The desktop Chief-of-Staff panel is now a *thin consumer* of the framework, not an owner of upload logic.
+
+**Changes:**
+- **`templates/components/assistant_panel.html`** — DELETED the duplicated bespoke attachment logic (`attachedImages` state, `handleImageFile`, `handleImageFiles`, `renderImagePreviews`, `removeImage`, `clearAttachment`, the preview-strip markup + click handler, the file-input/drag-drop wiring). Replaced with a single `WLJAttachments.mount({...})` whose config declares chat's behavior: all content classes, max 5, universal `accept`, `previewStyle:'mixed'`, `keepImageData:true`, and `autoUpload:(item)=>item.kind!=='image'` (images ride the inline base64 path for immediate perception; documents/audio/video upload to become artifacts). Send now threads `getImagesPayload()` (images inline — byte-identical to before) + `getArtifactIds()` (non-image `attachment_ids`) through both the streaming and non-streaming paths. No chat-specific behavior leaked into the framework — everything is config/callbacks.
+- **`static/js/wlj-attachments.js`** — **fixed a real bug** surfaced by browser verification: `mount()` did `var autoUpload = config.autoUpload !== false`, which coerced a *predicate function* to `true` (a function is `!== false`), so the "keep images inline" rule was silently ignored and images were double-uploaded. Now preserved as given.
+- **`templates/base.html`** — bumped the framework cache-bust to `?v=20260719c` so the fix ships to returning users.
+
+**Files:** `templates/components/assistant_panel.html`, `static/js/wlj-attachments.js`, `templates/base.html`, `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md`.
+
+**Verification (browser, real panel):** attached a PDF + an image → 1 chip + 1 thumbnail; intercepted the send → body carried the image **inline** (`images:[image/png]`) and the PDF as a **single** `attachment_ids:[id]` (image NOT double-uploaded — `image:ready`, `document:uploaded`); preview cleared after send; no console errors. `collectstatic` clean; JS parses. **Next:** the same thin-consumer adoption for `chat_widget.html` (mobile drawer).
 
 ## 2026-07-19 — docs(ops): RATIFY Configuration Governance Phase-2 architecture (decomposition, service classes, UNKNOWN policy, capability-first vision)
 

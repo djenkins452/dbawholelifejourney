@@ -335,7 +335,9 @@
         var previewStyle = config.previewStyle || 'mixed';
         var normalizeImages = config.normalizeImages !== false;
         var keepImageData = !!config.keepImageData;
-        var autoUpload = config.autoUpload !== false;
+        // May be a boolean OR a predicate(item)→bool — preserve it as given
+        // (do NOT coerce; `fn !== false` would collapse a predicate to `true`).
+        var autoUpload = (config.autoUpload === undefined) ? true : config.autoUpload;
         var previewContainer = config.previewContainer || null;
         var items = [];
         var seq = 0;

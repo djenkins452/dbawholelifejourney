@@ -68,6 +68,25 @@ class TranscriptionService:
         """Check if transcription service is available."""
         return self.client is not None
 
+    def transcribe_bytes(self, audio_data: bytes, filename: str = "audio.mp3") -> str:
+        """Transcribe raw audio bytes → transcript text. The ONE shared, model-
+        and CaptureEntry-agnostic transcription capability across WLJ (Capture,
+        the multimodal perception pipeline, and any future consumer all call
+        this). Handles Whisper's 25 MB limit and non-Whisper formats (e.g. AAC)
+        by converting/compressing to mp3 via ffmpeg first. Raises
+        TranscriptionError on failure.
+        """
+        if not self.is_available:
+            raise TranscriptionError(
+                "Transcription service not available - OpenAI API key not configured",
+                "Transcription is temporarily unavailable. Please try again later.",
+            )
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        needs_convert = ext not in SUPPORTED_FORMATS
+        if needs_convert or len(audio_data) > WHISPER_MAX_FILE_SIZE_BYTES:
+            audio_data, filename = self._compress_audio(audio_data, filename)
+        return self._call_whisper_api(audio_data, filename)
+
     def transcribe_audio(self, capture_entry) -> dict:
         """
         Transcribe audio from a CaptureEntry and update its fields.
@@ -104,18 +123,10 @@ class TranscriptionService:
             logger.info(f"CaptureEntry {capture_entry.id}: Downloading audio from S3")
             audio_data, filename = self._download_audio(capture_entry.audio_file_url)
 
-            # Check file size and compress if needed
-            file_size = len(audio_data)
-            if file_size > WHISPER_MAX_FILE_SIZE_BYTES:
-                logger.info(
-                    f"CaptureEntry {capture_entry.id}: Audio file is {file_size / 1024 / 1024:.1f}MB, "
-                    f"compressing to meet {WHISPER_MAX_FILE_SIZE_MB}MB limit"
-                )
-                audio_data, filename = self._compress_audio(audio_data, filename)
-
-            # Transcribe with Whisper
+            # Transcribe via the ONE shared transcription capability (handles the
+            # 25 MB limit + format conversion internally).
             logger.info(f"CaptureEntry {capture_entry.id}: Sending to Whisper API")
-            transcript = self._call_whisper_api(audio_data, filename)
+            transcript = self.transcribe_bytes(audio_data, filename)
 
             # Update CaptureEntry on success
             capture_entry.transcript = transcript

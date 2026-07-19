@@ -62,8 +62,9 @@ class PerceiveModuleTests(TestCase):
 
     def test_is_perceivable(self):
         self.assertTrue(is_perceivable("application/pdf"))
-        self.assertFalse(is_perceivable("audio/mpeg"))
         self.assertFalse(is_perceivable("image/png"))
+        self.assertFalse(is_perceivable(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))  # Office = later
 
 
 class PerceiveArtifactTaskTests(TestCase):

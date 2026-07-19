@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.3-M1): PDF perception — the CoS can read/summarize/answer PDFs)
+# Last Updated: 2026-07-19 (feat(multimodal P1.3-M2): audio perception — converge on ONE shared transcription capability)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.3-M2): audio perception — the CoS understands voice notes / recordings
+
+**Phase 1.3 (Perception), Milestone 2 — Audio** (reprioritized ahead of Office per Danny: audio lifts Capture, Journal, Faith, Medical, meetings, dictation immediately). Only the perception step is new; the whole platform (framework → validation → artifact → durable storage → provenance → arrival pipeline → Current Context) is reused.
+
+**Converged on ONE transcription capability — did NOT build a second.** Traced Capture's Whisper integration (`apps/capture/services/transcription.py`) and confirmed it's production quality (whisper-1, 25 MB-limit handling via ffmpeg compression, thorough error handling, format mapping). It was coupled to `CaptureEntry` (download-from-S3 → write-back). So:
+- **Exposed the pure core** as `TranscriptionService.transcribe_bytes(audio_data, filename) → transcript` — CaptureEntry-agnostic; internally handles the 25 MB limit AND non-Whisper formats (e.g. AAC) by converting to mp3 via ffmpeg.
+- **Refactored Capture's own `transcribe_audio`** to reuse `transcribe_bytes` (DRY — one core, verified by the full Capture suite still passing).
+- **Wired audio into perception** (`apps/ai/perception.py`): `perceive()` dispatches `audio/mpeg`·`audio/mp4`(m4a)·`audio/wav`·`audio/aac` → `transcribe_bytes`; the transcript becomes `extracted_text`, surfaced through the SAME `attachments_from_ids` path as PDF text. `PERCEIVABLE_TYPES` gains the audio types, so `store_and_persist_artifact` queues background transcription automatically.
+- **Constitution ATTACHMENTS prompt** generalized to "documents & audio": the model reads the transcript in `attachments[i].text` to summarize, pull action items, draft a journal entry, or recall — reasoning only over the real transcript.
+
+**Architecture:** WLJ performs transcription/storage/provenance/deterministic-truth; the model performs reasoning. Background (request-path-safe). Constitution-aligned (mechanical decode, no interpretation) — no Review.
+
+**Files:** `apps/capture/services/transcription.py`, `apps/ai/perception.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_audio_perception.py` (new), `apps/ai/tests/test_pdf_perception.py` (stale assertion fixed).
+
+**Verification:** `test_audio_perception` (Whisper mocked — transcription, format→filename mapping incl. m4a/aac, empty→unsupported, error→failed, task stores transcript, and the direct-vs-convert routing of the shared core) + `test_pdf_perception` + **full Capture suite** (430 tests) green — the Capture reuse of `transcribe_bytes` is proven, not assumed. Request-path contract green; no migration (reuses M1 fields); `check` clean. (End-to-end audio needs Whisper + Redis, absent in dev; audio *ingestion* via the framework was already browser-verified.) **After audio:** reassess before Office (lower customer value). Multi-turn recall = Artifacts-as-Truth (parallel).
 
 ## 2026-07-19 — refine(faith): First Light — the taste pass (hero, atmosphere, typography, reader, cards, Mirror doorway)
 

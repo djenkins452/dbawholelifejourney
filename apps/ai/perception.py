@@ -29,7 +29,17 @@ MAX_EXTRACTED_CHARS = 400_000
 # perception until its extractor lands.
 PERCEIVABLE_TYPES = frozenset({
     "application/pdf",
+    "audio/mpeg", "audio/mp4", "audio/wav", "audio/aac",
 })
+
+# content_type → filename (extension) the shared transcription capability uses to
+# tell Whisper the format.
+_AUDIO_FILENAMES = {
+    "audio/mpeg": "audio.mp3",
+    "audio/mp4": "audio.m4a",   # our sniffer reports M4A (AAC-in-MP4) as audio/mp4
+    "audio/wav": "audio.wav",
+    "audio/aac": "audio.aac",   # converted to mp3 by the transcription core
+}
 
 
 def is_perceivable(content_type: str) -> bool:
@@ -48,11 +58,29 @@ def perceive(content_type: str, raw: bytes) -> dict:
     try:
         if ct == "application/pdf":
             return _perceive_pdf(raw)
-        # Documents / audio / video plug in here in later milestones.
+        if ct in _AUDIO_FILENAMES:
+            return _perceive_audio(raw, ct)
+        # Office documents / video plug in here in later milestones.
         return {"status": "unsupported", "text": "", "page_count": None}
     except Exception as exc:  # pragma: no cover - defensive; perception never breaks a turn
         logger.warning("perceive failed for %s (%s)", ct, exc, exc_info=True)
         return {"status": "failed", "text": "", "page_count": None}
+
+
+def _perceive_audio(raw: bytes, content_type: str) -> dict:
+    """Transcribe audio via the ONE shared transcription capability (Capture's
+    Whisper integration). WLJ produces the literal transcript; the model reasons
+    over it. No second transcription system.
+    """
+    from apps.capture.services.transcription import transcription_service
+
+    filename = _AUDIO_FILENAMES.get(content_type, "audio.mp3")
+    transcript = (transcription_service.transcribe_bytes(raw, filename) or "").strip()
+    if not transcript:
+        return {"status": "unsupported", "text": "", "page_count": None}
+    if len(transcript) > MAX_EXTRACTED_CHARS:
+        transcript = transcript[:MAX_EXTRACTED_CHARS]
+    return {"status": "done", "text": transcript, "page_count": None}
 
 
 def _perceive_pdf(raw: bytes) -> dict:

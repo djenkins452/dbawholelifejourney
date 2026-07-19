@@ -270,11 +270,12 @@ class BuildOpsStreamPayloadTests(TestCase):
         # WLJ Operations Phase II read-only "recovery" section, +1 for the
         # OPS-5 "db_health" section, +1 for the OPS-7 "task_health" section,
         # +1 for the OPS-8a "confirmation_audit" section, +1 for the OPS-8b
-        # "media_persistence" section, and +1 for the OPS-9 "deployment" section.
-        self.assertEqual(telemetry["sections_ok"], 33)
+        # "media_persistence" section, +1 for the OPS-9 "deployment" section,
+        # and +1 for the OPS-12 "config_integrity" section.
+        self.assertEqual(telemetry["sections_ok"], 34)
         self.assertEqual(telemetry["sections_degraded"], 0)
         self.assertIn("section_timings", telemetry)
-        self.assertEqual(len(telemetry["section_timings"]), 33)
+        self.assertEqual(len(telemetry["section_timings"]), 34)
 
 
 class EngineCardDiagnosticFieldsTests(TestCase):

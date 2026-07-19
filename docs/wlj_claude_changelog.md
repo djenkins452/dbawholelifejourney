@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-19 (feat(multimodal P1.1a): shared universal attachment module — image normalization + drag-drop)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — chore(ops): config-governance prod verification + remove temp diagnostic; fix payload section count
+
+**Production verification (real Railway topology):** all 4 services (web, worker, beat, build) published secret-safe presence manifests on the deployed commit; **CLOUDINARY_* present on web/worker/beat** (incident confirmed resolved); evaluation **healthy**; **only presence tokens, zero secret values**. The system also surfaced that build-runner carries Cloudinary (the incident's origin) and that `CLAUDE_API_KEY` is web-only (correctly not flagged elsewhere). Removed the temporary `apps/admin_console/config_integrity_diagnostic.py` + its route completely (grep-clean, check-clean). Fixed `tests_payload_builder.test_build_telemetry_summary` section count 33 → 34 for the new OPS-12 `config_integrity` section.
+
 ## 2026-07-19 — feat(ops): Configuration Governance — deterministic config-drift detection (Phase 1, report-only)
 
 **Prevents the Cloudinary-class outage** (Worker/Beat crashed because required vars were shared only to build-runner, not to the runtime services). Builds a deterministic configuration-governance foundation that knows what each Railway service requires vs actually has — **without ever reading, logging, persisting, or displaying a secret value** (presence only). The language model is never consulted about validity.

@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — docs(startup): session close-out — fold Truth Validation Center into the permanent package; pivot the sprint to CoS conversational validation
+
+Ran `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` to close a milestone session (Truth Validation Center: built, renamed from Acceptance where appropriate, deterministic Truth-vs-CoS validation, provider/failure-layer classification, object-resolution fix + visibility, resolved/natural prompt modes, by-name defect class eliminated, regression tests, failure-category summaries).
+
+- **Folded durable knowledge UP into the package** (no duplication): `01_…ARCHITECTURE §5` (Truth Validation Center built + honest CoS status) and `§6` (the defining lesson — *validate at the altitude you're certifying*: the Center certifies implementation layers, invaluable for engineering but the wrong altitude for operator certification of the conversational experience); `03_ENGINEERING_OPERATING_GUIDE §3c` (Owner-2 instrument = the Truth Validation Center; the durable **by-name provider rule** — every multi-entity `describe_one` covers all its types via `_entity_by_identity`, CI-locked).
+- **Reference Index** — registered `docs/WLJ_TRUTH_VALIDATION_CENTER.md` (Governing/CURRENT); marked `WLJ_CERTIFICATION_PLATFORM_FUTURE.md` "first type OPENED".
+- **Rewrote the bootloader** `00_NEXT_CHAT_STARTUP.md` from scratch (55→46 lines): new sprint = validate the CoS through natural conversation; first deliverable = a reusable domain-by-domain conversational testing suite (one artifact per domain, own copy box, independently executable, natural user language — starting with Health & Vitals); CoS failures get reproduced then become engineering work items.
+- **Constitution:** no change. **04 Danny Preferences:** no change (the "one copy box per reusable artifact" rule already governs the next deliverable). **Transition workflow (98/99):** no change needed.
+
+- **Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE,03_ENGINEERING_OPERATING_GUIDE,99_REFERENCE_INDEX}.md`.
+
 ## 2026-07-18 — fix(cos): remove the redundant "Chat" pill from the Chief of Staff header; reflow so controls stop clipping off the 320px rail
 
 **Reported:** the "Chat" pill in the CoS panel header consumes horizontal space for no value — chat is already the panel's context.

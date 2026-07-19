@@ -4,51 +4,43 @@
 
 ## Do this now
 1. **Read the rest of this package, in order:** `01_READ_FIRST…ARCHITECTURE` → `02_WLJ_CONSTITUTION` → `03_ENGINEERING_OPERATING_GUIDE` → `04_DANNY_WORKING_PREFERENCES` → `98_SESSION_TRANSITION_PROTOCOL` → `99_REFERENCE_INDEX`.
-2. **Those documents are the authoritative source of truth** — every permanent architectural decision, principle, engineering rule, and preference is already folded into them. **Do not summarize them back.** Read, absorb, act.
+2. **Those documents are the authoritative source of truth** — every permanent decision, principle, rule, and preference is already folded into them. **Do not summarize them back.** Read, absorb, act.
 3. **Do not revisit constitutional decisions** unless a change genuinely requires a **Constitutional Review** (`02 §3`, default NO, Danny's explicit written approval).
-4. Continue from the live session state below.
+4. Continue from the live sprint state below.
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 
-**Last regenerated:** 2026-07-18 (**CoS Truth Certification milestone COMPLETE** — two-owner certification built, first production Customer Truth run measured, roadmap now certification-driven).
+**Last regenerated:** 2026-07-19 (**Truth Validation Center built — complete enough to pause.** Sprint pivots to **Chief of Staff conversational-capability validation.**)
 
 ---
 
-## ✅ What this session established (now PERMANENT — folded, do not re-derive)
-- **Certification drives the CoS roadmap** (the loop + two-owner model): `03_ENGINEERING_OPERATING_GUIDE §3c`.
-- **Truth Surfaces** — the CoS reasons from 7 complementary deterministic surfaces; a missing provider ≠ a missing answer: `01 §4/§6` + `docs/WLJ_TRUTH_SURFACES.md`.
-- **The instrument is built:** Owner-1 deterministic (`apps/core/truth/question_specs.py`, `capability_matrix()`, `apps/core/tests/test_truth_retrieval_slice.py`) + Owner-2 live via the **Beth Acceptance Center through `CoSGateway`**, capturing per-question structured evidence + first-failing-layer (`AcceptanceResult` columns; run-detail UI panel).
+## ✅ What last session established (now PERMANENT — folded, do not re-derive)
+- **Truth Validation Center** — the deterministic Owner-2 instrument (CoS answer vs WLJ truth; no model grades a model; failure classified by layer; object resolved by the app's own rule; resolved/natural modes): `01 §5`, `03 §3c`, `docs/WLJ_TRUTH_VALIDATION_CENTER.md`.
+- **By-name provider rule** — every multi-entity `DomainTruth.describe_one` must cover ALL its entity types via `_entity_by_identity`; CI-locked (`test_truth_by_name_audit.py`): `03 §3c`. The whole by-name defect class is eliminated.
+- **The altitude lesson** — layer-level validation is the *engineering diagnostic*, NOT the operator's certification of the conversation: `01 §6`. This lesson *is* why the sprint pivots below.
 
-## 🎯 The live roadmap — continue the certification loop on MEASURED evidence
-First production Customer Truth run (Danny's real data) scored these. **Rank by measured impact; untested = NOT YET MEASURED, never "low."** Full scorecard + trace plan: `docs/WLJ_CUSTOMER_TRUTH_CERT_PROD1.md`; backlog: `docs/WLJ_CERTIFICATION_BACKLOG.md`.
+## 🎯 The live sprint — validate the Chief of Staff through NATURAL CONVERSATION
+Not field validation. Not developer diagnostics. The question: **"Does my Chief of Staff behave like a knowledgeable Chief of Staff?"**
 
-**Measured PASS:** Weight, Medication, glucose/BP *current*, Fitness (via `health.describe("workout")`), Goals *summary* (via Standing Context).
-**Measured weaknesses (the backlog, provisional until the production trace is read):**
-1. **Nutrition date-scoped retrieval** — HIGH, but **COORDINATE**: a parallel thread owns it (see Concurrency). Do NOT duplicate.
-2. **Glucose/BP trends** — HIGH, **proven** gap (`health.history_metrics` excludes glucose+BP). Small, low-risk, clear of parallel work. **Best next non-colliding slice.**
-3. **Body Measurements provider** — MED-HIGH, **proven** (model exists, no `DomainTruth`). Small, low-risk.
-4. **Journal source separation** — HIGH (trust): production blended mobility/audio-exposure into "journal". **TRACE FIRST** (which tool served it) before any fix.
-5. **Relationships/People retrieval** — MED, missing person entity surface (announced retrieval, empty final).
-6. **Goals item-level** (milestones) — summary works via Standing Context; needs a goals provider for detail.
-7. Fitness squat-load precision (grounding) · 8. Cross-domain grounding discipline (generic advice leaked into a "strictly WLJ" answer).
+**First deliverable:** a reusable, domain-by-domain **conversational testing suite** — **ONE artifact per WLJ domain**, each in **its own copy box**, **independently executable** (no giant combined doc). Each contains natural questions a real user would ask their Chief of Staff.
+
+- **Question philosophy:** sound exactly like a real user — *"What do I currently weigh?"*, *"Tell me everything you know about Heather."*, *"What did I eat yesterday?"*, *"What's on my calendar today?"* **Never** database/field/developer terms (not *"the value of body_fat_percentage"*). The point is to validate the **experience**, and to naturally expose Truth-Layer, retrieval, grounding, and reasoning gaps **without referencing implementation**.
+- **Domains (start with Health & Vitals, then proceed one by one):** Health & Vitals · Nutrition · Fitness · Medications · Goals · Habits · Journal · Faith · People & Relationships · Legacy · Calendar · Tasks · Projects · Capture · Notes · Brain Training · Medical.
+- **Loop:** produce a domain guide → Danny runs it against the production CoS → any CoS failure is **reproduced**, then becomes an engineering work item (fix at the first failing layer, `03 §3c`).
+
+**Immediate next step:** produce the **Health & Vitals** conversational testing guide (its own copy box), then proceed domain by domain.
+
+## 📊 CoS status (carry forward)
+Truth Layer **matured**; Object Resolution **matured**; **provider failures dramatically reduced**. Remaining engineering weight is expected in **conversational grounding · retrieval quality · capability completeness · natural conversational behavior** — exactly what this sprint is built to surface. The prior intuition-ranked field backlog (`docs/WLJ_CERTIFICATION_BACKLOG.md`) is now *re-validated through conversation*, not driven by it; known-open items (glucose/BP trends, nutrition date-scoped retrieval) remain valid and will resurface.
 
 ## 🔀 Concurrency — coordinate, do not collide (Danny runs parallel sessions on the SAME tree)
-- **Meal Intelligence thread** is actively shipping **canonical nutrition truth** (`docs/WLJ_MEAL_INTELLIGENCE_*`, "Meal Intelligence Foundation" commits). It **owns backlog #1 (nutrition)** — coordinate there, do not duplicate.
-- **Person / rich-text thread** shipped canonical `people.Person` + `@`-mention journal recognition (`apps/people`, tiptap). Relates to backlog #5 (People retrieval).
-- Rule: commit only your own files **by explicit path**; the changelog is contended — re-check its top immediately before each commit; defer your line if a foreign entry appeared.
+Commit **only your own files by explicit path**; the changelog is contended — re-check its top immediately before each commit and **defer your line if a foreign entry appeared**. Active parallel threads seen this week: **Meal Intelligence** (canonical nutrition truth — owns nutrition work) and **assistant-panel/nutrition-form UI**.
 
 ## ⏳ Waiting on Danny (operator — Claude has no prod access)
-- **Run the production Acceptance Center trace** for the partial/failing production results — the `AcceptanceResult` evidence columns (`selected_tool`, `retrieved_records`, `first_failing_layer`) finalize the backlog order (esp. Nutrition data-vs-retrieval, Journal blend source, Relationships stop-reason).
-- **Deploy topology:** a Deep "Truth Certification" run executes in **`wlj-worker`**; `/_health/` reports only web. Verify the worker is on the tested commit before trusting a production CoS result.
+- **Run each domain's conversational testing guide** against the production CoS and report failures (this sprint's evidence engine).
+- **Deploy topology:** the CoS/Truth Validation runs in **`wlj-worker`**; `/_health/` reports only web — verify the worker is on the tested commit before trusting a production CoS result.
 
-## 🔮 Deferred initiative — DO NOT implement
-- **WLJ Certification Platform** — unify all certification/testing/release-readiness/coverage/maturity into one platform (Production Test Plans = orchestration; subsystems = providers). Open as its OWN initiative only AFTER CoS Truth is production-validated. Recorded: `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md`.
-
-## 🔝 Architecture backlog (carried — its own decision, do NOT fold into feature work)
-- **UTC-vs-user-local calendar-day attribution.** Health ingest attributes a sample to its UTC calendar date; summaries/analysis must agree with ingest. A deliberate truth-model decision affecting ingestion/summaries/trends/scoring/history — not a code fix.
-
-## Parallel track — Operations (separate session, operator-gated; preserved so it's not lost)
-WLJ Operations Phase II recovery is **live but operator-gated** (`OPS_RECOVERY_MODE=ACTIVE`, single allowlisted handler). Open action is operator-run: confirm **O2** (a real `MISSED_RUN` recovered + verified), then update ledger/maturity. Do NOT expand the allowlist until O2 proves out. Not the CoS thread's priority. State: `docs/WLJ_OPERATIONS_VISION.md`.
-
-## Immediate next step
-Continue the certification-driven loop. **Recommended next slice: Glucose/BP trends (#2)** or **Body Measurements provider (#3)** — both proven, small, low-risk, and clear of the parallel Meal Intelligence work. Avoid nutrition (#1, parallel thread). Journal (#4) needs a production trace first. Follow the loop in `03 §3c`: Owner-1 fixtures + certify → Customer Truth → attribute the first failing layer → smallest deterministic fix → re-certify.
+## 🔮 Deferred / carried (DO NOT implement without opening as its own initiative)
+- **WLJ Certification Platform** — first type now built (Truth Validation Center); remaining types (CRUD/Reasoning/Executive/Check-in/Domain) plug into the same engine. Still deferred: `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md`.
+- **UTC-vs-user-local calendar-day attribution** — a truth-model decision (ingest vs summaries/trends), not a code fix. Carried.
+- **WLJ Operations (separate operator-gated track)** — Phase II recovery shipped dark; open action is operator-run (confirm O2), then OPS-8a. Not the CoS thread's priority: `docs/WLJ_OPERATIONS_VISION.md`.

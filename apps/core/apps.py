@@ -65,3 +65,10 @@ class CoreConfig(AppConfig):
         # discovers it (nested-subpackage tasks are not auto-discovered). Ships
         # dark: gated by OPS_RECOVERY_ENABLED (default False).
         import apps.core.operations.tasks  # noqa: F401
+        # Configuration Governance — publish this service's secret-safe presence
+        # manifest + report-only startup validation. Self-contained error
+        # handling: it never raises unless CONFIG_GOVERNANCE_ENFORCE_STARTUP is
+        # on (default off), in which case a deliberate ImproperlyConfigured
+        # propagates to fail startup.
+        from apps.core.config_governance.startup import run_startup_governance
+        run_startup_governance()

@@ -2568,6 +2568,21 @@ def _get_deployment_telemetry(now):
         return None
 
 
+def _get_config_integrity_telemetry(now):
+    """
+    OPS-12 — Configuration Integrity (deterministic configuration-drift
+    detection). Reads per-service secret-safe presence manifests and evaluates
+    them against the canonical configuration contract. NO secret values. Fails
+    to UNKNOWN (never Healthy) when it cannot verify.
+    """
+    try:
+        from apps.core.config_governance.telemetry import get_config_integrity_telemetry
+        return get_config_integrity_telemetry(now)
+    except Exception as e:
+        logger.debug("OpsWall: config integrity telemetry unavailable: %s", e)
+        return None
+
+
 def _get_media_persistence_telemetry(now):
     """
     OPS-8b — Media & capture persistence health (capture pipeline status/failures/
@@ -2774,6 +2789,7 @@ def build_ops_stream_payload():
     _section("confirmation_audit", _get_confirmation_audit_telemetry, now)  # OPS-8a
     _section("media_persistence", _get_media_persistence_telemetry, now)  # OPS-8b
     _section("deployment", _get_deployment_telemetry, now)  # OPS-9
+    _section("config_integrity", _get_config_integrity_telemetry, now)  # OPS-12
     _section("chat_queue", _get_chat_queue_telemetry, now)
     _section("upstream_health", _get_upstream_health_telemetry, now)
     # WLJ Operations Phase II — read-only recovery activity (published by the

@@ -14,6 +14,7 @@ from django.urls import path
 
 from . import views
 from . import ai_views
+from . import config_integrity_diagnostic  # TEMPORARY — remove after config-governance verification
 from . import truth_validation_views as tv_views
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
@@ -233,6 +234,8 @@ urlpatterns = [
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
     path("api/claude/restore-deleted-tasks/", views.RestoreDeletedTasksAPIView.as_view(), name="api_claude_restore_tasks"),
+    # TEMPORARY config-governance verification endpoint — remove after verification.
+    path("api/claude/config-integrity-diag/", config_integrity_diagnostic.ConfigIntegrityDiagnosticAPIView.as_view(), name="api_claude_config_integrity_diag"),
 
     # Test Results Ingest API (local → production sync)
     path("api/test-results/ingest/", views.TestResultIngestAPIView.as_view(), name="api_test_results_ingest"),

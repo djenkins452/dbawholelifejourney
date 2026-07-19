@@ -62,10 +62,8 @@
 
     <!-- Input Area -->
     <div class="assistant-input-area">
-        <!-- Multi-Image Preview Area -->
-        <div id="assistant-attachment-preview" class="assistant-attachment-preview" style="display: none;">
-            <div id="assistant-preview-strip" class="assistant-preview-strip"></div>
-        </div>
+        <!-- Attachment preview — rendered by the WLJ Attachment Framework -->
+        <div id="assistant-attachment-preview"></div>
 
         <form id="assistant-form" class="assistant-form">
             {% csrf_token %}
@@ -478,68 +476,9 @@
     align-items: center;
 }
 
-/* Attachment preview area — multi-image strip */
-.assistant-attachment-preview {
-    display: flex;
-    align-items: center;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: var(--color-surface, #f3f4f6);
-    border-radius: 12px;
-    border: 1px solid var(--color-border, #e5e7eb);
-}
-
-.assistant-preview-strip {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    flex: 1;
-    padding: 2px 0;
-}
-
-.assistant-preview-thumb {
-    position: relative;
-    flex-shrink: 0;
-}
-
-.assistant-preview-thumb img {
-    width: 72px;
-    height: 72px;
-    border-radius: 8px;
-    object-fit: cover;
-}
-
-.assistant-preview-thumb .assistant-remove-attachment {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: var(--color-background, #fff);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 50%;
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--color-text-muted, #6b7280);
-    transition: background 0.2s, color 0.2s;
-    padding: 0;
-}
-
-.assistant-preview-thumb .assistant-remove-attachment:hover {
-    background: #fee2e2;
-    color: #dc2626;
-    border-color: #fecaca;
-}
-
-.assistant-image-count {
-    font-size: 12px;
-    color: var(--color-text-muted, #6b7280);
-    white-space: nowrap;
-    padding-left: 8px;
-    flex-shrink: 0;
-}
+/* Attachment preview UI is provided by the WLJ Attachment Framework
+   (static/css/wlj-attachments.css). The old bespoke preview classes were
+   removed when this surface became a thin framework consumer. */
 
 /* Attach button */
 .assistant-attach-btn {
@@ -771,15 +710,6 @@
     .assistant-attach-btn {
         width: 36px;
         height: 36px;
-    }
-
-    .assistant-attachment-preview {
-        padding: 6px 10px;
-    }
-
-    .assistant-preview-thumb img {
-        width: 56px;
-        height: 56px;
     }
 
     .assistant-empty {
@@ -1161,7 +1091,9 @@
     const attachBtn = document.getElementById('assistant-attach-btn');
     const fileInput = document.getElementById('assistant-file-input');
     const attachmentPreview = document.getElementById('assistant-attachment-preview');
-    const previewStrip = document.getElementById('assistant-preview-strip');
+    // The WLJ Attachment Framework controller (mounted below) owns attachment
+    // state — this surface is a thin CONSUMER, not an owner of upload logic.
+    let widgetAttach = null;
 
     let isOpen = false;
     let isLoaded = false;
@@ -1193,8 +1125,6 @@
     });
 
     // Current attached images (up to 5)
-    var attachedImages = [];  // Array of { data: base64, mimeType: string, dataUrl: string }
-    var MAX_IMAGES = 5;
 
     // Storage key for persisting drawer state
     const DRAWER_STATE_KEY = 'wlj_assistant_drawer_open';
@@ -2402,7 +2332,7 @@
     }
 
     // Show friendly error with retry button
-    function addErrorWithRetry(savedMessage, sentImages, sendContext) {
+    function addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds) {
         // Remove empty state if present
         var emptyState = messagesContainer.querySelector('.assistant-empty');
         if (emptyState) emptyState.remove();
@@ -2440,11 +2370,11 @@
 
         yesBtn.addEventListener('click', function() {
             msg.remove();
-            // Re-send the message
+            // Re-send the message — pass the saved attachments as overrides so the
+            // framework controller (already cleared) doesn't need to be repopulated.
             input.value = savedMessage || '';
-            attachedImages = (sentImages || []).slice();
             currentPageContext = sendContext || null;
-            sendMessage();
+            sendMessage(sentImages || [], sentAttachmentIds || []);
         });
 
         noBtn.addEventListener('click', function() {
@@ -2870,9 +2800,12 @@
     // all helper functions + CHAT_DRAFT_KEY are now defined above.
     restoreDraft();
 
-    async function sendMessage() {
+    async function sendMessage(imageOverride, attachmentIdsOverride) {
         var message = input.value.trim();
-        if (!message && attachedImages.length === 0) return;
+        var haveAttach = imageOverride
+            ? ((imageOverride.length > 0) || ((attachmentIdsOverride || []).length > 0))
+            : (widgetAttach && widgetAttach.count() > 0);
+        if (!message && !haveAttach) return;
 
         // Clear previous action UI (option chips, nav links)
         clearActionUI();
@@ -2904,20 +2837,32 @@
         // history for the assistant's reply.
         markPendingRequest(savedMessage, sendContext);
 
+        // Thin CONSUMER of the WLJ Attachment Framework: images ride inline
+        // (immediate perception), non-image attachments ride as artifact ids.
+        var sentImages, sentAttachmentIds;
+        if (imageOverride) {
+            sentImages = imageOverride;
+            sentAttachmentIds = attachmentIdsOverride || [];
+        } else {
+            sentImages = (widgetAttach ? widgetAttach.getImagesPayload() : []).map(function(i) {
+                return { data: i.data, mimeType: i.mime, dataUrl: 'data:' + i.mime + ';base64,' + i.data };
+            });
+            sentAttachmentIds = widgetAttach ? widgetAttach.getArtifactIds() : [];
+        }
+
         // Build image data URLs for display
-        var imageDataUrls = attachedImages.map(function(img) { return img.dataUrl; });
+        var imageDataUrls = sentImages.map(function(img) { return img.dataUrl; });
 
         // Add user message to chat (with image previews if attached)
-        addMessage(message || '(Images attached)', true, true, imageDataUrls.length > 0 ? imageDataUrls : null);
+        addMessage(message || '(Attachment)', true, true, imageDataUrls.length > 0 ? imageDataUrls : null);
         // Phase 6.7: do NOT clear input yet. Disable the send button
         // to prevent double-submit, but preserve input.value until the
         // server acknowledges receipt. The clear happens in
         // onRequestAcknowledged() / handleSendSuccess().
         sendBtn.disabled = true;
 
-        // Save and clear attachment UI
-        var sentImages = attachedImages.slice();
-        clearAttachment();
+        // Clear the attachment UI (framework); the payload was captured above.
+        if (!imageOverride && widgetAttach) widgetAttach.clear();
 
         // Image messages use the non-streaming endpoint — EXCEPT for ChatGPT
         // CoS users, who must ALWAYS use the streaming/background path so
@@ -2925,13 +2870,14 @@
         // and is canceled by its AbortController on navigate-away).
         if (sentImages.length > 0 && !IS_COS_USER) {
             showTyping();
-            await sendMessageNonStreaming(message, sendContext, sentImages, savedMessage);
+            await sendMessageNonStreaming(message, sendContext, sentImages, savedMessage, sentAttachmentIds);
             return;
         }
 
-        // All text messages — and ALL ChatGPT CoS messages — use streaming.
+        // All text messages — and ALL ChatGPT CoS messages — use streaming. Images
+        // and non-image attachment ids ride ALONG the streaming request body.
         showTyping();
-        await sendMessageStreaming(message, sendContext, savedMessage);
+        await sendMessageStreaming(message, sendContext, savedMessage, sentImages, sentAttachmentIds);
     }
 
     // Phase 6.7: called when the server acknowledges receipt of a
@@ -2945,7 +2891,7 @@
     }
 
     // Streaming path — SSE via fetch + ReadableStream
-    async function sendMessageStreaming(message, sendContext, savedMessage) {
+    async function sendMessageStreaming(message, sendContext, savedMessage, sentImages, sentAttachmentIds) {
         var controller = new AbortController();
         // P0 navigation fix: the server relay self-caps at ~90s and emits a
         // 'timeout' event telling us to reconnect by job_id, so the client
@@ -2968,7 +2914,11 @@
                 },
                 body: JSON.stringify({
                     message: message,
-                    page_context: sendContext
+                    page_context: sendContext,
+                    images: (sentImages && sentImages.length)
+                        ? sentImages.map(function(img) { return { data: img.data, mime: img.mimeType }; })
+                        : null,
+                    attachment_ids: (sentAttachmentIds && sentAttachmentIds.length) ? sentAttachmentIds : undefined
                 }),
                 signal: controller.signal
             });
@@ -2996,7 +2946,7 @@
                     }
                     errorRetryCount = 0;
                 } else {
-                    addErrorWithRetry(savedMessage, null, sendContext);
+                    addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
                 }
                 return;
             }
@@ -3122,7 +3072,7 @@
                         } else {
                             if (msgEl && msgEl.parentNode) msgEl.remove();
                             hideTyping();
-                            addErrorWithRetry(savedMessage, null, sendContext);
+                            addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
                         }
                     }
                 }
@@ -3147,13 +3097,13 @@
             if (msgEl && msgEl.parentNode) msgEl.remove();
 
             if (error.name === 'AbortError') {
-                addErrorWithRetry(savedMessage, null, sendContext);
+                addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
             } else if (IS_COS_USER) {
                 // CoS must never use the synchronous non-streaming path: it would
                 // re-submit (duplicate) and is not navigation-safe. Offer a retry
                 // that re-streams (the background job/resume path).
                 console.warn('CoS streaming failed; offering retry (no non-streaming fallback):', error);
-                addErrorWithRetry(savedMessage, null, sendContext);
+                addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
             } else {
                 // Fallback to non-streaming (legacy Beth users only)
                 console.warn('Streaming failed, falling back:', error);
@@ -3280,7 +3230,7 @@
     }
 
     // Non-streaming fallback (also used for image messages)
-    async function sendMessageNonStreaming(message, sendContext, sentImages, savedMessage) {
+    async function sendMessageNonStreaming(message, sendContext, sentImages, savedMessage, sentAttachmentIds) {
         function buildFetchOptions(abortSignal) {
             if (sentImages && sentImages.length > 0) {
                 var formData = new FormData();
@@ -3295,6 +3245,11 @@
                     }
                     var blob = new Blob([ab], { type: sentImages[i].mimeType });
                     formData.append('images', blob, 'image_' + i + '.png');
+                }
+                if (sentAttachmentIds && sentAttachmentIds.length) {
+                    for (var a = 0; a < sentAttachmentIds.length; a++) {
+                        formData.append('attachment_ids', sentAttachmentIds[a]);
+                    }
                 }
                 return {
                     method: 'POST',
@@ -3311,7 +3266,8 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        page_context: sendContext
+                        page_context: sendContext,
+                        attachment_ids: (sentAttachmentIds && sentAttachmentIds.length) ? sentAttachmentIds : undefined
                     }),
                     signal: abortSignal
                 };
@@ -3347,7 +3303,7 @@
                         speakResponse(data.response);
                     }
                 } else {
-                    addErrorWithRetry(savedMessage, sentImages, sendContext);
+                    addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
                 }
                 return;
 
@@ -3360,7 +3316,7 @@
                 }
 
                 hideTyping();
-                addErrorWithRetry(savedMessage, sentImages, sendContext);
+                addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
             }
         }
     }
@@ -3557,121 +3513,35 @@
     // MULTI-IMAGE ATTACHMENT HANDLING (up to 5 images)
     // =========================================================================
 
-    // Add an image file to the attachedImages array
-    function handleImageFile(file) {
-        // Check max images
-        if (attachedImages.length >= MAX_IMAGES) {
-            alert('Maximum ' + MAX_IMAGES + ' images per message.');
-            return;
-        }
-        // Shared normalization: EXIF orientation, downscale large photos, HEIC→JPEG,
-        // compress under the server cap. Kills "file too large" + sideways photos.
-        WLJAttachments.prepareImage(file).then(function(img) {
-            if (attachedImages.length >= MAX_IMAGES) return;
-            attachedImages.push({ data: img.data, mimeType: img.mimeType, dataUrl: img.dataUrl });
-            renderImagePreviews();
-            updateSendButton();
-        }).catch(function(err) {
-            if (err && err.message) alert(err.message);
-        });
-    }
-
-    // Handle multiple files from file picker
-    function handleImageFiles(files) {
-        var remaining = MAX_IMAGES - attachedImages.length;
-        var count = Math.min(files.length, remaining);
-        if (files.length > remaining) {
-            alert('You can attach up to ' + MAX_IMAGES + ' images. Adding first ' + remaining + '.');
-        }
-        for (var i = 0; i < count; i++) {
-            handleImageFile(files[i]);
-        }
-    }
-
-    // Remove one image by index
-    function removeImage(index) {
-        attachedImages.splice(index, 1);
-        renderImagePreviews();
-        updateSendButton();
-    }
-
-    // Render the multi-image preview strip
-    function renderImagePreviews() {
-        previewStrip.innerHTML = '';
-        if (attachedImages.length === 0) {
-            attachmentPreview.style.display = 'none';
-            attachBtn.classList.remove('has-attachment');
-            fileInput.value = '';
-            return;
-        }
-        attachmentPreview.style.display = 'flex';
-        attachBtn.classList.add('has-attachment');
-        for (var i = 0; i < attachedImages.length; i++) {
-            var thumb = document.createElement('div');
-            thumb.className = 'assistant-preview-thumb';
-            var img = document.createElement('img');
-            img.src = attachedImages[i].dataUrl;
-            img.alt = 'Image ' + (i + 1);
-            thumb.appendChild(img);
-            var removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'assistant-remove-attachment';
-            removeBtn.title = 'Remove image';
-            removeBtn.setAttribute('data-index', i);
-            removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
-            thumb.appendChild(removeBtn);
-            previewStrip.appendChild(thumb);
-        }
-        // Show count indicator
-        if (attachedImages.length > 1) {
-            var countEl = document.createElement('span');
-            countEl.className = 'assistant-image-count';
-            countEl.textContent = attachedImages.length + '/' + MAX_IMAGES;
-            previewStrip.appendChild(countEl);
-        }
-    }
-
-    // Clear all attached images
-    function clearAttachment() {
-        attachedImages = [];
-        renderImagePreviews();
-        fileInput.value = '';
-        updateSendButton();
-    }
-
-    // Update send button state
+    // Attachments are owned by the WLJ Attachment Framework (mounted below); this
+    // surface is a thin CONSUMER. Send-button state reflects text + the controller.
     function updateSendButton() {
-        sendBtn.disabled = !input.value.trim() && attachedImages.length === 0;
+        var hasAttach = widgetAttach && widgetAttach.count() > 0;
+        sendBtn.disabled = !input.value.trim() && !hasAttach;
     }
 
-    // Attach button click - open file picker
-    attachBtn.addEventListener('click', function() {
-        fileInput.click();
-    });
-
-    // File input change — handle multiple files
-    fileInput.addEventListener('change', function() {
-        if (fileInput.files && fileInput.files.length > 0) {
-            handleImageFiles(fileInput.files);
-        }
-    });
-
-    // Drag-and-drop onto the chat input area (shared helper).
-    if (window.WLJAttachments) {
-        var cwDropZone = document.querySelector('.assistant-input-area');
-        WLJAttachments.attachDragAndDrop(cwDropZone, function(files) {
-            handleImageFiles(files);
+    // Mount the WLJ Attachment Framework — this surface is a thin consumer. All
+    // attachment behavior is declared as CONFIG (images stay inline for immediate
+    // perception via the autoUpload predicate; everything else uploads to become
+    // an artifact). The framework owns select/normalize/upload/preview/remove.
+    if (window.WLJAttachments && fileInput) {
+        fileInput.accept = WLJAttachments.UNIVERSAL_ACCEPT;
+        widgetAttach = WLJAttachments.mount({
+            input: fileInput,
+            triggers: [attachBtn],
+            dropZone: document.querySelector('.assistant-input-area'),
+            previewContainer: attachmentPreview,
+            classes: ['image', 'document', 'audio', 'video'],
+            maxItems: 5,
+            previewStyle: 'mixed',
+            keepImageData: true,
+            autoUpload: function(item) { return item.kind !== 'image'; },
+            onChange: function() {
+                if (attachBtn) attachBtn.classList.toggle('has-attachment', widgetAttach.count() > 0);
+                updateSendButton();
+            }
         });
     }
-
-    // Remove attachment button — delegated click on preview strip
-    previewStrip.addEventListener('click', function(e) {
-        var btn = e.target.closest('.assistant-remove-attachment');
-        if (btn) {
-            var index = parseInt(btn.getAttribute('data-index'), 10);
-            removeImage(index);
-        }
-    });
 
     // Paste handler for clipboard images
     input.addEventListener('paste', function(e) {
@@ -3682,8 +3552,8 @@
             if (items[i].type.indexOf('image/') === 0) {
                 e.preventDefault();
                 var file = items[i].getAsFile();
-                if (file) {
-                    handleImageFile(file);
+                if (file && widgetAttach) {
+                    widgetAttach.addFiles([file]);
                 }
                 break;
             }

@@ -2259,70 +2259,10 @@ body.has-desktop-nav .desktop-main-area {
     50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
 }
 
-/* Attachment preview — multi-image strip */
-.ap-attachment-preview {
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    margin-bottom: 6px;
-    background: var(--color-surface, #f3f4f6);
-    border-radius: 10px;
-    border: 1px solid var(--color-border, #e5e7eb);
-}
-
-.ap-preview-strip {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    flex: 1;
-    padding: 2px 0;
-}
-
-.ap-preview-thumb {
-    position: relative;
-    flex-shrink: 0;
-}
-
-.ap-preview-thumb img {
-    width: 56px;
-    height: 56px;
-    border-radius: 6px;
-    object-fit: cover;
-}
-
-.ap-remove-attachment {
-    position: absolute;
-    top: -6px;
-    right: -6px;
-    background: var(--color-background, #ffffff);
-    border: 1px solid var(--color-border, #e5e7eb);
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: var(--color-text-muted, #6b7280);
-    flex-shrink: 0;
-    padding: 0;
-    transition: background 0.2s, color 0.2s;
-}
-
-.ap-remove-attachment:hover {
-    background: #fee2e2;
-    color: #dc2626;
-    border-color: #fecaca;
-}
-
-.ap-image-count {
-    font-size: 11px;
-    color: var(--color-text-muted, #6b7280);
-    white-space: nowrap;
-    padding-left: 6px;
-    flex-shrink: 0;
-    align-self: center;
-}
+/* Attachment preview UI is provided by the WLJ Attachment Framework
+   (static/css/wlj-attachments.css). The bespoke .ap-attachment-preview /
+   .ap-preview-* / .ap-remove-attachment / .ap-image-count rules were removed
+   when the panel became a thin framework consumer. */
 
 /* Mobile pull-up adjustments for chat */
 .assistant-pullup-body .ap-chat-messages {

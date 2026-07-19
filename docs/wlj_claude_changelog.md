@@ -3,8 +3,21 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(cos/truth): Nutrition analysis participation + food-frequency truth + shared capability semantics)
+# Last Updated: 2026-07-19 (feat(multimodal P1.2e): chat fully consumes the WLJ Attachment Framework + cleanup)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.2e): chat fully consumes the WLJ Attachment Framework (mobile drawer + cleanup)
+
+**Phase 1, universal-intake milestone (sub-milestone E — completes chat adoption).** End state: **one framework, zero duplicated attachment logic, zero chat-specific upload code, every chat surface a thin consumer.**
+
+**Changes:**
+- **`chat_widget.html` (mobile drawer)** — DELETED its bespoke attachment logic (`attachedImages` state, `handleImageFile`/`handleImageFiles`/`removeImage`/`renderImagePreviews`/`clearAttachment`, preview markup + strip click handler, file-input/drag-drop wiring) and now mounts `WLJAttachments.mount({...})` with the same config as the panel. `sendMessage` gained override params so the error-retry re-sends the saved attachments without repopulating the (already-cleared) controller — no controller "restore" API needed.
+- **Fixed a pre-existing widget bug:** its streaming path built the request body with only `message` + `page_context`, silently **dropping images for CoS users**. Now the streaming body carries `images` (inline) + `attachment_ids`, matching the panel.
+- **Cleanup pass:** removed the now-dead bespoke preview CSS from both surfaces — `.assistant-attachment-preview` / `.assistant-preview-strip` / `.assistant-preview-thumb` / `.assistant-image-count` (inline in `chat_widget.html`) and `.ap-attachment-preview` / `.ap-preview-strip` / `.ap-preview-thumb` / `.ap-remove-attachment` / `.ap-image-count` (in `assistant-panel.css`). All attachment preview styling now comes from the framework's `wlj-attachments.css`. Bumped `assistant-panel.css` cache-bust to `?v=20260719d`.
+
+**Files:** `templates/components/chat_widget.html`, `static/css/assistant-panel.css`, `templates/base.html`, `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md`.
+
+**Verification (browser):** drove the widget's own input + send — 1 chip (PDF) + 1 thumbnail (image); the **streaming** body carried the image inline (`images:[image/png]`) + the PDF as a single `attachment_ids` (image not double-uploaded); preview cleared. Panel chip renders styled via framework CSS (border/radius/icon/name), confirmed by screenshot. No console errors on either surface; `collectstatic` clean. **Next:** begin migrating non-chat consumers (Meals, Medical, Journal, …) onto the framework as opportunities arise — the framework is now the standard WLJ attachment mechanism.
 
 ## 2026-07-19 — feat(faith): First Light — Formation · Phase 1 — the "Today" companion home (flag-gated)
 

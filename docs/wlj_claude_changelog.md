@@ -6,6 +6,12 @@
 # Last Updated: 2026-07-19 (feat(multimodal AaT-B1): multi-turn artifact retrieval via conversation linkage)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — chore(journal): enable Write Together (M1 preview) for the owner account
+
+Data migration `apps/users/migrations/0094_enable_write_together_for_owner.py` opts the owner (Danny) into the default-OFF `features.journal.write_together` preview so the intended M1 experience — the quiet three-method intro row (Just Write / Write Together / Talk It Through) + the Write Together companion — becomes visible for production validation; everyone else stays OFF. Also ensures `personal_assistant_enabled` (the compose page's second gate) is on for the owner (only turns it on, never off). Mirrors the `0093_enable_first_light_for_owner` precedent; reverse turns the flag back off.
+
+**Diagnosis (why the methods weren't visible):** feature-flag gating, NOT a regression — the account had never been opted into the default-OFF preview. Confirmed by the passing gating tests (`test_entry_form_*_flag_off/enabled`) and the compose template's `{% if write_together_available %}` gate. Applies cleanly locally (`Applying users.0094… OK`); `check` clean; no model changes.
+
 ## 2026-07-19 — feat(multimodal AaT-B1): multi-turn artifact retrieval (conversation linkage)
 
 **Artifacts-as-Truth Milestone B, sub-milestone B1 — the #1 priority: multi-turn reliability.** After a user uploads a file and asks about it, follow-up questions must keep working **without re-attaching** — and via *deterministic retrieval*, not fragile transcript memory.

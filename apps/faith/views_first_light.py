@@ -39,6 +39,34 @@ class FaithTodayView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, T
         return context
 
 
+class FaithMirrorView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+    """The Mirror — a spiritual biography reflected back from truth WLJ owns.
+
+    Request-path-safe: reads only the cached reflection. On a cache miss it
+    enqueues the background compute (non-blocking) and shows a gentle "preparing"
+    state — it never computes the heavy aggregation inline.
+    """
+
+    template_name = "faith/mirror.html"
+    help_context_id = "FAITH_HOME"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from .first_light.mirror import get_cached_mirror
+
+        mirror = get_cached_mirror(self.request.user)
+        if mirror is None:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.faith.tasks import compute_faith_mirror
+            safe_enqueue(compute_faith_mirror, self.request.user.id)
+            context["mirror"] = None
+            context["pending"] = True
+        else:
+            context["mirror"] = mirror
+            context["pending"] = False
+        return context
+
+
 def _first_light_enabled(request) -> bool:
     """True when the request should be served the First Light 'Today' home.
 

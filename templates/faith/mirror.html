@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Your walk with God - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719a">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="faith-mirror">
+  <div class="fl-wrap">
+    <div class="fl-mirror">
+
+      <div class="fl-mirror-hero">
+        <div class="fl-mirror-eyebrow">Your walk with God</div>
+        {% if mirror.began %}
+        <h1 class="fl-mirror-title">Looking back, since you began {{ mirror.began.months }} month{{ mirror.began.months|pluralize }} ago.</h1>
+        {% else %}
+        <h1 class="fl-mirror-title">Looking back over your walk.</h1>
+        {% endif %}
+        <p class="fl-mirror-sub">None of this is a score. It’s a record of grace — for you to see.</p>
+      </div>
+
+      {% if pending %}
+      <div class="fl-mirror-pending">
+        <span class="fl-breath" aria-hidden="true" style="display:inline-block"></span>
+        <p>Gathering your walk together… this takes a moment. Check back shortly.</p>
+      </div>
+
+      {% elif mirror.has_content %}
+
+      {# Journeys walked — what prepared the heart for what came next #}
+      {% if mirror.journeys %}
+      <section class="fl-reflect">
+        <div class="fl-reflect-label">The journeys you’ve walked</div>
+        <p class="fl-reflect-lead">Looking back, each one quietly prepared your heart for the next.</p>
+        <div class="fl-timeline">
+          {% for j in mirror.journeys %}
+          <div class="fl-tl">
+            <div class="fl-tl-rail"><span class="fl-tl-node" aria-hidden="true"></span></div>
+            <div class="fl-tl-body">
+              <div class="fl-tl-title">{{ j.title }}</div>
+              <div class="fl-tl-meta">{{ j.kind }}{% if j.when %} · finished {{ j.when }}{% endif %}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# Prayers He's answered #}
+      {% if mirror.answered_prayers.count %}
+      <section class="fl-reflect">
+        <div class="fl-reflect-label">Prayers He’s answered</div>
+        <p class="fl-reflect-lead">You named {{ mirror.answered_prayers.count }} of these before Him, and marked {{ mirror.answered_prayers.count|pluralize:"it,them" }} answered.</p>
+        {% for p in mirror.answered_prayers.recent %}
+        <div class="fl-answered-item">
+          <div class="fl-a-title">{{ p.title }}</div>
+          {% if p.when %}<div class="fl-a-when">answered {{ p.when }}</div>{% endif %}
+          {% if p.answer %}<div class="fl-a-note">“{{ p.answer }}”</div>{% endif %}
+        </div>
+        {% endfor %}
+      </section>
+      {% endif %}
+
+      {# What you keep bringing to Him #}
+      {% if mirror.recurring_prayers %}
+      <section class="fl-reflect">
+        <div class="fl-reflect-label">What you keep bringing to Him</div>
+        <p class="fl-reflect-lead">You’ve returned to these in prayer, again and again.</p>
+        <div class="fl-recurring">
+          {% for r in mirror.recurring_prayers %}
+          <span class="fl-chip">{{ r.subject }} · {{ r.count }} times</span>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# Verses you've returned to #}
+      {% if mirror.verses %}
+      <section class="fl-reflect">
+        <div class="fl-reflect-label">Verses you’ve returned to</div>
+        <p class="fl-reflect-lead">The words you kept.</p>
+        {% for v in mirror.verses %}
+        <div class="fl-mverse">
+          {% if v.text %}<div class="fl-mv-text">“{{ v.text }}”</div>{% endif %}
+          <div class="fl-mv-ref">{{ v.reference }}</div>
+        </div>
+        {% endfor %}
+      </section>
+      {% endif %}
+
+      {# Milestones #}
+      {% if mirror.milestones %}
+      <section class="fl-reflect">
+        <div class="fl-reflect-label">Milestones you’ve marked</div>
+        <div class="fl-timeline">
+          {% for m in mirror.milestones %}
+          <div class="fl-tl">
+            <div class="fl-tl-rail"><span class="fl-tl-node" aria-hidden="true"></span></div>
+            <div class="fl-tl-body">
+              <div class="fl-tl-title">{{ m.title }}</div>
+              {% if m.when %}<div class="fl-tl-meta">{{ m.when }}</div>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <div class="fl-note" style="margin-top:36px">He was near the whole time. Keep walking — the story isn’t finished.</div>
+
+      {% else %}
+      <div class="fl-mirror-pending">
+        <p>Your walk is just beginning. As you read, pray, and reflect, this page will
+        gently gather the story God is writing in you.</p>
+        <div style="margin-top:16px"><a class="fl-btn fl-btn-primary" href="{% url 'faith:today' %}">Back to Today</a></div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

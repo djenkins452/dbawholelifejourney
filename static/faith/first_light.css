@@ -302,11 +302,53 @@ html[data-theme="midnight"] .fl-root{
 .fl-completed-badge{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:650;color:var(--fl-sage);background:var(--fl-sage-wash);border-radius:999px;padding:3px 9px}
 .fl-empty{text-align:center;color:var(--fl-muted);padding:40px 20px}
 
+/* ============================================================================
+   THE MIRROR — a spiritual biography, reflected back. Reverent, not analytical.
+   ============================================================================ */
+.fl-mirror{max-width:720px;margin:0 auto;padding:6px 0 60px}
+.fl-mirror-hero{position:relative;overflow:hidden;border-radius:var(--fl-r-xl);color:var(--fl-on-night);
+  background:linear-gradient(180deg,#141B2A 0%,#3A3350 60%,#8C6B4A 100%);padding:44px 30px;text-align:center;box-shadow:var(--fl-shadow-lg);margin-bottom:8px}
+.fl-mirror-eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--fl-gold-on-night);font-weight:700}
+.fl-mirror-title{font-family:var(--fl-serif);font-size:clamp(24px,3.2vw,32px);color:#F6EEDC;margin-top:12px;line-height:1.15;max-width:24ch;margin-left:auto;margin-right:auto}
+.fl-mirror-sub{color:var(--fl-on-night-soft);font-size:14px;margin-top:12px}
+
+.fl-reflect{margin-top:34px}
+.fl-reflect-label{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fl-gold-deep);font-weight:700;margin-bottom:14px}
+.fl-reflect-lead{font-family:var(--fl-serif);font-size:18px;line-height:1.5;color:var(--fl-ink);margin-bottom:16px}
+
+/* journeys timeline (what prepared the heart) */
+.fl-timeline{display:flex;flex-direction:column}
+.fl-tl{display:grid;grid-template-columns:20px 1fr;gap:16px}
+.fl-tl-rail{position:relative;display:flex;justify-content:center}
+.fl-tl-rail::before{content:"";position:absolute;top:8px;bottom:-18px;width:2px;background:var(--fl-line)}
+.fl-tl:last-child .fl-tl-rail::before{display:none}
+.fl-tl-node{width:12px;height:12px;border-radius:50%;background:var(--fl-gold);border:2px solid var(--fl-gold);margin-top:4px;z-index:1}
+.fl-tl-body{padding-bottom:20px}
+.fl-tl-title{font-family:var(--fl-serif);font-size:17px;font-weight:600;color:var(--fl-ink)}
+.fl-tl-meta{font-size:12.5px;color:var(--fl-muted);margin-top:2px}
+
+/* answered prayers */
+.fl-answered-item{border-left:2px solid var(--fl-sage);padding:4px 0 4px 14px;margin-bottom:16px}
+.fl-answered-item .fl-a-title{font-family:var(--fl-serif);font-size:16px;font-weight:600;color:var(--fl-ink)}
+.fl-answered-item .fl-a-when{font-size:12px;color:var(--fl-muted);margin-top:1px}
+.fl-answered-item .fl-a-note{font-size:14px;color:var(--fl-ink-soft);margin-top:6px;line-height:1.5}
+
+.fl-recurring{display:flex;flex-wrap:wrap;gap:8px}
+.fl-recurring .fl-chip{background:var(--fl-gold-wash);border-color:transparent;color:var(--fl-gold-deep)}
+
+.fl-mverse{background:var(--fl-surface);border:1px solid var(--fl-line);border-left:3px solid var(--fl-gold);border-radius:var(--fl-r);padding:16px 18px;margin-bottom:12px}
+.fl-mverse .fl-mv-text{font-family:var(--fl-serif);font-size:16px;line-height:1.55;color:var(--fl-ink)}
+.fl-mverse .fl-mv-ref{font-size:12px;color:var(--fl-gold-deep);font-weight:650;margin-top:6px;letter-spacing:.02em}
+
+.fl-mirror-pending{text-align:center;padding:60px 24px;color:var(--fl-ink-soft)}
+.fl-mirror-pending .fl-breath{margin-bottom:20px}
+
 @media (max-width:640px){
   .fl-threshold{padding:40px 18px 30px}
   .fl-continue .fl-t{font-size:19px}
   .fl-choice .fl-cs{display:none}
   .fl-scripture .verse-block{font-size:19px;line-height:1.85}
   .fl-detail-hero{padding:34px 20px 30px}
+  .fl-mirror-hero{padding:34px 20px}
 }
 @media (prefers-reduced-motion:reduce){.fl-breath{animation:none}}

@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.3-M3): video perception — frames + audio-track transcript through the existing pipeline)
+# Last Updated: 2026-07-19 (feat(multimodal AaT-B1): multi-turn artifact retrieval via conversation linkage)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal AaT-B1): multi-turn artifact retrieval (conversation linkage)
+
+**Artifacts-as-Truth Milestone B, sub-milestone B1 — the #1 priority: multi-turn reliability.** After a user uploads a file and asks about it, follow-up questions must keep working **without re-attaching** — and via *deterministic retrieval*, not fragile transcript memory.
+
+**Changes:**
+- **`MultimodalArtifact.source_conversation_id`** (migration `capture/0011`) — the conversation an artifact was first uploaded in. Soft id (matches the `resolved_object_id` pattern; avoids a cross-app FK cycle with `apps.ai`).
+- **`runtime.respond`** links this turn's artifacts to the conversation (`link_artifacts_to_conversation`).
+- **`get_current_context_baseline`** now surfaces **`conversation_artifacts`** — a compact list of files uploaded on PREVIOUS turns of this conversation (id, filename, kind, readable, short preview), excluding this turn's. It already receives `conversation`, so no new plumbing. Request-path-safe (one bounded query).
+- **Constitution ATTACHMENTS prompt** extended: for a follow-up about an earlier upload, RETRIEVE the full content with `get_entity(domain='artifacts', name=…)` and answer from it (compare → retrieve both); for any past upload use the same tool (searches filename + content + type); on ambiguity present the few likely matches or ask — never confidently pick an unsupported match; ground answers in filename + upload date.
+
+**Result:** "summarize this policy" → (next turn, no re-attach) "what's the deductible?" / "does it cover emergency care?" / "compare with the other policy I uploaded" now work by deterministic retrieval. Reuses the existing `get_entity` tool + artifacts Truth Surface — no parallel system.
+
+**Files:** `apps/capture/models.py`, `apps/capture/migrations/0011_*` (new), `apps/ai/multimodal.py`, `apps/ai/cos_gateway/runtime.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_artifact_conversation_link.py` (new).
+
+**Verification:** `test_artifact_conversation_link` (6 — first-conversation-only link, prior-upload surfacing w/ preview, this-turn exclusion, owner-scoped, processing state, baseline integration) + artifact-truth + request-path contract (20) green; migration drift + `check` clean; applied to dev DB. **Next (B2):** re-delivery of *visual* content on retrieval (image bytes + video frames) so cross-conversation image/video questions can re-perceive, not just read metadata.
 
 ## 2026-07-19 — feat(multimodal P1.3-M3): video perception — the CoS can see & hear videos
 

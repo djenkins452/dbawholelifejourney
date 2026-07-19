@@ -106,6 +106,13 @@ class MultimodalArtifact(TimeStampedModel):
                   "delivered to the model's image-perception path. Deterministic decode.",
     )
 
+    # Conversation linkage (provenance + multi-turn retrieval): the conversation
+    # this artifact was FIRST uploaded/referenced in. Soft id (matches the
+    # resolved_object_id pattern — no cross-app FK cycle). Lets the CoS surface
+    # "what you uploaded earlier in THIS conversation" and answer follow-ups
+    # without re-attaching.
+    source_conversation_id = models.IntegerField(null=True, blank=True, db_index=True)
+
     # Provenance: the deterministic record this artifact produced.
     resolved_intent = models.CharField(max_length=80, blank=True)
     resolved_object_type = models.CharField(max_length=80, blank=True)

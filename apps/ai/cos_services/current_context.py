@@ -381,4 +381,21 @@ def get_current_context_baseline(user, *, page_context=None, conversation=None,
     # extracts (e.g. log_weight from a scale photo). WLJ never interprets the pixels.
     if attachments:
         baseline["attachments"] = list(attachments)
+
+    # Artifacts uploaded EARLIER in this conversation (not this turn). Surfacing them
+    # lets the model answer follow-ups ("what's the deductible?", "does it cover
+    # emergency care?") by RETRIEVING the right artifact via get_entity(domain=
+    # 'artifacts') — deterministic, not fragile transcript memory. Request-path-safe
+    # (one bounded query); never fatal.
+    if conversation is not None:
+        try:
+            from apps.ai.multimodal import conversation_artifacts_context
+            this_turn_ids = [a.get("artifact_id") for a in (attachments or [])
+                             if isinstance(a, dict) and a.get("artifact_id")]
+            prior = conversation_artifacts_context(
+                user, getattr(conversation, "id", None), exclude_ids=this_turn_ids)
+            if prior:
+                baseline["conversation_artifacts"] = prior
+        except Exception:  # pragma: no cover - defensive; context must never hard-fail
+            pass
     return baseline

@@ -174,6 +174,13 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         # are derived, not what the user submitted) — only the user's own images are.
         perceive_images = images + frames_for_attachments(user, kwargs.get("attachment_ids"))
 
+        # Conversation linkage: remember which artifacts belong to THIS conversation
+        # so follow-up turns can retrieve them without re-attaching (multi-turn).
+        turn_artifact_ids = [a.get("artifact_id") for a in attachments if a.get("artifact_id")]
+        if turn_artifact_ids:
+            from apps.ai.multimodal import link_artifacts_to_conversation
+            link_artifacts_to_conversation(conversation.id, turn_artifact_ids)
+
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:
             from apps.ai.model_interface.tasks import run_model_interface_generation

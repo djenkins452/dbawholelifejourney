@@ -151,6 +151,56 @@ def _queue_artifact_perception(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_perception failed", exc_info=True)
 
 
+def link_artifacts_to_conversation(conversation_id, artifact_ids):
+    """Record the conversation an artifact was first uploaded/referenced in (only
+    sets it once — the FIRST conversation). Enables multi-turn retrieval: the CoS
+    surfaces this conversation's artifacts so follow-ups need no re-attach.
+    Never raises."""
+    if not conversation_id or not artifact_ids:
+        return
+    try:
+        from apps.capture.models import MultimodalArtifact
+        (MultimodalArtifact.objects
+         .filter(id__in=list(artifact_ids), source_conversation_id__isnull=True)
+         .update(source_conversation_id=conversation_id))
+    except Exception:  # pragma: no cover - defensive; never break a turn
+        logger.warning("multimodal.link_artifacts_to_conversation failed", exc_info=True)
+
+
+def conversation_artifacts_context(user, conversation_id, *, exclude_ids=(), limit=10):
+    """Compact list of artifacts uploaded EARLIER in this conversation (excluding
+    this turn's), so the model always knows what it can retrieve for a follow-up.
+    Each item is lightweight (id, filename, kind, readable, short preview) — the
+    model calls get_entity(domain='artifacts') for the full content. Never raises."""
+    if not conversation_id:
+        return []
+    out = []
+    try:
+        from apps.capture.models import MultimodalArtifact
+        rows = (MultimodalArtifact.objects
+                .filter(user=user, source_conversation_id=conversation_id)
+                .exclude(id__in=list(exclude_ids) or [])
+                .exclude(status="duplicate").exclude(status="rejected")
+                .order_by("-created_at")[:limit])
+        for a in rows:
+            item = {
+                "artifact_id": a.id,
+                "filename": a.original_filename or None,
+                "kind": a.kind or "artifact",
+                "content_type": a.content_type,
+                "uploaded_at": a.created_at.isoformat(),
+                "readable": bool(a.has_perception),
+            }
+            if a.has_perception and a.extracted_text:
+                item["preview"] = a.extracted_text[:280]
+            elif a.perception_pending:
+                item["perception"] = "processing"
+            out.append(item)
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("multimodal.conversation_artifacts_context failed", exc_info=True)
+    return out
+
+
 def frames_for_attachments(user, attachment_ids, *, max_total=16):
     """Return sampled VIDEO frames as image tuples [(b64, 'image/jpeg')] for the
     referenced video artifacts, so the model can SEE them through the normal image

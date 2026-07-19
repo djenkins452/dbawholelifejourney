@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Write Together - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="wt">
+
+    <div class="wt-topbar">
+        <a href="{% url 'journal:entry_list' %}" class="wt-back" aria-label="Back to Journal">
+            <span aria-hidden="true">←</span> Journal
+        </a>
+        <span class="wt-title">Write Together</span>
+    </div>
+
+    <div id="wt-thread" class="wt-thread" aria-live="polite">
+        {% for t in turns %}
+            <div class="wt-turn {{ t.role }}">
+                <div class="wt-who">{% if t.role == 'assistant' %}Chief of Staff{% else %}You{% endif %}</div>
+                <div class="wt-text">{{ t.text }}</div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="wt-footer">
+        <form id="wt-composer" class="wt-composer" autocomplete="off">
+            {% csrf_token %}
+            <textarea id="wt-input" class="wt-input" rows="1"
+                      placeholder="Tell me about your day…" aria-label="Your message"></textarea>
+            <button type="submit" id="wt-send" class="wt-send" aria-label="Send">
+                <span aria-hidden="true">↑</span>
+            </button>
+        </form>
+        <div class="wt-finish">
+            <span id="wt-notice" class="wt-notice" hidden></span>
+            <button type="button" id="wt-generate" class="wt-generate">When you're ready — create today's journal</button>
+        </div>
+    </div>
+
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.wt {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 120px);
+}
+.wt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+.wt-back { color: var(--color-text-muted); text-decoration: none; font-size: var(--font-size-sm); transition: color var(--transition-fast); }
+.wt-back:hover { color: var(--color-text); }
+.wt-title { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); }
+
+/* The conversation — a written dialogue, not a chat window (no avatars, no bubbles) */
+.wt-thread { flex: 1; display: flex; flex-direction: column; gap: var(--space-5); padding-bottom: var(--space-4); }
+.wt-who {
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--color-text-muted); margin-bottom: var(--space-1);
+}
+.wt-turn.assistant .wt-who { color: var(--color-accent); }
+.wt-turn.assistant .wt-text {
+    font-family: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
+    font-size: 1.18rem; line-height: 1.6; color: var(--color-text);
+}
+.wt-turn.user { align-self: flex-end; max-width: 88%; text-align: left; }
+.wt-turn.user .wt-who { text-align: right; }
+.wt-turn.user .wt-text {
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 16%, var(--color-border));
+    border-radius: 14px;
+    padding: var(--space-3) var(--space-4);
+    font-size: 1rem; line-height: 1.55; color: var(--color-text);
+    white-space: pre-wrap;
+}
+.wt-thinking .wt-text.wt-dots {
+    color: var(--color-text-muted); font-family: inherit; font-size: 1.1rem;
+    animation: wt-pulse 1.2s ease-in-out infinite;
+}
+@keyframes wt-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* Composer — calm, sticky at the bottom */
+.wt-footer { position: sticky; bottom: 0; background: var(--color-bg); padding-top: var(--space-3); }
+.wt-composer {
+    display: flex; align-items: flex-end; gap: var(--space-2);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+}
+.wt-composer:focus-within { border-color: var(--color-accent); }
+.wt-input {
+    flex: 1; border: none; background: transparent; resize: none;
+    font-size: 1rem; line-height: 1.5; color: var(--color-text);
+    max-height: 160px; padding: var(--space-2) 0;
+}
+.wt-input:focus { outline: none; }
+.wt-send {
+    flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%;
+    border: none; background: var(--color-accent); color: #fff;
+    font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: opacity var(--transition-fast);
+}
+.wt-send:disabled { opacity: 0.5; cursor: default; }
+.wt-finish { display: flex; align-items: center; justify-content: center; gap: var(--space-3); margin-top: var(--space-3); }
+.wt-notice { font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.wt-generate {
+    background: none; border: none; cursor: pointer;
+    color: var(--color-text-muted); font-size: var(--font-size-sm);
+    padding: var(--space-2) var(--space-3); border-radius: var(--radius-full);
+    transition: all var(--transition-fast);
+}
+.wt-generate:hover { color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.wt-generate:disabled { opacity: 0.6; cursor: default; }
+
+@media (max-width: 640px) {
+    .wt { padding: var(--space-4) var(--space-3) var(--space-3); }
+    .wt-turn.assistant .wt-text { font-size: 1.1rem; }
+}
+</style>
+
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('DOMContentLoaded', function() {
+    const thread = document.getElementById('wt-thread');
+    const form = document.getElementById('wt-composer');
+    const input = document.getElementById('wt-input');
+    const sendBtn = document.getElementById('wt-send');
+    const genBtn = document.getElementById('wt-generate');
+    const notice = document.getElementById('wt-notice');
+    const csrfEl = form.querySelector('[name=csrfmiddlewaretoken]');
+    const csrf = csrfEl ? csrfEl.value : '';
+    const MSG_URL = '{% url "journal:write_together_message" %}';
+    const GEN_URL = '{% url "journal:write_together_generate" %}';
+
+    function addTurn(role, text) {
+        const el = document.createElement('div');
+        el.className = 'wt-turn ' + role;
+        const who = document.createElement('div');
+        who.className = 'wt-who';
+        who.textContent = (role === 'assistant') ? 'Chief of Staff' : 'You';
+        const body = document.createElement('div');
+        body.className = 'wt-text';
+        body.textContent = text;
+        el.appendChild(who); el.appendChild(body);
+        thread.appendChild(el);
+        el.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        return el;
+    }
+
+    function addThinking() {
+        const el = document.createElement('div');
+        el.className = 'wt-turn assistant wt-thinking';
+        el.innerHTML = '<div class="wt-who">Chief of Staff</div><div class="wt-text wt-dots">…</div>';
+        thread.appendChild(el);
+        el.scrollIntoView({ block: 'end', behavior: 'smooth' });
+        return el;
+    }
+
+    function postJSON(url, body) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify(body || {})
+        }).then(function(r) { return r.json(); });
+    }
+
+    function autoresize() {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight, 160) + 'px';
+    }
+
+    function sendMessage(text) {
+        addTurn('user', text);
+        input.value = ''; autoresize();
+        sendBtn.disabled = true;
+        const thinking = addThinking();
+        postJSON(MSG_URL, { message: text }).then(function(data) {
+            thinking.remove();
+            if (data && data.reply) addTurn('assistant', data.reply);
+            sendBtn.disabled = false;
+            input.focus();
+        }).catch(function() {
+            thinking.remove();
+            addTurn('assistant', "I'm here — tell me more.");
+            sendBtn.disabled = false;
+        });
+    }
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const t = input.value.trim();
+        if (t) sendMessage(t);
+    });
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const t = input.value.trim();
+            if (t) sendMessage(t);
+        }
+    });
+    input.addEventListener('input', autoresize);
+
+    genBtn.addEventListener('click', function() {
+        genBtn.disabled = true;
+        genBtn.textContent = 'Writing your journal…';
+        if (notice) notice.hidden = true;
+        postJSON(GEN_URL, {}).then(function(data) {
+            if (data && data.redirect) { window.location.href = data.redirect; return; }
+            genBtn.disabled = false;
+            genBtn.textContent = "When you're ready — create today's journal";
+            if (data && data.message && notice) { notice.textContent = data.message; notice.hidden = false; }
+        }).catch(function() {
+            genBtn.disabled = false;
+            genBtn.textContent = "When you're ready — create today's journal";
+        });
+    });
+
+    // Opening: if the conversation hasn't started, fetch the CoS's opening.
+    if (thread.children.length === 0) {
+        const thinking = addThinking();
+        postJSON(MSG_URL, { message: '' }).then(function(data) {
+            thinking.remove();
+            if (data && data.reply) addTurn('assistant', data.reply);
+            input.focus();
+        }).catch(function() {
+            thinking.remove();
+            addTurn('assistant', 'What would you like to remember about today?');
+        });
+    } else {
+        input.focus();
+    }
+});
+</script>
+{% endblock %}

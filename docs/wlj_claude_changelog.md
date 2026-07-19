@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-19 (docs(cos): CLOSE Journal Analysis milestone (prod-validated) + ratify the CoS Domain Certification Standard)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — feat(journal M2): Write Together — the dedicated Journal conversation
+
+**M2 of the Journal experience redesign.** Write Together is now a real, focused conversation whose sole purpose is to create today's journal — NOT the editor with questions (retired), NOT the general CoS chat. A dedicated calm workspace: the CoS opens (personal when WLJ has a strong hook, else a simple invitation), converses under the Journal Conversation Playbook + Memory Model, and when ready generates the entry in the user's voice → review/edit → approve → canonical `JournalEntry`. Text and voice (Talk It Through, later) are ONE system; only the modality differs.
+
+**Durability (the "never lose the conversation" requirement):** a new `JournalConversation` model persists every turn immediately; returning to Write Together resumes the same active conversation for today (refresh/crash/close → nothing lost).
+
+**Architecture (Constitution-clean, minimal, all reuse):**
+- Model call via the existing `AIService._call_api` (with conversation history) from a **service module** (`journal_conversation.py`) — request-path-safe delegation, NO CoSGateway surface change, NO new reasoning engine / classifier / emotion engine.
+- Opening grounded via the existing compact `build_cos_intelligence`; generation voice-matched via `JournalQueries.recent`.
+- **Review = the existing editor, prefilled** with the generated draft; **Save reuses `EntryCreateView`'s canonical create path** (same `fire_intelligence` + `JOURNAL_ENTRY_CREATED`), sets `created_via='voice_together'`, and links `JournalConversation.resulting_entry`. No new save path, no new review UI.
+- Flag-gated (`features.journal.write_together`) + CoS-gated. The chooser's Write Together is now a live link; Talk It Through stays "soon".
+
+**Design bug caught + fixed by the tests:** the conversation lifecycle field was first named `status`, which collided with `UserOwnedModel`'s soft-delete `status` (SoftDeleteManager filters `status="active"`) — every non-active conversation would have been hidden from its own manager. Renamed to `state`.
+
+**Files:** `apps/journal/models.py` (`JournalConversation`), `migrations/0015_journalconversation.py`, `services/journal_conversation.py` (new), `views.py` (`WriteTogether`/`Message`/`Generate` views + `EntryCreateView` review/save), `urls.py` (3 routes), `templates/journal/write_together.html` (new — calm, no chatbot styling), `entry_form.html` (chooser link + review banner), `tests/test_write_together_conversation.py` (new).
+
+**Verification:** 18 M2 + chooser + request-path-safety tests pass; `check` clean; migration `0015` applies cleanly. Runtime (dev, real model): chooser → Write Together → opening ("How was your day today?") → user turn → Playbook-perfect CoS reply ("…what was it like watching Parker as he got up to bat?") → generate (journal in the user's voice, first-person, specifics preserved) → redirect to prefilled editor + review banner (chooser hidden) → Save → `JournalEntry` #180 `created_via=voice_together`, `JournalConversation` linked + `completed`. No console errors from the feature. (Pre-existing, unrelated: a freshly-built Postgres test DB trips a `JournalPrompt` fixture-migration sequence collision, masked under the standard `--keepdb` workflow.) AWAITING Danny's validation. NEXT = Talk It Through (voice) over this exact system.
+
 ## 2026-07-19 — docs(cos): CLOSE Journal Analysis (production-validated) + ratify CoS Domain Certification Standard
 
 **Journal Analysis + Journal Conversational Routing — CLOSED, production-validated by Danny.** He ran the five questions in production: analytical questions ("what themes / what have I been grateful for / what positive changes") routed to Journal Analysis; content questions ("what have I written about Heather / which entries mention gratitude") routed to Journal retrieval; no invented `life` domain; no "analysis unsupported"; grounded, natural responses. Journal (retrieval + analysis) is now production-complete, alongside Nutrition.

@@ -302,3 +302,69 @@ class EntryLink(models.Model):
 
     def __str__(self):
         return f"{self.source} -> {self.target_type}:{self.target_id}"
+
+
+class JournalConversation(UserOwnedModel):
+    """A durable, resumable Journal conversation whose sole purpose is to create
+    today's journal (Write Together — typed; Talk It Through — spoken, later).
+
+    Durability contract: every turn is persisted immediately, so the user never
+    loses their conversation — a refresh, crash, disconnect, or closed tab simply
+    resumes the same active conversation on return. This is the single Journal
+    conversation system; text and voice are just different modalities over it.
+
+    It is NOT a reasoning engine — it is a transcript store. The reasoning is the
+    conversational model's, reached through the existing Model Interface seam.
+    """
+
+    # NOTE: the lifecycle field is `state`, NOT `status` — UserOwnedModel already
+    # owns a `status` field for soft-delete/archive (SoftDeleteManager filters
+    # status="active"); reusing it would break soft-delete and hide conversations.
+    STATE_ACTIVE = "active"
+    STATE_REVIEWING = "reviewing"
+    STATE_COMPLETED = "completed"
+    STATE_ABANDONED = "abandoned"
+    STATE_CHOICES = [
+        (STATE_ACTIVE, "Active"),
+        (STATE_REVIEWING, "Reviewing"),
+        (STATE_COMPLETED, "Completed"),
+        (STATE_ABANDONED, "Abandoned"),
+    ]
+
+    ROLE_ASSISTANT = "assistant"
+    ROLE_USER = "user"
+
+    state = models.CharField(max_length=12, choices=STATE_CHOICES, default=STATE_ACTIVE)
+    entry_date = models.DateField(default=timezone.localdate, help_text="The date this journal is about")
+    # Ordered list of {"role": "assistant"|"user", "text": str}. Persisted every turn.
+    transcript = models.JSONField(default=list, blank=True)
+    generated_draft = models.TextField(blank=True, default="")
+    resulting_entry = models.ForeignKey(
+        "journal.JournalEntry",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="source_conversations",
+    )
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [models.Index(fields=["user", "state"])]
+
+    def __str__(self):
+        return f"JournalConversation({self.user_id}, {self.state}, {self.entry_date})"
+
+    @property
+    def is_active(self):
+        return self.state == self.STATE_ACTIVE
+
+    def add_turn(self, role, text):
+        """Append a turn to the (persisted-on-save) transcript."""
+        turns = list(self.transcript or [])
+        turns.append({"role": role, "text": text})
+        self.transcript = turns
+
+    @property
+    def has_user_content(self):
+        return any(t.get("role") == self.ROLE_USER and (t.get("text") or "").strip()
+                   for t in (self.transcript or []))

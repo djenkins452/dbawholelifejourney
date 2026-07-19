@@ -17,7 +17,7 @@
         </div>
     </div>
 
-    {% if journal_methods_enabled and not is_edit %}
+    {% if journal_methods_enabled and not is_edit and not reviewing_conversation %}
     <div class="journal-methods" role="group" aria-label="How would you like to journal today?">
         <div class="jm-heading">How would you like to journal today?</div>
         <div class="jm-options">
@@ -25,17 +25,23 @@
                 <span class="jm-emoji" aria-hidden="true">✍️</span>
                 <span class="jm-text"><strong>Just Write</strong><span>A blank page. Your words.</span></span>
             </div>
-            <div class="jm-item is-soon">
+            <a class="jm-item jm-link" href="{% url 'journal:write_together' %}">
                 <span class="jm-emoji" aria-hidden="true">💬</span>
                 <span class="jm-text"><strong>Write Together</strong><span>A conversation that becomes your journal.</span></span>
-                <span class="jm-soon">soon</span>
-            </div>
+            </a>
             <div class="jm-item is-soon">
                 <span class="jm-emoji" aria-hidden="true">🎙️</span>
                 <span class="jm-text"><strong>Talk It Through</strong><span>Talk it out loud; it becomes your journal.</span></span>
                 <span class="jm-soon">soon</span>
             </div>
         </div>
+    </div>
+    {% endif %}
+
+    {% if reviewing_conversation %}
+    <div class="jc-review-banner">
+        <strong>Here's today's journal from your conversation.</strong>
+        Read it over, edit anything that doesn't sound like you, then save it.
     </div>
     {% endif %}
 
@@ -243,6 +249,19 @@
 .jc-wa-text { font-style: italic; color: var(--color-text); }
 .jc-wa-ref { margin-left: var(--space-2); opacity: 0.75; }
 
+/* Review banner — shown when reviewing a generated Write Together journal */
+.jc-review-banner {
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+    border-radius: var(--radius-lg);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    line-height: 1.5;
+}
+.jc-review-banner strong { display: block; margin-bottom: var(--space-1); }
+
 /* ── The notebook — the hero ────────────────────────────────────────────── */
 .notebook {
     background: var(--color-surface);
@@ -404,7 +423,7 @@
 }
 
 {% if journal_methods_enabled %}
-/* ── "How would you like to journal today?" chooser (preview, flag-gated) ──
+/* ── Journal methods chooser (preview, flag-gated) ──
    Just Write is this page; Write Together / Talk It Through are the dedicated
    conversational experiences, arriving as later milestones. */
 .journal-methods { margin-bottom: var(--space-6); }
@@ -429,6 +448,8 @@
     border-color: var(--color-accent);
     background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
 }
+.jm-item.jm-link { text-decoration: none; color: inherit; cursor: pointer; transition: all var(--transition-fast); }
+.jm-item.jm-link:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface)); }
 .jm-emoji { font-size: 1.15rem; line-height: 1.4; }
 .jm-text { display: flex; flex-direction: column; }
 .jm-text strong { font-size: var(--font-size-sm); color: var(--color-text); font-weight: 600; }

@@ -62,6 +62,32 @@ from .models import JournalEntry, JournalPrompt
 from django.db.models import Count
 
 
+def _write_together_enabled(user):
+    """Write Together / Talk It Through require the preview flag AND the Chief of
+    Staff (they are CoS-powered conversations)."""
+    try:
+        prefs = user.preferences
+        return bool(
+            prefs.is_feature_enabled("journal", "write_together")
+            and getattr(prefs, "personal_assistant_enabled", False)
+        )
+    except Exception:
+        return False
+
+
+def _draft_to_html(text):
+    """Convert a generated plain-prose journal draft into simple paragraph HTML
+    for prefilling the rich-text editor at the review step."""
+    from django.utils.html import escape
+    text = (text or "").strip()
+    if not text:
+        return ""
+    paras = [p.strip() for p in text.split("\n\n") if p.strip()]
+    if len(paras) <= 1:
+        paras = [p.strip() for p in text.split("\n") if p.strip()] or [text]
+    return "".join(f"<p>{escape(p)}</p>" for p in paras)
+
+
 
 
 class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
@@ -369,10 +395,23 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             except Exception:
                 pass
 
+        # Reviewing a Write Together conversation → prefill the editor with the
+        # generated journal, in the user's voice, for review/edit/approve.
+        review_convo = self._review_conversation()
+        if review_convo is not None:
+            initial["body"] = _draft_to_html(review_convo.generated_draft)
+            initial["entry_date"] = review_convo.entry_date
+
         return initial
 
     def form_valid(self, form):
         form.instance.user = self.request.user
+
+        # Reviewing a Write Together conversation → provenance = voice_together.
+        review_convo = self._review_conversation()
+        if review_convo is not None:
+            from .services.journal_conversation import CREATED_VIA_VOICE_TOGETHER
+            form.instance.created_via = CREATED_VIA_VOICE_TOGETHER
 
         # If title is empty, default to the entry_date
         if not form.instance.title:
@@ -392,6 +431,12 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             messages.success(self.request, "Journal entry created.")
 
         response = super().form_valid(form)
+
+        # Link the source conversation and mark it completed (the entry is the artifact).
+        if review_convo is not None:
+            review_convo.resulting_entry = self.object
+            review_convo.state = review_convo.STATE_COMPLETED
+            review_convo.save(update_fields=["resulting_entry", "state", "updated_at"])
 
         # Fire intelligence chain (SAE → PIE → PRIE)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
@@ -495,6 +540,10 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         # is this page. The retired "one question beside the editor" model is gone.
         context["journal_methods_enabled"] = self._journal_methods_enabled()
 
+        # Review mode: the editor is prefilled with a generated Write Together
+        # journal for review. Hides the chooser and shows a calm review banner.
+        context["reviewing_conversation"] = self._review_conversation() is not None
+
         return context
 
     def _journal_methods_enabled(self):
@@ -502,6 +551,99 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             return bool(self.request.user.preferences.is_feature_enabled("journal", "write_together"))
         except Exception:
             return False
+
+    def _review_conversation(self):
+        """The Write Together conversation being reviewed, if ?from_conversation=<id>."""
+        cid = self.request.GET.get("from_conversation")
+        if not cid:
+            return None
+        from .models import JournalConversation
+        return JournalConversation.objects.filter(
+            pk=cid,
+            user=self.request.user,
+            state__in=[JournalConversation.STATE_REVIEWING, JournalConversation.STATE_ACTIVE],
+        ).first()
+
+
+class WriteTogetherView(LoginRequiredMixin, TemplateView):
+    """The dedicated Write Together conversation workspace (text; voice = M4).
+
+    A focused, calm journaling conversation — NOT the general Chief of Staff chat,
+    NOT the editor. Resumes the user's active conversation (durability: nothing is
+    ever lost). The journal itself is not shown here; it is generated only after
+    the conversation ends and reviewed on the editor page.
+    """
+
+    template_name = "journal/write_together.html"
+
+    def get(self, request, *args, **kwargs):
+        if not _write_together_enabled(request.user):
+            return redirect("journal:entry_create")
+        from .services.journal_conversation import get_or_create_active
+        convo = get_or_create_active(request.user)
+        return render(request, self.template_name, {
+            "conversation": convo,
+            "turns": convo.transcript or [],
+        })
+
+
+class WriteTogetherMessageView(LoginRequiredMixin, View):
+    """One conversation turn (or the opening if the conversation is empty).
+
+    The model call happens in the service layer (journal_conversation.py), never
+    inline here — preserving request-path safety.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        if not _write_together_enabled(request.user):
+            return JsonResponse({"error": "not_available"}, status=404)
+
+        from .services.journal_conversation import get_or_create_active, ensure_opening, respond
+        convo = get_or_create_active(request.user)
+
+        try:
+            payload = json.loads((request.body or b"").decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        message = payload.get("message", "")
+        if not isinstance(message, str):
+            message = ""
+        message = message.strip()
+
+        # No message + no turns yet → produce the opening.
+        if not message and not convo.transcript:
+            opening = ensure_opening(request.user, convo)
+            return JsonResponse({"role": "assistant", "reply": opening or "", "opening": True})
+        if not message:
+            return JsonResponse({"error": "empty"}, status=400)
+
+        reply = respond(request.user, convo, message)
+        return JsonResponse({"role": "assistant", "reply": reply or ""})
+
+
+class WriteTogetherGenerateView(LoginRequiredMixin, View):
+    """End the conversation → generate today's journal → send the user to the
+    editor (prefilled) to review, edit, and approve into a canonical JournalEntry."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        if not _write_together_enabled(request.user):
+            return JsonResponse({"error": "not_available"}, status=404)
+
+        from .services.journal_conversation import get_or_create_active, generate_entry
+        convo = get_or_create_active(request.user)
+        if not convo.has_user_content:
+            return JsonResponse({
+                "error": "nothing_to_journal",
+                "message": "Tell me a little about your day first, then I'll write it up.",
+            }, status=400)
+
+        generate_entry(request.user, convo)
+        url = reverse("journal:entry_create") + f"?from_conversation={convo.pk}"
+        return JsonResponse({"redirect": url})
 
 
 class EntryUpdateView(LoginRequiredMixin, UpdateView):

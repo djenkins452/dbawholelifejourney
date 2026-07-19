@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ arc.name }} · Day {{ day.day_number }} - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719a">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="journey-day-first-light">
+  <div class="fl-wrap">
+    <div class="fl-reader">
+
+      {# ── Quiet completion — a hushed close after marking a day complete ── #}
+      {% if just_completed %}
+      <div class="fl-quiet" role="status">
+        <div class="fl-quiet-eyebrow">Amen</div>
+        <div class="fl-quiet-line">You sat with Him today.</div>
+        <div class="fl-quiet-verse">“Well done.”</div>
+        <div class="fl-quiet-rest">Rest well, {{ request.user.first_name|default:"friend" }}. Tomorrow’s reading is here whenever you’re ready.</div>
+        <div class="fl-quiet-dismiss"><a class="fl-btn fl-btn-night fl-btn-sm" href="#fl-reading">Read tomorrow &darr;</a></div>
+      </div>
+      {% endif %}
+
+      {% if review_mode %}
+      <div class="fl-banner fl-banner-review">
+        You’re revisiting a past day. Your current reading is <a href="{% url 'journey:today' %}">today’s day</a>.
+      </div>
+      {% endif %}
+      {% if welcome_back %}
+      <div class="fl-banner fl-banner-welcome" data-testid="journey-welcome-back">
+        <b>Welcome back.</b>
+        Nothing’s been missed — the journey waits for you. Pick up right where you left off.
+      </div>
+      {% endif %}
+
+      {# ── Minimal header + progress ── #}
+      <div id="fl-reading" class="fl-reader-top">
+        <div class="fl-reader-loc">{{ arc.era_label }} · {{ arc.name }} · Day {{ day.day_number }}{% if arc.estimated_days %} of {{ arc.estimated_days }}{% endif %}</div>
+        <a class="fl-reader-tier" href="{% url 'journey:settings' %}">Aa</a>
+      </div>
+      {% if arc.estimated_days %}
+      <div class="fl-reader-rule" role="img" aria-label="Day {{ day.day_number }} of {{ arc.estimated_days }} in {{ arc.name }}">
+        <span style="width:{% widthratio day.day_number arc.estimated_days 100 %}%"></span>
+      </div>
+      {% endif %}
+
+      {# ── Setting the scene (a quiet lead-in) ── #}
+      {% if day.context_before %}
+      <p class="fl-reader-lead">{{ day.context_before }}</p>
+      {% endif %}
+
+      {# ── The Word — the star. Reuses the shared verse-tap data hooks. ── #}
+      <div class="fl-scripture-ref">{{ day.scripture_refs|join:" · " }}</div>
+      <div class="fl-scripture" data-journey-scripture data-reference="{{ day.scripture_refs|first }}">
+        {% for block in day.scripture_content.blocks %}<span class="verse-block" data-verse-ref="{{ block.ref }}" data-verse-num="{{ block.verse }}" data-verse-text="{{ block.text }}"><span class="verse-num">{{ block.verse }}</span><span class="verse-text">{{ block.text }}</span></span> {% endfor %}
+      </div>
+      <div class="fl-scripture-attr">World English Bible · public domain</div>
+
+      {# ── In plain English ── #}
+      {% if plain_english %}
+      <section class="fl-reader-section">
+        <div class="fl-reader-label">In plain English</div>
+        <div class="fl-reader-prose">{{ plain_english }}</div>
+        <p class="fl-small fl-muted" style="margin-top:10px">Prefer simpler or deeper? <a href="{% url 'journey:settings' %}" style="color:var(--fl-gold-deep);font-weight:600;text-decoration:none">Change your depth</a>.</p>
+      </section>
+      {% endif %}
+
+      {# ── The one thing to carry ── #}
+      {% if day.key_insight %}
+      <section class="fl-reader-section">
+        <div class="fl-key-insight">“{{ day.key_insight }}”</div>
+      </section>
+      {% endif %}
+
+      {# ── Reflect + one small step (the completion form — same route) ── #}
+      {% if not review_mode %}
+      <form method="post" action="{% url 'journey:complete_day' arc.slug day.day_number %}" class="fl-reader-form">
+        {% csrf_token %}
+        <div>
+          <div class="fl-reader-label">Reflect</div>
+          <p class="fl-reader-prose" style="margin-bottom:12px">{{ day.reflection_prompt }}</p>
+          {{ complete_form.reflection_notes }}
+        </div>
+        {% if day.application_action %}
+        <div class="fl-apply">
+          <div>
+            <p>{{ day.application_action }}</p>
+            <label>{{ complete_form.application_committed }} <span>I’ll do this today.</span></label>
+          </div>
+        </div>
+        {% endif %}
+        <div class="fl-complete-wrap">
+          <button type="submit" class="fl-complete-btn" {% if is_complete %}disabled{% endif %}>
+            {% if is_complete %}Day complete{% else %}<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5L20 6"/></svg>I sat with this today{% endif %}
+          </button>
+        </div>
+      </form>
+      {% endif %}
+
+      {# ── Something to remember ── #}
+      {% if day.retention_anchor %}
+      <div class="fl-retention">{{ day.retention_anchor }}</div>
+      {% endif %}
+
+      {# ── "I'm stuck" — quiet, progressive (shared hooks) ── #}
+      {% if day.confusion_topics %}
+      <button type="button" class="fl-stuck" data-stuck-toggle aria-expanded="false" aria-controls="journey-confusion">
+        Something unclear? Show common questions
+      </button>
+      <div id="journey-confusion" class="fl-confusion" hidden>
+        {% for topic in day.confusion_topics %}
+        <div class="journey-confusion-topic" data-topic-toggle>
+          <div class="topic-q">{{ topic.topic }}</div>
+          <div class="topic-a" hidden>{{ topic.plain_english_answer }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Annotation popover (verse tap) — positioned by the shared script. #}
+      <div class="journey-anno-popover" id="journey-anno-popover" hidden>
+        <button type="button" data-anno-action="highlight">Highlight</button>
+        <button type="button" data-anno-action="bookmark">Bookmark</button>
+        <button type="button" data-anno-action="save">Save</button>
+        <button type="button" data-anno-action="note">Note</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% include "faith/journey/_reader_interactions.html" %}
+{% endblock %}

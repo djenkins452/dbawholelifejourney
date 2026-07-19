@@ -168,9 +168,78 @@ html[data-theme="midnight"] .fl-root{
 .fl-invite-body{padding:15px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
 @media (max-width:640px){.fl-invite-cover{width:84px}}
 
+/* ============================================================================
+   IMMERSIVE READER — "until the software disappears"
+   Scripture is the star: chromeless, large book type, generous margins.
+   Reuses the classic reader's data hooks (.verse-block/.verse-text/.verse-num,
+   #journey-anno-popover, #journey-confusion) so behavior is shared, not copied.
+   ============================================================================ */
+.fl-reader{max-width:680px;margin:0 auto;padding:8px 0 60px}
+.fl-reader-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 4px 14px}
+.fl-reader-loc{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--fl-muted);font-weight:650}
+.fl-reader-tier{font-size:12.5px;color:var(--fl-gold-deep);text-decoration:none;font-weight:600}
+.fl-reader-rule{height:2px;border-radius:2px;background:var(--fl-line-soft);overflow:hidden}
+.fl-reader-rule>span{display:block;height:100%;background:linear-gradient(90deg,var(--fl-gold),var(--fl-gold-bright))}
+
+.fl-reader-lead{font-family:var(--fl-serif);font-style:italic;color:var(--fl-ink-soft);font-size:16px;line-height:1.6;text-align:center;max-width:56ch;margin:26px auto 0}
+
+.fl-scripture{max-width:60ch;margin:28px auto 0;text-align:left}
+.fl-scripture-ref{text-align:center;color:var(--fl-gold-deep);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-bottom:22px}
+.fl-scripture .verse-block{font-family:var(--fl-serif);font-size:clamp(20px,2.5vw,24px);line-height:1.9;color:var(--fl-ink)}
+.fl-scripture .verse-num{font-size:11px;color:var(--fl-muted);font-family:var(--fl-sans);font-weight:700;vertical-align:super;margin-right:4px;-webkit-user-select:none;user-select:none}
+.fl-scripture .verse-text{cursor:pointer;transition:background .15s;border-radius:3px}
+.fl-scripture .verse-text:hover{background:var(--fl-gold-wash)}
+.fl-scripture .verse-highlight-yellow{background:linear-gradient(180deg,transparent 60%,var(--fl-gold-wash) 60%)}
+.fl-scripture-attr{text-align:center;color:var(--fl-muted);font-size:11.5px;margin-top:22px;letter-spacing:.02em}
+
+/* calm teaching/reflection sections below the Word */
+.fl-reader-section{max-width:60ch;margin:34px auto 0}
+.fl-reader-label{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fl-muted);font-weight:700;margin-bottom:10px}
+.fl-reader-prose{color:var(--fl-ink-soft);font-size:15.5px;line-height:1.65}
+.fl-key-insight{font-family:var(--fl-serif);font-size:20px;line-height:1.5;color:var(--fl-ink);text-align:center;max-width:44ch;margin:0 auto}
+.fl-reader-form{max-width:60ch;margin:34px auto 0;display:flex;flex-direction:column;gap:24px}
+.fl-reader-form textarea{width:100%;min-height:90px;border:1px solid var(--fl-line);border-radius:var(--fl-r);padding:13px 14px;font-family:var(--fl-serif);font-size:16px;color:var(--fl-ink);background:var(--fl-surface-2);resize:vertical;line-height:1.55}
+.fl-reader-form textarea:focus{outline:none;border-color:var(--fl-gold)}
+.fl-apply{display:flex;gap:11px;align-items:flex-start;background:var(--fl-surface);border:1px solid var(--fl-line);border-radius:var(--fl-r);padding:14px 16px}
+.fl-apply p{margin:0 0 8px;color:var(--fl-ink-soft);font-size:14.5px}
+.fl-apply label{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fl-ink);cursor:pointer}
+.fl-complete-wrap{display:flex;justify-content:center;margin-top:6px}
+.fl-complete-btn{border:none;font-family:var(--fl-sans);font-size:15px;font-weight:650;padding:13px 30px;border-radius:12px;cursor:pointer;background:linear-gradient(180deg,#E9C56B,#C9A227);color:#2A2208;box-shadow:0 0 0 1px rgba(233,197,107,.4),0 8px 24px -8px rgba(201,162,39,.55);display:inline-flex;align-items:center;gap:8px}
+.fl-complete-btn:disabled{background:var(--fl-surface);color:var(--fl-muted);box-shadow:none;border:1px solid var(--fl-line);cursor:default}
+.fl-retention{max-width:56ch;margin:34px auto 0;text-align:center;font-style:italic;color:var(--fl-muted);font-size:14.5px;line-height:1.6}
+
+/* "I'm stuck" — quiet, progressive */
+.fl-stuck{display:block;margin:36px auto 0;background:none;border:none;color:var(--fl-gold-deep);font-size:13.5px;font-weight:600;cursor:pointer;font-family:var(--fl-sans)}
+.fl-confusion{max-width:60ch;margin:14px auto 0;display:flex;flex-direction:column;gap:8px}
+.fl-confusion .journey-confusion-topic{border:1px solid var(--fl-line);border-radius:var(--fl-r);padding:12px 15px;cursor:pointer;background:var(--fl-surface)}
+.fl-confusion .topic-q{font-weight:600;font-size:14px;color:var(--fl-ink)}
+.fl-confusion .topic-a{margin-top:8px;font-size:14px;color:var(--fl-ink-soft);line-height:1.55}
+
+/* annotation popover (verse tap) — restyled to the warm world */
+.fl-reader .journey-anno-popover{position:absolute;z-index:60;display:flex;gap:2px;background:var(--fl-surface-2);border:1px solid var(--fl-line);border-radius:10px;padding:4px;box-shadow:var(--fl-shadow-lg)}
+.fl-reader .journey-anno-popover button{background:none;border:none;font-size:13px;font-weight:600;color:var(--fl-ink-soft);padding:7px 11px;border-radius:7px;cursor:pointer;font-family:var(--fl-sans)}
+.fl-reader .journey-anno-popover button:hover{background:var(--fl-gold-wash);color:var(--fl-gold-deep)}
+
+/* review / welcome-back banners (calm) */
+.fl-banner{max-width:60ch;margin:0 auto 20px;border-radius:var(--fl-r);padding:13px 16px;font-size:14px}
+.fl-banner-review{background:var(--fl-surface);border:1px solid var(--fl-line);color:var(--fl-ink-soft)}
+.fl-banner-review a{color:var(--fl-gold-deep);font-weight:600}
+.fl-banner-welcome{background:linear-gradient(160deg,var(--fl-gold-wash),var(--fl-surface));border:1px solid var(--fl-line)}
+.fl-banner-welcome b{font-family:var(--fl-serif);font-size:16px;display:block;margin-bottom:2px}
+
+/* ── QUIET COMPLETION — closing a journal, not a trophy ── */
+.fl-quiet{position:relative;overflow:hidden;text-align:center;color:var(--fl-on-night);border-radius:var(--fl-r-lg);
+  background:linear-gradient(180deg,#12182E,#1C2338 55%,#332B39);padding:44px 28px;max-width:640px;margin:0 auto 26px}
+.fl-quiet .fl-quiet-eyebrow{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--fl-gold-on-night);font-weight:700}
+.fl-quiet .fl-quiet-line{font-family:var(--fl-serif);font-size:clamp(22px,3vw,28px);color:#F4ECD9;margin-top:14px}
+.fl-quiet .fl-quiet-verse{font-family:var(--fl-serif);font-style:italic;color:var(--fl-on-night-soft);font-size:15.5px;margin-top:14px}
+.fl-quiet .fl-quiet-rest{color:var(--fl-on-night-soft);font-size:13.5px;margin-top:18px}
+.fl-quiet .fl-quiet-dismiss{margin-top:18px}
+
 @media (max-width:640px){
   .fl-threshold{padding:40px 18px 30px}
   .fl-continue .fl-t{font-size:19px}
   .fl-choice .fl-cs{display:none}
+  .fl-scripture .verse-block{font-size:19px;line-height:1.85}
 }
 @media (prefers-reduced-motion:reduce){.fl-breath{animation:none}}

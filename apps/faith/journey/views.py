@@ -48,6 +48,14 @@ from apps.faith.journey.services import (
 JOURNEY_PATH_SLUG = "walking_with_god"  # Phase 1 ships one journey
 
 
+def _first_light_reader(user) -> bool:
+    """True when the user has opted into the First Light immersive reader."""
+    try:
+        return user.preferences.is_feature_enabled("faith", "first_light")
+    except Exception:  # pragma: no cover - defensive (missing prefs)
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Routing helpers
 # ---------------------------------------------------------------------------
@@ -91,8 +99,16 @@ def _render_day(request, user_journey, day, *, review_mode: bool, welcome_back: 
             "kind": "scripture reading",
             "title": f"{day.arc.journey_path.name} — Day {day.day_number}",
         },
+        # Quiet-completion interstitial flag (First Light only; set after a
+        # completion redirect). Harmless in the classic template.
+        "just_completed": bool(request.GET.get("just_completed")),
     }
-    return render(request, "faith/journey/day.html", context)
+    template = (
+        "faith/journey/day_first_light.html"
+        if _first_light_reader(request.user)
+        else "faith/journey/day.html"
+    )
+    return render(request, template, context)
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +216,10 @@ def journey_complete_day(request, arc_slug: str, day_number: int):
         reflection_notes=form.cleaned_data["reflection_notes"],
         application_committed=form.cleaned_data["application_committed"],
     )
+    # First Light closes each day with a quiet moment (no toast); the classic
+    # reader keeps the message. Either way the next day is ready.
+    if _first_light_reader(request.user):
+        return redirect(reverse("journey:today") + "?just_completed=1")
     messages.success(request, "Day complete. Tomorrow's reading is ready.")
     return redirect(reverse("journey:today"))
 

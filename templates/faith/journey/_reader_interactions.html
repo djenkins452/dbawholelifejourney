@@ -1,0 +1,172 @@
+{% comment %}
+Shared journey-reader interactions — used by BOTH the classic reader (day.html)
+and the First Light immersive reader (day_first_light.html). Extracted here so
+the two presentations share one behavior (no duplication). Requires the same DOM
+hooks in either template: [data-stuck-toggle], #journey-confusion,
+[data-topic-toggle]/.topic-q/.topic-a, [data-journey-scripture]/.verse-block/
+.verse-text, #journey-anno-popover, [data-anno-action]. Needs `arc` and `day` in
+context for the observability ping.
+{% endcomment %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  "use strict";
+
+  // ---- "I'm stuck" toggle ----
+  var stuckBtn = document.querySelector("[data-stuck-toggle]");
+  var stuckPanel = document.getElementById("journey-confusion");
+  if (stuckBtn && stuckPanel) {
+    stuckBtn.addEventListener("click", function () {
+      var isHidden = stuckPanel.hasAttribute("hidden");
+      if (isHidden) {
+        stuckPanel.removeAttribute("hidden");
+        stuckBtn.setAttribute("aria-expanded", "true");
+        stuckBtn.textContent = "Hide common questions";
+      } else {
+        stuckPanel.setAttribute("hidden", "");
+        stuckBtn.setAttribute("aria-expanded", "false");
+        stuckBtn.textContent = "I'm stuck — show me common questions";
+      }
+    });
+  }
+
+  // ---- Confusion topic expand/collapse + observability ping ----
+  var JOURNEY_ARC_SLUG = "{{ arc.slug|escapejs }}";
+  var JOURNEY_DAY_NUMBER = {{ day.day_number }};
+
+  document.querySelectorAll("[data-topic-toggle]").forEach(function (topic) {
+    topic.addEventListener("click", function () {
+      var answer = topic.querySelector(".topic-a");
+      if (!answer) return;
+      var opening = answer.hasAttribute("hidden");
+      if (opening) {
+        answer.removeAttribute("hidden");
+        // Fire-and-forget observability ping. Don't block the UI.
+        var topicQ = topic.querySelector(".topic-q");
+        var topicText = topicQ ? topicQ.textContent.trim() : "";
+        try {
+          fetch("{% url 'journey:confusion_flagged' %}", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+            body: JSON.stringify({ arc_slug: JOURNEY_ARC_SLUG, day_number: JOURNEY_DAY_NUMBER, topic: topicText }),
+          });
+        } catch (e) { /* silent */ }
+      } else {
+        answer.setAttribute("hidden", "");
+      }
+    });
+  });
+
+  // ---- Verse tap → annotation popover ----
+  var scriptureEl = document.querySelector("[data-journey-scripture]");
+  var popover = document.getElementById("journey-anno-popover");
+  var activeVerse = null;
+
+  function hidePopover() {
+    if (popover) popover.setAttribute("hidden", "");
+    activeVerse = null;
+  }
+
+  function showPopoverAtElement(el) {
+    if (!popover) return;
+    activeVerse = el.closest(".verse-block");
+    var rect = el.getBoundingClientRect();
+    popover.removeAttribute("hidden");
+    popover.style.top = (window.scrollY + rect.bottom + 6) + "px";
+    popover.style.left = (window.scrollX + rect.left) + "px";
+  }
+
+  if (scriptureEl) {
+    scriptureEl.querySelectorAll(".verse-text").forEach(function (vt) {
+      vt.addEventListener("click", function (e) {
+        e.stopPropagation();
+        showPopoverAtElement(vt);
+      });
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!popover) return;
+    if (popover.contains(e.target)) return;
+    hidePopover();
+  });
+
+  // ---- Annotation actions ----
+  function csrfToken() {
+    var name = "csrftoken=";
+    var parts = document.cookie.split(";");
+    for (var i = 0; i < parts.length; i++) {
+      var c = parts[i].trim();
+      if (c.indexOf(name) === 0) return c.substring(name.length);
+    }
+    return "";
+  }
+
+  function postJSON(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrfToken(),
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  function verseRefFor(verseBlock) {
+    var ref = verseBlock.getAttribute("data-verse-ref");
+    return ref;
+  }
+
+  function verseTextFor(verseBlock) {
+    return verseBlock.getAttribute("data-verse-text");
+  }
+
+  function flashStatus(msg) {
+    var el = document.createElement("div");
+    el.textContent = msg;
+    el.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:10px 16px;border-radius:6px;z-index:100;font-family:-apple-system,sans-serif;font-size:14px;";
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, 1800);
+  }
+
+  if (popover) {
+    popover.querySelectorAll("[data-anno-action]").forEach(function (btn) {
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (!activeVerse) return;
+        var action = btn.getAttribute("data-anno-action");
+        var ref = verseRefFor(activeVerse);
+        var text = verseTextFor(activeVerse);
+
+        var endpoints = {
+          highlight: { url: "{% url 'journey:annotation_highlight' %}", body: { reference: ref, text: text, color: "yellow" }, msg: "Highlighted." },
+          bookmark:  { url: "{% url 'journey:annotation_bookmark' %}",  body: { reference: ref, include_verse: true }, msg: "Bookmarked." },
+          save:      { url: "{% url 'journey:annotation_save_verse' %}", body: { reference: ref, text: text }, msg: "Verse saved." },
+          note:      { url: "{% url 'journey:annotation_note' %}",      body: { reference: ref, content: window.prompt("Add a note for this verse:") || "" }, msg: "Note saved." },
+        };
+        var spec = endpoints[action];
+        if (!spec) return hidePopover();
+        if (action === "note" && !spec.body.content) return hidePopover();
+
+        postJSON(spec.url, spec.body).then(function (r) {
+          if (r.ok) {
+            if (action === "highlight") {
+              activeVerse.classList.add("verse-highlight-" + spec.body.color);
+            }
+            flashStatus(spec.msg);
+          } else {
+            flashStatus("Couldn't save — please try again.");
+          }
+          hidePopover();
+        }).catch(function () {
+          flashStatus("Couldn't save — please try again.");
+          hidePopover();
+        });
+      });
+    });
+  }
+
+})();
+</script>

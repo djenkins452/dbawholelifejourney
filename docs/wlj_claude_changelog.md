@@ -6,6 +6,27 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — fix(cos): remove the redundant "Chat" pill from the Chief of Staff header; reflow so controls stop clipping off the 320px rail
+
+**Reported:** the "Chat" pill in the CoS panel header consumes horizontal space for no value — chat is already the panel's context.
+
+**Runtime investigation (measured, not guessed — drove the real panel in-browser):** The header (`.assistant-panel-header`) is a fixed-width rail (320px at 1025–1439px viewports, 360px ≥1440px) laid out `justify-content: space-between` with the title cluster (name + 4 action icons) on the left and an `.ap-tabs` group (**Chat** + **Status** pills) on the right. Measured at 320px: header content **scrollWidth 369 vs clientWidth 319 → 50px of overflow**; the Chat pill was **47px** of it. Because the panel is `overflow: hidden`, that overflow *clipped the rightmost controls off-screen* — the exact "controls scrolling off the right" in the report.
+
+**Why the Chat pill existed:** Chat/Status were a two-tab switcher. But Chat is the panel's always-shown base view, so its tab was pure redundancy (an active pill that just reselects what's already shown).
+
+**Fix:**
+- **Removed the "Chat" pill.** "Status" became a single **toggle**: press to peek at platform status, press again to return to chat (chat is the base). `aria-pressed` reflects state; `switchTab()` toggles chat⇄status.
+- **Reflow / reclaim (~75px total):** dropped the redundant 8px `.ap-tabs` right margin (the header already has 16px padding); tightened the loose title `gap` 8px→4px (5 gaps = −20px); and made the header **structurally overflow-proof** — the title can shrink (`min-width:0`) and only the CoS **name** truncates with an ellipsis as a last resort, while every control (`.ap-header-icon-btn`, `.ap-focus-btn`, `.ap-tcc-link`, `.ap-ops-link`, `.ap-tabs`) is `flex-shrink:0` and always stays visible. Previously the *controls* clipped; now, in the rare worst case, only the label gives way — matching the report's own priority (context over labels).
+- **Reviewed the rest of the header (req 4):** the space pressure at 320px is dominated by the Status pill's **intervention-count badge**, which rendered a raw multi-digit count ("282" in dev). Capped it like a standard notification badge (`>9 → "9+"`) so it can't balloon the pill. **Documented, not changed:** the decorative check-circle glyph next to the name (~24px, purely ornamental) is the next candidate if the rail ever needs more room — left in place as the CoS identity mark rather than removed unilaterally.
+
+**Before / after header width usage (320px rail):**
+- Before: content **369px** → **+50px overflow**, rightmost controls clipped (Chat pill 47px + Status pill up to 88px w/ badge).
+- After: content **≤319px → 0 overflow**; every control visible. At 360px the name shows fully ("Beth AI"); at 320px with an active intervention badge the name truncates gracefully (all controls still visible).
+
+**Verification (in-browser, logged in as the real user):** Chat pill gone; Status toggles chat⇄status (`aria-pressed` flips); **overflow 0 at both 320px and 360px**; all header controls inside the panel edge at both widths; name fully visible at 360px; desktop panel correctly hidden on mobile (375px) with the mobile pull-up unaffected and no document horizontal overflow; no console errors. Updated the two `cos_command_mode.html` calibration buttons that clicked the removed chat tab → they now toggle Status off to return to chat. Multi-line `{# #}` sweep clean; `check` + `collectstatic` clean; no test asserts the removed tab.
+
+- **Files:** `templates/components/assistant_panel.html` (remove Chat tab, Status toggle + `switchTab`, badge cap), `static/css/assistant-panel.css` (tab margin, title shrink/ellipsis, icon `flex-shrink:0`, gap), `templates/components/cos_command_mode.html` (2 removed-tab references). No schema/migration change.
+
 ## 2026-07-18 — diag(nutrition/ux): TEMPORARY on-page focus diagnostic for iOS Food Name focus failure
 
 **Why:** Auto-focus of Food Name works on desktop but never fires on iPhone Safari / iOS WKWebView. Per the runtime-trace standard, PROVE the path on the actual device before implementing a fix. The preview pane is desktop Chromium and cannot emulate iOS WebKit, and iOS WKWebView has no reachable JS console — so the proof must render **on the page itself**.

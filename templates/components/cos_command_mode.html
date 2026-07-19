@@ -46,8 +46,10 @@ Requires: command_mode dict from DashboardView._get_command_mode()
 
     if (activeBtn) {
         activeBtn.addEventListener('click', function() {
-            var chatTab = document.querySelector('[data-tab="chat"]');
-            if (chatTab) chatTab.click();
+            // Chat is the panel's base view; if the Status toggle is active,
+            // press it to return to chat (the "Chat" tab was removed).
+            var statusTab = document.querySelector('.ap-tab[data-tab="status"].active');
+            if (statusTab) statusTab.click();
             var input = document.getElementById('ap-chat-input');
             if (input) {
                 input.focus();
@@ -69,8 +71,10 @@ Requires: command_mode dict from DashboardView._get_command_mode()
     var finishBtn = document.getElementById('cos-finish-intro-btn');
     if (finishBtn) {
         finishBtn.addEventListener('click', function() {
-            var chatTab = document.querySelector('[data-tab="chat"]');
-            if (chatTab) chatTab.click();
+            // Chat is the panel's base view; if the Status toggle is active,
+            // press it to return to chat (the "Chat" tab was removed).
+            var statusTab = document.querySelector('.ap-tab[data-tab="status"].active');
+            if (statusTab) statusTab.click();
             var input = document.getElementById('ap-chat-input');
             if (input) {
                 input.value = "I think you know me well enough. Let's get to work.";

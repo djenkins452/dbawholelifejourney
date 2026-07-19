@@ -42,15 +42,38 @@ body.has-desktop-nav .desktop-main-area {
 .assistant-panel-title {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: 4px;
     font-weight: 600;
     font-size: var(--font-size-sm);
     color: var(--color-text);
     white-space: nowrap;
+    /* Allow shrinking below content width (min-width:0) so the fixed controls
+       (action icons + Status pill, incl. its count badge) always stay visible on
+       the fixed-width rail — only the name truncates, and only as a last resort.
+       No flex-grow: at normal widths the title stays content-sized and the Status
+       pill sits at the right via the header's space-between. */
+    min-width: 0;
+    overflow: hidden;
 }
 
 .assistant-panel-title svg {
     color: var(--color-accent);
+    flex-shrink: 0;
+}
+
+/* The CoS name is the ONLY element allowed to give way; it truncates with an
+   ellipsis when the header is tight (rare — "Beth" is short and the rail is
+   usually 360px). Everything after it is a control and must not shrink. */
+.assistant-panel-title > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ap-header-icon-btn,
+.ap-focus-btn,
+.ap-tcc-link,
+.ap-ops-link {
     flex-shrink: 0;
 }
 
@@ -1784,7 +1807,9 @@ body.has-desktop-nav .desktop-main-area {
     display: flex;
     gap: 4px;
     margin-left: auto;
-    margin-right: 8px;
+    /* No extra right margin — the header's own 16px right padding balances the
+       16px left padding. (The old 8px pushed the cluster toward overflow.) */
+    flex-shrink: 0;
 }
 
 .ap-tab {

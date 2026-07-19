@@ -82,9 +82,16 @@ any in-flight stream survive a focus-mode toggle untouched.
             </a>
             {% endif %}
         </div>
+        {% comment %}
+        Chat is the panel's always-shown base view, so it needs no tab of its own —
+        the redundant "Chat" pill was removed to reclaim header width (it forced the
+        control cluster to overflow the 320px rail). "Status" is now a single toggle:
+        it peeks at platform status and toggles back to chat. aria-pressed reflects
+        the toggle state.
+        {% endcomment %}
         <div class="ap-tabs">
-            <button class="ap-tab active" data-action="switch-ap-tab" data-tab="chat">Chat</button>
-            <button class="ap-tab" data-action="switch-ap-tab" data-tab="status">Status <span class="ap-status-badge" id="ap-status-badge" hidden></span></button>
+            <button class="ap-tab" data-action="switch-ap-tab" data-tab="status"
+                    aria-pressed="false" title="Show platform status">Status <span class="ap-status-badge" id="ap-status-badge" hidden></span></button>
         </div>
     </div>
 
@@ -498,13 +505,21 @@ any in-flight stream survive a focus-mode toggle untouched.
     function switchTab(tabName) {
         var chatTab = document.getElementById('ap-tab-chat');
         var statusTab = document.getElementById('ap-tab-status');
-        var tabs = document.querySelectorAll('.ap-tab');
+        var statusBtn = document.querySelector('.ap-tab[data-tab="status"]');
 
-        tabs.forEach(function(t) {
-            t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
-        });
+        // Chat is the always-shown base view (no tab of its own). "Status" is a
+        // single toggle: pressing it again while active returns to chat.
+        if (tabName === 'status' && statusBtn && statusBtn.classList.contains('active')) {
+            tabName = 'chat';
+        }
 
-        if (tabName === 'chat') {
+        var showStatus = tabName === 'status';
+        if (statusBtn) {
+            statusBtn.classList.toggle('active', showStatus);
+            statusBtn.setAttribute('aria-pressed', showStatus ? 'true' : 'false');
+        }
+
+        if (!showStatus) {
             chatTab.style.display = '';
             statusTab.style.display = 'none';
         } else {
@@ -2195,9 +2210,14 @@ any in-flight stream survive a focus-mode toggle untouched.
             var mBadge = document.getElementById('mobile-intervention-count');
             var sBadge = document.getElementById('ap-status-badge');
             if (data.count > 0) {
+                // The header Status pill lives on a fixed-width rail; a raw
+                // multi-digit count balloons the pill and squeezes the CoS name.
+                // Cap it like a standard notification badge — the exact number
+                // lives in the Status panel itself.
+                var sCount = data.count > 9 ? '9+' : String(data.count);
                 if (badge) { badge.textContent = data.count; badge.hidden = false; }
                 if (mBadge) { mBadge.textContent = data.count; mBadge.hidden = false; }
-                if (sBadge) { sBadge.textContent = data.count; sBadge.hidden = false; }
+                if (sBadge) { sBadge.textContent = sCount; sBadge.hidden = false; }
 
                 if (data.friction_gate) showFrictionGate(data.friction_gate);
             } else {

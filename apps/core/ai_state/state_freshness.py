@@ -117,7 +117,14 @@ def ensure_fresh(user, modules):
             is_stale = False
             for dotted_path, ts_field in sources:
                 model = _resolve_model(dotted_path)
-                if model.objects.filter(
+                # Detect across ALL rows incl. soft-deleted: soft_delete()/restore()
+                # bump `updated_at` on a row hidden from the default manager, so a
+                # `.objects` check would miss a deletion of the latest entry (the
+                # snapshot would keep showing the deleted row). The REBUILD below
+                # still uses the canonical `.objects` (excludes deleted) — only the
+                # staleness DETECTION widens to catch delete/restore writes.
+                mgr = getattr(model, "all_objects", None) or model.objects
+                if mgr.filter(
                     user=user, **{f"{ts_field}__gt": reference_ts}
                 ).exists():
                     is_stale = True

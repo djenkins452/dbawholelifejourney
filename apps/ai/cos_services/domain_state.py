@@ -154,6 +154,17 @@ def get_domain_state(user, domain, *, allow_build=False):
             ),
         )
 
+    # --- self-heal manual-entry staleness before the read (same shared guard the
+    # dashboard uses) — closes the class where the CoS served a stale snapshot the
+    # dashboard had already self-healed. No-op for non-manual modules; a light
+    # stale-only rebuild for journal/nutrition. Never breaks the read. ---
+    try:
+        from apps.core.ai_state.state_freshness import ensure_fresh
+        ensure_fresh(user, [module_key])
+    except Exception:
+        logger.warning("domain_state: freshness check failed user=%s module=%s",
+                       uid, module_key, exc_info=True)
+
     # --- read canonical state (state-first; never live-compute on request) ---
     source = "rebuild_allowed" if allow_build else "snapshot"
     try:

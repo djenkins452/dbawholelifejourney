@@ -16,7 +16,10 @@ retrieval logic. Capabilities are the components; the Domain Truth Object is the
 interface. This is the per-domain registration unit the Deterministic Provider
 Registry will route over.
 """
+import logging
 from importlib import import_module
+
+_log = logging.getLogger(__name__)
 
 # Domain provider modules that self-register on import (lazy-loaded on first miss).
 _KNOWN_PROVIDER_MODULES = (
@@ -90,6 +93,17 @@ class DomainTruth:
 
     def state(self):
         from apps.core.ai_state.state_engine import get_module_state
+        # Self-heal manual-entry staleness BEFORE reading the snapshot — the SAME
+        # shared guard the dashboard uses (apps/ai/signals.py async refresh can be
+        # missed/lagged; this makes the snapshot current on read). No-op for non-
+        # manual domains; light stale-only rebuild for journal/nutrition. Never
+        # raises — a freshness failure must not break a truth read (it is logged).
+        try:
+            from apps.core.ai_state.state_freshness import ensure_fresh
+            ensure_fresh(self.user, [self.domain])
+        except Exception:
+            _log.warning("DomainTruth.state freshness check failed domain=%s",
+                         self.domain, exc_info=True)
         return get_module_state(self.user, self.domain, allow_rebuild=False) or {}
 
     # ENTITY COMPLETENESS LAW (reusable Layer 1 pattern) ----------------------

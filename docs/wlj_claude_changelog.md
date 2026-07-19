@@ -3,8 +3,21 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.3-M2): audio perception — converge on ONE shared transcription capability)
+# Last Updated: 2026-07-19 (fix(cos/truth): CoS SAE read paths self-heal stale snapshots via the shared ensure_fresh guard)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — fix(cos/truth): CoS SAE read paths self-heal stale snapshots (Journal first failing layer)
+
+**Journal certification — first failing layer (deterministic truth freshness).** The Journal page and the CoS disagreed (page "last entry July 17", CoS "July 14"). Proven root cause: the page runs the shared self-healing guard `ensure_fresh(["journal","nutrition"])` (`dashboard_v3/services/composer.py:788`) before reading, but the CoS SAE read paths (`get_domain_state`, `DomainTruth.state()`) read the snapshot via `get_module_state` **without** that guard. So when the async refresh (`apps/ai/signals.py` post_save → `deferred_sae_refresh`) is missed/lagged/bypassed (e.g. bulk writes), the dashboard self-heals on read and the CoS serves the stale snapshot. Locally reproduced: live/page = 2026-07-18, CoS snapshot = 2026-04-07.
+
+**Fix (smallest class-level; reuses the existing shared mechanism, no journal-specific code):**
+- `apps/core/truth/domain.py` — `DomainTruth.state()` calls `ensure_fresh(self.user, [self.domain])` before reading (covers `current()` + every DomainTruth.state consumer). No-op for non-manual domains; light stale-only rebuild for journal/nutrition; never raises (logged).
+- `apps/ai/cos_services/domain_state.py` — `get_domain_state` calls `ensure_fresh(user, [module_key])` before the snapshot read (the model-interface tool path).
+- `apps/core/ai_state/state_freshness.py` — the staleness DETECTION now widens to `all_objects` (soft-delete-inclusive) so `soft_delete()`/`restore()` (which bump `updated_at` on a row hidden from the default manager) are caught; the REBUILD still uses the canonical `.objects`. Covers create/update/soft-delete/restore/date-change.
+
+**Verification:** 9 new regression tests (self-heal on missed create/update/date-change/soft-delete/restore; consistency counts fresh; page↔DomainTruth agree; rebuild-failure logged-not-swallowed; non-manual domains not regressed); request-path-safety contract still passes; `check` clean; no migrations. Runtime **five-way agreement** proven: raw snapshot stale (2026-07-18) → live = snapshot-after-read = get_domain_state = DomainTruth.current = 2026-07-19.
+
+**NOT complete — Batch 1 rerun exposed the NEXT failing layer (separate, NOT snapshot):** for "when did I last write / what did I write this week", the model routes to `search_history` (the legacy keyword engine), which returns keyword-matched entries (e.g. 2026-09-30 / 2026-04-07) instead of the true latest (2026-07-18) — a tool-selection / search-semantics layer, reported for the next investigation. AWAITING Danny's production validation; Journal analysis NOT started.
 
 ## 2026-07-19 — feat(multimodal P1.3-M2): audio perception — the CoS understands voice notes / recordings
 

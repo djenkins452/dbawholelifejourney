@@ -1247,6 +1247,16 @@ class ReadingPlanDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
     context_object_name = "plan"
     slug_url_kwarg = "slug"
 
+    def get_template_names(self):
+        # First Light users get the transformation-first detail; everyone else
+        # keeps the classic template. Cheap flag read — request-path safe.
+        try:
+            if self.request.user.preferences.is_feature_enabled("faith", "first_light"):
+                return ["faith/reading_plans/detail_first_light.html"]
+        except Exception:
+            pass
+        return [self.template_name]
+
     def get_queryset(self):
         return ReadingPlanTemplate.objects.filter(is_active=True)
 

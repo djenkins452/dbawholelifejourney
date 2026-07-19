@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ plan.title }} - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719a">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="reading-plan-detail-first-light">
+  <div class="fl-wrap">
+    <div class="fl-detail">
+
+      {# ── Hero: the invitation, not the spec sheet ── #}
+      <div class="fl-detail-hero">
+        <svg class="fl-sky" viewBox="0 0 1200 340" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs><radialGradient id="flDh" cx="50%" cy="96%" r="60%">
+            <stop offset="0" stop-color="#FBE5C0" stop-opacity=".7"/><stop offset="60%" stop-color="#E39C6B" stop-opacity="0"/></radialGradient></defs>
+          <rect width="1200" height="340" fill="url(#flDh)"/>
+          <path d="M0,340 L0,250 Q300,222 640,246 T1200,236 L1200,340Z" fill="#241826" opacity=".5"/>
+        </svg>
+        <div class="fl-inner">
+          {% if plan.topics %}
+          <div class="fl-detail-tags">
+            {% for topic in plan.topics|slice:":4" %}<span class="fl-tag">{{ topic }}</span>{% endfor %}
+          </div>
+          {% endif %}
+          <h1 class="fl-detail-title">{{ plan.title }}</h1>
+          {% if plan.description %}<p class="fl-detail-lede">{{ plan.description }}</p>{% endif %}
+          <div class="fl-detail-cta">
+            {% if user_plan %}
+              <a class="fl-btn fl-btn-glow fl-btn-lg" href="{% url 'faith:reading_plan_progress' user_plan.pk %}">Continue your reading &rarr;</a>
+            {% else %}
+              <form method="post" action="{% url 'faith:start_reading_plan' plan.slug %}">
+                {% csrf_token %}
+                <button type="submit" class="fl-btn fl-btn-glow fl-btn-lg">Begin this journey</button>
+              </form>
+            {% endif %}
+            <a class="fl-btn fl-btn-night" href="{% url 'faith:reading_plans' %}">Explore others</a>
+          </div>
+          <div class="fl-detail-facts fl-tnum">
+            {% if plan.duration_days %}{{ plan.duration_days }} days{% endif %}
+            {% if plan.difficulty %} · {{ plan.get_difficulty_display }}{% endif %}
+            {% if plan.get_category_display %} · {{ plan.get_category_display }}{% endif %}
+            · a few quiet minutes a day
+          </div>
+        </div>
+      </div>
+
+      {# ── Body ── #}
+      <div class="fl-detail-body">
+
+        {# A taste of a day — the real first day, so you know what you're saying yes to. #}
+        {% with sample=days|first %}
+        {% if sample %}
+        <div class="fl-sample">
+          <div class="fl-reader-label">A taste of a day</div>
+          <div class="fl-sample-day">Day {{ sample.day_number }}{% if sample.title %} · {{ sample.title }}{% endif %}</div>
+          {% if sample.scripture_references %}<div class="fl-sample-ref fl-tnum">{{ sample.scripture_references|join:", " }}</div>{% endif %}
+          {% if sample.reflection_prompt %}<p class="fl-sample-prompt"><b>Reflect ·</b> {{ sample.reflection_prompt }}</p>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        {# The first week, at a glance — what the road looks like. #}
+        {% if days %}
+        <h2 class="fl-section-heading">The first days</h2>
+        <div class="fl-days-preview">
+          {% for d in days %}
+          <div class="fl-day-row">
+            <span class="fl-day-num fl-tnum">{{ d.day_number }}</span>
+            <span class="fl-day-info">
+              <span class="fl-day-title">{{ d.title|default:d.scripture_references|join:", " }}</span>
+              {% if d.title and d.scripture_references %}<span class="fl-day-ref fl-tnum">{{ d.scripture_references|join:", " }}</span>{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% if plan.duration_days > days|length %}
+        <p class="fl-small fl-muted" style="margin-top:12px">…and more days ahead — {{ plan.duration_days }} in all.</p>
+        {% endif %}
+        {% endif %}
+
+        <div style="margin-top:34px;text-align:center">
+          {% if user_plan %}
+          <a class="fl-btn fl-btn-primary fl-btn-lg" href="{% url 'faith:reading_plan_progress' user_plan.pk %}">Continue your reading &rarr;</a>
+          {% else %}
+          <form method="post" action="{% url 'faith:start_reading_plan' plan.slug %}">
+            {% csrf_token %}
+            <button type="submit" class="fl-btn fl-btn-primary fl-btn-lg">Begin this journey</button>
+          </form>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

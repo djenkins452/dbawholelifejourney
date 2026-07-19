@@ -487,12 +487,34 @@ _PART_ALIASES = {
     "bicep": "arm", "biceps": "arm", "arm": "arm", "forearm": "forearm",
     "thigh": "thigh", "calf": "calf", "calves": "calf",
 }
+# Whole-word label aliases (WLJ's canonical circumferences are PLURAL for shoulders/hips,
+# but device screens show the SINGULAR: 'Shoulder', 'Hip'). Vision emits the on-screen label,
+# so without these a real measurement is silently dropped at normalization. (Origin: the
+# 2026-07-19 "Shoulder: not measured" defect — screenshot said 'Shoulder', canonical is 'shoulders'.)
+_WHOLE_METRIC_ALIASES = {
+    "shoulder": "shoulders",
+    "hip": "hips",
+    "ab": "abdomen", "abs": "abdomen", "stomach": "abdomen", "belly": "abdomen",
+    "tummy": "abdomen", "midsection": "abdomen",
+    "waist_hip_ratio": None, "whr": None,  # derived on read — intentionally not stored
+}
+
+
+def is_derived_metric(raw):
+    """True when a label is a DERIVED quantity WLJ recomputes on read (waist-hip ratio) and
+    must NOT be stored — distinct from an UNRECOGNIZED label (which must be surfaced, not
+    silently dropped). Lets the caller skip WHR quietly but flag genuinely unknown metrics."""
+    if not raw:
+        return False
+    key = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+    return "whr" in key or "ratio" in key
 
 
 def normalize_body_metric(raw):
     """Map a raw metric label to WLJ's canonical circumference/composition name, or None
     for anything unknown or DERIVED (e.g. waist-hip ratio — WLJ derives WHR from waist/hips
-    on read, never stores it). WLJ owns the canonical names ('arm_left', never 'bicep')."""
+    on read, never stores it). WLJ owns the canonical names ('arm_left', never 'bicep';
+    'shoulders'/'hips' plural, even though screens show the singular)."""
     if not raw:
         return None
     key = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
@@ -500,6 +522,8 @@ def normalize_body_metric(raw):
         key = key.replace("__", "_")
     if key in BODY_METRICS:
         return key
+    if key in _WHOLE_METRIC_ALIASES:            # singular→plural + synonyms (None for derived)
+        return _WHOLE_METRIC_ALIASES[key]
     if "whr" in key or "ratio" in key:
         return None  # derived on read, never stored
     # Sided aliases: 'l_bicep' → 'arm_left', 'left_forearm' → 'forearm_left', 'r_calf' → 'calf_right'.

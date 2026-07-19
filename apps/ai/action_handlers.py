@@ -1684,9 +1684,22 @@ class ActionHandler:
         for m in measurements:
             if not isinstance(m, dict):
                 continue
-            metric = multimodal.normalize_body_metric(m.get('metric'))
+            raw_metric = m.get('metric')
+            metric = multimodal.normalize_body_metric(raw_metric)
             if metric is None:
-                continue  # unknown label, or a DERIVED value (e.g. waist-hip ratio) \u2192 skip
+                # A DERIVED value (waist-hip ratio) is skipped QUIETLY \u2014 WLJ recomputes it.
+                # But a genuinely UNRECOGNIZED label must NEVER silently vanish: surface it in
+                # `skipped` and log it, so a Vision label slip is visible (in the review card
+                # next milestone, and in logs now) instead of a measurement disappearing.
+                # (Eliminates the silent-drop class behind the 2026-07-19 Shoulder defect.)
+                if not multimodal.is_derived_metric(raw_metric):
+                    skipped.append({'metric': None, 'label': str(raw_metric),
+                                    'value': m.get('value'), 'unit': (m.get('unit') or ''),
+                                    'reason': 'unrecognized_metric'})
+                    logger.warning(
+                        "body-measurement import: unrecognized metric label %r (value=%r) "
+                        "\u2014 not imported", raw_metric, m.get('value'))
+                continue
             raw_val = m.get('value')
             if multimodal.is_absent_measurement(raw_val):
                 continue  # '--' / blank / 0 = not measured (never a real zero circumference)

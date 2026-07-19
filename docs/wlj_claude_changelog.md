@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — fix(health/cos): Measurement Session Capture — singular labels dropped + silent-drop class eliminated
+
+**Shoulder defect (`f02dadd9` follow-up).** A validated Renpho screenshot import wrote every circumference EXCEPT Shoulder (CoS reported "Shoulders: not measured"). Runtime-trace (PROVED, not guessed): device screens label it **"Shoulder"** (singular) but WLJ's canonical metric is the plural **"shoulders"** — `normalize_body_metric` had sided aliases (bicep→arm, L/R) but **no singular→plural alias**, so it returned `None` and the handler's `if metric is None: continue` **silently dropped** it at NORMALIZATION, before validation/persistence. `"Hip"` (singular) was a latent twin (Vision happened to emit `"hips"` that run). First-disappearance point = normalization; nothing was ever written, so the truth surface correctly said "not measured".
+
+**Fix (eliminate the CLASS, not the symptom):**
+- `apps/ai/multimodal.py` — `_WHOLE_METRIC_ALIASES` maps singular→canonical-plural (`shoulder`→`shoulders`, `hip`→`hips`) + abdomen synonyms (`stomach`/`belly`/…); new `is_derived_metric()` distinguishes a DERIVED skip (waist-hip ratio) from a genuinely UNRECOGNIZED label.
+- `apps/ai/action_handlers.py :: handle_log_body_measurements` — an unrecognized metric is **no longer silently dropped**: it's surfaced in the confirmation `skipped` list (`reason:'unrecognized_metric'`) AND `logger.warning`-ed, so a Vision label slip is visible (in logs now, in the review card next milestone) instead of a measurement vanishing without a trace. WHR still skipped quietly (derived).
+
+**Verification:** `test_body_measurements_import.py` +3 tests (singular Shoulder/Hip import as shoulders/hips; unrecognized 'knee' surfaces in skipped not dropped; WHR quietly skipped + surfaced as derived) — 8/8; multimodal 14/14; check clean. **Files:** `apps/ai/multimodal.py`, `apps/ai/action_handlers.py`, `apps/ai/tests/test_body_measurements_import.py`.
+
 ## 2026-07-19 — chore(startup): session close-out (99_PREPARE_NEXT_CHAT)
 
 **Session transition — no feature work.** Nutrition and Journal are production-complete; folded the durable knowledge UP into the startup package and regenerated the bootloader.

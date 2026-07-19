@@ -142,6 +142,69 @@ class ImportWriteTests(TestCase):
         self.assertEqual(BodyMeasurementSession.objects.filter(user=self.user).count(), 0)
 
 
+class LabelNormalizationTests(TestCase):
+    """Regression for the 2026-07-19 Shoulder defect: device screens show SINGULAR labels
+    ('Shoulder', 'Hip') but WLJ's canonical metrics are PLURAL — the singular must map, and a
+    genuinely unrecognized label must SURFACE, never silently vanish."""
+
+    def setUp(self):
+        self.user = _make_user("cap-normalize@example.com")
+        self.handler = ActionHandler(self.user)
+        # An artifact-sourced import (screenshot) is what triggers the confirmation review;
+        # a typed/voice set (no artifact) writes directly.
+        self.artifact = MultimodalArtifact.objects.create(
+            user=self.user, sha256="feed0001", content_type="image/png", kind="image")
+
+    def test_singular_shoulder_and_hip_are_imported(self):
+        res = self.handler.handle_log_body_measurements(
+            measurements=[
+                {"metric": "Shoulder", "value": 50.43, "unit": "in"},  # screenshot's exact label
+                {"metric": "Hip", "value": 47.16, "unit": "in"},
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+            ],
+            source="Renpho Screenshot", confirmed=True,
+        )
+        self.assertTrue(res.success, res.message)
+        metrics = set(
+            BodyCompositionEntry.objects.filter(user=self.user)
+            .values_list("metric_name", flat=True)
+        )
+        self.assertIn("shoulders", metrics)   # was DROPPED before the fix
+        self.assertIn("hips", metrics)
+
+    def test_unrecognized_label_surfaces_in_skipped_not_silently_dropped(self):
+        res = self.handler.handle_log_body_measurements(
+            measurements=[
+                {"metric": "knee", "value": 15.0, "unit": "in"},   # no such canonical metric
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+            ],
+            source="Renpho Screenshot", source_artifact_id=self.artifact.id,  # → confirmation payload
+        )
+        self.assertEqual(res.error, "confirmation_required")
+        skipped = res.confirmation_detail["skipped"]
+        self.assertTrue(any(s.get("label") == "knee" and s.get("reason") == "unrecognized_metric"
+                            for s in skipped),
+                        "unrecognized 'knee' must be surfaced in skipped, never silently dropped")
+
+    def test_waist_hip_ratio_is_skipped_quietly_not_flagged(self):
+        res = self.handler.handle_log_body_measurements(
+            measurements=[
+                {"metric": "waist_hip_ratio", "value": 1.16},   # derived — never stored
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+                {"metric": "hips", "value": 47.16, "unit": "in"},
+            ],
+            source="Renpho Screenshot", source_artifact_id=self.artifact.id,
+        )
+        self.assertEqual(res.error, "confirmation_required")
+        # WHR is a DERIVED skip: absent from both validated measurements AND the skipped list.
+        self.assertNotIn("waist_hip_ratio",
+                         {mm["metric"] for mm in res.confirmation_detail["measurements"]})
+        self.assertFalse(any("ratio" in str(s.get("label", "")).lower()
+                             for s in res.confirmation_detail["skipped"]))
+        # …but it IS surfaced as the derived display value.
+        self.assertAlmostEqual(res.confirmation_detail["derived"]["waist_hip_ratio"], 1.16, places=2)
+
+
 class CoSReadbackTests(TestCase):
     """After import, the canonical truth surface answers 'what are my current measurements?'"""
 

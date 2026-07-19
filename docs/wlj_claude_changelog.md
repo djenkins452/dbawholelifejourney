@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-19 (feat(cos/truth): Journal Analysis — expose existing mood history + entry truth through the Analysis Surface)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — pivot(journal): retire the editor-conversation model; reframe into the three-method chooser
+
+**Product pivot after production validation.** The M1 "Write Together" model (one CoS question beside the editor) was the wrong interaction — editors are for writing; conversations belong in conversations. Retired it. The three ways to journal now all produce the same canonical `JournalEntry`: **Just Write** (editor, unchanged), **Write Together** (a dedicated *conversation* whose one purpose is to create today's journal — built as M2), **Talk It Through** (identical, voice modality — M4).
+
+**Removed (the retired interaction, in one commit):** the beside-editor Write Together companion panel + JS/CSS, the `write-together/ask/` endpoint + `WriteTogetherAskView`, `apps/journal/services/write_together.py`, and `test_write_together.py`.
+
+**Reframed:** the compose method row is now a quiet **"How would you like to journal today?"** chooser (flag-gated) — Just Write live/active; Write Together and Talk It Through shown as the upcoming conversational experiences ("soon"). The calm editor-first Just Write page is otherwise unchanged.
+
+**Canon updated:** `WLJ_JOURNAL_EXPERIENCE.md §5` rewritten from the retired "invite-into-draft, one-question-at-a-time" model to the ratified conversation model (Write Together = Talk It Through minus voice); `journal_experience_mockups.html §4` flagged as depicting the retired model (to be re-rendered in M2).
+
+**Kept:** the `features.journal.write_together` flag + owner-enablement migration `0094` (now gates the chooser), the service-layer model-call pattern (reused by M2's conversation + generation), the Playbook system-prompt approach.
+
+**Files:** `apps/journal/views.py`, `apps/journal/urls.py`, `templates/journal/entry_form.html`, `apps/journal/services/write_together.py` (deleted), `apps/journal/tests/test_write_together.py` (deleted), `apps/journal/tests/test_journal_methods.py` (new), `docs/WLJ_JOURNAL_EXPERIENCE.md`, `docs/journal_experience_mockups.html`.
+
+**Verification:** 85 scoped journal tests pass (new chooser tests + comprehensive + core + request-path-safety); `check` clean; no migrations; no dangling references to the retired endpoint/service. Runtime (dev, flag on): the "How would you like to journal today?" chooser renders (Just Write active; Write Together / Talk It Through "soon") above the calm notebook; the beside-editor companion is gone. AWAITING Danny's validation. NEXT = M2 (Write Together conversational workspace).
+
 ## 2026-07-19 — feat(cos/truth): Journal Analysis (truth exposure only — no new intelligence)
 
 **Journal Analysis milestone — exposure + composition, exactly like Nutrition.** Investigation proved Journal already holds the analysis inputs (`history('mood')`, `describe('entry')` — dated entries carrying text/mood/emotions/tags) and failed only because `analysis_subjects={}` → `get_analysis('journal',…)` → `unsupported` → "WLJ does not currently support analysis of your journal."

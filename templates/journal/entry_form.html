@@ -17,20 +17,24 @@
         </div>
     </div>
 
-    {% if write_together_available %}
-    <div class="journal-method-bar" role="group" aria-label="Ways to journal">
-        <div class="jm-item is-active">
-            <span class="jm-emoji" aria-hidden="true">✍️</span>
-            <span class="jm-text"><strong>Just Write</strong><span>A blank page. Your words.</span></span>
-        </div>
-        <div class="jm-item">
-            <span class="jm-emoji" aria-hidden="true">📝</span>
-            <span class="jm-text"><strong>Write Together</strong><span>Invite your Chief of Staff in for a question.</span></span>
-        </div>
-        <div class="jm-item is-soon">
-            <span class="jm-emoji" aria-hidden="true">💬</span>
-            <span class="jm-text"><strong>Talk It Through</strong><span>A conversation that becomes your journal.</span></span>
-            <span class="jm-soon">soon</span>
+    {% if journal_methods_enabled and not is_edit %}
+    <div class="journal-methods" role="group" aria-label="How would you like to journal today?">
+        <div class="jm-heading">How would you like to journal today?</div>
+        <div class="jm-options">
+            <div class="jm-item is-active" aria-current="true">
+                <span class="jm-emoji" aria-hidden="true">✍️</span>
+                <span class="jm-text"><strong>Just Write</strong><span>A blank page. Your words.</span></span>
+            </div>
+            <div class="jm-item is-soon">
+                <span class="jm-emoji" aria-hidden="true">💬</span>
+                <span class="jm-text"><strong>Write Together</strong><span>A conversation that becomes your journal.</span></span>
+                <span class="jm-soon">soon</span>
+            </div>
+            <div class="jm-item is-soon">
+                <span class="jm-emoji" aria-hidden="true">🎙️</span>
+                <span class="jm-text"><strong>Talk It Through</strong><span>Talk it out loud; it becomes your journal.</span></span>
+                <span class="jm-soon">soon</span>
+            </div>
         </div>
     </div>
     {% endif %}
@@ -43,7 +47,7 @@
     </div>
     {% endif %}
 
-    <div class="jc-body {% if write_together_available %}has-companion{% endif %}">
+    <div class="jc-body">
 
         <form method="post" class="entry-form jc-main" data-testid="journal-entry-form">
             {% csrf_token %}
@@ -182,17 +186,6 @@
             </div>
         </form>
 
-        {% if write_together_available %}
-        <aside class="jc-aside" aria-label="Write Together">
-            <div id="wt-panel" class="wt-panel">
-                <div class="wt-title"><span aria-hidden="true">📝</span> Write Together</div>
-                <p class="wt-sub">A quiet companion. When you'd like, invite your Chief of Staff to read what you've written and ask one thoughtful question — you answer in your own words, right here.</p>
-                <button type="button" id="wt-ask" class="btn btn-secondary btn-sm">Ask a question about this</button>
-                <div id="wt-question" class="wt-question" hidden aria-live="polite"></div>
-            </div>
-        </aside>
-        {% endif %}
-
     </div>
 </div>
 
@@ -202,10 +195,7 @@
     max-width: 760px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-4) var(--space-10);
-    container-type: inline-size;
 }
-/* When a companion is present, allow the space to widen so the editor stays roomy. */
-.journal-compose:has(.jc-body.has-companion) { max-width: 1060px; }
 
 .journal-compose .sr-only {
     position: absolute;
@@ -413,73 +403,43 @@
     margin-top: var(--space-6);
 }
 
-/* ── Layout: editor centered; Write Together beside it when there's real room ──
-   A container query on .journal-compose measures the ACTUAL available width, so the
-   companion only sits beside the editor when the content area is genuinely wide;
-   otherwise it stacks calmly below (e.g. when the global CoS panel is open). */
-@container (min-width: 960px) {
-    .jc-body.has-companion {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 280px;
-        gap: var(--space-6);
-        align-items: start;
-    }
+{% if journal_methods_enabled %}
+/* ── "How would you like to journal today?" chooser (preview, flag-gated) ──
+   Just Write is this page; Write Together / Talk It Through are the dedicated
+   conversational experiences, arriving as later milestones. */
+.journal-methods { margin-bottom: var(--space-6); }
+.jm-heading {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
 }
-
-{% if write_together_available %}
-/* Write Together companion (preview, flag-gated) */
-.journal-method-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-    margin-bottom: var(--space-6);
-    padding-bottom: var(--space-5);
-    border-bottom: 1px solid var(--color-border);
-}
+.jm-options { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .jm-item {
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
-    flex: 1 1 180px;
-    padding: var(--space-2) var(--space-3);
+    flex: 1 1 200px;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     position: relative;
+    background: var(--color-surface);
 }
-.jm-item.is-active { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
-.jm-emoji { font-size: 1.1rem; line-height: 1.4; }
+.jm-item.is-active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+}
+.jm-emoji { font-size: 1.15rem; line-height: 1.4; }
 .jm-text { display: flex; flex-direction: column; }
 .jm-text strong { font-size: var(--font-size-sm); color: var(--color-text); font-weight: 600; }
 .jm-text span { font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.4; }
-.jm-item.is-soon { opacity: 0.65; }
+.jm-item.is-soon { opacity: 0.7; }
 .jm-soon {
     position: absolute; top: var(--space-2); right: var(--space-2);
     font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em;
     color: var(--color-text-muted);
     background: var(--color-border);
     padding: 0 var(--space-1); border-radius: var(--radius-sm);
-}
-
-.jc-aside { margin-top: var(--space-6); }
-@container (min-width: 960px) {
-    .jc-aside { margin-top: 0; position: sticky; top: var(--space-6); }
-}
-.wt-panel {
-    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
-    border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
-    border-radius: var(--radius-lg);
-    padding: var(--space-4);
-}
-.wt-title { font-weight: 600; font-size: var(--font-size-sm); margin-bottom: var(--space-2); }
-.wt-sub { font-size: var(--font-size-xs); color: var(--color-text-muted); line-height: 1.55; margin-bottom: var(--space-3); }
-.wt-question {
-    margin-top: var(--space-3);
-    padding: var(--space-3);
-    border-left: 3px solid var(--color-accent);
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    font-family: "New York", "Iowan Old Style", Georgia, serif;
-    font-style: italic;
-    line-height: 1.5;
 }
 {% endif %}
 
@@ -548,53 +508,6 @@ document.addEventListener('DOMContentLoaded', function() {
         bodyInput.addEventListener('input', updateWordCount);
         updateWordCount(); // Initial count
     }
-
-    {% if write_together_available %}
-    // ── Write Together (Chief of Staff writing companion) ──────────────────
-    // Elements are flag-gated in the template; guard on presence.
-    const wtAsk = document.getElementById('wt-ask');
-    const wtQuestion = document.getElementById('wt-question');
-
-    function currentDraftText() {
-        // Prefer the live rich-text editor content; fall back to the source textarea.
-        const pm = document.querySelector('.ProseMirror');
-        if (pm) return (pm.innerText || '').trim();
-        if (bodyInput) {
-            const tmp = document.createElement('div');
-            tmp.innerHTML = bodyInput.value || '';
-            return (tmp.textContent || tmp.innerText || '').trim();
-        }
-        return '';
-    }
-
-    if (wtAsk && wtQuestion) {
-        const FALLBACK_Q = "What's one part of this you'd most want to remember?";
-        wtAsk.addEventListener('click', function() {
-            const tokenEl = document.querySelector('[name=csrfmiddlewaretoken]');
-            const token = tokenEl ? tokenEl.value : '';
-            wtAsk.disabled = true;
-            wtAsk.textContent = 'Thinking…';
-            fetch('{% url "journal:write_together_ask" %}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
-                body: JSON.stringify({ draft: currentDraftText() })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                wtQuestion.textContent = (data && data.question) ? data.question : FALLBACK_Q;
-                wtQuestion.hidden = false;
-            })
-            .catch(function() {
-                wtQuestion.textContent = FALLBACK_Q;
-                wtQuestion.hidden = false;
-            })
-            .finally(function() {
-                wtAsk.disabled = false;
-                wtAsk.textContent = 'Ask another question';
-            });
-        });
-    }
-    {% endif %}
 });
 </script>
 {% endblock %}

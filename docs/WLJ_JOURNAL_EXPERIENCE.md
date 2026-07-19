@@ -183,20 +183,23 @@ A *Talk It Through* entry is a normal `JournalEntry` (`created_via='voice'`) wit
 
 ## 5. Detailed UX — Write Together
 
-The user starts on the normal blank page and **explicitly invites the CoS in** when they want a thinking partner.
+> **REVISED 2026-07-19 (post production validation).** Write Together is **a conversation, not the editor with occasional questions.** The earlier "invite the CoS into your draft, one question at a time, return to writing" model was retired after production validation: *editors are for writing; conversations happen in conversations — and both produce the same `JournalEntry`.* The section below is the ratified model.
+
+**Write Together is a dedicated, calm, focused *conversation* whose single purpose is to create today's journal** — exactly like chatting with the Chief of Staff, except it runs under the Journal Conversation Playbook and ends by producing a journal. **The editor is not visible during the conversation.** The user is not writing prose while thinking; the CoS is helping them think.
 
 **Behavior:**
-1. The user writes normally (this is Just Write until they invite help).
-2. They tap **✨ Write Together / "think with me."** The CoS reads the **current draft** and joins.
-3. The CoS asks **one useful question at a time** — about what's actually on the page:
-   > *"You started on work, then stopped the moment you mentioned your dad. Which one is tonight really about?"*
-4. The user answers **by voice or by text**, their choice, and may **freely return to independent writing** at any point. Answers flow into the draft as the user's own words.
-5. The CoS **does not interrupt and inserts no unsolicited suggestions.** It speaks only when invited, asks one thing, then waits. If the user keeps writing, it stays quiet.
-6. The user can dismiss the CoS entirely and finish alone, or switch to full voice (*Talk It Through*) — without losing a word (§13).
+1. From the Journal chooser ("How would you like to journal today?"), the user picks **💬 Write Together** and enters a dedicated conversational workspace — **not** the general CoS chat, and **not** the editor.
+2. The CoS opens per the Playbook (§7 hierarchy): *"What would you like to remember today?"* or a strong personal opener.
+3. **It's just a conversation.** The user types; the CoS replies; the thread continues naturally — no editor, no side panel, no "Ask another question," no buttons after each turn. One conversation, one purpose. The CoS operates under the full Playbook (§6) and Memory Model.
+4. When the CoS judges it has enough (Playbook §14), it says something like *"I think I have today's journal."*
+5. It **generates the entry** in the user's voice (§12 fidelity rules). The **journal is revealed only now** — not built beside the conversation (§8).
+6. The user **reviews, edits if desired, and approves** — approval creates the canonical **`JournalEntry`**.
 
-**Posture:** it **follows excitement over chronology** (§6). If the user lights up about one thread, it follows that thread and lets the rest go. It never forces a topic to completion and never turns collaboration into coaching.
+**Posture:** the full conversation behavior (§6) and memory (Conversational Memory Model) apply — preservation not understanding, follow energy, one question at a time, silence, never therapy. It never forces a topic to completion and never turns the conversation into coaching.
 
-**Truth outcome:** a normal `JournalEntry` (`created_via='voice_together'` when the CoS participated), identical spine to any other entry.
+**Truth outcome:** a normal `JournalEntry` (`created_via='voice_together'` when produced from a text conversation), identical spine to any other entry. Truth Discovery runs **post-save** (§22), never during the conversation.
+
+**Relationship to Talk It Through (§4):** these two are now **the same experience with a different modality** — Write Together is typed, Talk It Through is spoken. Same conversation, same Playbook, same Memory Model, same generation → review → approve → `JournalEntry`. Only the input/output surface differs.
 
 ---
 

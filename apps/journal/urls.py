@@ -20,8 +20,6 @@ urlpatterns = [
 
     # Entry CRUD
     path("new/", views.EntryCreateView.as_view(), name="entry_create"),
-    # Write Together (Chief of Staff writing companion) — flag-gated, text milestone
-    path("write-together/ask/", views.WriteTogetherAskView.as_view(), name="write_together_ask"),
     path("<int:pk>/", views.EntryDetailView.as_view(), name="entry_detail"),
     path("<int:pk>/edit/", views.EntryUpdateView.as_view(), name="entry_update"),
 

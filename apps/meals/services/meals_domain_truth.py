@@ -82,13 +82,16 @@ class MealsDomainTruth(DomainTruth):
                 "diabetes_sensitive": _g("diabetes_sensitive")}
 
     def describe_one(self, name):
-        name = (name or "").strip().lower()
-        if not name:
+        q = (name or "").strip().lower()
+        if not q:
             return None
-        for e in self._recipes():
-            if name in e.identity.lower():
+        for e in self._recipes():               # recipe by name first
+            if q in e.identity.lower():
                 return e
-        return None
+        # then any other meals entity by identity (dietary profile / pantry item / meal
+        # plan / leftover / consumption) — previously only recipes were reachable by name.
+        return self._entity_by_identity(
+            name, ("dietary_profile", "pantry_item", "meal_plan", "leftover", "consumption"))
 
     def _recipes(self):
         from apps.meals.models import Recipe

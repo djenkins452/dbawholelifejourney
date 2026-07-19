@@ -6,6 +6,27 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — fix(truth-layer): eliminate the by-name defect CLASS — every multi-entity domain's `describe_one` now covers ALL its entity types
+
+**Proactive audit (not waiting for operator validation to find these one at a time).** The Faith fix exposed a repeatable class: the Validation Center's resolved mode binds prompts to an object NAME, so the CoS retrieves via each domain's `describe_one` — and any provider whose `describe_one` covers only a SUBSET of its `entity_types` passes list retrieval but returns nothing by name.
+
+**Audited every registered DomainTruth provider (19).** Found: 4 SUBSET + 1 MISROUTE.
+- **health** — `describe_one` was workout-only (of 7 types). weight/BP/glucose/steps/sleep/body_measurement returned nothing by name; `squat` didn't match when it was an exercise INSIDE a session.
+- **goals** — goal-only (of 3): milestone + annual_direction unreachable by name.
+- **meals** — recipe-only (of 6): dietary_profile + pantry/meal_plan/leftover/consumption unreachable.
+- **medical** — lab_result-only (of 3): lab_panel + document unreachable.
+- **legacy** (MISROUTE) — all 3 types reachable but person-first with no type filter, so an exact place/memory NAME was shadowed by a partial person match.
+- Already OK (locked with regression tests): medicine (self-classifying, all 4), relationships (person, richer footprint), journal, calendar, tasks, nutrition, projects, events, habits, notes, capture, brain_training.
+
+**Fix (canonical providers only — no Validation-Center retrieval logic, no parallel providers):**
+- New reusable `DomainTruth._entity_by_identity(name, types)` (`apps/core/truth/domain.py`): resolves a name across the given entity types by reusing each type's OWN `describe()` composer (exact identity first, then substring, type-order precedence) — so by-name returns the SAME complete object as the list path for EVERY type. Dict- and CompleteEntity-safe.
+- health/goals/meals/medical `describe_one` now fall through to `_entity_by_identity` for their remaining types after the primary-type match. `WorkoutQueries.describe_one` also matches a contained exercise (`workout_exercises__exercise__name`) so "my last squat session" resolves.
+- legacy `describe_one` now does EXACT matches across all three types before the partial-precedence fallback — an exact place/memory name is no longer shadowed by a partial person match.
+
+**Verification (per the audit's required test shape):** `apps/core/tests/test_truth_by_name_audit.py` (19) — the reusable fallback mechanism (exact-beats-substring, type precedence, dicts, honest-None) + per-domain seeded round-trips (list path ↔ by-name path identify the SAME canonical object, correct TYPE, complete composed entity) for every previously-failing type + honest failure on a nonexistent name + OK-provider regression locks. **Full results:** 19 new + 97 (Truth Validation + domain-truth contracts + Acceptance + request-path-safety) pass; the affected provider suites (workout_entity, medicine_domain_truth, nutrition_entity_truth, reading_plans) pass. Pre-existing unrelated failures (medical LabEducation/Mapper, legacy module_catalog — seed-data-dependent) confirmed identical WITHOUT these changes via stash. `manage.py check` clean; `makemigrations --check` clean (no schema change).
+
+- **Files:** `apps/core/truth/domain.py`, `apps/health/services/{health_domain_truth,workout_queries}.py`, `apps/purpose/services/goal_domain_truth.py`, `apps/meals/services/meals_domain_truth.py`, `apps/medical/services/medical_domain_truth.py`, `apps/legacy/services/legacy_domain_truth.py`. Tests: `apps/core/tests/test_truth_by_name_audit.py`.
+
 ## 2026-07-19 — fix(faith/truth-layer): reading plans were unreachable BY NAME (provider returned nothing) + Validation Center failure-category breakdown
 
 **Surfaced by the Truth Validation Center (used as the engineering instrument it was built to be):** the Reading Plan object reported **Truth Layer — provider returned nothing**, even though the Center resolved the active plan correctly ("Journey Through John", active, `faith.entity(reading_plan)`).

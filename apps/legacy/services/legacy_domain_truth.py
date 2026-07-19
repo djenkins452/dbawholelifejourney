@@ -66,6 +66,23 @@ class LegacyDomainTruth(DomainTruth):
         q = (name or "").strip()
         if not q:
             return None
+        # EXACT matches first, in type order, so an exact place/memory NAME is not shadowed
+        # by a PARTIAL person match (the cross-type misroute). Person still wins a true tie.
+        p_exact = (Person.objects.filter(user=self.user)
+                   .filter(Q(display_name__iexact=q) | Q(also_known_as__iexact=q)
+                           | Q(relationship_label__iexact=q))
+                   .order_by("-significance").first())
+        if p_exact:
+            return self._person_entity(p_exact)
+        pl_exact = (Place.objects.filter(user=self.user)
+                    .filter(name__iexact=q).order_by("-significance").first())
+        if pl_exact:
+            return self._place_entity(pl_exact)
+        m_exact = (Memory.objects.filter(user=self.user)
+                   .filter(title__iexact=q).order_by("-created_at").first())
+        if m_exact:
+            return self._memory_entity(m_exact)
+        # then the existing PARTIAL precedence (person > place > memory)
         p = (Person.objects.filter(user=self.user)
              .filter(Q(display_name__icontains=q) | Q(also_known_as__icontains=q)
                      | Q(relationship_label__icontains=q))

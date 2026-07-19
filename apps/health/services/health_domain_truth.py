@@ -86,6 +86,14 @@ class HealthDomainTruth(DomainTruth):
         return WorkoutQueries.describe(self.user)
 
     def describe_one(self, name):
-        """The most recent completed workout matching `name` (or activity type), or None."""
+        """Resolve a named health record across ALL entity types. A workout by name/type/
+        exercise first (the natural "my squat session"), then any other health record whose
+        identity matches — so weight/BP/glucose/steps/sleep/body_measurement are reachable
+        by name/identity too (previously only workouts were, a SUBSET gap)."""
         from apps.health.services.workout_queries import WorkoutQueries
-        return WorkoutQueries.describe_one(self.user, name)
+        w = WorkoutQueries.describe_one(self.user, name)
+        if w is not None:
+            return w
+        return self._entity_by_identity(
+            name, ("weight", "blood_pressure", "glucose", "steps",
+                   "body_measurement", "sleep"))

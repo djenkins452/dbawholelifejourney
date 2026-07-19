@@ -164,8 +164,10 @@ class WorkoutQueries:
 
     @classmethod
     def describe_one(cls, user, name):
-        """The most recent completed workout whose name or activity type matches `name`
-        (case-insensitive), as a `CompleteEntity`, or None."""
+        """The most recent completed workout whose name, activity type, OR a contained
+        exercise matches `name` (case-insensitive), as a `CompleteEntity`, or None. Matching
+        a contained exercise makes "my last squat session" resolve even when 'squat' is an
+        exercise inside the session rather than the session's name/type."""
         from datetime import timedelta
         from apps.core.utils import get_user_today
         n = (name or "").strip()
@@ -174,7 +176,9 @@ class WorkoutQueries:
         today = get_user_today(user)
         session = (
             cls._describe_qs(user, today - timedelta(days=365), today)
-            .filter(Q(name__icontains=n) | Q(workout_type__icontains=n))
+            .filter(Q(name__icontains=n) | Q(workout_type__icontains=n)
+                    | Q(workout_exercises__exercise__name__icontains=n))
+            .distinct()
             .first()
         )
         return cls._to_entity(session) if session else None

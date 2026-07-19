@@ -176,7 +176,11 @@ class GoalDomainTruth(DomainTruth):
         partial = [g for g in goals if q in g.title.lower()]
         pool = exact or partial
         pool.sort(key=lambda g: (not g.is_primary_mission, g.status != "active"))
-        return self._goal_entity(pool[0]) if pool else None
+        if pool:
+            return self._goal_entity(pool[0])
+        # Not a goal title — a milestone or the annual direction by name/identity, so those
+        # entity types are reachable by name too (previously only goals were).
+        return self._entity_by_identity(name, ("milestone", "annual_direction"))
 
     # ── mappers ──────────────────────────────────────────────────────────
     def _goal_entity(self, g):

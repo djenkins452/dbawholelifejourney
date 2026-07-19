@@ -158,7 +158,11 @@ class MedicalDomainTruth(DomainTruth):
         exact = [r for r in pool if _test_name(r).lower() == q]
         partial = [r for r in pool if q in _test_name(r).lower()]
         hit = exact or partial
-        return self._lab_result_entity(hit[0]) if hit else None
+        if hit:
+            return self._lab_result_entity(hit[0])
+        # Not a test name — a lab panel or a document by name/identity, so those entity
+        # types are reachable by name too (previously only lab results were).
+        return self._entity_by_identity(name, ("lab_panel", "document"))
 
     # ── mappers ──────────────────────────────────────────────────────────
     def _lab_result_entity(self, r):

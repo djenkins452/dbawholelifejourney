@@ -107,6 +107,40 @@ class DomainTruth:
         `CompleteEntity` that can answer the natural questions about itself."""
         raise NotImplementedError(f"{self.domain} domain truth exposes no describe()")
 
+    def _entity_by_identity(self, name, types):
+        """Reusable by-name fallback for MULTI-entity domains: return the `CompleteEntity`
+        across `types` whose identity matches `name` (exact preferred, else substring),
+        by reusing each type's own `describe()` composer — so by-name retrieval returns the
+        SAME complete object as the list path for EVERY entity type, not just one. `types`
+        ordering also sets cross-type precedence. This closes the SUBSET defect class where
+        `describe_one` covered only one of several entity_types (the rest returned nothing
+        by name while list retrieval succeeded). No parallel retrieval logic — describe() is
+        the single authority."""
+        n = (name or "").strip().lower()
+        if not n:
+            return None
+
+        def _ident(e):
+            if isinstance(e, dict):
+                return str(e.get("identity") or e.get("name") or e.get("title") or "")
+            return str(getattr(e, "identity", "") or "")
+
+        pools = []
+        for et in types:
+            try:
+                pools.append(list(self.describe(et) or []))
+            except Exception:
+                pools.append([])
+        for pool in pools:                      # exact identity, in type order
+            for e in pool:
+                if _ident(e).strip().lower() == n:
+                    return e
+        for pool in pools:                      # then substring, in type order
+            for e in pool:
+                if n in _ident(e).strip().lower():
+                    return e
+        return None
+
     # ANALYSIS COMPLETENESS LAW (the investigate-before-concluding guarantee) --------
     # THE LAW: when the user's intent is ANALYSIS of a subject, the Chief of Staff must
     # investigate the deterministic truth WLJ holds before it may conclude "insufficient".

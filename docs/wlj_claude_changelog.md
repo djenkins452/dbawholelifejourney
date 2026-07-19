@@ -3,8 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.2e): chat fully consumes the WLJ Attachment Framework + cleanup)
+# Last Updated: 2026-07-19 (feat(multimodal P1.3-M1): PDF perception — the CoS can read/summarize/answer PDFs)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.3-M1): PDF perception — the Chief of Staff can read PDFs
+
+**Phase 1.3 (Perception), Milestone 1 — PDFs are first-class.** The platform already ingested PDFs (framework → validation → durable artifact → provenance); now the CoS can READ them. Only the perception step is new — everything else is reused.
+
+**Architecture (Constitution-aligned — no Review):** perception is DETERMINISTIC DECODE, not interpretation. WLJ extracts the text literally present in the PDF (pdfplumber, a mechanical decoder permitted by governing doc §2); the conversational model does all reasoning (summarize, answer, find the deductible, list medications, compare). Extraction is heavy → runs in a BACKGROUND worker (never the request path).
+
+**Changes:**
+- **New `apps/ai/perception.py`** — the ONE deterministic-decoder module: `perceive(content_type, raw) → {status, text, page_count}` dispatched by content type (PDF today via pdfplumber, page-delimited; documents/audio/video plug in the same way). `is_perceivable()` gates which types have an extractor.
+- **`MultimodalArtifact`** gains `perception_status` (pending/done/failed/unsupported/none) + `extracted_text` + `page_count` (migration `capture/0008`), with `has_perception`/`perception_pending` helpers.
+- **New background task `apps.ai.tasks.perceive_artifact`** — decodes → extracts → stores the text/status/pages. Request-path-safe; idempotent; retries transient failures.
+- **`store_and_persist_artifact`** now also queues perception for perceivable types (in addition to durable storage) — every attachment travels the same platform; only perception varies.
+- **`attachments_from_ids`** surfaces the extracted `text` (bounded to ~60K chars/turn; full text stored on the artifact) + `page_count`, plus honest `perception:'processing'` (still extracting) / `'unreadable'` (scanned/image-only PDF — OCR later) / `text_truncated` signals.
+- **Constitution ATTACHMENTS prompt** updated: the model reads `current_context.attachments[i].text` for documents; bases answers only on the real extracted text; handles processing/unreadable/truncated honestly.
+
+**Files:** `apps/ai/perception.py` (new), `apps/capture/models.py`, `apps/capture/migrations/0008_*`, `apps/ai/tasks.py`, `apps/ai/multimodal.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_pdf_perception.py` (new).
+
+**Verification:** `test_pdf_perception` (11 — real reportlab PDFs: multi-page extraction, page markers, unsupported/corrupt handling, task population, owner-scoped surfacing, **end-to-end** store→perceive→surface) + attachment/storage/contract suites (31 total) green; `makemigrations --check` + `manage.py check` clean; pdfplumber confirmed working in the real runtime; migration applied to dev DB. **Scope note:** same-turn read/summary/Q&A is production-ready; multi-turn recall + cross-conversation retrieval ("show me the receipt from last month") is the **Artifacts-as-Truth** surface — the next initiative.
 
 ## 2026-07-19 — fix(ops): Operations Wall UX — current truth now dominates history (2 AM legibility)
 

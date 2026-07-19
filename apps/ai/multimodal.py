@@ -95,11 +95,18 @@ def _queue_artifact_persistence(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_persistence failed", exc_info=True)
 
 
+# How much extracted document text to surface INLINE per attachment (the full
+# text is stored on the artifact; this bounds what rides in a single turn's
+# context). ~60K chars ≈ ~15K tokens — a ~30-page document.
+_INLINE_TEXT_CHARS = 60_000
+
+
 def attachments_from_ids(user, attachment_ids):
     """Resolve pre-uploaded artifact ids (created by the upload endpoint) into the
-    same attachments-as-data shape the arrival path surfaces to the model
-    ({artifact_id, content_type, kind}). USER-SCOPED — the query is the ownership
-    boundary, so a user can only reference their own artifacts. Never raises."""
+    attachments-as-data shape the arrival path surfaces to the model. For a
+    document that WLJ has deterministically perceived, this includes the extracted
+    `text` (bounded) so the model can read/summarize/answer — WLJ decodes, the
+    model reasons. USER-SCOPED — the query is the ownership boundary. Never raises."""
     if not attachment_ids:
         return []
     out = []
@@ -107,27 +114,66 @@ def attachments_from_ids(user, attachment_ids):
         from apps.capture.models import MultimodalArtifact
         rows = MultimodalArtifact.objects.filter(
             id__in=list(attachment_ids), user=user,
-        ).values("id", "content_type", "kind")
-        for r in rows:
-            out.append({
-                "artifact_id": r["id"],
-                "content_type": r["content_type"],
-                "kind": r["kind"],
-            })
+        )
+        for a in rows:
+            item = {
+                "artifact_id": a.id,
+                "content_type": a.content_type,
+                "kind": a.kind,
+            }
+            if a.page_count:
+                item["page_count"] = a.page_count
+            # Surface deterministic perception so the model can read documents.
+            if a.has_perception:
+                text = a.extracted_text or ""
+                if len(text) > _INLINE_TEXT_CHARS:
+                    item["text"] = text[:_INLINE_TEXT_CHARS]
+                    item["text_truncated"] = True
+                else:
+                    item["text"] = text
+            elif a.perception_pending:
+                item["perception"] = "processing"   # honest eventual-consistency signal
+            elif a.perception_status == MultimodalArtifact.PERCEPTION_UNSUPPORTED:
+                item["perception"] = "unreadable"    # e.g. scanned/image-only PDF (OCR later)
+            out.append(item)
     except Exception:  # pragma: no cover - defensive; never break a turn
         logger.warning("multimodal.attachments_from_ids failed", exc_info=True)
     return out
 
 
+def _queue_artifact_perception(artifact_id, b64):
+    """Non-blocking enqueue of deterministic text extraction. Never raises."""
+    try:
+        from apps.ai.tasks import perceive_artifact
+        from apps.core.celery_utils import safe_enqueue
+        safe_enqueue(perceive_artifact, artifact_id, b64)
+    except Exception:  # pragma: no cover - defensive; perception is eventual
+        logger.warning("multimodal._queue_artifact_perception failed", exc_info=True)
+
+
 def store_and_persist_artifact(user, *, data, content_type, kind):
-    """Shared intake primitive: store an artifact (sha256 dedup + provenance) AND
-    queue durable persistence of its bytes in the background. Used by BOTH the
-    chat arrival path and the dedicated upload endpoint — every attachment,
-    regardless of type, travels through this same platform. Returns
-    (artifact, created). Never blocks; never raises for storage reasons."""
+    """Shared intake primitive: store an artifact (sha256 dedup + provenance),
+    queue durable persistence of its bytes, AND queue deterministic perception
+    (text extraction) for perceivable types — all in the background. Used by BOTH
+    the chat arrival path and the dedicated upload endpoint, so every attachment
+    travels through this same platform; only the perception STEP varies by type.
+    Returns (artifact, created). Never blocks; never raises for storage reasons."""
+    from apps.ai.perception import is_perceivable
+
     artifact, created = store_artifact(user, data=data, content_type=content_type, kind=kind)
-    if artifact is not None and data and not artifact.is_durably_stored:
-        _queue_artifact_persistence(artifact.id, base64.b64encode(data).decode("utf-8"))
+    if artifact is not None and data:
+        b64 = base64.b64encode(data).decode("utf-8")
+        if not artifact.is_durably_stored:
+            _queue_artifact_persistence(artifact.id, b64)
+        # Deterministic perception (background). Only enqueue for types we can
+        # extract today; others store + surface without text until their
+        # extractor lands (perception_status stays 'none').
+        if is_perceivable(content_type) and not artifact.has_perception:
+            from apps.capture.models import MultimodalArtifact
+            if artifact.perception_status != MultimodalArtifact.PERCEPTION_PENDING:
+                artifact.perception_status = MultimodalArtifact.PERCEPTION_PENDING
+                artifact.save(update_fields=["perception_status"])
+            _queue_artifact_perception(artifact.id, b64)
     return artifact, created
 
 

@@ -410,6 +410,65 @@ def persist_artifact_bytes(self, artifact_id, b64_data):
         raise self.retry(exc=exc)
 
 
+@shared_task(
+    name="apps.ai.tasks.perceive_artifact",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+    soft_time_limit=170,
+    time_limit=180,
+)
+def perceive_artifact(self, artifact_id, b64_data):
+    """Deterministically extract text/transcript from an artifact in the BACKGROUND.
+
+    Perception is heavy (PDF parsing, later transcription) and MUST NOT run on the
+    request path (docs/WLJ_REQUEST_PATH_SAFETY). The request path records the
+    artifact and enqueues this; retrieval tolerates the `pending` window. WLJ only
+    DECODES here — the conversational model reasons over `extracted_text`.
+    """
+    import base64
+
+    from apps.ai.perception import perceive
+    from apps.capture.models import MultimodalArtifact
+
+    try:
+        artifact = MultimodalArtifact.objects.filter(id=artifact_id).first()
+        if artifact is None:
+            return {"artifact_id": artifact_id, "result": "missing"}
+        if artifact.has_perception:
+            return {"artifact_id": artifact_id, "result": "already_perceived"}
+
+        try:
+            raw = base64.b64decode(b64_data or "", validate=True)
+        except Exception:
+            artifact.perception_status = MultimodalArtifact.PERCEPTION_FAILED
+            artifact.save(update_fields=["perception_status"])
+            return {"artifact_id": artifact_id, "result": "undecodable"}
+
+        result = perceive(artifact.content_type, raw)
+        artifact.perception_status = result["status"]
+        artifact.extracted_text = result.get("text") or ""
+        if result.get("page_count") is not None:
+            artifact.page_count = result["page_count"]
+        artifact.save(update_fields=["perception_status", "extracted_text", "page_count"])
+        return {
+            "artifact_id": artifact_id, "result": result["status"],
+            "chars": len(artifact.extracted_text), "pages": artifact.page_count,
+        }
+    except SoftTimeLimitExceeded:
+        raise
+    except Exception as exc:
+        logger.warning("perceive_artifact failed for %s (%s) — retrying", artifact_id, exc)
+        try:
+            MultimodalArtifact.objects.filter(id=artifact_id).update(
+                perception_status=MultimodalArtifact.PERCEPTION_FAILED,
+            )
+        except Exception:  # pragma: no cover - defensive
+            pass
+        raise self.retry(exc=exc)
+
+
 # =============================================================================
 # Register the clean ChatGPT CoS generation task with the Celery WORKER.
 # It lives in apps.ai.chatgpt_cos.tasks — a sub-package that

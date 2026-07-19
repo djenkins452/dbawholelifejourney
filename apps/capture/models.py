@@ -66,6 +66,37 @@ class MultimodalArtifact(TimeStampedModel):
         help_text="Model-declared kind (scale_photo, dexcom, receipt, …) — a label, not truth.",
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='received')
+
+    # Perception lifecycle (Phase 1.3). DETERMINISTIC decode only — WLJ extracts
+    # the text/transcript literally present in the artifact (pdfplumber, later
+    # Whisper, …); it NEVER interprets. The conversational model does all
+    # perception/reasoning over `extracted_text`.
+    PERCEPTION_PENDING = 'pending'        # queued for extraction
+    PERCEPTION_DONE = 'done'              # extracted_text populated
+    PERCEPTION_FAILED = 'failed'          # extraction errored (retryable)
+    PERCEPTION_UNSUPPORTED = 'unsupported'  # no extractor for this type yet
+    PERCEPTION_NONE = 'none'              # not applicable (e.g. images — model sees directly)
+    PERCEPTION_STATUS_CHOICES = [
+        (PERCEPTION_PENDING, 'Pending'),
+        (PERCEPTION_DONE, 'Done'),
+        (PERCEPTION_FAILED, 'Failed'),
+        (PERCEPTION_UNSUPPORTED, 'Unsupported'),
+        (PERCEPTION_NONE, 'None'),
+    ]
+    perception_status = models.CharField(
+        max_length=20, choices=PERCEPTION_STATUS_CHOICES, default=PERCEPTION_NONE,
+        db_index=True,
+        help_text="Deterministic-extraction lifecycle. Written by the background perceive task.",
+    )
+    extracted_text = models.TextField(
+        blank=True,
+        help_text="Deterministically extracted text/transcript (pdfplumber, Whisper, …). "
+                  "Literal decode — never an interpretation. The model reasons over this.",
+    )
+    page_count = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Pages/segments (metadata).",
+    )
+
     # Provenance: the deterministic record this artifact produced.
     resolved_intent = models.CharField(max_length=80, blank=True)
     resolved_object_type = models.CharField(max_length=80, blank=True)
@@ -87,6 +118,16 @@ class MultimodalArtifact(TimeStampedModel):
     def is_durably_stored(self):
         """True once the original has been persisted to durable storage."""
         return self.storage_status == self.STORAGE_STORED and bool(self.storage_ref)
+
+    @property
+    def has_perception(self):
+        """True once deterministic text/transcript has been extracted."""
+        return self.perception_status == self.PERCEPTION_DONE and bool(self.extracted_text)
+
+    @property
+    def perception_pending(self):
+        """True while extraction is queued/in-flight (eventual consistency)."""
+        return self.perception_status == self.PERCEPTION_PENDING
 
     @property
     def storage_pending(self):

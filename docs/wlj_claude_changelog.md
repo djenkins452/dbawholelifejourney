@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P0.5a+P0.7): perception audit logging + artifact storage-lifecycle observability)
+# Last Updated: 2026-07-19 (feat(cos/truth): shared conversational date-phrase resolution before any domain provider)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(cos/truth): shared conversational date normalization (resolve 'last Tuesday' etc. before any domain)
+
+**Conversational Truth Certification — Class 2 (partial).** Rerunning the live Nutrition certification after the search-pipeline fix exposed a second, distinct defect class: the model naturally scopes with natural date phrases ("last Tuesday", "July 4") and an `on_date` filter, but WLJ resolved relative dates in only one place (calendar), and nutrition/journal never received `on_date` at all. Q9 ("everything I ate last Tuesday") either returned unsupported OR — worse — **fabricated** other days' food as "last Tuesday."
+
+**Shared fix (generic, no nutrition special-casing, no prompts):**
+- `apps/core/truth/periods.py` — new `resolve_date_expression(phrase, today)`: THE one deterministic conversational date resolver. Extends the existing `resolve_period` (named periods) with spoken aliases ("last week"), weekdays ("last Tuesday" / "this Friday" / "next Monday", most-recent-past semantics), and explicit dates ("July 4", "Jul 4 2025", "7/4", ISO). Returns a `Period` (single day → start==end) or None. No external libraries.
+- `apps/ai/cos_services/domain_entity.py` — new `_normalize_date_filters(user, filters)` applied inside `get_domain_entity` BEFORE dispatch: resolves date phrases in `on_date`/`period`/`start`/`end` to concrete ISO dates, and expresses a single day as BOTH `on_date` (day-scoped providers like calendar) AND `start`+`end` (range-scoped providers like nutrition/journal) — so every date-aware domain scopes "last Tuesday" identically. Non-date filters pass through untouched; unparseable values are left for the provider to reject honestly (never fabricated into a wrong date). Calendar also benefits — it previously could not resolve "last Tuesday" itself.
+
+**Certification result (live model, Danny's account):** 8/9 now pass. Q9 is fixed — "last Tuesday" resolves to 2026-07-14 and returns an honest empty ("no records… you might want to add it"); the fabrication is gone. Q4 pizza this run routed through the now-fixed `search_history` and answered correctly, validating Class 1 end-to-end. **Q3 ("what was my last meal?") still fails** — the model can name the meal's DATE (April 7) but not its foods, because the deterministic per-meal aggregation (`NutritionQueries.get_meal_totals`) is not exposed as a truth entity. Per Danny's instruction: STOP, do not invent a solution; return the Meal architectural findings (Meal already exists as deterministic truth; recommend exposing it) for his decision.
+
+**Files:** `apps/core/truth/periods.py`, `apps/ai/cos_services/domain_entity.py`, `apps/core/truth/tests/test_date_expression.py` (new, 9), `apps/ai/tests/test_entity_date_normalization.py` (new, 6).
+
+**Verification:** new suites 15 passed; `test_truth_history` + `test_domain_truth` + `test_current_truth` + `test_domain_truth_contracts` + `test_model_interface_runtime` + `test_truth_catalog` + `test_history_search_food_pipeline` all pass; `manage.py check` clean; no migrations. **AWAITING Danny's decision on exposing the existing Meal truth (Q3), and his production validation of the live conversation.**
 
 ## 2026-07-19 — feat(multimodal P0.5a+P0.7): perception audit logging + storage-lifecycle observability
 

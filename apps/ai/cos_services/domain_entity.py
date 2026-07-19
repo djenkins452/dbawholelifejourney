@@ -41,12 +41,76 @@ Design rules honored (Architecture Laws + Amendment A + Model Interface design):
 
 import logging
 import time
+from datetime import date as _date_cls
 
 from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
 
 logger = logging.getLogger(__name__)
 
 DOMAIN_ENTITY_SCHEMA_VERSION = "1.0"
+
+
+def _is_iso_date(v):
+    try:
+        _date_cls.fromisoformat(str(v)[:10])
+        return True
+    except (ValueError, TypeError):
+        return False
+
+
+def _normalize_date_filters(user, filters):
+    """Resolve natural date PHRASES in scoping filters to concrete ISO dates BEFORE
+    they reach any domain provider — the shared conversational date capability.
+
+    Relative expressions the model naturally uses ('today', 'yesterday', 'last
+    Tuesday', 'July 4', 'last week') are resolved ONCE, here, by the shared temporal
+    authority (`apps.core.truth.periods`) — no domain re-implements "what does last
+    Tuesday mean", and no domain has to. A single-day phrase is expressed BOTH as
+    `on_date` (for day-scoped providers like calendar) AND `start`+`end` (for
+    range-scoped providers like nutrition/journal), so every date-aware domain
+    resolves it identically. Non-date filters (meal, contains, involves) pass through
+    untouched. Best-effort and non-fatal: an unparseable value is left as-is for the
+    provider to reject honestly — never fabricated into a wrong date.
+    """
+    if not filters or not isinstance(filters, dict):
+        return filters
+    try:
+        from apps.core.truth.periods import (NAMED_PERIODS,
+                                             resolve_date_expression)
+        from apps.core.utils import get_user_today
+        today = get_user_today(user)
+    except Exception:
+        return filters
+    f = dict(filters)
+
+    od = f.get("on_date")
+    if od and not _is_iso_date(od):
+        p = resolve_date_expression(od, today)
+        if p is not None:
+            f["on_date"] = p.start.isoformat()
+            f.setdefault("start", p.start.isoformat())
+            f.setdefault("end", p.end.isoformat())
+    elif od:                                     # already ISO — also expose as range
+        f.setdefault("start", str(od)[:10])
+        f.setdefault("end", str(od)[:10])
+
+    per = f.get("period")
+    if per and per not in NAMED_PERIODS:
+        p = resolve_date_expression(per, today)
+        if p is not None:
+            f.pop("period", None)
+            f.setdefault("start", p.start.isoformat())
+            f.setdefault("end", p.end.isoformat())
+            if p.start == p.end:
+                f.setdefault("on_date", p.start.isoformat())
+
+    for k in ("start", "end"):
+        v = f.get(k)
+        if v and not _is_iso_date(v):
+            p = resolve_date_expression(v, today)
+            if p is not None:
+                f[k] = (p.start if k == "start" else p.end).isoformat()
+    return f
 
 
 def _emit(user_id, domain, entity_type, status, *, name=None, count=None, ms=None,
@@ -232,6 +296,10 @@ def get_domain_entity(user, domain, *, entity_type=None, name=None, filters=None
             supported_entity_types=sorted(supported),
         )
     try:
+        # Shared date normalization: resolve natural date phrases (today/yesterday/
+        # 'last Tuesday'/'July 4'/'last week') to concrete ISO dates BEFORE dispatch,
+        # so every date-aware domain scopes identically (not calendar-only).
+        filters = _normalize_date_filters(user, filters)
         # Optional deterministic SCOPING (meal/period/on_date/involves/contains). Passed
         # through to providers that accept it; providers that don't simply ignore it
         # (TypeError → unscoped call), so this stays backward-compatible.

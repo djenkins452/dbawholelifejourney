@@ -405,6 +405,24 @@ class ModelInterfaceService:
                     source=f"entity:{args.get('domain', '')}."
                            f"{args.get('entity_type') or args.get('name') or ''}",
                 )
+                # RE-DELIVERY of perceivable visual content: when the user retrieves
+                # an IMAGE or VIDEO artifact, give the model the actual pixels/frames
+                # (out-of-band, via `_perceive_images`) so it can SEE it again — not
+                # just read metadata. The tool loop injects these as image_url and
+                # strips them from the text result.
+                if (args.get("domain", "").strip().lower() == "artifacts"
+                        and out.get("status") not in ("empty", "insufficient_evidence")):
+                    try:
+                        from apps.ai.multimodal import (
+                            artifact_ids_from_entity_envelope,
+                            perceive_images_for_artifacts,
+                        )
+                        ids = artifact_ids_from_entity_envelope(raw)
+                        imgs = perceive_images_for_artifacts(user, ids)
+                        if imgs:
+                            out["_perceive_images"] = imgs
+                    except Exception:  # pragma: no cover - defensive
+                        pass
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),

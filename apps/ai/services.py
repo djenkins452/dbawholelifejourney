@@ -845,6 +845,14 @@ class AIService:
                                 tc.function.name, exc_info=True,
                             )
                             _result = {"ok": False, "code": "dispatch_error"}
+                        # RE-DELIVERY: a truth tool (e.g. artifact retrieval) may return
+                        # visual bytes OUT-OF-BAND under `_perceive_images` so the model
+                        # can SEE a retrieved image/video. Strip them from the text
+                        # result (base64 must never go to the model as text) and queue
+                        # them for injection as image_url after this tool message.
+                        _inject_imgs = None
+                        if isinstance(_result, dict) and _result.get("_perceive_images"):
+                            _inject_imgs = _result.pop("_perceive_images")
                         _tool_json = _json.dumps(_result)
                         # MEASUREMENT: count calls + tool output size (detects
                         # repeated/per-med retrieval and oversized tool results).
@@ -861,6 +869,22 @@ class AIService:
                             "name": tc.function.name,
                             "content": _tool_json,
                         })
+                        # Inject retrieved visual content so the model can perceive it
+                        # on the next round (a tool result is text; pixels ride here).
+                        if _inject_imgs:
+                            _vc = [{
+                                "type": "text",
+                                "text": ("Visual content of the retrieved artifact(s) "
+                                         "above — look at these to answer:"),
+                            }]
+                            for _b64, _mime in _inject_imgs:
+                                _vc.append({
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:{_mime};base64,{_b64}"},
+                                })
+                            messages.append({"role": "user", "content": _vc})
+                            logger.info("COS_TOOL_REPERCEIVE round=%d images=%d",
+                                        _round, len(_inject_imgs))
                     logger.info(
                         "COS_TOOL_ROUND endpoint=%s round=%d tool_calls=%d",
                         endpoint, _round, len(tool_calls),

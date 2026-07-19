@@ -3,8 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal AaT-B1): multi-turn artifact retrieval via conversation linkage)
+# Last Updated: 2026-07-19 (feat(multimodal AaT-B2): re-deliver visual content on artifact retrieval)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal AaT-B2): re-delivery of visual content on artifact retrieval
+
+**Artifacts-as-Truth Milestone B, sub-milestone B2 — priority 3 (re-delivery of perceivable content).** Closes the "images aren't text" boundary the verification plan flagged (J4): when the user asks about a previously-uploaded IMAGE or VIDEO, the model must be able to SEE it again, not just read metadata.
+
+**Mechanism (out-of-band image injection — the critical tool loop stays additive):**
+- **`multimodal.perceive_images_for_artifacts(user, ids)`** loads the visual bytes to re-perceive: an image artifact's **original bytes from durable storage**, and a video artifact's **sampled frames**. Owner-scoped, bounded. (PDF/audio need nothing — their `extracted_text` already rides as text.)
+- **`multimodal.artifact_ids_from_entity_envelope(raw)`** pulls artifact ids from a `get_entity` result.
+- **The `get_entity` handler** (model-interface), when `domain='artifacts'`, attaches those bytes to the tool result under an **out-of-band `_perceive_images`** key.
+- **The generic tool loop** (`services.py::_call_api_with_tools`) pops `_perceive_images` BEFORE serializing (base64 never goes to the model as text), and after the tool message injects the bytes as an `image_url` user message so the model perceives them on the next round.
+
+**Safety:** the tool-loop change is purely additive — when a tool returns no `_perceive_images` (i.e. every non-artifact call, and text-only artifacts), the loop behaves byte-identically. Verified: 104 tool-loop / chat / multimodal / model-interface / audit tests green.
+
+**Result:** "compare these two progress photos I uploaded", "what was in that video from Tuesday" now work — the model retrieves via `get_entity(domain='artifacts')` and actually sees the pixels/frames. Deterministic-retrieval-by-model; reuses the artifacts Truth Surface.
+
+**Files:** `apps/ai/multimodal.py`, `apps/ai/model_interface/service.py`, `apps/ai/services.py`, `apps/ai/tests/test_artifact_redelivery.py` (new). No model change.
+
+**Verification:** `test_artifact_redelivery` (envelope extraction, image-bytes-from-storage, unstored-skipped, video-frames, pdf-yields-none, owner-scoped, bounded) + artifact-truth + conversation-link + tool-loop/chat regression (129 across suites) green; imports + `check` clean. (Full round-trip needs OpenAI + Redis; the injection is additive + unit-covered.) **Next (B3/B4/B5):** date/relative-time + most-recent retrieval quality; domain/mission/person linkage; provenance in responses; then a certification suite (B6) and Milestone C (Current Context + gallery).
 
 ## 2026-07-19 — chore(journal): enable Write Together (M1 preview) for the owner account
 

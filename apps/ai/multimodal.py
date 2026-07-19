@@ -151,6 +151,64 @@ def _queue_artifact_perception(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_perception failed", exc_info=True)
 
 
+def perceive_images_for_artifacts(user, artifact_ids, *, max_total=8):
+    """Load the VISUAL bytes the model needs to RE-PERCEIVE retrieved artifacts:
+    an image artifact's original bytes (from durable storage) and a video
+    artifact's sampled frames. Returns [(base64, mime)] — the image-path shape the
+    tool loop injects so the model can actually SEE a previously-uploaded
+    image/video (not just read metadata). USER-SCOPED; bounded. Never raises."""
+    if not artifact_ids:
+        return []
+    out = []
+    try:
+        from django.core.files.storage import default_storage
+
+        from apps.capture.models import MultimodalArtifact
+        rows = (MultimodalArtifact.objects
+                .filter(id__in=list(artifact_ids), user=user)
+                .exclude(status="rejected"))
+        for a in rows:
+            if a.kind == "image" and a.is_durably_stored:
+                try:
+                    with default_storage.open(a.storage_ref, "rb") as fh:
+                        out.append((base64.b64encode(fh.read()).decode("utf-8"),
+                                    a.content_type or "image/jpeg"))
+                except Exception:
+                    logger.warning("perceive_images: image read failed id=%s", a.id)
+            elif a.kind == "video":
+                for fr in (a.frames or []):
+                    b64 = fr.get("b64") if isinstance(fr, dict) else None
+                    if b64:
+                        out.append((b64, "image/jpeg"))
+                        if len(out) >= max_total:
+                            return out
+            if len(out) >= max_total:
+                return out
+    except Exception:  # pragma: no cover - defensive; never break a turn
+        logger.warning("multimodal.perceive_images_for_artifacts failed", exc_info=True)
+    return out
+
+
+def artifact_ids_from_entity_envelope(raw):
+    """Extract artifact ids from a get_domain_entity envelope (single `entity` or a
+    list of `entities`), reading each entity's `definition.artifact_id`. Used to
+    decide which retrieved artifacts need visual re-delivery. Never raises."""
+    ids = []
+    if not isinstance(raw, dict):
+        return ids
+    ents = []
+    if isinstance(raw.get("entity"), dict):
+        ents = [raw["entity"]]
+    elif isinstance(raw.get("entities"), list):
+        ents = raw["entities"]
+    for e in ents:
+        if isinstance(e, dict):
+            aid = (e.get("definition") or {}).get("artifact_id")
+            if aid:
+                ids.append(aid)
+    return ids
+
+
 def link_artifacts_to_conversation(conversation_id, artifact_ids):
     """Record the conversation an artifact was first uploaded/referenced in (only
     sets it once — the FIRST conversation). Enables multi-turn retrieval: the CoS

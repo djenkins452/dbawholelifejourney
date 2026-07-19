@@ -12,11 +12,18 @@ This is the single source of truth for:
 - Deterministic meal-level nutrition signals (build_meal_signals)
 """
 
+from datetime import time as _time
 from decimal import Decimal
 
 from django.db.models import Sum
 
 from apps.health.models import FoodEntry
+
+_MIN_TIME = _time.min          # sort fallback for meal foods with no logged_time
+# Conventional meal times — used ONLY to order meals within a day for "last meal"
+# when the logged rows carry no time (never surfaced as truth).
+_MEAL_ORDER_TIME = {"breakfast": _time(8), "lunch": _time(12),
+                    "dinner": _time(18), "snack": _time(15)}
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +278,133 @@ class NutritionQueries:
                                       food_name__icontains=name)
              .order_by('-logged_date', '-logged_time').first())
         return cls._to_entity(f) if f else None
+
+    # ------------------------------------------------------------------
+    # Canonical MEAL entities (a meal = the day's foods grouped by meal_type)
+    # ------------------------------------------------------------------
+    # A "meal" is NOT a new stored record — it is the existing deterministic grouping
+    # of FoodEntry rows by meal_type + logged_date. This surface REUSES the canonical
+    # get_meal_totals aggregation and entries_on_date; it introduces no new store, no
+    # duplicate aggregation. It exists so the conversational layer can answer the unit
+    # people actually speak in ("my last meal", "what did I have for dinner", "everything
+    # I ate last Tuesday") from the same truth the Nutrition UI already renders.
+
+    @classmethod
+    def _meal_target_dates(cls, user, *, meal=None, on_date=None, period=None,
+                           start=None, end=None, today=None):
+        """The date(s) a meal query resolves to, deterministically. Scoped
+        (period/start/end/on_date) → those day(s) that actually have logged food;
+        unscoped → the single MOST RECENT logged day (optionally of `meal`), so a
+        bare meal question surfaces real truth instead of an empty 'today'."""
+        from datetime import date as _date
+
+        def _coerce(d):
+            if d is None or isinstance(d, _date):
+                return d
+            try:
+                return _date.fromisoformat(str(d)[:10])
+            except (ValueError, TypeError):
+                return None
+
+        start, end, on_date = _coerce(start), _coerce(end), _coerce(on_date)
+        if period or start or end:
+            from apps.core.truth.periods import resolve_period
+            if today is None:
+                from apps.core.utils import get_user_today
+                today = get_user_today(user)
+            if not period and not (start and end):      # a lone bound → single day
+                start = end = start or end
+            p = resolve_period(period or "custom", today, start=start, end=end)
+            qs = cls.entries_in_range(user, p.start, p.end)
+            if meal:
+                qs = qs.filter(meal_type=meal)
+            return sorted(set(qs.values_list('logged_date', flat=True)), reverse=True)
+        if on_date:
+            qs = cls.entries_on_date(user, on_date)
+            if meal:
+                qs = qs.filter(meal_type=meal)
+            return [on_date] if qs.exists() else []
+        qs = FoodEntry.objects.filter(user=user, status='active')     # unscoped → latest
+        if meal:
+            qs = qs.filter(meal_type=meal)
+        last = qs.order_by('-logged_date', '-logged_time').first()
+        return [last.logged_date] if last else []
+
+    @classmethod
+    def describe_meals(cls, user, *, meal=None, on_date=None, period=None,
+                       start=None, end=None, today=None):
+        """Logged MEALS as CompleteEntity objects (newest meal first). A meal is the
+        deterministic grouping of a day's FoodEntry rows by meal_type — REUSING the
+        canonical get_meal_totals aggregation. Scoping mirrors describe(): `meal`
+        restricts to one meal_type; period/start/end/on_date pick the day(s); unscoped
+        returns the most recent logged day's meals."""
+        dates = cls._meal_target_dates(user, meal=meal, on_date=on_date,
+                                       period=period, start=start, end=end, today=today)
+        built = []
+        for d in dates:
+            totals = cls.get_meal_totals(user, d)              # canonical producer
+            day_entries = list(cls.entries_on_date(user, d)
+                               .order_by('meal_type', 'logged_time', 'created_at'))
+            for mt in MEAL_TYPES:
+                if meal and mt != meal:
+                    continue
+                foods = [e for e in day_entries if e.meal_type == mt]
+                if not foods:
+                    continue
+                # Rank meals within a day by their latest food time; when times are
+                # missing, fall back to the meal's conventional time so "last meal"
+                # resolves to dinner over lunch rather than to whichever row lacks a time.
+                times = [e.logged_time for e in foods if e.logged_time]
+                eff = max(times) if times else _MEAL_ORDER_TIME.get(mt, _MIN_TIME)
+                built.append(((d, eff),
+                              cls._to_meal_entity(d, mt, totals.get(mt, {}), foods)))
+        # newest day first, then the latest meal within a day first
+        built.sort(key=lambda t: t[0], reverse=True)
+        return [e for _, e in built]
+
+    @classmethod
+    def _to_meal_entity(cls, d, meal_type, totals, foods):
+        """One (date, meal_type) grouping → a CompleteEntity. `foods` are the meal's
+        FoodEntry rows; `totals` is get_meal_totals()[meal_type]."""
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+
+        def _num(v):
+            if v is None:
+                return None
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return None
+
+        items = [{
+            "food_name": (f.food_name or "").strip() or "Food",
+            "brand": (f.food_brand or "").strip() or None,
+            "logged_time": (f.logged_time.strftime("%-I:%M %p")
+                            if f.logged_time else None),
+            "calories": _num(f.total_calories),
+            "protein_g": _num(f.total_protein_g),
+            "carbohydrates_g": _num(f.total_carbohydrates_g),
+            "fat_g": _num(f.total_fat_g),
+        } for f in foods]
+        return CompleteEntity(
+            kind="meal",
+            identity=f"{meal_type.capitalize()} — {d}",
+            definition={
+                "date": d,
+                "meal_type": meal_type,
+                "item_count": len(items),
+                "items": items,
+            },
+            status="eaten",
+            performance={
+                "calories": _num(totals.get("calories")),
+                "protein_g": _num(totals.get("protein_g")),
+                "carbohydrates_g": _num(totals.get("carbs_g")),
+                "fat_g": _num(totals.get("fat_g")),
+            },
+            freshness=F.CURRENT,
+        )
 
     @classmethod
     def _to_entity(cls, f):

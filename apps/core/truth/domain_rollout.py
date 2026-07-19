@@ -603,7 +603,12 @@ class NutritionDomainTruth(DomainTruth):
     knowledge (personalization defect, 2026-07-17). Distinct registry from
     get_domain_state('nutrition') — this cannot change that path."""
     domain = "nutrition"
-    entity_types = ("food",)
+    # `food` = individual logged items; `meal` = the deterministic grouping of a day's
+    # foods by meal_type (breakfast/lunch/dinner/snack). The meal surface REUSES the
+    # canonical NutritionQueries.get_meal_totals aggregation (no new store, no duplicate
+    # aggregation) so the CoS answers the unit people speak in — "my last meal", "what
+    # did I have for dinner", "everything I ate last Tuesday".
+    entity_types = ("food", "meal")
     # Per-day macro totals over a period → the generic get_history tool now answers
     # date-scoped totals ("calories yesterday") and windowed averages ("average
     # protein this week"). Delegates to the canonical NutritionQueries authority; no
@@ -616,15 +621,30 @@ class NutritionDomainTruth(DomainTruth):
         return NutritionQueries.macro_series(self.user, metric, period, **kwargs)
 
     def describe(self, entity_type="food", filters=None):
-        if entity_type not in (None, "food"):
-            raise KeyError(f"nutrition domain cannot describe {entity_type!r} "
-                           f"(have {self.entity_types})")
         from apps.health.services.nutrition_queries import NutritionQueries
         f = filters or {}
-        return NutritionQueries.describe(
-            self.user, meal=f.get("meal"), period=f.get("period"),
-            start=f.get("start"), end=f.get("end"), contains=f.get("contains"))
+        if entity_type == "meal":
+            return NutritionQueries.describe_meals(
+                self.user, meal=f.get("meal"), on_date=f.get("on_date"),
+                period=f.get("period"), start=f.get("start"), end=f.get("end"))
+        if entity_type in (None, "food"):
+            return NutritionQueries.describe(
+                self.user, meal=f.get("meal"), period=f.get("period"),
+                start=f.get("start"), end=f.get("end"), contains=f.get("contains"))
+        raise KeyError(f"nutrition domain cannot describe {entity_type!r} "
+                       f"(have {self.entity_types})")
 
     def describe_one(self, name):
+        """By-name meal/food lookup. Meal-type names ('breakfast'…) and 'last meal'
+        resolve to the most recent matching MEAL (reusing describe_meals); anything
+        else is a food-name lookup — so 'what did I have for dinner' and 'what was my
+        last meal' both return the SAME complete object the list path returns."""
         from apps.health.services.nutrition_queries import NutritionQueries
+        n = (name or "").strip().lower()
+        if n in ("breakfast", "lunch", "dinner", "snack"):
+            meals = NutritionQueries.describe_meals(self.user, meal=n)
+            return meals[0] if meals else None
+        if n in ("last meal", "latest meal", "most recent meal", "my last meal"):
+            meals = NutritionQueries.describe_meals(self.user)
+            return meals[0] if meals else None
         return NutritionQueries.describe_one(self.user, name)

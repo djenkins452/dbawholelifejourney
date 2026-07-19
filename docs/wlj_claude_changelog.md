@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(cos/truth): shared conversational date-phrase resolution before any domain provider)
+# Last Updated: 2026-07-19 (feat(cos/truth): expose existing Meal aggregation as a conversational truth entity — Nutrition certification 9/9)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(cos/truth): expose the existing Meal aggregation as a truth entity (Nutrition certification 9/9)
+
+**Conversational Truth Certification — Class 2 closed. Nutrition now passes 9/9 in the live conversation.** The final failure (Q3 "what was my last meal?") was an EXPOSURE gap, not a truth gap: the deterministic meal aggregation already existed (`NutritionQueries.get_meal_totals`, the documented single source, already rendered by the Nutrition UI) but the DomainTruth layer exposed only individual `food` items, so the model — which reasons in "meals" — had no meal to retrieve.
+
+**Fix — expose existing truth, reuse the canonical producer (no new model, no duplicate aggregation, no LLM in WLJ):**
+- `apps/health/services/nutrition_queries.py` — new `describe_meals(...)` (+ `_meal_target_dates`, `_to_meal_entity`). A "meal" is the existing grouping of a day's `FoodEntry` rows by `meal_type`; the producer REUSES `get_meal_totals` + `entries_on_date` (asserted in tests). Scoping mirrors `describe()`: `meal` restricts to one meal_type; on_date/start/end/period pick the day(s); unscoped returns the most recent logged day's meals, newest meal first (so "what was my last meal" resolves to that day's dinner).
+- `apps/core/truth/domain_rollout.py` — `NutritionDomainTruth.entity_types = ("food", "meal")`; `describe("meal", …)` → `describe_meals`; `describe_one` resolves meal-type names ("dinner") and "last meal" to the matching meal. The catalog now advertises `nutrition: [food, meal]`, so the model discovers it automatically (no prompt change).
+
+**Certification (live model, Danny's account), all 9 pass:** Q1/Q2 honest "nothing logged" (no "insufficient evidence"); Q3 **"Your last meal was dinner on April 7, 2026, and you had Pepperoni Pizza"**; Q4 pizza via the fixed `search_history`; Q5/Q6/Q7 today/goal from foundational facts; Q8 top foods; Q9 "last Tuesday" honest empty (no fabrication). This closes the three defect classes surfaced by Nutrition: (1) shared search-pipeline crash, (2) shared date resolution, (3) Meal-truth exposure.
+
+**Files:** `apps/health/services/nutrition_queries.py`, `apps/core/truth/domain_rollout.py`, `apps/health/tests/test_nutrition_meal_entity.py` (new, 8).
+
+**Verification:** meal suite 8 + date/search/domain-truth/model-interface/catalog suites (52 total) pass; `manage.py check` clean; no migrations. **AWAITING Danny's production validation before moving to the next truth domain (Journal, then Faith). Not started.**
 
 ## 2026-07-19 — feat(cos/truth): shared conversational date normalization (resolve 'last Tuesday' etc. before any domain)
 

@@ -6,6 +6,25 @@
 # Last Updated: 2026-07-19 (fix(cos/truth): route chronological/latest/period journal questions to the canonical producer, not search_history)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — polish(journal): calm, editor-first Journal compose page (presentation only)
+
+**Product-polish milestone (no functionality change).** After production review, the Journal page still read like a CRUD form; redesigned it to feel like a calm, private writing space — "this is your space," not a business form. Aligns with the four canonical Journal design docs (experience / playbook / memory-model / mockups) and researched premium writing apps (Day One, Apple Journal, Bear, Calmly Writer / iA — typography-first, generous whitespace, accent used sparingly, metadata quiet).
+
+**What changed (presentation only — every field, name, `data-testid`, flag gate, and behavior preserved):**
+- **Removed the "Need inspiration?" prompt card** (old prompt-library philosophy). A `?prompt=` arrival now shows only a quiet "Writing about …" note.
+- **Editor is the hero:** a "notebook" surface with a warm serif writing face (New York / Iowan / Georgia), generous line-height + whitespace, min-height raised (280 → 420). Evergreen invitation placeholder **"What would you like to remember?"** (dropped "today" so it holds for back-dated / edited entries).
+- **Title reduced to a borderless document title** whose ghost text is the date itself (Bear / Day One pattern); **date** is a small muted control. Both keep aria labels.
+- **Metadata quieted:** mood, categories, tags moved into a calm **closed-by-default `<details>` disclosure** ("Add mood, tags & categories") — all inputs remain in the DOM and submit exactly as before.
+- **Three methods introduced** as a quiet row (Just Write / Write Together / Talk It Through "soon") — capabilities of one experience, not a gateway (flag-gated).
+- **Write Together companion** moved **beside** the editor (right rail) when there's genuine room, stacking calmly below otherwise — via a CSS **container query** on the compose area (responds to real available width, e.g. when the global CoS panel is open), not a viewport breakpoint; `:has()` widens the space only when a companion is present. Degrades gracefully (companion stacks below) where `:has`/container queries are unsupported.
+- Softer chrome: breadcrumb → a single "← Journal" back link; low-key actions.
+
+**Files:** `templates/journal/entry_form.html` (full redesign — markup, scoped CSS, JS preserved), `apps/journal/forms.py` (editor placeholder + min_height).
+
+**Preserved:** rich-text/TipTap, title/date/emotions/categories/tags fields + names + `data-testid`s, `?prompt=`/`?people=`/`?source=` handling, HTMX tag creation, save / save-and-add-another / cancel, the flag-gated Write Together endpoint + JS, CSP nonce (no inline handlers), and the `write_together` gating in both view and template.
+
+**Verification:** 86 scoped journal tests pass (write_together + comprehensive + core); `check` clean; no migrations. Runtime (dev, real browser): flag-on desktop → method row + roomy notebook + companion (stacks below when the CoS panel narrows the area); flag-on mobile (375px) → methods stack, editor full-width; flag-off desktop → the same calm notebook with no preview row/companion (the majority experience); disclosure reveals all 16 emotions / 8 categories / tags; editor renders in serif; no console errors. AWAITING Danny's production validation.
+
 ## 2026-07-19 — feat(journal): Write Together (Milestone 1) — one-canvas method bar + CoS writing companion (flag-gated, OFF)
 
 **First implementation milestone of the Journal experience redesign** (design canon: `docs/WLJ_JOURNAL_EXPERIENCE.md`, `docs/WLJ_JOURNAL_CONVERSATION_PLAYBOOK.md`, `docs/WLJ_JOURNAL_CONVERSATIONAL_MEMORY_MODEL.md`, `docs/journal_experience_mockups.html`). Text-only; no voice, no Legacy publishing, no audio, no draft-session substrate (all later milestones).

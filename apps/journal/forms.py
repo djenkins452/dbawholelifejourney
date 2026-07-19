@@ -40,8 +40,8 @@ class JournalEntryForm(forms.ModelForm):
                 "placeholder": "Leave blank to use the date",
             }),
             "body": WLJRichTextWidget(
-                placeholder="Write your thoughts...",
-                min_height=280,
+                placeholder="What would you like to remember?",
+                min_height=420,
             ),
             "entry_date": forms.DateInput(attrs={
                 "class": "form-input",

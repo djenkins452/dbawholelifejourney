@@ -509,7 +509,46 @@
 (function () {
     'use strict';
 
+    // ── TEMPORARY runtime diagnostic (remove after iOS focus root-cause proven) ──
+    // Enabled only with ?focusdebug=1 so real users never see it. Renders an
+    // on-page glass-box overlay because iOS Safari / WKWebView have no reachable
+    // console — the device itself must show the proof.
+    var DIAG = /[?&]focusdebug=1\b/.test(window.location.search);
+    var diagLines = [];
+    function elDesc(el) {
+        if (!el) return 'null';
+        if (el === document.body) return 'BODY';
+        return el.tagName + (el.id ? '#' + el.id : '') +
+               (el.className && el.className.baseVal === undefined
+                    ? '.' + String(el.className).split(/\s+/).join('.') : '');
+    }
+    function t() { try { return Math.round(performance.now()) + 'ms'; } catch (e) { return '?'; } }
+    function diag(msg) {
+        if (!DIAG) return;
+        diagLines.push('[' + t() + '] ' + msg);
+        try { console.log('[FOCUSDEBUG] ' + msg); } catch (e) {}
+        render();
+    }
+    var box;
+    function render() {
+        if (!DIAG) return;
+        if (!box) {
+            box = document.createElement('pre');
+            box.id = 'focus-debug-overlay';
+            box.setAttribute('style',
+                'position:fixed;left:0;right:0;bottom:0;z-index:99999;margin:0;' +
+                'max-height:50vh;overflow:auto;background:rgba(0,0,0,0.88);color:#0f0;' +
+                'font:12px/1.4 monospace;padding:10px;white-space:pre-wrap;' +
+                'border-top:2px solid #0f0;');
+            (document.body || document.documentElement).appendChild(box);
+        }
+        box.textContent = 'FOCUS DIAGNOSTIC (Food Name)\n' + diagLines.join('\n');
+    }
+
     function focusFoodName() {
+        diag('focusFoodName() running. readyState=' + document.readyState +
+             ' visibility=' + document.visibilityState);
+
         // 1. A validation error takes precedence — send the user to the first
         //    field that needs correcting rather than resetting focus to the top.
         var firstError = document.querySelector('.form-error');
@@ -517,6 +556,7 @@
             var group = firstError.closest('.form-group');
             var errInput = group && group.querySelector('input, select, textarea');
             if (errInput) {
+                diag('validation error present -> focusing ' + elDesc(errInput));
                 errInput.focus();
             }
             return;
@@ -527,16 +567,39 @@
         if (active && active !== document.body &&
             (active.tagName === 'INPUT' || active.tagName === 'SELECT' ||
              active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+            diag('another control already focused (' + elDesc(active) + ') -> yielding');
             return;
         }
 
         // 3. Focus the Food Name input itself (not the autocomplete wrapper).
         var foodName = document.getElementById('id_food_name');
-        if (foodName) {
-            foodName.focus();
+        if (!foodName) {
+            diag('#id_food_name NOT FOUND at focus time');
+            return;
         }
+
+        diag('element exists. activeElement BEFORE = ' + elDesc(document.activeElement));
+        var threw = false;
+        try {
+            foodName.focus();
+        } catch (e) {
+            threw = true;
+            diag('focus() THREW: ' + e);
+        }
+        if (!threw) diag('focus() returned (no throw)');
+        diag('activeElement AFTER  = ' + elDesc(document.activeElement) +
+             '  (focused==foodName? ' + (document.activeElement === foodName) + ')');
+        setTimeout(function () {
+            diag('activeElement +100ms = ' + elDesc(document.activeElement) +
+                 '  (focused==foodName? ' + (document.activeElement === foodName) + ')');
+        }, 100);
+        setTimeout(function () {
+            diag('activeElement +500ms = ' + elDesc(document.activeElement) +
+                 '  (focused==foodName? ' + (document.activeElement === foodName) + ')');
+        }, 500);
     }
 
+    diag('script parsed. readyState=' + document.readyState);
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', focusFoodName);
     } else {

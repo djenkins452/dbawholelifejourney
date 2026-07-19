@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — diag(nutrition/ux): TEMPORARY on-page focus diagnostic for iOS Food Name focus failure
+
+**Why:** Auto-focus of Food Name works on desktop but never fires on iPhone Safari / iOS WKWebView. Per the runtime-trace standard, PROVE the path on the actual device before implementing a fix. The preview pane is desktop Chromium and cannot emulate iOS WebKit, and iOS WKWebView has no reachable JS console — so the proof must render **on the page itself**.
+
+**What (temporary, gated — remove after root cause proven):** Instrumented the existing focus script in `templates/health/nutrition/food_entry_form.html` with a glass-box overlay shown ONLY when the URL has `?focusdebug=1` (invisible to real users). It captures, for the real focus attempt: when the script parses/runs + `readyState`, `activeElement` BEFORE, whether `focus()` threw, `activeElement` immediately AFTER (and `===` the input), then again at +100ms and +500ms.
+
+**Load-path facts already proven by code trace (not iOS-specific, but they rule out hypotheses):**
+- NOT HTMX: Log Food is a plain `<a href>` full navigation; base.html has no `hx-boost`. `DOMContentLoaded` is the correct event.
+- No load-time focus thief: the only globally-present `.focus()` (assistant panel, `assistant_panel.html:2100`) is gated inside `setFocusMode(on)`'s `if (on)` — user-triggered focus mode only, never on load. Desktop trace shows `activeElement` stays `id_food_name` through +500ms.
+
+**Desktop diagnostic output (instrumentation verified sound):** `script parsed (readyState=loading)` → `focusFoodName() running (interactive)` → `BEFORE=BODY` → `focus() returned (no throw)` → `AFTER=INPUT#id_food_name (focused==foodName? true)` → still true at +100ms and +500ms.
+
+**Next:** Danny opens `/health/physical/nutrition/add/?focusdebug=1` on the iPhone and screenshots the overlay. That output determines the fix (expected: WebKit blocks programmatic `focus()` outside a user gesture — to be confirmed, not assumed).
+
+**Files:** `templates/health/nutrition/food_entry_form.html`
+
 ## 2026-07-18 — feat(nutrition/ux): auto-focus the Food Name field on the Log Food page
 
 **Change:** Opening the Log Food page (`/health/physical/nutrition/add/`) now places the insertion cursor in the **Food Name** input automatically, so the user can begin typing — and driving the autocomplete search — without an extra click.

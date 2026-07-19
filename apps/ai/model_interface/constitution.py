@@ -571,7 +571,14 @@ def truth_tools():
                 "workout'. For AGGREGATE counts/totals/trends over a period (e.g. HOW MANY "
                 "workouts), use get_history instead. The answerable (domain, entity_type) "
                 "pairs are listed in Current Context's capability index "
-                "(`capabilities.truth_entities`); do not guess a type."
+                "(`capabilities.truth_entities`); do not guess a type. When more than "
+                "one domain could match an English word, choose by MEANING using "
+                "`capabilities.domain_semantics` (each domain's purpose + per-entity "
+                "description + boundary), never by the domain name — e.g. a meal the "
+                "user ATE is domain 'nutrition' (entity 'meal'); a recipe / planned / "
+                "pantry meal is domain 'meals'. For 'what do I eat most', use the ranked "
+                "frequency entity where advertised (e.g. nutrition 'frequent_food'), not "
+                "a recent-records list."
             ),
             "parameters": {"type": "object", "properties": {
                 "domain": entity_domain_schema,
@@ -588,11 +595,15 @@ def truth_tools():
                     "is WLJ truth, not your own filtering. Keys (all optional): "
                     "'meal' (nutrition: breakfast|lunch|dinner|snack), 'period' (a named "
                     "period like this_week|this_month|last_week) OR 'start'+'end' ISO dates, "
-                    "'on_date' (calendar: events that day, e.g. 'last Tuesday'), 'involves' "
+                    "'on_date' (a specific day), 'involves' "
                     "(legacy: a person's name → memories they appear in), 'contains' "
                     "(nutrition: a food-name substring → matches, whose COUNT answers 'how "
-                    "often have I eaten X'). Example: {\"entity_type\":\"food\",\"filters\":"
-                    "{\"meal\":\"lunch\",\"period\":\"this_week\"}} = every lunch this week.")},
+                    "often have I eaten X'). DATES: pass the NATURAL expression the user "
+                    "said — 'today', 'yesterday', 'last Tuesday', 'July 4', 'last week' — "
+                    "as on_date/period; WLJ resolves it deterministically against the "
+                    "user's today. Do NOT compute the calendar date yourself (you will get "
+                    "the year wrong). Example: {\"entity_type\":\"meal\",\"filters\":"
+                    "{\"on_date\":\"April 7\"}} = the meals eaten that day.")},
             }, "required": ["domain"]}}},
         {"type": "function", "function": {
             "name": "get_analysis",

@@ -120,11 +120,26 @@ def _capabilities() -> dict:
             }
     except Exception:  # pragma: no cover - defensive
         domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
+    # Plain-language capability semantics — so the model routes by MEANING, not by a
+    # domain NAME (e.g. an EATEN meal is `nutrition`, a planned/recipe meal is `meals`).
+    # Advertised-only: a domain the model can actually call. One authoritative source
+    # (apps.core.truth.semantics); no per-surface prose.
+    domain_semantics = {}
+    try:
+        from apps.core.truth.semantics import domain_semantics as _sem
+        advertised = set(truth_history) | set(truth_entities) | set(truth_analysis)
+        all_sem = _sem()
+        domain_semantics = {d: all_sem[d] for d in sorted(advertised) if d in all_sem}
+    except Exception:  # pragma: no cover - defensive
+        domain_semantics = {}
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
         "truth_entities": truth_entities,
         "truth_analysis": truth_analysis,
+        # What each domain/entity MEANS (purpose, per-entity descriptions, boundary
+        # notes) — the model reads this to pick the right domain when names collide.
+        "domain_semantics": domain_semantics,
         # Semantic roles — so two similarly-named capabilities are never treated as
         # equivalent (e.g. health 'workouts' aggregate vs 'workout' record detail).
         "surface_roles": {

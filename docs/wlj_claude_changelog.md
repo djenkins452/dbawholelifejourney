@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.2d): chat panel becomes the first WLJ Attachment Framework consumer)
+# Last Updated: 2026-07-19 (feat(cos/truth): Nutrition analysis participation + food-frequency truth + shared capability semantics)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(cos/truth): Nutrition analysis + food-frequency truth + shared capability semantics (3 tracks)
+
+**Conversational Truth Certification — Class 2 closed (the "hesitation" gaps).** Production validation exposed the CoS hesitating ("I need to check…") or speculating instead of answering. Three shared, architecture-conformant tracks — no nutrition-specific handlers, no interpretation in WLJ.
+
+**Track 1 — Nutrition participates in the Analysis surface (declaration + composition only).** `NutritionDomainTruth.analysis_subjects` declared (calories/protein/carbs/fat/meals + natural aliases intake/eating_habits/recent_nutrition/diet/macros), each mapping to an EXISTING history metric + the meal entity. The generic `get_domain_analysis` composer reuses `history()`+`describe()` — zero new retrieval. WLJ supplies the complete deterministic evidence bundle; the model does all interpretation/advice/"healthiest" judgment. A test asserts every declared subject's inputs already exist (no smuggled truth).
+
+**Track 2 — Food-frequency truth (a real gap, NOT hidden in Analysis).** No shared ranked-entity contract exists (orderings are baked per-domain), so per the brief the smallest legitimate producer lives in the canonical Nutrition authority: `NutritionQueries.top_foods()` — deterministic order (times_logged DESC, then calories DESC, then name), explicit window + provenance, reusable by UI/reports/CoS. Exposed via a new `frequent_food` entity through the existing `get_entity` interface. Also widened unscoped `describe_meals` to the most recent 7 logged days (breadth for analysis + "list my meals"; "last meal" is still the newest).
+
+**Track 3 — Shared capability SEMANTICS (fixes nutrition-vs-meals discoverability without merge/rename/delegation).** New `apps/core/truth/semantics.py` = ONE authoritative registry of each domain's plain-language purpose + per-entity descriptions + boundary notes; surfaced in the capability index (`capabilities.domain_semantics`) and referenced by the `get_entity` tool description. So the model routes by MEANING: an EATEN meal → `nutrition`; a recipe/planned/pantry meal → `meals` (the domains stay separate). Also documented in the filter contract that natural date phrases ("April 7", "last Tuesday") must be passed for WLJ to resolve — do not pre-compute the calendar date (fixed the model's wrong-year errors). Contract test enforces semantic coverage for every advertised domain + the nutrition.meal / meals distinctions.
+
+**Certification (live model, individual questions):** all 10 previously-failing + 4 regression now pass — correct consumption domain, correct date resolution, deterministic frequency, evidence-based analysis (no speculation), honest empties. Q10 answers from real frequency data (grounded, not speculative).
+
+**Files:** `apps/health/services/nutrition_queries.py`, `apps/core/truth/domain_rollout.py`, `apps/core/truth/semantics.py` (new), `apps/ai/cos_services/current_context.py`, `apps/ai/model_interface/constitution.py`, `apps/health/tests/test_nutrition_meal_entity.py`, `apps/core/truth/tests/test_capability_semantics.py` (new).
+
+**Verification:** 91 scoped tests pass (meal/frequency/analysis/semantics + model-interface/date/catalog/domain-truth/history regressions); `manage.py check` clean; no migrations. Engineering evidence only — **NOT complete; AWAITING Danny's production validation.** Journal/Faith not started.
 
 ## 2026-07-19 — feat(multimodal P1.2d): chat panel becomes the first WLJ Attachment Framework consumer + fix autoUpload predicate
 

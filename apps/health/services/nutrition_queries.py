@@ -15,7 +15,7 @@ This is the single source of truth for:
 from datetime import time as _time
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Count, Max, Min, Sum
 
 from apps.health.models import FoodEntry
 
@@ -24,6 +24,9 @@ _MIN_TIME = _time.min          # sort fallback for meal foods with no logged_tim
 # when the logged rows carry no time (never surfaced as truth).
 _MEAL_ORDER_TIME = {"breakfast": _time(8), "lunch": _time(12),
                     "dinner": _time(18), "snack": _time(15)}
+# Unscoped meal browse spans the most recent N logged days (breadth for the Analysis
+# surface + "list my meals"); "last meal" is still the newest of these.
+_MEAL_RECENT_DAYS = 7
 
 
 # ---------------------------------------------------------------------------
@@ -324,11 +327,15 @@ class NutritionQueries:
             if meal:
                 qs = qs.filter(meal_type=meal)
             return [on_date] if qs.exists() else []
-        qs = FoodEntry.objects.filter(user=user, status='active')     # unscoped → latest
-        if meal:
-            qs = qs.filter(meal_type=meal)
-        last = qs.order_by('-logged_date', '-logged_time').first()
-        return [last.logged_date] if last else []
+        if meal:                                     # unscoped + meal → last such meal
+            last = (FoodEntry.objects.filter(user=user, status='active', meal_type=meal)
+                    .order_by('-logged_date', '-logged_time').first())
+            return [last.logged_date] if last else []
+        # unscoped browse → the most recent N logged days (newest first)
+        dates = (FoodEntry.objects.filter(user=user, status='active')
+                 .values_list('logged_date', flat=True).distinct()
+                 .order_by('-logged_date'))
+        return list(dates[:_MEAL_RECENT_DAYS])
 
     @classmethod
     def describe_meals(cls, user, *, meal=None, on_date=None, period=None,
@@ -402,6 +409,82 @@ class NutritionQueries:
                 "protein_g": _num(totals.get("protein_g")),
                 "carbohydrates_g": _num(totals.get("carbs_g")),
                 "fat_g": _num(totals.get("fat_g")),
+            },
+            freshness=F.CURRENT,
+        )
+
+    # ------------------------------------------------------------------
+    # Canonical FOOD FREQUENCY (ranked "what do I eat most") — deterministic
+    # ------------------------------------------------------------------
+    # "What foods do I eat the most" needs a deterministic frequency ranking that
+    # neither History (per-day macro totals) nor Entity (recent records) exposes.
+    # This aggregate lives HERE, in the canonical Nutrition producer (reusable by UI,
+    # reports, and CoS), with explicit ordering + tie-break + window + provenance. It
+    # is NOT computed inside the Analysis surface (which is composition-only).
+
+    @classmethod
+    def top_foods(cls, user, *, period=None, start=None, end=None,
+                  limit=10, today=None):
+        """Foods ranked by how OFTEN the user logged them, as CompleteEntity objects.
+        Deterministic ordering: times_logged DESC, then total calories DESC, then
+        food name ASC (a total, stable order — no ties left to chance). Window: all
+        time by default, or a named period / start+end. One grouped query; provenance
+        (window + first/last date) travels with each row."""
+        qs = FoodEntry.objects.filter(user=user, status='active')
+        window = "all time"
+        if period or start or end:
+            from apps.core.truth.periods import resolve_period
+            if today is None:
+                from apps.core.utils import get_user_today
+                today = get_user_today(user)
+            p = resolve_period(period or "custom", today, start=start, end=end)
+            qs = qs.filter(logged_date__range=(p.start, p.end))
+            window = p.label
+        rows = (qs.values("food_name", "food_brand")
+                .annotate(times=Count("id"),
+                          total_calories=Sum("total_calories"),
+                          total_protein_g=Sum("total_protein_g"),
+                          first_logged=Min("logged_date"),
+                          last_logged=Max("logged_date"))
+                .order_by("-times", "-total_calories", "food_name")[:limit])
+        return [cls._to_frequent_food_entity(r, window, rank)
+                for rank, r in enumerate(rows, 1)]
+
+    @classmethod
+    def _to_frequent_food_entity(cls, row, window, rank):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+
+        def _num(v):
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        name = (row.get("food_name") or "").strip() or "Food"
+        brand = (row.get("food_brand") or "").strip()
+        label = name + (f" ({brand})" if brand and brand.lower() not in name.lower()
+                        else "")
+        times = row.get("times") or 0
+        total_cal = _num(row.get("total_calories"))
+        return CompleteEntity(
+            kind="frequent_food",
+            identity=label,
+            definition={
+                "food_name": name, "brand": brand or None,
+                "rank": rank, "window": window,
+                "first_logged": (row["first_logged"].isoformat()
+                                 if row.get("first_logged") else None),
+                "last_logged": (row["last_logged"].isoformat()
+                                if row.get("last_logged") else None),
+            },
+            status="logged",
+            performance={
+                "times_logged": times,
+                "total_calories": total_cal,
+                "avg_calories": (round(total_cal / times, 1)
+                                 if total_cal is not None and times else None),
+                "total_protein_g": _num(row.get("total_protein_g")),
             },
             freshness=F.CURRENT,
         )

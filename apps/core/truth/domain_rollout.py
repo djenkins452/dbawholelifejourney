@@ -604,17 +604,41 @@ class NutritionDomainTruth(DomainTruth):
     get_domain_state('nutrition') — this cannot change that path."""
     domain = "nutrition"
     # `food` = individual logged items; `meal` = the deterministic grouping of a day's
-    # foods by meal_type (breakfast/lunch/dinner/snack). The meal surface REUSES the
-    # canonical NutritionQueries.get_meal_totals aggregation (no new store, no duplicate
-    # aggregation) so the CoS answers the unit people speak in — "my last meal", "what
-    # did I have for dinner", "everything I ate last Tuesday".
-    entity_types = ("food", "meal")
+    # foods by meal_type (breakfast/lunch/dinner/snack); `frequent_food` = foods ranked
+    # by how often they were logged. All REUSE the canonical NutritionQueries producers
+    # (no new store, no duplicate aggregation) so the CoS answers the unit people speak
+    # in — "my last meal", "everything I ate last Tuesday", "what do I eat most".
+    entity_types = ("food", "meal", "frequent_food")
     # Per-day macro totals over a period → the generic get_history tool now answers
     # date-scoped totals ("calories yesterday") and windowed averages ("average
     # protein this week"). Delegates to the canonical NutritionQueries authority; no
     # new store. (No current() — there is no generic current-fact tool for nutrition;
     # today's running totals reach the model via get_domain_state('nutrition').)
     history_metrics = ("calories", "protein", "carbs", "fat", "fiber", "sugar")
+    # ANALYSIS participation — PURE COMPOSITION of the History (macro series) + Entity
+    # (meal) surfaces above; the Analysis surface adds NO retrieval. Each subject maps
+    # to an existing history_metric + the meal entity for record detail, so the model
+    # receives the complete deterministic evidence bundle to summarize / spot trends /
+    # advise / judge "healthiest" — WLJ never interprets. (No new truth; every input
+    # is already exposed. Food FREQUENCY is deliberately NOT here — it is a distinct
+    # aggregate, exposed as the `frequent_food` entity.)
+    # Subject keys include the natural phrasings the model reaches for ("intake",
+    # "eating_habits", "diet"…) — all mapping to the SAME existing composition
+    # (calorie history + meal records). Aliases are free (declaration-only); they cost
+    # nothing and stop the model from inventing an undeclared subject → unsupported.
+    analysis_subjects = {
+        "nutrition":       {"history_metric": "calories", "entity_type": "meal"},
+        "intake":          {"history_metric": "calories", "entity_type": "meal"},
+        "recent_nutrition": {"history_metric": "calories", "entity_type": "meal"},
+        "eating_habits":   {"history_metric": "calories", "entity_type": "meal"},
+        "diet":            {"history_metric": "calories", "entity_type": "meal"},
+        "macros":          {"history_metric": "calories", "entity_type": "meal"},
+        "calories":        {"history_metric": "calories", "entity_type": "meal"},
+        "protein":         {"history_metric": "protein",  "entity_type": "meal"},
+        "carbs":           {"history_metric": "carbs",     "entity_type": "meal"},
+        "fat":             {"history_metric": "fat",       "entity_type": "meal"},
+        "meals":           {"history_metric": "calories",  "entity_type": "meal"},
+    }
 
     def history(self, metric, period="last_7_days", **kwargs):
         from apps.health.services.nutrition_queries import NutritionQueries
@@ -627,6 +651,10 @@ class NutritionDomainTruth(DomainTruth):
             return NutritionQueries.describe_meals(
                 self.user, meal=f.get("meal"), on_date=f.get("on_date"),
                 period=f.get("period"), start=f.get("start"), end=f.get("end"))
+        if entity_type == "frequent_food":
+            return NutritionQueries.top_foods(
+                self.user, period=f.get("period"),
+                start=f.get("start"), end=f.get("end"))
         if entity_type in (None, "food"):
             return NutritionQueries.describe(
                 self.user, meal=f.get("meal"), period=f.get("period"),

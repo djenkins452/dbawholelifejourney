@@ -3,8 +3,16 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal AaT-A): Artifacts as Truth — uploads become a retrievable Truth Surface)
+# Last Updated: 2026-07-19 (docs(multimodal): production customer-experience verification plan — findings will drive Milestone B)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — docs(multimodal): production customer-experience verification plan
+
+**Implementation paused (Danny) before Artifacts-as-Truth Milestone B to validate the real customer experience first; measured gaps — not speculation — will drive B's scope.**
+
+New `docs/WLJ_MULTIMODAL_PRODUCTION_VERIFICATION.md` — a customer-trust (not code) verification plan for everything shipped (attachment framework, PDF/audio/image perception, Artifacts-as-Truth retrieval). Judged by the WLJ product lens (would a paying customer trust this → why not, in customer terms → only then the layer). Covers: attachment UX, PDF read/summarize/compare, audio transcription/action-items/journal, image read+log+provenance, **cross-conversation** retrieval, **multi-turn** recall, provenance, Truth-Surface integration, and Current Context — plus a §2 of honest architectural boundaries (background-perception processing window; same-turn-text vs. retrieval; images-aren't-text; no linkage/Current-Context yet) so a design boundary isn't mislabeled a bug. Includes a result tag set (✅/🟨/🟥/⛔ + first-failing-layer) and a §4 rule that turns ranked findings into Milestone B (every trust-break first; then the gaps customers actually hit). No code changed.
+
+**Files:** `docs/WLJ_MULTIMODAL_PRODUCTION_VERIFICATION.md` (new).
 
 ## 2026-07-19 — feat(multimodal AaT-A): Artifacts as Truth — the CoS can retrieve & read past uploads
 

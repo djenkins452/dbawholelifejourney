@@ -89,6 +89,7 @@ freezegun>=1.2.0  # Time-freezing for calendar determinism tests
 # Document Generation
 python-docx>=1.1.0  # Word document generation (no system dependencies needed)
 openpyxl>=3.1.0  # Excel spreadsheet generation (workout dashboard export)
+python-pptx>=0.6.23  # PowerPoint (.pptx) perception — slide text extraction
 
 # Medical Lab PDF Ingestion
 pdfplumber>=0.11.0  # PDF text extraction for lab results

@@ -27,8 +27,13 @@ MAX_EXTRACTED_CHARS = 400_000
 # Content types that have a deterministic extractor TODAY. Grows one milestone at
 # a time (documents → audio → video); everything else stores + surfaces without
 # perception until its extractor lands.
+_OFFICE_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+_OFFICE_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_OFFICE_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
 PERCEIVABLE_TYPES = frozenset({
     "application/pdf",
+    _OFFICE_DOCX, _OFFICE_XLSX, _OFFICE_PPTX,
     "audio/mpeg", "audio/mp4", "audio/wav", "audio/aac",
     "video/mp4", "video/quicktime",
 })
@@ -63,11 +68,16 @@ def perceive(content_type: str, raw: bytes) -> dict:
     try:
         if ct == "application/pdf":
             return _with_frames(_perceive_pdf(raw))
+        if ct == _OFFICE_DOCX:
+            return _with_frames(_perceive_docx(raw))
+        if ct == _OFFICE_XLSX:
+            return _with_frames(_perceive_xlsx(raw))
+        if ct == _OFFICE_PPTX:
+            return _with_frames(_perceive_pptx(raw))
         if ct in _AUDIO_FILENAMES:
             return _with_frames(_perceive_audio(raw, ct))
         if ct in ("video/mp4", "video/quicktime"):
             return _perceive_video(raw, ct)
-        # Office documents plug in here in a later milestone.
         return {"status": "unsupported", "text": "", "page_count": None, "frames": []}
     except Exception as exc:  # pragma: no cover - defensive; perception never breaks a turn
         logger.warning("perceive failed for %s (%s)", ct, exc, exc_info=True)
@@ -78,6 +88,76 @@ def _with_frames(result):
     """Ensure every perceive() result carries a `frames` key (only video fills it)."""
     result.setdefault("frames", [])
     return result
+
+
+def _perceive_docx(raw: bytes) -> dict:
+    """Extract text from a Word document (paragraphs + table cells) via python-docx."""
+    import docx
+
+    doc = docx.Document(io.BytesIO(raw))
+    parts = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [c.text.strip() for c in row.cells]
+            if any(cells):
+                parts.append(" | ".join(cells))
+    text = "\n".join(parts).strip()[:MAX_EXTRACTED_CHARS]
+    if not text:
+        return {"status": "unsupported", "text": "", "page_count": None}
+    return {"status": "done", "text": text, "page_count": None}
+
+
+def _perceive_xlsx(raw: bytes) -> dict:
+    """Extract cell values from a spreadsheet (sheet by sheet) via openpyxl."""
+    import openpyxl
+
+    wb = openpyxl.load_workbook(io.BytesIO(raw), read_only=True, data_only=True)
+    parts = []
+    total = 0
+    for ws in wb.worksheets:
+        parts.append(f"[Sheet: {ws.title}]")
+        for row in ws.iter_rows(values_only=True):
+            vals = [str(c) for c in row if c is not None and str(c).strip()]
+            if vals:
+                line = " | ".join(vals)
+                parts.append(line)
+                total += len(line)
+        if total >= MAX_EXTRACTED_CHARS:
+            break
+    try:
+        n_sheets = len(wb.worksheets)
+    finally:
+        wb.close()
+    text = "\n".join(parts).strip()[:MAX_EXTRACTED_CHARS]
+    if not text:
+        return {"status": "unsupported", "text": "", "page_count": None}
+    return {"status": "done", "text": text, "page_count": n_sheets}
+
+
+def _perceive_pptx(raw: bytes) -> dict:
+    """Extract slide text (per slide, in order) via python-pptx."""
+    from pptx import Presentation
+
+    prs = Presentation(io.BytesIO(raw))
+    parts = []
+    n = 0
+    for i, slide in enumerate(prs.slides, start=1):
+        n = i
+        lines = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    line = "".join(run.text for run in para.runs).strip()
+                    if line:
+                        lines.append(line)
+        if lines:
+            parts.append(f"[Slide {i}]\n" + "\n".join(lines))
+        if sum(len(p) for p in parts) >= MAX_EXTRACTED_CHARS:
+            break
+    text = "\n\n".join(parts).strip()[:MAX_EXTRACTED_CHARS]
+    if not text:
+        return {"status": "unsupported", "text": "", "page_count": n or None}
+    return {"status": "done", "text": text, "page_count": n or None}
 
 
 def _perceive_audio(raw: bytes, content_type: str) -> dict:

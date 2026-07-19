@@ -52,7 +52,8 @@ class PerceiveModuleTests(TestCase):
         self.assertIn("[Page 2]", result["text"])
 
     def test_unsupported_type(self):
-        result = perceive("application/vnd.openxmlformats-officedocument.wordprocessingml.document", b"PK\x03\x04")
+        # A content type with no extractor → 'unsupported' (not perceived).
+        result = perceive("application/zip", b"PK\x03\x04")
         self.assertEqual(result["status"], "unsupported")
 
     def test_corrupt_pdf_fails_gracefully(self):
@@ -62,9 +63,8 @@ class PerceiveModuleTests(TestCase):
 
     def test_is_perceivable(self):
         self.assertTrue(is_perceivable("application/pdf"))
-        self.assertFalse(is_perceivable("image/png"))
-        self.assertFalse(is_perceivable(
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))  # Office = later
+        self.assertFalse(is_perceivable("image/png"))          # images: model sees directly
+        self.assertFalse(is_perceivable("application/zip"))     # no extractor
 
 
 class PerceiveArtifactTaskTests(TestCase):

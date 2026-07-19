@@ -129,6 +129,12 @@ DEBUG = env.bool("DEBUG", default=False)
 # code change. v2 also stays directly reachable at /dashboard/classic/.
 DASHBOARD_V3_DEFAULT = env.bool("DASHBOARD_V3_DEFAULT", default=True)
 
+# First Light — Formation (Faith): /faith/ serves the new present-tense "Today"
+# companion home. Default OFF (opt-in per user via the features.faith.first_light
+# flag). Set FAITH_FIRST_LIGHT_DEFAULT=true in the env to switch it on globally
+# with no code change; the classic Faith home stays reachable at /faith/classic/.
+FAITH_FIRST_LIGHT_DEFAULT = env.bool("FAITH_FIRST_LIGHT_DEFAULT", default=False)
+
 # Allowed hosts for production and development
 ALLOWED_HOSTS = [
     "wholelifejourney.com",

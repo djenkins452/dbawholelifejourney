@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Faith · Today - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719a">
+{% endblock %}
+
+{% block content %}
+{% with t=today %}
+<div class="fl-root fl-today" data-testid="faith-today">
+  <div class="fl-wrap">
+
+    {# ── Hero: presence (threshold) + the path forward (continue + map) ── #}
+    <section class="fl-hero" aria-label="Today">
+
+      {# Threshold — a breath, a verse, a greeting, and (occasionally) a companion. #}
+      <div class="fl-threshold">
+        <span class="fl-breath" aria-hidden="true"></span>
+        <p class="fl-still">“{{ t.still.text }}”</p>
+        <div class="fl-still-ref">{{ t.still.ref }}</div>
+        <div class="fl-greet">
+          {{ t.greeting }}, {{ t.name }} · {{ t.weekday }}{% if t.season_note %} · {{ t.season_note }}{% endif %}
+        </div>
+
+        {% if t.companion %}
+        <div class="fl-ask" role="group" aria-label="A gentle question from your companion">
+          <div class="fl-ask-head">
+            <span class="fl-orb" aria-hidden="true"></span>
+            <span class="fl-eyebrow" style="color:var(--fl-gold-on-night)">Your companion</span>
+          </div>
+          {% if t.companion.reason %}
+          <div style="margin-bottom:10px">
+            <span class="fl-reason fl-night">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3c3 5 5 6 5 9a5 5 0 0 1-10 0c0-3 2-4 5-9z"/></svg>
+              {{ t.companion.reason }}
+            </span>
+          </div>
+          {% endif %}
+          <p class="fl-q">{{ t.companion.q }}</p>
+          <div class="fl-choices">
+            {% for c in t.companion.choices %}
+            <a class="fl-choice" href="{{ c.url }}">
+              <span>{{ c.label }}</span>
+              {% if c.sub %}<span class="fl-cs">{{ c.sub }}</span>{% endif %}
+            </a>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      {# The path forward — Continue as a story, with the journey map. #}
+      {% if t.continue %}
+      <div class="fl-atmos fl-atmos-dawn">
+        <div class="fl-inner">
+          <div class="fl-continue">
+            <div style="flex:1;min-width:220px">
+              <div class="fl-k">{% if t.continue.kind == 'journey' %}Where you are in the Story{% else %}Continue your reading{% endif %}</div>
+              <div class="fl-t">{% if t.continue.kind == 'journey' and t.continue.arc_name %}{{ t.continue.arc_name }}{% else %}{{ t.continue.title }}{% endif %}</div>
+              <div class="fl-s fl-tnum">{{ t.continue.subtitle }}{% if t.continue.focus %} · {{ t.continue.focus }}{% endif %}</div>
+            </div>
+            <a class="fl-btn fl-btn-glow fl-btn-lg" href="{{ t.continue.resume_url }}">Continue &rarr;</a>
+          </div>
+
+          {% if t.journey_map %}
+          <div class="fl-map" role="img"
+               aria-label="Your journey: {{ t.journey_map.done }} of {{ t.journey_map.total }} chapters walked, now in {{ t.journey_map.current_name }}.">
+            {% for arc in t.journey_map.arcs %}
+            <div class="fl-map-step {{ arc.status }}">
+              <span class="fl-map-node" aria-hidden="true"></span>
+              <span class="fl-map-label">{{ arc.name }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ── Body: one honest invitation, or a gentle place to begin ── #}
+    <div class="fl-body">
+      {% if t.invitation %}
+      <div class="fl-mh"><h4 class="fl-serif">{{ t.invitation.label }}</h4>
+        <a href="{% url 'faith:reading_plans' %}">Browse journeys</a></div>
+      <a class="fl-invite" href="{{ t.invitation.url }}">
+        <div class="fl-invite-cover" aria-hidden="true">
+          <svg viewBox="0 0 118 150" preserveAspectRatio="xMidYMid slice">
+            <defs><linearGradient id="flInv" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F6CE80"/><stop offset="1" stop-color="#93582E"/></linearGradient></defs>
+            <rect width="118" height="150" fill="url(#flInv)"/>
+            <circle cx="62" cy="86" r="26" fill="#FCEFC9"/>
+            <polygon points="0,150 40,96 88,150" fill="#8E5E33"/>
+            <polygon points="56,150 96,88 118,150" fill="#6F4A2C"/>
+          </svg>
+        </div>
+        <div class="fl-invite-body">
+          {% if t.invitation.reason %}
+          <span class="fl-reason" style="align-self:flex-start">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 6"/></svg>
+            {{ t.invitation.reason }}
+          </span>
+          {% endif %}
+          <div class="fl-card-title">{{ t.invitation.title }}</div>
+          {% if t.invitation.why %}<div class="fl-card-why">{{ t.invitation.why }}</div>{% endif %}
+          <div class="fl-meta fl-tnum">
+            {% if t.invitation.duration_days %}<span>{{ t.invitation.duration_days }} days</span>{% endif %}
+            {% if t.invitation.difficulty %}<span class="fl-dot"></span><span>{{ t.invitation.difficulty }}</span>{% endif %}
+          </div>
+        </div>
+      </a>
+      {% if t.continue %}
+      <p class="fl-small fl-muted" style="margin-top:14px">One invitation, not a shelf. When you want more, the whole library is a tap away.</p>
+      {% endif %}
+      {% endif %}
+
+      {% if not t.has_started and not t.invitation %}
+      <div class="fl-panel fl-center" style="max-width:560px;margin:0 auto">
+        <h4 class="fl-serif" style="font-size:22px">Begin your walk</h4>
+        <p class="fl-p" style="margin:10px 0 0">A guided journey through Scripture, one gentle morning at a time.</p>
+        <div style="margin-top:16px"><a class="fl-btn fl-btn-primary" href="{% url 'faith:reading_plans' %}">Find a journey</a></div>
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endwith %}
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Reveal "where you are": bring the current chapter into view within the map.
+// CSP-safe (nonce'd), no external deps, honours reduced-motion. Deferred to
+// window.load + a frame so async layout (side panels) has settled first.
+(function () {
+  function revealCurrentChapter() {
+    var map = document.querySelector('.fl-map');
+    var current = map && map.querySelector('.fl-map-step.current');
+    if (!map || !current) return;
+    if (map.clientWidth <= 0 || map.scrollWidth <= map.clientWidth) return; // nothing to scroll
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var target = Math.max(0, current.offsetLeft - (map.clientWidth / 2) + (current.clientWidth / 2));
+    try { map.scrollTo({ left: target, behavior: reduce ? 'auto' : 'smooth' }); }
+    catch (e) { map.scrollLeft = target; }
+  }
+  // Retry briefly until the map has real layout (side panels settle async),
+  // then reveal — or give up gracefully (the map simply starts at chapter one).
+  var tries = 0;
+  function attempt() {
+    var map = document.querySelector('.fl-map');
+    if (map && map.clientWidth > 0) { revealCurrentChapter(); return; }
+    if (tries++ < 20) setTimeout(attempt, 50);
+  }
+  window.addEventListener('load', function () { requestAnimationFrame(attempt); });
+})();
+</script>
+{% endblock %}

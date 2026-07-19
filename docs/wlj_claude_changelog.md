@@ -6,6 +6,28 @@
 # Last Updated: 2026-07-19 (feat(cos/truth): Nutrition analysis participation + food-frequency truth + shared capability semantics)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — feat(faith): First Light — Formation · Phase 1 — the "Today" companion home (flag-gated)
+
+**Begins the approved flagship Faith redesign ("First Light — Formation"): reading is the means, formation is the end; a companion, not a catalog; Today as the front door; grace over guilt; story over percentage.** This is Phase 1 — the foundation + the present-tense **Today** home — shipped behind a per-user flag so the classic Faith home is untouched for everyone else. AWAITING DANNY'S VALIDATION.
+
+**Foundation (reusable across all First Light surfaces):**
+- **Feature flag** `features.faith.first_light` (`apps/users/models.py` FAITH_FEATURES, default False; no migration — lives in the existing `faith_features` JSON). Plus an env-backed global default `FAITH_FIRST_LIGHT_DEFAULT` (settings) mirroring the dashboard v2/v3 dispatch pattern. Data migration `users/0093` enables it for Danny only, so he can validate in prod while it stays off for all users.
+- **Shared design system** `static/faith/first_light.css` — the warm "night → dawn → parchment" world (WLJ scholar-gold family), scoped under `.fl-root`, theme-aware (light + `prefers-color-scheme` dark + WLJ dark themes). Components: threshold, companion "ask", continue-as-story, **journey map** (a line of named chapters, upgradeable later to an illustrated pilgrimage), card, reason chip, invitation, buttons — reused by later phases.
+- **Deterministic presenter** `apps/faith/first_light/` (`today.py`, `season.py`) — assembles the Today payload from truth WLJ already owns (active journey via `journey.dashboard`, active reading plan, recent prayers, the liturgical calendar). **No LLM, no heavy compute — request-path-safe** (passes `test_request_path_safety_contract`).
+
+**The Today experience (`FaithTodayView` → `templates/faith/today.html`, dispatched at `/faith/`):**
+- **Presence before information** — opens with a breathing point of light, a rotating stillness verse (WEB, public domain), and a gentle greeting with a quiet liturgical-season note. Most mornings: just presence + one warm step.
+- **The companion is occasional and grounded** — it only speaks when it has real truth to speak from (a return after a ≥3-day gap → "welcome back, no rush"; or a recent unanswered prayer → "You've been praying about {subject} — bring it before God as you read?"). Otherwise it stays silent. Never a fabricated reason; never a spiritual claim; never a streak or guilt.
+- **Continue as a story** — resumes the active journey (or reading plan), framed as "Where you are in the Story," with the **journey map** of named chapters walked/current/ahead (7 of 12 highlighted), auto-revealing the current chapter (CSP-safe, reduced-motion aware, graceful no-op).
+- **One honest invitation** — a single featured, accessible reading plan ("If you have a little more"), not a shelf. (Grounded "because you…" recommendation reasons arrive with the recommendation phase.)
+
+**Dispatch & rollback:** `/faith/` serves Today for opted-in users, else the classic home — which stays reachable at `/faith/classic/`; `/faith/today/` is a direct route. Instant global rollback via the env flag.
+
+**Verified in-browser (logged in as Danny, journey scenario):** desktop + mobile (375px, no overflow) + dark mode (dark-parchment adaptation, legible) + light; grounded companion renders; journey map shows 7/12 with the current chapter; no console errors; no page horizontal overflow (the map scrolls internally); dispatch + classic fallback confirmed. `manage.py check` clean; `collectstatic` clean; `makemigrations --check` clean; request-path safety contract passes.
+
+- **Files:** `apps/users/models.py`, `apps/users/migrations/0093_enable_first_light_for_owner.py`, `apps/faith/first_light/{__init__,season,today}.py`, `apps/faith/views_first_light.py`, `apps/faith/urls.py`, `config/settings.py`, `static/faith/first_light.css`, `templates/faith/today.html`, `.claude/launch.json` (dev-server config).
+- **Follow-ups (next phases):** immersive reader + quiet completion (Phase 2), transformation-first detail (Phase 3), the Mirror / spiritual biography (Phase 4), effortless Discover + Library (Phase 5). Also: add a Current Context page-summary provider for the Today page.
+
 ## 2026-07-19 — feat(cos/truth): Nutrition analysis + food-frequency truth + shared capability semantics (3 tracks)
 
 **Conversational Truth Certification — Class 2 closed (the "hesitation" gaps).** Production validation exposed the CoS hesitating ("I need to check…") or speculating instead of answering. Three shared, architecture-conformant tracks — no nutrition-specific handlers, no interpretation in WLJ.

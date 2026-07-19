@@ -12,13 +12,15 @@ Faith URLs - Scripture, prayers, reading plans, and study tools.
 
 from django.urls import path
 
-from . import views
+from . import views, views_first_light
 
 app_name = "faith"
 
 urlpatterns = [
-    # Home
-    path("", views.FaithHomeView.as_view(), name="home"),
+    # Home — dispatches to First Light "Today" for opted-in users, else classic.
+    path("", views_first_light.faith_home_dispatch, name="home"),
+    path("today/", views_first_light.FaithTodayView.as_view(), name="today"),
+    path("classic/", views.FaithHomeView.as_view(), name="home_classic"),
 
     # Scripture
     path("verse/", views.TodaysVerseView.as_view(), name="todays_verse"),

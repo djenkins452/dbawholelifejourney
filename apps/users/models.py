@@ -477,6 +477,10 @@ class UserPreferences(models.Model):
         'reflections': {'label': 'Faith Reflections', 'default': True, 'icon': '🪞'},
         'memory_verses': {'label': 'Memory Verses', 'default': True, 'icon': '💬'},
         'devotionals': {'label': 'Devotionals', 'default': True, 'icon': '✝️'},
+        # First Light — Formation: opt-in flag that turns the Faith home into the
+        # present-tense "Today" companion experience. Default False so the classic
+        # Faith home is untouched until a user (or Danny, for validation) opts in.
+        'first_light': {'label': 'First Light (Faith companion — preview)', 'default': False, 'icon': '🌅'},
     }
 
     JOURNAL_FEATURES = {

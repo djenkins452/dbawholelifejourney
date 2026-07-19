@@ -6,6 +6,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["manage.py", "runserver", "8010"],
       "port": 8010
+    },
+    {
+      "name": "wlj-fl",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["manage.py", "runserver", "8037"],
+      "port": 8037
     }
   ]
 }

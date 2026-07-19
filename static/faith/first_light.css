@@ -1,0 +1,176 @@
+/* ============================================================================
+   WLJ · FAITH · FIRST LIGHT — FORMATION
+   Shared design system for the Faith companion experience.
+   Scoped under .fl-root so it commits to its own warm "night → dawn → parchment"
+   world regardless of the active WLJ theme (a deliberate single-world choice for
+   a sacred, calm atmosphere), with a courtesy dark adaptation for OS/dark themes.
+   Consumed by: today.html (and, in later phases, the reader, detail, and mirror).
+   ============================================================================ */
+
+.fl-root{
+  /* Parchment reading ground (warm, gold-biased) */
+  --fl-paper:#F4EEE1; --fl-surface:#FBF8F0; --fl-surface-2:#FFFDF7;
+  --fl-ink:#241E17; --fl-ink-soft:#564C3E; --fl-muted:#8C8172; --fl-line:#E7DCC7; --fl-line-soft:#EFE7D6;
+  /* Night / vespers depth (atmosphere) */
+  --fl-on-night:#ECE4D3; --fl-on-night-soft:#B6B1A5;
+  /* First-light gold accent (WLJ scholar gold family) */
+  --fl-gold:#C9A227; --fl-gold-bright:#E4BE64; --fl-gold-deep:#7E6210; --fl-gold-wash:#F1E7C9; --fl-gold-on-night:#E9C56B;
+  --fl-sage:#4E7D60; --fl-sage-wash:#E5EEE5;
+  --fl-shadow:0 1px 2px rgba(50,40,16,.05),0 10px 26px -14px rgba(50,40,16,.22);
+  --fl-shadow-lg:0 2px 5px rgba(50,40,16,.07),0 28px 56px -22px rgba(50,40,16,.32);
+  --fl-r-sm:9px; --fl-r:13px; --fl-r-lg:20px; --fl-r-xl:28px;
+  --fl-serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+  --fl-sans:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+
+  background:var(--fl-paper); color:var(--fl-ink); font-family:var(--fl-sans);
+  line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+/* Courtesy dark adaptation (OS dark, or WLJ dark themes) */
+@media (prefers-color-scheme:dark){
+  .fl-root{
+    --fl-paper:#14120D; --fl-surface:#1E1A13; --fl-surface-2:#251F18;
+    --fl-ink:#EEE7D8; --fl-ink-soft:#C7BCA8; --fl-muted:#978B79; --fl-line:#332B20; --fl-line-soft:#29231A;
+    --fl-gold:#D8AD4F; --fl-gold-bright:#EAC873; --fl-gold-deep:#E7C368; --fl-gold-wash:#2C2416; --fl-sage:#7FB08D; --fl-sage-wash:#1F291F;
+    --fl-shadow:0 1px 2px rgba(0,0,0,.45),0 12px 30px -16px rgba(0,0,0,.65);
+    --fl-shadow-lg:0 2px 6px rgba(0,0,0,.5),0 32px 60px -24px rgba(0,0,0,.72);
+  }
+}
+html[data-theme="momentum"] .fl-root,
+html[data-theme="electric"] .fl-root,
+html[data-theme="midnight"] .fl-root{
+  --fl-paper:#14120D; --fl-surface:#1E1A13; --fl-surface-2:#251F18;
+  --fl-ink:#EEE7D8; --fl-ink-soft:#C7BCA8; --fl-muted:#978B79; --fl-line:#332B20; --fl-line-soft:#29231A;
+  --fl-gold:#D8AD4F; --fl-gold-bright:#EAC873; --fl-gold-deep:#E7C368; --fl-gold-wash:#2C2416; --fl-sage:#7FB08D; --fl-sage-wash:#1F291F;
+  --fl-shadow:0 1px 2px rgba(0,0,0,.45),0 12px 30px -16px rgba(0,0,0,.65);
+  --fl-shadow-lg:0 2px 6px rgba(0,0,0,.5),0 32px 60px -24px rgba(0,0,0,.72);
+}
+
+.fl-root *{box-sizing:border-box}
+.fl-wrap{max-width:960px;margin:0 auto;padding:0 20px}
+.fl-eyebrow{font-size:12px;font-weight:650;letter-spacing:.2em;text-transform:uppercase;color:var(--fl-gold-deep)}
+.fl-root h1,.fl-root h2,.fl-root h3,.fl-root h4{font-family:var(--fl-serif);font-weight:600;color:var(--fl-ink);text-wrap:balance;margin:0;line-height:1.14;letter-spacing:-.01em}
+.fl-serif{font-family:var(--fl-serif)}
+.fl-tnum{font-variant-numeric:tabular-nums}
+.fl-p{color:var(--fl-ink-soft)}
+.fl-muted{color:var(--fl-muted)}
+.fl-small{font-size:13px}
+.fl-center{text-align:center}
+.fl-root a{color:inherit}
+.fl-root :where(a,button):focus-visible{outline:2.5px solid var(--fl-gold);outline-offset:3px;border-radius:7px}
+
+/* chips / reasons / meta / tags */
+.fl-chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--fl-ink-soft);background:var(--fl-surface);border:1px solid var(--fl-line);padding:5px 11px;border-radius:999px}
+.fl-reason{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--fl-gold-deep);background:var(--fl-gold-wash);border-radius:999px;padding:5px 12px 5px 9px}
+.fl-reason svg{color:var(--fl-gold);flex:none}
+.fl-reason.fl-night{background:rgba(233,197,107,.14);color:var(--fl-gold-on-night)}
+.fl-reason.fl-night svg{color:var(--fl-gold-on-night)}
+.fl-meta{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px;color:var(--fl-muted);font-weight:550}
+.fl-meta .fl-dot{width:3px;height:3px;border-radius:50%;background:var(--fl-muted)}
+.fl-tag{font-size:12px;font-weight:600;color:var(--fl-gold-deep);background:var(--fl-gold-wash);padding:3px 9px;border-radius:6px}
+
+/* buttons */
+.fl-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-family:var(--fl-sans);font-size:14.5px;font-weight:650;padding:11px 20px;border-radius:12px;border:1px solid transparent;cursor:pointer;text-decoration:none;transition:transform .12s,box-shadow .2s,background .2s}
+.fl-btn:active{transform:translateY(1px)}
+.fl-btn-primary{background:linear-gradient(180deg,#B98F1B,#8A6810);color:#FCF6E6;box-shadow:0 1px 0 rgba(255,255,255,.25) inset,var(--fl-shadow)}
+.fl-btn-primary:hover{box-shadow:0 1px 0 rgba(255,255,255,.3) inset,var(--fl-shadow-lg);color:#FCF6E6}
+.fl-btn-ghost{background:var(--fl-surface);color:var(--fl-ink);border-color:var(--fl-line)}
+.fl-btn-ghost:hover{border-color:var(--fl-gold);color:var(--fl-gold-deep)}
+.fl-btn-night{background:rgba(233,197,107,.15);color:var(--fl-gold-on-night);border:1px solid rgba(233,197,107,.3)}
+.fl-btn-night:hover{background:rgba(233,197,107,.24);color:var(--fl-gold-on-night)}
+.fl-btn-glow{background:linear-gradient(180deg,#E9C56B,#C9A227);color:#2A2208;box-shadow:0 0 0 1px rgba(233,197,107,.4),0 8px 24px -8px rgba(201,162,39,.55)}
+.fl-btn-glow:hover{color:#2A2208;filter:brightness(1.04)}
+.fl-btn-lg{padding:14px 26px;font-size:15.5px}
+.fl-btn-sm{padding:8px 14px;font-size:13px;border-radius:10px}
+
+/* ── ATMOSPHERE (night → dawn) ── */
+.fl-atmos{position:relative;overflow:hidden;color:var(--fl-on-night);background:linear-gradient(180deg,#131A2A 0%,#233049 44%,#5A4A54 72%,#B7844B 100%)}
+.fl-atmos .fl-sky{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.fl-atmos .fl-inner{position:relative}
+
+/* ── THRESHOLD — presence before information ── */
+.fl-threshold{position:relative;overflow:hidden;color:var(--fl-on-night);text-align:center;
+  background:linear-gradient(180deg,#101623 0%,#1E2740 50%,#4A3E4E 78%,#8F6742 100%);
+  padding:56px 24px 42px}
+.fl-breath{width:12px;height:12px;border-radius:50%;margin:0 auto 22px;background:radial-gradient(circle at 40% 35%,#F6E4B0,#C9A227 72%);box-shadow:0 0 26px 6px rgba(233,197,107,.5);animation:fl-breathe 5.5s ease-in-out infinite}
+@keyframes fl-breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.35);opacity:1}}
+.fl-still{font-family:var(--fl-serif);font-size:clamp(21px,3vw,29px);color:#F6EEDC;letter-spacing:.01em;line-height:1.3;max-width:22ch;margin:0 auto}
+.fl-still-ref{color:var(--fl-on-night-soft);font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin-top:12px}
+.fl-greet{color:var(--fl-on-night-soft);font-size:13.5px;margin-top:14px}
+
+/* ── ASK — the companion speaks WITH you (occasional) ── */
+.fl-ask{position:relative;margin:24px auto 0;max-width:600px;background:rgba(16,20,32,.42);border:1px solid rgba(233,197,107,.22);border-radius:var(--fl-r-lg);padding:20px 22px;text-align:left;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.fl-ask .fl-ask-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.fl-orb{width:24px;height:24px;border-radius:50%;flex:none;background:radial-gradient(circle at 35% 30%,#F4DFA0,#C9A227 70%);box-shadow:0 0 15px 2px rgba(233,197,107,.5)}
+.fl-ask .fl-q{font-family:var(--fl-serif);font-size:18.5px;color:#F4ECD9;line-height:1.42}
+.fl-ask .fl-q em{color:var(--fl-gold-on-night);font-style:normal}
+.fl-choices{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.fl-choice{display:flex;align-items:center;gap:11px;padding:12px 15px;border-radius:12px;background:rgba(236,228,211,.06);border:1px solid rgba(236,228,211,.16);color:#F1E9D7;font-size:14.5px;font-weight:550;cursor:pointer;transition:.16s;text-align:left;text-decoration:none}
+.fl-choice:hover{background:rgba(233,197,107,.14);border-color:rgba(233,197,107,.4);color:#F1E9D7}
+.fl-choice .fl-ci{color:var(--fl-gold-on-night);flex:none;display:flex}
+.fl-choice .fl-cs{color:var(--fl-on-night-soft);font-size:12.5px;font-weight:500;margin-left:auto;text-align:right}
+
+/* ── CONTINUE-as-story ── */
+.fl-continue{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.fl-continue .fl-k{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--fl-gold-on-night);font-weight:700}
+.fl-continue .fl-t{font-family:var(--fl-serif);font-size:21px;color:#F6EEDC;margin-top:3px}
+.fl-continue .fl-s{font-size:13px;color:var(--fl-on-night-soft);margin-top:2px}
+
+/* ── JOURNEY MAP ── named chapters as a line of waypoints (upgradeable later
+   to an illustrated pilgrimage; the arc data model already supports it). ── */
+.fl-map{display:flex;align-items:flex-start;overflow-x:auto;padding:12px 0 2px;margin-top:6px}
+.fl-map::-webkit-scrollbar{height:6px}.fl-map::-webkit-scrollbar-thumb{background:rgba(236,228,211,.2);border-radius:6px}
+.fl-map-step{position:relative;flex:1 0 auto;min-width:72px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 4px}
+.fl-map-step::before{content:"";position:absolute;top:8px;right:50%;width:100%;height:2px;background:rgba(236,228,211,.26)}
+.fl-map-step:first-child::before{display:none}
+.fl-map-step.done::before,.fl-map-step.current::before{background:var(--fl-gold-on-night)}
+.fl-map-node{width:14px;height:14px;border-radius:50%;border:2px solid rgba(236,228,211,.5);background:transparent;z-index:1;flex:none}
+.fl-map-step.done .fl-map-node{background:var(--fl-gold-on-night);border-color:var(--fl-gold-on-night)}
+.fl-map-step.current .fl-map-node{background:#F6EEDC;border-color:#F6EEDC;box-shadow:0 0 0 4px rgba(233,197,107,.3)}
+.fl-map-label{font-size:10.5px;line-height:1.25;color:var(--fl-on-night-soft);text-align:center;max-width:88px}
+.fl-map-step.current .fl-map-label{color:#F6EEDC;font-weight:700}
+
+/* dawn band (the continue strip sits below the night threshold) */
+.fl-atmos-dawn{background:linear-gradient(180deg,#5A4A54,#B7844B)}
+.fl-atmos-dawn .fl-inner{padding:24px 20px 26px}
+
+/* ── CARD ── */
+.fl-card{background:var(--fl-surface);border:1px solid var(--fl-line);border-radius:var(--fl-r-lg);overflow:hidden;box-shadow:var(--fl-shadow);display:flex;transition:transform .16s,box-shadow .2s,border-color .2s;text-decoration:none;color:inherit}
+.fl-card:hover{transform:translateY(-3px);box-shadow:var(--fl-shadow-lg);border-color:var(--fl-gold-bright)}
+.fl-card-cover{flex:none;position:relative;overflow:hidden}
+.fl-card-cover svg{position:absolute;inset:0;width:100%;height:100%}
+.fl-card-body{padding:14px 16px;display:flex;flex-direction:column;gap:8px;justify-content:center;flex:1;min-width:0}
+.fl-card-title{font-family:var(--fl-serif);font-size:17.5px;font-weight:600;line-height:1.15;color:var(--fl-ink)}
+.fl-card-why{font-size:13px;color:var(--fl-ink-soft);line-height:1.45}
+
+/* ── PANELS / layout ── */
+.fl-panel{background:var(--fl-surface);border:1px solid var(--fl-line);border-radius:var(--fl-r-lg);padding:22px}
+.fl-note{background:var(--fl-gold-wash);border-radius:var(--fl-r);padding:13px 16px;font-size:13.5px;color:var(--fl-gold-deep)}
+.fl-hr{height:1px;background:var(--fl-line-soft);border:none;margin:0}
+.fl-mh{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 14px}
+.fl-mh h4{font-size:18px}
+.fl-mh a{font-size:13px;font-weight:650;color:var(--fl-gold-deep);text-decoration:none}
+
+/* ── Progress bar (used where a percentage is genuinely useful) ── */
+.fl-pbar{height:6px;border-radius:4px;background:var(--fl-line);overflow:hidden;flex:1}
+.fl-pbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--fl-gold),var(--fl-gold-bright))}
+
+/* ── page shell ── */
+.fl-today{min-height:60vh}
+.fl-hero{border-radius:var(--fl-r-xl);overflow:hidden;box-shadow:var(--fl-shadow-lg);margin-top:6px}
+.fl-body{padding:26px 0 48px}
+.fl-stack{display:flex;flex-direction:column;gap:0}
+
+/* invitation card (horizontal) */
+.fl-invite{display:flex;align-items:stretch;background:var(--fl-surface);border:1px solid var(--fl-line);border-radius:var(--fl-r-lg);overflow:hidden;box-shadow:var(--fl-shadow);text-decoration:none;color:inherit;transition:transform .16s,box-shadow .2s,border-color .2s;max-width:660px}
+.fl-invite:hover{transform:translateY(-3px);box-shadow:var(--fl-shadow-lg);border-color:var(--fl-gold-bright)}
+.fl-invite-cover{width:118px;flex:none;position:relative;overflow:hidden}
+.fl-invite-cover svg{position:absolute;inset:0;width:100%;height:100%}
+.fl-invite-body{padding:15px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center;min-width:0}
+@media (max-width:640px){.fl-invite-cover{width:84px}}
+
+@media (max-width:640px){
+  .fl-threshold{padding:40px 18px 30px}
+  .fl-continue .fl-t{font-size:19px}
+  .fl-choice .fl-cs{display:none}
+}
+@media (prefers-reduced-motion:reduce){.fl-breath{animation:none}}

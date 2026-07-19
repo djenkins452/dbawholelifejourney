@@ -30,7 +30,12 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import RedirectView, TemplateView
 
-from apps.ai.upload_validation import UploadValidationError, validate_images_list
+from apps.ai.upload_validation import (
+    MAX_IMAGES,
+    UploadValidationError,
+    validate_attachment,
+    validate_images_list,
+)
 from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
 
@@ -888,6 +893,69 @@ def _log_page_context_diag(source, page_context, user):
         )
     except Exception:
         logger.debug("PAGE_CTX_DIAG failed", exc_info=True)
+
+
+class AssistantAttachmentUploadView(LoginRequiredMixin, AssistantMixin, View):
+    """Dedicated universal attachment upload endpoint — the ONE intake door.
+
+    Accepts any supported attachment type (image / document / audio / video),
+    validates it through the shared validator (byte-sniffing + per-class limits),
+    creates a durable MultimodalArtifact (provenance + sha256 dedup), and queues
+    durable storage in the background (request-path-safe). Returns artifact
+    metadata the client references in the chat turn.
+
+    This endpoint ONLY ingests — perception (reading a PDF, transcribing audio)
+    is a later, per-type stage. Everything up to and after perception is shared
+    (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3).
+    """
+
+    def post(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({'success': False, 'error': error}, status=200)
+
+        files = request.FILES.getlist('files')
+        if not files and 'file' in request.FILES:
+            files = [request.FILES['file']]
+        if not files:
+            return JsonResponse({'success': False, 'error': 'No file provided'}, status=400)
+        if len(files) > MAX_IMAGES:
+            return JsonResponse(
+                {'success': False, 'error': f'Maximum {MAX_IMAGES} attachments per message'},
+                status=400,
+            )
+
+        from apps.ai.multimodal import store_and_persist_artifact
+
+        results = []
+        for f in files:
+            raw = f.read()
+            try:
+                meta = validate_attachment(
+                    raw, filename=f.name or '', declared_mime=f.content_type or '',
+                )
+            except UploadValidationError as exc:
+                return JsonResponse(
+                    {'success': False, 'error': f'{f.name}: {exc.message}'},
+                    status=exc.status,
+                )
+            artifact, _created = store_and_persist_artifact(
+                request.user, data=raw, content_type=meta['mime'], kind=meta['kind'],
+            )
+            if artifact is None:
+                return JsonResponse(
+                    {'success': False, 'error': f'Could not store {f.name}'},
+                    status=500,
+                )
+            results.append({
+                'artifact_id': artifact.id,
+                'kind': meta['kind'],
+                'content_type': meta['mime'],
+                'name': f.name,
+                'size': meta['size'],
+                'storage_status': artifact.storage_status,
+            })
+        return JsonResponse({'success': True, 'attachments': results})
 
 
 class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):

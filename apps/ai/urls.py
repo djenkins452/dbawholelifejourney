@@ -34,6 +34,7 @@ urlpatterns = [
     path('api/session-start/', views.SessionStartView.as_view(), name='api_session_start'),
 
     # Conversation / Chat
+    path('api/attachments/', views.AssistantAttachmentUploadView.as_view(), name='api_attachments'),
     path('api/chat/', views.AssistantChatView.as_view(), name='api_chat'),
     path('api/chat/stream/', views.AssistantChatStreamView.as_view(), name='api_chat_stream'),
     # Reconnect to an in-progress generation by job_id (P0 navigation fix)

@@ -3,8 +3,23 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.1a): shared universal attachment module — image normalization + drag-drop)
+# Last Updated: 2026-07-19 (feat(multimodal P1.2a): universal intake server foundation — validator + upload endpoint)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.2a): universal intake — server foundation (all-types validator + upload endpoint)
+
+**Phase 1, universal-intake milestone (sub-milestone A — server foundation).** Goal: "if ChatGPT accepts it, WLJ generally accepts it." This ships the shared intake+validation+storage spine for ALL content classes; perception is a later per-type stage.
+
+**Changes (additive — zero change to existing chat):**
+- **Generalized `apps/ai/upload_validation.py`** — new `validate_attachment()` + `sniff_content_type()` covering every class by BYTE SNIFFING: images (JPEG/PNG/GIF/WEBP/TIFF/HEIC), PDF (`%PDF-`), Office (zip `PK` + extension → docx/xlsx/pptx), text/CSV (extension + UTF-8/no-NUL heuristic), audio (MP3/WAV/M4A/AAC), video (MP4/MOV via ISO-BMFF `ftyp` brand). Per-class size caps (`MAX_BYTES`: image 15 / document 25 / audio 40 / video 100 MB). Client-declared MIME never trusted. Graceful "not supported yet" rejection for unknown types. The image-only `validate_images_list` (chat inline path) is unchanged.
+- **New endpoint `POST /assistant/api/attachments/`** (`AssistantAttachmentUploadView`) — the ONE intake door: validates each file → creates a durable `MultimodalArtifact` (sha256 dedup + provenance) → queues durable storage in the background. Multi-file. Returns artifact metadata (id/kind/content_type/name/size/storage_status) the client references in the chat turn. Ingest only — no perception.
+- **Shared `store_and_persist_artifact()` primitive** in `apps/ai/multimodal.py` — used by BOTH the chat arrival path and the upload endpoint, so every attachment travels through the same storage+provenance platform.
+
+**Architecture:** every attachment — image, PDF, audio, video — now flows through one common intake→validation→artifact→durable-storage platform. Only the (later) perception stage differs by type.
+
+**Files:** `apps/ai/upload_validation.py`, `apps/ai/multimodal.py`, `apps/ai/views.py`, `apps/ai/urls.py`, `apps/ai/tests/test_attachment_validation.py` (new).
+
+**Verification:** `test_attachment_validation` (10) + `test_upload_validation` + `test_multimodal_storage` + request-path-safety contract green; `manage.py check` + `makemigrations --check` clean. Browser (authenticated): PDF → document artifact; multi-file PNG+WAV correctly byte-sniffed to image+audio artifacts; unsupported `.bin` → 400 with friendly message. (Dev `storage_status=pending` because local Redis is down; the eager test proves the persist task reaches `stored` with integrity.)
 
 ## 2026-07-19 — chore(ops): config-governance prod verification + remove temp diagnostic; fix payload section count
 

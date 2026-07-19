@@ -95,6 +95,18 @@ def _queue_artifact_persistence(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_persistence failed", exc_info=True)
 
 
+def store_and_persist_artifact(user, *, data, content_type, kind):
+    """Shared intake primitive: store an artifact (sha256 dedup + provenance) AND
+    queue durable persistence of its bytes in the background. Used by BOTH the
+    chat arrival path and the dedicated upload endpoint — every attachment,
+    regardless of type, travels through this same platform. Returns
+    (artifact, created). Never blocks; never raises for storage reasons."""
+    artifact, created = store_artifact(user, data=data, content_type=content_type, kind=kind)
+    if artifact is not None and data and not artifact.is_durably_stored:
+        _queue_artifact_persistence(artifact.id, base64.b64encode(data).decode("utf-8"))
+    return artifact, created
+
+
 # ── Conversation integrity (the transcript keeps what the user submitted) ────
 def attach_images_to_message(message, images):
     """Persist the user's uploaded images ONTO their conversation message so the transcript

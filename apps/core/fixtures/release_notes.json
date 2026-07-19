@@ -4454,5 +4454,21 @@
       "created_at": "2026-07-18T21:00:00Z",
       "updated_at": "2026-07-18T21:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 280,
+    "fields": {
+      "title": "Your uploads, remembered — and readable",
+      "description": "Everything you share with your Chief of Staff — PDFs, photos, voice notes, even video — is now kept in one simple place under Capture → Your Uploads. Search it in plain language (“my MRI”, “that receipt”), open any file to see exactly what your Chief of Staff read from it and where it came from, and just ask about it in chat anytime — even in a brand-new conversation. Your assistant can now read a PDF, summarize a recording, look at a video, and pull up something you uploaded weeks ago.",
+      "version": "",
+      "entry_type": "improvement",
+      "release_date": "2026-07-18",
+      "is_published": true,
+      "updated_at": "2026-07-18T21:00:00Z",
+      "created_at": "2026-07-18T21:00:00Z",
+      "learn_more_url": "/dashboard/",
+      "is_major": true
+    }
   }
 ]

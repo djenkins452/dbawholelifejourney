@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Your Uploads — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h1 class="page-title">Your uploads</h1>
+        <p class="page-subtitle">Everything you've shared with your Chief of Staff — search it, or open one to see what it read.</p>
+    </div>
+
+    <form method="get" class="al-toolbar" role="search">
+        <input type="search" name="q" value="{{ q }}" class="al-search"
+               placeholder="Search your uploads (e.g. “MRI”, “receipt”, “policy”)…" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <div class="al-filters">
+        <a href="?{% if q %}q={{ q|urlencode }}{% endif %}" class="al-chip {% if not active_kind %}is-active{% endif %}">All</a>
+        {% for k in kinds %}
+        <a href="?kind={{ k }}{% if q %}&q={{ q|urlencode }}{% endif %}"
+           class="al-chip {% if active_kind == k %}is-active{% endif %}">{{ k|capfirst }}</a>
+        {% endfor %}
+    </div>
+
+    {% if artifacts %}
+    <div class="al-grid">
+        {% for a in artifacts %}
+        <a class="al-card" href="{% url 'capture:artifact_detail' a.id %}">
+            <div class="al-thumb al-thumb-{{ a.kind }}">
+                {% if a.kind == 'image' and a.is_durably_stored %}
+                    <img src="{% url 'capture:artifact_download' a.id %}?inline=1" alt="" loading="lazy">
+                {% else %}
+                    <span class="al-icon">{% if a.kind == 'document' %}📄{% elif a.kind == 'audio' %}🎙️{% elif a.kind == 'video' %}🎬{% elif a.kind == 'image' %}🖼️{% else %}📎{% endif %}</span>
+                {% endif %}
+                {% if a.perception_pending %}<span class="al-badge al-badge-processing">Reading…</span>{% endif %}
+            </div>
+            <div class="al-meta">
+                <div class="al-name">{% if a.original_filename %}{{ a.original_filename }}{% else %}{{ a.kind|capfirst }}{% endif %}</div>
+                <div class="al-sub">{{ a.kind|capfirst }} · {{ a.created_at|date:"M j, Y" }}</div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="al-empty">
+        {% if q or active_kind %}
+            <p>No uploads match that. <a href="{% url 'capture:artifact_library' %}">Clear filters</a>.</p>
+        {% else %}
+            <p>Nothing here yet. Attach a file in a chat with your Chief of Staff and it will appear here.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.page-subtitle { color: var(--color-text-muted, #6b7280); margin-top: 4px; }
+.al-toolbar { display: flex; gap: 8px; margin: 16px 0 12px; max-width: 640px; }
+.al-search { flex: 1; padding: 10px 14px; font-size: 16px; border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 10px; background: var(--color-background, #fff); color: var(--color-text, #111); }
+.al-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.al-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--color-border, #e5e7eb);
+    font-size: 13px; text-decoration: none; color: var(--color-text, #111); background: var(--color-surface, #f9fafb); }
+.al-chip.is-active { background: var(--color-accent, #2563eb); color: #fff; border-color: var(--color-accent, #2563eb); }
+.al-count { opacity: .7; font-size: 11px; }
+.al-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.al-card { text-decoration: none; color: inherit; border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 12px; overflow: hidden; background: var(--color-background, #fff); transition: box-shadow .15s, transform .15s; }
+.al-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.10); transform: translateY(-2px); }
+.al-thumb { position: relative; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center;
+    background: var(--color-surface, #f3f4f6); overflow: hidden; }
+.al-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.al-icon { font-size: 40px; }
+.al-badge { position: absolute; bottom: 6px; left: 6px; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+.al-badge-processing { background: var(--color-warning-bg, #fef3c7); color: var(--color-warning, #b45309); }
+.al-meta { padding: 10px 12px; }
+.al-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.al-sub { font-size: 12px; color: var(--color-text-muted, #6b7280); margin-top: 2px; }
+.al-empty { padding: 40px 12px; text-align: center; color: var(--color-text-muted, #6b7280); }
+@media (max-width: 480px) { .al-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); } }
+</style>
+{% endblock %}

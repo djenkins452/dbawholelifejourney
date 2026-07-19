@@ -2,12 +2,16 @@
 
 from django.urls import path
 
-from . import views
+from . import artifact_views, views
 
 app_name = 'capture'
 
 urlpatterns = [
     path('', views.CaptureListView.as_view(), name='list'),
+    # Artifact Library (uploaded files as first-class, retrievable truth)
+    path('library/', artifact_views.ArtifactLibraryView.as_view(), name='artifact_library'),
+    path('artifact/<int:pk>/', artifact_views.ArtifactDetailView.as_view(), name='artifact_detail'),
+    path('artifact/<int:pk>/download/', artifact_views.ArtifactDownloadView.as_view(), name='artifact_download'),
     path('record/', views.CaptureRecordView.as_view(), name='record'),
     path('upload/', views.CaptureUploadView.as_view(), name='upload'),
     path('submit/', views.CaptureSubmitView.as_view(), name='submit'),

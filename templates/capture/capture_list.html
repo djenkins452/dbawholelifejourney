@@ -18,6 +18,9 @@
             <p class="page-subtitle">{{ total_count }} recording{{ total_count|pluralize }} · {{ ready_count }} ready</p>
         </div>
         <div class="header-actions" style="display: flex; gap: 0.5rem;">
+            <a href="{% url 'capture:artifact_library' %}" class="btn btn-secondary">
+                Your Uploads
+            </a>
             <a href="{% url 'capture:upload' %}" class="btn btn-secondary" data-testid="capture-upload-button">
                 Upload File
             </a>

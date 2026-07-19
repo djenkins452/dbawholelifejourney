@@ -18,10 +18,11 @@ class CaptureConfig(AppConfig):
         for mod in (
             "apps.capture.services.capture_domain_truth",
             "apps.capture.services.artifact_domain_truth",  # Artifacts as Truth
+            "apps.capture.page_summaries",                  # Artifact Library Current Context
         ):
             try:
                 __import__(mod)
             except Exception:  # pragma: no cover - registration must not break startup
                 import logging
                 logging.getLogger(__name__).warning(
-                    "capture: failed to import truth provider %s", mod, exc_info=True)
+                    "capture: failed to import provider %s", mod, exc_info=True)

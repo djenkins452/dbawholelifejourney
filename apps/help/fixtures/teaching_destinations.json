@@ -397,7 +397,7 @@
       "destination_id": "admin-operations-wall",
       "name": "Ops Command Center",
       "path_description": "Admin Console - Ops Command Center",
-      "explanation": "Live monitoring dashboard for the 9-engine intelligence pipeline. Shows System Integrity Index (0-100 score), per-engine health cards with Execute buttons, anomaly detection with auto-escalation, and manual/synthetic execution controls. All engines can be triggered manually \u2014 context-dependent engines run in Synthetic Batch Evaluation Mode.",
+      "explanation": "Live monitoring dashboard for the 9-engine intelligence pipeline. Shows System Integrity Index (0-100 score), per-engine health cards with Execute buttons, anomaly detection with auto-escalation, and manual/synthetic execution controls. All engines can be triggered manually — context-dependent engines run in Synthetic Batch Evaluation Mode.",
       "url": "/admin-console/ops/",
       "keywords": "operations, ops, command center, monitoring, engine, execute, manual, synthetic, integrity, anomaly, heartbeat, SAME, health",
       "module": "admin_console",
@@ -414,7 +414,7 @@
       "destination_id": "assistant-blueprint",
       "name": "Personal Operating Blueprint",
       "path_description": "AI - Blueprint Settings",
-      "explanation": "Configure your Personal Operating Blueprint \u2014 set your operating style, life pillars, identity-protected behaviors, non-negotiables, and assistant preferences. This drives your daily architecture plans and drift detection.",
+      "explanation": "Configure your Personal Operating Blueprint — set your operating style, life pillars, identity-protected behaviors, non-negotiables, and assistant preferences. This drives your daily architecture plans and drift detection.",
       "url": "/api/blueprint/",
       "keywords": "blueprint, operating blueprint, chief of staff, assistant, pillars, non-negotiables, tier 1, identity, operating style, wake time, sleep, architecture",
       "module": "ai",
@@ -431,7 +431,7 @@
       "destination_id": "cos-settings",
       "name": "Chief of Staff Settings",
       "path_description": "Chief of Staff - Settings",
-      "explanation": "Customize your Chief of Staff \u2014 change the display name, voice style, notification preferences, and operating mode. Toggle Learning Mode to let the CoS listen and learn your priorities before taking action.",
+      "explanation": "Customize your Chief of Staff — change the display name, voice style, notification preferences, and operating mode. Toggle Learning Mode to let the CoS listen and learn your priorities before taking action.",
       "url": "/assistant/cos/settings/",
       "keywords": "cos settings, chief of staff settings, assistant settings, rename cos, change name, display name, voice, cos preferences, cos configuration, learning mode, priority, listen, learn",
       "module": "ai",
@@ -567,7 +567,7 @@
       "destination_id": "medication-tracking",
       "name": "Medication Tracker",
       "path_description": "Health - Physical - Medicine",
-      "explanation": "Track your medications, schedules, and adherence. You can also ask CoS to email your medicine list to yourself or a doctor \u2014 includes doses, schedules, and 30-day adherence stats.",
+      "explanation": "Track your medications, schedules, and adherence. You can also ask CoS to email your medicine list to yourself or a doctor — includes doses, schedules, and 30-day adherence stats.",
       "url": "/health/physical/intake/",
       "keywords": "medicine, medication, meds, pills, prescriptions, drug, medicine tracker, take medicine, medication schedule, email medicine list, send medicine list, email medications",
       "module": "health",
@@ -1842,7 +1842,7 @@
       "destination_id": "brain-training-kenken",
       "name": "KenKen",
       "path_description": "Health - Cognitive - Brain Training - KenKen",
-      "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation\u2014fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
+      "explanation": "A math-logic puzzle that exercises arithmetic skills and reasoning. Each cage shows a target number and operation—fill cells so the operation produces that result, with no repeated numbers in any row or column. Strengthens mental math, working memory, and logical deduction.",
       "url": "/health/cognitive/kenken/play/",
       "keywords": "kenken, math puzzle, arithmetic, cage puzzle, ken ken, calcudoku, mental math, working memory, logical deduction, cognitive exercise",
       "module": "health",
@@ -1859,7 +1859,7 @@
       "destination_id": "brain-training-nonogram",
       "name": "Nonogram",
       "path_description": "Health - Cognitive - Brain Training - Nonogram",
-      "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column\u2014use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
+      "explanation": "A visual logic puzzle that builds spatial reasoning and attention to detail. Number clues indicate consecutive filled cells in each row and column—use deduction to reveal a hidden picture. Enhances visual processing, planning skills, and systematic thinking.",
       "url": "/health/cognitive/nonogram/play/",
       "keywords": "nonogram, picross, picture puzzle, grid puzzle, pixel puzzle, griddler, spatial reasoning, visual processing, cognitive exercise",
       "module": "health",
@@ -1893,7 +1893,7 @@
       "destination_id": "brain-training-memory-matrix",
       "name": "Memory Matrix",
       "path_description": "Health - Cognitive - Brain Training - Memory Matrix",
-      "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration\u2014essential cognitive skills that support daily life.",
+      "explanation": "A visual memory exercise that strengthens short-term recall and attention. Watch a pattern of highlighted cells, then recreate it from memory. Regular practice improves working memory capacity, visual attention, and concentration—essential cognitive skills that support daily life.",
       "url": "/health/cognitive/memory_matrix/play/",
       "keywords": "memory matrix, pattern memory, visual memory, recall, memory exercise, working memory, visual attention, concentration, cognitive exercise",
       "module": "health",
@@ -3203,6 +3203,18 @@
       "is_active": true,
       "created_at": "2026-07-12T14:00:00Z",
       "updated_at": "2026-07-12T14:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 193,
+    "fields": {
+      "destination_id": "artifact-library",
+      "name": "Your Uploads",
+      "path_description": "Capture - Your Uploads (library)",
+      "explanation": "Every file you've shared with your Chief of Staff — PDFs, photos, recordings, videos — kept in one place. Search it in plain language ('MRI', 'receipt'), filter by type, and open any file to see exactly what WLJ read from it, where it came from, and the conversation it was uploaded in. Your Chief of Staff can also retrieve and reason over any of these directly in chat.",
+      "keywords": "uploads, files, documents, attachments, library, my files, receipts, my uploads, artifacts",
+      "url": "/capture/library/"
     }
   }
 ]

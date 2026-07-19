@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ artifact.original_filename|default:"Uploaded file" }} — Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container ad-wrap">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'capture:artifact_library' %}">Your uploads</a>
+        <span>/</span>
+        <span>{% if artifact.original_filename %}{{ artifact.original_filename }}{% else %}{{ artifact.kind|capfirst }}{% endif %}</span>
+    </nav>
+
+    <div class="ad-grid">
+        <div class="ad-preview ad-preview-{{ artifact.kind }}">
+            {% if artifact.kind == 'image' and artifact.is_durably_stored %}
+                <img src="{% url 'capture:artifact_download' artifact.id %}?inline=1" alt="{{ artifact.original_filename }}">
+            {% elif artifact.kind == 'audio' and artifact.is_durably_stored %}
+                <span class="ad-bigicon">🎙️</span>
+                <audio controls src="{% url 'capture:artifact_download' artifact.id %}?inline=1"></audio>
+            {% elif artifact.kind == 'video' and artifact.is_durably_stored %}
+                <video controls src="{% url 'capture:artifact_download' artifact.id %}?inline=1" style="max-width:100%"></video>
+            {% else %}
+                <span class="ad-bigicon">{% if artifact.kind == 'document' %}📄{% elif artifact.kind == 'audio' %}🎙️{% elif artifact.kind == 'video' %}🎬{% else %}📎{% endif %}</span>
+            {% endif %}
+        </div>
+
+        <div class="ad-info">
+            <h1 class="page-title ad-title">{% if artifact.original_filename %}{{ artifact.original_filename }}{% else %}{{ artifact.kind|capfirst }}{% endif %}</h1>
+            <div class="ad-facts">
+                <span class="ad-tag">{{ artifact.kind|capfirst }}</span>
+                <span class="ad-fact">{{ artifact.content_type }}</span>
+                <span class="ad-fact">Uploaded {{ artifact.created_at|date:"M j, Y, g:i a" }}</span>
+                {% if artifact.page_count %}<span class="ad-fact">{{ artifact.page_count }} page{{ artifact.page_count|pluralize }}/frame{{ artifact.page_count|pluralize }}</span>{% endif %}
+            </div>
+
+            {# Processing / readability state #}
+            {% if artifact.perception_pending %}
+                <div class="ad-note ad-note-processing">Your Chief of Staff is still reading this file — check back in a moment.</div>
+            {% elif artifact.perception_status == 'unsupported' %}
+                <div class="ad-note">This file couldn't be read as text (for example a scanned image or silent audio).</div>
+            {% endif %}
+
+            {% if artifact.is_durably_stored %}
+            <a class="btn btn-secondary ad-download" href="{% url 'capture:artifact_download' artifact.id %}">Download original</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {# What WLJ read (deterministic) #}
+    {% if artifact.has_perception and artifact.extracted_text %}
+    <section class="ad-section">
+        <h2 class="ad-h2">What your Chief of Staff read</h2>
+        <p class="ad-hint">Extracted deterministically — this is exactly what WLJ can reason over. Just ask about it in chat.</p>
+        <pre class="ad-text">{{ artifact.extracted_text|truncatechars:4000 }}</pre>
+    </section>
+    {% endif %}
+
+    {# Provenance + links #}
+    <section class="ad-section">
+        <h2 class="ad-h2">Where this came from</h2>
+        <ul class="ad-prov">
+            <li><strong>File:</strong> {{ artifact.original_filename|default:"(unnamed)" }}</li>
+            <li><strong>Uploaded:</strong> {{ artifact.created_at|date:"M j, Y, g:i a" }}</li>
+            <li><strong>Stored:</strong> {% if artifact.is_durably_stored %}Kept securely{% else %}Processing{% endif %}</li>
+            {% if artifact.source_conversation_id %}
+            <li><strong>From conversation:</strong>
+                <a href="/assistant/?conversation={{ artifact.source_conversation_id }}">open the conversation</a></li>
+            {% endif %}
+            {% if artifact.resolved_intent %}
+            <li><strong>Created a record:</strong> {{ artifact.resolved_intent }}
+                {% if artifact.resolved_object_type %}({{ artifact.resolved_object_type }}){% endif %}</li>
+            {% endif %}
+            {% if artifact.associations %}
+            <li><strong>Linked to:</strong>
+                {% for tok in artifact.associations %}<span class="ad-tag">{{ tok }}</span>{% endfor %}</li>
+            {% endif %}
+        </ul>
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.ad-wrap { max-width: 860px; }
+.ad-grid { display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; }
+.ad-preview { border: 1px solid var(--color-border, #e5e7eb); border-radius: 14px; overflow: hidden;
+    background: var(--color-surface, #f3f4f6); min-height: 200px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 12px; }
+.ad-preview img { width: 100%; border-radius: 8px; }
+.ad-bigicon { font-size: 72px; }
+.ad-preview audio { width: 100%; margin-top: 12px; }
+.ad-title { margin: 0 0 8px; word-break: break-word; }
+.ad-facts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.ad-tag { background: var(--color-accent-bg, #eef2ff); color: var(--color-accent, #2563eb);
+    padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.ad-fact { font-size: 13px; color: var(--color-text-muted, #6b7280); }
+.ad-note { padding: 10px 14px; border-radius: 10px; background: var(--color-surface, #f3f4f6);
+    font-size: 14px; margin-bottom: 12px; }
+.ad-note-processing { background: var(--color-warning-bg, #fef3c7); color: var(--color-warning, #b45309); }
+.ad-download { display: inline-block; margin-top: 4px; }
+.ad-section { margin-top: 28px; }
+.ad-h2 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.ad-hint { color: var(--color-text-muted, #6b7280); font-size: 13px; margin-bottom: 10px; }
+.ad-text { white-space: pre-wrap; background: var(--color-surface, #f9fafb); border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 10px; padding: 14px; font-size: 13px; line-height: 1.5; max-height: 420px; overflow-y: auto; }
+.ad-prov { list-style: none; padding: 0; margin: 0; }
+.ad-prov li { padding: 6px 0; border-bottom: 1px solid var(--color-border, #eee); font-size: 14px; }
+@media (max-width: 640px) { .ad-grid { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}

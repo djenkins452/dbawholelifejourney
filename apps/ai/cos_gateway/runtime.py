@@ -150,7 +150,9 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         # Multimodal arrival path — store each uploaded image as an artifact (provenance +
         # hash dedup) BEFORE generation, and produce the perception payload the model reads.
         # Runs for BOTH sync and streaming so the artifact_id exists regardless of path.
-        from apps.ai.multimodal import attachments_from_ids, ingest_uploads
+        from apps.ai.multimodal import (
+            attachments_from_ids, frames_for_attachments, ingest_uploads,
+        )
         images, attachments = ingest_uploads(
             user,
             image_data=kwargs.get("image_data"),
@@ -166,6 +168,12 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             seen = {a["artifact_id"] for a in attachments}
             attachments = attachments + [a for a in extra if a["artifact_id"] not in seen]
 
+        # VIDEO perception: deliver the sampled frames of any referenced video to the
+        # model's image path so it can SEE the video (the transcript already rides in
+        # the attachment's `text`). Frames are NOT persisted to the transcript (they
+        # are derived, not what the user submitted) — only the user's own images are.
+        perceive_images = images + frames_for_attachments(user, kwargs.get("attachment_ids"))
+
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:
             from apps.ai.model_interface.tasks import run_model_interface_generation
@@ -173,7 +181,7 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             bus.write(job_id, bus.new_snapshot(user.id, conversation.id))
             run_model_interface_generation.delay(
                 user.id, conversation.id, message, page_context, job_id,
-                images=images or None, attachments=attachments or None,
+                images=perceive_images or None, attachments=attachments or None,
             )
             logger.info(
                 "COS_GATEWAY runtime=model_interface surface=%s stream job=%s user=%s",
@@ -205,7 +213,7 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface=surface,
             conversation_history=history,
-            images=images or None, attachments=attachments or None,
+            images=perceive_images or None, attachments=attachments or None,
         )
         answer = result.get("answer") or (
             "I reached the model-interface path, but the model returned an empty "

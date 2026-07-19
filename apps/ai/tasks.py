@@ -451,10 +451,13 @@ def perceive_artifact(self, artifact_id, b64_data):
         artifact.extracted_text = result.get("text") or ""
         if result.get("page_count") is not None:
             artifact.page_count = result["page_count"]
-        artifact.save(update_fields=["perception_status", "extracted_text", "page_count"])
+        artifact.frames = result.get("frames") or []   # video only
+        artifact.save(update_fields=[
+            "perception_status", "extracted_text", "page_count", "frames"])
         return {
             "artifact_id": artifact_id, "result": result["status"],
             "chars": len(artifact.extracted_text), "pages": artifact.page_count,
+            "frames": len(artifact.frames),
         }
     except SoftTimeLimitExceeded:
         raise

@@ -3,8 +3,27 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (fix(cos/truth): route chronological/latest/period journal questions to the canonical producer, not search_history)
+# Last Updated: 2026-07-19 (feat(multimodal P1.3-M3): video perception — frames + audio-track transcript through the existing pipeline)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.3-M3): video perception — the CoS can see & hear videos
+
+**Phase 1.3 (Perception), Milestone 3 — Video.** Video uploaded fine but the CoS truthfully reported it couldn't process it; now it can. Only the perception stage changes — the Attachment Framework, validation, artifact, durable storage, provenance, arrival pipeline, and Current Context are all reused.
+
+**DUAL deterministic decode, reusing what already exists (no second system):**
+- **Frames (visual):** `apps/ai/perception.py::_extract_frames` samples up to 8 evenly-spaced, downscaled (512px) JPEG frames with timestamps via **ffmpeg** — already provisioned in production (`nixpacks.toml aptPkgs=["ffmpeg"]`, there for audio compression), so zero new dependency. Frames are stored on the artifact (`frames` JSONField, migration `capture/0010`) and delivered to the model's **image-perception path** (`image_url`) by `runtime.respond` via new `multimodal.frames_for_attachments` → `perceive_images` — so the model literally SEES the video. Frames are NOT persisted to the transcript (they are derived, not what the user submitted).
+- **Transcript (audio track):** reuses the ONE shared `TranscriptionService.transcribe_bytes` (Whisper) on the video's audio → `extracted_text`, surfaced through the same `attachments_from_ids` `text` path as PDF/audio.
+- Either alone yields a usable result (silent squat clip → frames only; screen-share meeting → transcript; both when present).
+
+**Constitution ATTACHMENTS prompt** adds video: look at the provided frames (in time order, timestamps noted) to evaluate motion/form/scene, and read the transcript for speech — reasoning that these are sampled moments, not every instant.
+
+**Enables:** "what am I doing", "evaluate my squat form", "how's my golf swing", "what happened in this meeting". Background-only (frame extraction + transcription are heavy → the `perceive_artifact` worker); provenance preserved (video artifact + its frames).
+
+**Architecture:** WLJ decodes (samples + transcribes); the model reasons over frames + transcript. Constitution-aligned (mechanical decode) — no Review.
+
+**Files:** `apps/ai/perception.py`, `apps/capture/models.py`, `apps/capture/migrations/0010_*` (new), `apps/ai/tasks.py`, `apps/ai/multimodal.py`, `apps/ai/cos_gateway/runtime.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_video_perception.py` (new).
+
+**Verification:** `test_video_perception` (frames+transcript / frames-only / transcript-only / neither→unsupported / extraction-failure-still-ok / task persists frames / frame delivery owner-scoped+bounded — ffmpeg+Whisper mocked) + all perception + artifact-truth + multimodal-wiring/storage + request-path contract (87 across suites) green; migration drift + `check` clean; migration applied to dev DB. (End-to-end needs ffmpeg + Whisper + Redis, absent in dev; ffmpeg confirmed provisioned in prod.) Cross-conversation video **compare** needs frame re-delivery on retrieval — an Artifacts-as-Truth follow-on.
 
 ## 2026-07-19 — polish(journal): calm, editor-first Journal compose page (presentation only)
 

@@ -151,6 +151,31 @@ def _queue_artifact_perception(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_perception failed", exc_info=True)
 
 
+def frames_for_attachments(user, attachment_ids, *, max_total=16):
+    """Return sampled VIDEO frames as image tuples [(b64, 'image/jpeg')] for the
+    referenced video artifacts, so the model can SEE them through the normal image
+    path (image_url). WLJ decoded these frames deterministically; the model reasons
+    over the visual sequence. USER-SCOPED; bounded. Never raises."""
+    if not attachment_ids:
+        return []
+    out = []
+    try:
+        from apps.capture.models import MultimodalArtifact
+        rows = (MultimodalArtifact.objects
+                .filter(id__in=list(attachment_ids), user=user, kind="video")
+                .exclude(frames=[]))
+        for a in rows:
+            for fr in (a.frames or []):
+                b64 = fr.get("b64") if isinstance(fr, dict) else None
+                if b64:
+                    out.append((b64, "image/jpeg"))
+                    if len(out) >= max_total:
+                        return out
+    except Exception:  # pragma: no cover - defensive; never break a turn
+        logger.warning("multimodal.frames_for_attachments failed", exc_info=True)
+    return out
+
+
 def store_and_persist_artifact(user, *, data, content_type, kind, original_filename=""):
     """Shared intake primitive: store an artifact (sha256 dedup + provenance),
     queue durable persistence of its bytes, AND queue deterministic perception

@@ -98,7 +98,12 @@ class MultimodalArtifact(TimeStampedModel):
                   "Literal decode — never an interpretation. The model reasons over this.",
     )
     page_count = models.PositiveIntegerField(
-        null=True, blank=True, help_text="Pages/segments (metadata).",
+        null=True, blank=True, help_text="Pages/segments/frames (metadata).",
+    )
+    frames = models.JSONField(
+        default=list, blank=True,
+        help_text="Video only: sampled representative frames [{t: seconds, b64: jpeg}] "
+                  "delivered to the model's image-perception path. Deterministic decode.",
     )
 
     # Provenance: the deterministic record this artifact produced.

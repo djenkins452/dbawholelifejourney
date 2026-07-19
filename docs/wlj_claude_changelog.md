@@ -3,8 +3,16 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(health/cos): Measurement Session Capture — backend truth milestone)
+# Last Updated: 2026-07-19 (docs(cos): CLOSE Journal Analysis milestone (prod-validated) + ratify the CoS Domain Certification Standard)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — docs(cos): CLOSE Journal Analysis (production-validated) + ratify CoS Domain Certification Standard
+
+**Journal Analysis + Journal Conversational Routing — CLOSED, production-validated by Danny.** He ran the five questions in production: analytical questions ("what themes / what have I been grateful for / what positive changes") routed to Journal Analysis; content questions ("what have I written about Heather / which entries mention gratitude") routed to Journal retrieval; no invented `life` domain; no "analysis unsupported"; grounded, natural responses. Journal (retrieval + analysis) is now production-complete, alongside Nutrition.
+
+**New governing doc:** `docs/WLJ_COS_DOMAIN_CERTIFICATION_STANDARD.md` — ratifies the repeatable five-step pattern extracted from the Nutrition and Journal certifications as the engineering standard for every future CoS domain (Faith next): (1) verify deterministic truth; (2) expose existing truth (exposure beats construction); (3) validate conversational routing (drift-proof metadata, not prompt patches); (4) production validation (Danny's gate — impl/tests/deploy ≠ complete); (5) close. Records the invariants: WLJ never renders a verdict; the capability declaration and routing metadata must derive from ONE source; retrieve vs. search vs. analyze are distinct discoverable tools; fix the first failing layer bounded by blast radius.
+
+No functional code in this close-out. Journal-analysis shipped in `8ef220e1`; analytical-intent discovery in `fabd0dab` (both deployed). Scoped tests green; `check` clean; no migrations.
 
 ## 2026-07-19 — feat(health/cos): Measurement Session Capture — backend truth milestone (`log_body_measurements`)
 

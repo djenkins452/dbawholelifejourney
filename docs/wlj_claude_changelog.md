@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P0.6): durable artifact storage via background worker + integrity verification)
+# Last Updated: 2026-07-19 (feat(multimodal P0.5a+P0.7): perception audit logging + artifact storage-lifecycle observability)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P0.5a+P0.7): perception audit logging + storage-lifecycle observability
+
+**Phase 0 (Harden the Platform), Milestone 5 — completes Phase 0's structural scope.** Addresses findings B5 (provenance/audit) and the "Operational observability" Phase 0 requirement.
+
+**Changes (extend existing systems, no parallel monitors):**
+- **Perception audit (P0.5a):** `ingest_uploads` now emits a structured audit line for every artifact the model is about to perceive (`multimodal.perceive user=… artifact=… sha=… type=…`), so perception is observable and traceable.
+- **Storage-lifecycle observability (P0.7):** extended the EXISTING OPS-8b media-persistence monitor (`apps/core/ai_observability/media_persistence_monitor.py`) with an `artifact_storage` health block — 24h breakdown by `storage_status`, failed-write count (WARN≥3/CRIT≥20), and stuck-`pending` count (the background persist worker has stalled). Corrected the now-stale docstring notes that claimed `storage_ref` is never populated / image writes are fire-and-forget (both changed by P0.6). Request-path-safe (cache-guarded aggregate reads; degrades to UNAVAILABLE, never raises).
+
+**Sequencing (honest):** the fully queryable *perception-as-truth-request audit row* (P0.5b) is folded into the Phase 1 universal-spine milestone (P1.6), where the turn/audit context exists and it is done once for all intents rather than partially now.
+
+**Phase 0 status:** structural hardening complete — B1 (auth/traversal), B2 (shared validation), B3 (durability + durable artifact storage), B4a (byte-sniffing), B5-partial (provenance persisted + perception audited), C4 (storage lifecycle), plus observability. Next: Phase 1 (ChatGPT-parity universal intake).
+
+**Files:** `apps/ai/multimodal.py`, `apps/core/ai_observability/media_persistence_monitor.py`, `apps/core/tests/test_artifact_storage_monitor.py` (new, 5 tests), `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification:** `test_artifact_storage_monitor` (5) + `test_multimodal_storage` (5) green; perception audit line confirmed in test logs; `manage.py check` clean.
 
 ## 2026-07-19 — feat(multimodal P0.6): durable artifact storage via background worker + integrity verification
 

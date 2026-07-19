@@ -65,6 +65,15 @@ def ingest_uploads(user, *, image_data=None, image_mime_type=None, images_list=N
                 "content_type": mime,
                 "kind": "image",
             })
+            # Perception audit line — every artifact the model is about to perceive
+            # is recorded (id + content hash + type), so perception is observable
+            # and traceable. (A fully queryable perception-as-truth-request audit
+            # row is sequenced to the Phase 1 universal-spine milestone.)
+            logger.info(
+                "multimodal.perceive user=%s artifact=%s sha=%s type=%s kind=image",
+                getattr(user, "id", None), artifact.id,
+                (artifact.sha256 or "")[:12], mime,
+            )
             # Queue durable persistence of the ORIGINAL bytes to object storage in
             # the BACKGROUND — never write to storage on the request path
             # (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3–§4). safe_enqueue is

@@ -12,13 +12,18 @@ Evidence-driven scope (investigated 2026-07-12 — the roadmap was half-wrong)
   roadmap's "S3 bucket availability" item is VOID by default → we expose *which store
   is configured* as a deterministic fact, NOT a fabricated S3 probe, and NOT a
   synthetic Cloudinary ping (consistent with OPS-4's no-synthetic-pings discipline).
-* **Fabricated signals we deliberately do NOT build** (no backing evidence exists):
-  duplicate-detection *rate* (dedup outcome is never recorded queryably —
-  `MultimodalArtifact.status='duplicate'` is never written; message idempotency is
-  cache-only), orphaned/missing objects (no `storage_ref` linkage — it is never
-  populated — and prod is Cloudinary; would need remote listing), and generic
-  persistence/verification failures (image writes are fire-and-forget with swallowed
-  exceptions; verification exists only on the dormant S3 path).
+* **Durable artifact storage IS now real (updated 2026-07-19, P0.6).** The prior
+  note that "`storage_ref` is never populated" and "image writes are fire-and-forget"
+  is superseded: `MultimodalArtifact` now carries a queryable `storage_status`
+  lifecycle (pending→stored/failed/skipped) written by the background task
+  `apps.ai.tasks.persist_artifact_bytes`, which persists the original bytes to
+  durable object storage and verifies sha256 integrity. The `artifact_storage`
+  block below surfaces failed writes + stuck-pending (worker stalled).
+* **Signals we still deliberately do NOT build** (no backing evidence): duplicate-
+  detection *rate* (`status='duplicate'` is still not written on the chat path;
+  message idempotency is cache-only), and remote orphaned/missing-object listing
+  (prod is Cloudinary; would need a remote listing probe — out of scope for a
+  request-path-safe monitor).
 * **The cleaner this monitor drove:** OPS-8b surfaced that no cleanup task existed
   for expired images — `AssistantMessage.image_data` / `MessageImage.image_data`
   (base64, 72h `image_expires_at`) were never purged, so expired bytes accumulated
@@ -68,6 +73,12 @@ PENDING_HIGH_RETRY = 3       # PendingCapture.upload_attempts threshold
 # Expired image rows never purged (no cleaner exists) — surfaces the growth risk.
 EXPIRED_IMG_WARN = 500
 EXPIRED_IMG_CRIT = 5000
+# Durable-artifact storage lifecycle (P0.6): background persist pipeline health.
+ARTIFACT_FAILED_WARN = 3       # failed durable writes in 24h
+ARTIFACT_FAILED_CRIT = 20
+# A `pending` artifact older than this means the background persist task stalled
+# (durable write should complete within seconds of ingest).
+STUCK_ARTIFACT_S = 600  # 10 min
 
 
 def _capture_health(now):
@@ -193,6 +204,53 @@ def _storage_config(now):
         return {"status": "UNAVAILABLE", "reason": str(e)[:200]}
 
 
+def _artifact_storage_health(now):
+    """Durable-artifact storage lifecycle (P0.6): background persist-pipeline health.
+
+    Since 2026-07-19 `MultimodalArtifact.storage_status` is a real, queryable
+    lifecycle (pending→stored/failed/skipped) written by the background task
+    `apps.ai.tasks.persist_artifact_bytes`. This block surfaces failed durable
+    writes and artifacts stuck in `pending` (the worker stalled) — the honest
+    health signal for the new background storage pipeline.
+    """
+    try:
+        from apps.capture.models import MultimodalArtifact
+
+        since = now - timedelta(hours=24)
+        recent = MultimodalArtifact.objects.filter(created_at__gte=since)
+        by_storage = {}
+        for row in recent.values("storage_status"):
+            by_storage[row["storage_status"]] = by_storage.get(row["storage_status"], 0) + 1
+        failed_24h = by_storage.get(MultimodalArtifact.STORAGE_FAILED, 0)
+
+        stuck_pending = MultimodalArtifact.objects.filter(
+            storage_status=MultimodalArtifact.STORAGE_PENDING,
+            created_at__lt=now - timedelta(seconds=STUCK_ARTIFACT_S),
+        ).count()
+
+        if failed_24h >= ARTIFACT_FAILED_CRIT or stuck_pending >= 10:
+            status = "CRITICAL"
+        elif failed_24h >= ARTIFACT_FAILED_WARN or stuck_pending >= 1:
+            status = "WARNING"
+        else:
+            status = "HEALTHY"
+
+        return {
+            "status": status,
+            "by_storage_status_24h": by_storage,
+            "failed_24h": failed_24h,
+            "stuck_pending": stuck_pending,
+            "note": (
+                "original bytes persisted by the background task "
+                "apps.ai.tasks.persist_artifact_bytes; stuck_pending>0 means the "
+                "durable-store worker has stalled; failed>0 = integrity/storage errors"
+            ),
+        }
+    except Exception as e:
+        logger.debug("OPS-8b artifact-storage probe failed: %s", e)
+        return {"status": "UNAVAILABLE", "reason": str(e)[:200]}
+
+
 def get_media_persistence_telemetry(now=None):
     """Build the ``media_persistence`` Ops Wall section (OPS-8b)."""
     cached = cache.get(_TELEMETRY_CACHE_KEY)
@@ -202,12 +260,14 @@ def get_media_persistence_telemetry(now=None):
     now = now or timezone.now()
     capture = _capture_health(now)
     image_retention = _image_retention_health(now)
+    artifact_storage = _artifact_storage_health(now)
     storage = _storage_config(now)
 
     result = {
-        "status": _overall_status([capture, image_retention]),
+        "status": _overall_status([capture, image_retention, artifact_storage]),
         "capture": capture,
         "image_retention": image_retention,
+        "artifact_storage": artifact_storage,
         "storage_config": storage,
         "measured_at": now.isoformat(),
     }

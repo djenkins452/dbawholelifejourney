@@ -151,7 +151,7 @@ def _queue_artifact_perception(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_perception failed", exc_info=True)
 
 
-def store_and_persist_artifact(user, *, data, content_type, kind):
+def store_and_persist_artifact(user, *, data, content_type, kind, original_filename=""):
     """Shared intake primitive: store an artifact (sha256 dedup + provenance),
     queue durable persistence of its bytes, AND queue deterministic perception
     (text extraction) for perceivable types — all in the background. Used by BOTH
@@ -160,7 +160,10 @@ def store_and_persist_artifact(user, *, data, content_type, kind):
     Returns (artifact, created). Never blocks; never raises for storage reasons."""
     from apps.ai.perception import is_perceivable
 
-    artifact, created = store_artifact(user, data=data, content_type=content_type, kind=kind)
+    artifact, created = store_artifact(
+        user, data=data, content_type=content_type, kind=kind,
+        original_filename=original_filename,
+    )
     if artifact is not None and data:
         b64 = base64.b64encode(data).decode("utf-8")
         if not artifact.is_durably_stored:
@@ -213,7 +216,8 @@ def attach_images_to_message(message, images):
 
 
 # ── Artifact store (provenance + artifact-level dedup) ───────────────────────
-def store_artifact(user, *, data=None, content_type="", kind="", storage_ref=""):
+def store_artifact(user, *, data=None, content_type="", kind="", storage_ref="",
+                   original_filename=""):
     """Store (or return the existing) artifact, keyed by content hash. Returns
     (artifact, created); created=False means the SAME content was already uploaded
     (artifact-level dedup). `data` is raw bytes — WLJ hashes it for identity/integrity and
@@ -224,7 +228,8 @@ def store_artifact(user, *, data=None, content_type="", kind="", storage_ref="")
         artifact, created = MultimodalArtifact.objects.get_or_create(
             user=user, sha256=sha,
             defaults={"content_type": content_type, "kind": kind,
-                      "storage_ref": storage_ref},
+                      "storage_ref": storage_ref,
+                      "original_filename": (original_filename or "")[:255]},
         )
         return artifact, created
     except Exception:  # pragma: no cover - defensive

@@ -51,6 +51,10 @@ class MultimodalArtifact(TimeStampedModel):
         help_text="Content hash — artifact-level dedup + integrity. WLJ hashes; never parses.",
     )
     content_type = models.CharField(max_length=100)          # image/jpeg, application/pdf, …
+    original_filename = models.CharField(
+        max_length=255, blank=True,
+        help_text="Filename the user uploaded (identity + retrieval; may be blank for chat images).",
+    )
     storage_ref = models.CharField(max_length=500, blank=True)  # durable object-storage name/path
     storage_status = models.CharField(
         max_length=20, choices=STORAGE_STATUS_CHOICES, default=STORAGE_PENDING,

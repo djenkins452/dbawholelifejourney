@@ -189,6 +189,32 @@ DOMAIN_SEMANTICS = {
         "entities": {"capture": "A captured item awaiting triage/use."},
         "cues": ["what did I capture", "my saved items"],
     },
+    "artifacts": {
+        "purpose": ("Files the person has UPLOADED — documents (PDFs), images/photos, "
+                    "audio recordings/voice notes, and video — kept as durable, "
+                    "retrievable truth with the deterministically extracted text/"
+                    "transcript. Use to FIND or READ something the user uploaded (a "
+                    "receipt, an MRI/lab report, an insurance card, bloodwork, a "
+                    "policy, a recording), INCLUDING from a past turn: pass `name` "
+                    "with words the file is about (e.g. 'MRI', 'receipt') to search "
+                    "its content/filename, or `entity_type` to list one class."),
+        "entities": {
+            "artifact": "Any uploaded file (document/image/audio/video) with its extracted content.",
+            "document": "An uploaded document (PDF, …) with its extracted page text.",
+            "image": "An uploaded image / photo.",
+            "audio": "An uploaded audio recording / voice note, with its transcript.",
+            "video": "An uploaded video.",
+        },
+        "boundary": ("The user's own UPLOADED files as retrievable truth + their "
+                     "extracted content. For a domain's canonical record (a logged "
+                     "lab RESULT, a medication), use that domain; use 'artifacts' to "
+                     "retrieve the uploaded FILE itself and what it says."),
+        "cues": ["show me the receipt I uploaded", "what did my MRI say",
+                 "find my insurance card", "the PDF I uploaded",
+                 "the recording from tuesday", "when did I last upload bloodwork",
+                 "documents I uploaded about", "read the file I sent",
+                 "summarize the document I uploaded"],
+    },
     "notes": {
         "purpose": "The person's saved notes.",
         "entities": {"note": "A saved note."},

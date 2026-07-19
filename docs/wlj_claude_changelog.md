@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (fix(cos/truth): CoS SAE read paths self-heal stale snapshots via the shared ensure_fresh guard)
+# Last Updated: 2026-07-19 (feat(multimodal AaT-A): Artifacts as Truth — uploads become a retrievable Truth Surface)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal AaT-A): Artifacts as Truth — the CoS can retrieve & read past uploads
+
+**Artifacts-as-Truth initiative (Danny: "the differentiator"), Milestone A — core retrieval.** Uploaded artifacts stop being fleeting conversation attachments and become a first-class, retrievable deterministic **Truth Surface** with provenance. The CoS can now answer "what did my MRI say", "show me the receipt I uploaded", "find my insurance card", "when did I last upload bloodwork" — from a PAST upload, not just the current turn.
+
+**Built ON the existing truth architecture — zero parallel system:**
+- **New `artifacts` DomainTruth** (`apps/capture/services/artifact_domain_truth.py`) exposing every `MultimodalArtifact` as a `CompleteEntity` (identity, type, dates, provenance, and the deterministically-extracted `content`). Reachable by the CoS through the **existing `get_entity` tool** (its domain enum is catalog-driven → artifacts auto-included).
+- **`ArtifactQueries`** (`apps/capture/services/artifact_queries.py`) — the one deterministic, owner-scoped retrieval surface: content search over extracted text + filename + type + time; `recent`/`search`/`last_uploaded`/`by_id`/`counts_by_kind`. Composes into the provider; nothing re-derives retrieval.
+- **`original_filename`** added to `MultimodalArtifact` (migration `capture/0009`) for identity + search; threaded through `store_artifact`/`store_and_persist_artifact`/the upload endpoint.
+- **`DOMAIN_SEMANTICS['artifacts']`** added so the model ROUTES upload-retrieval questions here by MEANING (purpose + per-entity descriptions + boundary + cues) — satisfies the capability-semantics contract.
+- **Registration via `apps/capture/apps.py::ready()`** (imports the provider) rather than the central `apps/core/truth/domain.py` list — deliberately decoupled from that hot cross-cutting file (which a parallel session was editing); robust and idempotent.
+
+**Constitution:** WLJ owns artifact identity/storage/indexing/retrieval/provenance/deterministic truth; the model reasons over retrieved artifacts + their extracted content. Aligned; no Review.
+
+**Files:** `apps/capture/services/artifact_domain_truth.py` (new), `apps/capture/services/artifact_queries.py` (new), `apps/capture/models.py`, `apps/capture/migrations/0009_*` (new), `apps/capture/apps.py`, `apps/ai/multimodal.py`, `apps/ai/views.py`, `apps/core/truth/semantics.py`, `apps/ai/tests/test_artifact_truth.py` (new).
+
+**Verification:** `test_artifact_truth` (10 — content/filename/kind search, dedup exclusion, `last_uploaded`, counts, entity composition, and **end-to-end `get_domain_entity(domain='artifacts', name='MRI')` → ready with content**, owner-scoped) + capability-semantics contract + PDF/audio perception (36 total) green; migration drift + `check` clean; migration applied to dev DB; artifacts confirmed registering at runtime. **Follow-ons:** conversation/domain/mission/person linkage; time `filters` in `describe`; Current Context on artifact pages + a gallery/search UI.
 
 ## 2026-07-19 — fix(cos/truth): CoS SAE read paths self-heal stale snapshots (Journal first failing layer)
 

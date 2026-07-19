@@ -26,6 +26,22 @@ class MultimodalArtifact(TimeStampedModel):
         ('rejected', 'Rejected'),      # failed validation / user declined
     ]
 
+    # Durable-storage lifecycle (distinct from `status`, which is the truth-
+    # resolution lifecycle). Original bytes are persisted to durable object
+    # storage by a BACKGROUND worker so the request path never blocks on I/O
+    # (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3–§4). Retrieval must handle
+    # `pending` gracefully — eventual consistency, not failure.
+    STORAGE_PENDING = 'pending'    # queued for durable storage, not yet written
+    STORAGE_STORED = 'stored'      # original durably persisted (storage_ref set)
+    STORAGE_FAILED = 'failed'      # durable write failed (retryable)
+    STORAGE_SKIPPED = 'skipped'    # no bytes to store (e.g. hash-only record)
+    STORAGE_STATUS_CHOICES = [
+        (STORAGE_PENDING, 'Pending'),
+        (STORAGE_STORED, 'Stored'),
+        (STORAGE_FAILED, 'Failed'),
+        (STORAGE_SKIPPED, 'Skipped'),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
         related_name='multimodal_artifacts',
@@ -35,7 +51,16 @@ class MultimodalArtifact(TimeStampedModel):
         help_text="Content hash — artifact-level dedup + integrity. WLJ hashes; never parses.",
     )
     content_type = models.CharField(max_length=100)          # image/jpeg, application/pdf, …
-    storage_ref = models.CharField(max_length=500, blank=True)  # cloudinary url / path
+    storage_ref = models.CharField(max_length=500, blank=True)  # durable object-storage name/path
+    storage_status = models.CharField(
+        max_length=20, choices=STORAGE_STATUS_CHOICES, default=STORAGE_PENDING,
+        db_index=True,
+        help_text="Durable-storage lifecycle. Written by the background persist task.",
+    )
+    byte_size = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Original size in bytes (metadata + integrity check).",
+    )
     kind = models.CharField(
         max_length=50, blank=True,
         help_text="Model-declared kind (scale_photo, dexcom, receipt, …) — a label, not truth.",
@@ -57,6 +82,16 @@ class MultimodalArtifact(TimeStampedModel):
 
     def __str__(self):
         return f"{self.content_type} ({self.sha256[:10]}) — {self.status}"
+
+    @property
+    def is_durably_stored(self):
+        """True once the original has been persisted to durable storage."""
+        return self.storage_status == self.STORAGE_STORED and bool(self.storage_ref)
+
+    @property
+    def storage_pending(self):
+        """True while durable persistence is queued/in-flight (eventual consistency)."""
+        return self.storage_status == self.STORAGE_PENDING
 
 
 class CaptureEntry(TimeStampedModel):

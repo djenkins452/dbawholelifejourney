@@ -3,8 +3,25 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (fix(durability/multimodal P0.3): fail fast on missing durable media storage)
+# Last Updated: 2026-07-19 (feat(multimodal P0.6): durable artifact storage via background worker + integrity verification)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P0.6): durable artifact storage via background worker + integrity verification
+
+**Phase 0 (Harden the Platform), Milestone 4.** Closes findings B3 (artifact durability) / C4 (storage lifecycle). Implements the ratified **background-write** decision — the request path never blocks on storage I/O.
+
+**Gap:** `ingest_uploads` stored only a content **hash**; the original bytes lived on the chat message for 72h then were purged. There was no durable original, so artifacts could never become first-class retrievable truth.
+
+**Change (request-path / worker split, per docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3–§4 and WLJ_REQUEST_PATH_SAFETY):**
+- `MultimodalArtifact` gains a durable-storage lifecycle: `storage_status` (pending/stored/failed/skipped) + `byte_size`, plus `is_durably_stored` / `storage_pending` helpers for eventual-consistency-aware retrieval. Migration `apps/capture/migrations/0007`.
+- `ingest_uploads` (request path) now: accepts → validates → records the artifact + provenance → **queues** durable storage via `safe_enqueue` (non-blocking) → returns. No storage I/O on the request thread.
+- New worker task `apps.ai.tasks.persist_artifact_bytes`: decodes → **verifies sha256 integrity** (durably-stored bytes must match the identity hash; mismatch → `failed`) → writes the original to durable object storage (Cloudinary in prod via the default backend) → records `storage_ref` + `byte_size` + `storage_status=stored`. Idempotent (already-stored = no-op; re-uploads dedup by hash); retries transient failures.
+
+**Scope note:** bytes are passed inline (base64) to the task — fine for the ≤5 MB image cap. Large-media staging (upload-to-staging-ref instead of inlining, + derivatives/thumbnails/transcripts on the worker) is deferred to the large-media milestone (Phase 5) per the roadmap.
+
+**Files:** `apps/capture/models.py`, `apps/capture/migrations/0007_multimodalartifact_byte_size_and_more.py`, `apps/ai/tasks.py`, `apps/ai/multimodal.py`, `apps/ai/tests/test_multimodal_storage.py` (new, 5 tests), `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification:** `test_multimodal_storage` (5) + `test_multimodal` + `_wiring` (40) green; request-path-safety contract (4) green; `makemigrations --check` clean; `manage.py check` clean.
 
 ## 2026-07-19 — fix(durability/multimodal P0.3): fail fast on missing durable media storage (no silent ephemeral fallback)
 

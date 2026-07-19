@@ -65,7 +65,25 @@ def ingest_uploads(user, *, image_data=None, image_mime_type=None, images_list=N
                 "content_type": mime,
                 "kind": "image",
             })
+            # Queue durable persistence of the ORIGINAL bytes to object storage in
+            # the BACKGROUND — never write to storage on the request path
+            # (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3–§4). safe_enqueue is
+            # non-blocking; retrieval tolerates the `pending` window. We enqueue
+            # only when bytes exist and the artifact is not already durably stored
+            # (idempotent across re-uploads of the same content).
+            if data and not artifact.is_durably_stored:
+                _queue_artifact_persistence(artifact.id, b64)
     return images, attachments
+
+
+def _queue_artifact_persistence(artifact_id, b64):
+    """Non-blocking enqueue of durable artifact storage. Never raises."""
+    try:
+        from apps.ai.tasks import persist_artifact_bytes
+        from apps.core.celery_utils import safe_enqueue
+        safe_enqueue(persist_artifact_bytes, artifact_id, b64)
+    except Exception:  # pragma: no cover - defensive; storage is eventual, never blocks a turn
+        logger.warning("multimodal._queue_artifact_persistence failed", exc_info=True)
 
 
 # ── Conversation integrity (the transcript keeps what the user submitted) ────

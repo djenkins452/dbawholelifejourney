@@ -307,6 +307,109 @@ def purge_expired_images_task():
     return purge_expired_images()
 
 
+# Content-type → file extension for durable artifact storage paths.
+_ARTIFACT_EXT = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "application/pdf": ".pdf",
+}
+
+
+@shared_task(
+    name="apps.ai.tasks.persist_artifact_bytes",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+    acks_late=True,
+    soft_time_limit=110,
+    time_limit=120,
+)
+def persist_artifact_bytes(self, artifact_id, b64_data):
+    """Durably persist an uploaded artifact's original bytes in the BACKGROUND.
+
+    The request path (ingest_uploads) accepts + validates + records provenance,
+    then enqueues this task and returns immediately — no storage I/O on the
+    request thread (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §3–§4).
+
+    Steps: decode → verify sha256 against the artifact (integrity) → write to
+    durable object storage (Cloudinary in prod, via the default storage backend)
+    → record storage_ref + byte_size + storage_status. Idempotent: an artifact
+    already stored is a no-op; the same bytes always hash/route the same way.
+
+    Bytes are passed inline (base64) — fine for the current image cap (≤5 MB).
+    Large-media staging (upload-to-staging-ref instead of inlining) is deferred
+    to the large-media milestone; see the roadmap.
+    """
+    import base64
+    import hashlib
+
+    from django.core.files.base import ContentFile
+    from django.core.files.storage import default_storage
+
+    from apps.capture.models import MultimodalArtifact
+
+    try:
+        artifact = MultimodalArtifact.objects.filter(id=artifact_id).first()
+        if artifact is None:
+            logger.warning("persist_artifact_bytes: artifact %s not found", artifact_id)
+            return {"artifact_id": artifact_id, "result": "missing"}
+
+        if artifact.is_durably_stored:
+            return {"artifact_id": artifact_id, "result": "already_stored"}
+
+        try:
+            raw = base64.b64decode(b64_data or "", validate=True)
+        except Exception:
+            artifact.storage_status = MultimodalArtifact.STORAGE_FAILED
+            artifact.save(update_fields=["storage_status"])
+            logger.error("persist_artifact_bytes: undecodable bytes for %s", artifact_id)
+            return {"artifact_id": artifact_id, "result": "undecodable"}
+
+        if not raw:
+            artifact.storage_status = MultimodalArtifact.STORAGE_SKIPPED
+            artifact.save(update_fields=["storage_status"])
+            return {"artifact_id": artifact_id, "result": "no_bytes"}
+
+        # Integrity: the durably-stored bytes must match the identity hash.
+        digest = hashlib.sha256(raw).hexdigest()
+        if artifact.sha256 and digest != artifact.sha256:
+            artifact.storage_status = MultimodalArtifact.STORAGE_FAILED
+            artifact.save(update_fields=["storage_status"])
+            logger.error(
+                "persist_artifact_bytes: sha256 mismatch for %s (expected %s got %s)",
+                artifact_id, artifact.sha256[:10], digest[:10],
+            )
+            return {"artifact_id": artifact_id, "result": "integrity_mismatch"}
+
+        ext = _ARTIFACT_EXT.get(artifact.content_type, "")
+        name = f"multimodal/{artifact.user_id}/{digest}{ext}"
+        stored_name = default_storage.save(name, ContentFile(raw))
+
+        artifact.storage_ref = stored_name
+        artifact.byte_size = len(raw)
+        artifact.storage_status = MultimodalArtifact.STORAGE_STORED
+        artifact.save(update_fields=["storage_ref", "byte_size", "storage_status"])
+        return {"artifact_id": artifact_id, "result": "stored", "ref": stored_name}
+
+    except SoftTimeLimitExceeded:
+        raise
+    except Exception as exc:
+        logger.warning(
+            "persist_artifact_bytes: durable store failed for %s (%s) — retrying",
+            artifact_id, exc,
+        )
+        # Mark failed; retry a few times (broker/storage transient).
+        try:
+            MultimodalArtifact.objects.filter(id=artifact_id).update(
+                storage_status=MultimodalArtifact.STORAGE_FAILED,
+            )
+        except Exception:  # pragma: no cover - defensive
+            pass
+        raise self.retry(exc=exc)
+
+
 # =============================================================================
 # Register the clean ChatGPT CoS generation task with the Celery WORKER.
 # It lives in apps.ai.chatgpt_cos.tasks — a sub-package that

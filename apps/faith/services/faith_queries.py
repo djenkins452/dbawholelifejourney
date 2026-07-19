@@ -222,6 +222,19 @@ class FaithQueries:
         return [cls._plan_to_entity(pl) for pl in qs]
 
     @classmethod
+    def describe_plan_one(cls, user, name):
+        """The reading plan whose template title matches `name`, as a CompleteEntity, or
+        None. Lets the Chief of Staff retrieve a NAMED Bible plan ("tell me about my
+        Journey Through John plan") — previously describe_one resolved prayers only, so a
+        named reading-plan lookup returned nothing (a Truth Layer gap)."""
+        name = (name or "").strip()
+        if not name:
+            return None
+        pl = (UserReadingPlan.objects.filter(user=user, template__title__icontains=name)
+              .select_related("template").order_by("-started_at").first())
+        return cls._plan_to_entity(pl) if pl else None
+
+    @classmethod
     def _plan_to_entity(cls, pl):
         from apps.core.truth import freshness as F
         from apps.core.truth.entity import CompleteEntity

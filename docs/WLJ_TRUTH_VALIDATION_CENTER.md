@@ -100,6 +100,22 @@ Start (object/domain/full) · Stop (cooperative cancel) · Monitor (live heartbe
 Recover (stale-reap, re-run object) · Understand (per-check comparison, truth-bug list, first-failing-
 layer owner). **Final Approval** turns a run into a certification of record (`approved*`).
 
+## Failure categories (executive summary)
+The run finalizer maps each failed object's first-failing-layer to an operator-facing
+category (`truth_category_breakdown`, one bucket per object): **Object Resolution ·
+Provider Failures · Routing · Tool Selection** (these four sum to **Truth Layer Bugs**),
+then **Answer Grounding · Contamination · Unknown**. Shown on the Center dashboard (latest
+run) and each run detail, so the operator immediately sees where engineering effort belongs.
+The discipline: **eliminate every Truth Layer Bug before tuning Answer Grounding** — the
+Truth Layer must be reliable before conversational behavior is judged.
+
+**First finding (fixed):** the Center reported "Truth Layer (provider returned nothing)" for
+the Reading Plan even though it resolved the active plan correctly. Trace: resolved-mode binds
+the prompt to the plan NAME, the CoS retrieves by name, and `FaithDomainTruth.describe_one`
+routed *every* name to the prayer search — so a named reading-plan lookup returned nothing (the
+list path always worked). Fix: `FaithQueries.describe_plan_one` + `describe_one` resolves a
+reading plan by template title first, else a prayer. (`apps/faith/tests/test_truth_validation_faith.py`.)
+
 ## History & dashboard
 Every run persists as an `AcceptanceRun` (date, tester, git commit, suite version, provider version,
 scope, complete responses, automatic results, operator overrides, approval). The executive dashboard

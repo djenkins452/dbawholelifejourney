@@ -72,6 +72,22 @@
     {% endif %}
   </div>
 
+  <!-- Executive summary: failure breakdown by category -->
+  {% if breakdown.has_data %}
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Failure breakdown</h2>
+    <table class="tv-ck" style="max-width:420px;">
+      <tr><td><strong>Truth Layer Bugs</strong></td><td style="text-align:right;"><strong>{{ breakdown.truth_layer_bugs }}</strong></td></tr>
+      {% for c in breakdown.rows %}
+      <tr{% if c.truth_layer %} class="tv-note"{% endif %}>
+        <td>{% if c.truth_layer %}&nbsp;&nbsp;{% endif %}{{ c.label }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ c.count }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
   <!-- Truth bugs -->
   {% if bugs %}
   <div class="stat-card">

@@ -379,7 +379,13 @@ class FaithDomainTruth(DomainTruth):
         return FaithQueries.describe(self.user)
 
     def describe_one(self, name):
+        """Resolve a NAMED faith record: a reading plan first (by template title), else a
+        prayer. Reading plans were previously unreachable by name — a named lookup fell
+        through to the prayer search and returned nothing."""
         from apps.faith.services.faith_queries import FaithQueries
+        plan = FaithQueries.describe_plan_one(self.user, name)
+        if plan is not None:
+            return plan
         return FaithQueries.describe_one(self.user, name)
 
     def history(self, metric, period="last_7_days", **kwargs):

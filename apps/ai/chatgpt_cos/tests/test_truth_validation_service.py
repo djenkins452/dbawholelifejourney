@@ -153,6 +153,42 @@ class PromptResolutionModeTests(TestCase):
         self.assertIn("active", res["selection_rule"])
 
 
+class CategoryBreakdownTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(email="tvcat@example.com", password="x")
+
+    def _result(self, run, key, *, passed=False, is_na=False, layer="", checks=None,
+                resolution=None):
+        return AcceptanceResult.objects.create(
+            run=run, object_key=key, question_key=key, passed=passed, is_na=is_na,
+            first_failing_layer=layer, checks=checks or [],
+            raw_result_json={"resolution": resolution or {}})
+
+    def test_breakdown_buckets_by_layer(self):
+        from apps.ai.chatgpt_cos.truth_validation_service import truth_category_breakdown
+        run = AcceptanceRun.objects.create(validation_type="truth", status="completed")
+        self._result(run, "a", layer="evidence")                       # provider_failure
+        self._result(run, "b", layer="provider")                       # provider_failure
+        self._result(run, "c", layer="answer")                         # answer_grounding
+        self._result(run, "d", layer="routing")                        # routing
+        self._result(run, "e", layer="registration")                  # tool_selection
+        self._result(run, "f", passed=True)                            # ignored
+        self._result(run, "g", is_na=True,
+                     resolution={"resolvable": False})                 # object_resolution
+        self._result(run, "h", is_na=True, resolution={"resolvable": True})  # absent -> ignored
+        self._result(run, "i", checks=[{"is_forbidden": True, "status": "mismatch"}])  # contamination
+        cats = truth_category_breakdown(run)
+        self.assertEqual(cats["provider_failure"], 2)
+        self.assertEqual(cats["answer_grounding"], 1)
+        self.assertEqual(cats["routing"], 1)
+        self.assertEqual(cats["tool_selection"], 1)
+        self.assertEqual(cats["object_resolution"], 1)
+        self.assertEqual(cats["contamination"], 1)
+        # Truth Layer Bugs = object_resolution + provider_failure + routing + tool_selection
+        self.assertEqual(cats["truth_layer_bugs"], 1 + 2 + 1 + 1)
+
+
 class OverrideRecomputeTests(TestCase):
     @classmethod
     def setUpTestData(cls):

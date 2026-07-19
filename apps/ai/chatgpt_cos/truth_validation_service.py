@@ -298,11 +298,60 @@ def _finalize_truth(run, rows, duration_ms):
     run.trustworthy = True
     run.status = "completed"
     run.completed_at = timezone.now()
+    run.category_summary = truth_category_breakdown(run)   # executive-summary breakdown
     run.raw_report_json = {
         "bugs": _truth_bugs(run, rows),
         "scope_kind": run.scope_kind, "scope_key": run.scope_key,
         "na_objects": [r["object_key"] for r in rows if r.get("is_na")]}
     run.save()
+
+
+# ---- executive summary: failure breakdown by category ----------------------
+# Maps the first-failing-layer taxonomy to the operator-facing categories so the summary
+# shows WHERE engineering effort belongs. Each failed object lands in exactly one category.
+CATEGORY_ORDER = ["object_resolution", "provider_failure", "routing", "tool_selection",
+                  "answer_grounding", "contamination", "unknown"]
+CATEGORY_LABELS = {
+    "object_resolution": "Object Resolution", "provider_failure": "Provider Failures",
+    "routing": "Routing", "tool_selection": "Tool Selection",
+    "answer_grounding": "Answer Grounding", "contamination": "Contamination",
+    "unknown": "Unknown"}
+# Categories owned by the Truth Layer (sum = "Truth Layer Bugs").
+TRUTH_LAYER_CATEGORIES = ("object_resolution", "provider_failure", "routing", "tool_selection")
+_LAYER_CATEGORY = {
+    "fixture": "provider_failure", "provider": "provider_failure", "evidence": "provider_failure",
+    "registration": "tool_selection", "routing": "routing", "answer": "answer_grounding",
+    "transport": "unknown", "": "unknown"}
+
+
+def _object_category(result):
+    """The single primary failure category for one AcceptanceResult (None if it passed or
+    is a legitimately-absent record)."""
+    if result.passed:
+        return None
+    checks = result.checks or []
+    forbidden_hit = any(c.get("is_forbidden") and c.get("status") == "mismatch" for c in checks)
+    resolution = (result.raw_result_json or {}).get("resolution") or {}
+    unresolvable = resolution.get("resolvable") is False
+    if result.is_na:
+        # unresolvable object = a resolution bug; a legitimately-absent record is not a bug
+        return "object_resolution" if unresolvable else None
+    if unresolvable:
+        return "object_resolution"
+    if forbidden_hit:
+        return "contamination"
+    return _LAYER_CATEGORY.get(result.first_failing_layer or "", "unknown")
+
+
+def truth_category_breakdown(run):
+    """{category: count} + truth_layer_bugs total, over the run's persisted results."""
+    cats = {c: 0 for c in CATEGORY_ORDER}
+    for r in run.results.all():
+        cat = _object_category(r)
+        if cat:
+            cats[cat] += 1
+    cats["truth_layer_bugs"] = sum(cats[c] for c in TRUTH_LAYER_CATEGORIES)
+    return cats
 
 
 # ---- truth bug report ------------------------------------------------------

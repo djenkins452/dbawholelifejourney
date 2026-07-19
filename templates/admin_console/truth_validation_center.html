@@ -71,6 +71,27 @@
     <div class="tv-metric"><div class="n">{{ metrics.avg_seconds }}s</div><div class="l">Avg Validation Time</div></div>
   </div>
 
+  <!-- Executive summary: failure breakdown by category -->
+  <div class="stat-card">
+    <h2 class="section-title" style="margin-top:0;">Truth Validation Summary
+      {% if summary_run %}<span class="tv-note">— latest run #{{ summary_run.id }} ({{ summary_run.created_at|date:"M d, H:i" }})</span>{% endif %}
+    </h2>
+    {% if summary_breakdown.has_data %}
+    <table class="tv-table" style="max-width:460px;">
+      <tr><td><strong>Truth Layer Bugs</strong></td><td style="text-align:right;"><strong>{{ summary_breakdown.truth_layer_bugs }}</strong></td></tr>
+      {% for c in summary_breakdown.rows %}
+      <tr{% if c.truth_layer %} style="color:#6b7280;"{% endif %}>
+        <td>{% if c.truth_layer %}&nbsp;&nbsp;{% endif %}{{ c.label }}</td>
+        <td style="text-align:right; font-variant-numeric:tabular-nums;">{{ c.count }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    <p class="tv-note">Truth Layer Bugs (Object Resolution · Provider Failures · Routing · Tool Selection) come first — the Truth Layer must be reliable before conversational grounding is tuned.</p>
+    {% else %}
+    <p class="tv-note">No failures in the latest run{% if not summary_run %} — run a validation to populate the breakdown{% endif %}.</p>
+    {% endif %}
+  </div>
+
   {% if active_runs %}
   <div class="stat-card" style="border-left:4px solid var(--tv-amber);">
     <strong>Running now:</strong>

@@ -74,6 +74,7 @@ class ExpectedObject:
             "provider": self.provider,
             "status": self.object_status,
             "present": self.present,
+            "resolvable": self.resolvable,
             "reason": self.reason,
         }
 

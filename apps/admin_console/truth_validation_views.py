@@ -23,6 +23,18 @@ logger = logging.getLogger(__name__)
 _OVERRIDE_STATUSES = {"present", "missing", "mismatch", "na"}
 
 
+def _format_breakdown(category_summary):
+    """Ordered executive-summary breakdown (label + count), with the Truth-Layer total."""
+    from apps.ai.chatgpt_cos.truth_validation_service import (
+        CATEGORY_ORDER, CATEGORY_LABELS, TRUTH_LAYER_CATEGORIES,
+    )
+    cs = category_summary or {}
+    rows = [{"key": k, "label": CATEGORY_LABELS[k], "count": int(cs.get(k, 0)),
+             "truth_layer": k in TRUTH_LAYER_CATEGORIES} for k in CATEGORY_ORDER]
+    return {"rows": rows, "truth_layer_bugs": int(cs.get("truth_layer_bugs", 0)),
+            "has_data": any(r["count"] for r in rows)}
+
+
 def _latest_result_per_object():
     """The most recent truth AcceptanceResult for each object_key (across all runs).
     One ordered query, first-seen-wins — avoids N queries for the 40-object grid."""
@@ -106,6 +118,11 @@ class TruthValidationCenterView(AdminRequiredMixin, TemplateView):
                             "passed": passed, "total": len(objs)})
         ctx["domains"] = domains
         ctx["metrics"] = _dashboard_metrics()
+        latest_completed = AcceptanceRun.objects.filter(
+            validation_type="truth", status="completed").order_by("-created_at").first()
+        ctx["summary_run"] = latest_completed
+        ctx["summary_breakdown"] = _format_breakdown(
+            latest_completed.category_summary if latest_completed else {})
         ctx["runs"] = list(AcceptanceRun.objects.filter(
             validation_type="truth")[:12])
         active = [r for r in AcceptanceRun.objects.filter(
@@ -207,6 +224,7 @@ class TruthValidationRunDetailView(AdminRequiredMixin, TemplateView):
         ctx["failed_results"] = [r for r in results if not r.passed and not r.is_na]
         ctx["na_results"] = [r for r in results if r.is_na]
         ctx["bugs"] = (run.raw_report_json or {}).get("bugs", [])
+        ctx["breakdown"] = _format_breakdown(run.category_summary)
         ctx["override_statuses"] = sorted(_OVERRIDE_STATUSES)
         return ctx
 
@@ -295,9 +313,11 @@ def _recompute_run_rollup(run):
     run.checks_total = sum(r.check_total for r in results)
     run.score_percent = round(100 * run.checks_passed / run.checks_total) \
         if run.checks_total else 0
-    # regenerate the truth-bug list from the (possibly overridden) results
+    # regenerate the truth-bug list + category breakdown from the (possibly overridden) results
     try:
-        from apps.ai.chatgpt_cos.truth_validation_service import _truth_bugs
+        from apps.ai.chatgpt_cos.truth_validation_service import (
+            _truth_bugs, truth_category_breakdown,
+        )
         rows = [{"object_key": r.object_key, "question": r.question_text,
                  "answer": r.response_text, "checks": r.checks, "is_na": r.is_na,
                  "passed": r.passed, "selector": (r.raw_result_json or {}).get("selector", ""),
@@ -305,7 +325,9 @@ def _recompute_run_rollup(run):
         rr = dict(run.raw_report_json or {})
         rr["bugs"] = _truth_bugs(run, rows)
         run.raw_report_json = rr
+        run.category_summary = truth_category_breakdown(run)
     except Exception:
         logger.warning("truth_validation: bug recompute failed run=%s", run.id, exc_info=True)
     run.save(update_fields=["pass_count", "fail_count", "na_count", "checks_passed",
-                            "checks_total", "score_percent", "raw_report_json"])
+                            "checks_total", "score_percent", "raw_report_json",
+                            "category_summary"])

@@ -6,6 +6,25 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — fix(faith/truth-layer): reading plans were unreachable BY NAME (provider returned nothing) + Validation Center failure-category breakdown
+
+**Surfaced by the Truth Validation Center (used as the engineering instrument it was built to be):** the Reading Plan object reported **Truth Layer — provider returned nothing**, even though the Center resolved the active plan correctly ("Journey Through John", active, `faith.entity(reading_plan)`).
+
+**Traced, not guessed (deterministic repro test with logs):**
+- `get_domain_entity(user, "faith", entity_type="reading_plan")` → `status=ready count=1` — the **list path works** (it's what the validator's resolution uses).
+- `get_domain_entity(user, "faith", name="Journey Through John")` → `status=empty` — the **by-name path returns nothing**.
+- **Cause = wrong entity mapping (a Truth Layer/provider gap), not null-composition/routing/registration/resolver.** `FaithDomainTruth.describe_one` routed *every* name to `FaithQueries.describe_one`, which searches `PrayerRequest` only. In the Center's resolved prompt mode the prompt is bound to the plan NAME, so the CoS retrieves by name → the provider returns nothing → "provider returned nothing". The same gap meant the CoS could never answer "tell me about my Journey Through John plan".
+
+**Fix (provider only — the Validation Center was NOT changed):**
+- `FaithQueries.describe_plan_one(user, name)` — resolve a reading plan by template title (a CompleteEntity, complete: title/category/duration, plan_status, current day, progress, current reading, reflections).
+- `FaithDomainTruth.describe_one(name)` now resolves a reading plan first (by title), else a prayer. Named reading-plan lookups now return the deterministic object.
+
+**Validation Center addition (executive summary — the one requested addition):** `truth_category_breakdown` maps each failed object's first-failing-layer to operator-facing categories — **Object Resolution · Provider Failures · Routing · Tool Selection** (sum = **Truth Layer Bugs**), then **Answer Grounding · Contamination · Unknown** — shown on the dashboard (latest run) and each run detail. Scoring/resolution/object-selection engine unchanged; this is derived reporting only.
+
+**Verification:** deterministic repro flips from `empty`→`ready` for the by-name path; list path unchanged. `apps/faith/tests/test_truth_validation_faith.py` (by-name retrieval + list) and category-breakdown mapping test. **104 tests pass** incl. the FULL existing `apps.faith.tests.test_reading_plans` suite (provider change is non-breaking); request-path-safety green; `makemigrations --check` clean (no schema change). Live Faith re-run is the operator's.
+
+- **Files:** `apps/faith/services/faith_queries.py` (`describe_plan_one`), `apps/core/truth/domain_rollout.py` (`FaithDomainTruth.describe_one`), `apps/ai/chatgpt_cos/truth_validation_service.py` (`truth_category_breakdown` + finalize), `apps/core/truth/validation/surface.py` (`resolvable` in the resolution card), `apps/admin_console/truth_validation_views.py` (breakdown context), `templates/admin_console/truth_validation_{center,run}.html` (summary), `docs/WLJ_TRUTH_VALIDATION_CENTER.md`. Tests: `apps/faith/tests/test_truth_validation_faith.py`, `apps/ai/chatgpt_cos/tests/test_truth_validation_service.py`.
+
 ## 2026-07-18 — fix(truth-validation): Truth Validation Center resolved the WRONG object — select the object the APP considers current/active/latest, never describe()[0]
 
 **Reported (first operator validation of the Center):** the validator expected "Journey Through Matthew" for "my current Bible study", but the app's active plan is "Walking With God Through Scripture (Current Arc … Day 2 of 9)". If the validator picks the wrong object, every downstream comparison is meaningless — so validator trust comes before judging the CoS.

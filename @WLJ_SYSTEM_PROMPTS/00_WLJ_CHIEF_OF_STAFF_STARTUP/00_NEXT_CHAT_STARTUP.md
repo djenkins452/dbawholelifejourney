@@ -10,29 +10,34 @@
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 
-**Last regenerated:** 2026-07-19 (**Nutrition ✅ and Journal ✅ are production-complete. The CoS Domain Certification Standard is now RATIFIED. Next domain: Faith.**)
+**Last regenerated:** 2026-07-19 (**Measurement Session Capture backend ✅ production-validated. Next milestone: the Structured Confirmation Framework.**)
 
 ---
 
 ## ✅ What last session established (now PERMANENT — folded, do not re-derive)
-- **The CoS Domain Certification Standard** — the RATIFIED 5-step per-domain process (verify truth → expose existing truth → validate routing → Danny production validation → close). Folded into **`03 §3d`**; canonical doc `docs/WLJ_COS_DOMAIN_CERTIFICATION_STANDARD.md`. Follow it for every domain.
-- **Nutrition** and **Journal** are **production-complete** (both passed the standard end-to-end, validated by Danny in production).
-- Durable rules proven this session (all in `03 §3d`): **exposure precedes new truth** (declare `analysis_subjects`/entities that reuse existing producers — the Meal lesson); **routing is a separate layer from truth** (investigate tool/domain/capability-discovery separately); **capability discovery must derive from ONE source** (`domain_semantics[d].analyzes` derived from `truth_analysis`, drift-proof); **WLJ never renders a verdict**; **retrieve vs. search vs. analyze are distinct discoverable tools**.
+- **Measurement Session Capture (backend) is production-validated** (`f02dadd9` + Shoulder fix `b65ef94a`). A screenshot/photo/voice/typed set → source-agnostic `log_body_measurements` intent → the EXISTING multimodal spine → ONE `BodyMeasurementSession` + `BodyCompositionEntry` (reused truth model, no new pipeline) → Body Intelligence + CoS answer from deterministic truth. WHR derived (never stored); artifact idempotency + provenance; abdomen added.
+- **The durable lesson is folded into `01 §6`:** *the source is never the feature — the structured candidate is.* Any source produces the same candidate through the same spine; OpenAI perceives, WLJ owns truth. Corollary (Shoulder defect): normalize source vocabulary → canonical, and NEVER silently drop an unrecognized value (surface it). **Do not re-derive; do not re-open the backend except for future defects.**
 
-## 🎯 The live sprint — certify each CoS domain via the 5-step Standard
-The Chief of Staff is being made "knowledgeable" domain-by-domain using `03 §3d`. Completed & prod-validated: **Nutrition, Journal.** Each domain: verify existing deterministic truth → expose it (not build it) → validate conversational routing → Danny validates in production → close.
+## 🎯 The live sprint — **Structured Confirmation Framework** (the milestone; Body Measurement is only its first renderer)
+Build a **reusable** structured-confirmation capability for multimodal ingestion. This is NOT a body-measurement feature. Architecture: **shared multimodal ingestion → shared structured confirmation framework → domain-specific renderer.**
 
-**Next domain: Faith.** Begin at Step 1 (verify deterministic truth) — do NOT start by adding anything. Cert harness: drive natural questions through `CoSGateway.respond(surface=chat)` (`OPENAI_API_KEY` from `.env`), instrument `apps/ai/model_interface/service.py` tool fns to capture tool + args + status. Remaining domains after Faith: Fitness · Medications · Goals · Habits · People/Relationships · Legacy · Calendar · Tasks · Projects · Capture · Notes · Brain Training · Medical.
+Requirements: thread `confirmation_detail` through the existing streaming pipeline; build the generic framework (dispatch on `confirmation_detail.renderer`); build the **Body Measurement Session** renderer (editable values — NOT per-row checkboxes; whole-session confirm; confidence highlighting); a **deterministic Import endpoint** reusing the existing `log_body_measurements` intent (`confirmed=True` + edited values). **No new ingestion pipeline, no new truth model — preserve the multimodal architecture.** Future renderers (Labs, Blood Pressure, Nutrition, Medications, …) inherit the framework with zero framework change.
+
+**Turnkey seam map already captured** (do not re-investigate): the memory topic `measurement_session_capture` and changelog `b65ef94a`/`f02dadd9` hold the exact threading path — `confirmation_detail` is currently DROPPED at 3 layers (`execute_action` → `action_interface` → MI dispatch closure in `model_interface/service.py`), then `generate` → `tasks.py` snapshot events → new `chat_stream_bus.format_sse` branch → new SSE branch in BOTH `chat_widget.html` + `assistant_panel.html`. Mirror `renderDuplicatePending` (CSP-safe). Import endpoint modeled on `QuickReplyView`. The handler already RETURNS the full `confirmation_detail` payload (`renderer:'body_measurement_session'`, `measurements`, `skipped`, `derived.waist_hip_ratio`, `count`) — the milestone only has to deliver + render it. Recommend building server-side threading first (testable off the live chat), then the streaming-template work.
+
+## 🧵 Parallel track (a DIFFERENT session owns this — do not collide) — CoS Domain Certification
+Nutrition ✅ and Journal ✅ are production-complete via the RATIFIED 5-step Standard (`03 §3d`; `docs/WLJ_COS_DOMAIN_CERTIFICATION_STANDARD.md`). **Next domain in that track: Faith** (begin Step 1 — verify deterministic truth, don't add). Remaining after Faith: Fitness · Medications · Goals · Habits · People · Legacy · Calendar · Tasks · Projects · Capture · Notes · Brain Training · Medical. Cert harness: drive questions through `CoSGateway.respond(surface=chat)` (`OPENAI_API_KEY` from `.env`), instrument `apps/ai/model_interface/service.py` tool fns. *This track and the Confirmation Framework are independent; two parallel bootloader intents exist — reconcile which you're driving before starting.*
 
 ## 🔮 Deferred / carried (DO NOT implement without opening as its own step)
-- **Journal — genuinely-new-truth items (NOT exposure/routing):** "goals discussed in my journal" (cross-domain + no structured goals-in-journal truth) and "people mentioned most often in my journal" (no ranked people-in-journal surface). Deferred because they require **new deterministic truth**, not exposure.
-- **WLJ Certification Platform** — first type built (Truth Validation Center); remaining types (CRUD/Reasoning/Executive/Check-in/Domain) plug into the same engine. Deferred: `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md`.
-- **UTC-vs-user-local calendar-day attribution** — a truth-model decision (ingest vs summaries/trends), not a code fix. Carried.
-- **WLJ Operations (separate operator-gated track)** — Phase II shipped dark; open action is operator-run (confirm O2), then OPS-8a: `docs/WLJ_OPERATIONS_VISION.md`.
+- **Journal — genuinely-new-truth items:** "goals discussed in my journal" (cross-domain) and "people mentioned most often in my journal" (no ranked surface) — require NEW deterministic truth, not exposure.
+- **WLJ Certification Platform** — remaining types (CRUD/Reasoning/Executive/Check-in/Domain) plug into the same engine. `docs/WLJ_CERTIFICATION_PLATFORM_FUTURE.md`.
+- **UTC-vs-user-local calendar-day attribution** — a truth-model decision, not a code fix. Carried.
+- **WLJ Operations (operator-gated track)** — Phase II shipped dark; open action operator-run (confirm O2) then OPS-8a: `docs/WLJ_OPERATIONS_VISION.md`.
+- **Renpho direct / Terra** — CLOSED as dead ends (investigation reports untracked in `docs/WLJ_RENPHO_*.md`); superseded by Measurement Session Capture. Do not reopen.
 
 ## ⏳ Waiting on Danny (operator — Claude has no prod access)
-- **Run the next domain's (Faith) conversational certification** in production and report failures — production validation is the gate (`03 §3d` step 4).
+- **Validate the Structured Confirmation Framework** in production once built (the review card renders, edits persist, Import writes the edited session).
 - **Deploy topology:** the CoS runs in **`wlj-worker`**; `/_health/` reports only web — verify the worker is on the tested commit before trusting a production CoS result.
 
 ## 🔀 Concurrency — coordinate, do not collide (Danny runs MANY parallel sessions on the SAME tree)
-Commit **only your own files by explicit path.** The changelog and shared files (e.g. `apps/core/truth/domain.py`) are heavily contended: re-check the changelog top **immediately before each commit**, defer your line if a foreign entry appeared, and if a shared file mixes your hunk with foreign uncommitted work, isolate yours (stage by path; never commit foreign hunks). Active parallel threads this week: **Multimodal Intake Platform**, **Journal Experience redesign (Write/Talk Together)**, **Measurement Session Capture**, **Configuration Governance**.
+Commit **only your own files by explicit path.** The changelog and shared files (e.g. `apps/core/truth/domain.py`) are heavily contended: re-check the changelog top **immediately before each commit**, defer your line if a foreign entry appeared, isolate your hunk from foreign uncommitted work, and verify the push is a fast-forward (never lose a foreign commit). Active parallel threads: **Structured Confirmation Framework**, **CoS Domain Certification (Faith next)**, **Journal Experience redesign**, **Configuration Governance**.

@@ -6,6 +6,14 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — chore(startup): close-out — Measurement Session Capture (backend) COMPLETE; next = Structured Confirmation Framework
+
+**Session close-out (`99_PREPARE_NEXT_CHAT`).** Measurement Session Capture (backend) is production-validated and treated as finished (revisit only for defects). Folded the durable lesson UP into the startup package and regenerated the bootloader onto the next milestone.
+- `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/01_READ_FIRST…ARCHITECTURE.md §6` — new permanent lesson: **the source is never the feature — the structured candidate is.** Any source (screenshot/photo/voice/typed/PDF/CSV/API/BLE) produces the SAME structured candidate through the ONE multimodal spine; OpenAI perceives, WLJ owns deterministic truth (validated end-to-end). Corollary (Shoulder defect): normalize source vocabulary → canonical; NEVER silently drop an unrecognized value.
+- `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md` — rewritten: live sprint = **Structured Confirmation Framework** (shared framework + Body Measurement renderer; turnkey seam map carried). Preserved the parallel **CoS Domain Certification (Faith next)** track a concurrent session owns, and flagged the two parallel bootloader intents. Constitution unchanged; no code, no migrations.
+
+**Concurrency note:** the CoS-certification bootloader from a concurrent close-out (`e271c782`) was NOT discarded — its Faith/certification track is preserved as a parallel track; both intents coexist for Danny to reconcile.
+
 ## 2026-07-19 — fix(health/cos): Measurement Session Capture — singular labels dropped + silent-drop class eliminated
 
 **Shoulder defect (`f02dadd9` follow-up).** A validated Renpho screenshot import wrote every circumference EXCEPT Shoulder (CoS reported "Shoulders: not measured"). Runtime-trace (PROVED, not guessed): device screens label it **"Shoulder"** (singular) but WLJ's canonical metric is the plural **"shoulders"** — `normalize_body_metric` had sided aliases (bicep→arm, L/R) but **no singular→plural alias**, so it returned `None` and the handler's `if metric is None: continue` **silently dropped** it at NORMALIZATION, before validation/persistence. `"Hip"` (singular) was a latent twin (Vision happened to emit `"hips"` that run). First-disappearance point = normalization; nothing was ever written, so the truth surface correctly said "not measured".

@@ -70,10 +70,10 @@
         <form id="assistant-form" class="assistant-form">
             {% csrf_token %}
             <!-- Hidden file input for image upload (multiple) -->
-            <input type="file" id="assistant-file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+            <input type="file" id="assistant-file-input" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden>
 
             <!-- Attach button -->
-            <button type="button" id="assistant-attach-btn" class="assistant-attach-btn" title="Attach image">
+            <button type="button" id="assistant-attach-btn" class="assistant-attach-btn" title="Attach a photo">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -464,6 +464,12 @@
     border-top: 1px solid var(--color-border, #e5e7eb);
     background: var(--color-background, #fff);
     flex-shrink: 0;
+}
+/* Drag-and-drop affordance (shared WLJAttachments helper toggles this class). */
+.assistant-input-area.wlj-drag-over {
+    outline: 2px dashed var(--color-accent, #2563eb);
+    outline-offset: -6px;
+    background: var(--color-accent-bg, rgba(37, 99, 235, 0.06));
 }
 
 .assistant-form {
@@ -1134,6 +1140,7 @@
 </style>
 
 <!-- Assistant Drawer JavaScript -->
+<script src="{% static 'js/wlj-attachments.js' %}"></script>
 <script nonce="{{ csp_nonce }}">
 (function() {
     const toggleBtn = document.getElementById('assistant-toggle-btn');
@@ -3558,34 +3565,16 @@
             alert('Maximum ' + MAX_IMAGES + ' images per message.');
             return;
         }
-
-        // Validate file type
-        var validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (validTypes.indexOf(file.type) === -1) {
-            alert('Please select a valid image (JPEG, PNG, GIF, or WebP)');
-            return;
-        }
-
-        // Validate file size (5MB max per image)
-        var maxSize = 5 * 1024 * 1024;
-        if (file.size > maxSize) {
-            alert('Image is too large. Maximum size is 5MB per image.');
-            return;
-        }
-
-        // Read file as base64
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            var base64 = e.target.result.split(',')[1];
-            attachedImages.push({
-                data: base64,
-                mimeType: file.type,
-                dataUrl: e.target.result
-            });
+        // Shared normalization: EXIF orientation, downscale large photos, HEIC→JPEG,
+        // compress under the server cap. Kills "file too large" + sideways photos.
+        WLJAttachments.prepareImage(file).then(function(img) {
+            if (attachedImages.length >= MAX_IMAGES) return;
+            attachedImages.push({ data: img.data, mimeType: img.mimeType, dataUrl: img.dataUrl });
             renderImagePreviews();
             updateSendButton();
-        };
-        reader.readAsDataURL(file);
+        }).catch(function(err) {
+            if (err && err.message) alert(err.message);
+        });
     }
 
     // Handle multiple files from file picker
@@ -3667,6 +3656,14 @@
             handleImageFiles(fileInput.files);
         }
     });
+
+    // Drag-and-drop onto the chat input area (shared helper).
+    if (window.WLJAttachments) {
+        var cwDropZone = document.querySelector('.assistant-input-area');
+        WLJAttachments.attachDragAndDrop(cwDropZone, function(files) {
+            handleImageFiles(files);
+        });
+    }
 
     // Remove attachment button — delegated click on preview strip
     previewStrip.addEventListener('click', function(e) {

@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(cos/truth): expose existing Meal aggregation as a conversational truth entity — Nutrition certification 9/9)
+# Last Updated: 2026-07-19 (feat(multimodal P1.1a): shared universal attachment module — image normalization + drag-drop)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.1a): shared attachment module — client-side image normalization + drag-drop
+
+**Phase 1 (ChatGPT-parity intake), Milestone 1.** First customer-visible capability milestone. Addresses P1.2 image pain points and begins P1.1's universal experience via a single shared module (build once, both chat surfaces consume it).
+
+**New `static/js/wlj-attachments.js`** — ONE shared client module used by BOTH the desktop dock (`assistant_panel.html`) and mobile drawer (`chat_widget.html`), replacing their duplicated image-specific `handleImageFile` logic:
+- **Intelligent normalization** (`prepareImage`): decodes with EXIF orientation applied (`createImageBitmap {imageOrientation:'from-image'}`) so photos are never sideways; downscales the longest edge to 2048px (catches large *dimensions*, not just bytes); compresses under the 5 MB server cap → the user almost never sees "file too large." Small in-spec images pass through untouched (no quality loss); GIFs pass through (animation preserved).
+- **HEIC/HEIF → JPEG** where the engine can decode it (WebKit / the iOS WKWebView app / Safari — the primary iPhone path); a clear message on engines that can't (desktop Chrome).
+- **Widened `accept`** (images incl HEIC) → the OS sheet now offers Photos / Take-a-photo / Browse on mobile.
+- **Drag-and-drop** onto the chat input area (shared `attachDragAndDrop` helper + `.wlj-drag-over` affordance in both surfaces).
+
+**Scope:** images end-to-end (the server already accepts images). Non-image types (PDF/DOCX/audio/video) need server ingestion + perception and are the next milestone (P1.3). `fileKind()` hook is already in the module for that expansion.
+
+**Files:** `static/js/wlj-attachments.js` (new), `templates/components/assistant_panel.html`, `templates/components/chat_widget.html`, `static/css/assistant-panel.css`, `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification (browser, authenticated dashboard):** module loads on both surfaces; `accept` widened on both inputs; `prepareImage` downscaled a 4000×3000 PNG → 2048×1536, passed a 300×300 PNG through unchanged, rejected a non-image; no console errors; panel renders intact. `collectstatic` clean (0 errors, new JS+CSS post-processed); `manage.py check` clean.
 
 ## 2026-07-19 — feat(cos/truth): expose the existing Meal aggregation as a truth entity (Nutrition certification 9/9)
 

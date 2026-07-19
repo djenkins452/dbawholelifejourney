@@ -132,9 +132,9 @@ any in-flight stream survive a focus-mode toggle untouched.
 
                 <form id="ap-chat-form" class="ap-chat-form" data-testid="cos-chat-form">
                     {% csrf_token %}
-                    <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple hidden>
+                    <input type="file" id="ap-file-input" accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif" multiple hidden>
 
-                    <button type="button" id="ap-attach-btn" class="ap-attach-btn" title="Attach image">
+                    <button type="button" id="ap-attach-btn" class="ap-attach-btn" title="Attach a photo">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -289,6 +289,7 @@ any in-flight stream survive a focus-mode toggle untouched.
     </div>
 </div>
 
+<script src="{% static 'js/wlj-attachments.js' %}"></script>
 <script nonce="{{ csp_nonce }}">
 /* ================================================================
    Chief of Staff — Chat Panel Engine
@@ -1640,20 +1641,16 @@ any in-flight stream survive a focus-mode toggle untouched.
             alert('Maximum ' + MAX_IMAGES + ' images per message.');
             return;
         }
-        var validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (validTypes.indexOf(file.type) === -1) { alert('Please select JPEG, PNG, GIF, or WebP'); return; }
-        if (file.size > 5 * 1024 * 1024) { alert('Image too large (5MB max per image)'); return; }
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            attachedImages.push({
-                data: e.target.result.split(',')[1],
-                mimeType: file.type,
-                dataUrl: e.target.result
-            });
+        // Shared normalization: EXIF orientation, downscale large photos, HEIC→JPEG,
+        // compress under the server cap. Kills "file too large" + sideways photos.
+        WLJAttachments.prepareImage(file).then(function(img) {
+            if (attachedImages.length >= MAX_IMAGES) return;
+            attachedImages.push({ data: img.data, mimeType: img.mimeType, dataUrl: img.dataUrl });
             renderImagePreviews();
             updateSendBtn();
-        };
-        reader.readAsDataURL(file);
+        }).catch(function(err) {
+            if (err && err.message) alert(err.message);
+        });
     }
 
     function handleImageFiles(files) {
@@ -2160,6 +2157,13 @@ any in-flight stream survive a focus-mode toggle untouched.
     if (fileInput) fileInput.addEventListener('change', function() {
         if (fileInput.files && fileInput.files.length > 0) handleImageFiles(fileInput.files);
     });
+    // Drag-and-drop onto the chat input area (shared helper).
+    if (window.WLJAttachments) {
+        var apDropZone = document.querySelector('.ap-chat-input-area');
+        WLJAttachments.attachDragAndDrop(apDropZone, function(files) {
+            handleImageFiles(files);
+        });
+    }
     if (previewStrip) previewStrip.addEventListener('click', function(e) {
         var btn = e.target.closest('.ap-remove-attachment');
         if (btn) {

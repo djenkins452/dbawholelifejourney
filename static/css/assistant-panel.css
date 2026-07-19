@@ -2744,3 +2744,10 @@ body.has-desktop-nav .desktop-main-area {
     .ap-ops-banner { margin: 6px 8px 4px; font-size: 12.5px; }
     .ap-ops-banner-action { min-height: 36px; }
 }
+
+/* Drag-and-drop affordance (shared WLJAttachments helper toggles this class). */
+.ap-chat-input-area.wlj-drag-over {
+    outline: 2px dashed var(--color-accent, #2563eb);
+    outline-offset: -6px;
+    background: var(--color-accent-bg, rgba(37, 99, 235, 0.06));
+}

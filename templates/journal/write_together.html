@@ -42,10 +42,13 @@
 .wt {
     max-width: 640px;
     margin: 0 auto;
-    padding: var(--space-5) var(--space-4) var(--space-4);
+    padding: var(--space-5) var(--space-4) 0;
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 120px);
+    /* Height is set precisely by JS to fill the visible area (iMessage model):
+       the thread scrolls internally and the composer stays anchored below it.
+       This calc() is only a pre-JS fallback. */
+    height: calc(100vh - 140px);
 }
 .wt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
 .wt-back { color: var(--color-text-muted); text-decoration: none; font-size: var(--font-size-sm); transition: color var(--transition-fast); }
@@ -53,7 +56,16 @@
 .wt-title { font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-muted); }
 
 /* The conversation — a written dialogue, not a chat window (no avatars, no bubbles) */
-.wt-thread { flex: 1; display: flex; flex-direction: column; gap: var(--space-5); padding-bottom: var(--space-4); }
+.wt-thread {
+    flex: 1;
+    min-height: 0;              /* critical: lets the flex child actually scroll */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    padding: var(--space-1) 0 var(--space-4);
+    overscroll-behavior: contain;
+}
 .wt-who {
     font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
     color: var(--color-text-muted); margin-bottom: var(--space-1);
@@ -79,8 +91,8 @@
 }
 @keyframes wt-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
-/* Composer — calm, sticky at the bottom */
-.wt-footer { position: sticky; bottom: 0; background: var(--color-bg); padding-top: var(--space-3); }
+/* Composer — anchored below the scrolling thread (never overlaps messages) */
+.wt-footer { flex-shrink: 0; background: var(--color-bg); padding: var(--space-3) 0 var(--space-4); }
 .wt-composer {
     display: flex; align-items: flex-end; gap: var(--space-2);
     background: var(--color-surface);
@@ -131,6 +143,30 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = csrfEl ? csrfEl.value : '';
     const MSG_URL = '{% url "journal:write_together_message" %}';
     const GEN_URL = '{% url "journal:write_together_generate" %}';
+    const wt = document.querySelector('.wt');
+
+    // iMessage model: size the conversation to fill the visible area so the thread
+    // scrolls internally and the composer stays anchored — never overlapping it.
+    function bottomInset() {
+        const bar = document.querySelector('.bottom-tab-bar');
+        if (bar) {
+            const cs = getComputedStyle(bar);
+            if (cs.display !== 'none' && cs.visibility !== 'hidden') {
+                const overlap = window.innerHeight - bar.getBoundingClientRect().top;
+                if (overlap > 0) return overlap;
+            }
+        }
+        return 0;
+    }
+    function sizeWt() {
+        if (!wt) return;
+        const top = wt.getBoundingClientRect().top;
+        wt.style.height = Math.max(320, window.innerHeight - top - bottomInset()) + 'px';
+    }
+    function nearBottom() { return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120; }
+    function scrollToBottom() { thread.scrollTop = thread.scrollHeight; }
+    window.addEventListener('resize', sizeWt);
+    sizeWt();
 
     function addTurn(role, text) {
         const el = document.createElement('div');
@@ -143,7 +179,6 @@ document.addEventListener('DOMContentLoaded', function() {
         body.textContent = text;
         el.appendChild(who); el.appendChild(body);
         thread.appendChild(el);
-        el.scrollIntoView({ block: 'end', behavior: 'smooth' });
         return el;
     }
 
@@ -152,7 +187,6 @@ document.addEventListener('DOMContentLoaded', function() {
         el.className = 'wt-turn assistant wt-thinking';
         el.innerHTML = '<div class="wt-who">Chief of Staff</div><div class="wt-text wt-dots">…</div>';
         thread.appendChild(el);
-        el.scrollIntoView({ block: 'end', behavior: 'smooth' });
         return el;
     }
 
@@ -172,16 +206,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function sendMessage(text) {
         addTurn('user', text);
         input.value = ''; autoresize();
+        scrollToBottom();               // the user's own message: always follow to it
         sendBtn.disabled = true;
         const thinking = addThinking();
+        scrollToBottom();
         postJSON(MSG_URL, { message: text }).then(function(data) {
+            const stick = nearBottom();  // don't yank the user down if they scrolled up
             thinking.remove();
             if (data && data.reply) addTurn('assistant', data.reply);
+            if (stick) scrollToBottom();
             sendBtn.disabled = false;
             input.focus();
         }).catch(function() {
             thinking.remove();
             addTurn('assistant', "I'm here — tell me more.");
+            scrollToBottom();
             sendBtn.disabled = false;
         });
     }
@@ -218,15 +257,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Opening: if the conversation hasn't started, fetch the CoS's opening.
     if (thread.children.length === 0) {
         const thinking = addThinking();
+        scrollToBottom();
         postJSON(MSG_URL, { message: '' }).then(function(data) {
             thinking.remove();
             if (data && data.reply) addTurn('assistant', data.reply);
+            scrollToBottom();
             input.focus();
         }).catch(function() {
             thinking.remove();
-            addTurn('assistant', 'What would you like to remember about today?');
+            addTurn('assistant', "I'm here. What's on your mind?");
+            scrollToBottom();
         });
     } else {
+        scrollToBottom();
         input.focus();
     }
 });

@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — refine(journal M2): Write Together feels like the Chief of Staff, not an AI
+
+Three conversation-experience refinements (no architecture change — conversation/editor separation, generation, review, canonical `JournalEntry`, Playbook, Memory Model, Truth Discovery all unchanged):
+
+1. **The opening no longer chooses the subject.** Retired the model-generated, context-grounded opener (it steered straight to the user's weight goal). The opening is now a **deterministic, time-aware, purpose-neutral** greeting ("Good evening. How's your day been?" / "I'm here. What's on your mind?") — never assumes *why* the user is journaling, never picks a topic. Dropped "What would you like to remember today?".
+
+2. **Personal context is withheld until it's genuinely a last resort — the *condition* is eliminated, not just discouraged.** The conversation system prompt now carries **no** personal context in normal flow; it's appended only after the user has given almost no direction across ≥2 sparse turns (deterministic gate `_should_offer_context`). The model can't steer to remembered topics because it isn't given them. The user chooses the first story; the CoS follows first, leads only later.
+
+3. **The system prompt is a thoughtful listener, not a proactive assistant.** Reframed: follow the user's lead, stay on ONE thread for several exchanges (don't jump after 1–2 replies), one continuous thread not a sequence of prompts, understand-not-decide for the first several turns.
+
+4. **Conversation UX scroll fix (the iMessage model).** The thread now scrolls **internally** (fixed-height flex, JS-sized to the visible area minus the mobile tab bar) with the composer **anchored** below it; the newest message is never hidden behind the input; it auto-scrolls to the latest unless the user has intentionally scrolled up; the composer grows without covering the conversation. Replaced `scrollIntoView` (which aligned new messages under the composer).
+
+**Files:** `services/journal_conversation.py` (opening + listener prompt + last-resort context gate), `templates/journal/write_together.html` (scroll/layout), `tests/test_write_together_conversation.py`.
+
+**Verification:** 11 conversation tests pass (incl. new: opening is deterministic + doesn't steer; context withheld until sparse). `check` clean. Runtime (dev, real model): opening = "Good evening. How's your day been?" (no steering); "Heather and I went shoe shopping" → CoS stays on topic ("What kind of shoes were you looking for?"), no pivot to goals; thread scrolls internally, newest message sits above the composer, composer pinned to the window bottom (`860/860`). No console errors from the feature. AWAITING Danny's validation. Talk It Through (voice) deferred until this text experience is validated as natural.
+
 ## 2026-07-19 — chore(startup): close-out — Measurement Session Capture (backend) COMPLETE; next = Structured Confirmation Framework
 
 **Session close-out (`99_PREPARE_NEXT_CHAT`).** Measurement Session Capture (backend) is production-validated and treated as finished (revisit only for defects). Folded the durable lesson UP into the startup package and regenerated the bootloader onto the next milestone.

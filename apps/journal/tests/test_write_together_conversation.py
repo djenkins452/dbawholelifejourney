@@ -59,10 +59,10 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
 
     # --- opening ------------------------------------------------------------
 
-    @patch("apps.ai.cos_intelligence.build_cos_intelligence", return_value={})
     @patch("apps.journal.services.journal_conversation.AIService")
-    def test_opening_is_generated_and_persisted(self, MockAI, _ctx):
-        MockAI.return_value._call_api.return_value = "What would you like to remember about today?"
+    def test_opening_is_deterministic_and_does_not_steer(self, MockAI):
+        # The opening is deterministic (no model call) and purpose-neutral — it must
+        # never choose a subject or assume why the user is journaling.
         self._enable()
         self.login_user()
         resp = self.client.post(self.msg_url, data=json.dumps({"message": ""}),
@@ -71,9 +71,29 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         data = resp.json()
         self.assertTrue(data.get("opening"))
         self.assertTrue(data["reply"])
+        MockAI.return_value._call_api.assert_not_called()  # no model call for the opening
+        self.assertNotIn("remember", data["reply"].lower())  # doesn't assume purpose
         convo = JournalConversation.objects.get(user=self.user)
         self.assertEqual(len(convo.transcript), 1)
         self.assertEqual(convo.transcript[0]["role"], "assistant")
+
+    def test_context_is_withheld_until_user_gives_little(self):
+        # Personal context (last resort) is only offered after >=2 sparse user turns.
+        from apps.journal.services.journal_conversation import _should_offer_context
+
+        class _C:
+            def __init__(self, transcript):
+                self.transcript = transcript
+
+        self.assertFalse(_should_offer_context(_C([])))
+        self.assertFalse(_should_offer_context(_C([{"role": "user", "text": "hi"}])))
+        # a rich first answer → keep following the user, no context
+        long = " ".join(["word"] * 50)
+        self.assertFalse(_should_offer_context(_C([
+            {"role": "user", "text": long}, {"role": "user", "text": "more stuff here"}])))
+        # two sparse turns → last-resort context is allowed
+        self.assertTrue(_should_offer_context(_C([
+            {"role": "user", "text": "not much"}, {"role": "user", "text": "i dunno"}])))
 
     # --- a turn + durability ------------------------------------------------
 

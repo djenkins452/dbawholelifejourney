@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (fix(cos/truth): repair the shared conversational historical-search pipeline — URL-rot crash class, domain forwarding, registry drift)
+# Last Updated: 2026-07-19 (fix(durability/multimodal P0.3): fail fast on missing durable media storage)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — fix(durability/multimodal P0.3): fail fast on missing durable media storage (no silent ephemeral fallback)
+
+**Phase 0 (Harden the Platform), Milestone 3.** Closes finding B3.
+
+**Root cause:** `config/settings.py` silently fell back to `FileSystemStorage` whenever Cloudinary env vars were absent — including in production, where local disk on Railway is ephemeral and **loses all uploaded media on redeploy**. A durability guarantee that depends on an env var being present, with a silent failure mode, is not a guarantee.
+
+**Fix:** in a non-DEBUG environment, a missing Cloudinary configuration now raises `ImproperlyConfigured` at boot rather than silently degrading. Local development (DEBUG) is unaffected. An operator who genuinely wants ephemeral media in a non-DEBUG environment must opt in explicitly with `WLJ_ALLOW_EPHEMERAL_MEDIA=1` (which logs a loud warning) — an informed choice, never an accident.
+
+**⚠️ New production invariant:** every non-DEBUG service that boots this settings module (web **and** the separate `wlj-worker`) must have `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`, or `WLJ_ALLOW_EPHEMERAL_MEDIA=1`. Production already has Cloudinary configured (confirmed by the media-persistence monitor and the storage assessment), so this does NOT change current prod boot — it only makes a future misconfiguration loud instead of silently lossy.
+
+**Files:** `config/settings.py`, `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification:** local (DEBUG=True) → `FileSystemStorage`, boots clean, `manage.py check` clean; prod (DEBUG=False + Cloudinary present) → durable Cloudinary, no raise; misconfig (DEBUG=False, no Cloudinary, no opt-out) → `ImproperlyConfigured` by design. Settings-import guard (not unit-tested to avoid brittle subprocess env manipulation); logic verified by direct settings inspection.
 
 ## 2026-07-19 — fix(cos/truth): repair the shared conversational historical-search pipeline (nutrition surfaced it)
 

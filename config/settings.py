@@ -431,10 +431,36 @@ if _cloudinary_cloud_name and _cloudinary_api_key and _cloudinary_api_secret:
         "API_SECRET": _cloudinary_api_secret,
     }
 else:
-    # Fall back to local storage if Cloudinary is not configured
-    STORAGES["default"] = {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    }
+    # Cloudinary is NOT configured. Durability policy per
+    # docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §4: originals must be stored to
+    # durable object storage UNCONDITIONALLY in production — a misconfiguration
+    # must FAIL FAST, never silently fall back to ephemeral Railway disk (which
+    # loses all uploaded media on the next redeploy).
+    #
+    # Local development (DEBUG) legitimately uses the filesystem. An operator who
+    # truly wants ephemeral media in a non-DEBUG environment must opt in
+    # explicitly with WLJ_ALLOW_EPHEMERAL_MEDIA=1 — an informed, logged choice,
+    # not an accident of a missing env var.
+    _allow_ephemeral_media = env.bool("WLJ_ALLOW_EPHEMERAL_MEDIA", default=False)
+    if DEBUG or _allow_ephemeral_media:
+        if not DEBUG:
+            logging.getLogger("django").warning(
+                "MEDIA DURABILITY: Cloudinary not configured and "
+                "WLJ_ALLOW_EPHEMERAL_MEDIA=1 — using EPHEMERAL local-disk media. "
+                "Uploaded files will be LOST on redeploy. This is an explicit "
+                "opt-in; set CLOUDINARY_* to restore durable storage."
+            )
+        STORAGES["default"] = {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        }
+    else:
+        raise ImproperlyConfigured(
+            "Durable media storage (Cloudinary) is not configured in a non-DEBUG "
+            "environment. Uploaded media would be stored on ephemeral disk and "
+            "lost on redeploy. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and "
+            "CLOUDINARY_API_SECRET on this service (web AND worker), or set "
+            "WLJ_ALLOW_EPHEMERAL_MEDIA=1 to explicitly accept ephemeral media."
+        )
 
 
 # Default primary key field type

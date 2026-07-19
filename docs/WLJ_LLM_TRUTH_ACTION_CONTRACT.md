@@ -9,6 +9,9 @@
 > **Governed by:** `WLJ_PRODUCT_VISION.md` (the product philosophy — the *why* this
 > contract exists; when in doubt, that vision wins).
 > **Anchored on:** `WLJ_ARCHITECTURE_LAWS.md` (the Platform Constitution — Laws 0–5).
+> **Applied to multimodal intake by:** `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (a strict
+> application of this contract — the model perceives, WLJ owns truth/validation/provenance;
+> perceived content becomes a normal named intent; no new article, no Review required).
 > **Supersedes the framing of:** `WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` (the retired
 > "WLJ owns orchestration + reasoning" four-layer model), the `BETH_*` reasoning
 > corpus, and the CoS lane/classifier architecture. Where any document describes WLJ

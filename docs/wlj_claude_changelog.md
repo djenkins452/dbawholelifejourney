@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — docs(multimodal): ratify the Multimodal Intake governing architecture + roadmap
+
+**Why:** Multimodal intake is being elevated from an image-upload feature to a foundational platform capability (CoS approaching ChatGPT for images/video/audio/documents/structured files, while staying constitutionally compliant). Following a full-lifecycle code trace (5 parallel area maps: intake UI, perception/provider seam, capture/scan/truth spine, storage/security, retrieval/surfaces), the assessment is ratified as canonical architecture.
+
+**Core finding driving the architecture:** the correct "arrival path" already exists (`apps/ai/multimodal.py` — WLJ hashes bytes, never interprets pixels; the model perceives; perceived content becomes a normal named intent tagged `source_artifact_id`+`confidence`; deterministic spine validate→dedup→confirm→execute→audit→link) but is wired end-to-end for exactly ONE intent (`log_weight`), while the rest of multimodal is 3+ forked pipelines (chat/weight, scan→drafts, medical lab-PDF). The initiative is a **generalization + convergence**, not a redesign — and requires no Constitutional Review.
+
+**Changes (docs only — no code):**
+- **NEW governing doc** `docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` — canonical architecture: vision, non-negotiable principles, the lifecycle (ingress→artifact→perception→intent→truth-spine→retrieval), production standards (security/durability/provenance/observability/experience), supported media types (perceived/extracted/stored tiers), and relationships to the Constitution, Current Context, Truth Surfaces, and the Model Interface, plus long-term extensibility. Execution progress deliberately excluded.
+- **NEW reference doc** `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` — production-readiness scorecard (ranked by customer impact), the phased plan (Phase 0 harden → Phase 1 ChatGPT-parity), preserve-don't-rebuild list, and a living milestone status ledger.
+- Registered both in `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md` (governing + reference rows).
+- Cross-referenced from `CLAUDE.md` (reference-docs table, read-FIRST trigger) and `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md` (as a strict application of the contract).
+- Removed the interim `WLJ_MULTIMODAL_INTAKE_ASSESSMENT.md` draft (superseded by the two ratified docs).
+
+**Files:** `docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (new), `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (new), `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/99_REFERENCE_INDEX.md`, `CLAUDE.md`, `docs/WLJ_LLM_TRUTH_ACTION_CONTRACT.md`
+
+**Next:** proceed continuously into Phase 0 (platform hardening) then Phase 1 (universal intake) per directive — verify + doc + changelog + commit + deploy per milestone; no further review pause unless a constitutional conflict arises.
+
 ## 2026-07-19 — docs(startup): session close-out — fold Truth Validation Center into the permanent package; pivot the sprint to CoS conversational validation
 
 Ran `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md` to close a milestone session (Truth Validation Center: built, renamed from Acceptance where appropriate, deterministic Truth-vs-CoS validation, provider/failure-layer classification, object-resolution fix + visibility, resolved/natural prompt modes, by-name defect class eliminated, regression tests, failure-category summaries).

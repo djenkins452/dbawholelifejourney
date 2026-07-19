@@ -103,6 +103,11 @@ def _normalize_date_filters(user, filters):
             f.setdefault("end", p.end.isoformat())
             if p.start == p.end:
                 f.setdefault("on_date", p.start.isoformat())
+        elif not (f.get("start") or f.get("end") or f.get("on_date")):
+            # An unparseable, non-canonical period the model invented (e.g. 'last_1')
+            # would make the provider raise. Drop it → unscoped (newest) retrieval,
+            # so a guessed bad filter degrades to a valid answer, never an error.
+            f.pop("period", None)
 
     for k in ("start", "end"):
         v = f.get(k)

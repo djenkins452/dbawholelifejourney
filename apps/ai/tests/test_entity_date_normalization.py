@@ -29,10 +29,14 @@ class NormalizeDateFiltersTests(TestCase):
         self.assertEqual(f["start"], "2026-04-07")
         self.assertEqual(f["end"], "2026-04-07")
 
-    def test_period_phrase_becomes_range(self):
+    def test_unparseable_period_is_dropped_to_unscoped(self):
+        # A model-invented, non-canonical, unparseable period (e.g. 'last_1') is
+        # dropped so retrieval degrades to unscoped/newest — never a provider error,
+        # never a fabricated date.
         f = _normalize_date_filters(self.user, {"period": "custom-nonsense"})
-        # unparseable period is left intact (provider decides), never fabricated
-        self.assertEqual(f.get("period"), "custom-nonsense")
+        self.assertNotIn("period", f)
+        self.assertNotIn("start", f)
+        self.assertNotIn("on_date", f)
 
     def test_non_date_filters_untouched(self):
         f = _normalize_date_filters(self.user, {"meal": "lunch", "contains": "pizza"})

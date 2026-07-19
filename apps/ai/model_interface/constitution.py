@@ -525,8 +525,17 @@ def truth_tools():
         {"type": "function", "function": {
             "name": "search_history",
             "description": (
-                "Search the user's WLJ history (journal, notes, past records) for a query, "
-                "optionally within a timeframe/domain. Returns audited truth-envelope data."
+                "CONTENT search — find past entries/records that MENTION or are ABOUT a "
+                "topic or keyword (e.g. 'what have I written about my job', 'entries "
+                "mentioning Heather', 'notes about the move'). Keyword-ranked by "
+                "relevance, NOT a chronological list. Do NOT use it for chronological "
+                "retrieval — 'when did I last write / journal', the LATEST entry, or "
+                "'what did I write/log today | this week | this month | on <date>'. "
+                "Those are canonical record facts: use get_entity (record types in "
+                "`capabilities.truth_entities`, e.g. journal 'entry') with a date "
+                "filter, or get_domain_state for current counts and the last-entry fact "
+                "— those AGREE with what the domain's page shows. Returns audited "
+                "truth-envelope data."
             ),
             "parameters": {"type": "object", "properties": {
                 "query": {"type": "string"},

@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (docs(multimodal): production customer-experience verification plan — findings will drive Milestone B)
+# Last Updated: 2026-07-19 (fix(cos/truth): route chronological/latest/period journal questions to the canonical producer, not search_history)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — fix(cos/truth): Journal page ↔ CoS agreement — route "latest/period" to the canonical producer
+
+**Journal certification — closing the page↔CoS disagreement.** Trace conclusion (after the snapshot-freshness fix, `15860242`): EVERY canonical journal producer already agrees with the page exactly — page `JournalEntry.objects` (rolling 7/30) == `get_domain_state` (`entries_7d`/`entries_30d`/`last_entry`) == `DomainTruth.current` == `get_entity`/`describe`. Proven numerically: page {latest 2026-07-18, week, month} == get_domain_state. The **only** divergent producer is `search_history` — a CONTENT/keyword engine that returns entries whose text MENTIONS the query words (e.g. "latest journal entry" → 2026-03-26), never the chronological latest or a period count. The disagreement in conversation was the model **routing** chronological/period journal questions to that content tool.
+
+**Fix (minimal, generic, no journal-specific logic):**
+- `apps/ai/model_interface/constitution.py` — `search_history` tool description now scopes it to CONTENT search ("what have I written ABOUT X / entries mentioning Y") and explicitly directs chronological retrieval ("when did I last write", the LATEST entry, "what did I write today/this week/on <date>") to `get_entity` (date filter) / `get_domain_state` — which AGREE with the domain's page.
+- `apps/ai/cos_services/domain_entity.py` — `_normalize_date_filters` now DROPS a model-invented, unparseable, non-canonical period (e.g. `last_1`) → unscoped/newest retrieval, so a guessed bad filter degrades to a valid answer instead of a provider error (never a fabricated date).
+
+**Verification:** 65 scoped tests pass (date/journal-snapshot/model-interface/history-search); `check` clean; no migrations. Live: "when did I last write" → `get_domain_state` → "July 18, 2026" (= page); "show me my last entry" → `get_entity` → July 18; "what did I write yesterday" → `get_entity(on_date=yesterday)` → correct. Page and CoS now agree on the latest entry and date-scoped retrieval. (Residual: "what have I written ABOUT this week" still occasionally routes to search_history — that phrasing legitimately reads as content search; the core latest/period retrievals agree.) AWAITING Danny's production validation.
 
 ## 2026-07-19 — docs(multimodal): production customer-experience verification plan
 

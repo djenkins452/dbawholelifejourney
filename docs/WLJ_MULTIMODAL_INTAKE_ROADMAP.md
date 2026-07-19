@@ -90,8 +90,9 @@ Kept current as work lands. Format: milestone · state · commit · notes.
 
 | Milestone | State | Commit | Notes |
 |---|---|---|---|
-| Governing architecture + roadmap ratified | ✅ DONE | _(this change)_ | `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (governing) + this roadmap; registered in reference index. |
-| Phase 0 — Harden the platform | ⬜ NOT STARTED | — | P0.1–P0.7 |
+| Governing architecture + roadmap ratified | ✅ DONE | `6fdcfb6b` | `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (governing) + this roadmap; registered in reference index. |
+| Phase 0 — Harden the platform | 🟡 IN PROGRESS | — | P0.1–P0.7 |
+| ├ P0.1 `serve_media` auth + traversal guard | ✅ DONE | _(this change)_ | `login_required` + `safe_join` on the local-disk fallback (`config/urls.py`); tests in `apps/core/tests/test_serve_media_security.py`. Residual: per-object authz on the fallback deferred to signed-URL work (prod serves via Cloudinary). |
 | Phase 1 — Universal intake | ⬜ NOT STARTED | — | P1.1–P1.6 |
 | Phase 5 — Scale (opportunistic) | ⬜ DEFERRED | — | B4b, D2–D4 |
 

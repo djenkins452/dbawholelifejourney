@@ -43,15 +43,38 @@ Copyright:
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import SuspiciousFileOperation
 from django.http import FileResponse, Http404
 from django.urls import include, path
+from django.utils._os import safe_join
 import os
 
 
+@login_required
 def serve_media(request, path):
-    """Serve media files in production (for Railway ephemeral storage)."""
-    file_path = os.path.join(settings.MEDIA_ROOT, path)
-    if os.path.exists(file_path) and os.path.isfile(file_path):
+    """
+    Serve media files from local disk — the FALLBACK path used only when durable
+    object storage (Cloudinary) is not serving media directly.
+
+    Hardened per docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §4 (production
+    standards):
+      - Authentication required: no unauthenticated reads of personal media.
+      - Traversal-safe: safe_join() raises SuspiciousFileOperation if `path`
+        escapes MEDIA_ROOT (e.g. `../../etc/passwd`), which we convert to a 404.
+
+    Residual (documented in WLJ_MULTIMODAL_INTAKE_ROADMAP.md, P0.1): this
+    enforces authentication, not per-object authorization — a logged-in user is
+    not additionally checked as the owner of this specific file on the local-disk
+    fallback. Production serves personal media through Cloudinary URLs (not this
+    view); object-level authz on stored artifacts is handled by the signed-URL
+    direction in the storage-lifecycle work.
+    """
+    try:
+        file_path = safe_join(settings.MEDIA_ROOT, path)
+    except SuspiciousFileOperation:
+        raise Http404("Media file not found")
+    if os.path.isfile(file_path):
         return FileResponse(open(file_path, 'rb'))
     raise Http404("Media file not found")
 

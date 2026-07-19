@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — fix(security/multimodal P0.1): authenticate + traversal-guard the media fallback view
+
+**Phase 0 (Harden the Platform), Milestone 1.** Closes finding B1 from the multimodal roadmap.
+
+**Root cause:** `config.urls.serve_media` (the production local-disk media fallback, active when Cloudinary isn't serving) had two holes: (1) **no authentication** — any anonymous request could read personal media by URL; (2) **path traversal** — `os.path.join(MEDIA_ROOT, path)` with a `<path:path>` capture accepted `../` segments, allowing arbitrary file reads (e.g. `/media/../../etc/passwd`).
+
+**Fix:** decorated the view with `@login_required` and replaced `os.path.join` with `django.utils._os.safe_join`, which raises `SuspiciousFileOperation` on any escape from `MEDIA_ROOT` (converted to a clean 404). Blast radius is low — production serves personal media through Cloudinary URLs, so this view is the fallback path — but the vulnerability is now closed regardless of storage config.
+
+**Documented residual:** this enforces authentication, not per-object authorization, on the local-disk fallback. Object-level authz on stored artifacts is handled by the signed-URL direction in the storage-lifecycle work (roadmap P0.1 note).
+
+**Files:** `config/urls.py`, `apps/core/tests/test_serve_media_security.py` (new — anonymous denied, traversal → 404, missing → 404), `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification:** `python3 manage.py test apps.core.tests.test_serve_media_security` → 3 passed; `manage.py check` clean.
+
 ## 2026-07-19 — docs(multimodal): ratify the Multimodal Intake governing architecture + roadmap
 
 **Why:** Multimodal intake is being elevated from an image-upload feature to a foundational platform capability (CoS approaching ChatGPT for images/video/audio/documents/structured files, while staying constitutionally compliant). Following a full-lifecycle code trace (5 parallel area maps: intake UI, perception/provider seam, capture/scan/truth spine, storage/security, retrieval/surfaces), the assessment is ratified as canonical architecture.

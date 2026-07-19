@@ -30,17 +30,20 @@ class ArtifactQueries:
         return list(qs.order_by("-created_at")[:limit])
 
     @staticmethod
-    def search(user, query, *, kind=None, since=None, limit=20):
+    def search(user, query, *, kind=None, since=None, until=None, limit=20):
         """Find artifacts whose extracted text / filename / type matches `query`.
 
         Deterministic keyword match (icontains) over decoded content + metadata —
-        ordered newest first. `since` is a date/datetime lower bound.
+        ordered newest first. `since`/`until` bound the upload date (date or
+        datetime); `until` is treated as end-of-day for a date.
         """
         qs = ArtifactQueries._base(user)
         if kind:
             qs = qs.filter(kind=kind)
         if since is not None:
             qs = qs.filter(created_at__gte=since)
+        if until is not None:
+            qs = qs.filter(created_at__lte=until)
         q = (query or "").strip()
         if q:
             qs = qs.filter(

@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal AaT-B2): re-deliver visual content on artifact retrieval)
+# Last Updated: 2026-07-19 (feat(cos/truth): Journal Analysis — expose existing mood history + entry truth through the Analysis Surface)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(cos/truth): Journal Analysis (truth exposure only — no new intelligence)
+
+**Journal Analysis milestone — exposure + composition, exactly like Nutrition.** Investigation proved Journal already holds the analysis inputs (`history('mood')`, `describe('entry')` — dated entries carrying text/mood/emotions/tags) and failed only because `analysis_subjects={}` → `get_analysis('journal',…)` → `unsupported` → "WLJ does not currently support analysis of your journal."
+
+**Fix (declaration only; zero new retrieval, zero reasoning in WLJ):** `JournalDomainTruth.analysis_subjects` declared — every subject maps to the SAME existing inputs `{history_metric:"mood", entity_type:"entry"}` (subjects: journal, entries, journal_entries, summary, recent_journal, mood, trends, patterns, reflection, advice, gratitude, themes, positive_changes, concerns — the varied keys are the natural phrasings the model reaches for). The generic `get_domain_analysis` composer reuses `history()`+`describe()`. WLJ supplies the deterministic evidence bundle (mood series + dated entry records with their tags/emotions); the model summarizes/interprets/reflects/advises and infers conversational themes from the supplied entries. **WLJ declares NO verdict** (never deterministically calls anything healthy/concerning/positive/a commitment) — asserted by test. **Structured themes reach the model as the tags/emotions carried ON each entry record** (actual saved tags only; no free-text extraction, no new store).
+
+**Explicitly NOT built (deferred, per scope):** commitment/goal/topic extraction, mood inference from text, journaling-frequency history trends, advice generation inside WLJ. Those remain the model's reasoning over supplied entries.
+
+**Tests:** 9 scoped (journal analysis-capable; every subject references a valid existing history+entity; summary ready with entries; mood includes deterministic history; bundle carries entry records; empty→honest `empty` not `unsupported`; structured themes only from saved tags; no deterministic verdict; other domains' analysis unchanged). Nutrition/health/goals/habits/medical analysis regression passes; `check` clean; no migrations.
+
+**LOCAL CERTIFICATION (real model + local dev truth, NOT production):** the analytical bulk now works from real journal evidence — "summarize my recent journal" / "trends" / "advice" → `get_analysis(journal, entries)` ready (cites the real July-18 entry + "avg 4.75 across 12 entries Jan–Mar"); "how has my mood changed" → `get_analysis(journal, mood)` ready with real mood history; no longer "unsupported". Residuals (tool/domain SELECTION, not truth exposure): "what themes / what am I grateful for" still route to `search_history` (content) rather than `get_analysis(journal, themes/gratitude)`; "positive changes" routed to a `life` domain. Deferred-by-design correctly unsupported: commitments, goals-discussed, people-in-journal. AWAITING Danny's production validation; NOT declared complete.
 
 ## 2026-07-19 — feat(multimodal AaT-B2): re-delivery of visual content on artifact retrieval
 

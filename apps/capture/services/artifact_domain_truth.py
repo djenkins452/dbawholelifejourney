@@ -30,12 +30,46 @@ class ArtifactDomainTruth(DomainTruth):
     # 'artifact' = every upload; the kind aliases let the model list one class.
     entity_types = ("artifact",) + _KIND_TYPES
 
-    def describe(self, entity_type=None):
+    def describe(self, entity_type=None, filters=None):
         from apps.capture.services.artifact_queries import ArtifactQueries
         et = (entity_type or "").strip().lower()
         kind = et if et in _KIND_TYPES else None
-        rows = ArtifactQueries.recent(self.user, kind=kind, limit=50)
+        filters = filters if isinstance(filters, dict) else {}
+
+        # Date scoping — date phrases are already ISO-resolved by get_domain_entity
+        # (on_date / start / end). "the receipt from last month" etc.
+        since, until = self._date_bounds(filters)
+        contains = (filters.get("contains") or filters.get("query") or "").strip()
+
+        if contains or since or until:
+            rows = ArtifactQueries.search(
+                self.user, contains, kind=kind, since=since, until=until, limit=50)
+        else:
+            rows = ArtifactQueries.recent(self.user, kind=kind, limit=50)
         return [self._artifact_entity(a) for a in rows]
+
+    @staticmethod
+    def _date_bounds(filters):
+        """Turn ISO date filters into (since, until) datetimes. `until` is end-of-day."""
+        from datetime import datetime, time
+
+        from django.utils import timezone
+
+        def _parse(v, end=False):
+            if not v:
+                return None
+            try:
+                d = datetime.fromisoformat(str(v)).date() if "T" not in str(v) \
+                    else datetime.fromisoformat(str(v)).date()
+            except ValueError:
+                return None
+            t = time.max if end else time.min
+            return timezone.make_aware(datetime.combine(d, t))
+
+        on_date = filters.get("on_date")
+        if on_date:
+            return _parse(on_date, end=False), _parse(on_date, end=True)
+        return _parse(filters.get("start"), end=False), _parse(filters.get("end"), end=True)
 
     def describe_one(self, name):
         from apps.capture.services.artifact_queries import ArtifactQueries
@@ -109,7 +143,9 @@ class ArtifactDomainTruth(DomainTruth):
                 "uploaded_at": a.created_at.isoformat(),
                 "uploaded_date": date,
                 "durably_stored": a.is_durably_stored,
+                "perception_status": a.perception_status,
                 "perception": perception,
+                "source_conversation_id": a.source_conversation_id,
             },
             performance={
                 "readable": bool(content),

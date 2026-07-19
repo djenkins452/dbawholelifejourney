@@ -96,6 +96,37 @@ class ArtifactDomainTruthTests(TestCase):
         self.assertTrue(cur.present)
         self.assertEqual(cur.value, 1)
 
+    def test_describe_date_scoped(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        old = _artifact(self.user, sha="a" * 64, original_filename="old.pdf")
+        MultimodalArtifact.objects.filter(id=old.id).update(
+            created_at=timezone.now() - timedelta(days=60))
+        _artifact(self.user, sha="b" * 64, original_filename="recent.pdf")
+        # Last ~30 days only → excludes the 60-day-old one.
+        start = (timezone.now() - timedelta(days=30)).date().isoformat()
+        ents = ArtifactDomainTruth(self.user).describe("document", filters={"start": start})
+        names = [e.to_dict()["definition"]["filename"] for e in ents]
+        self.assertIn("recent.pdf", names)
+        self.assertNotIn("old.pdf", names)
+
+    def test_describe_content_filter(self):
+        _artifact(self.user, sha="a" * 64, extracted_text="MRI lumbar spine")
+        _artifact(self.user, sha="b" * 64, extracted_text="grocery receipt")
+        ents = ArtifactDomainTruth(self.user).describe(filters={"contains": "MRI"})
+        self.assertEqual(len(ents), 1)
+
+    def test_entity_carries_provenance(self):
+        a = _artifact(self.user, sha="a" * 64, original_filename="lab.pdf",
+                      source_conversation_id=77)
+        d = ArtifactDomainTruth(self.user).describe_one("lab")
+        self.assertIsNotNone(d)
+        st = d.to_dict()["standing"]
+        self.assertEqual(st["source_conversation_id"], 77)
+        self.assertEqual(st["perception_status"], MultimodalArtifact.PERCEPTION_DONE)
+        self.assertTrue(st["durably_stored"] in (True, False))
+
 
 class GetDomainEntityTests(TestCase):
     """The CoS retrieval path: get_domain_entity(domain='artifacts', name=...)."""

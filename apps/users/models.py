@@ -488,6 +488,12 @@ class UserPreferences(models.Model):
         'mood_tracking': {'label': 'Mood Tracking', 'default': True, 'icon': '😊'},
         'tags': {'label': 'Tags & Categories', 'default': True, 'icon': '🏷️'},
         'ai_reflections': {'label': 'AI Reflections', 'default': True, 'icon': '🤖'},
+        # Write Together — invite the Chief of Staff into an in-progress entry to
+        # ask ONE curious question. Milestone 1 of the Journal experience redesign
+        # (text-only). Default False so the classic blank-page journal is untouched
+        # until a user (or Danny, for validation) opts in. See
+        # docs/WLJ_JOURNAL_EXPERIENCE.md and docs/WLJ_JOURNAL_CONVERSATION_PLAYBOOK.md.
+        'write_together': {'label': 'Write Together (Chief of Staff — preview)', 'default': False, 'icon': '✍️'},
     }
 
     def is_feature_enabled(self, module: str, feature: str) -> bool:

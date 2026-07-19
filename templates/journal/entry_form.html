@@ -72,6 +72,14 @@
             <p class="form-help">The date this entry is about (defaults to today).</p>
         </div>
         
+        {% if write_together_available %}
+        <div class="journal-method-bar" role="group" aria-label="How would you like to journal?">
+            <button type="button" class="jm-btn is-active" data-method="write" aria-pressed="true">✍️ Just Write</button>
+            <button type="button" class="jm-btn" data-method="together" aria-pressed="false">✨ Write Together</button>
+            <button type="button" class="jm-btn is-soon" disabled title="Coming soon">🎙️ Talk It Through <span class="jm-soon">soon</span></button>
+        </div>
+        {% endif %}
+
         <div class="form-group">
             <label for="id_body" class="form-label">Your thoughts</label>
             {{ form.body }}
@@ -79,7 +87,17 @@
                 <p class="form-error">{{ form.body.errors.0 }}</p>
             {% endif %}
         </div>
-        
+
+        {% if write_together_available %}
+        <div id="wt-panel" class="wt-panel" hidden>
+            <p class="wt-sub">Invite your Chief of Staff to read what you've written and ask one question. Answer in your own words, right here in your entry.</p>
+            <div class="wt-actions">
+                <button type="button" id="wt-ask" class="btn btn-secondary btn-sm">Ask a question about this</button>
+            </div>
+            <div id="wt-question" class="wt-question" hidden aria-live="polite"></div>
+        </div>
+        {% endif %}
+
         <div class="form-group">
             <label class="form-label">How are you feeling? (optional, select multiple)</label>
             <div class="emotion-selector">
@@ -316,6 +334,74 @@
     border-top: 1px solid var(--color-border);
 }
 
+{% if write_together_available %}
+/* Write Together — one canvas, visible methods (preview, flag-gated) */
+.journal-method-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.jm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.jm-btn.is-active {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.jm-btn.is-soon {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.jm-soon {
+    font-size: var(--font-size-xs);
+    background: var(--color-border);
+    color: var(--color-text-muted);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-1);
+}
+
+.wt-panel {
+    background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 25%, var(--color-border));
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.wt-sub {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-3);
+}
+
+.wt-question {
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border-left: 3px solid var(--color-accent);
+    background: var(--color-surface);
+    border-radius: var(--radius-md);
+    font-style: italic;
+}
+{% endif %}
+
 @media (max-width: 640px) {
     .emotion-button {
         min-width: 60px;
@@ -392,6 +478,70 @@ document.addEventListener('DOMContentLoaded', function() {
         bodyInput.addEventListener('input', updateWordCount);
         updateWordCount(); // Initial count
     }
+
+    {% if write_together_available %}
+    // ── Write Together (Chief of Staff writing companion) ──────────────────
+    // All elements are flag-gated in the template; guard on their presence so
+    // the classic blank-page journal runs unchanged when the feature is off.
+    const methodBar = document.querySelector('.journal-method-bar');
+    const wtPanel = document.getElementById('wt-panel');
+    const wtAsk = document.getElementById('wt-ask');
+    const wtQuestion = document.getElementById('wt-question');
+
+    if (methodBar && wtPanel) {
+        methodBar.addEventListener('click', function(e) {
+            const btn = e.target.closest('.jm-btn');
+            if (!btn || btn.disabled) return;
+            const method = btn.dataset.method;
+            methodBar.querySelectorAll('.jm-btn').forEach(function(b) {
+                const active = (b === btn);
+                b.classList.toggle('is-active', active);
+                b.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+            wtPanel.hidden = (method !== 'together');
+        });
+    }
+
+    function currentDraftText() {
+        // Prefer the live rich-text editor content; fall back to the source textarea.
+        const pm = document.querySelector('.ProseMirror');
+        if (pm) return (pm.innerText || '').trim();
+        if (bodyInput) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = bodyInput.value || '';
+            return (tmp.textContent || tmp.innerText || '').trim();
+        }
+        return '';
+    }
+
+    if (wtAsk && wtQuestion) {
+        const FALLBACK_Q = "What's one part of this you'd most want to remember?";
+        wtAsk.addEventListener('click', function() {
+            const tokenEl = document.querySelector('[name=csrfmiddlewaretoken]');
+            const token = tokenEl ? tokenEl.value : '';
+            wtAsk.disabled = true;
+            wtAsk.textContent = 'Thinking…';
+            fetch('{% url "journal:write_together_ask" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+                body: JSON.stringify({ draft: currentDraftText() })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                wtQuestion.textContent = (data && data.question) ? data.question : FALLBACK_Q;
+                wtQuestion.hidden = false;
+            })
+            .catch(function() {
+                wtQuestion.textContent = FALLBACK_Q;
+                wtQuestion.hidden = false;
+            })
+            .finally(function() {
+                wtAsk.disabled = false;
+                wtAsk.textContent = 'Ask another question';
+            });
+        });
+    }
+    {% endif %}
 });
 </script>
 {% endblock %}

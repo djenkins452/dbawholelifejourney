@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WLJ Journal Experience — Visual Design Spec</title>
+<style>
+  :root{
+    --paper:#f7f3ec; --paper-2:#fffdf9; --ink:#26221c; --ink-soft:#6b6357;
+    --line:#e4dccf; --line-2:#efe8db; --accent:#2f6f6a; --accent-soft:#dcebe9;
+    --amber:#b7791f; --amber-soft:#f6ead3; --rose:#a3505a; --rose-soft:#f3e0e2;
+    --accent-text:#2f6f6a; --accent-ink:#1f4e4a; --amber-ink:#8a5e14; --rose-ink:#7c3a43; --cos-txt:#33534f;
+    --shadow:0 10px 30px rgba(40,34,24,.10), 0 2px 8px rgba(40,34,24,.06);
+    --frame:#141210; --serif:Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#efe9df;color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .page{max-width:1240px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{text-align:center;margin-bottom:8px}
+  .kicker{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-text);font-weight:700}
+  h1{font-family:var(--serif);font-size:40px;margin:10px 0 6px;font-weight:600}
+  .sub{color:var(--ink-soft);max-width:680px;margin:0 auto 6px;font-size:16px}
+  .legend{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;margin:18px 0 40px;font-size:12.5px;color:var(--ink-soft)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:11px;height:11px;border-radius:50%}
+  h2.sect{font-family:var(--serif);font-size:24px;margin:56px 0 4px;font-weight:600}
+  .sect-note{color:var(--ink-soft);font-size:14px;margin:0 0 24px;max-width:820px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:34px 28px;align-items:start}
+  .grid.desk{grid-template-columns:repeat(auto-fill,minmax(520px,1fr))}
+
+  figure{margin:0}
+  .cap{margin-top:12px}
+  .cap b{display:block;font-size:14px;margin-bottom:3px}
+  .cap span{display:block;font-size:12.5px;color:var(--ink-soft)}
+
+  /* phone frame */
+  .phone{width:288px;height:588px;margin:0 auto;background:var(--frame);border-radius:38px;padding:11px;box-shadow:var(--shadow)}
+  .screen{width:100%;height:100%;background:var(--paper);border-radius:28px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+  .notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:96px;height:20px;background:var(--frame);border-radius:12px;z-index:5}
+  .stat{height:30px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 18px 3px;font-size:11px;color:var(--ink-soft);font-weight:600}
+
+  .bar{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px}
+  .bar .t{font-weight:700;font-size:12.5px}
+  .bar .r{margin-left:auto;display:flex;gap:11px;color:var(--ink-soft);font-size:13px}
+  .body{flex:1;padding:14px 15px;overflow:hidden;position:relative}
+  .bottombar{display:flex;border-top:1px solid var(--line);background:var(--paper-2)}
+  .bottombar div{flex:1;text-align:center;padding:9px 4px;font-size:10.5px;color:var(--ink-soft);font-weight:600}
+  .bottombar div.on{color:var(--accent-text)}
+  .bottombar div .ic{display:block;font-size:15px;margin-bottom:2px}
+
+  .opener{background:var(--accent-soft);border:1px solid #c9e0dd;border-radius:14px;padding:11px 12px;font-size:12.5px;color:var(--accent-ink);position:relative}
+  .opener .x{position:absolute;top:7px;right:9px;color:#4d817c;font-size:12px}
+  .titleline{margin:14px 2px 6px;color:#b3a894;font-size:12px}
+  .rule{height:1px;background:var(--line);margin:0 2px}
+  .write{font-family:var(--serif);font-size:14px;color:#b3a894;margin:14px 2px}
+  .caret{display:inline-block;width:1px;height:15px;background:var(--ink);vertical-align:-2px;animation:blink 1.1s step-end infinite}
+  @keyframes blink{50%{opacity:0}}
+  .metarow{display:flex;gap:8px;position:absolute;left:15px;bottom:12px;font-size:11px;color:var(--ink-soft)}
+  .chip{background:var(--paper-2);border:1px solid var(--line);border-radius:20px;padding:4px 10px}
+
+  .entrytext{font-family:var(--serif);font-size:13px;line-height:1.62;color:var(--ink)}
+  .entrytext p{margin:0 0 9px}
+
+  /* voice states */
+  .vwrap{display:flex;flex-direction:column;height:100%;align-items:center;justify-content:space-between}
+  .orb{width:120px;height:120px;border-radius:50%;margin:24px auto 0;display:flex;align-items:center;justify-content:center;position:relative}
+  .orb .core{width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#57938e,#2f6f6a);box-shadow:0 6px 20px rgba(47,111,106,.4)}
+  .ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent-soft)}
+  .ring.r2{inset:-16px;opacity:.6}
+  .ring.r3{inset:-32px;opacity:.3}
+  .listening .core{background:radial-gradient(circle at 40% 35%,#57938e,#2f6f6a)}
+  .vstate{font-size:12.5px;color:var(--accent-text);font-weight:700;letter-spacing:.02em;margin-top:14px}
+  .vhint{font-size:11.5px;color:var(--ink-soft);margin-top:3px;text-align:center;padding:0 22px}
+  .wave{display:flex;gap:3px;align-items:center;height:26px;margin-top:8px}
+  .wave i{width:3px;background:var(--accent);border-radius:2px;display:block}
+  .cosbubble{background:#2f6f6a;color:#fff;border-radius:14px;padding:9px 12px;font-size:12px;max-width:210px;line-height:1.4}
+  .progresspill{display:inline-flex;align-items:center;gap:6px;background:var(--amber-soft);border:1px solid #ecd9b4;color:var(--amber-ink);border-radius:20px;padding:5px 11px;font-size:11px;font-weight:600}
+  .endbtn{width:calc(100% - 32px);margin:0 16px 4px;padding:11px;border-radius:26px;background:var(--paper-2);border:1px solid var(--line);color:var(--ink);font-weight:700;font-size:12.5px;text-align:center}
+  .micbtn{width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:6px;box-shadow:0 6px 18px rgba(47,111,106,.35)}
+
+  /* transcript */
+  .tline{margin-bottom:11px;font-size:12px;line-height:1.45}
+  .tline .who{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ink-soft);display:block;margin-bottom:2px}
+  .tline.cos .who{color:var(--accent-text)}
+  .tline.cos .txt{color:var(--cos-txt)}
+  .tline .txt{color:var(--ink)}
+  .livetag{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:6px;animation:blink 1s step-end infinite;vertical-align:middle}
+
+  /* modal / permission */
+  .scrim{position:absolute;inset:0;background:rgba(30,26,20,.42);display:flex;align-items:flex-end}
+  .sheet{background:var(--paper-2);width:100%;border-radius:22px 22px 0 0;padding:20px 18px 18px;text-align:center}
+  .sheet .em{font-size:30px}
+  .sheet h4{margin:8px 0 6px;font-size:15px}
+  .sheet p{margin:0 0 14px;font-size:12px;color:var(--ink-soft);line-height:1.5}
+  .btn{display:block;width:100%;padding:11px;border-radius:12px;font-weight:700;font-size:13px;margin-bottom:8px}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.ghost{background:transparent;color:var(--ink-soft)}
+
+  /* banners */
+  .banner{border-radius:12px;padding:10px 12px;font-size:12px;display:flex;gap:9px;align-items:flex-start;line-height:1.4}
+  .banner .bi{font-size:14px}
+  .banner.warn{background:var(--amber-soft);border:1px solid #ecd9b4;color:var(--amber-ink)}
+  .banner.info{background:var(--accent-soft);border:1px solid #c9e0dd;color:var(--accent-ink)}
+  .banner.rose{background:var(--rose-soft);border:1px solid #e8ccce;color:var(--rose-ink)}
+
+  .reveal-head{font-family:var(--serif);font-size:16px;text-align:center;margin:6px 0 3px}
+  .reveal-sub{text-align:center;font-size:11px;color:var(--ink-soft);margin-bottom:12px}
+  .assemble{animation:rise .8s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .actionrow{display:flex;gap:8px;margin-top:12px}
+  .actionrow .a{flex:1;text-align:center;padding:9px;border-radius:11px;font-size:11.5px;font-weight:700}
+  .a.save{background:var(--accent);color:#fff}
+  .a.edit{background:var(--paper-2);border:1px solid var(--line);color:var(--ink)}
+  .a.discard{background:transparent;color:var(--rose)}
+
+  /* desktop frame */
+  .laptop{width:100%;background:var(--frame);border-radius:14px;padding:12px 12px 0;box-shadow:var(--shadow)}
+  .dscreen{background:var(--paper);border-radius:6px;overflow:hidden;height:340px;display:flex;flex-direction:column}
+  .lbase{height:12px;background:#0c0b0a;border-radius:0 0 14px 14px;margin:0 -12px}
+  .dsplit{display:flex;flex:1;min-height:0}
+  .dmain{flex:1.4;padding:20px 26px;border-right:1px solid var(--line);overflow:hidden}
+  .dside{flex:1;padding:16px 16px;background:var(--paper-2);overflow:hidden}
+  .dside h5{margin:0 0 10px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+
+  .note{font-size:11px;color:var(--ink-soft);background:var(--paper-2);border:1px dashed var(--line);border-radius:10px;padding:8px 10px;margin-top:10px}
+  footer{margin-top:64px;text-align:center;color:var(--ink-soft);font-size:12.5px}
+  .foot-rule{height:1px;background:var(--line);margin:0 0 22px}
+
+  @media (prefers-color-scheme: dark){
+    :root{--paper:#211d18;--paper-2:#2a251f;--ink:#f0e9dd;--ink-soft:#a89e8d;--line:#3a3229;--line-2:#332c24;--accent-soft:#26403d;--amber-soft:#3a2f1a;--rose-soft:#3a2224;
+      --accent-text:#8fc4be;--accent-ink:#cfeae6;--amber-ink:#e6c67e;--rose-ink:#eeb9be;--cos-txt:#bfe0dc;}
+    body{background:#171410;color:var(--ink)}
+    .page{}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="kicker">Whole Life Journey</div>
+    <h1>The Journal Experience</h1>
+    <p class="sub">Visual design specification — every key screen and state. Companion to <code>docs/WLJ_JOURNAL_EXPERIENCE.md</code>. Wireframes, not production UI.</p>
+    <div class="legend">
+      <span><i class="dot" style="background:#2f6f6a"></i> Chief of Staff</span>
+      <span><i class="dot" style="background:#b7791f"></i> Progress / recovery</span>
+      <span><i class="dot" style="background:#a3505a"></i> Failure / attention</span>
+      <span><i class="dot" style="background:#b3a894"></i> Placeholder / empty</span>
+    </div>
+  </header>
+
+  <!-- ===================== ONE CANVAS ===================== -->
+  <h2 class="sect">1 · One canvas, three visible methods</h2>
+  <p class="sect-note">The blank page is the default and is immediately usable. The three methods live on one bar — clearly labeled, never a forced gateway, never hidden.</p>
+  <div class="grid">
+
+    <!-- Default blank canvas -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">📅 🔍 ⋯</span></div>
+        <div class="body">
+          <div class="opener">You spent time with Haley and Parker today. Where would you like to start?<span class="x">⤫</span></div>
+          <div class="titleline">Title — optional (defaults to the date)</div>
+          <div class="rule"></div>
+          <div class="write">Start writing…<span class="caret"></span></div>
+          <div class="metarow"><span class="chip">😊 Mood</span><span class="chip">🏷 Tags</span></div>
+        </div>
+        <div class="bottombar">
+          <div class="on"><span class="ic">✍️</span>Just Write</div>
+          <div><span class="ic">🎙️</span>Talk It Through</div>
+          <div><span class="ic">✨</span>Write Together</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Default blank canvas</b><span>Sacred blank page. One dismissible personal opener (never generic). Three methods on the bar.</span></figcaption>
+    </figure>
+
+    <!-- Empty state -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal</span><span class="r">⋯</span></div>
+        <div class="body" style="display:flex;flex-direction:column;justify-content:center;text-align:center;padding:20px">
+          <div style="font-size:34px">📖</div>
+          <div style="font-family:var(--serif);font-size:17px;margin:10px 0 6px">Your first entry</div>
+          <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5">Tell me about today — write it, or talk it through. There's no wrong way to start.</div>
+          <div style="display:flex;gap:8px;margin-top:16px">
+            <div class="chip" style="flex:1;background:var(--accent);color:#fff;border:none;padding:9px">✍️ Write</div>
+            <div class="chip" style="flex:1;padding:9px">🎙️ Talk</div>
+          </div>
+        </div>
+        <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Empty state (no entries yet)</b><span>Warm first-run invitation — never an empty void. The page is usable before the opener resolves.</span></figcaption>
+    </figure>
+
+    <!-- Just write in progress -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">💾 ⋯</span></div>
+        <div class="body">
+          <div class="titleline" style="color:var(--ink)">A good day at the field</div>
+          <div class="rule"></div>
+          <div class="entrytext" style="margin-top:12px">
+            <p>Took the kids to Parker's game this afternoon. He went 2 for 3 and you could see how proud he was rounding the bases.</p>
+            <p>Standing at that fence brought me right back to<span class="caret"></span></p>
+          </div>
+          <div class="metarow"><span class="chip">😊 Good</span><span class="chip">🏷 family</span></div>
+        </div>
+        <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Just Write — writing</b><span>No AI, no suggestions, no interruptions. Quiet autosave-to-draft. Exactly today's journal.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== TALK IT THROUGH ===================== -->
+  <h2 class="sect">2 · Talk It Through — the voice session</h2>
+  <p class="sect-note">Full conversational voice with a Chief of Staff that knows the user. Both sides transcribed live. The entry assembles behind the scenes and is revealed at the end.</p>
+  <div class="grid">
+
+    <!-- Entry / launch -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">✕</span></div>
+        <div class="body vwrap">
+          <div></div>
+          <div style="text-align:center">
+            <div class="orb listening"><div class="ring r3"></div><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Ready when you are</div>
+            <div class="vhint">Talk about your day like you'd tell a friend. I'm listening.</div>
+          </div>
+          <div class="micbtn">🎙️</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Talk It Through — entry</b><span>Calm listening surface, not a chat window. Tapping in triggers the mic permission ask first (next).</span></figcaption>
+    </figure>
+
+    <!-- Mic permission -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">✕</span></div>
+        <div class="body vwrap" style="filter:blur(1px);opacity:.6">
+          <div></div><div class="orb listening"><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div><div></div>
+        </div>
+        <div class="scrim"><div class="sheet">
+          <div class="em">🎙️</div>
+          <h4>Microphone access</h4>
+          <p>To talk it through, WLJ needs your microphone. Your words become your journal entry — <b>the audio itself isn't stored.</b></p>
+          <div class="btn primary">Allow microphone</div>
+          <div class="btn ghost">Not now — I'll write instead</div>
+        </div></div>
+      </div></div>
+      <figcaption class="cap"><b>Microphone permission</b><span>Plain-language ask before the OS prompt. Explicitly states audio is not retained. Denial degrades to Just Write.</span></figcaption>
+    </figure>
+
+    <!-- Active listening -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Your journal is taking shape · 2 moments</div>
+          <div style="text-align:center">
+            <div class="orb listening"><div class="ring r3"></div><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Listening</div>
+            <div class="vhint">Take your time. I'm not going anywhere.</div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Active listening (idle)</b><span>Attentive, comfortable with silence — nothing alarming. Subtle progress pill; End always reachable.</span></figcaption>
+    </figure>
+
+    <!-- User speaking -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 3 moments</div>
+          <div style="text-align:center">
+            <div class="orb"><div class="ring r2" style="border-color:#bfe0dc"></div><div class="ring"></div><div class="core" style="transform:scale(1.06)"></div></div>
+            <div class="wave">
+              <i style="height:8px"></i><i style="height:18px"></i><i style="height:24px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:9px"></i><i style="height:16px"></i>
+            </div>
+            <div class="vstate" style="color:var(--ink)">You</div>
+            <div class="vhint">"…and Parker looked back at me from second base like—"</div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>User speaking</b><span>Live level + running transcript of the user's words. The CoS is visibly holding space — not queuing a reply.</span></figcaption>
+    </figure>
+
+    <!-- CoS speaking -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 3 moments</div>
+          <div style="text-align:center;width:100%">
+            <div class="orb"><div class="ring r3"></div><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Chief of Staff</div>
+            <div style="display:flex;justify-content:center;margin-top:12px">
+              <div class="cosbubble">That sounds like it took you right back. Did it bring up your Alabama baseball days?</div>
+            </div>
+            <div class="vhint" style="margin-top:10px">You can jump in any time — just start talking.</div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Chief of Staff speaking</b><span>One curious, personal, non-directive question — connected to known history. Spoken aloud + shown in transcript.</span></figcaption>
+    </figure>
+
+    <!-- User interruption / barge-in -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 3 moments</div>
+          <div style="text-align:center;width:100%">
+            <div class="orb"><div class="ring"></div><div class="core" style="transform:scale(1.06)"></div></div>
+            <div style="display:flex;justify-content:center;margin-top:10px">
+              <div class="cosbubble" style="opacity:.4;text-decoration:none;position:relative">Did it bring up your Alabama base—<span style="position:absolute;right:8px;bottom:6px;font-size:9px">⏹ yielded</span></div>
+            </div>
+            <div class="wave" style="justify-content:center"><i style="height:10px"></i><i style="height:20px"></i><i style="height:26px"></i><i style="height:15px"></i></div>
+            <div class="vstate" style="color:var(--ink)">You (jumped in)</div>
+            <div class="vhint">"Oh — yeah, exactly like the '02 season…"</div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>User interruption (barge-in)</b><span>User talks over the CoS → it stops instantly and listens. User is always the primary speaker.</span></figcaption>
+    </figure>
+
+    <!-- Live transcript -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Live transcript</span><span class="r">🎙️ ▾</span></div>
+        <div class="body" style="overflow:hidden">
+          <div class="tline"><span class="who">You</span><span class="txt">Took the kids to Parker's game this afternoon. He went 2 for 3.</span></div>
+          <div class="tline cos"><span class="who">Chief of Staff</span><span class="txt">What was the best part for you?</span></div>
+          <div class="tline"><span class="txt" style="color:var(--ink)">Honestly just watching his face when he got that second hit.</span></div>
+          <div class="tline cos"><span class="who">Chief of Staff</span><span class="txt">Did it bring up your Alabama baseball days?</span></div>
+          <div class="tline"><span class="who">You</span><span class="txt">Yeah — exactly like the '02 season<span class="livetag"></span></span></div>
+        </div>
+        <div style="border-top:1px solid var(--line);padding:8px 14px;font-size:11px;color:var(--ink-soft);display:flex;justify-content:space-between"><span>● saved locally + synced</span><span>3 moments</span></div>
+      </div></div>
+      <figcaption class="cap"><b>Live transcript</b><span>Both sides, attributed, calm and readable. Raw material — not polished prose. Every segment persisted the instant it's final.</span></figcaption>
+    </figure>
+
+    <!-- Ending -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">✕</span></div>
+        <div class="body vwrap">
+          <div></div>
+          <div style="text-align:center">
+            <div class="orb"><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Chief of Staff</div>
+            <div style="display:flex;justify-content:center;margin-top:12px"><div class="cosbubble">Thanks for telling me about today. Give me a moment and I'll write it up.</div></div>
+          </div>
+          <div class="progresspill" style="align-self:center;margin-bottom:16px">✍️ Composing your entry…</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Ending the conversation</b><span>No hard stop needed. Warm, brief close — no gamified celebration. Then it composes.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== REVEAL & REVIEW ===================== -->
+  <h2 class="sect">3 · Journal reveal &amp; authorship review</h2>
+  <p class="sect-note">The delight moment: a finished entry, in the user's voice, assembled at the end. Review is authorship of your own words — not reviewing a machine's guess.</p>
+  <div class="grid">
+
+    <!-- Reveal -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:42</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Your entry · Thu Jul 19</span><span class="r">⋯</span></div>
+        <div class="body">
+          <div class="reveal-head assemble">A good day at the field</div>
+          <div class="reveal-sub assemble">In your words · from tonight's conversation</div>
+          <div class="entrytext assemble" style="animation-delay:.12s">
+            <p>Took the kids to Parker's game this afternoon. He went 2 for 3, and the look on his face rounding the bases after that second hit is one I won't forget.</p>
+            <p>Standing at the fence took me right back to the '02 season in Alabama — same nerves, same pride, just on the other side of it now.</p>
+          </div>
+        </div>
+        <div style="padding:0 14px 12px">
+          <div class="actionrow"><div class="a save">Save entry</div><div class="a edit">Edit</div><div class="a discard">Discard</div></div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Journal reveal</b><span>Assembled at the end (gentle rise-in). Their voice, their specifics, only what they said. Never auto-saved unseen.</span></figcaption>
+    </figure>
+
+    <!-- Review / edit -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:42</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Editing your entry</span><span class="r">B <i>i</i> 🔗 ✓</span></div>
+        <div class="body">
+          <div class="titleline" style="color:var(--ink)">A good day at the field</div>
+          <div class="rule"></div>
+          <div class="entrytext" style="margin-top:10px">
+            <p>Took the kids to Parker's game this afternoon. He went 2 for 3, and the look on his face rounding the bases after that second hit <span style="background:var(--accent-soft)">is one I won't forget.</span><span class="caret"></span></p>
+            <p style="color:var(--ink-soft)">Standing at the fence took me right back to the '02 season…</p>
+          </div>
+          <div class="metarow"><span class="chip">😊 Good</span><span class="chip">🏷 family</span><span class="chip">＋ tag</span></div>
+        </div>
+        <div style="padding:0 14px 12px"><div class="actionrow"><div class="a save">Save entry</div><div class="a discard">Cancel</div></div></div>
+      </div></div>
+      <figcaption class="cap"><b>Review / edit / save</b><span>Full rich-text editor inline. Edit freely; add mood/tags. Save → normal <code>JournalEntry</code> (fires full intelligence chain).</span></figcaption>
+    </figure>
+
+    <!-- Saved -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:42</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Thu Jul 19</span><span class="r">✎ 🗄 ⋯</span></div>
+        <div class="body">
+          <div class="banner info" style="margin-bottom:12px"><span class="bi">✓</span><span>Saved to your journal. This entry is now part of your history and your Chief of Staff's understanding.</span></div>
+          <div class="titleline" style="color:var(--ink);font-family:var(--serif);font-size:16px">A good day at the field</div>
+          <div class="entrytext" style="margin-top:8px"><p>Took the kids to Parker's game this afternoon. He went 2 for 3…</p></div>
+          <div class="metarow"><span class="chip">😊 Good</span><span class="chip">🏷 family</span><span class="chip">🎙️ voice</span></div>
+        </div>
+        <div class="bottombar"><div><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Save success</b><span>Lands on the existing entry detail — full truth spine. <code>created_via: voice</code> is the only new provenance.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== WRITE TOGETHER ===================== -->
+  <h2 class="sect">4 · Write Together</h2>
+  <p class="sect-note">The user writes, then invites the CoS. It reads the current draft and asks one useful question at a time. Answer by voice or text; return to writing alone anytime. No unsolicited interruptions.</p>
+  <div class="grid">
+
+    <!-- Invitation -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">💾 ⋯</span></div>
+        <div class="body">
+          <div class="entrytext">
+            <p>Long day at work. The payroll migration finally went live and it mostly held together.</p>
+            <p>Then I got home and Dad called<span class="caret"></span></p>
+          </div>
+          <div style="position:absolute;left:15px;right:15px;bottom:12px">
+            <div class="banner info" style="justify-content:center;font-weight:600">✨ Tap to invite your Chief of Staff into this entry</div>
+          </div>
+        </div>
+        <div class="bottombar"><div><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div class="on"><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Write Together — invitation</b><span>The CoS is silent until explicitly invited. The prompt is an offer at the edge, never an interruption.</span></figcaption>
+    </figure>
+
+    <!-- With CoS conversation -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Write Together</span><span class="r">🎙️/⌨ ✕</span></div>
+        <div class="body">
+          <div class="entrytext" style="opacity:.85">
+            <p>Long day at work. The payroll migration finally went live…</p>
+            <p>Then I got home and Dad called.</p>
+          </div>
+          <div style="margin-top:10px;padding:11px 12px;background:var(--accent-soft);border:1px solid #c9e0dd;border-radius:14px">
+            <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:4px">Chief of Staff</div>
+            <div style="font-size:12.5px;color:var(--accent-ink);line-height:1.45">You moved from work to your dad in one line and stopped. Which one is tonight really about?</div>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <div class="chip" style="flex:1;text-align:center">⌨ Type your answer</div>
+            <div class="chip" style="text-align:center;background:var(--accent);color:#fff;border:none">🎙️</div>
+          </div>
+        </div>
+        <div class="bottombar"><div><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div class="on"><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Draft + CoS conversation</b><span>One useful question about what's actually on the page. Answer by voice or text — user's choice.</span></figcaption>
+    </figure>
+
+    <!-- Return to independent writing -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">💾 ⋯</span></div>
+        <div class="body">
+          <div class="entrytext">
+            <p>Long day at work. The payroll migration finally went live and it mostly held together.</p>
+            <p>Then I got home and Dad called. Honestly, that's the part that mattered — he sounded more like himself than he has in weeks, and I sat on the porch a while after we hung up.<span class="caret"></span></p>
+          </div>
+          <div style="position:absolute;left:15px;right:15px;bottom:12px"><div class="note" style="text-align:center;margin:0">Chief of Staff stepped back — writing on your own. Invite again anytime.</div></div>
+        </div>
+        <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Returning to independent writing</b><span>The answer became the user's own prose. CoS quietly steps back. One draft throughout — never a second record.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== RECOVERY & FAILURE ===================== -->
+  <h2 class="sect">5 · Recovery &amp; failure states</h2>
+  <p class="sect-note">The requirement: the user never loses a word. Every failure degrades to "you can still write," with the draft intact. No state is expressed in jargon.</p>
+  <div class="grid">
+
+    <!-- Reconnecting -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>⚠ ▂ 🔋</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px;background:var(--amber-soft);color:var(--amber-ink)">↻ Reconnecting… your words are safe</div>
+          <div style="text-align:center">
+            <div class="orb" style="opacity:.7"><div class="ring r2" style="border-color:#ecd9b4"></div><div class="ring" style="border-color:#ecd9b4"></div><div class="core" style="background:radial-gradient(circle at 40% 35%,#c9a24a,#b7791f)"></div></div>
+            <div class="vstate" style="color:var(--amber)">Reconnecting</div>
+            <div class="vhint">Connection dropped. I've paused — everything so far is saved. Keep it here and we'll pick right back up.</div>
+          </div>
+          <div class="endbtn">Continue by writing instead</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Reconnecting (network drop)</b><span>Voice pauses, never dies. Client buffers locally; reconciles to the durable session on reconnect.</span></figcaption>
+    </figure>
+
+    <!-- Recovered session -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>10:03</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal</span><span class="r">⋯</span></div>
+        <div class="body">
+          <div class="banner warn" style="margin-bottom:14px"><span class="bi">↩</span><span><b>You were journaling about today.</b><br>Your conversation was saved — pick up where you left off?</span></div>
+          <div class="tline"><span class="who">You</span><span class="txt">…exactly like the '02 season in Alabama.</span></div>
+          <div class="tline cos"><span class="who">Chief of Staff</span><span class="txt">What do you remember most from that season?</span></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <div class="chip" style="flex:1;text-align:center;background:var(--accent);color:#fff;border:none;padding:10px">Resume conversation</div>
+            <div class="chip" style="flex:1;text-align:center;padding:10px">Finish as text</div>
+          </div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Recovered session</b><span>After any crash/refresh/close: transcript restored from the durable draft. Resume voice, or finish by writing.</span></figcaption>
+    </figure>
+
+    <!-- Transcription failure -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 3 moments</div>
+          <div style="text-align:center;width:100%">
+            <div class="orb listening"><div class="ring"></div><div class="core"></div></div>
+            <div class="banner rose" style="margin:14px 4px 0;justify-content:center"><span class="bi">🎧</span><span>I didn't quite catch that last bit — mind saying it again?</span></div>
+            <div class="vhint" style="margin-top:8px">Everything before it is safe and captured.</div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Transcription failure (partial)</b><span>Unobtrusive re-ask. Prior segments safe. Sustained failure → graceful degrade to Just Write with the draft preserved.</span></figcaption>
+    </figure>
+
+    <!-- Model failure mid-session -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 4 moments</div>
+          <div style="text-align:center;width:100%">
+            <div class="orb"><div class="ring"></div><div class="core"></div></div>
+            <div class="banner warn" style="margin:14px 4px 0;justify-content:center"><span class="bi">💬</span><span>I lost my footing for a second — keep going, I'm still capturing everything.</span></div>
+          </div>
+          <div class="endbtn">Tap when you're done for tonight</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Model failure (mid-session)</b><span>CoS pauses; transcript keeps persisting; no lost words. Composition failure → offer the entry from the user's own segments + retry.</span></figcaption>
+    </figure>
+
+    <!-- Permission denied -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">⋯</span></div>
+        <div class="body">
+          <div class="banner info" style="margin-bottom:14px"><span class="bi">🎙️</span><span>No problem — you can journal by writing, and turn on the mic later in Settings whenever you like.</span></div>
+          <div class="titleline">Title — optional</div><div class="rule"></div>
+          <div class="write">Start writing…<span class="caret"></span></div>
+        </div>
+        <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Mic permission denied</b><span>Non-punitive fallback to Just Write, typed draft intact. Voice is never the only way in.</span></figcaption>
+    </figure>
+
+    <!-- Offline -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:41</span><span>✈︎ no signal</span></div>
+        <div class="bar"><span class="t">Journal · Thu Jul 19</span><span class="r">⋯</span></div>
+        <div class="body">
+          <div class="banner warn" style="margin-bottom:12px"><span class="bi">✈︎</span><span>You're offline. Writing works fully and will sync later. Talk It Through needs a connection.</span></div>
+          <div class="entrytext"><p>Quiet night in. Wrote a few lines before bed…<span class="caret"></span></p></div>
+          <div style="position:absolute;left:15px;bottom:12px;font-size:11px;color:var(--ink-soft)">● saved on device · will sync</div>
+        </div>
+        <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div style="opacity:.4"><span class="ic">🎙️</span>Talk It Through</div><div style="opacity:.4"><span class="ic">✨</span>Write Together</div></div>
+      </div></div>
+      <figcaption class="cap"><b>Offline</b><span>Just Write is fully offline-capable and syncs later. Voice methods clearly, plainly unavailable — draft always safe.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== DESKTOP ===================== -->
+  <h2 class="sect">6 · Desktop</h2>
+  <p class="sect-note">Same one-canvas IA and three visible methods. The page breathes; voice shows the transcript in a calm side column. The model does not fork — layout adapts.</p>
+  <div class="grid desk">
+
+    <figure>
+      <div class="laptop"><div class="dscreen">
+        <div class="bar"><span class="t">Journal · Thursday, July 19</span><span class="r">✍️ Just Write &nbsp;·&nbsp; 🎙️ Talk It Through &nbsp;·&nbsp; ✨ Write Together</span></div>
+        <div style="padding:26px 40px;overflow:hidden">
+          <div class="opener" style="max-width:520px;margin-bottom:18px">You spent time with Haley and Parker today. Where would you like to start?<span class="x">⤫</span></div>
+          <div style="font-family:var(--serif);font-size:22px;color:#b3a894;max-width:620px">Start writing…<span class="caret" style="height:20px"></span></div>
+        </div>
+      </div><div class="lbase"></div></div>
+      <figcaption class="cap"><b>Desktop — blank canvas</b><span>Comfortable measure, generous margins — writing at a desk. Methods live in the header, keyboard-first.</span></figcaption>
+    </figure>
+
+    <figure>
+      <div class="laptop"><div class="dscreen">
+        <div class="bar"><span class="t">Talk It Through · Thursday, July 19</span><span class="r">⏸ &nbsp; ✕</span></div>
+        <div class="dsplit">
+          <div class="dmain" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div class="orb listening"><div class="ring r3"></div><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Listening</div>
+            <div class="vhint">Take your time. I'm not going anywhere.</div>
+            <div class="progresspill" style="margin-top:16px">✍️ Your journal is taking shape · 3 moments</div>
+          </div>
+          <div class="dside">
+            <h5>Live transcript</h5>
+            <div class="tline"><span class="who">You</span><span class="txt">Took the kids to Parker's game this afternoon.</span></div>
+            <div class="tline cos"><span class="who">Chief of Staff</span><span class="txt">What was the best part for you?</span></div>
+            <div class="tline"><span class="txt" style="color:var(--ink)">Watching his face on that second hit.<span class="livetag"></span></span></div>
+            <div style="margin-top:10px;font-size:10.5px;color:var(--ink-soft)">● saved + synced</div>
+          </div>
+        </div>
+      </div><div class="lbase"></div></div>
+      <figcaption class="cap"><b>Desktop — Talk It Through</b><span>Listening state centered; calm live transcript in a side column. Same states as mobile, re-laid-out.</span></figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ===================== TRUTH DISCOVERY ===================== -->
+  <h2 class="sect">7 · Truth Discovery &amp; Publishing</h2>
+  <p class="sect-note">The user only journals. The conversation is the <i>source</i>; the Journal is the guaranteed publication. If the CoS recognizes a truth that deserves to live beyond today, it offers <b>one</b> quiet candidate — after the entry is saved, never during. WLJ (not the model) creates the deterministic object, links it to the source, and audits it. Existing domains only. Most sessions produce no suggestion at all.</p>
+
+  <div style="max-width:900px;margin:0 auto 26px;background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:16px 18px;text-align:center;font-size:12.5px;color:var(--ink-soft)">
+    <b style="color:var(--ink);font-family:var(--serif);font-size:14px">One conversation → one Journal (always) + optional, user-confirmed publications</b><br>
+    <span style="display:inline-block;margin-top:8px;line-height:1.9">
+      Conversation&nbsp;→&nbsp;CoS understands&nbsp;→&nbsp;Truth Discovery&nbsp;→&nbsp;
+      <span class="chip" style="background:var(--accent);color:#fff;border:none">📓 Journal · always</span>
+      <span class="chip">📖 Legacy</span>
+      <span class="chip">🫂 Relationship milestone</span>
+      <span class="chip">🏆 Achievement</span>
+      <span class="chip">✝ Faith testimony</span>
+      <span class="chip">…</span>
+    </span>
+  </div>
+
+  <div class="grid">
+
+    <!-- Post-save single whisper -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:42</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Thu Jul 19</span><span class="r">✎ 🗄 ⋯</span></div>
+        <div class="body">
+          <div class="banner info" style="margin-bottom:12px"><span class="bi">✓</span><span>Saved to your journal.</span></div>
+          <div class="titleline" style="color:var(--ink);font-family:var(--serif);font-size:15px">The day Parker drove</div>
+          <div class="entrytext" style="margin-top:6px;opacity:.7"><p>Took Parker out in the empty lot to practice driving for the first time…</p></div>
+          <div style="position:absolute;left:15px;right:15px;bottom:12px">
+            <div style="background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:12px">
+              <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);font-weight:700;margin-bottom:5px">✨ Chief of Staff</div>
+              <div style="font-size:12px;line-height:1.45;margin-bottom:10px">I think today's conversation captured something worth preserving beyond today's journal — <b>the day you taught Parker to drive.</b> Keep it as a Legacy story?</div>
+              <div style="display:flex;gap:8px">
+                <div class="chip" style="flex:1;text-align:center;background:var(--accent);color:#fff;border:none;padding:8px">Keep as a Legacy story</div>
+                <div class="chip" style="text-align:center;padding:8px">Not now</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>The one quiet whisper</b><span>Appears <i>after</i> the entry is saved — never interrupts the telling. Single, gentle, dismissible. Most sessions show nothing here.</span></figcaption>
+    </figure>
+
+    <!-- Candidate review / publish -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>9:43</span><span>▂▄ 🔋</span></div>
+        <div class="bar"><span class="t">Preserve to Legacy</span><span class="r">✕</span></div>
+        <div class="body">
+          <div style="text-align:center;font-size:30px">📖</div>
+          <div style="font-family:var(--serif);font-size:17px;text-align:center;margin:4px 0 2px">Teaching Parker to Drive</div>
+          <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-bottom:12px">Legacy story · drawn from today's conversation</div>
+          <div class="entrytext" style="font-size:12.5px"><p>He was nervous gripping the wheel in that empty lot, the same way I was the first time. By the third loop he was grinning…</p></div>
+          <div class="note" style="margin-top:12px">Lives in <b>Legacy</b>, linked to today's journal entry. You can edit it now or anytime. WLJ creates it — it isn't saved until you say so.</div>
+          <div class="actionrow"><div class="a save">Publish to Legacy</div><div class="a edit">Edit first</div><div class="a discard">Not now</div></div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Candidate review → WLJ creates</b><span>The candidate proposes the destination; the user only confirms. Nothing is created silently. Linked to the source conversation + audited.</span></figcaption>
+    </figure>
+
+    <!-- Future retrieval enrichment -->
+    <figure>
+      <div class="phone"><div class="screen"><div class="notch"></div>
+        <div class="stat"><span>8:50</span><span>🔴 rec ▂▄</span></div>
+        <div class="bar"><span class="t">Talk It Through · years later</span><span class="r">⏸ ✕</span></div>
+        <div class="body vwrap">
+          <div class="progresspill" style="align-self:center;margin-top:6px">✍️ Taking shape · 2 moments</div>
+          <div style="text-align:center;width:100%">
+            <div class="orb"><div class="ring r2"></div><div class="ring"></div><div class="core"></div></div>
+            <div class="vstate">Chief of Staff</div>
+            <div style="display:flex;justify-content:center;margin-top:10px"><div class="cosbubble">This connects beautifully to your Legacy story about teaching Ashley to drive.</div></div>
+            <div style="margin:12px 14px 0;background:var(--paper-2);border:1px solid var(--line);border-radius:12px;padding:9px 11px;display:flex;gap:9px;align-items:center;text-align:left">
+              <span style="font-size:18px">📖</span>
+              <span style="font-size:11.5px;line-height:1.3"><b>Teaching Ashley to Drive</b><br><span style="color:var(--ink-soft)">Legacy · 2019</span></span>
+            </div>
+          </div>
+          <div class="endbtn">Tap when you're done</div>
+        </div>
+      </div></div>
+      <figcaption class="cap"><b>Future retrieval enrichment</b><span>A shared source + entity surfaces let the CoS surface a <i>related</i> story by meaning — a fact + pointer, not a verdict. Enriches both. Same restraint (rare, welcome).</span></figcaption>
+    </figure>
+
+  </div>
+
+  <div class="note" style="max-width:820px;margin:26px auto 0;text-align:center">
+    <b>Cross-cutting rules shown throughout:</b> one dismissible personal opener (never generic) · the CoS asks one question at a time and yields instantly to the user · progress is signaled, polished prose is not shown mid-session · every segment is persisted the instant it's final · no audio is ever stored · every failure degrades to "you can still write" with the draft intact · all three methods produce one canonical <code>JournalEntry</code> · the conversation is the <i>source</i> and the Journal is the guaranteed publication — other domains receive truth only as <b>one</b> post-save, user-confirmed candidate (existing domains only, most sessions none), and WLJ, never the model, creates it.
+  </div>
+
+  <footer>
+    <div class="foot-rule"></div>
+    WLJ Journal Experience · visual design specification · companion to <code>docs/WLJ_JOURNAL_EXPERIENCE.md</code> · wireframes only, not production UI · 2026-07-19
+  </footer>
+
+</div>
+</body>
+</html>

@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-19 (fix(cos/truth): route chronological/latest/period journal questions to the canonical producer, not search_history)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — feat(journal): Write Together (Milestone 1) — one-canvas method bar + CoS writing companion (flag-gated, OFF)
+
+**First implementation milestone of the Journal experience redesign** (design canon: `docs/WLJ_JOURNAL_EXPERIENCE.md`, `docs/WLJ_JOURNAL_CONVERSATION_PLAYBOOK.md`, `docs/WLJ_JOURNAL_CONVERSATIONAL_MEMORY_MODEL.md`, `docs/journal_experience_mockups.html`). Text-only; no voice, no Legacy publishing, no audio, no draft-session substrate (all later milestones).
+
+**What ships (behind new sub-flag `features.journal.write_together`, default OFF → the classic blank-page journal is byte-for-byte unchanged):**
+- **One-canvas method bar** on the entry page — `✍️ Just Write` (default), `✨ Write Together`, `🎙️ Talk It Through` (disabled "soon"). Not a forced gateway; not hidden.
+- **Write Together** — the user invites the Chief of Staff to read the in-progress draft and asks ONE curious, non-directive question grounded in what's on the page (Playbook posture: never diagnose/advise/analyze; no "how did that make you feel"; one sentence). The answer stays the user's own words in their entry.
+- Blank draft → a simple natural opener (no model call). Model unavailable / CoS off → graceful non-clinical fallback; the Journal never breaks.
+
+**Architecture (Constitution-clean):** NO new reasoning engine / classifier / question engine. Reuses the existing Model Interface seam via `AIService._call_api` inside a **service module** (`apps/journal/services/write_together.py`) invoked by a thin view — the same service-layer delegation chat and milestone-detection already use, so the request-path-safety AST contract stays green with **no allowlist edit**. No migration (the flag lives in the existing `journal_features` JSONField). Gated on both the flag AND `personal_assistant_enabled`, in the view and the template (CSS/JS included).
+
+**Files:** `apps/users/models.py` (flag), `apps/journal/services/write_together.py` (new), `apps/journal/views.py` (`WriteTogetherAskView` + context gate), `apps/journal/urls.py` (route), `templates/journal/entry_form.html` (method bar + panel + flag-gated CSS/JS), `apps/journal/tests/test_write_together.py` (new, 9 tests).
+
+**Verification:** `check` clean; `makemigrations --check` → no changes; 13 scoped tests pass (9 Write Together + the request-path-safety contract) and 77 existing journal tests pass (no regression). Runtime (dev, real model via `.env`): flag-off user → classic page, no method bar; flag-on user → method bar renders; Write Together → live question *"What was Parker's reaction when he got the hit?"* (Playbook-perfect), endpoint `POST /journal/write-together/ask/ → 200`.
+
+**User-facing docs (release notes / help / features) intentionally deferred** — the feature is OFF/preview and not user-visible yet; they land at GA ("Deferred" = phased). AWAITING Danny's production validation.
+
 ## 2026-07-19 — fix(cos/truth): Journal page ↔ CoS agreement — route "latest/period" to the canonical producer
 
 **Journal certification — closing the page↔CoS disagreement.** Trace conclusion (after the snapshot-freshness fix, `15860242`): EVERY canonical journal producer already agrees with the page exactly — page `JournalEntry.objects` (rolling 7/30) == `get_domain_state` (`entries_7d`/`entries_30d`/`last_entry`) == `DomainTruth.current` == `get_entity`/`describe`. Proven numerically: page {latest 2026-07-18, week, month} == get_domain_state. The **only** divergent producer is `search_history` — a CONTENT/keyword engine that returns entries whose text MENTIONS the query words (e.g. "latest journal entry" → 2026-03-26), never the chronological latest or a period count. The disagreement in conversation was the model **routing** chronological/period journal questions to that content tool.

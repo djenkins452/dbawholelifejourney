@@ -488,7 +488,59 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             except JournalPrompt.DoesNotExist:
                 pass
 
+        # Write Together (Chief of Staff writing companion) — preview, flag-gated
+        # AND requires the Chief of Staff to be enabled. When False, the template
+        # renders exactly the classic blank-page journal (no method bar / panel).
+        context["write_together_available"] = self._write_together_available()
+
         return context
+
+    def _write_together_available(self):
+        try:
+            prefs = self.request.user.preferences
+            return bool(
+                prefs.is_feature_enabled("journal", "write_together")
+                and getattr(prefs, "personal_assistant_enabled", False)
+            )
+        except Exception:
+            return False
+
+
+class WriteTogetherAskView(LoginRequiredMixin, View):
+    """Return ONE curious Chief-of-Staff question about the user's in-progress
+    journal draft (Write Together — Milestone 1, text).
+
+    Flag- and CoS-gated. The single model call happens in the service layer
+    (``apps/journal/services/write_together.py``), never inline here, so the
+    request-path-safety contract stays green with no allowlist change — the same
+    delegation pattern the chat endpoint and milestone detection already use.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        prefs = getattr(request.user, "preferences", None)
+        if prefs is None or not prefs.is_feature_enabled("journal", "write_together"):
+            return JsonResponse({"error": "not_available"}, status=404)
+
+        if not getattr(prefs, "personal_assistant_enabled", False):
+            # CoS not enabled — degrade gracefully, never error the user's page.
+            return JsonResponse({
+                "ok": True,
+                "question": "What's one part of this you'd most want to remember?",
+                "degraded": True,
+            })
+
+        try:
+            payload = json.loads((request.body or b"").decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        draft = payload.get("draft", "")
+        if not isinstance(draft, str):
+            draft = ""
+
+        from .services.write_together import ask_writing_question
+        return JsonResponse(ask_writing_question(request.user, draft))
 
 
 class EntryUpdateView(LoginRequiredMixin, UpdateView):

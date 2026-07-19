@@ -128,6 +128,34 @@ class UploadEndpointTests(TestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class AttachmentsFromIdsTests(TestCase):
+    """Resolver that turns pre-uploaded artifact ids into attachments-as-data,
+    scoped to the owner (a user can only reference their own artifacts)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="a@ex.com", password="x")
+        self.other = User.objects.create_user(email="b@ex.com", password="x")
+
+    def test_resolves_owned_ids_only(self):
+        from apps.ai.multimodal import attachments_from_ids
+        mine = MultimodalArtifact.objects.create(
+            user=self.user, sha256="a" * 64, content_type="application/pdf", kind="document",
+        )
+        theirs = MultimodalArtifact.objects.create(
+            user=self.other, sha256="b" * 64, content_type="application/pdf", kind="document",
+        )
+        out = attachments_from_ids(self.user, [mine.id, theirs.id])
+        # Only my artifact is returned; the other user's id is silently dropped.
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["artifact_id"], mine.id)
+        self.assertEqual(out[0]["kind"], "document")
+
+    def test_empty(self):
+        from apps.ai.multimodal import attachments_from_ids
+        self.assertEqual(attachments_from_ids(self.user, None), [])
+        self.assertEqual(attachments_from_ids(self.user, []), [])
+
+
 def _named_file(name, content, content_type):
     from django.core.files.uploadedfile import SimpleUploadedFile
     return SimpleUploadedFile(name, content, content_type=content_type)

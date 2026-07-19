@@ -1043,6 +1043,14 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
             image_data = images_list[0][0] if images_list else None
             image_mime_type = images_list[0][1] if images_list else None
 
+            # Pre-uploaded attachment ids (WLJ Attachment Framework via the
+            # /attachments/ endpoint) — non-image attachments the model is told about.
+            if 'multipart/form-data' in content_type:
+                _aids = request.POST.getlist('attachment_ids')
+            else:
+                _aids = data.get('attachment_ids') or []
+            attachment_ids = [int(x) for x in _aids if str(x).isdigit()][:10]
+
             if not message:
                 return JsonResponse({
                     'success': False,
@@ -1071,6 +1079,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 image_data=image_data,
                 image_mime_type=image_mime_type,
                 images_list=images_list if len(images_list) > 1 else None,
+                attachment_ids=attachment_ids or None,
             )
             conversation = AssistantConversation.objects.get(
                 id=envelope.meta['conversation_id'],
@@ -1327,6 +1336,10 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
             else:
                 image_data, image_mime_type = None, None
 
+            # Pre-uploaded attachment ids (WLJ Attachment Framework via /attachments/).
+            _aids = data.get('attachment_ids') or []
+            attachment_ids = [int(x) for x in _aids if str(x).isdigit()][:10]
+
             if not message:
                 return JsonResponse(
                     {'success': False, 'error': 'Message is required'},
@@ -1356,6 +1369,7 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                 image_data=image_data,
                 image_mime_type=image_mime_type,
                 images_list=images_list if len(images_list) > 1 else None,
+                attachment_ids=attachment_ids or None,
             )
             response = StreamingHttpResponse(
                 _chat_relay_stream(envelope.stream_job_id, request.user.id),

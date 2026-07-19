@@ -95,6 +95,30 @@ def _queue_artifact_persistence(artifact_id, b64):
         logger.warning("multimodal._queue_artifact_persistence failed", exc_info=True)
 
 
+def attachments_from_ids(user, attachment_ids):
+    """Resolve pre-uploaded artifact ids (created by the upload endpoint) into the
+    same attachments-as-data shape the arrival path surfaces to the model
+    ({artifact_id, content_type, kind}). USER-SCOPED — the query is the ownership
+    boundary, so a user can only reference their own artifacts. Never raises."""
+    if not attachment_ids:
+        return []
+    out = []
+    try:
+        from apps.capture.models import MultimodalArtifact
+        rows = MultimodalArtifact.objects.filter(
+            id__in=list(attachment_ids), user=user,
+        ).values("id", "content_type", "kind")
+        for r in rows:
+            out.append({
+                "artifact_id": r["id"],
+                "content_type": r["content_type"],
+                "kind": r["kind"],
+            })
+    except Exception:  # pragma: no cover - defensive; never break a turn
+        logger.warning("multimodal.attachments_from_ids failed", exc_info=True)
+    return out
+
+
 def store_and_persist_artifact(user, *, data, content_type, kind):
     """Shared intake primitive: store an artifact (sha256 dedup + provenance) AND
     queue durable persistence of its bytes in the background. Used by BOTH the

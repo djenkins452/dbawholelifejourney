@@ -3,8 +3,21 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.2b): WLJ Attachment Framework — domain-agnostic reusable uploader)
+# Last Updated: 2026-07-19 (feat(multimodal P1.2c): framework consumption foundation — attachment_ids wiring)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.2c): framework consumption foundation — attachment_ids server wiring
+
+**Phase 1, universal-intake milestone (sub-milestone C — server foundation for chat as a framework consumer).** Additive + tested; enables chat (and any future consumer) to reference pre-uploaded attachments in a turn without the framework knowing anything about chat.
+
+**Changes:**
+- **Framework (`static/js/wlj-attachments.js`):** `autoUpload` may now be a **predicate `(item) → bool`**, not just a boolean — so a consumer can upload some kinds and handle others itself (chat keeps images on the inline base64 path for immediate perception, and lets the framework upload documents/audio/video). Expressed purely as config; no chat-specific branch inside the framework.
+- **Server resolver:** `apps.ai.multimodal.attachments_from_ids(user, ids)` — turns pre-uploaded artifact ids into the same attachments-as-data shape the arrival path already surfaces (`{artifact_id, content_type, kind}`), **owner-scoped** (a user can only reference their own artifacts).
+- **Chat views + gateway + arrival path:** both `AssistantChatView` (multipart + JSON) and `AssistantChatStreamView` parse `attachment_ids`, pass them through `CoSGateway.respond(**kwargs)` → `runtime.respond`, which merges the resolved attachments into the arrival path's `attachments` list (dedup by id so an inline image already surfaced as an artifact never doubles) — merged before the streaming dispatch, so it works on both transports. Existing chat behavior is unchanged (attachment_ids defaults to None).
+
+**Files:** `static/js/wlj-attachments.js`, `apps/ai/multimodal.py`, `apps/ai/cos_gateway/runtime.py`, `apps/ai/views.py`, `apps/ai/tests/test_attachment_validation.py`.
+
+**Verification:** resolver owner-scoping test + `test_attachment_validation` + `test_multimodal_wiring` + request-path-safety contract (42) green; `manage.py check` clean. **Next:** the chat client adoption — replace both chat surfaces' bespoke attachment logic with a `WLJAttachments.mount()` instance (chat becomes a thin consumer), verified in-browser.
 
 ## 2026-07-19 — feat(multimodal P1.2b): the WLJ Attachment Framework — one domain-agnostic uploader for the whole platform
 

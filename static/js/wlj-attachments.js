@@ -387,13 +387,20 @@
             });
         }
 
+        // autoUpload may be a boolean OR a predicate(item)→bool, so a consumer can
+        // upload some kinds and handle others itself (e.g. chat keeps images inline
+        // for immediate perception) — config, never a chat-specific branch here.
+        function _shouldUpload(item) {
+            return (typeof autoUpload === 'function') ? !!autoUpload(item) : !!autoUpload;
+        }
+
         function _process(item) {
             if (item.kind === 'image' && normalizeImages) {
                 prepareImage(item.file).then(function (img) {
                     item.mime = img.mimeType;
                     item.dataUrl = img.dataUrl;               // for thumbnail preview
                     if (keepImageData) item.data = img.data;  // inline perception (chat)
-                    if (autoUpload) _upload(item, _base64ToBlob(img.data, img.mimeType), item.name);
+                    if (_shouldUpload(item)) _upload(item, _base64ToBlob(img.data, img.mimeType), item.name);
                     else { item.status = 'ready'; changed(); }
                 }).catch(function (err) {
                     item.status = 'error';
@@ -401,7 +408,7 @@
                     notifyError(item.error);
                     changed();
                 });
-            } else if (autoUpload) {
+            } else if (_shouldUpload(item)) {
                 _upload(item, item.file, item.name);
             } else {
                 item.status = 'ready';

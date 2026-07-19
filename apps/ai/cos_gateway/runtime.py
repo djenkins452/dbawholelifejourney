@@ -150,13 +150,21 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         # Multimodal arrival path — store each uploaded image as an artifact (provenance +
         # hash dedup) BEFORE generation, and produce the perception payload the model reads.
         # Runs for BOTH sync and streaming so the artifact_id exists regardless of path.
-        from apps.ai.multimodal import ingest_uploads
+        from apps.ai.multimodal import attachments_from_ids, ingest_uploads
         images, attachments = ingest_uploads(
             user,
             image_data=kwargs.get("image_data"),
             image_mime_type=kwargs.get("image_mime_type"),
             images_list=kwargs.get("images_list"),
         )
+        # Pre-uploaded attachments (from the WLJ Attachment Framework via the
+        # /attachments/ endpoint) arrive as artifact ids. Resolve the caller's own
+        # artifacts and merge as attachments-as-data (dedup by id — an inline image
+        # already surfaced as an artifact must not appear twice).
+        extra = attachments_from_ids(user, kwargs.get("attachment_ids"))
+        if extra:
+            seen = {a["artifact_id"] for a in attachments}
+            attachments = attachments + [a for a in extra if a["artifact_id"] not in seen]
 
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:

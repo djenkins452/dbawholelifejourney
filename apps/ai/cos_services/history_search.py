@@ -42,10 +42,23 @@ HISTORY_SEARCH_SCHEMA_VERSION = "1.0"
 _MAX_RESULTS = 12
 _FETCH_LIMIT = 40  # fetch wider, then timeframe-filter + cap
 
-# ChatGPT-facing domain -> SearchService method name.
+# ChatGPT-facing domain -> SearchService adapter method name.
+#
+# THE ADAPTER CONTRACT (the single, explicit registration for conversational history
+# search). A domain participates here ONLY if it has a SearchService method callable as
+#     method(keywords=<list|None>, limit=<int>)  ->  {"results": [ {id,title,snippet,
+#                                                       date,url,metadata}, ... ]}
+# `search_history` invokes exactly that signature (see below). This map — NOT the
+# DomainTruth catalog — is the authority for what history search can fulfill, because
+# search is powered by these legacy per-domain keyword adapters, not by DomainTruth
+# providers. A truth domain WITHOUT such an adapter is advertised HONESTLY as
+# unsupported (it never silently 'succeeds' then errors). To add a domain: give it a
+# real adapter method, then register it here (one place → flows to
+# SUPPORTED_HISTORY_DOMAINS → the tool's domain enum). Do NOT force the whole catalog in.
 _SEARCH_DOMAIN_MAP = {
     "journal": "search_journal",
     "health": "search_health",
+    "nutrition": "search_nutrition",  # food-log history (reuses canonical food search)
     "goals": "search_goals",
     "purpose": "search_goals",      # exposure alias
     "faith": "search_faith",

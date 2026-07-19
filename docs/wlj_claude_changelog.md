@@ -3,8 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
+# Last Updated: 2026-07-19 (fix(cos/truth): repair the shared conversational historical-search pipeline — URL-rot crash class, domain forwarding, registry drift)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — fix(cos/truth): repair the shared conversational historical-search pipeline (nutrition surfaced it)
+
+**Conversational Truth Certification — first engineering target.** Nutrition exposed a defect in the SHARED historical-search path (`search_history`), NOT a nutrition problem. Deterministic nutrition truth (incl. 10 pizza records) existed and every truth tool returned it — but the conversational path crashed before the truth reached the model.
+
+**Proven runtime root cause** — "When was the last time I ate pizza?":
+`search_history` → `search_all`/`search_health` → `_search_health_food` → `reverse('health:food_log')` → **NoReverseMatch** (the view was renamed) → `search_history` caught it → `status="error"` → the Model-Interface envelope mapped that to `error` / `insufficient_evidence`, so the Chief of Staff reported "there was an error retrieving the historical data" / "insufficient evidence." Health metric questions never touch `_search_health_food`, so Health synthesized cleanly — that was the divergence. First failing layer: **deterministic Tool Execution.**
+
+**Shared, class-level fixes (no nutrition special-casing, no prompt/routing changes):**
+1. **URL-rot crash class eliminated** — new `SearchService._safe_reverse()`; ALL 28 result-URL reverses now route through it. A renamed/removed presentation view logs a warning and degrades to `url=None` — it can NEVER again turn a truth read into `status="error"`. Full audit of all 29 `reverse()` sites: only `health:food_log` was actually stale (→ `health:food_entry_detail`); `capture:detail` was a false alarm (needs a uuid).
+2. **Domain forwarding** — `model_interface/service.py` now forwards the model's requested `domain` to `search_history` (was silently dropped → every search forced to "all").
+3. **Registry drift resolved safely** — `search_history`'s domain map omitted `nutrition` though a real adapter was available. Added an explicit `SearchService.search_nutrition()` adapter (reuses the canonical food search; no new engine) and registered `nutrition` in the ONE authoritative map (`_SEARCH_DOMAIN_MAP` → `SUPPORTED_HISTORY_DOMAINS` → the tool's domain enum). Domains WITHOUT a valid adapter stay advertised honestly as `unsupported_domain` — the full DomainTruth catalog is NOT force-fed into the legacy engine (adapter contract documented in `history_search.py`).
+
+**Journal & Faith finding (measured, repair not needed):** both already participate with real adapters (`search_journal`, `search_faith`), are catalog members, and their result URLs pass the audit — they will not hit the nutrition-style crash or `unsupported_domain` gap. Their deeper conversational certification remains a separate, later milestone.
+
+**Files:** `apps/ai/search_service.py` (`_safe_reverse` + all reverses routed + stale food URL fixed + new `search_nutrition` adapter), `apps/ai/cos_services/history_search.py` (`nutrition` registered + adapter-contract docs), `apps/ai/model_interface/service.py` (forward `domain`), `apps/ai/tests/test_history_search_food_pipeline.py` (new, 9 tests).
+
+**Verification:** new suite 9 passed; existing `test_history_search` + `test_search_service` + `test_model_interface_runtime` + `test_cos_tools` + `test_request_path_safety_contract` (86 total) pass; `manage.py check` clean; no migrations. Runtime: `search_history("pizza", domain="nutrition")` → `status=ready`, most recent **2026-04-07 "Pepperoni Pizza"**, date-desc order, URL `/health/physical/nutrition/entry/187/`; wrapped Model-Interface envelope now `status=ok` carrying the record + date. Empty "today" stays a distinct `empty` (not error/insufficient). **AWAITING Danny's production conversational validation** (local has no OPENAI_API_KEY, so the live-model grounding step is his to confirm).
 
 ## 2026-07-19 — fix(security/multimodal P0.2+P0.4a): one shared upload validator with byte-sniffing for both chat transports
 

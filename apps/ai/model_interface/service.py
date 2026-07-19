@@ -330,6 +330,7 @@ class ModelInterfaceService:
                 return out
             if name == "search_history":
                 raw = search_history(user, args.get("query", ""),
+                                     domain=args.get("domain"),
                                      timeframe=args.get("timeframe"))
                 out = _wrap_truth(raw, source="history")
                 _audit.record_tool_call(

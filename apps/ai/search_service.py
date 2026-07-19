@@ -21,10 +21,13 @@ Each search method returns:
 }
 """
 
+import logging
 from datetime import date
 from typing import Dict, List, Optional, Tuple
 from django.db.models import Q
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
+
+logger = logging.getLogger(__name__)
 
 
 class SearchService:
@@ -37,6 +40,29 @@ class SearchService:
 
     def __init__(self, user):
         self.user = user
+
+    def _safe_reverse(self, view_name: str, args: Optional[list] = None) -> Optional[str]:
+        """Reverse a named URL for a search result's `url`, NEVER fatally.
+
+        A search result's URL is PRESENTATION only — a renamed or removed view must
+        never crash a deterministic TRUTH read (the shared historical-search path is a
+        truth surface the Chief of Staff reasons over). On failure we log the exact
+        view (visible in production, not swallowed) and return None so the truth result
+        is preserved with `url=None`. This eliminates the URL-rot crash CLASS across
+        every searchable domain, not just the one that surfaced it.
+        (Origin: `health:food_log` was renamed; NoReverseMatch turned the entire
+        food-history tool call into status="error", so "when did I eat pizza?" reached
+        the model as an error instead of the real record — 2026-07-19.)
+        """
+        try:
+            return reverse(view_name, args=args) if args else reverse(view_name)
+        except NoReverseMatch:
+            logger.warning(
+                "SearchService: result URL reverse failed for %r (args=%r); "
+                "returning url=None (truth preserved). Fix the stale view name.",
+                view_name, args,
+            )
+            return None
 
     def _create_result(
         self,
@@ -164,7 +190,7 @@ class SearchService:
                 title=entry.title or f"Journal Entry - {entry.entry_date}",
                 snippet=entry.body_plain[:200] if entry.body_plain else "",
                 date_value=entry.entry_date,
-                url=reverse('journal:entry_detail', args=[entry.pk]),
+                url=self._safe_reverse('journal:entry_detail', args=[entry.pk]),
                 metadata={
                     "mood": entry.mood,
                     "word_count": entry.word_count
@@ -236,6 +262,33 @@ class SearchService:
             "results": results
         }
 
+    def search_nutrition(
+        self,
+        keywords: Optional[List[str]] = None,
+        date_range: Optional[Tuple[date, date]] = None,
+        limit: int = 10
+    ) -> Dict:
+        """Historical-search adapter for the NUTRITION domain (food log).
+
+        Nutrition is a first-class truth domain (its own DomainTruth + capability-index
+        entry), so it must be a first-class HISTORY-SEARCH domain too — otherwise the
+        model, offered `nutrition` everywhere else, scopes a food-history search to it
+        and gets `unsupported_domain`. This is a thin, explicit adapter that REUSES the
+        canonical food search (`_search_health_food` via `search_health`, metric_type=
+        'food'); no new search engine, no parallel index. It satisfies the same call
+        contract every other registered domain does — `method(keywords=..., limit=...)`
+        returning the standardized `{results: [...]}` shape.
+        """
+        out = self.search_health(
+            keywords=keywords, metric_type="food",
+            date_range=date_range, limit=limit,
+        )
+        return {
+            "module": "nutrition",
+            "count": out.get("count", 0),
+            "results": out.get("results", []),
+        }
+
     def _search_health_weight(
         self,
         keywords: Optional[List[str]],
@@ -266,7 +319,7 @@ class SearchService:
                 title=f"Weight: {entry.value} {entry.unit}",
                 snippet=entry.notes or "",
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:weight_list'),
+                url=self._safe_reverse('health:weight_list'),
                 metadata={"metric_type": "weight", "value": float(entry.value), "unit": entry.unit}
             ))
         return results
@@ -302,7 +355,7 @@ class SearchService:
                 title=f"Sleep: {duration_hrs} hours ({entry.quality or 'unrated'})",
                 snippet=entry.notes or f"Slept {duration_hrs} hours on {entry.sleep_date}",
                 date_value=entry.sleep_date,
-                url=reverse('health:sleep_list'),
+                url=self._safe_reverse('health:sleep_list'),
                 metadata={"metric_type": "sleep", "duration_hours": duration_hrs, "quality": entry.quality}
             ))
         return results
@@ -337,7 +390,7 @@ class SearchService:
                 title=f"{entry.food_name} ({entry.meal_type})",
                 snippet=f"{entry.total_calories or 0} cal - {entry.notes or ''}".strip(),
                 date_value=entry.logged_date,
-                url=reverse('health:food_log'),
+                url=self._safe_reverse('health:food_entry_detail', args=[entry.pk]),
                 metadata={
                     "metric_type": "food",
                     "meal_type": entry.meal_type,
@@ -399,7 +452,7 @@ class SearchService:
                 title=f"Workout: {session.name or session.workout_type or 'Session'}",
                 snippet=snippet,
                 date_value=session.date,
-                url=reverse('health:workout_list'),
+                url=self._safe_reverse('health:workout_list'),
                 metadata=metadata,
             ))
         return results
@@ -438,7 +491,7 @@ class SearchService:
                 title=f"Fast: {window.fasting_type}" + (f" ({duration})" if duration else " (in progress)"),
                 snippet=window.notes or "",
                 date_value=window.started_at.date(),
-                url=reverse('health:fasting_list'),
+                url=self._safe_reverse('health:fasting_list'),
                 metadata={"metric_type": "fasting", "fasting_type": window.fasting_type}
             ))
         return results
@@ -473,7 +526,7 @@ class SearchService:
                 title=f"Medicine: {log.intake.name} ({log.log_status})",
                 snippet=log.notes or "",
                 date_value=log.scheduled_date,
-                url=reverse('health:intake_list'),
+                url=self._safe_reverse('health:intake_list'),
                 metadata={"metric_type": "medicine", "status": log.log_status}
             ))
         return results
@@ -513,7 +566,7 @@ class SearchService:
                 title=f"Steps: {entry.count:,} on {entry.logged_date}",
                 snippet=", ".join(parts),
                 date_value=entry.logged_date,
-                url=reverse('health:steps_list'),
+                url=self._safe_reverse('health:steps_list'),
                 metadata={"metric_type": "steps", "count": entry.count}
             ))
         return results
@@ -549,7 +602,7 @@ class SearchService:
                 title=f"Heart Rate: {entry.bpm} bpm{context}",
                 snippet=entry.notes or f"{entry.bpm} bpm{context}",
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:heartrate_list'),
+                url=self._safe_reverse('health:heartrate_list'),
                 metadata={"metric_type": "heart_rate", "bpm": entry.bpm, "context": entry.context}
             ))
         return results
@@ -584,7 +637,7 @@ class SearchService:
                 title=f"BP: {entry.systolic}/{entry.diastolic} mmHg",
                 snippet=entry.notes or f"{entry.systolic}/{entry.diastolic} mmHg",
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:blood_pressure_list'),
+                url=self._safe_reverse('health:blood_pressure_list'),
                 metadata={
                     "metric_type": "blood_pressure",
                     "systolic": entry.systolic,
@@ -624,7 +677,7 @@ class SearchService:
                 title=f"Glucose: {entry.value} {entry.unit}{context}",
                 snippet=entry.notes or f"{entry.value} {entry.unit}{context}",
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:glucose_list'),
+                url=self._safe_reverse('health:glucose_list'),
                 metadata={
                     "metric_type": "glucose",
                     "value": float(entry.value),
@@ -663,7 +716,7 @@ class SearchService:
                 title=f"SpO2: {entry.spo2}%",
                 snippet=entry.notes or f"Blood Oxygen: {entry.spo2}%",
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:blood_oxygen_list'),
+                url=self._safe_reverse('health:blood_oxygen_list'),
                 metadata={"metric_type": "blood_oxygen", "spo2": entry.spo2}
             ))
         return results
@@ -698,7 +751,7 @@ class SearchService:
                 title=f"Water: {entry.amount} {entry.unit}",
                 snippet=entry.notes or f"{entry.amount} {entry.unit} ({entry.container})",
                 date_value=entry.logged_date,
-                url=reverse('health:water_list'),
+                url=self._safe_reverse('health:water_list'),
                 metadata={"metric_type": "water", "amount": float(entry.amount), "unit": entry.unit}
             ))
         return results
@@ -737,7 +790,7 @@ class SearchService:
                 title=f"Mobility ({entry.metric_date})",
                 snippet=snippet,
                 date_value=entry.metric_date,
-                url=reverse('health:home'),
+                url=self._safe_reverse('health:home'),
                 metadata={"metric_type": "mobility"}
             ))
         return results
@@ -771,7 +824,7 @@ class SearchService:
                 title=f"HR Event: {entry.event_type} ({entry.recorded_at.strftime('%Y-%m-%d')})",
                 snippet=snippet,
                 date_value=entry.recorded_at.date(),
-                url=reverse('health:home'),
+                url=self._safe_reverse('health:home'),
                 metadata={"metric_type": "heart_rate_events", "event_type": entry.event_type}
             ))
         return results
@@ -809,7 +862,7 @@ class SearchService:
                 title=f"Audio Exposure ({entry.metric_date})",
                 snippet=', '.join(parts) if parts else "Audio data",
                 date_value=entry.metric_date,
-                url=reverse('health:home'),
+                url=self._safe_reverse('health:home'),
                 metadata={"metric_type": "audio_exposure"}
             ))
         return results
@@ -849,7 +902,7 @@ class SearchService:
                 title=f"Nutrients ({entry.metric_date})",
                 snippet=', '.join(parts) if parts else "Dietary data",
                 date_value=entry.metric_date,
-                url=reverse('health:home'),
+                url=self._safe_reverse('health:home'),
                 metadata={"metric_type": "dietary_nutrients"}
             ))
         return results
@@ -902,7 +955,7 @@ class SearchService:
                 title=f"{goal.title}{milestone_info}",
                 snippet=goal.description_plain or goal.why_it_matters_plain or "",
                 date_value=goal.target_date,
-                url=reverse('purpose:goal_detail', args=[goal.pk]),
+                url=self._safe_reverse('purpose:goal_detail', args=[goal.pk]),
                 metadata={
                     "status": goal.status,
                     "domain": goal.domain.name if goal.domain else None,
@@ -990,7 +1043,7 @@ class SearchService:
                 title=f"Prayer: {prayer.title} ({status})",
                 snippet=prayer.description_plain or "",
                 date_value=prayer.created_at.date(),
-                url=reverse('faith:prayer_detail', args=[prayer.pk]),
+                url=self._safe_reverse('faith:prayer_detail', args=[prayer.pk]),
                 metadata={
                     "content_type": "prayer",
                     "is_answered": prayer.is_answered,
@@ -1025,7 +1078,7 @@ class SearchService:
                 title=f"Scripture: {verse.reference}",
                 snippet=verse.text[:200] if verse.text else "",
                 date_value=verse.created_at.date(),
-                url=reverse('faith:scripture_list'),
+                url=self._safe_reverse('faith:scripture_list'),
                 metadata={
                     "content_type": "scripture",
                     "translation": verse.translation,
@@ -1061,7 +1114,7 @@ class SearchService:
                 title=f"Reading Plan: {plan.template.title} ({progress})",
                 snippet=plan.template.description or "",
                 date_value=plan.started_at.date(),
-                url=reverse('faith:reading_plan_progress', args=[plan.pk]),
+                url=self._safe_reverse('faith:reading_plan_progress', args=[plan.pk]),
                 metadata={
                     "content_type": "reading_plan",
                     "status": plan.plan_status,
@@ -1097,7 +1150,7 @@ class SearchService:
                 title=f"Faith Milestone: {milestone.title}",
                 snippet=milestone.description_plain or "",
                 date_value=milestone.date,
-                url=reverse('faith:milestone_list'),
+                url=self._safe_reverse('faith:milestone_list'),
                 metadata={
                     "content_type": "milestone",
                     "milestone_type": milestone.milestone_type
@@ -1184,7 +1237,7 @@ class SearchService:
                 title=f"Task: {task.title} ({status_text})",
                 snippet=task.notes or "",
                 date_value=task.due_date,
-                url=reverse('life:task_update', args=[task.pk]),
+                url=self._safe_reverse('life:task_update', args=[task.pk]),
                 metadata={
                     "item_type": "task",
                     "is_completed": task.is_completed,
@@ -1223,7 +1276,7 @@ class SearchService:
                 title=f"Project: {project.title} ({project.status.title()})",
                 snippet=project.description_plain or project.purpose_plain or "",
                 date_value=project.target_date,
-                url=reverse('life:project_detail', args=[project.pk]),
+                url=self._safe_reverse('life:project_detail', args=[project.pk]),
                 metadata={
                     "item_type": "project",
                     "status": project.status,
@@ -1259,7 +1312,7 @@ class SearchService:
                 title=f"Event: {event.title}",
                 snippet=event.description or event.location or "",
                 date_value=event.start_date,
-                url=reverse('life:event_update', args=[event.pk]),
+                url=self._safe_reverse('life:event_update', args=[event.pk]),
                 metadata={
                     "item_type": "event",
                     "event_type": event.event_type,
@@ -1295,7 +1348,7 @@ class SearchService:
                 title=f"Inventory: {item.name}",
                 snippet=item.description or f"Location: {item.location}" if item.location else "",
                 date_value=item.purchase_date,
-                url=reverse('life:inventory_detail', args=[item.pk]),
+                url=self._safe_reverse('life:inventory_detail', args=[item.pk]),
                 metadata={
                     "item_type": "inventory",
                     "category": item.category,
@@ -1361,7 +1414,7 @@ class SearchService:
                 title=f"{txn.description} - {amount_str} ({txn_type})",
                 snippet=f"Payee: {txn.payee}" if txn.payee else (txn.notes or ""),
                 date_value=txn.date,
-                url=reverse('finance:transaction_detail', args=[txn.pk]),
+                url=self._safe_reverse('finance:transaction_detail', args=[txn.pk]),
                 metadata={
                     "amount": float(txn.amount),
                     "account": txn.account.name if txn.account else None,
@@ -1428,7 +1481,7 @@ class SearchService:
                 title=f"Capture: {entry.title or 'Voice Memo'}{duration}",
                 snippet=entry.summary or entry.transcript[:200] if entry.transcript else "",
                 date_value=entry.created_at.date(),
-                url=reverse('capture:detail', args=[entry.pk]),
+                url=self._safe_reverse('capture:detail', args=[entry.pk]),
                 metadata={
                     "category": entry.category,
                     "subcategory": entry.subcategory,

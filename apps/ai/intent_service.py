@@ -467,6 +467,8 @@ HEALTH:
 - "my heart rate is 60" → log_heart_rate(bpm=60, context="resting")
 - "BP is 120/80" → log_blood_pressure(systolic=120, diastolic=80)
 - "I weigh 175" → log_weight(value=175, unit="lb")
+- "my waist is 32 in" → log_body_measurement(metric="waist", value=32, unit="in")
+- "[uploaded screenshot showing neck 16.29, waist 54.72, hips 47.16, … in inches]" → log_body_measurements(measurements=[{"metric":"neck","value":16.29,"unit":"in"},{"metric":"waist","value":54.72,"unit":"in"},{"metric":"hips","value":47.16,"unit":"in"}, …], source="Renpho Screenshot")  # one call, WLJ groups them into a session; omit waist-hip ratio (derived)
 - "blood sugar is 105" → log_glucose(value=105, unit="mg/dL")
 - "oxygen is 98%" → log_blood_oxygen(spo2=98)
 - "I ate a banana" → log_food(food_name="banana", quantity=1)
@@ -1604,6 +1606,8 @@ the Medications page), honor the explicit domain.
                 return handler.handle_log_steps(**parameters)
             elif intent_type == 'log_body_measurement':
                 return handler.handle_log_body_measurement(**parameters)
+            elif intent_type == 'log_body_measurements':
+                return handler.handle_log_body_measurements(**parameters)
 
             # Finance handlers
             elif intent_type == 'log_transaction':

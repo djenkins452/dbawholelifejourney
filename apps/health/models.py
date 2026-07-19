@@ -5250,6 +5250,7 @@ BODY_COMPOSITION_METRIC_CHOICES = [
     ("fat_mass", "Fat Mass"),
     ("skeletal_muscle_mass", "Skeletal Muscle Mass"),
     ("waist", "Waist"),
+    ("abdomen", "Abdomen"),
     ("chest", "Chest"),
     ("hips", "Hips"),
     ("arm_left", "Arm (Left)"),

@@ -3,8 +3,28 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (🏁 CLOSE: Multimodal Platform initiative — production-readiness certification + completion report)
+# Last Updated: 2026-07-19 (feat(health/cos): Measurement Session Capture — backend truth milestone)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(health/cos): Measurement Session Capture — backend truth milestone (`log_body_measurements`)
+
+**Universal Screenshot/Session Measurement Import — backend truth path (Milestone 1 of 2).** Apple Health only carries Waist Circumference and the Renpho reverse-engineering path proved a dead end (account is on the newer RENPHO Health backend; Terra's normalized model has ZERO circumference fields — both investigated separately). So body-circumference truth arrives the universal way: the model perceives a full set of measurements from ANY source (an uploaded Renpho/InBody/Withings **screenshot**, a photo, voice, or typed text), and WLJ imports them as ONE canonical check-in. This is a new ARRIVAL path onto the EXISTING multimodal spine and the EXISTING `BodyMeasurementSession`/`BodyCompositionEntry` truth model — **no new pipeline, no new model, no migration, no reverse-engineering, no vendor lock-in.**
+
+**New intent `log_body_measurements` (source-agnostic session capture).** The name states the USER's intent ("import these measurements"); grouping them into one `BodyMeasurementSession` is the handler's private persistence decision, never the model's concern. Full 6-point registration (tool schema · `INTENT_HANDLERS` · engine `HEALTH_INTENTS` · `execute_intent` dispatch · `handle_log_body_measurements` · `ACTION_POLICY`) + system-prompt example; time-aware via `HEALTH_INTENTS`.
+
+**`handle_log_body_measurements`** clones the proven `handle_log_weight` multimodal spine: validate each candidate → **skip `--`/`0.00`/blank as ABSENT (never a real zero circumference)** → session-level **always-confirm** policy → on confirm, `transaction.atomic()` write of ONE `BodyMeasurementSession` grouping N `BodyCompositionEntry` rows → `link_artifact` provenance → domain event. **Waist-hip ratio is DERIVED on read (waist ÷ hips), NEVER stored** — one source of truth, no drift. Artifact-level idempotency: re-uploading the SAME screenshot returns the existing session, never a duplicate.
+
+**Deterministic helpers** (`apps/ai/multimodal.py`, cloned from the weight seam): `validate_body_measurement` (per-metric plausibility, in/cm aware), `normalize_body_metric` (`L-Bicep→arm_left`, `Shoulder→shoulders`, `Hip→hips`; drops derived WHR/ratio), `is_absent_measurement`, `is_low_confidence` (flags uncertain values for the reviewer), `derive_whr`, `map_measurement_source`, `artifact_resolved_measurement_session`. Added `log_body_measurements` to `_ALWAYS_CONFIRM_INTENTS`.
+
+**CoS reachability** — the Chief-of-Staff runtime's write-tool allowlist was **weight-only** (`ALLOWED_WRITE_INTENTS`/`DAY1_ACTION_ALLOWLIST`/`_DATA_CONFIRM_INTENTS`); the new intent was added to all three so the model can actually call it in the live chat and a confirmed re-execution bypasses the data gate. **The capability works end-to-end today via conversational confirmation** ("I found 14 measurements — waist 54.72, hips 47.16… import?" → "import" → written); Body Intelligence + `HealthDomainTruth.describe("body_measurement")` update immediately, so the CoS answers "what are my current body measurements?" from the imported session.
+
+**`abdomen`** added as a first-class circumference (display-only wiring — `metric_name` is a free CharField, so NO migration): `BODY_COMPOSITION_METRIC_CHOICES`, `CIRCUMFERENCE_METRICS`, `METRIC_LABELS`.
+
+**Verification:** `test_body_measurements_import.py` (NEW) 5/5 — confirmation writes nothing; Import creates exactly 1 session + 14 entries (waist stored, WHR absent from truth); artifact resolves to the session; re-import idempotent; all-absent rejected; CoS truth surface sees the session. Intent-registration gate 11/11; existing multimodal suites 40/40; `manage.py check` clean; `makemigrations --check` → no changes.
+
+**Files:** `apps/ai/intents/health_intents.py`, `apps/ai/intents/__init__.py`, `apps/core/ai_orchestrator/intent_engine.py`, `apps/ai/intent_service.py`, `apps/ai/action_handlers.py`, `apps/core/ai_orchestrator/action_policy.py`, `apps/ai/multimodal.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/cos_services/action_execution.py`, `apps/health/models.py`, `apps/health/services/body_intelligence.py`, `apps/health/services/body_composition_snapshot.py`, `apps/ai/tests/test_body_measurements_import.py` (NEW), `docs/wlj_claude_features.md`.
+
+**Deferred (PHASED, not debt) → Milestone 2 (primary objective, next session): the editable confirmation experience.** A GENERIC confirmation-card framework (thread `confirmation_detail.renderer` from the tool result through `execute_action`→`action_interface`→MI dispatch closure→`generate`→SSE `format_sse`→both chat templates) + the **Body Measurement renderer** (editable rows, confidence highlights, remove-row, derived-WHR display, Import) + a deterministic `POST /assistant/api/measurements/import/` endpoint calling `execute_intent('log_body_measurements', {…edited, confirmed:True})`. Architecture: shared multimodal ingestion → shared confirmation framework → domain-specific renderer. **Trigger:** next milestone start. **User-facing release notes intentionally deferred to that milestone** so "What's New" describes the finished card experience, not the interim conversational one.
 
 ## 2026-07-19 — 🏁 CLOSE: Multimodal Platform initiative — production-readiness certification + completion report
 

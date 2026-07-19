@@ -53,7 +53,7 @@ TREND_WINDOWS = [
 #: canonical display order. Uses WLJ's canonical names — ``arm_left`` / ``arm_right``,
 #: never "bicep".
 CIRCUMFERENCE_METRICS = [
-    "neck", "shoulders", "chest", "waist", "hips",
+    "neck", "shoulders", "chest", "waist", "abdomen", "hips",
     "arm_left", "arm_right", "forearm_left", "forearm_right",
     "thigh_left", "thigh_right", "calf_left", "calf_right",
 ]

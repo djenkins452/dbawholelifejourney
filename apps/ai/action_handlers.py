@@ -1617,6 +1617,194 @@ class ActionHandler:
                 error='internal_error'
             )
 
+    def handle_log_body_measurements(self, measurements=None, source: str = "",
+                                     measured_at=None, **kwargs) -> ActionResult:
+        """
+        Import a COMPLETE body-measurement SESSION \u2014 many circumferences captured together.
+
+        Source-agnostic Measurement Session Capture: the ``measurements`` may have been
+        perceived by OpenAI from an uploaded screenshot/photo, transcribed from voice, or
+        typed. WLJ validates each candidate deterministically, ALWAYS shows a review card
+        (a body check-in read from an artifact is trust-critical), then \u2014 only on confirm \u2014
+        persists ONE canonical ``BodyMeasurementSession`` grouping the ``BodyCompositionEntry``
+        rows. The model perceives; WLJ owns the deterministic truth. Waist-hip ratio is
+        DERIVED on read (waist \u00f7 hips), never stored, so it can never drift.
+
+        The intent name states the USER's intent ("import these measurements"); the
+        BodyMeasurementSession is the handler's persistence decision, not the model's concern.
+        """
+        import json
+
+        from django.db import transaction
+        from django.utils import timezone as _tz
+        from django.utils.dateparse import parse_datetime
+
+        from apps.ai import multimodal
+        from apps.health.models import BodyCompositionEntry, BodyMeasurementSession
+
+        source_artifact_id = kwargs.get('source_artifact_id')
+        # `confirmed` arrives on the re-execution AFTER the user pressed Import in the review
+        # card (with any edits/removals reflected in `measurements`). It bypasses ONLY the
+        # confirmation gate \u2014 never validation: an implausible value is rejected even on Import.
+        confirmed = bool(kwargs.get('confirmed'))
+
+        # The tool layer may hand us the array as a JSON string.
+        if isinstance(measurements, str):
+            try:
+                measurements = json.loads(measurements)
+            except (ValueError, TypeError):
+                measurements = None
+        if not isinstance(measurements, list) or not measurements:
+            return ActionResult(
+                success=False, error='validation_failed',
+                message=("I couldn't read any body measurements to import \u2014 "
+                         "mind re-sending the screenshot?"),
+            )
+
+        # \u2500\u2500 Artifact-level IDEMPOTENCY \u2014 the SAME screenshot never creates two sessions \u2500\u2500
+        if source_artifact_id:
+            existing = multimodal.artifact_resolved_measurement_session(
+                self.user, source_artifact_id)
+            if existing is not None:
+                return ActionResult(
+                    success=True,
+                    message=(f"You already imported this check-in "
+                             f"({existing.measurement_count} measurements) from this screenshot, "
+                             "so I didn't add a duplicate \u2014 that session still stands."),
+                    created_object={
+                        'model': 'BodyMeasurementSession', 'id': existing.id,
+                        'measurement_count': existing.measurement_count,
+                        'duplicate_of_artifact': source_artifact_id,
+                    },
+                    action_type='log_body_measurements',
+                )
+
+        # \u2500\u2500 Deterministic validation of each candidate (WLJ validates the extraction) \u2500\u2500
+        validated, skipped = [], []
+        for m in measurements:
+            if not isinstance(m, dict):
+                continue
+            metric = multimodal.normalize_body_metric(m.get('metric'))
+            if metric is None:
+                continue  # unknown label, or a DERIVED value (e.g. waist-hip ratio) \u2192 skip
+            raw_val = m.get('value')
+            if multimodal.is_absent_measurement(raw_val):
+                continue  # '--' / blank / 0 = not measured (never a real zero circumference)
+            unit = (m.get('unit') or multimodal.default_body_unit(metric) or '').lower()
+            if not multimodal.validate_body_measurement(metric, raw_val, unit):
+                skipped.append({'metric': metric, 'label': multimodal.body_metric_label(metric),
+                                'value': raw_val, 'unit': unit, 'reason': 'implausible'})
+                continue
+            validated.append({
+                'metric': metric,
+                'label': multimodal.body_metric_label(metric),
+                'value': float(raw_val),
+                'unit': unit,
+                'confidence': m.get('confidence'),
+                'uncertain': multimodal.is_low_confidence(m.get('confidence')),
+            })
+
+        if not validated:
+            return ActionResult(
+                success=False, error='validation_failed',
+                message=("None of those readings looked like plausible body measurements \u2014 "
+                         "mind double-checking the screenshot?"),
+            )
+
+        # Resolve the session timestamp (source-provided or now).
+        when = None
+        if measured_at:
+            when = parse_datetime(str(measured_at))
+            if when is not None and _tz.is_naive(when):
+                when = _tz.make_aware(when, _tz.get_current_timezone())
+        when = when or _tz.now()
+
+        mapped_source = multimodal.map_measurement_source(source)
+        whr = multimodal.derive_whr(validated)  # display only; never stored
+
+        # \u2500\u2500 Confirmation POLICY \u2014 a body check-in from an artifact ALWAYS gets a review card \u2500\u2500
+        if not confirmed and multimodal.requires_confirmation(
+            'log_body_measurements', confidence=kwargs.get('confidence'),
+            duplicate=False, source_artifact_id=source_artifact_id,
+        ):
+            src_label = source or "screenshot"
+            return ActionResult(
+                success=False, error='confirmation_required',
+                message=(f"I found {len(validated)} body measurement"
+                         f"{'s' if len(validated) != 1 else ''} in your {src_label} \u2014 "
+                         "review and press Import to save them."),
+                confirmation_detail={
+                    'renderer': 'body_measurement_session',
+                    'intent': 'log_body_measurements',
+                    'source': source or mapped_source,
+                    'source_artifact_id': source_artifact_id,
+                    'measured_at': when.isoformat(),
+                    'count': len(validated),
+                    'measurements': validated,
+                    'skipped': skipped,
+                    'derived': ({'waist_hip_ratio': whr} if whr is not None else {}),
+                },
+            )
+
+        # \u2500\u2500 Persist ONE canonical session grouping the entries (atomic) \u2500\u2500
+        try:
+            with transaction.atomic():
+                session = BodyMeasurementSession.objects.create(
+                    user=self.user,
+                    checked_in_at=when,
+                    source=mapped_source,
+                    sync_id=(f"artifact:{source_artifact_id}" if source_artifact_id else ""),
+                )
+                local_date = _tz.localtime(when).date()
+                for v in validated:
+                    BodyCompositionEntry.objects.create(
+                        user=self.user, session=session,
+                        metric_name=v['metric'],
+                        value=Decimal(str(v['value'])),
+                        unit=v['unit'],
+                        measurement_date=local_date,
+                        source=mapped_source,
+                    )
+
+            # Provenance: link the screenshot to the session it produced (system of record).
+            if source_artifact_id:
+                multimodal.link_artifact(
+                    source_artifact_id, intent='log_body_measurements',
+                    object_type='BodyMeasurementSession', object_id=session.id,
+                )
+
+            _emit_domain_event("health.body_measurement_session.imported", self.user, {
+                "session_id": session.id, "count": len(validated), "source": mapped_source,
+            })
+
+            imported = ", ".join(v['label'] for v in validated[:4])
+            more = f" +{len(validated) - 4} more" if len(validated) > 4 else ""
+            whr_note = f" (waist-hip ratio {whr})" if whr is not None else ""
+            return ActionResult(
+                success=True,
+                message=(f"Imported {len(validated)} measurements \u2014 {imported}{more}"
+                         f"{whr_note}. They're saved as one check-in in Body Intelligence."),
+                created_object={
+                    'model': 'BodyMeasurementSession',
+                    'id': session.id,
+                    'measurement_count': len(validated),
+                    'source': ('user_upload:%s' % source_artifact_id
+                               if source_artifact_id else mapped_source),
+                    'checked_in_at': session.checked_in_at.isoformat(),
+                    'derived_waist_hip_ratio': whr,
+                },
+                action_type='log_body_measurements',
+            )
+
+        except Exception as e:
+            logger.error(f"Error importing body measurements: {e}", exc_info=True)
+            return ActionResult(
+                success=False,
+                message=("Something went wrong saving that check-in \u2014 "
+                         "I didn't import the measurements."),
+                error='internal_error',
+            )
+
     # =========================================================================
     # FINANCE HANDLERS
     # =========================================================================

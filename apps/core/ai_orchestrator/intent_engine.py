@@ -23,6 +23,7 @@ HEALTH_INTENTS = {
     "log_water",
     "log_steps",
     "log_body_measurement",
+    "log_body_measurements",
 }
 
 INTAKE_INTENTS = {

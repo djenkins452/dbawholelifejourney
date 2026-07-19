@@ -467,6 +467,186 @@ def find_duplicate_weight(user, value, unit, *, window_minutes=180):
         return None
 
 
+# ── Body measurement SESSION capture (source-agnostic: screenshot / photo / voice / typed) ─
+# WLJ owns the canonical circumference names; the model perceives, WLJ validates the
+# extraction, always confirms, then the handler persists ONE grouped session.
+_BODY_CIRCUMFERENCE_METRICS = {
+    "neck", "shoulders", "chest", "waist", "abdomen", "hips",
+    "arm_left", "arm_right", "forearm_left", "forearm_right",
+    "thigh_left", "thigh_right", "calf_left", "calf_right",
+}
+_BODY_PCT_METRICS = {"body_fat_pct", "body_water_pct"}
+_BODY_MASS_METRICS = {"lean_mass", "fat_mass", "skeletal_muscle_mass", "bone_mass"}
+_BODY_OTHER_METRICS = {"bmr", "metabolic_age", "visceral_fat", "bmi"}
+BODY_METRICS = (
+    _BODY_CIRCUMFERENCE_METRICS | _BODY_PCT_METRICS | _BODY_MASS_METRICS | _BODY_OTHER_METRICS
+)
+
+_SIDE_ALIASES = {"l": "left", "left": "left", "r": "right", "right": "right"}
+_PART_ALIASES = {
+    "bicep": "arm", "biceps": "arm", "arm": "arm", "forearm": "forearm",
+    "thigh": "thigh", "calf": "calf", "calves": "calf",
+}
+
+
+def normalize_body_metric(raw):
+    """Map a raw metric label to WLJ's canonical circumference/composition name, or None
+    for anything unknown or DERIVED (e.g. waist-hip ratio — WLJ derives WHR from waist/hips
+    on read, never stores it). WLJ owns the canonical names ('arm_left', never 'bicep')."""
+    if not raw:
+        return None
+    key = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+    while "__" in key:
+        key = key.replace("__", "_")
+    if key in BODY_METRICS:
+        return key
+    if "whr" in key or "ratio" in key:
+        return None  # derived on read, never stored
+    # Sided aliases: 'l_bicep' → 'arm_left', 'left_forearm' → 'forearm_left', 'r_calf' → 'calf_right'.
+    side = part = None
+    for tok in key.split("_"):
+        if tok in _SIDE_ALIASES and side is None:
+            side = _SIDE_ALIASES[tok]
+        elif tok in _PART_ALIASES:
+            part = _PART_ALIASES[tok]
+    if part and side:
+        cand = f"{part}_{side}"
+        if cand in BODY_METRICS:
+            return cand
+    return None
+
+
+def default_body_unit(metric):
+    """The unit WLJ assumes when the source didn't state one."""
+    if metric in _BODY_CIRCUMFERENCE_METRICS:
+        return "in"
+    if metric in _BODY_PCT_METRICS:
+        return "pct"
+    if metric in _BODY_MASS_METRICS:
+        return "lb"
+    return {"bmr": "kcal", "metabolic_age": "years", "visceral_fat": "index"}.get(metric, "")
+
+
+def body_metric_label(metric):
+    """Human label for a canonical metric (reuses the Body Intelligence label map)."""
+    try:
+        from apps.health.services.body_composition_snapshot import METRIC_LABELS
+        if metric in METRIC_LABELS:
+            return METRIC_LABELS[metric]
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return (metric or "").replace("_", " ").title()
+
+
+def is_absent_measurement(value):
+    """A source row that means 'not measured' — WLJ must treat '--' / blank / 0 as ABSENT,
+    never as a real zero circumference (a Renpho screenshot shows unfilled parts as '--'/'0.00')."""
+    if value is None:
+        return True
+    s = str(value).strip()
+    if s in ("", "--", "—", "-", "0", "0.0", "0.00", "N/A", "n/a", "null", "None"):
+        return True
+    try:
+        return float(value) == 0.0
+    except (TypeError, ValueError):
+        return True  # unparseable → skip, don't store garbage
+
+
+def validate_body_measurement(metric, value, unit):
+    """Plausibility gate for ONE measurement candidate (assumes not absent). Rejects a
+    misread value so it never becomes truth. Ranges are deliberately wide — a gate, not
+    a precision check."""
+    if metric not in BODY_METRICS:
+        return False
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return False
+    if v <= 0:
+        return False
+    u = (unit or "").lower()
+    if metric in _BODY_CIRCUMFERENCE_METRICS:
+        return 5.0 <= v <= 260.0 if u == "cm" else 2.0 <= v <= 100.0
+    if metric in _BODY_PCT_METRICS:
+        return 1.0 <= v <= 75.0
+    if metric in _BODY_MASS_METRICS:
+        return 0.2 <= v <= 300.0 if u == "kg" else 0.5 <= v <= 600.0
+    if metric == "bmr":
+        return 500.0 <= v <= 5000.0
+    if metric == "metabolic_age":
+        return 5.0 <= v <= 120.0
+    if metric == "visceral_fat":
+        return 1.0 <= v <= 60.0
+    if metric == "bmi":
+        return 8.0 <= v <= 90.0
+    return True
+
+
+def is_low_confidence(conf):
+    """Whether a per-measurement perception confidence is below the floor (→ flag for the
+    user to verify in the review card). Missing confidence is treated as confident."""
+    if conf is None:
+        return False
+    try:
+        return float(conf) < _CONFIDENCE_FLOOR
+    except (TypeError, ValueError):
+        return True
+
+
+def map_measurement_source(source):
+    """Map free-text source ('Renpho Screenshot', 'InBody', …) to a canonical source choice
+    valid for BOTH BodyMeasurementSession and BodyCompositionEntry."""
+    s = (source or "").strip().lower()
+    if "renpho" in s:
+        return "renpho"
+    if "inbody" in s:
+        return "inbody"
+    if "apple" in s or "health" in s:
+        return "apple_health"
+    if "dexa" in s:
+        return "dexa_scan"
+    if "withings" in s or "scale" in s:
+        return "smart_scale"
+    return "other"
+
+
+def derive_whr(measurements):
+    """Derive waist-hip ratio from validated measurements (waist ÷ hips), for DISPLAY only.
+    Returns a rounded float or None. WHR is never stored — always recomputed from the two
+    canonical circumferences, so it can never drift."""
+    vals = {m.get("metric"): m.get("value") for m in (measurements or [])}
+    try:
+        waist, hips = float(vals.get("waist")), float(vals.get("hips"))
+        if waist > 0 and hips > 0:
+            return round(waist / hips, 2)
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
+def artifact_resolved_measurement_session(user, artifact_id):
+    """Artifact-level IDEMPOTENCY for a measurement session. If this exact screenshot already
+    produced a LIVE BodyMeasurementSession, return it — re-uploading the SAME image can never
+    create a second session. Returns the session or None (nothing resolved, or since deleted)."""
+    if not artifact_id:
+        return None
+    try:
+        from apps.capture.models import MultimodalArtifact
+        from apps.health.models import BodyMeasurementSession
+        sid = MultimodalArtifact.objects.filter(
+            id=artifact_id, user=user, status="resolved",
+            resolved_intent="log_body_measurements",
+            resolved_object_type="BodyMeasurementSession",
+        ).values_list("resolved_object_id", flat=True).first()
+        if not sid:
+            return None
+        return BodyMeasurementSession.objects.filter(
+            id=sid, user=user, status="active",
+        ).first()
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
 # ── Confirmation POLICY (WLJ owns the decision; the model only proposes) ──────
 # Intents that write clinical / financial / identity truth ALWAYS confirm from an image —
 # perception can misread and these are trust-critical.
@@ -474,6 +654,9 @@ _ALWAYS_CONFIRM_INTENTS = frozenset({
     "log_glucose", "log_blood_pressure", "log_labs", "add_medication",
     "log_expense", "add_transaction", "add_contact", "add_insurance_card",
     "add_identity_document",
+    # A full body check-in read from a screenshot/photo always gets a review card —
+    # perception can misread a value and a session writes many measurements at once.
+    "log_body_measurements",
 })
 _CONFIDENCE_FLOOR = 0.85
 

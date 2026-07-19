@@ -346,6 +346,63 @@ HEALTH_INTENT_TOOLS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_body_measurements",
+            "description": (
+                "Import a COMPLETE set of body measurements captured together at one moment "
+                "(a full body check-in) — for example when the user uploads a SCREENSHOT or "
+                "PHOTO of a body-measurement app (Renpho Smart Tape, InBody, Withings, Garmin, "
+                "Apple Health…), or reports several measurements at once ('my waist is 54.7, "
+                "hips 47.2, chest 50.9'). Use THIS instead of calling log_body_measurement "
+                "repeatedly — WLJ groups them into one measurement session. Read EVERY populated "
+                "value from the source; skip any shown as blank / '--' / 0.00 (those are not "
+                "measured). Do NOT include waist-hip ratio — WLJ derives that from waist and hips. "
+                "Attach source_artifact_id and a per-measurement confidence (0-1) when the values "
+                "were read from an uploaded image."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "measurements": {
+                        "type": "array",
+                        "description": "One item per populated measurement read from the source.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "metric": {
+                                    "type": "string",
+                                    "enum": ["neck", "shoulders", "chest", "waist", "abdomen", "hips", "arm_left", "arm_right", "forearm_left", "forearm_right", "thigh_left", "thigh_right", "calf_left", "calf_right", "body_fat_pct", "lean_mass", "fat_mass", "skeletal_muscle_mass", "bone_mass", "body_water_pct", "visceral_fat", "bmr", "metabolic_age", "bmi"],
+                                    "description": "Canonical measurement name. Map vendor labels: L-Bicep→arm_left, R-Bicep→arm_right, Left forearm→forearm_left, Shoulder→shoulders, Hip→hips."
+                                },
+                                "value": {"type": "number", "description": "Measurement value"},
+                                "unit": {
+                                    "type": "string",
+                                    "enum": ["in", "cm", "pct", "lb", "kg", "kcal", "years", "index"],
+                                    "description": "Unit shown on the source (circumferences are usually 'in' or 'cm')."
+                                },
+                                "confidence": {
+                                    "type": "number",
+                                    "description": "0-1 confidence you read THIS value correctly; lower it for any uncertain value."
+                                }
+                            },
+                            "required": ["metric", "value"]
+                        }
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Where the measurements came from, e.g. 'Renpho Screenshot', 'InBody', 'typed'."
+                    },
+                    "measured_at": {
+                        "type": "string",
+                        "description": "ISO 8601 timestamp shown on the source (when the measurements were taken). Omit to use now."
+                    }
+                },
+                "required": ["measurements"]
+            }
+        }
+    },
 ]
 
 # Validation ranges for questioning unusual values (not hard rejections)

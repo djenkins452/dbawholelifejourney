@@ -65,13 +65,14 @@ DAY1_ACTION_ALLOWLIST = {
     "log_habit",
     "log_workout",
     "log_weight",
+    "log_body_measurements",   # import a full body check-in from a screenshot/photo/typed set
 }
 
 # Intents that decide confirmation from the CANDIDATE DATA (not a static per-action policy) —
 # e.g. multimodal writes confirm on low perception confidence / suspected duplicate. For these,
 # `confirmed=true` must reach the handler so a confirmed re-execution BYPASSES the data gate
 # (otherwise it would loop). See apps/ai/multimodal.py :: requires_confirmation.
-_DATA_CONFIRM_INTENTS = {"log_weight"}
+_DATA_CONFIRM_INTENTS = {"log_weight", "log_body_measurements"}
 
 
 def allowed_actions():

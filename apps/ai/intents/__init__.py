@@ -74,6 +74,7 @@ INTENT_HANDLERS = {
     'log_water': 'health',
     'log_steps': 'health',
     'log_body_measurement': 'health',
+    'log_body_measurements': 'health',
     # Intake (Medications & Supplements)
     'take_medication': 'intake',
     'take_supplement': 'intake',

@@ -83,6 +83,7 @@ For core project context, see `CLAUDE.md` (project root).
 64. [Health Intelligence Engine](#health-intelligence-engine) *(Mar 2026)*
 65. [Page-Aware Contextual Conversation (Current Context)](#page-aware-contextual-conversation-current-context) *(Jul 2026)*
 66. [Calendar Projection Layer & Availability Blocks](#calendar-projection-layer--availability-blocks) *(Jul 2026)*
+67. [Measurement Session Capture (Screenshot Import)](#measurement-session-capture-screenshot-import) *(Jul 2026)*
 
 ---
 
@@ -4783,4 +4784,20 @@ Full design + rationale: `docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md`.
 
 ---
 
-*Last updated: 2026-07-07 (Calendar Projection Layer & Availability Blocks)*
+## Measurement Session Capture (Screenshot Import)
+
+*(Jul 2026)* — Import a **complete body-measurement check-in** by simply uploading a screenshot to your Chief of Staff.
+
+**The problem it solves.** A Renpho Smart Tape (and similar devices) records ~12+ body circumferences — neck, chest, waist, abdomen, hips, biceps, thighs, calves, forearms — but Apple Health only carries Waist Circumference, so those measurements never reached WLJ. Rather than reverse-engineer any one vendor, WLJ acquires them the universal way: **the model perceives, WLJ owns the truth.**
+
+**How it works.** Measure yourself in whatever app you like, screenshot the results, and send the image to your Chief of Staff. The model reads every populated value (skipping blanks/`--`), and WLJ imports them as **one canonical measurement session** after you confirm — no Bluetooth, no credentials, no Apple Health dependency, no vendor lock-in. It's source-agnostic: the same path works from a screenshot, a photo, voice ("my waist is 54.7, hips 47.2…"), or typed text.
+
+**What's stored (deterministic truth).** One `BodyMeasurementSession` grouping individual `BodyCompositionEntry` circumferences — the canonical truth Body Intelligence, trends, and the Chief of Staff already read. **Waist-hip ratio is derived on demand** from waist and hips (never stored, so it can never drift). Re-uploading the same screenshot never creates a duplicate.
+
+**Trust guarantees.** Nothing is written until you confirm. Every value is plausibility-checked, blanks/zeros are treated as *not measured* (never a real zero), low-confidence readings are flagged, and the source screenshot is provenance-linked to the session it produced.
+
+*Works today via conversational confirmation; a richer editable review card is the next milestone.*
+
+---
+
+*Last updated: 2026-07-19 (Measurement Session Capture — Screenshot Import)*

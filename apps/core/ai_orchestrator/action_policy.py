@@ -133,6 +133,8 @@ _r('log_blood_oxygen', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM
    label='Log blood oxygen')
 _r('log_body_measurement', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Log body measurement')
+_r('log_body_measurements', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
+   label='Import body measurements')
 _r('log_food', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,
    label='Log food')
 _r('log_sleep', ActionCategory.LOG, RiskLevel.LOW, AuthorityLevel.CONFIRM,

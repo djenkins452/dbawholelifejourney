@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 #: Human-readable label per metric_name.
 METRIC_LABELS = {
     "waist": "Waist",
+    "abdomen": "Abdomen",
     "chest": "Chest",
     "hips": "Hips",
     "neck": "Neck",

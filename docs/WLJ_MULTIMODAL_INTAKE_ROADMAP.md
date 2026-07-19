@@ -92,7 +92,9 @@ Kept current as work lands. Format: milestone · state · commit · notes.
 |---|---|---|---|
 | Governing architecture + roadmap ratified | ✅ DONE | `6fdcfb6b` | `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` (governing) + this roadmap; registered in reference index. |
 | Phase 0 — Harden the platform | 🟡 IN PROGRESS | — | P0.1–P0.7 |
-| ├ P0.1 `serve_media` auth + traversal guard | ✅ DONE | _(this change)_ | `login_required` + `safe_join` on the local-disk fallback (`config/urls.py`); tests in `apps/core/tests/test_serve_media_security.py`. Residual: per-object authz on the fallback deferred to signed-URL work (prod serves via Cloudinary). |
+| ├ P0.1 `serve_media` auth + traversal guard | ✅ DONE | `8aedd9e1` | `login_required` + `safe_join` on the local-disk fallback (`config/urls.py`); tests in `apps/core/tests/test_serve_media_security.py`. Residual: per-object authz on the fallback deferred to signed-URL work (prod serves via Cloudinary). |
+| ├ P0.2 Shared validation layer (both transports) | ✅ DONE | _(this change)_ | `apps/ai/upload_validation.py` — ONE validator both `/api/chat/` and `/api/chat/stream/` call; streaming path previously validated nothing. Tests: `apps/ai/tests/test_upload_validation.py`. |
+| ├ P0.4a Byte-level type sniffing | ✅ DONE | _(this change)_ | Magic-byte sniff in the shared validator; declared MIME no longer trusted (spoofed types rejected). Filename sanitization (P0.4b) moved to storage-lifecycle P0.6 (chat path stores no filenames). |
 | Phase 1 — Universal intake | ⬜ NOT STARTED | — | P1.1–P1.6 |
 | Phase 5 — Scale (opportunistic) | ⬜ DEFERRED | — | B4b, D2–D4 |
 

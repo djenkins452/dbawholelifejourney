@@ -30,6 +30,7 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import RedirectView, TemplateView
 
+from apps.ai.upload_validation import UploadValidationError, validate_images_list
 from apps.core.utils import user_log_id
 from apps.help.mixins import HelpContextMixin
 
@@ -929,39 +930,27 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 except json.JSONDecodeError:
                     page_context = {}
 
-                # Handle multiple image uploads (up to 5)
+                # Handle multiple image uploads. Build the common
+                # (base64, declared_mime) representation, then enforce
+                # size/type/count through the ONE shared validator below.
                 images_list = []  # List of (base64_data, mime_type) tuples
                 image_files = request.FILES.getlist('images')
                 # Backward compat: also check singular 'image' key
                 if not image_files and 'image' in request.FILES:
                     image_files = [request.FILES['image']]
 
-                if len(image_files) > 5:
-                    return JsonResponse({
-                        'success': False,
-                        'error': 'Maximum 5 images per message',
-                    }, status=400)
-
+                # Cheap pre-check: reject obviously-oversized uploads before
+                # reading them into memory. The authoritative size/type/count
+                # enforcement is the shared validator (on decoded bytes).
                 for image_file in image_files:
-                    if image_file.size > self.MAX_IMAGE_SIZE:
+                    if image_file.size and image_file.size > self.MAX_IMAGE_SIZE:
                         return JsonResponse({
                             'success': False,
                             'error': f'Image too large (max 5MB): {image_file.name}',
                         }, status=400)
-
-                    if image_file.content_type not in self.ALLOWED_IMAGE_TYPES:
-                        return JsonResponse({
-                            'success': False,
-                            'error': f'Invalid image type. Allowed: {", ".join(self.ALLOWED_IMAGE_TYPES)}',
-                        }, status=400)
-
                     image_bytes = image_file.read()
                     image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-                    images_list.append((image_b64, image_file.content_type))
-
-                # Backward compat: first image also set as image_data/image_mime_type
-                image_data = images_list[0][0] if images_list else None
-                image_mime_type = images_list[0][1] if images_list else None
+                    images_list.append((image_b64, image_file.content_type or ''))
 
             else:
                 # JSON body (traditional request)
@@ -973,6 +962,18 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 images_list = []
                 if image_data and image_mime_type:
                     images_list = [(image_data, image_mime_type)]
+
+            # ONE shared validation layer (both transports call this). Sniffs
+            # true type from bytes; enforces size/type/count identically.
+            try:
+                images_list = validate_images_list(images_list)
+            except UploadValidationError as exc:
+                return JsonResponse(
+                    {'success': False, 'error': exc.message}, status=exc.status,
+                )
+            # First image also populates the singular back-compat fields.
+            image_data = images_list[0][0] if images_list else None
+            image_mime_type = images_list[0][1] if images_list else None
 
             if not message:
                 return JsonResponse({
@@ -1241,10 +1242,22 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
                         images_list.append((it['data'], it['mime']))
             if not images_list and image_data and image_mime_type:
                 images_list = [(image_data, image_mime_type)]
-            # Mirror the sync view: the FIRST image also populates the singular fields, so a
-            # single image flows even though images_list is only forwarded when there are 2+.
-            if images_list and not (image_data and image_mime_type):
+
+            # ONE shared validation layer — the streaming path previously trusted
+            # the JSON `images` array unchecked. Now it enforces the same
+            # size/type/count and byte-sniffing as the sync endpoint.
+            try:
+                images_list = validate_images_list(images_list)
+            except UploadValidationError as exc:
+                return JsonResponse(
+                    {'success': False, 'error': exc.message}, status=exc.status,
+                )
+            # The FIRST image also populates the singular fields, so a single
+            # image flows even though images_list is only forwarded when 2+.
+            if images_list:
                 image_data, image_mime_type = images_list[0]
+            else:
+                image_data, image_mime_type = None, None
 
             if not message:
                 return JsonResponse(

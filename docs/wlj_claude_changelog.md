@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — fix(security/multimodal P0.2+P0.4a): one shared upload validator with byte-sniffing for both chat transports
+
+**Phase 0 (Harden the Platform), Milestone 2.** Closes finding B2 (+ B4a) from the multimodal roadmap.
+
+**Root cause:** the two chat transports validated images inconsistently. The non-streaming `/api/chat/` endpoint checked the client-**declared** `content_type` + size; the streaming `/api/chat/stream/` endpoint trusted the JSON `images` array **with no validation at all** — oversized or spoofed payloads passed straight through. Type checks anywhere relied on the declared MIME, which a client can lie about.
+
+**Fix:** new `apps/ai/upload_validation.py` — ONE validation layer both endpoints call, operating on the common `(base64, declared_mime)` representation:
+- **Byte-level sniffing** (magic numbers for JPEG/PNG/GIF/WEBP); the client-declared MIME is advisory only and is replaced by the sniffed type. Spoofed images (e.g. a script declared `image/png`) are rejected.
+- Size (≤5 MB on decoded bytes), count (≤5), and base64 integrity enforced identically on both paths.
+- Tolerates a `data:<mime>;base64,` prefix from browser FileReader.
+- Both `AssistantChatView` and `AssistantChatStreamView` now call `validate_images_list()` and return a 400 on `UploadValidationError`.
+
+**Deferred (sequenced, not dropped):** filename sanitization (P0.4b) moves to the storage-lifecycle milestone (P0.6) — the chat path stores no filenames; sanitization belongs where artifacts persist original filenames.
+
+**Files:** `apps/ai/upload_validation.py` (new), `apps/ai/views.py` (both endpoints + import), `apps/ai/tests/test_upload_validation.py` (new, 11 tests), `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md` (ledger).
+
+**Verification:** `test_upload_validation` 11 passed; `test_multimodal` + `test_multimodal_wiring` + `test_image_retention` (48) still pass; request-path-safety contract passes; `manage.py check` clean.
+
 ## 2026-07-19 — fix(security/multimodal P0.1): authenticate + traversal-guard the media fallback view
 
 **Phase 0 (Harden the Platform), Milestone 1.** Closes finding B1 from the multimodal roadmap.

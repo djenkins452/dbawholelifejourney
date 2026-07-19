@@ -30,6 +30,33 @@ class JournalDomainTruth(DomainTruth):
     # answerable from JOURNAL truth, instead of a cross-domain search that surfaces
     # unrelated health metrics (defect 2026-07-17).
     entity_types = ("entry",)
+    # ANALYSIS participation — PURE COMPOSITION of the two inputs ALREADY exposed above:
+    # history('mood') (the deterministic mood series) + describe('entry') (dated entries
+    # carrying text/mood/emotions/tags). The generic get_analysis composer reuses those;
+    # it adds NO retrieval, NO new store, NO reasoning. WLJ supplies the evidence bundle;
+    # the model summarizes / interprets / reflects / advises and identifies conversational
+    # themes from the supplied entries. WLJ declares NO verdict — it never deterministically
+    # calls anything healthy / concerning / positive / a commitment (that is the model's
+    # reasoning). Every subject maps to the SAME (mood, entry) inputs; the varied keys are
+    # only the natural phrasings the model reaches for (so it never invents an undeclared
+    # subject → unsupported). Structured themes reach the model as the tags/emotions carried
+    # ON each entry record — not as free-text extraction.
+    analysis_subjects = {
+        "journal":          {"history_metric": "mood", "entity_type": "entry"},
+        "entries":          {"history_metric": "mood", "entity_type": "entry"},
+        "journal_entries":  {"history_metric": "mood", "entity_type": "entry"},
+        "summary":          {"history_metric": "mood", "entity_type": "entry"},
+        "recent_journal":   {"history_metric": "mood", "entity_type": "entry"},
+        "mood":             {"history_metric": "mood", "entity_type": "entry"},
+        "trends":           {"history_metric": "mood", "entity_type": "entry"},
+        "patterns":         {"history_metric": "mood", "entity_type": "entry"},
+        "reflection":       {"history_metric": "mood", "entity_type": "entry"},
+        "advice":           {"history_metric": "mood", "entity_type": "entry"},
+        "gratitude":        {"history_metric": "mood", "entity_type": "entry"},
+        "themes":           {"history_metric": "mood", "entity_type": "entry"},
+        "positive_changes": {"history_metric": "mood", "entity_type": "entry"},
+        "concerns":         {"history_metric": "mood", "entity_type": "entry"},
+    }
 
     def current(self, metric):
         if metric == "themes":

@@ -3,8 +3,24 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(multimodal P1.2a): universal intake server foundation — validator + upload endpoint)
+# Last Updated: 2026-07-19 (feat(multimodal P1.2b): WLJ Attachment Framework — domain-agnostic reusable uploader)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(multimodal P1.2b): the WLJ Attachment Framework — one domain-agnostic uploader for the whole platform
+
+**Phase 1, universal-intake milestone (sub-milestone B — reusable client framework).** Per Danny's directive, the uploader is elevated from a chat feature into the **canonical WLJ Attachment Framework**: one domain-agnostic component droppable into ANY page (chat, meals, medical, journal, faith, relationships, finance, operations, future domains) with config, not customization.
+
+**Changes:**
+- **`static/js/wlj-attachments.js`** — added `WLJAttachments.mount(config)`, a self-managing attachment controller driven entirely by config: `classes` (allowed content), `maxItems`, `endpoint`, `uploadParams` (artifact association), `previewStyle` (`mixed`/`chips`/`thumbs`), `normalizeImages`, `keepImageData`, and `onUploaded/onChange/onProgress/onError`. It selects → validates (client class check) → normalizes images → uploads with **XHR progress** → renders reusable chips/thumbs → supports remove/clear, and exposes a generic interface (`getArtifactIds`, `getImagesPayload`, `hasPending`, `count`, `items`). The controller knows nothing about the domain it serves. Also fixed `fileKind()` to match the server kind taxonomy (pdf/office/text → `document`) with extension fallbacks.
+- **`static/css/wlj-attachments.css`** (new) — reusable, theme-aware chip/thumb styles (per-type icons, name/size, progress bar, remove, error state). Not chat-specific markup.
+- **`templates/base.html`** — the framework JS+CSS now load **platform-wide** (blocking, in head), so any page can mount it with zero extra includes and body-inline consumers have it at parse time. Removed the now-redundant per-template `<script>` includes from both chat surfaces (single source, no double-load).
+- **Governing doc** `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` §10 records the framework as the canonical client component.
+
+**Architecture:** every WLJ page uploads through the same framework → the same `/assistant/api/attachments/` platform → the same durable `MultimodalArtifact`. Only the (later) perception stage differs by type. No per-domain uploader, no per-domain chips.
+
+**Files:** `static/js/wlj-attachments.js`, `static/css/wlj-attachments.css` (new), `templates/base.html`, `templates/components/assistant_panel.html`, `templates/components/chat_widget.html`, `docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md`, `docs/WLJ_MULTIMODAL_INTAKE_ROADMAP.md`.
+
+**Verification (browser, authenticated):** mounted the framework on a scratch container with ZERO chat involvement → a PDF, PNG, and WAV added via the generic `addFiles()` were correctly classified (document/image/audio), all uploaded to the platform endpoint (3 artifact ids), rendered as 2 chips + 1 thumbnail with per-type icons, and `remove()` worked. Framework loads once globally (no double-load); chat surfaces intact; no console errors. `collectstatic` clean; JS parses.
 
 ## 2026-07-19 — feat(multimodal P1.2a): universal intake — server foundation (all-types validator + upload endpoint)
 

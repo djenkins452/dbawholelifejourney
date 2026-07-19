@@ -151,8 +151,9 @@ Intake plugs into the Model Interface seam (per `WLJ_MODEL_INTERFACE_DESIGN.md`)
 
 ## 10. Long-term extensibility
 
+- **The WLJ Attachment Framework (client).** The attachment UI is a single **domain-agnostic** component (`static/js/wlj-attachments.js` + `static/css/wlj-attachments.css`, loaded platform-wide from `base.html`). It knows nothing about the domain it serves; a consuming page calls `WLJAttachments.mount(config)` and declares behavior — `classes` (allowed content), `maxItems`, `endpoint` (upload destination), `uploadParams` (artifact association, e.g. `{associate_to:'meal:12'}`), `previewStyle`, and `onUploaded/onChange/onProgress/onError`. The controller exposes a generic interface (`getArtifactIds`, `getImagesPayload`, `clear`, `remove`, `hasPending`) and renders reusable chips/thumbs (per-type icons, size, progress, remove). Chat, Meals, Medical, Journal, Finance, Operations, and future domains all mount the **same** component with different config — never a per-domain uploader or per-domain chip markup. This is the client expression of "build once, reuse everywhere."
 - **New media type** → add a decoder/normalizer at ingress and (if structured) a mapping to existing intents. No new pipeline, no new storage seam.
-- **New domain** → it consumes the platform (ingress + artifact + spine + retrieval) and defines only its intents; it never builds an upload path.
+- **New domain** → it mounts the Attachment Framework and consumes the platform (ingress + artifact + spine + retrieval), defining only its intents; it never builds an upload path or bespoke chips.
 - **New provider / native modality** (e.g. native video or audio input) → swap behind the provider seam; ingress, artifact, spine, and retrieval are unchanged.
 - **New wearable/export format** → a deterministic parser maps it into existing domain intents through the same arrival path.
 - **Convergence commitment:** historical forks (scan drafts/prefills, medical lab-PDF import, capture audio) are migrated to feed this platform's ingress + artifact seam over time; their domain-specific extraction is preserved, their independent storage/dedup/audit forks are retired.

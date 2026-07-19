@@ -1,22 +1,32 @@
 /**
- * WLJ Universal Attachments — shared client-side intake helpers.
+ * WLJ Attachment Framework — the canonical, DOMAIN-AGNOSTIC attachment platform.
  *
- * ONE implementation consumed by BOTH chat surfaces (assistant_panel.html desktop
- * dock + chat_widget.html mobile drawer) — the "build once, reuse everywhere"
- * platform surface (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md).
+ * ONE reusable component that can be dropped into ANY WLJ page (chat, meals,
+ * medical, journal, faith, relationships, finance, operations, future domains)
+ * with config, not customization. The framework knows nothing about the domain
+ * it serves; the consuming page declares behavior
+ * (docs/WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md §10).
  *
- * Milestone 1 scope — IMAGES end-to-end:
- *   - Intelligent client-side normalization: EXIF-correct orientation, downscale
- *     large photos, and compress under the server size cap so the user almost
- *     never sees "file too large" and photos are never sideways.
- *   - HEIC/HEIF → JPEG conversion where the engine can decode it (WebKit / the
- *     iOS WKWebView app and Safari) — the primary iPhone path.
- *   - Drag-and-drop onto the chat input.
- *   - (Photos / Take-a-photo / Browse come from the OS sheet once the file
- *     input `accept` is widened — no extra JS needed.)
+ * TWO layers:
+ *   1. Low-level helpers (stable): `prepareImage` (EXIF orientation, downscale,
+ *      HEIC→JPEG, compress under cap), `fileKind`, `attachDragAndDrop`,
+ *      `sniff`/`isImage`. Reusable on their own.
+ *   2. The framework controller: `WLJAttachments.mount(config)` — a self-managing
+ *      attachment set (select / validate / normalize / upload-with-progress /
+ *      preview chips + thumbs / remove) driven entirely by config:
+ *        - `classes`         which content classes are allowed
+ *        - `maxItems`        max attachments
+ *        - `endpoint`        upload destination
+ *        - `uploadParams`    artifact association (e.g. {associate_to:'meal:12'})
+ *        - `previewStyle`    'mixed' | 'chips' | 'thumbs'
+ *        - `onUploaded/onChange/onProgress/onError`  post-upload behavior
+ *      The controller exposes `getArtifactIds()`, `getImagesPayload()`,
+ *      `clear()`, `remove()`, `hasPending()` — a generic interface every
+ *      consumer uses the same way.
  *
- * Non-image types (PDF/audio/video/docs) are a later milestone (server ingestion
- * + perception); this module exposes hooks (`fileKind`) for that expansion.
+ * Reusable UI: attachment chips/thumbs are rendered by the framework (per-type
+ * icons, name, size, progress, remove) — not chat-specific markup. Styles live
+ * in static/css/wlj-attachments.css.
  *
  * CSP: loaded via <script src> (same-origin, 'self'); no inline handlers.
  */
@@ -47,14 +57,19 @@
                /\.(heic|heif)$/i.test(file.name || '');
     }
 
-    // Coarse content class for the (future) universal preview + routing.
+    // Coarse content class — MUST match the server kind taxonomy
+    // (apps/ai/upload_validation.py: image / document / audio / video). PDF and
+    // Office/text all map to 'document'. Uses declared type first, extension as
+    // fallback (some OS pickers report an empty type for .md/.m4a/etc.).
     function fileKind(file) {
-        var t = (file && file.type) || '';
+        var t = ((file && file.type) || '').toLowerCase();
+        var name = ((file && file.name) || '').toLowerCase();
         if (isImage(file)) return 'image';
-        if (t.indexOf('audio/') === 0) return 'audio';
-        if (t.indexOf('video/') === 0) return 'video';
-        if (t === 'application/pdf' || /\.pdf$/i.test(file.name || '')) return 'pdf';
-        if (/word|excel|powerpoint|spreadsheet|presentation|document|csv|text\//.test(t)) {
+        if (t.indexOf('audio/') === 0 || /\.(mp3|m4a|wav|aac|ogg|caf)$/.test(name)) return 'audio';
+        if (t.indexOf('video/') === 0 || /\.(mov|mp4|m4v|hevc|avi|webm|mkv)$/.test(name)) return 'video';
+        if (t === 'application/pdf' || /\.pdf$/.test(name)) return 'document';
+        if (/word|excel|powerpoint|spreadsheet|presentation|officedocument|document|csv|text\//.test(t) ||
+            /\.(docx|xlsx|pptx|txt|md|markdown|csv)$/.test(name)) {
             return 'document';
         }
         return 'other';
@@ -210,13 +225,291 @@
         });
     }
 
+    // ── Universal accept string (all supported classes) ──────────────────────
+    var UNIVERSAL_ACCEPT = [
+        IMAGE_ACCEPT, 'image/tiff', '.tif', '.tiff',
+        'application/pdf', '.pdf',
+        '.docx', '.xlsx', '.pptx',
+        'text/plain', 'text/markdown', 'text/csv', '.txt', '.md', '.csv',
+        'audio/*', '.mp3', '.m4a', '.wav', '.aac',
+        'video/*', '.mov', '.mp4',
+    ].join(',');
+
+    // ── Reusable UI: per-type icons + chip/thumb renderer ────────────────────
+    var _ICONS = {
+        image: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>',
+        document: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h8"/></svg>',
+        audio: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+        video: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="14" height="16" rx="2"/><path d="M22 8l-6 4 6 4V8z"/></svg>',
+        other: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg>',
+    };
+    var _X_ICON = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+    function _fmtSize(bytes) {
+        if (!bytes) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function _renderPreview(container, items, opts) {
+        opts = opts || {};
+        var style = opts.style || 'mixed';
+        container.innerHTML = '';
+        container.classList.add('wlj-attach-preview');
+        container.hidden = items.length === 0;
+        if (!items.length) return;
+
+        items.forEach(function (item) {
+            var asThumb = (style !== 'chips') && item.kind === 'image' && item.dataUrl;
+            var el = document.createElement('div');
+            el.className = asThumb ? 'wlj-attach-thumb' : 'wlj-attach-chip';
+            el.setAttribute('data-status', item.status);
+
+            if (asThumb) {
+                var img = document.createElement('img');
+                img.src = item.dataUrl; img.alt = item.name || 'image';
+                el.appendChild(img);
+            } else {
+                var icon = document.createElement('span');
+                icon.className = 'wlj-attach-icon';
+                icon.innerHTML = _ICONS[item.kind] || _ICONS.other;
+                el.appendChild(icon);
+                var meta = document.createElement('span');
+                meta.className = 'wlj-attach-meta';
+                var nm = document.createElement('span');
+                nm.className = 'wlj-attach-name'; nm.textContent = item.name || item.kind;
+                var sz = document.createElement('span');
+                sz.className = 'wlj-attach-size'; sz.textContent = _fmtSize(item.size);
+                meta.appendChild(nm); meta.appendChild(sz);
+                el.appendChild(meta);
+            }
+
+            // Progress / status affordance.
+            if (item.status === 'uploading') {
+                var bar = document.createElement('span');
+                bar.className = 'wlj-attach-progress';
+                var fill = document.createElement('span');
+                fill.className = 'wlj-attach-progress-fill';
+                fill.style.width = Math.round((item.progress || 0) * 100) + '%';
+                bar.appendChild(fill);
+                el.appendChild(bar);
+            } else if (item.status === 'error') {
+                el.classList.add('is-error');
+                el.title = item.error || 'Upload failed';
+            }
+
+            var rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'wlj-attach-remove';
+            rm.setAttribute('aria-label', 'Remove ' + (item.name || 'attachment'));
+            rm.innerHTML = _X_ICON;
+            rm.addEventListener('click', function () {
+                if (opts.onRemove) opts.onRemove(item.localId);
+            });
+            el.appendChild(rm);
+
+            container.appendChild(el);
+        });
+    }
+
+    // ── Helpers for the controller ───────────────────────────────────────────
+    function _getCsrf() {
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    function _base64ToBlob(b64, mime) {
+        var chars = atob(b64);
+        var bytes = new Uint8Array(chars.length);
+        for (var i = 0; i < chars.length; i++) bytes[i] = chars.charCodeAt(i);
+        return new Blob([bytes], { type: mime || 'application/octet-stream' });
+    }
+
+    // ── The framework controller ─────────────────────────────────────────────
+    function mount(config) {
+        config = config || {};
+        var endpoint = config.endpoint || '/assistant/api/attachments/';
+        var classes = config.classes || ['image', 'document', 'audio', 'video'];
+        var maxItems = config.maxItems || 5;
+        var previewStyle = config.previewStyle || 'mixed';
+        var normalizeImages = config.normalizeImages !== false;
+        var keepImageData = !!config.keepImageData;
+        var autoUpload = config.autoUpload !== false;
+        var previewContainer = config.previewContainer || null;
+        var items = [];
+        var seq = 0;
+
+        function notifyError(msg) {
+            if (config.onError) config.onError(msg);
+            else if (msg) { try { alert(msg); } catch (e) {} }
+        }
+        function publicItems() {
+            return items.map(function (it) {
+                return {
+                    localId: it.localId, name: it.name, size: it.size, kind: it.kind,
+                    mime: it.mime, status: it.status, artifactId: it.artifactId,
+                    progress: it.progress,
+                };
+            });
+        }
+        function render() {
+            if (previewContainer) {
+                _renderPreview(previewContainer, items, { style: previewStyle, onRemove: remove });
+            }
+        }
+        function changed() {
+            if (config.onChange) config.onChange(publicItems());
+            render();
+        }
+
+        function addFiles(fileList) {
+            var arr = Array.prototype.slice.call(fileList || []);
+            arr.forEach(function (file) {
+                if (items.length >= maxItems) {
+                    notifyError('You can attach up to ' + maxItems + ' files.');
+                    return;
+                }
+                var kind = fileKind(file);
+                if (classes.indexOf(kind) === -1) {
+                    notifyError('That type of file isn’t allowed here.');
+                    return;
+                }
+                var item = {
+                    localId: ++seq, file: file, name: file.name || '',
+                    size: file.size || 0, kind: kind, mime: file.type || '',
+                    status: 'pending', artifactId: null, dataUrl: null, data: null,
+                    progress: 0, error: null,
+                };
+                items.push(item);
+                changed();
+                _process(item);
+            });
+        }
+
+        function _process(item) {
+            if (item.kind === 'image' && normalizeImages) {
+                prepareImage(item.file).then(function (img) {
+                    item.mime = img.mimeType;
+                    item.dataUrl = img.dataUrl;               // for thumbnail preview
+                    if (keepImageData) item.data = img.data;  // inline perception (chat)
+                    if (autoUpload) _upload(item, _base64ToBlob(img.data, img.mimeType), item.name);
+                    else { item.status = 'ready'; changed(); }
+                }).catch(function (err) {
+                    item.status = 'error';
+                    item.error = (err && err.message) || 'Could not read image';
+                    notifyError(item.error);
+                    changed();
+                });
+            } else if (autoUpload) {
+                _upload(item, item.file, item.name);
+            } else {
+                item.status = 'ready';
+                changed();
+            }
+        }
+
+        function _upload(item, blob, name) {
+            item.status = 'uploading'; item.progress = 0; changed();
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', endpoint);
+            xhr.setRequestHeader('X-CSRFToken', config.csrfToken || _getCsrf());
+            if (xhr.upload) {
+                xhr.upload.onprogress = function (e) {
+                    if (e.lengthComputable) {
+                        item.progress = e.loaded / e.total;
+                        if (config.onProgress) config.onProgress(item.localId, item.progress);
+                        render();
+                    }
+                };
+            }
+            xhr.onload = function () {
+                var data = null;
+                try { data = JSON.parse(xhr.responseText); } catch (e) {}
+                var att = data && data.attachments && data.attachments[0];
+                if (xhr.status === 200 && data && data.success && att) {
+                    item.artifactId = att.artifact_id;
+                    item.kind = att.kind || item.kind;
+                    item.mime = att.content_type || item.mime;
+                    item.size = att.size || item.size;
+                    item.status = 'uploaded'; item.progress = 1;
+                    if (config.onUploaded) config.onUploaded(publicItems().filter(function (x) {
+                        return x.localId === item.localId;
+                    })[0]);
+                } else {
+                    item.status = 'error';
+                    item.error = (data && data.error) || 'Upload failed';
+                    notifyError(item.error);
+                }
+                changed();
+            };
+            xhr.onerror = function () {
+                item.status = 'error'; item.error = 'Upload failed';
+                notifyError(item.error); changed();
+            };
+            var fd = new FormData();
+            fd.append('file', blob, name);
+            if (config.uploadParams) {
+                Object.keys(config.uploadParams).forEach(function (k) {
+                    fd.append(k, config.uploadParams[k]);
+                });
+            }
+            xhr.send(fd);
+        }
+
+        function remove(localId) {
+            items = items.filter(function (it) { return it.localId !== localId; });
+            if (config.onRemove) config.onRemove(localId);
+            changed();
+        }
+        function clear() { items = []; changed(); }
+        function getArtifactIds() {
+            return items.filter(function (it) { return it.status === 'uploaded' && it.artifactId; })
+                        .map(function (it) { return it.artifactId; });
+        }
+        function getImagesPayload() {
+            return items.filter(function (it) { return it.kind === 'image' && it.data; })
+                        .map(function (it) { return { data: it.data, mime: it.mime }; });
+        }
+        function hasPending() {
+            return items.some(function (it) {
+                return it.status === 'uploading' || it.status === 'pending';
+            });
+        }
+
+        // Wire the provided input / triggers / drop zone.
+        if (config.input) {
+            config.input.addEventListener('change', function () {
+                if (config.input.files && config.input.files.length) {
+                    addFiles(config.input.files);
+                    config.input.value = '';
+                }
+            });
+        }
+        (config.triggers || []).forEach(function (t) {
+            if (t && config.input) t.addEventListener('click', function () { config.input.click(); });
+        });
+        if (config.dropZone) attachDragAndDrop(config.dropZone, addFiles);
+
+        return {
+            addFiles: addFiles, remove: remove, clear: clear,
+            getArtifactIds: getArtifactIds, getImagesPayload: getImagesPayload,
+            hasPending: hasPending, render: render,
+            count: function () { return items.length; },
+            items: publicItems,
+        };
+    }
+
     window.WLJAttachments = {
         IMAGE_ACCEPT: IMAGE_ACCEPT,
+        UNIVERSAL_ACCEPT: UNIVERSAL_ACCEPT,
         isImage: isImage,
         isHeic: isHeic,
         fileKind: fileKind,
         prepareImage: prepareImage,
         attachDragAndDrop: attachDragAndDrop,
+        renderPreview: _renderPreview,
+        mount: mount,
         limits: { MAX_DIM: MAX_DIM, TARGET_MAX_BYTES: TARGET_MAX_BYTES },
     };
 })();

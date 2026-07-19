@@ -44,6 +44,11 @@
     <!-- Shared Person hover card + click-to-open, for any recognized-person chip. -->
     <link rel="stylesheet" href="{% static 'css/wlj-person.css' %}?v=20260718b">
     <script src="{% static 'js/wlj-person-hover.js' %}?v=20260718b" defer></script>
+    <!-- WLJ Attachment Framework — reusable, domain-agnostic uploader + chip/thumb UI.
+         Loaded platform-wide (blocking, in head) so any page can mount it with no
+         extra includes, and so body-inline consumers (chat) have it at parse time. -->
+    <link rel="stylesheet" href="{% static 'css/wlj-attachments.css' %}?v=20260719a">
+    <script src="{% static 'js/wlj-attachments.js' %}?v=20260719a"></script>
     {% block extra_css %}{% endblock %}
 
     <title>{% block title %}Whole Life Journey{% endblock %}</title>

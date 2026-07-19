@@ -1,0 +1,118 @@
+/*
+ * WLJ Attachment Framework — reusable preview UI (chips + thumbs).
+ *
+ * Domain-agnostic styling for the attachment component rendered by
+ * static/js/wlj-attachments.js. Any WLJ page that mounts the framework and
+ * includes this stylesheet gets identical, theme-aware attachment previews —
+ * no per-domain markup. Uses WLJ CSS variables with safe fallbacks.
+ */
+
+.wlj-attach-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+.wlj-attach-preview[hidden] { display: none; }
+
+/* ── File chip (documents / audio / video / non-previewable) ── */
+.wlj-attach-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 220px;
+    padding: 6px 30px 6px 10px;
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: var(--radius-md, 10px);
+    background: var(--color-surface, #f9fafb);
+    overflow: hidden;
+}
+.wlj-attach-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--color-accent, #2563eb);
+}
+.wlj-attach-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.2;
+}
+.wlj-attach-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text, #111827);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.wlj-attach-size {
+    font-size: 11px;
+    color: var(--color-text-muted, #6b7280);
+}
+
+/* ── Image thumbnail ── */
+.wlj-attach-thumb {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md, 10px);
+    overflow: hidden;
+    border: 1px solid var(--color-border, #e5e7eb);
+    background: var(--color-surface, #f3f4f6);
+}
+.wlj-attach-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* ── Remove button (shared) ── */
+.wlj-attach-remove {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+}
+.wlj-attach-chip .wlj-attach-remove { top: 50%; transform: translateY(-50%); background: transparent; color: var(--color-text-muted, #6b7280); }
+.wlj-attach-chip .wlj-attach-remove:hover { color: var(--color-error, #ef4444); }
+.wlj-attach-remove:hover { background: rgba(0, 0, 0, 0.75); }
+
+/* ── Upload progress ── */
+.wlj-attach-progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: var(--color-border, #e5e7eb);
+}
+.wlj-attach-progress-fill {
+    display: block;
+    height: 100%;
+    background: var(--color-accent, #2563eb);
+    transition: width 0.15s ease;
+}
+
+/* ── Error state ── */
+.wlj-attach-chip.is-error,
+.wlj-attach-thumb.is-error {
+    border-color: var(--color-error, #ef4444);
+}
+.wlj-attach-chip.is-error .wlj-attach-icon { color: var(--color-error, #ef4444); }
+
+@media (prefers-color-scheme: dark) {
+    .wlj-attach-chip { background: var(--color-surface, #1f2937); }
+}

@@ -129,7 +129,21 @@ def _capabilities() -> dict:
         from apps.core.truth.semantics import domain_semantics as _sem
         advertised = set(truth_history) | set(truth_entities) | set(truth_analysis)
         all_sem = _sem()
-        domain_semantics = {d: all_sem[d] for d in sorted(advertised) if d in all_sem}
+        domain_semantics = {}
+        for d in sorted(advertised):
+            if d not in all_sem:
+                continue
+            entry = dict(all_sem[d])
+            # DERIVE the analytical intents this domain OWNS straight from the catalog
+            # (`truth_analysis`) — so the plain-language routing layer the model reads to
+            # pick a tool advertises the SAME analyzable subjects the get_analysis tool
+            # accepts. Aligned by construction: it can never silently drift from a domain's
+            # declared `analysis_subjects`. This is how the model discovers that e.g.
+            # "themes / gratitude / patterns / reflection / positive changes / advice about
+            # my writing" belong to get_analysis(journal, <subject>), not a keyword search.
+            if truth_analysis.get(d):
+                entry["analyzes"] = list(truth_analysis[d])
+            domain_semantics[d] = entry
     except Exception:  # pragma: no cover - defensive
         domain_semantics = {}
     return {

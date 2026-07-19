@@ -555,8 +555,15 @@ def truth_tools():
                 "Those are canonical record facts: use get_entity (record types in "
                 "`capabilities.truth_entities`, e.g. journal 'entry') with a date "
                 "filter, or get_domain_state for current counts and the last-entry fact "
-                "— those AGREE with what the domain's page shows. Returns audited "
-                "truth-envelope data."
+                "— those AGREE with what the domain's page shows. And do NOT use it for "
+                "ANALYTICAL SYNTHESIS about the user's own records — summaries, trends, "
+                "themes, patterns, reflection, gratitude, concerns, positive changes, or "
+                "advice (e.g. 'what themes keep showing up', 'what have I been grateful "
+                "for lately', 'what positive changes'): those are get_analysis "
+                "(subjects in `capabilities.domain_semantics[domain].analyzes`). Use "
+                "search_history ONLY to locate records that literally mention a phrase "
+                "(e.g. 'entries that mention gratitude'). Returns audited truth-envelope "
+                "data."
             ),
             "parameters": {"type": "object", "properties": {
                 "query": {"type": "string"},
@@ -661,8 +668,16 @@ def truth_tools():
                 "yourself. The result carries `holds_data` — WLJ's deterministic verdict: "
                 "when it is true, the evidence is present and you MUST reason over it, never "
                 "reply 'insufficient'; only `status: empty` (holds_data false) is a genuine "
-                "absence of WLJ truth. The answerable (domain, subject) pairs are in Current "
-                "Context's capability index (`capabilities.truth_analysis`); do not guess."
+                "absence of WLJ truth. This is ALSO the tool for reflective/thematic "
+                "questions about the user's OWN records — 'what themes keep showing up', "
+                "'what have I been grateful for', 'what positive changes / patterns / "
+                "concerns', 'reflect on my journal', 'advice based on my journal'. Those are "
+                "analytical SYNTHESIS over deterministic evidence, NOT keyword search — use "
+                "get_analysis, not search_history. The answerable (domain, subject) pairs "
+                "are in Current Context's capability index (`capabilities.truth_analysis`, "
+                "and per domain as `capabilities.domain_semantics[domain].analyzes`); do "
+                "not guess a domain or subject, and never invent a domain (there is no "
+                "'life' domain — analyze the specific domain that owns the subject)."
             ),
             "parameters": {"type": "object", "properties": {
                 "domain": analysis_domain_schema,
@@ -711,7 +726,8 @@ def truth_tools():
 # Curated, write-enabled action set (Option B). These are EXISTING deterministic intent
 # schemas — sourced verbatim from apps/ai/intents (ALL_INTENT_TOOLS), NOT copied or
 # generalized. Start with the smallest safe task set; grow only by real need.
-ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task", "log_weight")
+ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task", "log_weight",
+                         "log_body_measurements")
 
 
 def _named_action_tools():

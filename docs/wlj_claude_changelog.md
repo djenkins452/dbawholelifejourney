@@ -3,8 +3,22 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (feat(cos/truth): Journal Analysis — expose existing mood history + entry truth through the Analysis Surface)
+# Last Updated: 2026-07-19 (feat(cos/truth): analytical-intent discovery — align routing semantics with declared analysis_subjects)
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — feat(cos/truth): analytical-intent discovery (Journal conversational routing)
+
+**Journal Conversational Routing milestone — capability discovery only.** Journal Analysis truth was already exposed (`truth_analysis.journal` lists themes/gratitude/patterns/reflection/positive_changes/concerns/advice…), but the plain-language routing layer (`domain_semantics.journal`) described journal as retrieval-only ("written entries and mood"), so the model routed analytical questions to `search_history` (topic framing) or an invented `life` domain instead of `get_analysis(journal, …)`. First failing layer: **capability discovery** — the machine-readable capability and the meaning-routing metadata had drifted.
+
+**Fix (shared, drift-proof; no journal-only patch, no new truth, no new subjects):**
+- `apps/ai/cos_services/current_context.py` — `_capabilities()` now DERIVES `analyzes` for each domain straight from the catalog (`truth_analysis[d]`) into `domain_semantics[d]`. The routing layer the model reads to pick a tool now advertises the SAME analyzable subjects `get_analysis` accepts — aligned by construction, so it can never silently drift from a domain's declared `analysis_subjects`.
+- `apps/ai/model_interface/constitution.py` — `get_analysis` description now names the reflective/thematic intents (themes/gratitude/patterns/reflection/positive changes/concerns/advice about the user's OWN records) and points to `capabilities.domain_semantics[domain].analyzes`; it also forbids inventing a domain (there is no `life`). `search_history` description clarified: content/keyword search only — analytical SYNTHESIS goes to `get_analysis`.
+
+**Explicitly deferred (out of scope, unchanged):** "what goals have I talked about most" (cross-domain + missing structured truth) and "what people appear most often in my journal" (no ranked people-in-journal surface). No goal/people/topic/commitment extraction, no new entities, no `life` domain, no snapshot/retrieval changes.
+
+**Tests:** 8 scoped (journal semantics carry `analyzes`; `analyzes` cannot drift from registered `analysis_subjects`; journal advertises analyzing themes/gratitude/patterns/reflection/positive_changes/concerns/advice; `search_history` stays content search; tool contracts reference the authoritative `analyzes` metadata; no `life` analysis domain; nutrition/meals boundary unchanged; other domains' analyzes coverage intact). Nutrition/journal analysis + model-interface regression passes; `check` clean; no migrations.
+
+**LOCAL CERTIFICATION (real model, local dev truth):** all 5 pass. "what themes keep showing up" → `get_analysis(journal, themes)`; "what have I been grateful for lately" → `get_analysis(journal, gratitude)`; "what positive changes… in my journal" → `get_analysis(journal, positive_changes)` (no more invented `life`) — each grounded in real mood/entry evidence, honest about recency, no fabrication. Boundary checks: "what have I written about Heather" and "which entries mention gratitude" → `search_history` (content). AWAITING Danny's production validation.
 
 ## 2026-07-19 — pivot(journal): retire the editor-conversation model; reframe into the three-method chooser
 

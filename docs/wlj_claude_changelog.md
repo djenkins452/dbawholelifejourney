@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-19 (feat(multimodal P1.2c): framework consumption foundation — attachment_ids wiring)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — docs(ops): RATIFY Configuration Governance Phase-2 architecture (decomposition, service classes, UNKNOWN policy, capability-first vision)
+
+**Architecture & planning milestone — documentation only. NO code, NO production changes, NO Phase-2 implementation started.** Records the ratified decisions from the follow-up architecture review into the governing docs; the implementation gate holds at OPS-14 (awaiting explicit approval).
+
+- **`docs/WLJ_CONFIGURATION_GOVERNANCE.md`:**
+  - **Milestone decomposition (§10, RATIFIED)** — the initiative is decomposed by *blast radius*, not feature: OPS-13 Foundation (DONE) · OPS-14 Configuration Visibility (read-only Ops Wall card) · OPS-15 Configuration→Operations State (CONFIG_DRIFT + executive/incident lifecycle + CoS awareness — recorded as ONE step since the banner requires the config→executive wiring) · OPS-16 Enforcement (startup-fatal + deploy preflight, report-only first — the only high-blast-radius milestone) · OPS-17 Continuous Governance (ongoing) · Railway Cleanup = operational runbook, not software. Guiding principle: *increase capability without increasing deployment risk*.
+  - **Service classification (§1A, RATIFIED)** — explicit **runtime / build / administrative** classes. Runtime (Web/Worker/Beat/ChatWorker) → Configuration Integrity + `_MUST_RUN`; **Build Runner → deployment/preflight validation only** (build-time config ≠ runtime config; a build service holding a var says nothing about runtime and could mask a gap); **DB Admin → excluded** (on-demand admin tool; usually idle → would false-alarm as UNKNOWN). A build/admin missing manifest must never drive UNKNOWN.
+  - **UNKNOWN policy (§4A, RATIFIED)** — first-class, never coerced to Healthy/Critical; a property of *aggregation* (a running service always knows its own env — UNKNOWN doesn't exist at startup). Propagation table: caps status below Healthy (never Critical); not surfaced to the customer banner; incidents only on *persistence*; never auto-recovers.
+  - **Manifest authority (§4, RATIFIED)** — self-reporting manifests are the **primary** authority (runtime truth > Railway deployment intent); Railway API may only ever be an *optional secondary* to help close the boot-crash blind spot, never a replacement.
+  - **Capability-first vision (§11, RATIFIED)** — Configuration Governance keeps its name and stays narrowly on config, but the North Star is **Platform Capability Verification** ("can WLJ perform the capabilities it claims?") — a *thin deterministic rollup composing existing Operations authorities* (config + upstream_health + storage + db_health + scheduler/recovery), never a new authority, grown evidence-first.
+- **`docs/WLJ_OPERATIONS_VISION.md`:** one brief §1 pointer situating Configuration Governance as a deterministic Operations contributor + the Platform Capability Verification forward direction (Law III.1: composes, never a new authority). No detail duplicated — the Config Governance doc keeps single responsibility.
+- **Files:** the two governing docs + this changelog. No code, no migration. Concurrent multimodal sessions have uncommitted work; committed ONLY my docs by explicit path.
+
 ## 2026-07-19 — feat(multimodal P1.2c): framework consumption foundation — attachment_ids server wiring
 
 **Phase 1, universal-intake milestone (sub-milestone C — server foundation for chat as a framework consumer).** Additive + tested; enables chat (and any future consumer) to reference pre-uploaded attachments in a turn without the framework knowing anything about chat.

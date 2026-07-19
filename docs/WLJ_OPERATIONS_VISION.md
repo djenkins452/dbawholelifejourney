@@ -60,6 +60,8 @@ whole point: by making Operations a truth domain instead of a CoS feature, we pr
 architectural decision the CoS architecture has spent months earning, and we get operational
 intelligence *for free* the same way the CoS gets health intelligence for free.
 
+> **Configuration Governance is a deterministic Operations contributor** (OPS-13+, ratified 2026-07-19). Its runtime `config_integrity` monitor is one more deterministic Operations truth source — "is production configured to serve customers now?" — governed in full by `docs/WLJ_CONFIGURATION_GOVERNANCE.md` (single responsibility; not duplicated here). Its ratified long-term North Star, **Platform Capability Verification** ("can WLJ actually perform the capabilities it claims?"), is the natural forward direction for Operations: a *thin deterministic rollup that composes the existing Operations authorities* (config + `upstream_health` + `storage` + `db_health` + scheduler/recovery) per capability — **never a new authority, never a mind** (Law III.1). Build it capability-by-capability, evidence-first, only when a real gap justifies it.
+
 ---
 
 ## 2. Mission

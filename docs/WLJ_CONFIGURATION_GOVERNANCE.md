@@ -1,9 +1,10 @@
 # WLJ Configuration Governance
 
-**Status:** Phase-1 foundation IMPLEMENTED & DEPLOYED **report-only** (2026-07-19). Enforcement phases are staged and approval-gated (see §Rollout).
-**Kind:** Governing operational document for production configuration truth.
+**Status:** **OPS-13 (Foundation) IMPLEMENTED & DEPLOYED report-only** (2026-07-19). **Architecture RATIFIED 2026-07-19** — the initiative is decomposed by blast radius into milestones OPS-13…OPS-17 (§10); OPS-14+ are approval-gated and **not** started.
+**Kind:** Governing operational document for production configuration truth (the single responsibility for *configuration* governance — see §11 for its place in the broader Platform Capability Verification vision).
 **Authority:** The one canonical configuration contract is code: `apps/core/config_governance/contract.py`. Do **not** hard-code configuration requirements anywhere else. Every monitor, startup check, and this document derive from that file.
 **Non-negotiable:** WLJ owns deterministic configuration truth; the language model never decides validity. **No secret VALUE is ever read for monitoring, logged, persisted, or displayed** — only *presence* (present / empty / absent).
+**Ratified architectural decisions (2026-07-19):** (1) blast-radius milestone decomposition (§10); (2) explicit **service classes** — runtime / build / administrative (§1A); (3) **UNKNOWN** is a first-class, aggregation-level state, never coerced to Healthy/Critical (§4A); (4) capability-first **vision** — Configuration Governance is one deterministic contributor to Platform Capability Verification, composing existing authorities, never a new one (§11); (5) self-reporting **manifests are the primary authority**; Railway API may only ever be an optional secondary (§4).
 
 Origin: a production incident where `wlj-worker` and `wlj-beat` crashed because the Cloudinary variables were shared only to `wlj-build-runner`, not to Worker/Beat; `wlj-web-app` stayed up on its own service-local copies. Once shared to Worker and Beat, both recovered. This system detects that class *before* the next outage.
 
@@ -21,6 +22,24 @@ Railway dashboard Custom Start Commands are the source of truth (the `Procfile` 
 | **Chat Worker** (`chatworker`, optional) | wlj-chat-worker | `celery -A config worker -Q chat` | full when deployed |
 
 Auxiliary Railway services that exist on the platform but are **not repo-defined**: **wlj-build-runner**, **wlj-db-admin**. These do not run the app runtime; they must **not** be the *only* place a runtime variable is shared (the incident's root cause). The monitor learns the *actual* running services from their self-reported manifests (§4), so this inventory drift is itself observable.
+
+---
+
+## 1A. Service classification (RATIFIED — an explicit architectural concept)
+
+A service's **class** determines *which* verification it participates in. This is a first-class architectural concept, not an incidental implementation detail: it must be declared, not inferred from "whatever process happened to import Django."
+
+| Class | Definition | Participates in | Examples |
+|---|---|---|---|
+| **Runtime** | Long-running service that serves customers continuously | **Runtime Configuration Integrity** (+ `_MUST_RUN`; a missing manifest → UNKNOWN) | Web, Worker, Beat, Chat Worker, future runtime services |
+| **Build** | Transient build/release-phase process that runs then exits | **Deployment / preflight validation only** (OPS-16) — never the runtime verdict | Railway Build Runner |
+| **Administrative** | On-demand admin tool, not always-on | **Excluded from runtime operational health** (validated ad-hoc when used) | DB Admin |
+
+**Why Build Runner is excluded from runtime integrity.** It is fundamentally different from Web/Worker/Beat: its config needs are *build-time*, not runtime. The incident proves the point — the Cloudinary vars were shared to Build Runner but *not* to Worker/Beat; **a build service holding a variable tells you nothing about whether runtime has it**, and counting it as "a service that has Cloudinary" could *mask* a runtime gap. Build Runner belongs to **deployment validation** (verify the release environment *before* rollout), a separate concern. Its manifest may still be *collected as informational*, but it never contributes to the runtime health verdict.
+
+**Why DB Admin is excluded from runtime integrity.** It is an on-demand administrative tool, not a customer-serving runtime service. It is usually *not running*, so treating it as runtime would make its (legitimately absent) manifest read as UNKNOWN → chronic false alarms on a service that is healthy by being idle. Administrative tooling readiness, if ever needed, is validated ad-hoc — never as a continuous runtime-health input, and never in `_MUST_RUN`.
+
+**Implication for `_MUST_RUN`:** only **runtime**-class services belong in it. A missing or stale manifest from a build or administrative service must **never** drive the system to UNKNOWN.
 
 ---
 
@@ -61,6 +80,8 @@ Not all of these are monitored yet; they are classified so future contract growt
 
 ## 4. How detection works (Option B — secret-safe self-report)
 
+**Manifest authority (RATIFIED).** The self-reporting manifest is the **primary authority** and reflects **runtime truth** — what each process *actually loaded*, which is strictly stronger than what a Railway API would report (deployment *intent* in the dashboard). A variable can be "configured" yet not injected, overridden, or shadowed by a service-local copy; the manifest sees what the process is really running on. Railway API interrogation is **not** the primary mechanism (provider lock-in + a new secret-bearing token = a fresh attack surface, and it answers the weaker question); it may **later become an *optional secondary* validation layer** — only ever to help close the boot-crash blind spot below — and must **never replace** runtime verification.
+
 WLJ cannot read Railway's variable-sharing UI, and building a Railway-API integration would create a new secret-bearing surface. So each service **self-reports presence only**:
 
 1. **Manifest** (`manifest.py`): at `AppConfig.ready()` every process computes a manifest — for each contract variable, a 3-state token `present | empty | absent` (from its own `os.environ`, **never a value**) + service identity (`RAILWAY_SERVICE_NAME` or argv heuristic) + commit + timestamp — and publishes it to shared Redis (26h TTL; the worker refreshes each SAME cycle).
@@ -74,6 +95,24 @@ WLJ cannot read Railway's variable-sharing UI, and building a Railway-API integr
 - **Degraded** — a non-critical (degraded/advisory) gap or inconsistency; platform operational.
 - **Critical** — a critical required variable missing or inconsistent on a required service.
 - **Unknown** — a required service is not reporting a fresh manifest → cannot verify. **Never Healthy when verification is unavailable.**
+
+---
+
+## 4A. UNKNOWN policy (RATIFIED — first-class, aggregation-level state)
+
+**UNKNOWN means "the system cannot currently verify this."** It is first-class and must **never** be coerced into Healthy, Critical, or any fabricated certainty. Coercing to Healthy hides risk; coercing to Critical fabricates an outage. This is the same discipline as the CoS rule *"honest rejection, never fabricate,"* applied to operations.
+
+**UNKNOWN is a property of *aggregation*, not of self-knowledge.** A *running* service always knows its own configuration (its `os.environ` is directly readable — present/missing, never unknown). The *monitoring* system, aggregating across services, may legitimately not know (a service isn't reporting a fresh manifest). Therefore UNKNOWN exists only at the monitor/aggregation layer — **never at startup validation**, where a process has complete knowledge of itself.
+
+**Propagation policy** (this governs the OPS-15 wiring; decide it *before* config influences operations state):
+
+| Surface | UNKNOWN behavior | Rationale |
+|---|---|---|
+| **Operations score / status** | Caps status **below Healthy** (carries an "unverified" annotation); does **not** trigger Critical | Honors "never Healthy when verification unavailable" without fabricating an outage |
+| **CoS awareness (customer banner)** | **Does not surface** | Unverifiable config is an *operator* concern — unactionable and alarming to customers; the banner reflects *confirmed* customer-impacting states only |
+| **Incident generation** | Only on **persistence** (unverified beyond a threshold), with dedup + hysteresis | A transient manifest miss during a deploy must not spam incidents; *persistent* unverifiability is a real concern |
+| **Recovery behavior** | **Never auto-acts** | One cannot safely remediate what cannot be verified (acting on a false premise); UNKNOWN → human investigation (consistent with the R0 observe-only default) |
+| **Startup validation** | **N/A** | A process knows its own env directly; UNKNOWN does not exist at startup |
 
 ---
 
@@ -110,7 +149,7 @@ WLJ cannot read Railway's variable-sharing UI, and building a Railway-API integr
 ## 8. Extending the system
 
 - **Add a new required variable:** add a `VariableSpec` to `CONTRACT` (name, classification, required_services, severity, capability, remediation). Nothing else changes — manifests, evaluator, telemetry, and this contract table pick it up. Add a test scenario.
-- **Add a new service:** add the `SERVICE_*` key + label in `contract.py`, include it in `RUNTIME_SERVICES`/`_MUST_RUN` if it must run, and ensure it publishes a manifest (any process importing `apps.core` does automatically). Update §1.
+- **Add a new service:** add the `SERVICE_*` key + label in `contract.py`, **declare its class** (§1A: runtime / build / administrative), and include it in `RUNTIME_SERVICES`/`_MUST_RUN` **only if it is runtime-class**. Ensure it publishes a manifest (any process importing `apps.core` does automatically). Update §1. A build- or admin-class service must never contribute to the runtime verdict.
 
 ---
 
@@ -129,17 +168,48 @@ Configuration changes on Railway are Danny's to make; this is the reviewed plan.
 
 ---
 
-## Rollout (Phase 15) & deferred items
+## 10. Milestone roadmap (RATIFIED 2026-07-19 — decomposed by blast radius)
 
-**Stage 1 (this increment, LIVE):** contract + manifests + evaluator + `config_integrity` Ops section, **report-only** — visible to operators, does **not** yet affect the global Operations score, the CoS banner, or startup.
+The initiative is **not** one large effort. It is decomposed into milestones ordered by *deployment blast radius*, so capability grows without growing risk. Each milestone ships at its own risk-appropriate pace; read-only visibility never waits on high-risk enforcement.
 
-**Deferred, approval-gated (each its own step):**
-1. Wire `config_integrity` critical → a `CONFIG_DRIFT` anomaly in the SAME pipeline → global status + the CoS Operations banner (reuses the existing single authority; needs a model migration for the anomaly type + false-positive validation against real Railway config first).
-2. Configuration change audit records with dedup/lifecycle (via the same OpsAnomaly lifecycle).
-3. Flip `CONFIG_GOVERNANCE_ENFORCE_STARTUP` on after report-only proves no false positives.
-4. Deployment preflight guard (Phase 10) — report-only first; block a deploy only after proven stable.
-5. Railway API (Option A) or pre-settings probe to close the fatal-var-crash blind spot.
-6. Contract expansion to the full §3 inventory.
-7. Actual Railway variable cleanup (§9) — Danny executes after review.
+| Milestone | Scope | Blast radius | Status |
+|---|---|---|---|
+| **OPS-13 Foundation** | Contract + drift detection + report-only `config_integrity` monitor | None (read-only) | **DONE** (deployed report-only, prod-verified) |
+| **OPS-14 Configuration Visibility** | Ops Wall Configuration Integrity **card** — pure read-only display of the section's own status | None | **NEXT** (awaiting approval) |
+| **OPS-15 Configuration → Operations State** | `CONFIG_DRIFT` anomaly into SAME → executive/global status + incident lifecycle (dedup/recovery) **and** the CoS awareness banner | Medium — config now influences operations posture | approval-gated |
+| **OPS-16 Configuration Enforcement** | Startup-fatal (flag flip after proving) + deployment preflight / rollout gating (report-only first) | **High** — can block boots/deploys | approval-gated; split preflight out if it proves hairy |
+| **OPS-17 Continuous Governance** | Contract expansion (evidence-driven); optional Railway-API secondary cross-check; optional salted fingerprints for value-consistency | Low, incremental | ongoing |
+| *Operational runbook* | **Railway Configuration Cleanup** (§9) — execute the cleanup plan | Manual, reversible | **not a software milestone**; Danny executes |
 
-**Non-negotiables honored:** deterministic truth (no model); never expose/log/persist secret values; one canonical contract (no parallel authority); no automatic Railway reorg; report-only first; never report Healthy when verification is unavailable; existing Operations behavior unchanged in this stage.
+**Architectural couplings recorded during planning:**
+- **The Ops Wall card (OPS-14) is decoupled from global status** — it renders the section's own status, so it ships safely on its own.
+- **CoS awareness and incident generation are ONE step (OPS-15), not two** — the CoS banner consumes `executive.overall_status`, so surfacing config in it *requires* config to flow into the executive summary via `CONFIG_DRIFT`, which is the same wiring as incident generation. They cannot be separate milestones.
+- **OPS-16 (enforcement) is the only high-blast-radius milestone.** The deployment preflight must be report-only first and must not become "a brittle blocker that causes more outages than it prevents." Consider splitting startup-enforcement and preflight if either destabilizes.
+- **The Railway cleanup is an operational runbook, not code** — tracked, human-executed, out of the software milestone sequence.
+
+**Before OPS-14 begins (ratified prerequisites):** the §1A service-class taxonomy and the §4A UNKNOWN propagation policy are architectural givens; the OPS-15 wiring must respect the UNKNOWN policy (esp. "UNKNOWN caps below Healthy but never triggers Critical," and "does not surface to the customer banner").
+
+**Non-negotiables (permanent):** deterministic truth (no model decides validity); never expose/log/persist secret values; one canonical contract (no parallel authority); no automatic Railway reorg; report-only first; never Healthy when verification is unavailable; increase capability without increasing deployment risk.
+
+---
+
+## 11. Long-term vision — Platform Capability Verification
+
+**Configuration Governance keeps its name and remains the implementation initiative.** But its *architectural North Star* is broader than variables. The real question WLJ is learning to answer, deterministically and per service, is:
+
+> **Can WLJ actually perform the capabilities it claims to support?**
+
+Configuration presence is the **first precondition class** for a capability; it is not the only one. A capability (durable-media processing, AI chat, background processing) is available on a service iff *all* its preconditions hold:
+
+- **configuration present** — Configuration Governance (this doc);
+- **dependency reachable** — can the service actually connect to Cloudinary/Redis/Postgres/OpenAI, not just hold the URL?
+- **package installed** — ffmpeg, `pdfplumber`, …;
+- **schema/migrations applied**;
+- **external provider healthy**.
+
+WLJ **already** monitors most of these — `upstream_health` (OpenAI), `storage`, `db_health`, `media_persistence`, scheduler/recovery. So **Platform Capability Verification is not a new subsystem to build** — it is a **thin deterministic rollup** that, per capability, composes the verdicts those existing authorities already produce (keyed by the `capability` field the contract already carries). Configuration Integrity is **one deterministic contributor** among several.
+
+**Guardrails (so the vision expands the framing, not the build):**
+- **Do NOT create a new authority.** The capability layer *composes* existing deterministic monitors; it never re-derives or overrides them (WLJ Architecture Law III.1).
+- **Do NOT build it as a monolith now.** Grow it capability-by-capability, evidence-driven (the same bottom-up discipline as Truth Retrieval Certification) — only when a real gap justifies it.
+- **Keep the current build narrowly on configuration.** The reframe is conceptual/documentation; no capability-verification code is in scope until separately approved.

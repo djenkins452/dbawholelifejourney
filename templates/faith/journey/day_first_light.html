@@ -58,20 +58,29 @@
       </div>
       <div class="fl-scripture-attr">World English Bible · public domain</div>
 
-      {# ── In plain English ── #}
-      {% if plain_english %}
-      <section class="fl-reader-section">
-        <div class="fl-reader-label">In plain English</div>
-        <div class="fl-reader-prose">{{ plain_english }}</div>
-        <p class="fl-small fl-muted" style="margin-top:10px">Prefer simpler or deeper? <a href="{% url 'journey:settings' %}" style="color:var(--fl-gold-deep);font-weight:600;text-decoration:none">Change your depth</a>.</p>
-      </section>
-      {% endif %}
-
-      {# ── The one thing to carry ── #}
-      {% if day.key_insight %}
-      <section class="fl-reader-section">
-        <div class="fl-key-insight">“{{ day.key_insight }}”</div>
-      </section>
+      {% comment %}Explanation, one gentle tap away. Some come only for the Word; others
+         want it opened up. Both are first-class — Scripture stays dominant.{% endcomment %}
+      {% if plain_english or day.key_insight %}
+      <details class="fl-deeper">
+        <summary>
+          <svg class="fl-chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          Sit with it, or open it up
+        </summary>
+        <div class="fl-deeper-body">
+          {% if plain_english %}
+          <section class="fl-reader-section">
+            <div class="fl-reader-label">In plain English</div>
+            <div class="fl-reader-prose">{{ plain_english }}</div>
+            <p class="fl-small fl-muted" style="margin-top:10px">Prefer simpler or deeper? <a href="{% url 'journey:settings' %}" style="color:var(--fl-gold-deep);font-weight:600;text-decoration:none">Change your depth</a>.</p>
+          </section>
+          {% endif %}
+          {% if day.key_insight %}
+          <section class="fl-reader-section">
+            <div class="fl-key-insight">“{{ day.key_insight }}”</div>
+          </section>
+          {% endif %}
+        </div>
+      </details>
       {% endif %}
 
       {# ── Reflect + one small step (the completion form — same route) ── #}

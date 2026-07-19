@@ -267,7 +267,7 @@ def _invitation(user, cont) -> Optional[dict[str, Any]]:
         except Exception:
             difficulty = getattr(plan, "difficulty", "") or ""
         return {
-            "label": "If you have a little more" if cont else "A gentle place to begin",
+            "label": "A gentle next step" if cont else "A gentle place to begin",
             "title": plan.title,
             "why": (plan.description or "").strip()[:150],
             "duration_days": plan.duration_days,

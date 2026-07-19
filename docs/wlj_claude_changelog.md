@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-19 (feat(multimodal P1.3-M1): PDF perception — the CoS can read/summarize/answer PDFs)
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — refine(faith): First Light — the taste pass (hero, atmosphere, typography, reader, cards, Mirror doorway)
+
+Pure refinement — no architecture, no new features, no IA changes. The goal: opening Faith should make you *pause*, not click. Flag-gated (First Light) as before.
+
+- **The hero — the verse owns the page.** Restructured the threshold so Scripture is the emotional center: a quiet greeting whispers above, the verse is much larger (clamp 26→40px, generous line-height, tighter set), the reference sits below in gold small-caps, and the companion (when present) waits well below with clear separation, quieter. A gentle sequenced fade-in (`fl-fade`, reduced-motion-safe) lets the page settle rather than snap in.
+- **Atmosphere with depth.** Recovered the dawn feeling the mockups had: the threshold is now layered — a warm glow rising from below, a cool hush at the top, a soft inner vignette — so it reads as a *place*, not a flat panel. The dawn strip beneath gained a matching low sun-glow.
+- **Typography hierarchy** now quietly directs the eye: Verse → Continue → Journey → everything else. Nothing competes equally.
+- **The reader — the software disappears another step.** Plain-English + key-insight moved behind a gentle, accessible progressive disclosure ("Sit with it, or open it up"), collapsed by default so Scripture dominates; one tap opens it. Both the just-Scripture and the with-explanation experiences are first-class. (Explicit collapse CSS since the app's global styles defeat native `<details>` hiding.)
+- **The invitation** reworded from the flat "If you have a little more" to the formation-forward **"A gentle next step."**
+- **Card art — a real visual language** (`apps/faith/first_light/covers.py` + `fl_cover` filter). Eight procedural motifs (dawn mountains, waves, cross, scroll, starry night, wheat field, flame, path), each with its own palette, chosen from a journey's own content (topics/title/book) with a per-journey light seed. A journey is now recognizable by its art before the title — no more wall of identical cards, still zero asset pipeline.
+- **The Mirror doorway** elevated from a small text link to a calm, present card on Today ("Your walk with God · Look back over the story so far") — a flagship feature should never feel hidden.
+- **The companion** left as-is (occasional, grounded) — erring toward saying less.
+- Also fixed two self-inflicted multi-line `{# #}` comments that leaked as literal text (the Django single-line-comment class) — caught in browser verification, converted to `{% comment %}`.
+
+**Verified in-browser:** desktop + mobile (375px) + light + dark; verse-centric hero with depth; sequenced fades; card motif variety (6 distinct motifs across 12 plans); reader disclosure collapses/expands correctly; elevated Mirror door; no console errors; 11 First Light tests still pass; `check` + `collectstatic` clean.
+- **Files:** `static/faith/first_light.css`, `templates/faith/today.html`, `templates/faith/journey/day_first_light.html`, `templates/faith/first_light/_plan_card.html`, `apps/faith/first_light/{today,covers}.py`, `apps/faith/templatetags/fl_covers.py`.
+
 ## 2026-07-19 — feat(faith): First Light — Formation · Phases 2–5 (immersive reader, quiet completion, transformation detail, Discover/Library, the Mirror) + tests
 
 Continues the approved flagship Faith redesign begun in Phase 1 (the "Today" companion home, `f1ed1253`). All shipped behind the per-user `features.faith.first_light` flag (on for Danny only, via `users/0093`), classic surfaces untouched for everyone else, request-path-safe throughout. AWAITING DANNY'S END-TO-END VALIDATION. *(Phases 2–5 commits landed first — `976fe4d5`, `5e94f995`, `aead060d`, `7aa3cd8c` — with their changelog lines deferred while a concurrent session held the changelog; consolidated here.)*

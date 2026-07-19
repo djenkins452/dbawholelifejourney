@@ -15,17 +15,16 @@
     {# ── Hero: presence (threshold) + the path forward (continue + map) ── #}
     <section class="fl-hero" aria-label="Today">
 
-      {# Threshold — a breath, a verse, a greeting, and (occasionally) a companion. #}
+      {% comment %}Threshold — the verse owns the page. A quiet greeting, a breath, then
+         Scripture; the companion (when present) waits below, separate and calm.{% endcomment %}
       <div class="fl-threshold">
-        <span class="fl-breath" aria-hidden="true"></span>
-        <p class="fl-still">“{{ t.still.text }}”</p>
-        <div class="fl-still-ref">{{ t.still.ref }}</div>
-        <div class="fl-greet">
-          {{ t.greeting }}, {{ t.name }} · {{ t.weekday }}{% if t.season_note %} · {{ t.season_note }}{% endif %}
-        </div>
+        <div class="fl-greet-top fl-fade">{{ t.greeting }}, {{ t.name }} · {{ t.weekday }}{% if t.season_note %} · {{ t.season_note }}{% endif %}</div>
+        <span class="fl-breath fl-fade" aria-hidden="true"></span>
+        <p class="fl-still fl-fade-2">“{{ t.still.text }}”</p>
+        <div class="fl-still-ref fl-fade-3">{{ t.still.ref }}</div>
 
         {% if t.companion %}
-        <div class="fl-ask" role="group" aria-label="A gentle question from your companion">
+        <div class="fl-ask fl-fade-4" role="group" aria-label="A gentle question from your companion">
           <div class="fl-ask-head">
             <span class="fl-orb" aria-hidden="true"></span>
             <span class="fl-eyebrow" style="color:var(--fl-gold-on-night)">Your companion</span>
@@ -124,12 +123,15 @@
       </div>
       {% endif %}
 
-      {# A quiet doorway to the Mirror — look back over the whole walk. #}
-      <div class="fl-center" style="margin-top:32px">
-        <a href="{% url 'faith:mirror' %}" class="fl-small" style="color:var(--fl-gold-deep);font-weight:600;text-decoration:none">
-          Look back over your walk &rarr;
-        </a>
-      </div>
+      {# The Mirror — a flagship. A calm, present doorway; never hidden. #}
+      <a class="fl-mirror-door" href="{% url 'faith:mirror' %}">
+        <span class="fl-md-orb" aria-hidden="true"></span>
+        <span>
+          <span class="fl-md-k">Your walk with God</span>
+          <span class="fl-md-t">Look back over the story so far</span>
+        </span>
+        <span class="fl-md-arrow" aria-hidden="true">&rarr;</span>
+      </a>
     </div>
 
   </div>

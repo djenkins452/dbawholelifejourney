@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Discover · Faith - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719a">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="faith-discover">
+  <div class="fl-wrap">
+    <div class="fl-discover">
+
+      <div class="fl-page-head">
+        <h1 class="fl-page-title">Find your next journey</h1>
+        <p class="fl-page-sub">A few good doors in — or search for exactly what you need.</p>
+      </div>
+
+      {# Continue, if a reading is in progress #}
+      {% with active=active_plans|first %}
+      {% if active %}
+      <a class="fl-continue-row" href="{% url 'faith:reading_plan_progress' active.pk %}">
+        <div style="flex:1">
+          <div class="fl-cr-k">Continue your reading</div>
+          <div class="fl-cr-t">{{ active.template.title }}</div>
+          <div class="fl-cr-s fl-tnum">Day {{ active.current_day }}{% if active.template.duration_days %} of {{ active.template.duration_days }}{% endif %}</div>
+        </div>
+        <span class="fl-btn fl-btn-glow fl-btn-sm">Continue &rarr;</span>
+      </a>
+      {% endif %}
+      {% endwith %}
+
+      {# Human on-ramps — start from where you are (only topics that exist) #}
+      <div class="fl-onramps">
+        {% if selected_topic %}
+          <a class="fl-ramp on" href="{% url 'faith:reading_plans' %}">{{ selected_topic|title }} <span class="fl-x">✕</span></a>
+        {% else %}
+          {% if 'anxiety' in available_topics %}<a class="fl-ramp" href="?topic=anxiety">I’m anxious</a>{% endif %}
+          {% if 'marriage' in available_topics %}<a class="fl-ramp" href="?topic=marriage">My marriage</a>{% endif %}
+          {% if 'prayer' in available_topics %}<a class="fl-ramp" href="?topic=prayer">Learn to pray</a>{% endif %}
+          {% if 'forgiveness' in available_topics %}<a class="fl-ramp" href="?topic=forgiveness">Forgiveness</a>{% endif %}
+          {% if 'grief' in available_topics %}<a class="fl-ramp" href="?topic=grief">Grief</a>{% endif %}
+          {% if 'hope' in available_topics %}<a class="fl-ramp" href="?topic=hope">Hope</a>{% endif %}
+          {% if 'identity' in available_topics %}<a class="fl-ramp" href="?topic=identity">Who I am in Christ</a>{% endif %}
+          {% if 'gratitude' in available_topics %}<a class="fl-ramp" href="?topic=gratitude">Gratitude</a>{% endif %}
+          {% if 'healing' in available_topics %}<a class="fl-ramp" href="?topic=healing">Healing</a>{% endif %}
+          {% if 'purpose' in available_topics %}<a class="fl-ramp" href="?topic=purpose">Purpose</a>{% endif %}
+        {% endif %}
+      </div>
+
+      {# Human search — filters the grid below #}
+      <label class="fl-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+        <input type="text" id="fl-plan-search" placeholder="Search journeys — a book, a theme, a season…" aria-label="Search journeys" autocomplete="off">
+      </label>
+
+      {% if selected_topic %}
+        <div class="fl-mh"><h4 class="fl-serif">{{ all_plans|length }} journey{{ all_plans|length|pluralize }} · {{ selected_topic|title }}</h4></div>
+        <div class="fl-grid" id="fl-plan-grid">
+          {% for plan in all_plans %}{% include "faith/first_light/_plan_card.html" %}{% empty %}
+          <p class="fl-empty">No journeys on this theme yet — try another door above.</p>
+          {% endfor %}
+        </div>
+      {% else %}
+        {% if featured_plans %}
+        <div class="fl-mh"><h4 class="fl-serif">Worth beginning</h4></div>
+        <div class="fl-lane" style="margin-bottom:30px">
+          {% for plan in featured_plans %}{% include "faith/first_light/_plan_card.html" %}{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="fl-mh"><h4 class="fl-serif">Every journey</h4><span class="fl-small fl-muted">{{ all_plans|length }} in the library</span></div>
+        <div class="fl-grid" id="fl-plan-grid">
+          {% for plan in all_plans %}{% include "faith/first_light/_plan_card.html" %}{% endfor %}
+        </div>
+        <p class="fl-small fl-muted fl-center" id="fl-search-empty" style="display:none;margin-top:20px">Nothing matched — try a different word, or a door above.</p>
+      {% endif %}
+
+      {# Finished journeys — a quiet record, not a leaderboard #}
+      {% if completed_plans %}
+      <div class="fl-mh" style="margin-top:40px"><h4 class="fl-serif">Journeys you’ve finished</h4></div>
+      <div class="fl-grid">
+        {% for up in completed_plans %}{% if up.template.slug %}
+        <a class="fl-card fl-pcard" href="{% url 'faith:reading_plan_detail' up.template.slug %}">
+          <div class="fl-card-cover" aria-hidden="true">
+            <svg viewBox="0 0 300 110" preserveAspectRatio="xMidYMid slice"><rect width="300" height="110" fill="#2A3547"/><rect x="130" y="46" width="40" height="64" fill="#5A4636"/><circle cx="220" cy="34" r="10" fill="#E9C878"/></svg>
+          </div>
+          <div class="fl-card-body">
+            <div class="fl-card-title">{{ up.template.title }}</div>
+            <span class="fl-completed-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>Finished{% if up.completed_at %} · {{ up.completed_at|date:"M j, Y" }}{% endif %}</span>
+          </div>
+        </a>
+        {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// Human search — filters the grid client-side (calm now; server-side search is
+// the path when the library grows to thousands). CSP-safe, no deps.
+(function () {
+  var input = document.getElementById('fl-plan-search');
+  var grid = document.getElementById('fl-plan-grid');
+  var empty = document.getElementById('fl-search-empty');
+  if (!input || !grid) return;
+  var cards = Array.prototype.slice.call(grid.querySelectorAll('[data-fl-card]'));
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var shown = 0;
+    cards.forEach(function (c) {
+      var hay = (c.getAttribute('data-title') || '') + ' ' + (c.getAttribute('data-topics') || '');
+      var match = !q || hay.indexOf(q) !== -1;
+      c.classList.toggle('fl-pcard-hidden', !match);
+      if (match) shown++;
+    });
+    if (empty) empty.style.display = (shown === 0 && q) ? 'block' : 'none';
+  });
+})();
+</script>
+{% endblock %}

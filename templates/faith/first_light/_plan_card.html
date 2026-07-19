@@ -1,0 +1,33 @@
+{% comment %}
+Reusable First Light journey card. Expects `plan` (ReadingPlanTemplate) and,
+optionally, `completed_template_ids` (a set) in context. Used by the Discover /
+Library grid and lanes; scales to any catalog size (one component, one taxonomy).
+{% endcomment %}
+{% if plan.slug %}
+<a class="fl-card fl-pcard" href="{% url 'faith:reading_plan_detail' plan.slug %}"
+   data-fl-card
+   data-title="{{ plan.title|lower }}"
+   data-topics="{{ plan.topics|join:' '|lower }}">
+  <div class="fl-card-cover" aria-hidden="true">
+    <svg viewBox="0 0 300 110" preserveAspectRatio="xMidYMid slice">
+      <defs><linearGradient id="flc{{ plan.pk }}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#F6CE80"/><stop offset="1" stop-color="#93582E"/></linearGradient></defs>
+      <rect width="300" height="110" fill="url(#flc{{ plan.pk }})"/>
+      <circle cx="150" cy="78" r="26" fill="#FCEFC9"/>
+      <polygon points="0,110 90,54 170,110" fill="#8E5E33"/>
+      <polygon points="120,110 220,48 300,110" fill="#6F4A2C"/>
+    </svg>
+  </div>
+  <div class="fl-card-body">
+    <div class="fl-card-title">{{ plan.title }}</div>
+    {% if plan.description %}<div class="fl-card-why">{{ plan.description|truncatechars:88 }}</div>{% endif %}
+    <div class="fl-meta fl-tnum">
+      {% if plan.duration_days %}<span>{{ plan.duration_days }} days</span>{% endif %}
+      {% if plan.difficulty %}<span class="fl-dot"></span><span>{{ plan.get_difficulty_display }}</span>{% endif %}
+    </div>
+    {% if plan.pk in completed_template_ids %}
+    <span class="fl-completed-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>Finished</span>
+    {% endif %}
+  </div>
+</a>
+{% endif %}

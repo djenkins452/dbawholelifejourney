@@ -1147,6 +1147,15 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
     template_name = "faith/reading_plans/list.html"
     help_context_id = "FAITH_READING_PLANS"
 
+    def get_template_names(self):
+        # First Light users get the calm Discover surface; classic list otherwise.
+        try:
+            if self.request.user.preferences.is_feature_enabled("faith", "first_light"):
+                return ["faith/reading_plans/list_first_light.html"]
+        except Exception:
+            pass
+        return [self.template_name]
+
     def get_accessible_plans(self, user):
         """
         Return QuerySet of plans the user can access.

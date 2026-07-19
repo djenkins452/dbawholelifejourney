@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-19 (docs(cos): CLOSE Journal Analysis milestone (prod-validated) + ratify the CoS Domain Certification Standard)
+# Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
+
+## 2026-07-19 — chore(startup): session close-out (99_PREPARE_NEXT_CHAT)
+
+**Session transition — no feature work.** Nutrition and Journal are production-complete; folded the durable knowledge UP into the startup package and regenerated the bootloader.
+- `03_ENGINEERING_OPERATING_GUIDE.md` §3d (new) — ratifies the **CoS Domain Certification Standard** (5 steps: verify truth → expose existing truth → validate routing → Danny production validation → close), with the durable rules (exposure precedes new truth; routing is a separate layer; capability discovery derives from ONE source; WLJ never renders a verdict; retrieve/search/analyze are distinct tools). Points to canonical `docs/WLJ_COS_DOMAIN_CERTIFICATION_STANDARD.md`.
+- `99_REFERENCE_INDEX.md` — registered the new governing doc.
+- `00_NEXT_CHAT_STARTUP.md` — rewritten from scratch: Nutrition ✅ + Journal ✅ prod-complete, next domain = Faith (begin at Step 1), all deferred items carried (Journal "goals discussed"/"people mentioned" require NEW truth; Cert Platform types; UTC-vs-local; Ops Phase II), strengthened concurrency note. Constitution unchanged; no code, no migrations.
+
+## 2026-07-19 — docs(cos): CLOSE Journal Analysis milestone (prod-validated) + ratify the CoS Domain Certification Standard
 
 ## 2026-07-19 — feat(journal M2): Write Together — the dedicated Journal conversation
 

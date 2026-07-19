@@ -55,6 +55,17 @@ Answer from the authoritative Current Context **before** retrieving anything. Th
 - **A missing provider is not a missing answer** — the CoS reasons from multiple **Truth Surfaces** (Standing Context, Personal Truth, Domain Entity, Executive Briefings, Decision Authority, Current Context, DomainTruth). Trace *which surface* served an answer before concluding anything. (`docs/WLJ_TRUTH_SURFACES.md`; `01_…ARCHITECTURE §6`.)
 - **Evidence, not assumption, sets priority.** Rank the backlog by *measured* customer impact; mark untested domains **NOT YET MEASURED** — absence of testing is never evidence of low priority. Governing docs: `docs/WLJ_CERTIFICATION_BACKLOG.md`, `docs/WLJ_CUSTOMER_TRUTH_CERT_PROD1.md`.
 
+### 3d. The CoS Domain Certification Standard (RATIFIED — the per-domain completeness process)
+The repeatable 5-step process for bringing any truth domain to Chief-of-Staff conversational completeness, extracted from the **Nutrition** and **Journal** certifications (both prod-complete). Canonical doc: **`docs/WLJ_COS_DOMAIN_CERTIFICATION_STANDARD.md`**. Run it in order for every future domain (Faith next); never skip or reorder; do not implement past the first failing layer:
+
+1. **Verify deterministic truth** — runtime-trace what the domain already holds (`*Queries`, `DomainTruth` surfaces, what the page shows).
+2. **Expose existing truth** — **exposure precedes new truth.** Ask the Meal question ("does it already exist, merely unexposed?"); declare `entity_types`/`history_metrics`/`analysis_subjects` that REUSE canonical producers (zero new retrieval, zero reasoning). Build genuinely-new truth only when Step 1 proved it missing, as the smallest domain-owned aggregate — never a reasoning engine, never free-text extraction.
+3. **Validate conversational routing** — exposed ≠ selected. **Routing is a different layer from truth**; investigate it separately (tool selection · domain selection · **capability discovery** · entity discovery). Fix via **drift-proof metadata derived from ONE source** (e.g. `domain_semantics[d].analyzes` DERIVED from `truth_analysis`, so the routing layer and the tool's accepted subjects can never diverge) — never a per-question prompt patch.
+4. **Danny production validation is the gate** — local certification with the real model is engineering evidence ONLY; the milestone stays `AWAITING VALIDATION` until Danny confirms in production. impl + tests + deploy ≠ complete.
+5. **Close** — mark complete, update roadmap/changelog, remove milestone TODOs/diagnostics, confirm tests + deployed SHA, post-mortem, STOP.
+
+Invariants: **WLJ never renders a verdict** (healthy/concerning/positive/commitment) — it supplies the evidence bundle; the model judges. **Retrieve vs. search vs. analyze are distinct, discoverable tools** — chronological/latest → `get_entity`/`get_domain_state`; content/keyword ("entries mentioning X") → `search_history`; analytical synthesis ("themes/trends/patterns/advice about my records") → `get_analysis`.
+
 ## 4. Prove root cause before changing code (runtime tracing)
 
 **Never modify code until you have PROVEN — not guessed — that it executed on the request that produced the behavior.** For any "app shows X, should show Y" (governing doc: `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`):

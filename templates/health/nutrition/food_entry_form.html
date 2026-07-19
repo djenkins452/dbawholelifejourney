@@ -495,4 +495,53 @@
 </style>
 
 <script src="{% static 'js/food-autocomplete.js' %}"></script>
+
+<script nonce="{{ csp_nonce }}">
+/*
+ * Auto-focus the Food Name field so the user can begin typing immediately.
+ * Focus precedence (do NOT steal focus when a field already needs attention):
+ *   1. If a validation error returned the user to the page, focus the first
+ *      errored field (which may itself be Food Name).
+ *   2. If existing logic already moved focus into a control, leave it there.
+ *   3. Otherwise, focus the Food Name input — the actual text input, so the
+ *      first keystroke immediately drives the autocomplete search.
+ */
+(function () {
+    'use strict';
+
+    function focusFoodName() {
+        // 1. A validation error takes precedence — send the user to the first
+        //    field that needs correcting rather than resetting focus to the top.
+        var firstError = document.querySelector('.form-error');
+        if (firstError) {
+            var group = firstError.closest('.form-group');
+            var errInput = group && group.querySelector('input, select, textarea');
+            if (errInput) {
+                errInput.focus();
+            }
+            return;
+        }
+
+        // 2. Respect any control that existing logic has already focused.
+        var active = document.activeElement;
+        if (active && active !== document.body &&
+            (active.tagName === 'INPUT' || active.tagName === 'SELECT' ||
+             active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+            return;
+        }
+
+        // 3. Focus the Food Name input itself (not the autocomplete wrapper).
+        var foodName = document.getElementById('id_food_name');
+        if (foodName) {
+            foodName.focus();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', focusFoodName);
+    } else {
+        focusFoodName();
+    }
+})();
+</script>
 {% endblock %}

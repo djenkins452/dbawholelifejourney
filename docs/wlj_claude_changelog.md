@@ -6,6 +6,21 @@
 # Last Updated: 2026-07-17 (fix(dashboard): eliminate the listener-loss class — dashboard toggles died on every HTMX swap)
 # ================================================================# WLJ Change History
 
+## 2026-07-18 — feat(nutrition/ux): auto-focus the Food Name field on the Log Food page
+
+**Change:** Opening the Log Food page (`/health/physical/nutrition/add/`) now places the insertion cursor in the **Food Name** input automatically, so the user can begin typing — and driving the autocomplete search — without an extra click.
+
+**Root cause:** The form never set focus. The `food_name` widget had no `autofocus` and no JS focused it on load, so the cursor landed nowhere and every entry started with a click into the field.
+
+**Implementation (template-only, nonce'd script — no autofocus attribute, so focus precedence is honored):**
+- Added a `<script nonce>` block to `templates/health/nutrition/food_entry_form.html` that focuses `#id_food_name` on load. `#id_food_name` is the real text `<input>` (the autocomplete dropdown is an appended sibling), so the first keystroke immediately feeds the autocomplete search.
+- **Does not steal focus:** if a validation error returned the user to the page, it focuses the first errored field instead; and it leaves focus alone if existing logic already focused another control (`document.activeElement` guard).
+- Works for direct load, navigation from Daily Nutrition via **Log Food**, and query-param loads (`?meal=&date=`) — all render the same template.
+
+**Files:** `templates/health/nutrition/food_entry_form.html`
+
+**Verification (browser):** Loaded the page — `document.activeElement` = `id_food_name`; typed "chicken" with no click → autocomplete returned 5 results. Query-param load (`?meal=lunch&date=2026-07-18`) also auto-focused Food Name (meal preselected to Lunch).
+
 ## 2026-07-19 — fix(truth-layer): eliminate the by-name defect CLASS — every multi-entity domain's `describe_one` now covers ALL its entity types
 
 **Proactive audit (not waiting for operator validation to find these one at a time).** The Faith fix exposed a repeatable class: the Validation Center's resolved mode binds prompts to an object NAME, so the CoS retrieves via each domain's `describe_one` — and any provider whose `describe_one` covers only a SUBSET of its `entity_types` passes list retrieval but returns nothing by name.

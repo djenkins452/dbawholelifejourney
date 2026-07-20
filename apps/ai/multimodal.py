@@ -152,6 +152,24 @@ def attachments_from_ids(user, attachment_ids):
     return out
 
 
+def receipts_from_attachments(attachments):
+    """Sent-message attachment RECEIPTS [{filename, kind, status}] derived from the turn's
+    resolved attachments — a durable, visible record that a file was attached (documents have
+    no inline image), retained on the user's message so the transcript never hides an upload."""
+    out = []
+    for a in attachments or []:
+        if not isinstance(a, dict):
+            continue
+        perc = a.get("perception")
+        out.append({
+            "filename": a.get("filename") or (a.get("kind") or "file"),
+            "kind": a.get("kind") or "file",
+            "status": ("unreadable" if perc == "unreadable"
+                       else "processing" if perc == "processing" else "ready"),
+        })
+    return out
+
+
 def _queue_artifact_perception(artifact_id, b64):
     """Non-blocking enqueue of deterministic text extraction. Never raises."""
     try:

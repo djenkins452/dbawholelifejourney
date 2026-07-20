@@ -227,9 +227,11 @@ class ModelInterfaceRuntime(ConversationalRuntime):
 
         # Load PRIOR turns BEFORE persisting this one (conversation continuity).
         history = load_conversation_history(conversation)
+        from apps.ai.multimodal import receipts_from_attachments
         user_msg = AssistantMessage.objects.create(
             conversation=conversation, role="user", content=message or "",
             message_type="text",
+            attachment_receipts=receipts_from_attachments(attachments),
         )
         # Conversation integrity: the transcript keeps the image the user submitted, even
         # after the artifact resolves into truth (artifact lifecycle ≠ conversation lifecycle).

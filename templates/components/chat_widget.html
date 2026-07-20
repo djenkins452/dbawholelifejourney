@@ -1754,6 +1754,10 @@
                     const isUser = msg.role === 'user';
                     const imageDataUrls = msg.image_data_urls || (msg.image_data_url ? [msg.image_data_url] : null);
                     var _msgEl = addMessage(msg.content, isUser, false, imageDataUrls);
+                    // Attachment receipt — re-render on the user's message after reload.
+                    if (isUser && msg.attachment_receipts && window.WLJAttachments) {
+                        window.WLJAttachments.renderReceipts(_msgEl, msg.attachment_receipts);
+                    }
                     // Phase 6.6: remember quick_replies from the most recent
                     // assistant message so unresolved confirmation pills
                     // re-appear after a page reload.
@@ -2884,7 +2888,12 @@
         var imageDataUrls = sentImages.map(function(img) { return img.dataUrl; });
 
         // Add user message to chat (with image previews if attached)
-        addMessage(message || '(Attachment)', true, true, imageDataUrls.length > 0 ? imageDataUrls : null);
+        var _userMsgEl = addMessage(message || '(Attachment)', true, true, imageDataUrls.length > 0 ? imageDataUrls : null);
+        // Attachment receipt — keep a durable record on the sent bubble (before clear()).
+        if (!imageOverride && widgetAttach && window.WLJAttachments) {
+            var _receipts = widgetAttach.getReceipts().filter(function(r){ return r.kind !== 'image'; });
+            if (_receipts.length) window.WLJAttachments.renderReceipts(_userMsgEl, _receipts);
+        }
         // Phase 6.7: do NOT clear input yet. Disable the send button
         // to prevent double-submit, but preserve input.value until the
         // server acknowledges receipt. The clear happens in

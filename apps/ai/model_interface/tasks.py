@@ -67,9 +67,11 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
         # Load PRIOR turns BEFORE persisting this one (conversation continuity).
         from apps.ai.model_interface.service import load_conversation_history
         history = load_conversation_history(conversation)
+        from apps.ai.multimodal import receipts_from_attachments
         user_msg = AssistantMessage.objects.create(
             conversation=conversation, role="user", content=message or "",
             message_type="text",
+            attachment_receipts=receipts_from_attachments(attachments),
         )
         # Conversation integrity: persist the submitted image(s) onto the user's message so
         # the transcript stays faithful after reload — independent of the artifact lifecycle.

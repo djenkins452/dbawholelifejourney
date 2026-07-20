@@ -480,6 +480,16 @@
             return items.filter(function (it) { return it.kind === 'image' && it.data; })
                         .map(function (it) { return { data: it.data, mime: it.mime }; });
         }
+        // Sent-message receipts — a durable record the surface renders in the user's bubble.
+        function getReceipts() {
+            return items.map(function (it) {
+                return {
+                    filename: it.name || it.kind, kind: it.kind,
+                    status: (it.status === 'uploaded' ? 'ready'
+                             : it.status === 'error' ? 'failed' : (it.status || 'ready')),
+                };
+            });
+        }
         function hasPending() {
             return items.some(function (it) {
                 return it.status === 'uploading' || it.status === 'pending';
@@ -520,10 +530,38 @@
         return {
             addFiles: addFiles, remove: remove, clear: clear,
             getArtifactIds: getArtifactIds, getImagesPayload: getImagesPayload,
+            getReceipts: getReceipts,
             hasPending: hasPending, whenReady: whenReady, render: render,
             count: function () { return items.length; },
             items: publicItems,
         };
+    }
+
+    // Render sent-message attachment RECEIPTS into a message bubble (both chat surfaces + on
+    // history load). A durable, visible record that a file was attached — documents have no
+    // inline image, so without this the transcript hides the upload.
+    function renderReceipts(container, receipts) {
+        if (!container || !receipts || !receipts.length) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'wlj-attach-receipts';
+        var STATE = { ready: 'Attached', processing: 'Reading…', failed: 'Upload failed',
+                      unreadable: "Couldn't read" };
+        receipts.forEach(function (r) {
+            var chip = document.createElement('span');
+            chip.className = 'wlj-attach-receipt is-' + (r.status || 'ready');
+            var icon = document.createElement('span');
+            icon.className = 'wlj-attach-icon';
+            icon.innerHTML = _ICONS[r.kind] || _ICONS.other;
+            var nm = document.createElement('span');
+            nm.className = 'wlj-attach-name';
+            nm.textContent = r.filename || 'attachment';
+            var st = document.createElement('span');
+            st.className = 'wlj-attach-receipt-state';
+            st.textContent = STATE[r.status] || STATE.ready;
+            chip.appendChild(icon); chip.appendChild(nm); chip.appendChild(st);
+            wrap.appendChild(chip);
+        });
+        container.appendChild(wrap);
     }
 
     window.WLJAttachments = {
@@ -535,6 +573,7 @@
         prepareImage: prepareImage,
         attachDragAndDrop: attachDragAndDrop,
         renderPreview: _renderPreview,
+        renderReceipts: renderReceipts,
         mount: mount,
         limits: { MAX_DIM: MAX_DIM, TARGET_MAX_BYTES: TARGET_MAX_BYTES },
     };

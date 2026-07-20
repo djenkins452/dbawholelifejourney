@@ -1553,6 +1553,10 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                 if image_urls:
                     msg_data['image_data_url'] = image_urls[0]  # backward compat
                     msg_data['image_data_urls'] = image_urls     # multi-image
+                # Attachment receipt — a durable record that a file was attached to this
+                # (user) message, so the transcript shows it after reload.
+                if getattr(msg, 'attachment_receipts', None):
+                    msg_data['attachment_receipts'] = msg.attachment_receipts
                 # Add quick replies if present and not already used
                 if msg.quick_replies and not msg.quick_reply_used:
                     msg_data['quick_replies'] = msg.quick_replies

@@ -762,6 +762,10 @@ any in-flight stream survive a focus-mode toggle untouched.
             } else {
                 msg.textContent = content;
             }
+            // Attachment receipt — durable record that a file was attached to this message.
+            if (window.WLJAttachments && msgData && msgData.attachment_receipts) {
+                window.WLJAttachments.renderReceipts(msg, msgData.attachment_receipts);
+            }
         }
 
         // Timestamp below the message bubble
@@ -1082,7 +1086,7 @@ any in-flight stream survive a focus-mode toggle untouched.
         }
         // Thin CONSUMER of the WLJ Attachment Framework: images ride inline
         // (immediate perception), non-image attachments ride as artifact ids.
-        var sentImages, sentAttachmentIds;
+        var sentImages, sentAttachmentIds, sentReceipts = [];
         if (imageOverride) {
             sentImages = Array.isArray(imageOverride) ? imageOverride : [imageOverride];
             sentAttachmentIds = [];
@@ -1091,6 +1095,10 @@ any in-flight stream survive a focus-mode toggle untouched.
                 return { data: i.data, mimeType: i.mime, dataUrl: 'data:' + i.mime + ';base64,' + i.data };
             });
             sentAttachmentIds = apAttach ? apAttach.getArtifactIds() : [];
+            // Capture attachment receipts BEFORE clear() so the sent bubble keeps a record.
+            sentReceipts = (apAttach ? apAttach.getReceipts() : []).filter(function(r) {
+                return r.kind !== 'image';  // images already show as thumbnails in the bubble
+            });
         }
         var imageDataUrls = sentImages && sentImages.length > 0
             ? sentImages.map(function(img) { return img.dataUrl || ('data:' + img.mimeType + ';base64,' + img.data); })
@@ -1104,7 +1112,8 @@ any in-flight stream survive a focus-mode toggle untouched.
         var empty = container.querySelector('.ap-chat-empty');
         if (empty) empty.remove();
 
-        addMessage(container, message || '(Attachment)', true, true, imageDataUrls);
+        addMessage(container, message || '(Attachment)', true, true, imageDataUrls,
+                   sentReceipts.length ? { attachment_receipts: sentReceipts } : null);
 
         // Track this request so its background answer survives navigation.
         if (message) {

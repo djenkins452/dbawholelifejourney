@@ -368,3 +368,30 @@ class AttachmentSurfacingTests(TestCase):
         out = attachments_from_ids(self.user, [art.id])
         self.assertEqual(out[0]["filename"], "notes.docx")
         self.assertEqual(out[0]["perception"], "unreadable")
+
+    def test_receipts_from_attachments(self):
+        from apps.ai.multimodal import receipts_from_attachments
+        atts = [
+            {"artifact_id": 1, "kind": "document", "filename": "Danny's Journal.docx",
+             "text": "..."},
+            {"artifact_id": 2, "kind": "document", "filename": "scan.pdf",
+             "perception": "processing"},
+            {"artifact_id": 3, "kind": "document", "filename": "bad.docx",
+             "perception": "unreadable"},
+        ]
+        r = receipts_from_attachments(atts)
+        self.assertEqual([x["filename"] for x in r],
+                         ["Danny's Journal.docx", "scan.pdf", "bad.docx"])
+        self.assertEqual([x["status"] for x in r], ["ready", "processing", "unreadable"])
+
+    def test_receipt_persisted_and_serialized_in_history(self):
+        from apps.ai.models import AssistantConversation, AssistantMessage
+        from apps.ai.multimodal import receipts_from_attachments
+        conv = AssistantConversation.get_or_create_active(self.user)
+        msg = AssistantMessage.objects.create(
+            conversation=conv, role="user", content="Import these journals",
+            attachment_receipts=receipts_from_attachments(
+                [{"kind": "document", "filename": "Danny's Journal.docx", "text": "x"}]))
+        msg.refresh_from_db()
+        self.assertEqual(msg.attachment_receipts[0]["filename"], "Danny's Journal.docx")
+        self.assertEqual(msg.attachment_receipts[0]["status"], "ready")

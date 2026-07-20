@@ -116,3 +116,44 @@
 @media (prefers-color-scheme: dark) {
     .wlj-attach-chip { background: var(--color-surface, #1f2937); }
 }
+
+/* ── Sent-message attachment RECEIPTS (durable record in the transcript) ── */
+.wlj-attach-receipts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.wlj-attach-receipt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    padding: 5px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(120,120,128,0.28);
+    background: rgba(120,120,128,0.08);
+    font-size: 0.82rem;
+    line-height: 1.2;
+}
+.wlj-attach-receipt .wlj-attach-icon { flex: 0 0 auto; opacity: 0.8; }
+.wlj-attach-receipt .wlj-attach-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+    font-weight: 600;
+}
+.wlj-attach-receipt-state { opacity: 0.7; font-size: 0.76rem; }
+.wlj-attach-receipt.is-ready .wlj-attach-receipt-state { color: #2f7d32; }
+.wlj-attach-receipt.is-processing .wlj-attach-receipt-state { color: #b26a00; }
+.wlj-attach-receipt.is-failed,
+.wlj-attach-receipt.is-unreadable {
+    border-color: rgba(198,40,40,0.5);
+}
+.wlj-attach-receipt.is-failed .wlj-attach-receipt-state,
+.wlj-attach-receipt.is-unreadable .wlj-attach-receipt-state { color: #c62828; }
+
+@media (prefers-color-scheme: dark) {
+    .wlj-attach-receipt { background: rgba(200,200,210,0.10); border-color: rgba(200,200,210,0.24); }
+}

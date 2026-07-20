@@ -694,6 +694,15 @@ class AssistantMessage(models.Model):
         help_text="Rich Confirmation card for deterministic-action confirmation."
     )
 
+    # Attachment receipt for a USER message — a durable record that a file was attached, so
+    # the sent message keeps a visible receipt in the transcript even after the composer
+    # clears (documents have no inline image to show). Schema:
+    # [{"filename": str, "kind": str, "status": str}].
+    attachment_receipts = models.JSONField(
+        default=list, blank=True,
+        help_text="Attachment receipts shown on the user's sent message (filename/kind/state)."
+    )
+
     # Proactive message flag - messages initiated by the system
     is_proactive = models.BooleanField(
         default=False,

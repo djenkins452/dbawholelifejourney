@@ -83,10 +83,25 @@ class DupeTraceView(View):
         for e in JournalEntry.objects.filter(user=user, status="active"):
             via[e.created_via or "?"] += 1
 
+        # Title-substring probe (e.g. ?title=September 22, 2022) — to see entries whose TITLE
+        # references a date even if entry_date differs (legacy entries put the date in the title).
+        title_probe = request.GET.get("title")
+        probe = []
+        if title_probe:
+            for e in JournalEntry.objects.filter(
+                    user=user, status="active", title__icontains=title_probe).order_by("id"):
+                probe.append({
+                    "id": e.id, "title": e.title, "entry_date": str(e.entry_date),
+                    "entry_time": str(e.entry_time), "created_via": e.created_via,
+                    "created_at": e.created_at.isoformat(), "word_count": e.word_count,
+                    "body_prefix": (e.body_plain or "")[:60],
+                })
+
         return JsonResponse({
             "duplicate_dates": len(dupes),
             "extra_records": total_extra,
             "created_via_distribution": dict(via),
             "structured_import_runs": runs,
             "duplicates": dupes,
+            "title_probe": probe,
         }, json_dumps_params={"ensure_ascii": False})

@@ -25,6 +25,7 @@ urlpatterns = [
     path("write-together/", views.WriteTogetherView.as_view(), name="write_together"),
     path("write-together/message/", views.WriteTogetherMessageView.as_view(), name="write_together_message"),
     path("write-together/generate/", views.WriteTogetherGenerateView.as_view(), name="write_together_generate"),
+    path("write-together/style/", views.WriteTogetherStyleView.as_view(), name="write_together_style"),
     path("<int:pk>/", views.EntryDetailView.as_view(), name="entry_detail"),
     path("<int:pk>/edit/", views.EntryUpdateView.as_view(), name="entry_update"),
 

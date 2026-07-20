@@ -3,7 +3,7 @@
 {% block title %}Write Together - Whole Life Journey{% endblock %}
 
 {% block content %}
-<div class="wt" data-voice="{% if request.GET.voice %}1{% endif %}">
+<div class="wt" data-voice="{% if request.GET.voice %}1{% endif %}" data-style="{{ conversation_style }}">
 
     <div class="wt-topbar">
         <a href="{% url 'journal:entry_list' %}" class="wt-back" aria-label="Back to Journal">
@@ -22,10 +22,34 @@
     </div>
 
     <div class="wt-footer">
+
+        {% comment %} Paused — the conversation is safely held; nothing generates, nothing is lost. {% endcomment %}
+        <div id="wt-paused" class="wt-paused" hidden>
+            <div class="wt-paused-body">
+                <div class="wt-paused-title">Conversation paused</div>
+                <div class="wt-paused-sub">Your conversation is safely preserved.</div>
+            </div>
+            <button type="button" id="wt-resume" class="wt-resume">▶ Resume Conversation</button>
+        </div>
+
+        {% comment %}
+        Conversation Style — how patient the Chief of Staff is before responding.
+        Not speech speed — the whole rhythm of the exchange. Remembered for next time.
+        {% endcomment %}
+        <div id="wt-voicecontrols" class="wt-voicecontrols" hidden>
+            <div class="wt-styles" role="group" aria-label="Conversation style">
+                <button type="button" class="wt-style" data-style="quick" title="Quick — an easy back-and-forth">⚡ Quick</button>
+                <button type="button" class="wt-style" data-style="natural" title="Natural — a balanced, unhurried pace">💬 Natural</button>
+                <button type="button" class="wt-style" data-style="reflective" title="Reflective — plenty of room to think; never rushed">🌳 Reflective</button>
+            </div>
+            <button type="button" id="wt-pause" class="wt-pause" title="Pause — hold the conversation safely">⏸ Pause</button>
+        </div>
+
         <div id="wt-voicebar" class="wt-voicebar" hidden aria-live="polite">
             <span id="wt-voicestate" class="wt-voicestate"></span>
             <button type="button" id="wt-interrupt" class="wt-interrupt" hidden>Tap to talk</button>
         </div>
+
         <form id="wt-composer" class="wt-composer" autocomplete="off">
             {% csrf_token %}
             <button type="button" id="wt-mic" class="wt-mic" aria-label="Talk it through" title="Talk it through" hidden>
@@ -46,6 +70,9 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* The `hidden` attribute must win over our display:flex sections (paused panel,
+   voice controls, voicebar, composer) — author rules otherwise override [hidden]. */
+.wt [hidden] { display: none !important; }
 .wt {
     max-width: 640px;
     margin: 0 auto;
@@ -131,6 +158,44 @@
 }
 .wt-mic:hover { color: var(--color-text); border-color: var(--color-accent); }
 .wt-mic.is-on { background: var(--color-accent); color: #fff; border-color: var(--color-accent); }
+
+/* Conversation Style + Pause — the user's control over the rhythm. */
+.wt-voicecontrols {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+    padding-bottom: var(--space-3); flex-wrap: wrap;
+}
+.wt-styles { display: inline-flex; gap: var(--space-1); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 3px; }
+.wt-style {
+    border: none; background: transparent; cursor: pointer;
+    color: var(--color-text-muted); font-size: var(--font-size-xs);
+    padding: var(--space-1) var(--space-3); border-radius: var(--radius-full);
+    transition: all var(--transition-fast); white-space: nowrap;
+}
+.wt-style:hover { color: var(--color-text); }
+.wt-style.is-active { background: var(--color-accent); color: #fff; }
+.wt-pause {
+    border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text-muted);
+    font-size: var(--font-size-xs); padding: var(--space-1) var(--space-3); border-radius: var(--radius-full); cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.wt-pause:hover { color: var(--color-accent); border-color: var(--color-accent); }
+
+/* Paused state — a calm, unmistakable "held safely" panel. */
+.wt-paused {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-4);
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg); padding: var(--space-4);
+    margin-bottom: var(--space-3);
+}
+.wt-paused-title { font-size: 1rem; color: var(--color-text); }
+.wt-paused-sub { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: 2px; }
+.wt-resume {
+    flex-shrink: 0; border: none; background: var(--color-accent); color: #fff; cursor: pointer;
+    font-size: var(--font-size-sm); padding: var(--space-2) var(--space-4); border-radius: var(--radius-full);
+    transition: opacity var(--transition-fast);
+}
+.wt-resume:hover { opacity: 0.9; }
+
 .wt-voicebar {
     display: flex; align-items: center; justify-content: center; gap: var(--space-3);
     padding-bottom: var(--space-2); min-height: 22px;
@@ -161,6 +226,7 @@
 @media (max-width: 640px) {
     .wt { padding: var(--space-4) var(--space-3) var(--space-3); }
     .wt-turn.assistant .wt-text { font-size: 1.1rem; }
+    .wt-voicecontrols { justify-content: center; }
 }
 </style>
 
@@ -176,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = csrfEl ? csrfEl.value : '';
     const MSG_URL = '{% url "journal:write_together_message" %}';
     const GEN_URL = '{% url "journal:write_together_generate" %}';
+    const STYLE_URL = '{% url "journal:write_together_style" %}';
     const wt = document.querySelector('.wt');
 
     // iMessage model: size the conversation to fill the visible area so the thread
@@ -201,6 +268,19 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('resize', sizeWt);
     sizeWt();
 
+    // ── Conversation Style — how patient the Chief of Staff is before it decides
+    // you're done, plus how it lands its own reply. Not speech speed — the whole
+    // rhythm. `grace` is the end-of-turn silence window (accumulate across pauses);
+    // `settle` is the beat it waits before answering; `rate` is its speaking pace. ──
+    const STYLES = {
+        quick:      { grace: 900,  settle: 0,   rate: 1.06 },
+        natural:    { grace: 2000, settle: 250, rate: 1.0  },
+        reflective: { grace: 4800, settle: 700, rate: 0.95 }
+    };
+    let currentStyle = (wt && wt.getAttribute('data-style')) || 'natural';
+    if (!STYLES[currentStyle]) currentStyle = 'natural';
+    function cfg() { return STYLES[currentStyle]; }
+
     // ── Voice (Talk It Through): the SAME conversation, spoken. STT feeds the
     // existing text turn; the reply text is spoken. No backend change. ─────────
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -208,45 +288,83 @@ document.addEventListener('DOMContentLoaded', function() {
     const ttsSupported = ('speechSynthesis' in window);
     const mic = document.getElementById('wt-mic');
     const voicebar = document.getElementById('wt-voicebar');
+    const voiceControls = document.getElementById('wt-voicecontrols');
     const voiceStateEl = document.getElementById('wt-voicestate');
     const interruptBtn = document.getElementById('wt-interrupt');
+    const pauseBtn = document.getElementById('wt-pause');
+    const pausedPanel = document.getElementById('wt-paused');
+    const resumeBtn = document.getElementById('wt-resume');
+
     let voiceMode = false;
+    let paused = false;
     let recognition = null;
-    let wantListening = false;
-    let vstate = 'idle';  // idle | listening | thinking | speaking
+    let recActive = false;      // is the recognizer actually running (onstart/onend)
+    let micShouldRun = false;   // should it be running (listening OR speaking, for barge-in)
+    let vstate = 'idle';        // idle | listening | thinking | speaking | paused
+    let pendingText = '';       // speech accumulated for the CURRENT turn (across pauses)
+    let graceTimer = null;      // fires when the user has been silent for `grace` ms
+    let speakStartedAt = 0;     // guards barge-in against the tail of our own TTS
+
+    function clearGrace() { if (graceTimer) { clearTimeout(graceTimer); graceTimer = null; } }
+
+    const styleBtns = Array.prototype.slice.call(document.querySelectorAll('.wt-style'));
+    function paintStyle() {
+        styleBtns.forEach(function(b) {
+            b.classList.toggle('is-active', b.getAttribute('data-style') === currentStyle);
+        });
+    }
+    paintStyle();
+    styleBtns.forEach(function(b) {
+        b.addEventListener('click', function() {
+            const s = b.getAttribute('data-style');
+            if (!STYLES[s] || s === currentStyle) return;
+            currentStyle = s;
+            paintStyle();
+            // A pending end-of-turn window should honour the newly chosen patience.
+            if (graceTimer && vstate === 'listening') {
+                clearGrace();
+                graceTimer = setTimeout(endTurn, cfg().grace);
+            }
+            postJSON(STYLE_URL, { style: s });   // remember for next time (fire-and-forget)
+        });
+    });
+
+    // The footer changes shape with the mode: text vs voice vs paused.
+    function updateFooterUI() {
+        const showVoice = voiceMode && !paused;
+        if (voiceControls) voiceControls.hidden = !showVoice;
+        if (voicebar) voicebar.hidden = !showVoice;
+        if (form) form.hidden = paused;                 // hide the composer while paused
+        const finish = document.querySelector('.wt-finish');
+        if (finish) finish.hidden = paused;
+        if (pausedPanel) pausedPanel.hidden = !paused;
+    }
 
     function setVState(s) {
         vstate = s;
-        if (!voicebar) return;
-        voicebar.hidden = !voiceMode;
-        if (interruptBtn) interruptBtn.hidden = !(voiceMode && s === 'speaking');
         if (!voiceStateEl) return;
         voiceStateEl.className = 'wt-voicestate';
         if (s === 'listening') { voiceStateEl.textContent = 'Listening'; voiceStateEl.className += ' is-listening'; }
         else if (s === 'thinking') { voiceStateEl.textContent = '· · ·'; }
         else if (s === 'speaking') { voiceStateEl.textContent = 'Chief of Staff is speaking'; }
         else { voiceStateEl.textContent = ''; }
+        if (interruptBtn) interruptBtn.hidden = !(voiceMode && s === 'speaking');
     }
     function announce(msg) { if (notice) { notice.textContent = msg; notice.hidden = false; } }
+    function cancelTTS() { if (ttsSupported) { try { window.speechSynthesis.cancel(); } catch (_) {} } }
+    function showInterim(t) { input.value = t; autoresize(); }
 
     function initRecognition() {
         recognition = new SR();
-        recognition.continuous = false;
+        recognition.continuous = true;      // keep listening across pauses; WE decide end-of-turn
         recognition.interimResults = true;
         recognition.lang = 'en-US';
-        recognition.onresult = function(e) {
-            let interim = '', finalText = '';
-            for (let i = e.resultIndex; i < e.results.length; i++) {
-                const tr = e.results[i][0].transcript;
-                if (e.results[i].isFinal) finalText += tr; else interim += tr;
-            }
-            if (interim && !finalText) { input.value = interim; autoresize(); }
-            if (finalText.trim()) { input.value = ''; autoresize(); onUserSpeech(finalText.trim()); }
-        };
+
+        recognition.onstart = function() { recActive = true; };
         recognition.onend = function() {
-            if (voiceMode && wantListening && vstate === 'listening') {
-                try { recognition.start(); } catch (_) {}
-            }
+            recActive = false;
+            // Browsers still end the session on long silence — restart if we should be on.
+            if (voiceMode && micShouldRun) { try { recognition.start(); } catch (_) {} }
         };
         recognition.onerror = function(ev) {
             if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
@@ -254,55 +372,137 @@ document.addEventListener('DOMContentLoaded', function() {
                 announce("Microphone access is off — you can still type.");
             }
         };
+        recognition.onresult = function(e) {
+            if (!voiceMode || paused) return;
+            let interim = '', addedFinal = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const tr = e.results[i][0].transcript;
+                if (e.results[i].isFinal) addedFinal += tr + ' '; else interim += tr;
+            }
+            interim = interim.trim(); addedFinal = addedFinal.trim();
+
+            // Barge-in: the user simply starts talking while the CoS is speaking.
+            // Guard against our own TTS bleeding into the mic (need ≥2 real words and
+            // a moment past the start of speech) — then gracefully stop and listen.
+            if (vstate === 'speaking') {
+                const combined = addedFinal || interim;
+                const words = combined ? combined.split(/\s+/).filter(Boolean).length : 0;
+                if (words >= 2 && (Date.now() - speakStartedAt) > 700) {
+                    cancelTTS();
+                    setVState('listening');   // fall through and treat this as the new turn
+                } else {
+                    return;
+                }
+            }
+            if (vstate !== 'listening') return;
+
+            if (interim) {
+                clearGrace();                 // still talking → not done yet
+                showInterim((pendingText + ' ' + interim).trim());
+            }
+            if (addedFinal) {
+                pendingText = (pendingText + ' ' + addedFinal).trim();
+                showInterim(pendingText);
+                clearGrace();
+                graceTimer = setTimeout(endTurn, cfg().grace);   // patience = the chosen style
+            }
+        };
     }
-    function startListening() {
-        if (!voiceMode) return;
+
+    function ensureRec() {
+        if (!voiceMode || !micShouldRun || paused) return;
         if (!recognition) initRecognition();
-        wantListening = true;
-        setVState('listening');
-        try { recognition.start(); } catch (_) {}
+        if (!recActive) { try { recognition.start(); } catch (_) {} }
     }
-    function onUserSpeech(text) {
-        wantListening = false;
-        if (recognition) { try { recognition.stop(); } catch (_) {} }
+
+    function startListening() {
+        if (!voiceMode || paused) return;
+        pendingText = ''; clearGrace();
+        input.value = ''; autoresize();
+        setVState('listening');
+        micShouldRun = true;
+        ensureRec();
+    }
+
+    // The user has genuinely finished this turn (silent for `grace` ms).
+    function endTurn() {
+        clearGrace();
+        const text = pendingText.trim();
+        pendingText = '';
+        input.value = ''; autoresize();
+        if (!text) return;                    // nothing said → keep listening, never force it
+        micShouldRun = false;
+        if (recognition && recActive) { try { recognition.stop(); } catch (_) {} }
         setVState('thinking');
         sendMessage(text);
     }
+
     function speak(text) {
         if (!ttsSupported || !voiceMode) { if (voiceMode) startListening(); return; }
-        try { window.speechSynthesis.cancel(); } catch (_) {}
+        cancelTTS();
         const u = new SpeechSynthesisUtterance(text);
-        u.rate = 1.0;
-        u.onend = function() { if (voiceMode) startListening(); };
-        u.onerror = function() { if (voiceMode) startListening(); };
+        u.rate = cfg().rate;
+        u.onend = function() { if (voiceMode && vstate === 'speaking') startListening(); };
+        u.onerror = function() { if (voiceMode && vstate === 'speaking') startListening(); };
+        speakStartedAt = Date.now();
+        pendingText = '';
         setVState('speaking');
-        try { window.speechSynthesis.speak(u); } catch (_) { if (voiceMode) startListening(); }
+        micShouldRun = true;                  // keep the mic live so the user can barge in
+        ensureRec();
+        try { window.speechSynthesis.speak(u); } catch (_) { startListening(); }
     }
+
     function enterVoiceMode() {
         if (!voiceSupported) { announce("Voice isn't available in this browser — you can still type."); return false; }
-        voiceMode = true;
+        voiceMode = true; paused = false;
+        updateFooterUI();
         setVState('idle');
         return true;
     }
     function stopVoice() {
-        voiceMode = false; wantListening = false; vstate = 'idle';
+        voiceMode = false; paused = false; micShouldRun = false; vstate = 'idle';
+        clearGrace();
         if (recognition) { try { recognition.abort(); } catch (_) {} }
-        if (ttsSupported) { try { window.speechSynthesis.cancel(); } catch (_) {} }
+        cancelTTS();
         if (mic) mic.classList.remove('is-on');
         if (voiceStateEl) { voiceStateEl.textContent = ''; voiceStateEl.className = 'wt-voicestate'; }
         if (interruptBtn) interruptBtn.hidden = true;
-        if (voicebar) voicebar.hidden = true;
+        updateFooterUI();
+    }
+
+    // Pause — hold the conversation safely. No timeout, no generation, no loss.
+    function pauseVoice() {
+        if (!voiceMode) return;
+        paused = true;
+        micShouldRun = false;
+        clearGrace();
+        if (recognition && recActive) { try { recognition.stop(); } catch (_) {} }
+        cancelTTS();
+        vstate = 'paused';
+        if (voiceStateEl) { voiceStateEl.textContent = ''; voiceStateEl.className = 'wt-voicestate'; }
+        updateFooterUI();
+    }
+    function resumeVoice() {
+        if (!voiceMode) return;
+        paused = false;
+        updateFooterUI();
+        startListening();
     }
 
     if (mic && voiceSupported) mic.hidden = false;
     if (mic) mic.addEventListener('click', function() {
         if (voiceMode) { stopVoice(); }
-        else if (enterVoiceMode()) { mic.classList.add('is-on'); if (vstate !== 'speaking' && vstate !== 'thinking') startListening(); }
+        else if (enterVoiceMode()) {
+            mic.classList.add('is-on');
+            if (vstate !== 'speaking' && vstate !== 'thinking') startListening();
+        }
     });
     if (interruptBtn) interruptBtn.addEventListener('click', function() {
-        if (ttsSupported) { try { window.speechSynthesis.cancel(); } catch (_) {} }
-        startListening();  // barge-in: let the user talk now
+        cancelTTS();
+        startListening();  // barge-in by tap: an always-reliable way to take the floor
     });
+    if (pauseBtn) pauseBtn.addEventListener('click', pauseVoice);
+    if (resumeBtn) resumeBtn.addEventListener('click', resumeVoice);
 
     function addTurn(role, text) {
         const el = document.createElement('div');
@@ -353,14 +553,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (reply) addTurn('assistant', reply);
             if (stick) scrollToBottom();
             sendBtn.disabled = false;
-            if (voiceMode && reply) { speak(reply); }   // voice: CoS speaks, then resumes listening
-            else if (!voiceMode) { input.focus(); }
+            if (voiceMode && reply && !paused) {
+                // The reflective "beat" before the CoS answers is part of the rhythm.
+                setTimeout(function() { if (voiceMode && !paused) speak(reply); }, cfg().settle);
+            } else if (!voiceMode) { input.focus(); }
         }).catch(function() {
             thinking.remove();
             addTurn('assistant', "I'm here — tell me more.");
             scrollToBottom();
             sendBtn.disabled = false;
-            if (voiceMode) startListening();
+            if (voiceMode && !paused) startListening();
         });
     }
 
@@ -422,17 +624,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const reply = (data && data.reply) ? data.reply : '';
             if (reply) addTurn('assistant', reply);
             scrollToBottom();
-            if (voiceMode && reply) { speak(reply); }   // speak the opening, then listen
+            if (voiceMode && reply && !paused) { speak(reply); }   // speak the opening, then listen
             else if (!voiceMode) { input.focus(); }
         }).catch(function() {
             thinking.remove();
             addTurn('assistant', "I'm here. What's on your mind?");
             scrollToBottom();
-            if (voiceMode) startListening();
+            if (voiceMode && !paused) startListening();
         });
     } else {
         scrollToBottom();
-        if (voiceMode) startListening();
+        if (voiceMode && !paused) startListening();
         else input.focus();
     }
 });

@@ -67,6 +67,65 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         self.assertContains(resp, 'id="wt-voicebar"')
         self.assertContains(resp, 'data-voice="1"')  # auto-enters voice mode
 
+    def test_conversation_style_controls_render_and_reflect_saved_pref(self):
+        # Conversation Style (Quick / Natural / Reflective) + Pause are the user's
+        # controls over rhythm — they render, and the page carries the saved style.
+        prefs = self.user.preferences
+        prefs.journal_features = dict(prefs.journal_features or {})
+        prefs.journal_features["write_together"] = True
+        prefs.journal_features["conversation_style"] = "reflective"
+        prefs.personal_assistant_enabled = True
+        prefs.save()
+        self.login_user()
+        resp = self.client.get(self.page_url + "?voice=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'class="wt-styles"')
+        self.assertContains(resp, 'data-style="quick"')
+        self.assertContains(resp, 'data-style="reflective"')
+        self.assertContains(resp, 'id="wt-pause"')
+        self.assertContains(resp, 'id="wt-paused"')
+        self.assertContains(resp, 'id="wt-resume"')
+        # the remembered style is delivered to the client
+        self.assertContains(resp, 'data-style="reflective"')
+
+    def test_conversation_style_defaults_to_natural(self):
+        self._enable()
+        self.login_user()
+        resp = self.client.get(self.page_url)
+        self.assertEqual(resp.status_code, 200)
+        # .wt carries the persisted style; absent any saved value it is 'natural'
+        self.assertContains(resp, 'data-style="natural"')
+
+    def test_style_endpoint_persists_choice(self):
+        self._enable()
+        self.login_user()
+        url = reverse("journal:write_together_style")
+        resp = self.client.post(url, data=json.dumps({"style": "reflective"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("style"), "reflective")
+        self.user.preferences.refresh_from_db()
+        self.assertEqual(
+            self.user.preferences.journal_features.get("conversation_style"), "reflective"
+        )
+
+    def test_style_endpoint_rejects_invalid(self):
+        self._enable()
+        self.login_user()
+        url = reverse("journal:write_together_style")
+        resp = self.client.post(url, data=json.dumps({"style": "sprint"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 400)
+        self.user.preferences.refresh_from_db()
+        self.assertNotIn("conversation_style", self.user.preferences.journal_features or {})
+
+    def test_style_endpoint_404_when_disabled(self):
+        self.login_user()
+        url = reverse("journal:write_together_style")
+        resp = self.client.post(url, data=json.dumps({"style": "quick"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 404)
+
     def test_talk_it_through_chooser_links_to_voice(self):
         from django.urls import reverse as _rev
         prefs = self.user.preferences

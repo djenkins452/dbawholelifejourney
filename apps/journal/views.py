@@ -75,6 +75,20 @@ def _write_together_enabled(user):
         return False
 
 
+CONVERSATION_STYLES = ("quick", "natural", "reflective")
+
+
+def _conversation_style(user):
+    """The user's remembered Conversation Style (pacing/patience) for Journal
+    conversations. Stored inside the existing ``journal_features`` JSON so it
+    persists across conversations with no schema change. Defaults to 'natural'."""
+    try:
+        style = (user.preferences.journal_features or {}).get("conversation_style")
+    except Exception:
+        style = None
+    return style if style in CONVERSATION_STYLES else "natural"
+
+
 def _draft_to_html(text):
     """Convert a generated plain-prose journal draft into simple paragraph HTML
     for prefilling the rich-text editor at the review step."""
@@ -584,6 +598,7 @@ class WriteTogetherView(LoginRequiredMixin, TemplateView):
         return render(request, self.template_name, {
             "conversation": convo,
             "turns": convo.transcript or [],
+            "conversation_style": _conversation_style(request.user),
         })
 
 
@@ -644,6 +659,31 @@ class WriteTogetherGenerateView(LoginRequiredMixin, View):
         generate_entry(request.user, convo)
         url = reverse("journal:entry_create") + f"?from_conversation={convo.pk}"
         return JsonResponse({"redirect": url})
+
+
+class WriteTogetherStyleView(LoginRequiredMixin, View):
+    """Persist the user's Conversation Style (pacing/patience) so it is
+    remembered for future Journal conversations. Stored in the existing
+    ``journal_features`` JSON — no schema change, no request-path heavy work."""
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        if not _write_together_enabled(request.user):
+            return JsonResponse({"error": "not_available"}, status=404)
+        try:
+            payload = json.loads((request.body or b"").decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        style = payload.get("style")
+        if style not in CONVERSATION_STYLES:
+            return JsonResponse({"error": "invalid_style"}, status=400)
+        prefs = request.user.preferences
+        features = dict(prefs.journal_features or {})
+        features["conversation_style"] = style
+        prefs.journal_features = features
+        prefs.save(update_fields=["journal_features"])
+        return JsonResponse({"ok": True, "style": style})
 
 
 class EntryUpdateView(LoginRequiredMixin, UpdateView):

@@ -302,6 +302,16 @@ The Chief of Staff must **not dominate.** A healthy rhythm looks like:
 - **Short acknowledgments beat full responses.** After a long story, *"what a day"* + a pause often serves better than a paragraph.
 - **Never scripted, never a checklist cadence.** Each turn is generated from what was just said (Errol Morris: a real list of questions means you've stopped listening). The conversation should be able to *surprise* the CoS.
 
+### 10.1 The user owns the pace — the CoS never assumes when they're finished (added 2026-07-20)
+
+The Chief of Staff must not *decide* the tempo; it must *fit* whatever tempo the user sets. The failure this closes: the CoS treating a pause as "your turn is over" and jumping in while the user was still gathering a thought — the conversational equivalent of being talked over.
+
+- **A pause is not an ending.** End-of-turn is detected by *sustained* silence, and speech is accumulated across short pauses into one turn — a breath mid-sentence never hands the floor away. Only the user ends the conversation (the explicit "create today's journal"); **silence never does.**
+- **The user sets the patience, once, and it's remembered.** A **Conversation Style** — Quick / Natural / Reflective — governs *how long the CoS waits before responding* and the beat before it answers (the whole rhythm, not "speech speed"). It persists across conversations so the user configures their pace once, not every time.
+- **The user can always hold the moment.** **Pause** safely suspends the conversation (nothing generates, nothing is lost) for a knock at the door or a thought that needs room; **Resume** returns exactly where they were.
+- **The user can always take the floor back.** If the CoS is speaking and the user simply starts talking, the CoS **stops gracefully** and listens — interruption is a normal, expected act, never an error.
+- **The test:** the user should never feel rushed, never feel cut off, and always feel in control of the rhythm. If any turn could make them feel hurried, the pacing is wrong — not the user.
+
 ---
 
 ## 11. Thread management

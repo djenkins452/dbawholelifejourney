@@ -6,6 +6,22 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — feat(journal): Write Together — Conversation Style, Pause, natural barge-in + remembered pacing
+
+The user controls the **rhythm** of a Journal conversation now, instead of the Chief of Staff assuming when they're finished. All in the voice layer of the dedicated Write Together / Talk It Through conversation — no new reasoning engine, no backend conversation change, no schema change.
+
+**Conversation Style (⚡ Quick / 💬 Natural / 🌳 Reflective)** — not speech speed; the whole cadence. The real mechanism is **end-of-turn endpointing**: recognition runs `continuous`, speech is accumulated across pauses into one turn, and the CoS only responds after the user has been *silent* for the style's `grace` window (Quick 0.9s → Natural 2.0s → Reflective 4.8s). Plus a `settle` beat before the CoS answers and a `rate` for its speaking pace, so Reflective genuinely *feels* unhurried. Interim speech cancels the pending end-of-turn (resuming keeps the floor). Silence alone never ends a turn — only "create today's journal" does.
+
+**⏸ Pause Conversation** — holds everything safely: stops the mic and any speech, no timeout, no generation, no loss (the `JournalConversation` is already durably persisted every turn). Shows a calm "Conversation paused / Your conversation is safely preserved / ▶ Resume Conversation" panel; Resume returns to Listening.
+
+**Natural barge-in** — the user simply starts talking while the CoS is speaking; the mic stays live during TTS and a guarded trigger (≥2 real words, >700ms past speech-start, to reject the CoS's own audio bleeding into the mic) gracefully cancels the speech and hands them the floor. The reliable **Tap to talk** control remains as a fallback.
+
+**Preference persistence** — the chosen style is remembered for future conversations, stored in the existing `UserPreferences.journal_features` JSON (`conversation_style`) via a new `POST journal:write_together_style` endpoint. No migration; validated server-side to {quick, natural, reflective}; delivered back on `.wt[data-style]` and reflected in the active control. Round-trip browser-verified (choose Reflective → reload → server returns reflective).
+
+**Two gotchas fixed on the way (browser-caught):** a multi-line `{# … #}` Django comment rendered as visible page text (→ `{% comment %}`), and the `hidden` paused panel showed anyway because `.wt-paused { display:flex }` overrides the UA `[hidden]` rule (→ `.wt [hidden] { display:none !important }`).
+
+**Files:** MODIFIED `templates/journal/write_together.html` (voice JS + Style/Pause/paused UI + CSS), `apps/journal/views.py` (`_conversation_style`, `CONVERSATION_STYLES`, `WriteTogetherStyleView`, style in `WriteTogetherView` context), `apps/journal/urls.py` (`write-together/style/`), `apps/journal/tests/test_write_together_conversation.py` (+5 tests: controls render, default natural, persist, reject invalid, gating). **Tests:** 18/18 in the module green; request-path safety 4/4 green; `check` + migration `--check` clean; no console errors. **Why:** the success criterion is that the user never feels rushed and never feels cut off — they, not the CoS, own the pace. **Release notes deferred:** Write Together is still flag-gated (owner-only preview), promoted to GA when the `write_together` flag opens to all.
+
 ## 2026-07-20 — fix(structured-import + multimodal): DOCX import returned zero records (filename-as-id) + attachment receipts in the transcript
 
 Two production defects, isolated by real runtime tracing (a temporary X-Claude-API-Key glass-box endpoint that dumped the ACTUAL artifact + parser + import outcome + tool-call audit, then removed).

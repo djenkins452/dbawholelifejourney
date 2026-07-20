@@ -179,10 +179,19 @@ class FaithQueries:
 
     @classmethod
     def describe_one(cls, user, name):
-        """Most recent prayer whose title matches `name`, or None."""
+        """The prayer matching `name`, or None. A chronological phrase ("my most recent /
+        latest / last prayer") resolves to the single NEWEST prayer — the single-object
+        retrieval that previously had no path (prod: "tell me about my most recent prayer"
+        fell through to a keyword search and returned "no prayers in the last 7 days").
+        Mirrors the nutrition 'last meal' precedent; reuses describe()[0], no new query."""
         name = (name or "").strip()
         if not name:
             return None
+        low = name.lower()
+        if "prayer" in low and any(k in low for k in ("most recent", "latest", "last",
+                                                      "newest")):
+            recent = cls.describe(user, limit=1)
+            return recent[0] if recent else None
         p = (PrayerRequest.objects.filter(user=user, title__icontains=name)
              .order_by("-created_at").first())
         return cls._prayer_to_entity(p) if p else None
@@ -216,8 +225,14 @@ class FaithQueries:
     @classmethod
     def describe_plans(cls, user, *, limit=10):
         """Active/recent Bible reading plans as CompleteEntity objects — exposes the
-        UserReadingPlan/Progress study truth that had no entity surface."""
+        UserReadingPlan/Progress study truth that had no entity surface.
+
+        Excludes ABANDONED plans: an abandoned plan is not study truth ("what I'm studying")
+        and, because this composer also feeds the faith Analysis surface, an abandoned plan
+        surfaced there as a current "theme" (prod: analysis themes referenced long-abandoned
+        plans). Active/paused/completed remain — the person's real recent study history."""
         qs = (UserReadingPlan.objects.filter(user=user)
+              .exclude(plan_status="abandoned")
               .select_related("template").order_by("-started_at")[:limit])
         return [cls._plan_to_entity(pl) for pl in qs]
 

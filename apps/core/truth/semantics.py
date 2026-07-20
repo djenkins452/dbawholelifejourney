@@ -159,6 +159,7 @@ DOMAIN_SEMANTICS = {
                     "verses, faith milestones, and Bible study notes/highlights/bookmarks."),
         "entities": {
             "prayer": "A prayer the person recorded.",
+            "prayer_request": "A prayer the person recorded (alias of 'prayer').",
             "reading_plan": "A Bible reading plan and its progress.",
             "milestone": ("A significant moment in the person's faith journey — salvation, "
                           "baptism, rededication, an answered prayer, or a spiritual insight."),

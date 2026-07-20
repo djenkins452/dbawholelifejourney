@@ -324,10 +324,33 @@ reviewed.**
 | Step | Status |
 |------|--------|
 | 1. Verify deterministic truth | ✅ **COMPLETE** (runtime-proven) |
-| 2. Expose existing truth | ✅ **COMPLETE** — shipped (see §9); AWAITING VALIDATION |
-| 3. Validate conversational routing | ✅ carried by Step 2 (drift-proof metadata from ONE source; local model routes) — re-confirm in prod at Step 4 |
-| 4. Production validation (Danny's gate) | ⛔ NOT STARTED — **AWAITING VALIDATION** |
-| 5. Close the milestone | ⛔ NOT STARTED |
+| 2. Expose existing truth | ✅ **COMPLETE** — shipped (see §9) |
+| 3. Validate conversational routing | ✅ **COMPLETE** — prod-traced on the real runtime; findings fixed (see §10) |
+| 4. Production validation (Danny's gate) | 🔄 IN PROGRESS — first pass done; cleanup fixed; **AWAITING re-validation** |
+| 5. Close the milestone | ⛔ NOT STARTED — do NOT declare complete until Danny re-verifies in prod |
+
+---
+
+## 10. Production-Validation Cleanup (2026-07-20)
+
+Danny's first production pass surfaced five findings. Each was **runtime-traced through the REAL
+production path** — Danny runs `use_model_interface=True`, so `CoSGateway.respond(surface=chat)`
+routes to `ModelInterfaceService` (13 tools incl. `get_entity`/`get_analysis`), with the tool
+layer instrumented to capture tool + args + status. No guessing; smallest fix per proven cause;
+no new deterministic truth.
+
+| # | Prod symptom | First failing layer (traced) | Fix |
+|---|--------------|------------------------------|-----|
+| 1 | "most recent prayer" → wrong / "none today" | Model called `get_entity(entity_type='prayer_request')` → `unsupported` (type registered as `prayer`) | Advertise `prayer_request` alias + `describe_one("latest/most recent prayer")` → newest |
+| 2 | "prayers about family" → "couldn't retrieve" | NOT a defect — `search_history(faith,'family')`=ready returns the family prayer; the text is the emergency-fallback signature (transient) | Regression lock only; keyword search is literal by design |
+| 3 | "study notes" → reading plans | (legacy `chatgpt_cos` runtime) search matched reading-plan **descriptions**; notes absent from `search_faith`. Prod `model_interface` path already retrieves via `get_entity(study_note)` | Add study_note/highlight/bookmark to `search_faith`; reading-plan search matches TITLE only |
+| 4 | analysis themes ungrounded (Matthew/John/…) | `get_analysis`→`describe_plans` returned ABANDONED + old plans | `describe_plans` excludes `abandoned` (not study truth) |
+| 5 | page-summary questions ignored | `model_interface._focus_lead` only POINTED at the focus JSON buried in a 60k-char prompt → model said "content not provided". (`chatgpt_cos`: `is_page_reference` missed the phrasings → `priority_now` hijack) | `_focus_lead` INLINES the on-screen content (single source, like `_profile_lead`); extend `is_page_reference` |
+
+**Re-verified on the real gateway with the live model** (rolled-back real records): #1 → "your dad's
+health… urgent… July 19"; #5 (all three phrasings) → answered from the page summary (9 active, 3
+urgent, 9 answered, recent prayers); #4 → prayer-grounded themes, no stale plan names; #2/#3 →
+correct. **Faith is NOT production-complete until Danny re-validates these in production.**
 
 ---
 

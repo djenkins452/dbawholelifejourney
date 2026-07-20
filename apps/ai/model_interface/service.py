@@ -209,18 +209,28 @@ class ModelInterfaceService:
         title = (focus.get("title") or "").strip()
         kind = (focus.get("kind") or "").strip()
         label = (f'"{title}"' + (f" ({kind})" if kind else "")) or "the object on screen"
+        # INLINE the on-screen content directly in the lead (same fix pattern as
+        # _profile_lead below): the content already reaches the model as
+        # `current_context.current_screen.focus.content`, but as JSON deep in a ~60k-char
+        # prompt the model overlooked it and answered "the content isn't provided" to
+        # "summarize this page" / "what's most important here" (Faith cert, prod). Pointing
+        # was not enough — the content must be up front and human-readable. Single source:
+        # this is the SAME resolved focus, not a duplicate retrieval.
+        content = (focus.get("content") or "").strip()
+        body = f"\nHere is exactly what is on screen:\n{content[:2500]}" if content else ""
         if focus.get("authority") == "current_request":
             return (
                 "\n\n=== ON SCREEN RIGHT NOW (your FIRST source of truth) ===\n"
                 f"The user is currently viewing {label}. If their question is about what "
-                "they are looking at, answer from `current_context.current_screen.focus` "
-                "below and do NOT retrieve — the answer is already here."
+                "they are looking at (\"what am I looking at\", \"summarize this page\", "
+                "\"what's most important here\"), answer from THIS and do NOT retrieve — the "
+                f"answer is already here:{body}"
             )
         # conversation_fallback — last-seen, not confirmed current; name it but stay cautious.
         return (
             "\n\n=== LAST SEEN (unconfirmed — client reported no focus this turn) ===\n"
-            f"The last object seen in this conversation was {label}. Check its freshness in "
-            "`current_context.current_screen.focus` before treating it as what they mean now."
+            f"The last object seen in this conversation was {label}. Check its freshness "
+            f"before treating it as what they mean now.{body}"
         )
 
     @staticmethod

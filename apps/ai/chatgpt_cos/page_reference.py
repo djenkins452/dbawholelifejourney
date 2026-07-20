@@ -31,6 +31,14 @@ _PAGE_VERBS = (
 )
 _DEIXIS = ("this", "that", "these", "those", "it")
 
+# Explicit references to THE PAGE / SCREEN itself — "what am I looking at here", "summarize
+# this page", "the most important thing on this page". These bind to the page's Current
+# Context (its declared object OR its page summary), and MUST win over deterministic lanes
+# like priority_now — else "what is the most important thing to know FROM THIS PAGE?" is
+# hijacked and answered about life's #1 priority instead of the page (Faith cert, prod).
+_PAGE_NOUNS = ("this page", "on this page", "from this page", "this screen",
+               "on this screen", "on screen", "on the page", "this view", "here on")
+
 # Where to find the focused entity's text, across the page_content shapes the client
 # sends for different modules. Ordered: single-text fields first, then list-shaped.
 _TEXT_FIELDS = ("scripture_text", "body", "content", "description", "text", "summary",
@@ -56,6 +64,12 @@ def is_page_reference(message):
     if not n:
         return False
     if any(v in n for v in _PAGE_VERBS):
+        return True
+    # Explicit page/screen reference ("…this page", "…on screen") — any length.
+    if any(p in n for p in _PAGE_NOUNS):
+        return True
+    # "what am I looking at / seeing / viewing (here)" — the page-summary idiom.
+    if re.search(r"\bwhat (?:am i|is|are we) (?:looking at|seeing|viewing)\b", n):
         return True
     if len(n.split()) <= 8 and any(re.search(rf"\b{d}\b", n) for d in _DEIXIS):
         return True

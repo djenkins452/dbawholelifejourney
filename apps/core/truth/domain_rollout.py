@@ -380,7 +380,11 @@ class FaithDomainTruth(DomainTruth):
     # records (salvation/baptism moments, memory verses, study notes, highlights, bookmarks)
     # that had records but no `get_entity` surface — additive exposure, delegating to the
     # canonical FaithQueries composers (no new store, no reasoning).
-    entity_types = ("prayer", "reading_plan", "milestone", "saved_verse",
+    # `prayer_request` is an ALIAS of `prayer` — the model naturally asks for
+    # entity_type='prayer_request' (the app's own term) and got `unsupported`, then told
+    # the user "no prayer request" (prod). Advertising the alias makes the model's natural
+    # word resolve to the same composer.
+    entity_types = ("prayer", "prayer_request", "reading_plan", "milestone", "saved_verse",
                     "study_note", "highlight", "bookmark")
     # ANALYSIS participation — PURE COMPOSITION of inputs ALREADY exposed above: the
     # deterministic reading-completion series (history('reading')) + the prayer / reading_plan
@@ -445,7 +449,7 @@ class FaithDomainTruth(DomainTruth):
         }
         if entity_type in dispatch:
             return dispatch[entity_type](self.user)
-        if entity_type not in (None, "prayer"):
+        if entity_type not in (None, "prayer", "prayer_request"):
             raise KeyError(f"faith domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
         return FaithQueries.describe(self.user)

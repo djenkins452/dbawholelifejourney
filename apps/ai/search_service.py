@@ -998,9 +998,10 @@ class SearchService:
             if hasattr(self, method_name):
                 results = getattr(self, method_name)(keywords, limit)
         else:
-            # Search all faith content types
-            per_type_limit = max(2, limit // 4)
-            for ctype in ['prayer', 'scripture', 'reading_plan', 'milestone']:
+            # Search all faith content types (study_note included so a notes query is not
+            # answered with reading plans while the notes stay invisible — Faith cert, prod).
+            per_type_limit = max(2, limit // 5)
+            for ctype in ['prayer', 'scripture', 'reading_plan', 'milestone', 'study_note']:
                 method_name = f"_search_faith_{ctype}"
                 if hasattr(self, method_name):
                     type_results = getattr(self, method_name)(keywords, per_type_limit)
@@ -1098,10 +1099,12 @@ class SearchService:
         plans = UserReadingPlan.objects.filter(user=self.user).select_related('template')
 
         if keywords:
-            keyword_q = self._build_keyword_filter(
-                keywords,
-                ['template__title', 'template__description']
-            )
+            # Match the plan's NAME only, NOT its (marketing) description. Plan descriptions
+            # contain generic devotional language ("a study through the Bible", "family
+            # preserved") that false-matched unrelated faith searches — a reading plan was
+            # substituted for a study-notes query, and "Noah" surfaced in a family-prayer
+            # search (Faith cert, prod). Users refer to a plan by its title.
+            keyword_q = self._build_keyword_filter(keywords, ['template__title'])
             plans = plans.filter(keyword_q)
 
         plans = plans.order_by('-started_at')[:limit]
@@ -1155,6 +1158,86 @@ class SearchService:
                     "content_type": "milestone",
                     "milestone_type": milestone.milestone_type
                 }
+            ))
+        return results
+
+    def _search_faith_study_note(
+        self,
+        keywords: Optional[List[str]],
+        limit: int
+    ) -> List[Dict]:
+        """Search Bible study notes. Previously ABSENT — 'show my Bible study notes' matched
+        reading-plan descriptions (which contain 'study'/'Bible') and returned reading plans
+        while the actual notes stayed invisible to search (Faith cert, prod)."""
+        from apps.faith.models import BibleStudyNote
+
+        notes = BibleStudyNote.objects.filter(user=self.user)
+        if keywords:
+            notes = notes.filter(self._build_keyword_filter(
+                keywords, ['title', 'content_plain', 'reference']))
+        notes = notes.order_by('-created_at')[:limit]
+
+        results = []
+        for note in notes:
+            title = note.title or f"Note on {note.reference}"
+            results.append(self._create_result(
+                id=note.pk,
+                title=f"Study Note: {title}",
+                snippet=(note.content_plain or "")[:200],
+                date_value=note.created_at.date(),
+                url=self._safe_reverse('faith:study_note_detail', args=[note.pk]),
+                metadata={"content_type": "study_note", "reference": note.reference},
+            ))
+        return results
+
+    def _search_faith_highlight(
+        self,
+        keywords: Optional[List[str]],
+        limit: int
+    ) -> List[Dict]:
+        """Search Bible highlights (was absent from faith search)."""
+        from apps.faith.models import BibleHighlight
+
+        hls = BibleHighlight.objects.filter(user=self.user)
+        if keywords:
+            hls = hls.filter(self._build_keyword_filter(keywords, ['reference', 'text']))
+        hls = hls.order_by('book_order', 'chapter', 'verse_start')[:limit]
+
+        results = []
+        for h in hls:
+            results.append(self._create_result(
+                id=h.pk,
+                title=f"Highlight: {h.reference}",
+                snippet=(h.text or "")[:200],
+                date_value=h.created_at.date() if h.created_at else None,
+                url=self._safe_reverse('faith:highlight_list'),
+                metadata={"content_type": "highlight", "color": h.color},
+            ))
+        return results
+
+    def _search_faith_bookmark(
+        self,
+        keywords: Optional[List[str]],
+        limit: int
+    ) -> List[Dict]:
+        """Search Bible bookmarks (was absent from faith search)."""
+        from apps.faith.models import BibleBookmark
+
+        bms = BibleBookmark.objects.filter(user=self.user)
+        if keywords:
+            bms = bms.filter(self._build_keyword_filter(
+                keywords, ['reference', 'title', 'notes']))
+        bms = bms.order_by('-created_at')[:limit]
+
+        results = []
+        for b in bms:
+            results.append(self._create_result(
+                id=b.pk,
+                title=f"Bookmark: {b.title or b.reference}",
+                snippet=(b.notes or "")[:200],
+                date_value=b.created_at.date() if b.created_at else None,
+                url=self._safe_reverse('faith:bookmark_list'),
+                metadata={"content_type": "bookmark", "reference": b.reference},
             ))
         return results
 

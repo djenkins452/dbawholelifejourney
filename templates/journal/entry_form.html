@@ -121,9 +121,9 @@
                 </div>
             </div>
 
-            <details class="journal-details">
+            <details class="journal-details" open>
                 <summary class="jd-summary">
-                    <span class="jd-summary-label">Add mood, tags &amp; categories</span>
+                    <span class="jd-summary-label">Mood, tags &amp; categories</span>
                     <span class="jd-summary-chevron" aria-hidden="true">⌄</span>
                 </summary>
                 <div class="jd-content">
@@ -230,7 +230,13 @@
 .journal-compose {
     max-width: 760px;
     margin: 0 auto;
-    padding: var(--space-6) var(--space-4) var(--space-10);
+    padding: var(--space-6) var(--space-4) var(--space-6);
+    /* Fill the viewport below the 64px header and lay the page out as a column, so the
+       editor can GROW to consume the remaining vertical space and the actions pin below —
+       the editor never collapses after a mood/tag interaction and no blank gap opens up. */
+    min-height: calc(100dvh - 64px);
+    display: flex;
+    flex-direction: column;
 }
 
 .journal-compose .sr-only {
@@ -341,13 +347,33 @@
 .notebook-body {
     margin-top: var(--space-5);
 }
+
+/* ── Fill the available height ─────────────────────────────────────────────
+   The editor consumes the remaining vertical space so it never collapses after a
+   mood/tag interaction and no large blank gap opens below it. Each link in the chain
+   from the page column down to the editable surface grows and allows shrinking
+   (min-height:0), so the ProseMirror fills whatever height is left after the title,
+   the (expanded) mood/tags disclosure, and the pinned actions. */
+.jc-body   { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.jc-main   { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.notebook  { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.notebook-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.notebook-body .wlj-rte { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+/* override the RTE's inline min-height so the content box can flex, then fill it */
+.notebook-body .wlj-rte-content {
+    flex: 1 1 auto;
+    min-height: 0 !important;
+    display: flex;
+    flex-direction: column;
+}
 /* Premium-notebook writing surface: warm serif, generous rhythm */
 .notebook-body .ProseMirror {
     font-family: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
     font-size: 1.08rem;
     line-height: 1.85;
     color: var(--color-text);
-    min-height: 360px;
+    flex: 1 1 auto;
+    min-height: 280px;          /* usable floor — the surface fills above this, never below */
     caret-color: var(--color-accent);
 }
 .notebook-body .ProseMirror p { margin-bottom: 1em; }
@@ -449,7 +475,16 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    margin-top: var(--space-6);
+    margin-top: var(--space-5);
+    /* Keep the actions visually tied to the editor: pinned to the bottom of the scroll
+       area so they never drift far below the writing surface, whatever the entry length
+       or the mood/tags state. */
+    position: sticky;
+    bottom: 0;
+    padding: var(--space-4) 0 var(--space-2);
+    background: linear-gradient(to top,
+        var(--color-background) 55%, color-mix(in srgb, var(--color-background) 0%, transparent));
+    z-index: 5;
 }
 
 {% if journal_methods_enabled %}
@@ -594,6 +629,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (bodyInput && wordCount) {
         bodyInput.addEventListener('input', updateWordCount);
         updateWordCount(); // Initial count
+    }
+
+    // Mood/tags disclosure: default EXPANDED (HTML `open`), but remember the user's last
+    // choice so a deliberate collapse persists across visits. Never fails the page.
+    var details = document.querySelector('.journal-details');
+    if (details) {
+        try {
+            var savedOpen = localStorage.getItem('wlj-journal-details-open');
+            if (savedOpen !== null) details.open = (savedOpen === '1');
+        } catch (e) { /* private mode / disabled storage — keep the default */ }
+        details.addEventListener('toggle', function () {
+            try { localStorage.setItem('wlj-journal-details-open', details.open ? '1' : '0'); }
+            catch (e) { /* ignore */ }
+        });
     }
 });
 </script>

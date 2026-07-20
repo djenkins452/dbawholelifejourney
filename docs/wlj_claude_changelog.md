@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — fix(journal): Edit screen — editor fills the space (no collapse), mood/tags expanded, actions pinned
+
+**UX defect + enhancements on the Journal Edit screen (`templates/journal/entry_form.html`).**
+
+**Defect 1 — editor collapsed / left a large blank area.** The compose layout was plain document flow: the editor was a fixed `min-height: 360px` surface, so on a tall viewport a large blank gap opened below it and the writing area never used the available space. Fix: a full-height flex column — `.journal-compose` fills the viewport below the 64px header (`min-height: calc(100dvh - 64px)`), and a fill-chain (`.jc-body → .jc-main → .notebook → .notebook-body → .wlj-rte → .wlj-rte-content → .ProseMirror`, each `flex:1 1 auto; min-height:0`, overriding the RTE's inline `min-height`) makes the editor **consume the remaining vertical space** and grow/shrink as the mood/tags disclosure toggles, with a `280px` floor so it can never collapse to an unusable size. **Browser-verified** (desktop + mobile): the editor fills the space, and grows to reclaim it when the disclosure collapses; no blank gap.
+
+**Enhancement 2 — mood/tags default EXPANDED.** The `<details class="journal-details">` now defaults `open`, and the user's last expand/collapse choice is remembered in `localStorage` (`wlj-journal-details-open`) — no unnecessary click, still manually collapsible.
+
+**Enhancement 3 — actions associated with the editor.** `.form-actions` (Save Changes / Cancel) is now a `position: sticky; bottom: 0` footer with a fade, so the actions stay tied to the writing surface and never drift far below it regardless of entry length or mood/tags state.
+
+**Files:** MODIFIED `templates/journal/entry_form.html` (CSS fill-chain + sticky actions, `<details open>`, localStorage remember), `apps/core/fixtures/release_notes.json` (PK 285) + loader reset. Template-only — no static assets, no migration. `check` clean; browser-verified across desktop/mobile and disclosure expand/collapse. **Why:** the writing surface should always use the available space and stay stable through mood/tag interaction, with the obvious actions in reach.
+
 ## 2026-07-20 — fix(structured-import): duplicate journal entries — normalized dedup + one-time repair report
 
 **Production defect:** journal list showed duplicate entries differing only in TIMESTAMP FORMATTING ("7:50 PM" vs "7:50pm"), and the CoS wrongly said "no duplicates were added."

@@ -233,12 +233,11 @@
     max-width: 760px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-4) var(--space-6);
-    /* Fill the viewport below the 64px header and lay the page out as a column, so the
-       editor can GROW to consume the remaining vertical space and the actions pin below —
-       the editor never collapses after a mood/tag interaction and no blank gap opens up. */
-    min-height: calc(100dvh - 64px);
-    display: flex;
-    flex-direction: column;
+    /* The writing surface fills the viewport via a stable min-height on the editor itself
+       (see .notebook-body .ProseMirror). We deliberately do NOT fill via a flex-grow chain
+       against an indefinite (min-height) container: WebKit re-resolves that chain on the FIRST
+       reflow (e.g. selecting a mood toggles :checked), collapsing the editor to its floor and
+       opening a blank gap — the exact defect this replaces. Plain block flow is reflow-stable. */
 }
 
 .journal-compose .sr-only {
@@ -350,32 +349,23 @@
     margin-top: var(--space-5);
 }
 
-/* ── Fill the available height ─────────────────────────────────────────────
-   The editor consumes the remaining vertical space so it never collapses after a
-   mood/tag interaction and no large blank gap opens below it. Each link in the chain
-   from the page column down to the editable surface grows and allows shrinking
-   (min-height:0), so the ProseMirror fills whatever height is left after the title,
-   the (expanded) mood/tags disclosure, and the pinned actions. */
-.jc-body   { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.jc-main   { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.notebook  { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.notebook-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-.notebook-body .wlj-rte { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-/* override the RTE's inline min-height so the content box can flex, then fill it */
-.notebook-body .wlj-rte-content {
-    flex: 1 1 auto;
-    min-height: 0 !important;
-    display: flex;
-    flex-direction: column;
-}
+/* ── Fill the available height (reflow-stable, engine-agnostic) ─────────────
+   The editor fills the viewport via ONE stable rule: a viewport-based min-height on the
+   editable surface itself. No flex-grow-to-fill chain (WebKit collapses that on the first
+   reflow — e.g. selecting a mood — dropping the editor to its floor and opening a blank gap)
+   and no live `dvh` (which jumps as the iOS URL bar shows/hides). `svh` is the *smallest*
+   stable viewport height, so it never jumps mid-session; `max(280px, …)` is the usable floor.
+   Because the height lives on the editor and depends on nothing but the viewport, selecting or
+   removing a mood/tag/category cannot change it. */
+.notebook-body .wlj-rte-content { min-height: 0 !important; }   /* neutralize the RTE's inline min-height */
 /* Premium-notebook writing surface: warm serif, generous rhythm */
 .notebook-body .ProseMirror {
     font-family: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
     font-size: 1.08rem;
     line-height: 1.85;
     color: var(--color-text);
-    flex: 1 1 auto;
-    min-height: 280px;          /* usable floor — the surface fills above this, never below */
+    min-height: 280px;                               /* fallback for engines without svh */
+    min-height: max(280px, calc(100svh - 400px));    /* fills the viewport; never below 280px */
     caret-color: var(--color-accent);
 }
 .notebook-body .ProseMirror p { margin-bottom: 1em; }
@@ -571,7 +561,13 @@
 @media (max-width: 640px) {
     .journal-compose { padding: var(--space-4) var(--space-3) var(--space-8); }
     .notebook { padding: var(--space-4); border-radius: var(--radius-lg); }
-    .notebook-body .ProseMirror { font-size: 1.05rem; min-height: 300px; }
+    /* Same stable viewport-fill on mobile (less chrome above the editor); svh keeps it from
+       jumping as the iOS URL bar / keyboard shows. Never below the 300px usable floor. */
+    .notebook-body .ProseMirror {
+        font-size: 1.05rem;
+        min-height: 300px;                              /* fallback for engines without svh */
+        min-height: max(300px, calc(100svh - 320px));
+    }
     .form-actions { flex-direction: column; align-items: stretch; }
     .form-actions .btn { width: 100%; justify-content: center; }
     .emotion-button { min-width: 60px; }

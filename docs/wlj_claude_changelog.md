@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — refine(faith): First Light — the language of discipleship (Reading & Prayer as one walk; Answered becomes Praise/testimony)
+
+Language, relationship, and spiritual-experience refinement — no architecture, no IA, no navigation, no feature moves. Faith should feel less like software and more like a quiet companion in someone's walk with God. Flag-gated (First Light).
+
+- **Reading and Prayer are one continuous walk — neither primary.** Removed the wording that made Prayer read as a supporting act of Reading. The Prayer hero is now *"The things you're carrying, held before Him — part of one continuous walk"* (was "Prayer walks beside your reading — the other half of the conversation"). The reader's bridge is *"Carry this into prayer"* (was "Turn today's reading into a prayer"). The relationship is Scripture → prayer → reflection → life → Scripture, not one supporting the other.
+- **"Answered" becomes "Praise," and an answered prayer becomes a testimony — not a status.** The wall's answered section is now **Praise** ("remember the season it lived in"). Opening an answered prayer shows a testimony: the original prayer, **how long it was carried** ("carried for 4 weeks"), when it was answered, how it was described, **journal entries from that season**, the reading journeys walked then, and a word of Scripture — composed deterministically and read-only (`apps/faith/first_light/prayer.py :: testimony_for`; cheap, bounded, request-path safe). Something to return to years later.
+- **Prayer deepened in the Mirror:** answered prayers now carry their duration ("carried for 5 weeks · answered February 2026") and link straight to their testimony; the Mirror already reflects recurring prayer themes, verses returned to, journeys and milestones — the whole walk, not just reading.
+- **Language of discipleship, evaluated case by case** (never blindly): section names *On your heart* · *Praise* · *Set aside*; verbs kept natural where a faith word would feel forced ("Mark as answered" stays; "New prayer" → "Bring something before Him"). App-language replaced only where a warmer word fit naturally.
+- **Prayer stays woven, not intrusive** — Today (a doorway + the grounded companion), the reader (the gentle "carry this into prayer"), the Mirror, and the answered-prayer testimony. Nothing was added where it would clutter (the hushed completion was left alone).
+
+**Verified in-browser as Danny (desktop + light):** the answered-prayer testimony renders beautifully ("Shayne's Medical Condition · carried for 4 weeks · answered Feb 2026 · 'It was not cancer!' · Psalm 147:3 · journal entries from that season"); the wall's *On your heart* / *Praise* sections; the non-subordinating hero; the Mirror durations; the reader's "carry this into prayer." No console errors. **75 faith tests pass** (incl. a new testimony test) — no regressions. `check` + `collectstatic` + comment sweep clean.
+- **Files:** `apps/faith/first_light/{prayer,mirror}.py`, `apps/faith/views.py`, `apps/faith/tests/test_first_light.py`, `templates/faith/prayer/{wall,detail}_first_light.html`, `templates/faith/{mirror.html,journey/day_first_light.html}`, `static/faith/first_light.css`.
+
 ## 2026-07-20 — feat(faith): First Light — restore Prayer as a first-class pillar, integrated with Reading
 
 The First Light redesign lifted Bible Reading beautifully but had quietly narrowed Faith to *reading*. Faith is bigger than that — Prayer is the other pillar. This restores Prayer as a first-class, **integrated** experience (not a bolt-on CRUD page), in the First Light design language. No reading design was changed; the IA was expanded. Flag-gated (First Light).

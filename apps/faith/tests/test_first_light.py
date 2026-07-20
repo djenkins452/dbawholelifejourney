@@ -206,6 +206,23 @@ class PrayerScriptureBridgeTests(TestCase):
         pre = prayer_prefill_from_reading("Matthew 2:1-12", arc_name="The Coming of Jesus")
         self.assertIn("Coming of Jesus", pre["title"])
 
+    def test_answered_becomes_a_testimony(self):
+        from apps.faith.first_light.prayer import testimony_for, _humanize_span
+        user = _make_user(email="fl-testimony@example.com")
+        p = PrayerRequest.objects.create(user=user, title="Healing", category="health")
+        # backdate so the span reads meaningfully
+        PrayerRequest.objects.filter(pk=p.pk).update(
+            created_at=timezone.now() - datetime.timedelta(days=35))
+        p.refresh_from_db()
+        self.assertIsNone(testimony_for(p))  # not answered → no testimony
+        p.mark_answered("He healed us")
+        t = testimony_for(p)
+        self.assertIsNotNone(t)
+        self.assertTrue(t["duration"])              # "carried for ~5 weeks"
+        self.assertEqual(t["answer"], "He healed us")
+        self.assertIsNotNone(t["scripture"])        # a word that meets it
+        self.assertEqual(_humanize_span(1), "a day")
+
 
 class PrayerWallDispatchTests(TestCase):
     def _onboard(self, user):

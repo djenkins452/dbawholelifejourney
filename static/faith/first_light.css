@@ -476,6 +476,16 @@ html[data-theme="midnight"] .fl-root{
 .fl-to-prayer{display:inline-flex;align-items:center;gap:8px;margin:26px auto 0;padding:11px 18px;border-radius:999px;border:1px solid var(--fl-line);background:var(--fl-surface);color:var(--fl-gold-deep);font-weight:600;font-size:13.5px;text-decoration:none;transition:.16s}
 .fl-to-prayer:hover{border-color:var(--fl-gold);color:var(--fl-gold)}
 
+/* answered prayer as testimony */
+.fl-testimony{background:linear-gradient(160deg,var(--fl-sage-wash),var(--fl-surface));border:1px solid var(--fl-line);border-radius:var(--fl-r-lg);padding:22px 24px;margin-top:20px}
+.fl-testimony-k{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--fl-sage);font-weight:700}
+.fl-testimony-span{font-family:var(--fl-serif);font-size:18px;color:var(--fl-ink);margin-top:6px}
+.fl-testimony-verse{font-family:var(--fl-serif);font-style:italic;color:var(--fl-ink-soft);font-size:15px;margin-top:16px;line-height:1.5;border-left:2px solid var(--fl-gold);padding-left:14px}
+.fl-testimony-verse span{display:block;font-style:normal;font-size:12px;color:var(--fl-gold-deep);font-weight:650;margin-top:6px}
+.fl-testimony-sub{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--fl-muted);font-weight:700;margin-top:20px;margin-bottom:10px}
+.fl-testimony-item{font-size:14px;color:var(--fl-ink);margin-bottom:10px}
+.fl-testimony-ex{font-family:var(--fl-serif);font-style:italic;color:var(--fl-ink-soft);font-size:14px;margin-top:3px;line-height:1.5}
+
 @media (prefers-reduced-motion:reduce){
   .fl-breath{animation:none}
   .fl-fade,.fl-fade-2,.fl-fade-3,.fl-fade-4{animation:none}

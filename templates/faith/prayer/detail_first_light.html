@@ -28,15 +28,30 @@
       <div class="fl-prayer-body" style="font-size:15.5px;margin-top:16px">{{ prayer.description|safe }}</div>
       {% endif %}
 
-      {% if prayer.answer_notes_plain %}
-      <div class="fl-prayer answered" style="margin-top:18px">
-        <div class="fl-reader-label" style="color:var(--fl-sage)">How He answered</div>
-        <div class="fl-prayer-answer">“{{ prayer.answer_notes_plain }}”</div>
+      {% if testimony %}
+      {% comment %}An answered prayer, held as a testimony — the original prayer above,
+         and here how long it was carried, how it was answered, and the season it
+         lived in. Something to return to years later.{% endcomment %}
+      <div class="fl-testimony">
+        <div class="fl-testimony-k">A prayer answered</div>
+        <div class="fl-testimony-span">Carried for {{ testimony.duration }}{% if testimony.answered_at %} · answered {{ testimony.answered_at|date:"F Y" }}{% endif %}</div>
+        {% if testimony.answer %}<div class="fl-prayer-answer" style="margin-top:14px">“{{ testimony.answer }}”</div>{% endif %}
+        {% if testimony.scripture %}
+        <div class="fl-testimony-verse">“{{ testimony.scripture.text }}”<span>{{ testimony.scripture.ref }}</span></div>
+        {% endif %}
+        {% if testimony.journal %}
+        <div class="fl-testimony-sub">From your journal that season</div>
+        {% for j in testimony.journal %}
+        <div class="fl-testimony-item"><b>{{ j.title }}</b>{% if j.when %} · {{ j.when|date:"M j, Y" }}{% endif %}{% if j.excerpt %}<div class="fl-testimony-ex">“{{ j.excerpt }}”</div>{% endif %}</div>
+        {% endfor %}
+        {% endif %}
+        {% if testimony.journeys %}
+        <div class="fl-testimony-sub">What you were walking through then</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">{% for jn in testimony.journeys %}<span class="fl-tag">{{ jn.title }}</span>{% endfor %}</div>
+        {% endif %}
       </div>
-      {% endif %}
-
-      {# The Chief of Staff connects prayer to Scripture through deterministic truth. #}
-      {% if scripture %}
+      {% elif scripture %}
+      {% comment %}The Chief of Staff connects prayer to Scripture through deterministic truth.{% endcomment %}
       <div class="fl-pray-scripture">
         <div class="k">A word that meets this</div>
         <div class="t">“{{ scripture.text }}”</div>

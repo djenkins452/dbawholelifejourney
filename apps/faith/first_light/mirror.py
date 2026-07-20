@@ -119,16 +119,22 @@ def compute_mirror(user) -> dict[str, Any]:
         pass
     journeys.sort(key=lambda j: j["when_iso"] or "")
 
-    # ── Prayers He's answered ──
+    # ── Prayers He's answered — with how long each was carried ──
+    from .prayer import _humanize_span
     answered_qs = PrayerRequest.objects.filter(user=user, is_answered=True).order_by("-answered_at")
     answered = {
         "count": answered_qs.count(),
         "recent": [
             {
+                "pk": p.pk,
                 "title": p.title,
                 "subject": (p.person_or_situation or "").strip(),
                 "when_iso": _iso(p.answered_at),
                 "when": _when(p.answered_at),
+                "prayed_for": (
+                    _humanize_span(max(0, (p.answered_at - p.created_at).days))
+                    if p.answered_at and p.created_at else None
+                ),
                 "answer": (getattr(p, "answer_notes_plain", "") or "").strip()[:160],
             }
             for p in answered_qs[:4]

@@ -56,8 +56,8 @@
         <p class="fl-reflect-lead">You named {{ mirror.answered_prayers.count }} of these before Him, and marked {{ mirror.answered_prayers.count|pluralize:"it,them" }} answered.</p>
         {% for p in mirror.answered_prayers.recent %}
         <div class="fl-answered-item">
-          <div class="fl-a-title">{{ p.title }}</div>
-          {% if p.when %}<div class="fl-a-when">answered {{ p.when }}</div>{% endif %}
+          <div class="fl-a-title"><a href="{% url 'faith:prayer_detail' p.pk %}" style="color:inherit;text-decoration:none">{{ p.title }}</a></div>
+          <div class="fl-a-when">{% if p.prayed_for %}carried for {{ p.prayed_for }}{% if p.when %} · {% endif %}{% endif %}{% if p.when %}answered {{ p.when }}{% endif %}</div>
           {% if p.answer %}<div class="fl-a-note">“{{ p.answer }}”</div>{% endif %}
         </div>
         {% endfor %}

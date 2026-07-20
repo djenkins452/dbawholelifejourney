@@ -67,6 +67,83 @@ def scripture_for_prayer(prayer) -> Optional[dict[str, str]]:
     return {"text": text, "ref": ref}
 
 
+def _humanize_span(days: int) -> str:
+    """A gentle span like 'a few days' / '6 weeks' / '3 months' / '2 years'."""
+    if days <= 1:
+        return "a day"
+    if days < 14:
+        return f"{days} days"
+    if days < 60:
+        weeks = max(2, round(days / 7))
+        return f"{weeks} weeks"
+    if days < 365:
+        months = max(2, round(days / 30.44))
+        return f"{months} months"
+    years = round(days / 365.25)
+    return "a year" if years == 1 else f"{years} years"
+
+
+def testimony_for(prayer) -> Optional[dict[str, Any]]:
+    """An answered prayer as a testimony, not a record.
+
+    Gathers, deterministically and read-only, the story around an answered
+    prayer: how long it was carried, how it was answered, journal entries and
+    reading journeys from that season, and a word of Scripture. Bounded, cheap —
+    safe on the request path. Returns None for prayers that aren't answered.
+    """
+    if not getattr(prayer, "is_answered", False):
+        return None
+
+    from django.utils import timezone as _tz
+
+    created = getattr(prayer, "created_at", None)
+    answered = getattr(prayer, "answered_at", None) or created
+    duration = None
+    if created and answered:
+        duration = _humanize_span(max(0, (answered - created).days))
+
+    journal = []
+    journeys = []
+    if created and answered:
+        start = created.date()
+        end = answered.date()
+        try:
+            from apps.journal.models import JournalEntry
+            for e in (
+                JournalEntry.objects.filter(
+                    user=prayer.user, entry_date__gte=start, entry_date__lte=end,
+                ).order_by("entry_date")[:3]
+            ):
+                excerpt = (getattr(e, "body_plain", "") or "").strip()
+                journal.append({
+                    "title": e.title or "A journal entry",
+                    "when": e.entry_date,
+                    "excerpt": (excerpt[:150] + "…") if len(excerpt) > 150 else excerpt,
+                })
+        except Exception:
+            pass
+        try:
+            from apps.faith.models import UserReadingPlan
+            for up in (
+                UserReadingPlan.objects.filter(
+                    user=prayer.user, plan_status="completed",
+                    completed_at__date__gte=start, completed_at__date__lte=end,
+                ).select_related("template")[:3]
+            ):
+                journeys.append({"title": up.template.title})
+        except Exception:
+            pass
+
+    return {
+        "duration": duration,
+        "answered_at": answered,
+        "answer": (getattr(prayer, "answer_notes_plain", "") or "").strip(),
+        "scripture": scripture_for_prayer(prayer),
+        "journal": journal,
+        "journeys": journeys,
+    }
+
+
 def prayer_prefill_from_reading(refs, arc_name: str = "", key_insight: str = "") -> dict[str, Any]:
     """Gentle starting values for a prayer created from today's reading.
 

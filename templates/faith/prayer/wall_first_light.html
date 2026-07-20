@@ -15,8 +15,8 @@
       <div class="fl-pray-hero">
         <span class="fl-md-orb" aria-hidden="true"></span>
         <h1>What you’re bringing before God</h1>
-        <p>Prayer walks beside your reading — the other half of the conversation.</p>
-        <a class="fl-btn fl-btn-glow" href="{% url 'faith:prayer_create' %}">New prayer</a>
+        <p>The things you’re carrying, held before Him — part of one continuous walk.</p>
+        <a class="fl-btn fl-btn-glow" href="{% url 'faith:prayer_create' %}">Bring something before Him</a>
       </div>
 
       {# Category doorways — a gentle grouping, not a filter wall #}
@@ -68,12 +68,13 @@
       </div>
       {% endif %}
 
-      {# ── Answered — a record of His faithfulness ── #}
+      {# ── Praise — remembering what God has done ── #}
       {% if answered_prayers %}
-      <div class="fl-pray-section-h">Prayers He’s answered <span class="n">{{ answered_count }}</span></div>
+      <div class="fl-pray-section-h">Praise <span class="n">{{ answered_count }} answered</span></div>
+      <p class="fl-small fl-muted" style="margin:-6px 0 14px">The prayers He has answered — open one to remember the season it lived in.</p>
       {% for p in answered_prayers %}
       <article class="fl-prayer answered">
-        <div class="fl-prayer-title">{{ p.title }}</div>
+        <div class="fl-prayer-title"><a href="{% url 'faith:prayer_detail' p.pk %}">{{ p.title }}</a></div>
         {% if p.answer_notes_plain %}<div class="fl-prayer-answer">“{{ p.answer_notes_plain }}”</div>{% endif %}
         <div class="fl-prayer-actions">
           <span class="fl-answered-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>Answered{% if p.answered_at %} · {{ p.answered_at|date:"M j, Y" }}{% endif %}</span>

@@ -515,8 +515,10 @@ class PrayerDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if _first_light(self.request.user):
-            from apps.faith.first_light.prayer import scripture_for_prayer
+            from apps.faith.first_light.prayer import scripture_for_prayer, testimony_for
             context["scripture"] = scripture_for_prayer(self.object)
+            # Answered prayers become a testimony, not a status.
+            context["testimony"] = testimony_for(self.object)
         return context
 
 

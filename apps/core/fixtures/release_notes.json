@@ -4550,5 +4550,21 @@
       "created_at": "2026-07-20T15:00:00Z",
       "updated_at": "2026-07-20T15:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 286,
+    "fields": {
+      "title": "Your pantry now knows \"Buns\" and \"Bun\" are the same thing",
+      "description": "Meals now recognizes when two names mean the same ingredient. Before, a recipe calling for a \"Hamburger Bun\" wouldn't see the \"Hamburger Buns\" already in your pantry — so it looked missing when it wasn't. Now differences in spelling, capitalization, and singular vs. plural all resolve to one canonical ingredient, and common synonyms (Ketchup / Catsup / Tomato Ketchup, Mayo / Mayonnaise) are treated as the same item too. It's fully deterministic — no guessing — and genuinely different items stay separate (whole milk and 2% milk, or a beef patty and ground beef, aren't merged). The result: fewer duplicate pantry entries, and recipes correctly see what you already have.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-07-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/meals/pantry/",
+      "created_at": "2026-07-20T16:00:00Z",
+      "updated_at": "2026-07-20T16:00:00Z"
+    }
   }
 ]

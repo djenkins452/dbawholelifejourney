@@ -78,6 +78,15 @@ class Ingredient(TimeStampedModel):
         blank=True,
         help_text='Alternative names: ["chicken", "boneless chicken", "pollo"]',
     )
+    # Deterministic identity key (Ingredient Intelligence): canonical_name normalized for
+    # case/punctuation/whitespace/singular-plural, so "Hamburger Buns" and "Hamburger Bun"
+    # share ONE key and resolve to the same canonical ingredient. Kept fresh in save().
+    normalized_name = models.CharField(
+        max_length=200,
+        blank=True,
+        db_index=True,
+        help_text="Deterministic identity key derived from canonical_name",
+    )
 
     # Classification
     category = models.CharField(
@@ -180,6 +189,16 @@ class Ingredient(TimeStampedModel):
 
     def __str__(self):
         return self.canonical_name
+
+    def save(self, *args, **kwargs):
+        # Keep the deterministic identity key in sync with canonical_name on every write,
+        # so admin edits and any code path stay canonical without a separate step.
+        from apps.meals.services.ingredient_intelligence import normalize_name
+        self.normalized_name = normalize_name(self.canonical_name or "")
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "canonical_name" in update_fields:
+            kwargs["update_fields"] = list(update_fields) + ["normalized_name"]
+        super().save(*args, **kwargs)
 
     def matches_text(self, text):
         """Check if text matches this ingredient's name or aliases."""

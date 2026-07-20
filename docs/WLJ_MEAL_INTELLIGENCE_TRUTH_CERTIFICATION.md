@@ -185,6 +185,7 @@ transition has a canonical producer and a passing behavioral proof. Tests live i
 | 12 | Package pantry unit → culinary recipe unit deduction | `container_truth.resolve_net_content` + `convert_between` (via `_deduct_one`) | `test_pantry_container_truth` (8 reference ingredients + partial/insufficient) | ✅ |
 | 13 | Missing bridging fact → actionable ask (fail closed) | `_deduct_one` → `needs_container_info` | `test_pantry_container_truth` · `test_preparation` | ✅ |
 | 14 | Manual entry → same canonical PantryItem as every scan (Capture Once) | `PantryManualAddView` → `finalize_pantry_item(source="manual")`; ingredient reuse via `get_or_create_ingredient`; up-front `capture_container_truth` | `test_pantry_manual_entry` (9 — incl. end-to-end preparation consumption) | ✅ |
+| 15 | Ingredient identity → one canonical row per real ingredient (case/plural/synonym), deterministically | `ingredient_intelligence.resolve_ingredient` (exact→alias→`normalized_name`→create); `merge_duplicate_ingredients` folds legacy dupes | `test_ingredient_intelligence` (17 — incl. the reported Bun/Buns gap bug) | ✅ |
 
 **Container Truth invariants** (enforced): net contents of one full container
 (`net_content`) is distinct from the remaining amount (`quantity`); **Remaining Truth is

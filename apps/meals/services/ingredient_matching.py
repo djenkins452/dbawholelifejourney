@@ -1,16 +1,17 @@
 """
 Ingredient Matching Service
 
-Matches parsed ingredient names to canonical Ingredient records.
-Uses deterministic matching first, then fuzzy matching, with AI fallback.
+Thin compatibility layer over the canonical Ingredient Intelligence authority
+(``apps.meals.services.ingredient_intelligence``). Both resolvers below are now fully
+DETERMINISTIC (exact canonical → explicit alias → normalized identity key) — the previous
+fuzzy substring/Jaccard matching has been removed, per the Ingredient Intelligence contract:
+no fuzzy, no AI, in any production resolution; every relationship is explainable.
 """
 
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
-
-from django.db.models import Q
 
 logger = logging.getLogger(__name__)
 
@@ -21,148 +22,42 @@ class IngredientMatch:
     ingredient_id: Optional[int]
     canonical_name: str
     confidence: Decimal
-    match_method: str  # "exact", "alias", "fuzzy", "ai", "none"
+    match_method: str  # "exact", "alias", "normalized", "none"
 
 
 def match_ingredient_name(name: str) -> IngredientMatch:
-    """
-    Match a parsed ingredient name to a canonical Ingredient.
+    """Deterministically link a parsed name to a canonical Ingredient WITHOUT creating one.
 
-    Strategy (in order):
-    1. Exact match on canonical_name
-    2. Alias match
-    3. Substring/contains match
-    4. Word overlap scoring
-    5. Return no match (caller can invoke AI)
+    Delegates to the canonical resolver (read-only). Returns ``ingredient_id=None`` /
+    ``match_method="none"`` when there is no deterministic match — honest, never a fuzzy guess.
     """
-    from apps.meals.models import Ingredient
+    from apps.meals.services.ingredient_intelligence import resolve_ingredient
 
     if not name:
-        return IngredientMatch(
-            ingredient_id=None,
-            canonical_name="",
-            confidence=Decimal("0"),
-            match_method="none",
-        )
+        return IngredientMatch(None, "", Decimal("0"), "none")
 
     name_lower = name.lower().strip()
+    ing = resolve_ingredient(name, create=False)
+    if ing is None:
+        return IngredientMatch(None, name, Decimal("0"), "none")
 
-    # 1. Exact canonical match
-    exact = Ingredient.objects.filter(canonical_name__iexact=name_lower).first()
-    if exact:
-        return IngredientMatch(
-            ingredient_id=exact.id,
-            canonical_name=exact.canonical_name,
-            confidence=Decimal("1.0"),
-            match_method="exact",
-        )
-
-    # 2. Alias match — check JSON aliases field
-    # Filter candidates that might contain our name in aliases
-    for ingredient in Ingredient.objects.all().iterator():
-        if ingredient.matches_text(name_lower):
-            return IngredientMatch(
-                ingredient_id=ingredient.id,
-                canonical_name=ingredient.canonical_name,
-                confidence=Decimal("0.95"),
-                match_method="alias",
-            )
-
-    # 3. Contains match — ingredient name contains our search or vice versa
-    contains_qs = Ingredient.objects.filter(
-        Q(canonical_name__icontains=name_lower)
-        | Q(canonical_name__in=[name_lower])
-    )
-    # Also check if our name contains the ingredient name
-    all_ingredients = Ingredient.objects.values_list("id", "canonical_name")
-    best_contains = None
-    best_overlap = 0
-
-    for ing_id, canonical in all_ingredients:
-        canonical_lower = canonical.lower()
-        # Our name contains the canonical name
-        if canonical_lower in name_lower:
-            overlap = len(canonical_lower) / max(len(name_lower), 1)
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_contains = (ing_id, canonical)
-        # Canonical contains our name
-        elif name_lower in canonical_lower:
-            overlap = len(name_lower) / max(len(canonical_lower), 1)
-            if overlap > best_overlap:
-                best_overlap = overlap
-                best_contains = (ing_id, canonical)
-
-    if best_contains and best_overlap > 0.5:
-        return IngredientMatch(
-            ingredient_id=best_contains[0],
-            canonical_name=best_contains[1],
-            confidence=Decimal(str(round(min(best_overlap + 0.2, 0.90), 2))),
-            match_method="fuzzy",
-        )
-
-    # 4. Word overlap scoring
-    name_words = set(name_lower.split())
-    best_word_match = None
-    best_word_score = 0
-
-    for ing_id, canonical in all_ingredients:
-        canonical_words = set(canonical.lower().split())
-        overlap = len(name_words & canonical_words)
-        total = len(name_words | canonical_words)
-        if total > 0:
-            score = overlap / total  # Jaccard similarity
-            if score > best_word_score and score >= 0.3:
-                best_word_score = score
-                best_word_match = (ing_id, canonical)
-
-    if best_word_match and best_word_score >= 0.3:
-        return IngredientMatch(
-            ingredient_id=best_word_match[0],
-            canonical_name=best_word_match[1],
-            confidence=Decimal(str(round(min(best_word_score + 0.1, 0.80), 2))),
-            match_method="fuzzy",
-        )
-
-    # 5. No match found
-    return IngredientMatch(
-        ingredient_id=None,
-        canonical_name=name,
-        confidence=Decimal("0"),
-        match_method="none",
-    )
+    # Classify how it matched (for reporting/confidence), deterministically.
+    if (ing.canonical_name or "").lower() == name_lower:
+        method, confidence = "exact", Decimal("1.0")
+    elif name_lower in (a.lower() for a in (ing.aliases or [])):
+        method, confidence = "alias", Decimal("1.0")
+    else:
+        method, confidence = "normalized", Decimal("0.95")
+    return IngredientMatch(ing.id, ing.canonical_name, confidence, method)
 
 
 def get_or_create_ingredient(name: str, category: str = "other") -> "Ingredient":
+    """Resolve a name to its canonical Ingredient, creating one only if none exists.
+
+    The single row-creating seam for every acquisition path (recipe enrichment, manual entry,
+    barcode, receipt, vision). Delegates to the canonical resolver so all paths converge on
+    one identity per real ingredient and surface-form variants are recorded as aliases.
     """
-    Get an existing ingredient or create a new one.
+    from apps.meals.services.ingredient_intelligence import resolve_ingredient
 
-    Used when the matching service can't find a match and we need
-    to create a new canonical ingredient.
-    """
-    from django.db import IntegrityError, transaction
-
-    from apps.meals.models import Ingredient
-
-    name_lower = name.lower().strip()
-
-    # Try exact match first
-    ingredient = Ingredient.objects.filter(canonical_name__iexact=name_lower).first()
-    if ingredient:
-        return ingredient
-
-    # Create new — guard the unique(canonical_name) constraint so concurrent recipe
-    # enrichment racing on the same ingredient re-fetches instead of crashing.
-    try:
-        with transaction.atomic():
-            ingredient = Ingredient.objects.create(
-                canonical_name=name_lower,
-                category=category,
-            )
-        logger.info(f"Created new ingredient: {name_lower} (category: {category})")
-        return ingredient
-    except IntegrityError:
-        existing = Ingredient.objects.filter(canonical_name__iexact=name_lower).first()
-        if existing:
-            return existing
-        raise
+    return resolve_ingredient(name, category=category, create=True)

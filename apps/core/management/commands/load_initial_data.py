@@ -1117,6 +1117,8 @@ class Command(BaseCommand):
         self._reset_rich_confirmation_release_notes(DataLoadConfig, force, verbosity)
         # Manual Pantry Entry (PK 284)
         self._reset_manual_pantry_entry_release_notes(DataLoadConfig, force, verbosity)
+        # Ingredient Intelligence (PK 286)
+        self._reset_ingredient_intelligence_release_notes(DataLoadConfig, force, verbosity)
 
         self._reset_journal_editor_layout_release_notes(DataLoadConfig, force, verbosity)
 
@@ -8359,6 +8361,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset manual pantry entry release notes FAILED: {e}'))
+
+    def _reset_ingredient_intelligence_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 286 (Ingredient
+        Intelligence — deterministic canonical ingredient identity)."""
+        reset_tracker_name = 'reset_ingredient_intelligence_2026_07_20'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for ingredient intelligence (PK 286)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for ingredient intelligence', 'command',
+                'One-time reset: added PK 286 for Ingredient Intelligence')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset ingredient intelligence release notes FAILED: {e}'))
 
     def _reset_journal_passive_recognition_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes after extending PK 277 to cover passive

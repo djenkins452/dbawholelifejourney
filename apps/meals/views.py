@@ -573,24 +573,19 @@ class PantrySetContainerView(LoginRequiredMixin, MealsHouseholdMixin, View):
 class PantryIngredientSearchView(LoginRequiredMixin, MealsHouseholdMixin, View):
     """Type-ahead ingredient search for manual pantry entry (Pantry Smart Search behavior).
 
-    Case-insensitive substring match on canonical name and aliases, preferring EXISTING
-    canonical ingredients so the user reuses them instead of creating duplicates. Read-only
-    JSON; user-scoped only by authentication (ingredients are a shared catalog).
+    Powered by the single Ingredient Intelligence search authority — case-insensitive
+    substring across canonical name, aliases, and the normalized identity key — so the user
+    reuses EXISTING canonical ingredients instead of creating duplicates. Read-only JSON;
+    user-scoped only by authentication (ingredients are a shared catalog).
     """
 
     def get(self, request):
-        from django.db.models import Q
+        from apps.meals.services.ingredient_intelligence import search_ingredients
 
         q = (request.GET.get("q") or "").strip()
         results = []
         if len(q) >= 1:
-            qs = (
-                Ingredient.objects.filter(
-                    Q(canonical_name__icontains=q) | Q(aliases__icontains=q)
-                )
-                .order_by("canonical_name")[:12]
-            )
-            for ing in qs:
+            for ing in search_ingredients(q, limit=12):
                 results.append({
                     "id": ing.id,
                     "name": ing.canonical_name,

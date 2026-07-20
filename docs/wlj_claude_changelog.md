@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — feat(meals): Ingredient Intelligence — canonical, deterministic ingredient identity
+
+Product validation exposed a foundational gap: recipe "Hamburger Bun" vs pantry "Hamburger Buns" resolved to two ingredients, so the pantry showed a gap while the item was stocked. Runtime investigation proved this is an **Ingredient identity** problem, not a Pantry/Recipe/Preparation one — and that identity was never actually defined.
+
+**Root cause (traced, file:line):** every row-creating path (recipe enrichment `tasks.py:448`, manual entry, barcode, receipt routing, vision confirm) funnels through `get_or_create_ingredient`, whose only de-dup was `canonical_name__iexact` — names stored verbatim, no normalization. The `aliases` field existed but was **never populated by any production path** (dead); `substitution_group`/`low_carb_alternative` likewise. `match_ingredient_name` used fuzzy substring/Jaccard matching (non-deterministic) only on the read side. Consumption is keyed on the FK, so it could never bridge two rows for one real ingredient.
+
+**Solution — one deterministic authority** (`apps/meals/services/ingredient_intelligence.py`), the single home for ingredient identity:
+- **`normalized_name`** — a stored, indexed identity key: `normalize_name()` lowercases, strips punctuation/whitespace, and singularizes the head word using conservative English plural rules (irregulars + `-ies→-y`, `-oes→-o`, `-*es`, `-s`; guarded against `-ss/-us/-is`, ≤3 chars). So "Hamburger Buns" and "Hamburger Bun" share ONE key; modifiers are preserved so "whole milk" ≠ "milk". Kept in sync by `Ingredient.save()`.
+- **`resolve_ingredient(name, category, create=)`** — THE resolver: exact canonical → explicit alias → normalized key → create. Surface variants that match by the normalized key are recorded as aliases (explainable, searchable). **No fuzzy, no AI.** `get_or_create_ingredient` and `match_ingredient_name` are now thin deterministic delegates (the fuzzy stages are removed); every acquisition path converges here.
+- **`search_ingredients()`** — the single search authority (canonical + aliases + normalized substring); `PantryIngredientSearchView` now uses it (so "burger"→Hamburger Bun, "ground"→Ground Beef/Turkey/Chicken, "ket"→Ketchup).
+- **`merge_duplicate_ingredients()`** — one-time deterministic fold of pre-existing duplicates (survivor = has-nutrition-source else lowest id): repoints RecipeIngredient + PantryItem (summing quantity + repointing InventoryTransactions on household conflict), folds names into aliases. Run by migration `meals/0019`, which also backfills `normalized_name` and seeds a small curated true-synonym alias set (seed skips the test DB).
+
+**Identity vs Substitution (the deciding architecture):** identity = same real-world thing (case/plural/synonym, brand-independent) → one canonical ingredient; substitution = different-but-interchangeable (Beef Patty vs Ground Beef; 2% vs Whole Milk) → NOT merged (that would destroy real product/nutrition differences). So Bun/Buns resolve to one; Beef Patty/Ground Beef and milk variants do not.
+
+**Files:** `apps/meals/services/ingredient_intelligence.py` (new — authority), `apps/meals/services/ingredient_matching.py` (now deterministic delegates; fuzzy removed), `apps/meals/models.py` (`Ingredient.normalized_name` + `save()` sync), `apps/meals/views.py` (search view → authority), migrations `meals/0018` (field) + `meals/0019` (backfill/merge/seed), `apps/meals/tests/test_ingredient_intelligence.py` (new — 17), `docs/WLJ_INGREDIENT_INTELLIGENCE.md` (new governing doc), Meal Intelligence Architecture + Truth Certification (row 15).
+
+**Verification:** `test_ingredient_intelligence` 17/17 incl. the exact reported bug (recipe "Hamburger Bun" + pantry "Hamburger Buns" → gap **available**, not missing), plural→one-row de-dup, alias resolution, no-fuzzy matching, merge with quantity-sum, and the save hook. Full affected regression green (recipe enrichment, receipt ingestion, vision scan, manual entry, search, inventory-gap, preparation, container-truth, services, views, food-lifecycle — ~296 tests); request-path safety contract 4/4; `makemigrations --check` → No changes; `check` clean.
+
 ## 2026-07-20 — refactor(journal): Edit screen — architectural review (RTE stays reusable; mood/tags ALWAYS default expanded, no silent persistence)
 
 **Final architectural review of the Journal Edit layout work (`templates/journal/entry_form.html`), two concerns.**

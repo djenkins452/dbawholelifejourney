@@ -82,7 +82,42 @@ def ingest_uploads(user, *, image_data=None, image_mime_type=None, images_list=N
             # (idempotent across re-uploads of the same content).
             if data and not artifact.is_durably_stored:
                 _queue_artifact_persistence(artifact.id, b64)
+                # Cache the bytes short-term so a FOLLOW-UP turn can RE-PERCEIVE this image
+                # while durable object storage is still pending (async). Without this, an
+                # active image the user keeps discussing ("how many ounces is it?") is
+                # "not available" until the persistence worker lands (prod artifact-continuity
+                # defect, 2026-07-20). TTL matches Conversation State's lifetime.
+                _cache_artifact_bytes(artifact.id, b64, mime)
     return images, attachments
+
+
+_ARTBYTES_TTL = 1800  # seconds — matches conversation_state TTL; the re-perception window
+
+
+def _artbytes_key(artifact_id):
+    return f"wlj:mi:artbytes:{artifact_id}"
+
+
+def _cache_artifact_bytes(artifact_id, b64, mime):
+    """Short-lived cache of an uploaded image's bytes so it can be re-perceived on a
+    follow-up before durable storage completes. Best-effort; never raises."""
+    try:
+        from django.core.cache import cache
+        cache.set(_artbytes_key(artifact_id), {"b64": b64, "mime": mime}, _ARTBYTES_TTL)
+    except Exception:  # pragma: no cover - defensive; cache is a best-effort accelerator
+        pass
+
+
+def _cached_artifact_bytes(artifact_id):
+    """(b64, mime) from the short-lived cache, or None."""
+    try:
+        from django.core.cache import cache
+        rec = cache.get(_artbytes_key(artifact_id))
+        if isinstance(rec, dict) and rec.get("b64"):
+            return rec["b64"], rec.get("mime") or "image/jpeg"
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return None
 
 
 def _queue_artifact_persistence(artifact_id, b64):
@@ -197,13 +232,23 @@ def perceive_images_for_artifacts(user, artifact_ids, *, max_total=8):
                 .filter(id__in=list(artifact_ids), user=user)
                 .exclude(status="rejected"))
         for a in rows:
-            if a.kind == "image" and a.is_durably_stored:
-                try:
-                    with default_storage.open(a.storage_ref, "rb") as fh:
-                        out.append((base64.b64encode(fh.read()).decode("utf-8"),
-                                    a.content_type or "image/jpeg"))
-                except Exception:
-                    logger.warning("perceive_images: image read failed id=%s", a.id)
+            if a.kind == "image":
+                loaded = False
+                if a.is_durably_stored:
+                    try:
+                        with default_storage.open(a.storage_ref, "rb") as fh:
+                            out.append((base64.b64encode(fh.read()).decode("utf-8"),
+                                        a.content_type or "image/jpeg"))
+                        loaded = True
+                    except Exception:
+                        logger.warning("perceive_images: image read failed id=%s", a.id)
+                if not loaded:
+                    # Durable storage still pending (async) — fall back to the short-lived
+                    # upload-bytes cache so an active image is re-perceivable on the very
+                    # next turn (artifact-continuity fix, 2026-07-20).
+                    cached = _cached_artifact_bytes(a.id)
+                    if cached:
+                        out.append((cached[0], cached[1]))
             elif a.kind == "video":
                 for fr in (a.frames or []):
                     b64 = fr.get("b64") if isinstance(fr, dict) else None

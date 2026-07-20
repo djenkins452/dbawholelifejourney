@@ -1,6 +1,6 @@
 # WLJ Chief-of-Staff — Conversation State Management (Governing Architecture)
 
-**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** → **Deterministic-Writers governance COMPLETE (2026-07-20): §4a documents the ONE writer authority + the reasoning-based mechanisms that may NEVER write it, runtime-proven and enforced by `test_conversation_state_writer_contract.py`.** AWAITING production validation.
+**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** → **Deterministic-Writers governance COMPLETE (2026-07-20): §4a documents the ONE writer authority + the reasoning-based mechanisms that may NEVER write it, runtime-proven and enforced by `test_conversation_state_writer_contract.py`.** → **Active-Artifact Continuity COMPLETE (2026-07-20): §4b — an active image/video is now RE-PERCEIVED (not just referenced) on follow-ups, with a bytes cache for the durable-storage-pending window (prod "the image isn't available" defect).** AWAITING production validation.
 **Date:** 2026-07-20
 **Runtime scope:** Danny's production runtime is `use_model_interface=True` → `CoSGateway.respond` → `ModelInterfaceService` (proven). All design and tests target that runtime.
 
@@ -127,6 +127,31 @@ active subject — only an upload or a `get_entity` result changes state. If a f
 the model to influence Conversation State, it must do so by performing a **deterministic action**
 (upload, retrieval, or a confirmed action) whose *result* WLJ records — never by writing the state
 from model output. This keeps Conversation State exactly as trustworthy as Current Context.
+
+## 4b. Active Artifact Re-Delivery (perceivability, not just reference)
+
+Preserving the active artifact's *reference* is necessary but not sufficient: an active
+**image or video** must stay **perceivable** across follow-ups — the model cannot answer "how
+many ounces is it?" from a reference it cannot see. (Production defect 2026-07-20: the artifact
+reference survived, but the model had only "image you uploaded" and answered "the image isn't
+available.") The completion (deterministic, general — image/video, not image-special-cased):
+
+- **Re-delivery:** on a turn with **no new upload**, the runtime reads `conversation_state
+  .active_artifact_ids(conversation)` and re-delivers that artifact's perceivable pixels/frames
+  (`perceive_images_for_artifacts`) into the turn's perception payload — so the active image/video
+  is **re-perceived**, exactly as on the upload turn. Bounded to the ACTIVE SUBJECT artifact;
+  ends the moment Conversation State supersedes or expires (§6/§8). (`cos_gateway/runtime.py`.)
+- **Pending-window bytes:** image re-perception previously required durable object storage, which
+  is written **asynchronously** — so an image uploaded *this* turn was not yet retrievable on the
+  *next* turn. Fix: at ingest the upload bytes are cached short-term (`_cache_artifact_bytes`,
+  TTL = Conversation State's), and `perceive_images_for_artifacts` falls back to that cache when
+  `is_durably_stored` is still false. Video frames already live on the artifact record (no gap).
+- **Documents** (PDF/receipt): their deterministically-extracted **text** is delivered via the
+  existing `conversation_artifacts` surface + `get_entity(domain='artifacts')`; the active-artifact
+  reference above keeps them addressable ("what does page 4 say?").
+
+This is exposure/completion of the existing capability — it adds no new writer (re-delivery is a
+READ of Conversation State) and no new store. `apps/ai/tests/test_conversation_state_artifact_continuity.py`.
 
 ## 5. State model (minimal, durable, reference-based — never model prose)
 

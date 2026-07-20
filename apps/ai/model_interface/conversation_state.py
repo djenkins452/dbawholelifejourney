@@ -144,6 +144,18 @@ def read(conversation, *, now=None) -> dict | None:
     return out if (out.get("active_subject") or out.get("active_artifacts")) else None
 
 
+def active_artifact_ids(conversation, *, now=None) -> list:
+    """The artifact id(s) of the CURRENT active-artifact subject — so a follow-up turn can
+    RE-PERCEIVE an active image/video/document and keep it SEEABLE, not merely referenced.
+    Returns [] when no (non-expired) active artifact. Read-path safe (reuses read()'s expiry;
+    this is a READ, never a write)."""
+    st = read(conversation, now=now) or {}
+    subj = st.get("active_subject") or {}
+    if subj.get("artifact") and subj.get("ref") is not None:
+        return [subj["ref"]]
+    return []
+
+
 def record_turn(conversation, *, attachments=None, retrieved_subject=None,
                 now=None) -> None:
     """Deterministically advance the working-state after a turn — the EVENT-DRIVEN write

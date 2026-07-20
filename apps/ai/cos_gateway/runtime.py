@@ -200,6 +200,24 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             from apps.ai.multimodal import link_artifacts_to_conversation
             link_artifacts_to_conversation(conversation.id, turn_artifact_ids)
 
+        # ACTIVE ARTIFACT CONTINUITY — when there is NO new upload this turn but Conversation
+        # State still holds an active artifact (an image/video the user is discussing),
+        # RE-DELIVER its perceivable pixels/frames so the model can still SEE it on a follow-up
+        # ("how many ounces is it?"). Conversation State keeps the artifact ACTIVE, not merely
+        # referenced — otherwise the model has only a reference it cannot perceive and answers
+        # "the image isn't available" (prod defect, 2026-07-20). General (image + video; the
+        # bytes cache covers the durable-storage-pending window). Deterministic; never fatal.
+        if not attachments:
+            try:
+                from apps.ai.model_interface import conversation_state as _cs
+                active_ids = _cs.active_artifact_ids(conversation)
+                if active_ids:
+                    from apps.ai.multimodal import perceive_images_for_artifacts
+                    perceive_images = (perceive_images or []) + perceive_images_for_artifacts(
+                        user, active_ids)
+            except Exception:
+                logger.warning("cos_gateway: active-artifact re-delivery skipped", exc_info=True)
+
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:
             from apps.ai.model_interface.tasks import run_model_interface_generation

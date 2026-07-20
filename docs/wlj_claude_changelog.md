@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — fix(cos): Conversation State — active-artifact CONTINUITY (re-perceive, not just reference)
+
+**Production defect:** user uploads an image ("What is this?" → "French's mustard"), then "How many ounces is it?" → *"I need more context"*, then "the bottle I just sent you" → *"the image isn't available right now."* The uploaded artifact was lost across follow-ups.
+
+**Runtime trace (real path, both sync + streaming worker) — the writer is NOT at fault.** Proven: on the image-upload turn `record_turn` fires with `attachments=[{artifact_id, kind:image}]` and Conversation State correctly writes `active_subject.ref=<artifact>`; it **survives** into turn 2 and is delivered in the Executive Context + salient lead. **Root cause is downstream, a two-layer Conversation-State *completeness* gap** (not a writer/state gap): (1) the follow-up turn never **re-delivered the active artifact's perceivable pixels** — the model had only the reference "image you uploaded", could not *see* it, and did not retrieve; (2) image re-perception required durable object storage, which is written **asynchronously** — so an image uploaded this turn was `is_durably_stored=False` on the next turn and "not available".
+
+**Smallest architectural fix (general — image/video, not image-special-cased; no new writer, no new store):**
+- `cos_gateway/runtime.py` — on a turn with **no new upload**, read `conversation_state.active_artifact_ids()` and re-deliver that artifact's pixels/frames (`perceive_images_for_artifacts`) into the perception payload, so the active image/video is **re-perceived** on follow-ups (both sync and streaming paths). Bounded to the active subject; ends on supersession/expiry.
+- `apps/ai/multimodal.py` — cache the upload bytes short-term at ingest (`_cache_artifact_bytes`, TTL = Conversation State's) and have `perceive_images_for_artifacts` fall back to that cache when `is_durably_stored` is still false, so re-perception works during the durable-storage-pending window.
+- `apps/ai/model_interface/conversation_state.py` — new `active_artifact_ids()` READ helper (not a writer; the writer contract is unaffected).
+
+**Verification:** reproduced at the deterministic layer AND on the real gateway — post-fix, the follow-up re-perceives the image (`perceive_images_for_artifacts([id]) → 1 image` from cache despite pending storage) and the model answers about the uploaded image instead of "I need more context". New `test_conversation_state_artifact_continuity.py` (image/video/PDF continuity, cache re-perception, supersession/expiry) + existing conversation-state + writer-contract = **23 OK**; `check` clean; no migration. **This was an INCOMPLETE IMPLEMENTATION of the capability (reference preserved, perceivability not), now completed — not a new Conversation State gap.** Doc §4b. AWAITING production validation.
+
 ## 2026-07-20 — feat(journal): Write Together — Conversation Style, Pause, natural barge-in + remembered pacing
 
 The user controls the **rhythm** of a Journal conversation now, instead of the Chief of Staff assuming when they're finished. All in the voice layer of the dedicated Write Together / Talk It Through conversation — no new reasoning engine, no backend conversation change, no schema change.

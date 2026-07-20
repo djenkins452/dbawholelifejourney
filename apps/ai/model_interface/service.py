@@ -374,12 +374,57 @@ class ModelInterfaceService:
                 "page's Current Context replace this active subject.")
         return "\n".join(parts)
 
+    @staticmethod
+    def _attachment_lead(standing_context: dict) -> str:
+        """Raise the salience of file(s) the user attached THIS turn so the model can never
+        overlook them. They already reach the model as `current_context.attachments` — but as
+        one small entry deep in a ~60k-char JSON the model asked the user to 'upload the journal
+        document' that was ALREADY attached (prod defect 2026-07-20). Same inline-salience fix
+        as _focus_lead/_profile_lead: single source (the SAME attachments), named + up front,
+        with what to DO. Empty when nothing is attached. Never raises."""
+        try:
+            atts = (standing_context.get("current_context") or {}).get("attachments") or []
+        except Exception:
+            return ""
+        lines = []
+        for a in atts:
+            if not isinstance(a, dict):
+                continue
+            name = a.get("filename") or a.get("kind") or "a file"
+            kind = a.get("kind") or "file"
+            if a.get("text"):
+                state = "readable — its extracted text is in current_context.attachments"
+            elif a.get("perception") == "processing":
+                state = ("still being read (perception in progress) — tell the user it's being "
+                         "read and to ask again in a moment")
+            elif a.get("perception") == "unreadable":
+                state = "could not be read"
+            else:
+                state = "attached"
+            aid = a.get("artifact_id")
+            lines.append(f'• "{name}" ({kind}) — {state}'
+                         + (f' [artifact_id={aid}]' if aid else ''))
+        if not lines:
+            return ""
+        return (
+            "\n\n=== FILE(S) THE USER ATTACHED THIS TURN (already available — do NOT ask them "
+            "to upload again) ===\n"
+            "The user attached the following to THIS message. Never tell the user to upload a "
+            "document that is listed here.\n"
+            + "\n".join(lines) +
+            "\nWhen they say import/add/read/summarize \"these\"/\"this\"/\"the document\", they "
+            "mean THESE attachment(s). To import a journal, call import_journal_entries with "
+            "source_artifact_id = the attachment's artifact_id (or its filename) — WLJ reads the "
+            "document itself and determines the dates."
+        )
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
         # the standing supportive/question-frequency relationship signals in the context above.
         return (
             CONSTITUTION
+            + self._attachment_lead(standing_context)
             + self._conversation_state_lead(standing_context)
             + self._focus_lead(standing_context)
             + self._profile_lead(standing_context)

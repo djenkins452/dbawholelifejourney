@@ -4540,7 +4540,7 @@
     "pk": 285,
     "fields": {
       "title": "A roomier, steadier Journal editor",
-      "description": "The journal writing area now fills the space available instead of sitting in a small box with a large empty gap below it — and it stays put when you pick a mood or a tag, so the editor no longer shrinks out from under you mid-entry. Mood, tags, and categories are open by default (it remembers if you'd rather keep them collapsed), and the Save Changes / Cancel buttons stay pinned just beneath your writing so they're always within reach.",
+      "description": "The journal writing area now fills the space available instead of sitting in a small box with a large empty gap below it — and it stays put when you pick a mood or a tag, so the editor no longer shrinks out from under you mid-entry. Mood, tags, and categories are open by default (collapsible whenever you like), and the Save Changes / Cancel buttons stay pinned just beneath your writing so they're always within reach.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-07-20",

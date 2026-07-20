@@ -631,19 +631,10 @@ document.addEventListener('DOMContentLoaded', function() {
         updateWordCount(); // Initial count
     }
 
-    // Mood/tags disclosure: default EXPANDED (HTML `open`), but remember the user's last
-    // choice so a deliberate collapse persists across visits. Never fails the page.
-    var details = document.querySelector('.journal-details');
-    if (details) {
-        try {
-            var savedOpen = localStorage.getItem('wlj-journal-details-open');
-            if (savedOpen !== null) details.open = (savedOpen === '1');
-        } catch (e) { /* private mode / disabled storage — keep the default */ }
-        details.addEventListener('toggle', function () {
-            try { localStorage.setItem('wlj-journal-details-open', details.open ? '1' : '0'); }
-            catch (e) { /* ignore */ }
-        });
-    }
+    // Mood/tags disclosure always DEFAULTS EXPANDED (the HTML `open` attribute). The user can
+    // collapse it within a session, but each visit re-opens it — we do NOT silently persist a
+    // collapse, which would override the "default expanded" requirement. (If persistence is
+    // wanted later, it should be an explicit, opt-in user preference — not implicit local state.)
 });
 </script>
 {% endblock %}

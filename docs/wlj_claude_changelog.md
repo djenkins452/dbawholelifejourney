@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — refactor(journal): Edit screen — architectural review (RTE stays reusable; mood/tags ALWAYS default expanded, no silent persistence)
+
+**Final architectural review of the Journal Edit layout work (`templates/journal/entry_form.html`), two concerns.**
+
+**Concern 1 — the Journal page owns the flex layout; the shared RTE stays reusable.** VERIFIED, no change needed. `git show 33561018 --stat` confirms the layout change touched only the journal template (+ release note/loader) — the shared editor (`static/js/wlj-rich-text.js`, `static/css/wlj-rich-text.css`) was untouched. Every fill-chain override is **scoped to `.notebook-body`** (`.notebook-body .wlj-rte`, `.notebook-body .wlj-rte-content`, `.notebook-body .ProseMirror`), so no Journal-specific height behavior leaks into the RTE; other domains mount the same editor with its default inline `min-height`. The page owns the layout; the component stays generic.
+
+**Concern 2 — localStorage silently overrode the "default expanded" requirement (FIXED).** The prior commit remembered the collapse choice in `localStorage` (`wlj-journal-details-open`), which meant a user who once collapsed the disclosure would *never again* see it expanded — silently contradicting the product requirement ("mood and tags default expanded"). Removed the localStorage read/write entirely. The disclosure now **always defaults expanded** via the HTML `open` attribute; it is still manually collapsible **within a session**, but each visit re-opens it. Persistence, if ever wanted, should be an explicit opt-in user preference — not implicit local state that overrides the stated default. (Comment in the script documents the deliberate choice.)
+
+**Layout stability (verified — now pure CSS, no JS state):** the fill-chain + sticky footer hold across validation errors + review banner (harness-verified: banner top, title/body errors inline, editor fills, actions pinned), failed save (server re-renders identical CSS), browser refresh / back navigation (`<details open>` default reapplies — no stored state to fight), window resize (flex + `dvh`, verified desktop↔mobile), and editor focus after a save failure (body preserved by form redisplay; layout is CSS-only so focus does not perturb it).
+
+**Files:** MODIFIED `templates/journal/entry_form.html` (removed localStorage remember block → deliberate-default comment), `apps/core/fixtures/release_notes.json` (PK 285 wording — dropped the "remembers if collapsed" claim). Template/fixture only — no static assets, no migration. **Why:** the shared editor must stay reusable across domains, and a requested UI default must not be silently overridden by remembered local state.
+
 ## 2026-07-20 — fix(journal): Edit screen — editor fills the space (no collapse), mood/tags expanded, actions pinned
 
 **UX defect + enhancements on the Journal Edit screen (`templates/journal/entry_form.html`).**

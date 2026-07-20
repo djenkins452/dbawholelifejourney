@@ -4502,5 +4502,21 @@
       "created_at": "2026-07-20T12:00:00Z",
       "updated_at": "2026-07-20T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 283,
+    "fields": {
+      "title": "Confirm your Chief of Staff's actions with a tap — or just say the word",
+      "description": "When your Chief of Staff needs your go-ahead before doing something — importing entries, saving measurements, deleting records — it now shows you exactly what will happen and gives you clear action buttons (like Import or Cancel). Tap a button to confirm instantly, or just type naturally the way you always have — 'yes', 'go ahead', 'cancel'. Both do the same thing. The obvious next step is always visible, so you never have to wonder what to type, and nothing happens until you confirm.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-07-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-07-20T13:00:00Z",
+      "updated_at": "2026-07-20T13:00:00Z"
+    }
   }
 ]

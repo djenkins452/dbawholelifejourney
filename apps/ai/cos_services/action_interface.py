@@ -57,10 +57,12 @@ def _map_result(env: dict) -> dict:
     }
 
 
-def request_action(user, action, params=None, *, turn_id="", surface="") -> dict:
-    """Request one action. If it needs confirmation, WLJ mints a BOUND confirmation and
-    returns `confirmation_required` with its `confirmation_id` + summary; otherwise it
-    executes and returns the real result.
+def request_action(user, action, params=None, *, turn_id="", surface="",
+                   conversation_id=None) -> dict:
+    """Request one action. If it needs confirmation, WLJ mints a BOUND, CONVERSATION-BOUND
+    confirmation carrying its presentation-independent Rich Confirmation `view`, and returns
+    `confirmation_required` with the client-ready confirmation payload; otherwise it executes
+    and returns the real result.
     """
     params = dict(params) if isinstance(params, dict) else {}
     try:
@@ -68,10 +70,26 @@ def request_action(user, action, params=None, *, turn_id="", surface="") -> dict
         out = _map_result(env)
         if out["status"] == CONFIRMATION_REQUIRED:
             summary = _confirm.summarize(action, params)
-            handle = _confirm.create(user, action, params, summary)
+            # Build the presentation-independent view (title/summary/preview/actions) from
+            # the handler's structured confirmation_detail — the ONE source both the on-screen
+            # card and the typed pre-parser read.
+            try:
+                from apps.ai.confirmation_contract import build_view
+                view = build_view(action, params, env.get("confirmation_detail"))
+            except Exception:  # pragma: no cover - never block a confirmation
+                logger.warning("action_interface: build_view failed action=%s", action,
+                               exc_info=True)
+                view = None
+            handle = _confirm.create(
+                user, action, params, summary, view=view,
+                conversation_id=conversation_id,
+                source_artifact_id=params.get("source_artifact_id"),
+            )
             if handle:
-                out["result"] = f"Please confirm: {summary}"
-                out["confirmation"] = handle          # {confirmation_id, summary, expires_in}
+                rec = _confirm.get(user, handle["confirmation_id"])
+                client = _confirm.client_view(rec) if rec else None
+                out["result"] = (env.get("message") or f"Please confirm: {summary}")
+                out["confirmation"] = client or handle   # rich client payload
             else:
                 out = {"status": ERROR, "code": "confirmation_store_failed",
                        "result": "I couldn't set up the confirmation. Please try again."}
@@ -91,35 +109,56 @@ def request_action(user, action, params=None, *, turn_id="", surface="") -> dict
     return out
 
 
-def resolve_pending_action(user, confirmation_id=None, *, confirm=True,
+def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=None,
                            turn_id="", surface="") -> dict:
-    """Resolve a SPECIFIC bound confirmation by id.
+    """Resolve a SPECIFIC bound confirmation by id — the ONE resolver for BOTH a clicked
+    button and a typed confirm/cancel.
 
-    confirm=True  → execute exactly that confirmation's action (confirmed=true), consume it.
-    confirm=False → cancel exactly that confirmation, consume it (declined).
-    A missing/expired/wrong id fails honestly — WLJ never executes "whatever is stored."
+    choice        → the selected action key (e.g. 'confirm'/'cancel'/'merge'/'keep_both').
+                    'cancel' (or confirm=False) declines. Any other key executes that
+                    action; for a binary confirmation the primary key is 'confirm'.
+    A missing id → `no_matching_confirmation`; a resolved/cancelled one → `already_resolved`
+    (never re-executes). WLJ never executes "whatever is stored."
     """
     rec = _confirm.get(user, confirmation_id)
     if not rec:
-        out = {"status": ERROR, "code": "no_matching_confirmation",
-               "result": ("I don't have a pending action with that confirmation to act "
-                          "on — it may have expired. Ask me again and I'll re-confirm.")}
+        # Distinguish an already-resolved replay from a truly-gone (expired) confirmation.
+        tomb = _confirm.peek(user, confirmation_id)
+        if tomb is not None and tomb.get("status") in ("resolved", "cancelled"):
+            code, msg = "already_resolved", "That confirmation was already handled."
+        else:
+            code, msg = ("no_matching_confirmation",
+                         "I don't have a pending action with that confirmation to act on — "
+                         "it may have expired. Ask me again and I'll re-confirm.")
+        out = {"status": ERROR, "code": code, "result": msg,
+               "confirmation_id": confirmation_id}
         record_tool_call(user, kind="action", tool_name="", turn_id=turn_id,
                          surface=surface, result_status=out["status"],
-                         result_digest={"confirmation_id": confirmation_id,
-                                        "code": "no_matching_confirmation"})
+                         result_digest={"confirmation_id": confirmation_id, "code": code})
         return out
+
+    # Resolve the chosen key: default primary is 'confirm'; 'cancel' always declines.
+    key = (choice or ("confirm" if confirm else "cancel"))
+    is_cancel = (key == "cancel") or (confirm is False and not choice)
 
     action = rec.get("action", "")
     params = dict(rec.get("params", {}) or {})
+    # N-way: an explicit action option may carry its own action/params (Medication Merge, …).
+    chosen = _find_option(rec, key) if (key not in ("confirm", "cancel")) else None
+    if chosen:
+        action = chosen.get("action") or action
+        if isinstance(chosen.get("params"), dict):
+            params.update(chosen["params"])
+        else:
+            params["choice"] = key
 
-    if not confirm:
-        _confirm.consume(user, confirmation_id)
-        out = {"status": DECLINED, "result": "Okay — I won't do that."}
+    if is_cancel:
+        _confirm.consume(user, confirmation_id, status="cancelled", choice="cancel")
+        out = {"status": DECLINED, "result": "Okay — I won't do that.",
+               "confirmation_id": confirmation_id}
         record_tool_call(user, kind="action", tool_name=action, turn_id=turn_id,
                          surface=surface, result_status=out["status"],
-                         result_digest={"confirmation_id": confirmation_id,
-                                        "declined": True})
+                         result_digest={"confirmation_id": confirmation_id, "declined": True})
         return out
 
     # Execute exactly this confirmation's action, authorized.
@@ -133,13 +172,44 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True,
         out = {"status": ERROR, "result": "That action could not be completed.",
                "code": "interface_error"}
     finally:
-        _confirm.consume(user, confirmation_id)  # single-use, always
+        _confirm.consume(user, confirmation_id, status="resolved", choice=key)  # single-use
 
+    out["confirmation_id"] = confirmation_id
     record_tool_call(
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},
         result_status=out["status"],
-        result_digest={"confirmation_id": confirmation_id,
+        result_digest={"confirmation_id": confirmation_id, "choice": key,
                        "result": out.get("result", "")},
     )
     return out
+
+
+def _find_option(rec, key):
+    """Locate an explicit N-way action option (by key) in the stored view, or None."""
+    actions = ((rec.get("view") or {}).get("actions")) or {}
+    for a in [actions.get("primary")] + list(actions.get("secondary") or []):
+        if isinstance(a, dict) and a.get("key") == key:
+            return a
+    return None
+
+
+def resolve_typed_confirmation(user, conversation_id, message, *, turn_id="",
+                               surface="") -> "dict | None":
+    """Deterministically resolve a TYPED confirm/cancel against the open confirmation bound to
+    this conversation — the eliminate-the-class fix so a plain 'yes'/'import'/'cancel' can NEVER
+    be lost to model interpretation. Returns the resolve result (with `confirmation_id`), or
+    None when there is no open confirmation or the message doesn't clearly match one — in which
+    case the normal model path handles it (it still sees pending_confirmations)."""
+    try:
+        from apps.ai.confirmation_contract import match_typed
+        for rec in _confirm.open_for_conversation(user, conversation_id):
+            key = match_typed(message, rec.get("view"))
+            if key:
+                return resolve_pending_action(
+                    user, rec.get("id"), choice=key,
+                    confirm=(key != "cancel"), turn_id=turn_id, surface=surface)
+    except Exception:  # pragma: no cover - never break a turn
+        logger.warning("action_interface.resolve_typed failed user=%s",
+                       getattr(user, "id", "?"), exc_info=True)
+    return None

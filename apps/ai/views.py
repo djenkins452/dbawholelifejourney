@@ -1147,6 +1147,12 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                 # reply with the submitted message.
                 if result.get('request_id'):
                     response_data['request_id'] = result['request_id']
+                # Rich Confirmation — the structured card for THIS turn, and (when a typed
+                # confirm/cancel was just resolved) which prior card to mark resolved.
+                if envelope.meta.get('confirmation'):
+                    response_data['confirmation'] = envelope.meta['confirmation']
+                if envelope.meta.get('confirmation_resolved'):
+                    response_data['confirmation_resolved'] = envelope.meta['confirmation_resolved']
             else:
                 # Backwards compatibility for string response
                 response_data = {
@@ -1552,6 +1558,10 @@ class ConversationHistoryView(LoginRequiredMixin, AssistantMixin, View):
                     msg_data['quick_replies'] = msg.quick_replies
                 elif msg.quick_reply_used:
                     msg_data['quick_reply_used'] = msg.quick_reply_used
+                # Rich Confirmation — re-render the confirmation card on history load so it
+                # survives reload (in whatever status it now holds).
+                if getattr(msg, 'confirmation', None):
+                    msg_data['confirmation'] = msg.confirmation
                 # Phase 6.7: surface lifecycle metadata (request_id,
                 # status, stream_interrupted) so the client can recover
                 # interrupted requests after navigation or disconnect.
@@ -2176,6 +2186,81 @@ class ReflectionPromptUsedView(LoginRequiredMixin, View):
 # =============================================================================
 # QUICK REPLY HANDLING
 # =============================================================================
+
+class ConfirmActionView(LoginRequiredMixin, AssistantMixin, View):
+    """Deterministic Rich Confirmation resolution — POST /assistant/api/confirm/.
+
+    A clicked confirmation action resolves the SAME bound confirmation as a typed 'yes',
+    through the SAME engine (`resolve_pending_action`) — with NO model call and no model
+    cost. Body: {confirmation_id, choice}. Returns the real execution result as the next
+    assistant turn plus `confirmation_resolved` so the client marks the card resolved.
+    User-scoped, single-use, replay/expiry-safe (the resolver validates the bound record).
+    """
+
+    def post(self, request, *args, **kwargs):
+        enabled, error = self.check_personal_assistant_enabled()
+        if not enabled:
+            return JsonResponse({'success': False, 'error': error}, status=200)
+
+        try:
+            data = json.loads(request.body or '{}')
+        except (ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+
+        confirmation_id = (data.get('confirmation_id') or '').strip()
+        choice = (data.get('choice') or 'confirm').strip()
+        if not confirmation_id:
+            return JsonResponse({'success': False,
+                                 'error': 'confirmation_id is required'}, status=400)
+
+        from apps.ai.cos_gateway.runtime import _mark_prior_confirmation
+        from apps.ai.cos_services.action_interface import resolve_pending_action
+        from apps.ai.model_interface import confirmation as _confirm
+
+        # Bind the result to the confirmation's OWN conversation (from the bound record).
+        rec = _confirm.peek(request.user, confirmation_id)
+        conversation_id = (rec or {}).get('conversation_id')
+
+        resolved = resolve_pending_action(
+            request.user, confirmation_id, choice=choice,
+            confirm=(choice != 'cancel'), turn_id='confirm-endpoint', surface='chat')
+
+        status = resolved.get('status')
+        code = resolved.get('code')
+        card_status = ('cancelled' if status == 'declined'
+                       else 'resolved' if status == 'ok'
+                       else 'already_resolved' if code == 'already_resolved'
+                       else 'expired' if code == 'no_matching_confirmation'
+                       else 'error')
+        text = resolved.get('result') or ''
+        resolved_meta = {'confirmation_id': confirmation_id, 'status': card_status}
+
+        conversation = None
+        if conversation_id:
+            try:
+                conversation = AssistantConversation.objects.get(
+                    id=conversation_id, user=request.user)
+            except AssistantConversation.DoesNotExist:
+                conversation = None
+        if conversation is None:
+            conversation = AssistantConversation.get_or_create_active(request.user)
+
+        # Persist the outcome as an assistant turn so the transcript is faithful on reload.
+        if text and card_status in ('resolved', 'cancelled'):
+            AssistantMessage.objects.create(
+                conversation=conversation, role='assistant', content=text,
+                message_type='text',
+                metadata={'cos_path': 'confirm_endpoint', 'status': 'completed',
+                          'confirmation_resolved': resolved_meta})
+        _mark_prior_confirmation(conversation, resolved_meta)
+
+        return JsonResponse({
+            'success': status in ('ok', 'declined'),
+            'response': text,
+            'conversation_id': conversation.id,
+            'confirmation_resolved': resolved_meta,
+        })
+
 
 class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
     """

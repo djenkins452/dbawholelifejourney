@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/feedback/', views.MessageFeedbackView.as_view(), name='api_feedback'),
     path('api/clear/', views.ClearConversationView.as_view(), name='api_clear'),
     path('api/quick-reply/', views.QuickReplyView.as_view(), name='api_quick_reply'),
+    path('api/confirm/', views.ConfirmActionView.as_view(), name='api_confirm'),
 
     # Daily Priorities
     path('api/priorities/', views.DailyPrioritiesView.as_view(), name='api_priorities'),

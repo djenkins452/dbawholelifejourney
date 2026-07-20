@@ -91,20 +91,27 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
             "I reached the model-interface path, but the model returned an empty "
             "response after tool execution. Please try again."
         )
+        # RICH CONFIRMATION — bind any confirmation minted this turn to the conversation and
+        # surface the client card on the streaming `done` event + persist it for reload.
+        from apps.ai.model_interface import confirmation as _confirm
+        card = _confirm.bind_conversation(user, conversation.id)
         snap["text"] = answer
-        snap["events"].append({
-            "type": "done",
-            "data": {"conversation_id": conversation.id,
+        done_data = {"conversation_id": conversation.id,
                      "message_id": assistant_msg.id,
-                     "cos_path": "model_interface"},
-        })
+                     "cos_path": "model_interface"}
+        if card:
+            done_data["confirmation"] = card
+        snap["events"].append({"type": "done", "data": done_data})
         snap["status"] = "done"
         assistant_msg.content = answer
+        if card:
+            assistant_msg.confirmation = card
         _md = dict(assistant_msg.metadata or {})
         _md.update({"status": "completed",
                     "tools_called": result.get("tools_called", [])})
         assistant_msg.metadata = _md
-        assistant_msg.save(update_fields=["content", "metadata"])
+        _fields = ["content", "metadata"] + (["confirmation"] if card else [])
+        assistant_msg.save(update_fields=_fields)
         conversation.updated_at = timezone.now()
         conversation.save(update_fields=["updated_at"])
 

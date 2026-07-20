@@ -685,6 +685,15 @@ class AssistantMessage(models.Model):
         help_text="Quick reply buttons for user interaction (proactive check-ins)"
     )
 
+    # Rich Confirmation card (docs/WLJ_RICH_CONFIRMATION_ARCHITECTURE.md) — the
+    # presentation-independent confirmation view attached to this turn, persisted so the
+    # card re-renders on history load / reload. Null for non-confirmation messages.
+    # Schema: {confirmation_id, status, expires_in, title, summary, preview[], actions{}}.
+    confirmation = models.JSONField(
+        null=True, blank=True,
+        help_text="Rich Confirmation card for deterministic-action confirmation."
+    )
+
     # Proactive message flag - messages initiated by the system
     is_proactive = models.BooleanField(
         default=False,

@@ -1762,6 +1762,10 @@
                     } else if (!isUser) {
                         lastLoadedQuickReplies = null;
                     }
+                    // Rich Confirmation — re-render the confirmation card on reload.
+                    if (!isUser && msg.confirmation) {
+                        renderConfirmation(msg.confirmation);
+                    }
                     // Phase 6.8: surface lifecycle state on every
                     // assistant message that carries it (history-loaded
                     // messages already have lifecycle from the API).
@@ -2095,6 +2099,25 @@
                 }
             }
         });
+    }
+
+    /**
+     * Render a Rich Confirmation card via the ONE shared renderer (deterministic buttons).
+     * @param {Object} card - {confirmation_id, status, title, summary, preview[], actions{}}
+     */
+    function renderConfirmation(card) {
+        if (!card || !window.WLJConfirmation) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'assistant-confirmation';
+        messagesContainer.appendChild(wrap);
+        window.WLJConfirmation.render(wrap, card, {
+            onResult: function(text) { addMessage(text, false, true); }
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function applyConfirmationResolved(meta) {
+        if (window.WLJConfirmation && meta) window.WLJConfirmation.applyResolved(meta);
     }
 
     /**
@@ -2941,6 +2964,8 @@
                     if (data.options && data.options.length) {
                         renderOptions(data.options);
                     }
+                    if (data.confirmation) { renderConfirmation(data.confirmation); }
+                    if (data.confirmation_resolved) { applyConfirmationResolved(data.confirmation_resolved); }
                     if (data.navigation && data.navigation.url) {
                         renderNavigation(data.navigation);
                     }
@@ -3037,6 +3062,9 @@
                         if (evt.options && evt.options.length) {
                             renderOptions(evt.options);
                         }
+                        // Rich Confirmation card / typed-resolved update from done event
+                        if (evt.confirmation) { renderConfirmation(evt.confirmation); }
+                        if (evt.confirmation_resolved) { applyConfirmationResolved(evt.confirmation_resolved); }
                         // Render navigation link from done event
                         if (evt.navigation && evt.navigation.url) {
                             renderNavigation(evt.navigation);
@@ -3188,6 +3216,8 @@
                         clearPendingRequest();
                         finalizeStreamingMessage(msgEl, fullText);
                         if (evt.options && evt.options.length) renderOptions(evt.options);
+                        if (evt.confirmation) renderConfirmation(evt.confirmation);
+                        if (evt.confirmation_resolved) applyConfirmationResolved(evt.confirmation_resolved);
                         if (evt.navigation && evt.navigation.url) renderNavigation(evt.navigation);
                         if (evt.request_id) {
                             applyLifecycleBadge(msgEl, {
@@ -3294,6 +3324,9 @@
                     if (data.options && data.options.length) {
                         renderOptions(data.options);
                     }
+                    // Rich Confirmation card / typed-resolved update
+                    if (data.confirmation) { renderConfirmation(data.confirmation); }
+                    if (data.confirmation_resolved) { applyConfirmationResolved(data.confirmation_resolved); }
                     // Render navigation link
                     if (data.navigation && data.navigation.url) {
                         renderNavigation(data.navigation);

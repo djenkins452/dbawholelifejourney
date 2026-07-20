@@ -147,6 +147,25 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         if conversation is None:
             conversation = AssistantConversation.get_or_create_active(user)
 
+        # RICH CONFIRMATION — deterministic TYPED resolution (eliminate-the-class fix for the
+        # production "yes was lost" defect). When there is an OPEN confirmation bound to this
+        # conversation and the user's message clearly matches one of its actions' aliases
+        # ("yes"/"import"/"go ahead"/"cancel"…), resolve it deterministically through the SAME
+        # engine a button uses — the model is never the load-bearing path for a confirm/cancel.
+        # Only a text-only turn short-circuits; ambiguous text still flows to the model (which
+        # sees pending_confirmations and can resolve or clarify).
+        if message and not (kwargs.get("image_data") or kwargs.get("images_list")
+                            or kwargs.get("attachment_ids")):
+            from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+            resolved = resolve_typed_confirmation(
+                user, conversation.id, message,
+                turn_id=f"conv-{conversation.id}", surface=surface)
+            if resolved is not None:
+                return self._deliver_confirmation_result(
+                    user=user, surface=surface, conversation=conversation,
+                    message=message, resolved=resolved, bus=bus,
+                    stream=(stream or surface == SURFACE_CHAT_STREAM))
+
         # Multimodal arrival path — store each uploaded image as an artifact (provenance +
         # hash dedup) BEFORE generation, and produce the perception payload the model reads.
         # Runs for BOTH sync and streaming so the artifact_id exists regardless of path.
@@ -226,9 +245,13 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             "I reached the model-interface path, but the model returned an empty "
             "response after tool execution. Please try again."
         )
+        # RICH CONFIRMATION — if this turn minted a confirmation, bind it to the conversation
+        # and surface the client card (on the message for reload + in meta for the live turn).
+        from apps.ai.model_interface import confirmation as _confirm
+        card = _confirm.bind_conversation(user, conversation.id)
         AssistantMessage.objects.create(
             conversation=conversation, role="assistant", content=answer,
-            message_type="text",
+            message_type="text", confirmation=card,
             metadata={"cos_path": "model_interface", "status": "completed",
                       "tools_called": result.get("tools_called", [])},
         )
@@ -236,14 +259,78 @@ class ModelInterfaceRuntime(ConversationalRuntime):
             "COS_GATEWAY runtime=model_interface surface=%s sync user=%s answer_len=%d",
             surface, user.id, len(answer),
         )
+        meta = {"conversation_id": conversation.id,
+                "tools_called": result.get("tools_called", []),
+                # turn_id joins this answer to its ToolCallLog audit rows so a
+                # certification run can capture WHICH tool returned WHICH fact.
+                "turn_id": result.get("turn_id", "")}
+        if card:
+            meta["confirmation"] = card
+        return CoSResponse(text=answer, runtime=self.name, surface=surface, meta=meta)
+
+    def _deliver_confirmation_result(self, *, user, surface, conversation, message,
+                                     resolved, bus, stream):
+        """Persist + deliver a deterministically-resolved TYPED confirmation as the next
+        assistant turn — NO model call. Works for both transports; `confirmation_resolved`
+        tells the client which card to mark resolved/cancelled."""
+        from apps.ai.models import AssistantMessage
+        text = resolved.get("result") or "Done."
+        status = resolved.get("status")
+        card_status = ("cancelled" if status == "declined"
+                       else "resolved" if status == "ok" else "error")
+        resolved_meta = {"confirmation_id": resolved.get("confirmation_id"),
+                         "status": card_status}
+        AssistantMessage.objects.create(
+            conversation=conversation, role="user", content=message or "",
+            message_type="text")
+        assistant_msg = AssistantMessage.objects.create(
+            conversation=conversation, role="assistant", content=text,
+            message_type="text",
+            metadata={"cos_path": "model_interface", "status": "completed",
+                      "confirmation_resolved": resolved_meta})
+        # Reflect the resolution on the ORIGINAL confirmation card so reloads render it
+        # as resolved/cancelled rather than offering stale buttons.
+        _mark_prior_confirmation(conversation, resolved_meta)
+
+        if stream:
+            import uuid as _uuid
+            job_id = str(_uuid.uuid4())
+            snap = bus.new_snapshot(user.id, conversation.id)
+            snap["text"] = text
+            snap["events"].append({
+                "type": "done",
+                "data": {"conversation_id": conversation.id,
+                         "message_id": assistant_msg.id, "cos_path": "model_interface",
+                         "confirmation_resolved": resolved_meta}})
+            snap["status"] = "done"
+            bus.write(job_id, snap)
+            return CoSResponse(text="", runtime=self.name, surface=surface,
+                               stream_job_id=job_id,
+                               meta={"conversation_id": conversation.id,
+                                     "confirmation_resolved": resolved_meta})
         return CoSResponse(
-            text=answer, runtime=self.name, surface=surface,
+            text=text, runtime=self.name, surface=surface,
             meta={"conversation_id": conversation.id,
-                  "tools_called": result.get("tools_called", []),
-                  # turn_id joins this answer to its ToolCallLog audit rows so a
-                  # certification run can capture WHICH tool returned WHICH fact.
-                  "turn_id": result.get("turn_id", "")},
-        )
+                  "confirmation_resolved": resolved_meta})
+
+
+def _mark_prior_confirmation(conversation, resolved_meta):
+    """Stamp the resolved/cancelled status onto the message that originally carried this
+    confirmation card, so history/reload renders it in its final state. Best-effort."""
+    cid = (resolved_meta or {}).get("confirmation_id")
+    if not cid:
+        return
+    try:
+        from apps.ai.models import AssistantMessage
+        for m in AssistantMessage.objects.filter(
+                conversation=conversation, role="assistant",
+                confirmation__confirmation_id=cid)[:3]:
+            card = dict(m.confirmation or {})
+            card["status"] = resolved_meta.get("status", "resolved")
+            m.confirmation = card
+            m.save(update_fields=["confirmation"])
+    except Exception:  # pragma: no cover - defensive
+        logger.debug("rich-confirmation: mark_prior skipped", exc_info=True)
 
 
 class LegacyBethRuntime(ConversationalRuntime):

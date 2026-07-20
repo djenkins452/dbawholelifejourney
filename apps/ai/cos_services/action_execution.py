@@ -222,6 +222,8 @@ def execute_action(user, action, params):
             message=(rendered or getattr(result, "message", "") or
                      "This needs your confirmation before I log it."),
             code="confirmation_required",
+            # Structured preview for the Rich Confirmation view (title/summary/preview/actions).
+            confirmation_detail=getattr(result, "confirmation_detail", None),
         )
 
     _emit(uid, action_norm, "executed" if success else "failed",

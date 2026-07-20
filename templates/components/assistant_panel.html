@@ -734,6 +734,12 @@ any in-flight stream survive a focus-mode toggle untouched.
                 usedDiv.innerHTML = '<span class="ap-status-chip" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#6b7280;background:#f3f4f6;border-radius:9999px;padding:3px 10px;cursor:default;">✓ Responded</span>';
                 msg.appendChild(usedDiv);
             }
+            // Rich Confirmation card — the ONE shared renderer (deterministic button resolution).
+            if (msgData && msgData.confirmation && window.WLJConfirmation) {
+                window.WLJConfirmation.render(contentDiv, msgData.confirmation, {
+                    onResult: function(text) { addMessage(container, text, false, true); }
+                });
+            }
         } else {
             if (imageDataUrls && imageDataUrls.length > 0) {
                 var gridCss = imageDataUrls.length > 1
@@ -1160,7 +1166,11 @@ any in-flight stream survive a focus-mode toggle untouched.
                 hideTyping();
                 msgEl.remove();
                 if (data.success && data.response) {
-                    addMessage(container, data.response, false, true);
+                    addMessage(container, data.response, false, true, null,
+                               data.confirmation ? { confirmation: data.confirmation } : null);
+                    if (window.WLJConfirmation && data.confirmation_resolved) {
+                        window.WLJConfirmation.applyResolved(data.confirmation_resolved);
+                    }
                 } else {
                     addMessage(container, data.error || 'Something went wrong.', false, true);
                 }
@@ -1220,6 +1230,17 @@ any in-flight stream survive a focus-mode toggle untouched.
                         gotDone = true;
                         apClearPending();
                         apFinalizeStreamingMsg(msgEl, fullText);
+                        // Rich Confirmation — render the card / mark a typed-resolved card.
+                        if (window.WLJConfirmation) {
+                            if (evt.confirmation) {
+                                window.WLJConfirmation.render(msgEl, evt.confirmation, {
+                                    onResult: function(t) { addMessage(container, t, false, true); }
+                                });
+                            }
+                            if (evt.confirmation_resolved) {
+                                window.WLJConfirmation.applyResolved(evt.confirmation_resolved);
+                            }
+                        }
                     } else if (eventType === 'timeout') {
                         // The relay hit its single-connection cap; generation CONTINUES in
                         // the background and will persist. The widget reconnects by job_id;
@@ -1355,7 +1376,11 @@ any in-flight stream survive a focus-mode toggle untouched.
         .then(function(data) {
             hideTyping();
             if (data.success && data.response) {
-                addMessage(container, data.response, false, true);
+                addMessage(container, data.response, false, true, null,
+                           data.confirmation ? { confirmation: data.confirmation } : null);
+                if (window.WLJConfirmation && data.confirmation_resolved) {
+                    window.WLJConfirmation.applyResolved(data.confirmation_resolved);
+                }
                 if (voiceConversationMode) speakResponse(data.response);
             } else {
                 addMessage(container, data.error || 'Sorry, something went wrong.', false, true);

@@ -66,6 +66,10 @@ The repeatable 5-step process for bringing any truth domain to Chief-of-Staff co
 
 Invariants: **WLJ never renders a verdict** (healthy/concerning/positive/commitment) — it supplies the evidence bundle; the model judges. **Retrieve vs. search vs. analyze are distinct, discoverable tools** — chronological/latest → `get_entity`/`get_domain_state`; content/keyword ("entries mentioning X") → `search_history`; analytical synthesis ("themes/trends/patterns/advice about my records") → `get_analysis`.
 
+### 3e. Deterministic state has ONE writer authority — the model never writes truth
+
+Any deterministic state WLJ owns — a truth surface, Current Context, **Conversation State**, execution/decision state — has **one writer authority**, and it is written **only from concrete deterministic signals** (an uploaded artifact, a tool RESULT, a validated action/confirmation event, a page declaration, a DB record) — **never from the model's output, prose, summary, inferred topic, reflection, or any reasoning-based mechanism.** The conversational model REASONS OVER this state; it never CREATES it. The model's only influence is *which deterministic action it takes* (which tool it calls); WLJ records the **result** deterministically. If a feature seems to need the model to "set" deterministic state, route it through a deterministic action whose result WLJ records — do not write the state from model output. Protect each such authority with a **writer-contract test** (e.g. `apps/ai/tests/test_conversation_state_writer_contract.py`: only the authority module may write; the writer accepts no model-output parameter) so the boundary can never silently erode. (Origin: Conversation State governance, 2026-07-20; runtime-proven that a turn whose answer named a topic in prose produced no state.)
+
 ## 4. Prove root cause before changing code (runtime tracing)
 
 **Never modify code until you have PROVEN — not guessed — that it executed on the request that produced the behavior.** For any "app shows X, should show Y" (governing doc: `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`):

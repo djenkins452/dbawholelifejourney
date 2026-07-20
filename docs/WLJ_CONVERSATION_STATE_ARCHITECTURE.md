@@ -1,6 +1,6 @@
 # WLJ Chief-of-Staff — Conversation State Management (Governing Architecture)
 
-**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** AWAITING production validation.
+**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** → **Deterministic-Writers governance COMPLETE (2026-07-20): §4a documents the ONE writer authority + the reasoning-based mechanisms that may NEVER write it, runtime-proven and enforced by `test_conversation_state_writer_contract.py`.** AWAITING production validation.
 **Date:** 2026-07-20
 **Runtime scope:** Danny's production runtime is `use_model_interface=True` → `CoSGateway.respond` → `ModelInterfaceService` (proven). All design and tests target that runtime.
 
@@ -85,6 +85,48 @@ persisted in `AssistantConversation.metadata["conversation_state"]` (durable, at
 migration, correct grain). It **generalizes** — it does not fork — existing state: it reuses the
 `confirmation.py` pending store (read-through) and `MultimodalArtifact` provenance; it adds only the
 missing active-subject/active-artifact/last-answer pointers. No new per-domain or per-modality store.
+
+## 4a. Deterministic Writers (governance — who may modify Conversation State)
+
+**Conversation State is a closed, deterministic object. It is never an open-ended shared bag
+that arbitrary systems modify.** There is ONE writer authority — `conversation_state.py` — and
+it is invoked from exactly ONE runtime entry point (`ModelInterfaceService.generate`), from
+**concrete deterministic signals only**. Runtime-proven (writer instrumentation + source scan):
+the only callers of `record_turn`/`clear`/`_save` are within `apps/ai/model_interface/`, and no
+other module writes `metadata["conversation_state"]`. Enforced by
+`apps/ai/tests/test_conversation_state_writer_contract.py`.
+
+### Allowed writers (deterministic events the implementation actually supports)
+
+| Writer | Trigger (concrete signal) | Effect | Determinism |
+|--------|---------------------------|--------|-------------|
+| `ModelInterfaceService.generate` → `conversation_state.record_turn` | an **uploaded artifact** this turn (`attachments`, WLJ upload-ingest) | ACTIVATE/SUPERSEDE the active subject + active_artifacts | WLJ ingested the file; the model did not supply it |
+| ″ | an **artifact/entity retrieval** — the model called `get_entity`; the subject is derived by WLJ (`_subject_from_entity_result`) from the tool **RESULT** (retrieved identity / artifact id) | ACTIVATE/SUPERSEDE (or UPDATE) | derived from a WLJ-produced result, not model prose |
+| ″ | **no new signal** | PRESERVE (subject persists) / advance turn counter | pure bookkeeping |
+| `confirmation.py` `create` / `consume` | a **pending confirmation** created by the deterministic action path, or resolved/declined/cancelled via `resolve_pending_action` (**deterministic action execution / workflow transition / explicit completion / explicit cancellation**) | pending appears / is single-use consumed (read-through into the lead) | WLJ safe action path (Art I.7) |
+| `AssistantConversation.clear_messages()` (`metadata = {}`) | **conversation initialization / reset** | clears the whole working-state | deterministic reset |
+| `conversation_state.clear()` | an explicit deterministic reset hook (available; unwired today) | clears the working-state | deterministic |
+
+Every writer input is a **concrete runtime fact** — an uploaded artifact, a tool result, an
+action/confirmation event, or a conversation reset. The model's contribution is only *which tool
+it called*; WLJ extracts the state from the **result**, deterministically.
+
+### What may NEVER write Conversation State
+
+Conversation State is **never** created or mutated by any reasoning-based mechanism:
+
+- OpenAI (or any provider) reasoning or its free-text answer
+- transcript summarization / conversation summaries / `context_summary`
+- semantic guesses, inferred topics, or heuristic/keyword classifiers
+- reflection, AI-memory generation, or any learned/inferred store
+- LLM interpretation of what the conversation is "about"
+
+**The conversational model REASONS OVER Conversation State; it never writes it.** Proven at
+runtime: a turn whose answer names a topic in prose ("my weight goal matters") produced **no**
+active subject — only an upload or a `get_entity` result changes state. If a future feature needs
+the model to influence Conversation State, it must do so by performing a **deterministic action**
+(upload, retrieval, or a confirmed action) whose *result* WLJ records — never by writing the state
+from model output. This keeps Conversation State exactly as trustworthy as Current Context.
 
 ## 5. State model (minimal, durable, reference-based — never model prose)
 

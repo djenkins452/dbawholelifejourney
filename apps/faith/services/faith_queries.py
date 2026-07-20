@@ -279,6 +279,121 @@ class FaithQueries:
         except Exception:
             return []
 
+    # ── Faith Milestones / Saved Verses / Study Tools (entity surfaces) ───────────
+    # Additive CompleteEntity composers for the user-owned faith records that had NO
+    # get_entity surface (Faith cert Step 2, Finding E). Exposure only — each reads the
+    # canonical model directly and composes a CompleteEntity; no new store, no reasoning.
+
+    @classmethod
+    def describe_milestones(cls, user, *, limit=25):
+        """Faith-journey milestones (salvation, baptism, …) newest-first, each a
+        CompleteEntity — 'tell me about my baptism', 'my faith milestones'."""
+        from apps.faith.models import FaithMilestone
+        qs = FaithMilestone.objects.filter(user=user).order_by("-date")[:limit]
+        return [cls._milestone_to_entity(m) for m in qs]
+
+    @classmethod
+    def _milestone_to_entity(cls, m):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="faith_milestone",
+            identity=(m.title or "").strip() or m.get_milestone_type_display(),
+            definition={
+                "type": m.get_milestone_type_display(),
+                "date": m.date.isoformat() if m.date else None,
+                "scripture_reference": (m.scripture_reference or None),
+                "description": (m.description_plain or ""),
+            },
+            status="recorded",
+            freshness=F.CURRENT,
+        )
+
+    @classmethod
+    def describe_saved_verses(cls, user, *, limit=50):
+        """The user's saved Scripture verses (memory verses first), each a CompleteEntity —
+        'what are my memory verses', 'the verses I've saved'."""
+        from apps.faith.models import SavedVerse
+        qs = (SavedVerse.objects.filter(user=user)
+              .order_by("-is_memory_verse", "book_order", "chapter", "verse_start")[:limit])
+        return [cls._verse_to_entity(v) for v in qs]
+
+    @classmethod
+    def _verse_to_entity(cls, v):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="saved_verse",
+            identity=v.reference,
+            definition={
+                "reference": v.reference,
+                "text": v.text,
+                "translation": v.translation,
+                "themes": (v.themes or []),
+                "notes": (v.notes or ""),
+            },
+            status=("memory_verse" if v.is_memory_verse else "saved"),
+            freshness=F.CURRENT,
+        )
+
+    @classmethod
+    def describe_study_notes(cls, user, *, limit=30):
+        """Bible study notes newest-first, each a CompleteEntity — 'my notes on Romans 8'."""
+        from apps.faith.models import BibleStudyNote
+        qs = BibleStudyNote.objects.filter(user=user).order_by("-created_at")[:limit]
+        return [cls._note_to_entity(n) for n in qs]
+
+    @classmethod
+    def _note_to_entity(cls, n):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="bible_study_note",
+            identity=(n.title or "").strip() or f"Note on {n.reference}",
+            definition={
+                "reference": n.reference,
+                "translation": n.translation,
+                "note": (n.content_plain or ""),
+                "tags": (n.tags or []),
+                "created": n.created_at.date().isoformat() if n.created_at else None,
+            },
+            status="recorded",
+            freshness=F.CURRENT,
+        )
+
+    @classmethod
+    def describe_highlights(cls, user, *, limit=50):
+        """Highlighted passages, each a CompleteEntity — 'passages I highlighted'."""
+        from apps.faith.models import BibleHighlight
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        qs = (BibleHighlight.objects.filter(user=user)
+              .order_by("book_order", "chapter", "verse_start")[:limit])
+        return [CompleteEntity(
+            kind="bible_highlight",
+            identity=h.reference,
+            definition={"reference": h.reference, "text": h.text,
+                        "color": h.color, "translation": h.translation},
+            status="highlighted",
+            freshness=F.CURRENT,
+        ) for h in qs]
+
+    @classmethod
+    def describe_bookmarks(cls, user, *, limit=50):
+        """Bookmarked Bible locations, each a CompleteEntity — 'my bookmarks'."""
+        from apps.faith.models import BibleBookmark
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        qs = BibleBookmark.objects.filter(user=user).order_by("-created_at")[:limit]
+        return [CompleteEntity(
+            kind="bible_bookmark",
+            identity=(b.title or "").strip() or b.reference,
+            definition={"reference": b.reference, "translation": b.translation,
+                        "notes": (b.notes or "")},
+            status="bookmarked",
+            freshness=F.CURRENT,
+        ) for b in qs]
+
     # ── Point-in-Time History (per-day Bible reading) ─────────────────────────────
     # Sourced from the CANONICAL unified completion set (plan + routine bridge) — the
     # same source reading_streak / days_since_reading use — so it can never diverge

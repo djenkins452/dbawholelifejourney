@@ -155,12 +155,21 @@ DOMAIN_SEMANTICS = {
         "cues": ["my journal", "what did I write", "my mood lately"],
     },
     "faith": {
-        "purpose": "The person's prayers and Scripture reading plans and progress.",
+        "purpose": ("The person's prayers, Scripture reading plans and progress, saved "
+                    "verses, faith milestones, and Bible study notes/highlights/bookmarks."),
         "entities": {
             "prayer": "A prayer the person recorded.",
             "reading_plan": "A Bible reading plan and its progress.",
+            "milestone": ("A significant moment in the person's faith journey — salvation, "
+                          "baptism, rededication, an answered prayer, or a spiritual insight."),
+            "saved_verse": ("A Scripture verse the person saved to their collection "
+                            "(flagged as a memory verse when they are memorizing it)."),
+            "study_note": "A Bible study note the person wrote on a specific passage.",
+            "highlight": "A Bible passage the person highlighted while reading.",
+            "bookmark": "A place in the Bible the person bookmarked to return to.",
         },
-        "cues": ["my prayers", "my reading plan", "my Bible reading"],
+        "cues": ["my prayers", "my reading plan", "my Bible reading", "my memory verses",
+                 "my faith milestones", "my baptism", "my study notes"],
     },
 
     # ── People: relationships vs legacy ──────────────────────────────────────

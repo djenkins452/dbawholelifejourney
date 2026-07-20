@@ -375,7 +375,38 @@ class FaithDomainTruth(DomainTruth):
     current_metrics = ("reading_streak", "days_since_reading", "unanswered_prayers",
                        "studying")
     history_metrics = ("reading",)
-    entity_types = ("prayer", "reading_plan")
+    # Record-level truth. prayer + reading_plan are the composed authorities; milestone /
+    # saved_verse / study_note / highlight / bookmark expose the remaining user-owned faith
+    # records (salvation/baptism moments, memory verses, study notes, highlights, bookmarks)
+    # that had records but no `get_entity` surface — additive exposure, delegating to the
+    # canonical FaithQueries composers (no new store, no reasoning).
+    entity_types = ("prayer", "reading_plan", "milestone", "saved_verse",
+                    "study_note", "highlight", "bookmark")
+    # ANALYSIS participation — PURE COMPOSITION of inputs ALREADY exposed above: the
+    # deterministic reading-completion series (history('reading')) + the prayer / reading_plan
+    # entity records. The generic get_analysis composer reuses those; it adds NO retrieval,
+    # NO new store, NO reasoning. WLJ supplies the evidence bundle; the model summarizes /
+    # interprets / advises — WLJ declares NO verdict (it never calls a faith practice
+    # consistent / faithful / lacking; that is the model's reasoning). Study-oriented subjects
+    # carry the reading_plan record; prayer-oriented subjects carry the prayer record. Every
+    # subject maps to the SAME reading series (the domain's only history metric — mirrors how
+    # journal maps every subject to 'mood'); the varied keys are just the natural phrasings the
+    # model reaches for, so it never invents an undeclared subject → unsupported.
+    analysis_subjects = {
+        "faith":                {"history_metric": "reading", "entity_type": "reading_plan"},
+        "bible_reading":        {"history_metric": "reading", "entity_type": "reading_plan"},
+        "scripture":            {"history_metric": "reading", "entity_type": "reading_plan"},
+        "reading":              {"history_metric": "reading", "entity_type": "reading_plan"},
+        "reading_consistency":  {"history_metric": "reading", "entity_type": "reading_plan"},
+        "study":                {"history_metric": "reading", "entity_type": "reading_plan"},
+        "devotion":             {"history_metric": "reading", "entity_type": "reading_plan"},
+        "habits":               {"history_metric": "reading", "entity_type": "reading_plan"},
+        "spiritual_life":       {"history_metric": "reading", "entity_type": "prayer"},
+        "prayer":               {"history_metric": "reading", "entity_type": "prayer"},
+        "prayers":              {"history_metric": "reading", "entity_type": "prayer"},
+        "prayer_life":          {"history_metric": "reading", "entity_type": "prayer"},
+        "faith_journey":        {"history_metric": "reading", "entity_type": "prayer"},
+    }
 
     def current(self, metric):
         if metric == "studying":
@@ -383,7 +414,10 @@ class FaithDomainTruth(DomainTruth):
             plans = list(FaithQueries.active_reading_plans(self.user))
             if not plans:
                 return _absent(self.domain, metric, "no active reading plan")
-            names = [getattr(getattr(pl, "template", None), "name", None) or str(pl)
+            # Name plans by their TEMPLATE TITLE (the field is `title`, not `name`) — never
+            # str(pl), whose UserReadingPlan.__str__ is "user@email: Title" and leaked the
+            # email while mis-naming the plan (Faith cert Step 1, Finding B).
+            names = [(getattr(getattr(pl, "template", None), "title", None) or "Reading plan")
                      for pl in plans]
             return CurrentTruth.found(self.domain, metric, names[0], F.CURRENT,
                                       source="faith", detail={"plans": names})
@@ -394,26 +428,43 @@ class FaithDomainTruth(DomainTruth):
         return _found(self.domain, metric, v, st.get("last_scripture_read"))
 
     def describe(self, entity_type="prayer"):
-        """Faith record-level truth. entity_type ∈ prayer | reading_plan. Prayers →
-        'what have I been praying about'; reading plans → 'what am I studying' with
-        progress/current-reading. Faith truth only."""
+        """Faith record-level truth. entity_type ∈ prayer | reading_plan | milestone |
+        saved_verse | study_note | highlight | bookmark. Prayers → 'what have I been
+        praying about'; reading plans → 'what am I studying' with progress/current-reading;
+        milestones → 'my baptism / salvation'; saved_verse → 'my memory verses'; study_note
+        → 'my notes on Romans 8'; highlight / bookmark → passages I marked. Faith truth
+        only — every branch delegates to the canonical FaithQueries composer."""
         from apps.faith.services.faith_queries import FaithQueries
-        if entity_type == "reading_plan":
-            return FaithQueries.describe_plans(self.user)
+        dispatch = {
+            "reading_plan": FaithQueries.describe_plans,
+            "milestone": FaithQueries.describe_milestones,
+            "saved_verse": FaithQueries.describe_saved_verses,
+            "study_note": FaithQueries.describe_study_notes,
+            "highlight": FaithQueries.describe_highlights,
+            "bookmark": FaithQueries.describe_bookmarks,
+        }
+        if entity_type in dispatch:
+            return dispatch[entity_type](self.user)
         if entity_type not in (None, "prayer"):
             raise KeyError(f"faith domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
         return FaithQueries.describe(self.user)
 
     def describe_one(self, name):
-        """Resolve a NAMED faith record: a reading plan first (by template title), else a
-        prayer. Reading plans were previously unreachable by name — a named lookup fell
-        through to the prayer search and returned nothing."""
+        """Resolve a NAMED faith record. Reading plan first (by template title, across ALL
+        plans), then prayer (dedicated title search), then the remaining entity types via the
+        shared identity resolver — which reuses each type's own describe() so a by-name hit
+        returns the SAME complete object as the list path, for every type (no parallel
+        retrieval logic)."""
         from apps.faith.services.faith_queries import FaithQueries
         plan = FaithQueries.describe_plan_one(self.user, name)
         if plan is not None:
             return plan
-        return FaithQueries.describe_one(self.user, name)
+        prayer = FaithQueries.describe_one(self.user, name)
+        if prayer is not None:
+            return prayer
+        return self._entity_by_identity(
+            name, ("milestone", "saved_verse", "study_note", "highlight", "bookmark"))
 
     def history(self, metric, period="last_7_days", **kwargs):
         """Per-day Bible-reading completion — 'how consistent has my reading been'."""

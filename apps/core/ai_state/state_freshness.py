@@ -59,6 +59,18 @@ logger = logging.getLogger(__name__)
 _MANUAL_MODULE_SOURCES = {
     "journal": ("apps.journal.models.JournalEntry", "updated_at"),
     "nutrition": ("apps.health.models.FoodEntry", "updated_at"),
+    # Faith is manual-entry too: a prayer or a marked reading day must feel
+    # near-real-time when Beth reads faith truth on the request path (the
+    # journal-snapshot staleness class, 2026-06-16). Two raw write surfaces →
+    # a tuple OF (path, field) pairs; the staleness check below is satisfied by
+    # a newer write in EITHER. build_faith_state (~10 bounded queries) is the
+    # light single-module rebuild, comparable to nutrition. (The routine→faith
+    # bridge is a different write path with its own refresh; this covers the
+    # DIRECT faith entries — prayers and reading-plan day completions.)
+    "faith": (
+        ("apps.faith.models.PrayerRequest", "updated_at"),
+        ("apps.faith.models.UserReadingProgress", "updated_at"),
+    ),
 }
 
 
@@ -111,8 +123,11 @@ def ensure_fresh(user, modules):
 
     for module in eligible:
         sources = _MANUAL_MODULE_SOURCES[module]
-        if isinstance(sources, tuple):
-            sources = (sources,)  # normalize single-source to a 1-tuple
+        # Normalize to a tuple OF (path, field) pairs. A single source is a flat
+        # 2-tuple of strings ((path, field)) → wrap into a 1-tuple; a multi-source
+        # value is already a tuple of pairs (its first element is a tuple) → leave.
+        if sources and isinstance(sources[0], str):
+            sources = (sources,)
         try:
             is_stale = False
             for dotted_path, ts_field in sources:

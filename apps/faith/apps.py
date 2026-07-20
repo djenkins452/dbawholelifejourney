@@ -14,3 +14,5 @@ class FaithConfig(AppConfig):
         """Connect signals when the app is ready."""
         # Architecture Evolution Phase 1 — calendar projections
         import apps.faith.signals  # noqa: F401
+        # Current Context page-summary providers self-register on import.
+        import apps.faith.page_summaries  # noqa: F401

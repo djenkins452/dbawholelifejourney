@@ -33,6 +33,7 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.current_context import PageSummaryMixin
 from apps.core.models import Category
 from apps.help.mixins import HelpContextMixin
 from apps.journal.models import JournalEntry
@@ -101,13 +102,17 @@ class FaithRequiredMixin(UserPassesTestMixin):
         return redirect("users:preferences")
 
 
-class FaithHomeView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+class FaithHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin,
+                    FaithRequiredMixin, TemplateView):
     """
     Faith module home - overview of spiritual journey.
     """
 
     template_name = "faith/home.html"
     help_context_id = "FAITH_HOME"
+    # Current Context — overview page → deterministic PAGE SUMMARY (summary:faith.home).
+    page_summary_key = "faith.home"
+    page_summary_title = "Faith"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -414,7 +419,7 @@ class SavedVerseDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
 
 # Prayer Request Views
 
-class PrayerListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
+class PrayerListView(PageSummaryMixin, LoginRequiredMixin, FaithRequiredMixin, ListView):
     """
     List active prayer requests.
     """
@@ -423,6 +428,9 @@ class PrayerListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
     template_name = "faith/prayer_list.html"
     context_object_name = "prayers"
     paginate_by = 20
+    # Current Context — overview page → deterministic PAGE SUMMARY.
+    page_summary_key = "faith.prayers"
+    page_summary_title = "Prayers"
 
     def get_queryset(self):
         return PrayerRequest.objects.filter(
@@ -439,7 +447,7 @@ class PrayerListView(LoginRequiredMixin, FaithRequiredMixin, ListView):
         return context
 
 
-class AnsweredPrayersView(LoginRequiredMixin, FaithRequiredMixin, ListView):
+class AnsweredPrayersView(PageSummaryMixin, LoginRequiredMixin, FaithRequiredMixin, ListView):
     """
     List answered prayers - a record of God's faithfulness.
     """
@@ -448,6 +456,9 @@ class AnsweredPrayersView(LoginRequiredMixin, FaithRequiredMixin, ListView):
     template_name = "faith/answered_prayers.html"
     context_object_name = "prayers"
     paginate_by = 20
+    # Current Context — overview page → deterministic PAGE SUMMARY (shared prayer summary).
+    page_summary_key = "faith.prayers"
+    page_summary_title = "Prayers"
 
     def get_queryset(self):
         return PrayerRequest.objects.filter(
@@ -1135,7 +1146,8 @@ class ToggleMemoryVerseView(LoginRequiredMixin, FaithRequiredMixin, View):
 # =============================================================================
 
 
-class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMixin, TemplateView):
+class ReadingPlanListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin,
+                          FaithRequiredMixin, TemplateView):
     """
     Browse available reading plans and view active plans.
 
@@ -1146,6 +1158,9 @@ class ReadingPlanListView(HelpContextMixin, LoginRequiredMixin, FaithRequiredMix
 
     template_name = "faith/reading_plans/list.html"
     help_context_id = "FAITH_READING_PLANS"
+    # Current Context — overview page → deterministic PAGE SUMMARY.
+    page_summary_key = "faith.reading_plans"
+    page_summary_title = "Bible Reading Plans"
 
     def get_template_names(self):
         # First Light users get the calm Discover surface; classic list otherwise.

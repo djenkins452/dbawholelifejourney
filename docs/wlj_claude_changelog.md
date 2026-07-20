@@ -6,6 +6,24 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — feat(faith/cos): Faith Domain Certification Step 2 — expose existing truth (AWAITING VALIDATION)
+
+**Faith CoS Domain Certification — Step 2 (Expose existing truth).** Following the ratified CoS Domain Certification Standard, this is EXPOSURE of truth Step 1 proved already exists — **no new deterministic truth, no reasoning; WLJ still renders no verdict.** Report ledger: `docs/WLJ_FAITH_TRUTH_CERTIFICATION_REPORT.md`.
+
+1. **Finding A — Faith participates in request-path freshness.** Registered `faith` in `_MANUAL_MODULE_SOURCES` (`apps/core/ai_state/state_freshness.py`) with its TWO manual write surfaces (`PrayerRequest`, `UserReadingProgress`, both `updated_at`). Fixed the source-normalization (it was documented for multi-source but only handled a single flat pair) so either write self-heals a stale `faith` snapshot before a request-path read — closing the journal-snapshot staleness class for prayers/reading. The light single-module rebuild is `build_faith_state` (~10 bounded queries, comparable to nutrition).
+
+2. **Finding B — `studying` metric email leak fixed.** `FaithDomainTruth.current('studying')` read `template.name` (the field is `title`) → fell through to `str(plan)` = `"user@email: Title"`, leaking the email and mis-naming the plan. Now reads `template.title` (fallback `"Reading plan"`), never `str(plan)`.
+
+3. **Finding C — Faith analysis participation (pure composition).** Declared `analysis_subjects` on `FaithDomainTruth`, each mapping ONLY to the already-exposed reading history + an existing entity (prayer/reading_plan) — the generic `get_analysis` composer reuses them (no new retrieval). Faith now answers "how's my prayer life / Bible reading trending" via `get_analysis(faith,…)`; the derived `analyzes` routing metadata comes from the catalog (drift-proof), mirroring Journal.
+
+4. **Finding E — New entity surfaces.** Added `entity_types` + `FaithQueries` `CompleteEntity` composers for `milestone` (salvation/baptism/…), `saved_verse` (memory verses first), `study_note`, `highlight`, `bookmark` — user-owned faith records that had no `get_entity` surface. `describe_one` now resolves them by name via the shared identity resolver (same complete object as the list path). Added their descriptions to `apps/core/truth/semantics.py` (enforced by `test_capability_semantics`).
+
+5. **Finding D — Current Context page summaries.** New `apps/faith/page_summaries.py` providers `faith.prayers` / `faith.reading_plans` / `faith.home` (registered in `FaithConfig.ready`), each user-scoped, request-path-safe, FACTS ONLY from the canonical `FaithQueries` the pages already render. Added `PageSummaryMixin` to `FaithHomeView`, `PrayerListView`, `AnsweredPrayersView`, `ReadingPlanListView` — those overview pages are no longer Current-Context blind.
+
+**Files:** `apps/core/ai_state/state_freshness.py`, `apps/core/truth/domain_rollout.py`, `apps/core/truth/semantics.py`, `apps/faith/services/faith_queries.py`, `apps/faith/page_summaries.py` (new), `apps/faith/apps.py`, `apps/faith/views.py`, `apps/faith/tests/test_faith_cos_exposure.py` (new), `docs/WLJ_FAITH_TRUTH_CERTIFICATION_REPORT.md`.
+
+**Verification:** No migrations (no model changes; `makemigrations --check` clean). `manage.py check` clean. Scoped tests on an isolated test DB (a parallel session held the shared `test_wlj_dev`): new `test_faith_cos_exposure` **9/9 OK** (studying fix, 5 new entities + by-name, analysis composition, freshness registration, page summaries); `test_capability_semantics` + `tests_state_freshness` + request-path-safety contract + `test_saved_verses` all green (57 tests). Runtime traces (rolled-back real records) confirm every surface end-to-end. **Step 4 (Danny production validation) NOT started — AWAITING VALIDATION.** Pre-existing note: `test_truth_validation_faith` errors at `setUpClass` on a migration-fixture slug collision (`journey-through-john`), unrelated to certification and untouched per scope.
+
 ## 2026-07-19 — refine(journal M2): Write Together feels like the Chief of Staff, not an AI
 
 Three conversation-experience refinements (no architecture change — conversation/editor separation, generation, review, canonical `JournalEntry`, Playbook, Memory Model, Truth Discovery all unchanged):

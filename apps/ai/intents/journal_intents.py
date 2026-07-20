@@ -50,17 +50,21 @@ JOURNAL_INTENT_TOOLS = [
         "function": {
             "name": "import_journal_entries",
             "description": (
-                "Import a document the user uploaded that contains MANY journal entries at once "
-                "(a historical journal export, a Day One / Evernote / Apple Notes export, a "
-                "pasted multi-day journal). Use THIS — not create_journal_entry repeatedly — "
-                "when one source holds several dated entries; WLJ shows the user a preview and "
-                "imports them as separate entries only after they confirm. Recognize the "
-                "structure yourself: split the document into one entry per date; read the "
-                "ORIGINAL body verbatim (do NOT rewrite, summarize, or add headings); normalize "
-                "each date to ISO YYYY-MM-DD and each time to 24-hour HH:MM (omit the time when "
-                "the source shows none); mark a day the source labels skipped with skipped=true; "
-                "and EXCLUDE document noise (repeated file-name headers/footers, page numbers, "
-                "blank pages). Attach source_artifact_id when the entries came from an upload."
+                "Import a journal that contains MANY entries at once (a historical journal "
+                "export, a Day One / Evernote / Apple Notes export, or a pasted multi-day "
+                "journal). Use THIS — not create_journal_entry repeatedly — when one source "
+                "holds several dated entries; WLJ shows the user a preview and imports them as "
+                "separate entries only after they confirm.\n"
+                "IF THE JOURNAL WAS UPLOADED AS A FILE: just call this with source_artifact_id "
+                "and an EMPTY entries list. WLJ reads the document itself and determines every "
+                "entry's date, time, boundary, and skipped state DETERMINISTICALLY from the "
+                "document's own date headers. Do NOT transcribe or normalize the dates yourself, "
+                "and do NOT guess — WLJ owns the dates. (This exists because a model-transcribed "
+                "date can be wrong; the document is the source of truth.)\n"
+                "ONLY when the journal was TYPED directly into the chat (no file) should you "
+                "provide `entries`: one entry per date, the ORIGINAL body verbatim (never "
+                "rewritten), date as ISO YYYY-MM-DD, time as 24-hour HH:MM (omit if none), and "
+                "skipped=true for a day the user marks skipped."
             ),
             "parameters": {
                 "type": "object",
@@ -97,10 +101,10 @@ JOURNAL_INTENT_TOOLS = [
                     },
                     "source_artifact_id": {
                         "type": "string",
-                        "description": "The uploaded attachment's artifact_id when the entries were read from an upload."
+                        "description": "REQUIRED when the journal was uploaded as a file — WLJ reads the entries/dates from that document. Provide `entries` instead only for a journal typed directly into the chat."
                     }
                 },
-                "required": ["entries"]
+                "required": []
             }
         }
     },

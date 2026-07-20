@@ -85,10 +85,21 @@ One generic model records each batch: user, target domain, source artifact, sour
 
 | Step | Owner |
 |---|---|
-| Recognize "this document is N records"; split into records; normalize dates to ISO, times to HH:MM; exclude headers/footers/page-numbers/document-title noise; mark explicitly-skipped days | **Model** (perception) |
-| Validate each record; decide what can/can't be created and why; render the preview; require confirmation; create atomically; dedup; provenance; audit; report actual counts | **WLJ** (deterministic) |
+| Recognize "this upload is a journal to import" and call the intent with `source_artifact_id` | **Model** (perception) |
+| **Determine every record's date, time, boundary, and skipped state** — from the document's own explicit headers; validate; decide what can/can't be created and why; render the preview; require confirmation; create atomically; dedup; provenance; audit; report actual counts | **WLJ** (deterministic) |
 
 WLJ never interprets the document bytes and never rewrites the user's words. The **body is stored faithfully** (escaped, paragraph-preserved HTML via the Rich Text pipeline) — never summarized.
+
+### 5.1 Deterministic date grounding (NON-NEGOTIABLE — "never invent a date")
+
+**Dates are deterministic truth, never a model output.** When a source **document** is uploaded, WLJ parses the record dates, times, boundaries, and skipped days **only** from the document's own **explicit date headers** — read from the artifact's extracted text — and **ignores any date the model proposes**. A model-transcribed date can be wrong; the document is the sole authority.
+
+- The model does **not** transcribe or normalize dates for an uploaded journal — it passes `source_artifact_id` and an empty `entries`; WLJ reads the document. (`entries` is used **only** for a journal typed directly into the chat, where there is no document to ground against.)
+- A date is valid **only** if it comes from an explicit header actually present in the source. WLJ **never infers** a year, month, or boundary, and **never manufactures** a date.
+- When WLJ cannot confidently recognize a header (no headers found, an unparseable/invalid calendar date, or a prose line that merely begins with a date), it **reports uncertainty** — it imports nothing rather than risk a wrong date. Better to under-import and ask than to fabricate.
+- The parser tolerates real export quirks (leading list numbers, weekday names, `Sept`/abbreviations, 2- or 4-digit years, a time smushed onto the year) but treats only header-shaped lines as boundaries.
+
+**Certification (permanent fixture):** `apps/ai/tests/test_journal_import_date_grounding.py` — a journal document spanning **Aug 29 – Sep 8 2022** (Sep 5 skipped). It asserts the parser extracts exactly the source's dates, preserves times, identifies the skipped day, and — the regression that created this rule — that when the model **fabricates** Oct-2023 dates, **not one** of them is ever created. (Origin: the 2026-07-20 production defect where a Sept-2022 journal was reported as "6 entries from October 10–15, 2023.")
 
 ---
 

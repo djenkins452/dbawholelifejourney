@@ -36,8 +36,10 @@ class StructuredImportAdapter:
     renderer: str = ""        # apps.ai.import_confirmation renderer key
     records_key: str = "records"  # the tool arg carrying the record array
 
-    def validate(self, raw_records):
-        """Split the raw model-produced records into (valid, skipped).
+    def validate(self, raw_records, source_text=None):
+        """Split records into (valid, skipped). ``source_text`` is the extracted text of the
+        source document when one was uploaded — the adapter uses it to GROUND records against
+        the real source (deterministic truth), never trusting an unverifiable model value.
 
         Returns ``(valid, skipped)`` where:
           • ``valid``   = list of normalized record dicts ready to create; each SHOULD carry
@@ -112,7 +114,13 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
 
     from apps.ai import multimodal
 
-    if not isinstance(raw_records, list) or not raw_records:
+    # Load the source document's own text up front. When a document was uploaded, IT is the
+    # authority — WLJ parses records/dates from it and does NOT need (or trust) the model's
+    # transcription. So a document import may proceed even with an empty model `raw_records`.
+    source_text = _load_artifact_text(user, source_artifact_id)
+    has_source_doc = bool(source_text and source_text.strip())
+    raw_records = raw_records if isinstance(raw_records, list) else []
+    if not raw_records and not has_source_doc:
         return ImportOutcome(status="validation_failed", error="no_records",
                              message="I couldn't find any records to import in that document.")
 
@@ -133,8 +141,12 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
             )
 
     # 2. Per-record deterministic VALIDATION (adapter owns field mapping/plausibility).
+    #    The artifact's extracted text (when the source was a document) is handed to the
+    #    adapter so it can GROUND records against the real source — never trusting a
+    #    model-proposed value it cannot verify (e.g. a fabricated date). Deterministic truth
+    #    cannot be inferred: the source document is the authority, not the model.
     try:
-        valid, skipped = adapter.validate(raw_records)
+        valid, skipped = adapter.validate(raw_records, source_text=source_text)
     except Exception:
         logger.error("structured_import: adapter.validate failed intent=%s user=%s",
                      adapter.intent, getattr(user, "id", "?"), exc_info=True)
@@ -222,6 +234,21 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
 
 
 # ── Provenance/audit helpers (StructuredImportRun) ──────────────────────────
+def _load_artifact_text(user, source_artifact_id):
+    """The extracted text of the source artifact (owner-scoped), or None. This is the
+    deterministic ground truth a document adapter parses — WLJ reads the source, it does not
+    take the model's word for what the document said."""
+    if not source_artifact_id:
+        return None
+    try:
+        from apps.capture.models import MultimodalArtifact
+        return MultimodalArtifact.objects.filter(
+            id=source_artifact_id, user=user
+        ).values_list("extracted_text", flat=True).first()
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
 def _existing_run(user, source_artifact_id, domain):
     try:
         from apps.ai.models import StructuredImportRun

@@ -33,6 +33,9 @@ _SKIP_REASON_TEXT = {
     "marked_skipped": "the source marked this day as skipped, so I didn't create an entry.",
     "no_content": "there was no entry text for this one, so I left it out.",
     "invalid_date": "I couldn't read a valid date for this one, so I left it out.",
+    "uncertain_boundaries": ("I couldn't confidently recognize the journal's date headers, so I "
+                             "didn't import anything rather than risk assigning wrong dates."),
+    "uncertain_date": "I couldn't confidently read this entry's date, so I left it out.",
     "duplicate": "you already have this one, so I won't create it again.",
 }
 

@@ -123,15 +123,26 @@
       </div>
       {% endif %}
 
-      {# The Mirror — a flagship. A calm, present doorway; never hidden. #}
-      <a class="fl-mirror-door" href="{% url 'faith:mirror' %}">
-        <span class="fl-md-orb" aria-hidden="true"></span>
-        <span>
-          <span class="fl-md-k">Your walk with God</span>
-          <span class="fl-md-t">Look back over the story so far</span>
-        </span>
-        <span class="fl-md-arrow" aria-hidden="true">&rarr;</span>
-      </a>
+      {% comment %}Two pillars, side by side — Prayer walks beside Reading, and the
+         Mirror holds the whole story. Neither is ever hidden.{% endcomment %}
+      <div class="fl-doorways">
+        <a class="fl-mirror-door" href="{% url 'faith:prayer_list' %}">
+          <span class="fl-md-orb" aria-hidden="true"></span>
+          <span>
+            <span class="fl-md-k">Prayer</span>
+            <span class="fl-md-t">{% if t.prayers.active %}{{ t.prayers.active }} on your heart{% else %}Bring something before Him{% endif %}</span>
+          </span>
+          <span class="fl-md-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        <a class="fl-mirror-door" href="{% url 'faith:mirror' %}">
+          <span class="fl-md-orb" aria-hidden="true"></span>
+          <span>
+            <span class="fl-md-k">Your walk with God</span>
+            <span class="fl-md-t">Look back over the story so far</span>
+          </span>
+          <span class="fl-md-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
     </div>
 
   </div>

@@ -38,6 +38,7 @@ class PrayerRequestForm(forms.ModelForm):
         fields = [
             "title",
             "description",
+            "category",
             "is_personal",
             "person_or_situation",
             "priority",
@@ -50,6 +51,9 @@ class PrayerRequestForm(forms.ModelForm):
             }),
             "description": WLJRichTextWidget(
                 placeholder="Add details about this prayer request...", min_height=160),
+            "category": forms.Select(attrs={
+                "class": "form-select",
+            }),
             "is_personal": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),

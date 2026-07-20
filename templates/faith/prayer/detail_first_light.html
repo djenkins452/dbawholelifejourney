@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ prayer.title }} · Prayer - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719b">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="faith-prayer-detail">
+  <div class="fl-wrap">
+    <div class="fl-pray" style="max-width:640px">
+
+      <a class="fl-linkbtn" href="{% url 'faith:prayer_list' %}">&larr; All prayers</a>
+
+      <div style="margin-top:14px">
+        <h1 class="fl-serif" style="font-size:26px;line-height:1.15">{{ prayer.title }}</h1>
+        <div class="fl-prayer-meta" style="margin-top:8px">
+          {% if prayer.category %}<span class="fl-tag">{{ prayer.get_category_display }}</span>{% endif %}
+          {% if prayer.person_or_situation %}<span>{{ prayer.person_or_situation }}</span>{% endif %}
+          {% if prayer.state == 'answered' %}<span class="fl-answered-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>Answered{% if prayer.answered_at %} · {{ prayer.answered_at|date:"M j, Y" }}{% endif %}</span>
+          {% elif prayer.state == 'archived' %}<span class="fl-muted">Set aside</span>{% endif %}
+        </div>
+      </div>
+
+      {% if prayer.description %}
+      <div class="fl-prayer-body" style="font-size:15.5px;margin-top:16px">{{ prayer.description|safe }}</div>
+      {% endif %}
+
+      {% if prayer.answer_notes_plain %}
+      <div class="fl-prayer answered" style="margin-top:18px">
+        <div class="fl-reader-label" style="color:var(--fl-sage)">How He answered</div>
+        <div class="fl-prayer-answer">“{{ prayer.answer_notes_plain }}”</div>
+      </div>
+      {% endif %}
+
+      {# The Chief of Staff connects prayer to Scripture through deterministic truth. #}
+      {% if scripture %}
+      <div class="fl-pray-scripture">
+        <div class="k">A word that meets this</div>
+        <div class="t">“{{ scripture.text }}”</div>
+        <div class="r">{{ scripture.ref }}</div>
+      </div>
+      {% endif %}
+
+      <div class="fl-prayer-actions" style="margin-top:24px">
+        {% if prayer.state == 'active' %}
+        <details class="fl-answer">
+          <summary>Mark as answered</summary>
+          <div class="fl-answer-body">
+            <form method="post" action="{% url 'faith:prayer_answered' prayer.pk %}">
+              {% csrf_token %}
+              <textarea name="notes" placeholder="How did God answer? (worth remembering)"></textarea>
+              <button type="submit" class="fl-btn-sage">Praise God — answered</button>
+            </form>
+          </div>
+        </details>
+        <form method="post" action="{% url 'faith:prayer_archive' prayer.pk %}" class="fl-inline">
+          {% csrf_token %}<button type="submit" class="fl-linkbtn muted">Set aside</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'faith:prayer_reopen' prayer.pk %}" class="fl-inline">
+          {% csrf_token %}<button type="submit" class="fl-linkbtn">Reopen</button>
+        </form>
+        {% endif %}
+        <a class="fl-linkbtn" href="{% url 'faith:prayer_update' prayer.pk %}">Edit</a>
+        <form method="post" action="{% url 'faith:prayer_delete' prayer.pk %}" class="fl-inline" onsubmit="return confirm('Delete this prayer?');">
+          {% csrf_token %}<button type="submit" class="fl-linkbtn muted">Delete</button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

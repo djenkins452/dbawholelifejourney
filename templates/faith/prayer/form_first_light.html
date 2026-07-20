@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{% if object %}Edit prayer{% else %}New prayer{% endif %} - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719b">
+{% endblock %}
+
+{% block content %}
+{% include "components/_rich_text_editor_assets.html" %}
+<div class="fl-root" data-testid="faith-prayer-form">
+  <div class="fl-wrap">
+    <div class="fl-pray" style="max-width:600px">
+
+      <a class="fl-linkbtn" href="{% url 'faith:prayer_list' %}">&larr; All prayers</a>
+      <h1 class="fl-serif" style="font-size:26px;margin-top:12px">{% if object %}Edit prayer{% else %}Bring it before Him{% endif %}</h1>
+
+      <form method="post" class="fl-form" style="margin-top:20px">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="fl-note" style="margin-bottom:16px">{{ form.non_field_errors }}</div>{% endif %}
+
+        <div class="fl-form-field">
+          <label for="{{ form.title.id_for_label }}">What would you like to pray for?</label>
+          {{ form.title }}
+          {% if form.title.errors %}<div class="fl-small" style="color:var(--fl-gold-deep);margin-top:5px">{{ form.title.errors|striptags }}</div>{% endif %}
+        </div>
+
+        <div class="fl-form-field">
+          <label for="{{ form.description.id_for_label }}">In your words (optional)</label>
+          {{ form.description }}
+        </div>
+
+        <div class="fl-form-field">
+          <label for="{{ form.category.id_for_label }}">A gentle grouping</label>
+          {{ form.category }}
+        </div>
+
+        <div class="fl-form-field">
+          <label for="{{ form.person_or_situation.id_for_label }}">Person or situation (optional)</label>
+          {{ form.person_or_situation }}
+        </div>
+
+        <div class="fl-form-field">
+          <label for="{{ form.priority.id_for_label }}">Priority</label>
+          {{ form.priority }}
+        </div>
+
+        <label class="fl-form-check">{{ form.is_personal }} <span>This is a personal prayer</span></label>
+        <label class="fl-form-check" style="margin-top:12px">{{ form.remind_daily }} <span>Include in daily prayer reminders</span></label>
+
+        <div class="fl-form-actions">
+          <button type="submit" class="fl-btn fl-btn-primary">{% if object %}Save{% else %}Bring it before Him{% endif %}</button>
+          <a class="fl-linkbtn" href="{% url 'faith:prayer_list' %}">Cancel</a>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

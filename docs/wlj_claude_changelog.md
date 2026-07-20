@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — feat(faith): First Light — restore Prayer as a first-class pillar, integrated with Reading
+
+The First Light redesign lifted Bible Reading beautifully but had quietly narrowed Faith to *reading*. Faith is bigger than that — Prayer is the other pillar. This restores Prayer as a first-class, **integrated** experience (not a bolt-on CRUD page), in the First Light design language. No reading design was changed; the IA was expanded. Flag-gated (First Light).
+
+- **Full lifecycle** on `PrayerRequest` (migration `faith/0024`): added `is_archived`/`archived_at` (set aside without answering), `category` (7 gentle groupings), and `reminder_time` (future-ready). New model methods `archive()`, `reopen()` (from answered *or* archived), and a `state` property (active · answered · archived); `mark_answered()` now also clears the archive.
+- **The Prayer wall** (`faith/prayer/wall_first_light.html`, served by `PrayerListView` when First Light is on): one cohesive surface with **On your heart** (active), **Prayers He's answered**, and a quietly-collapsed **Set aside** section — plus category doorways, an inline "Mark as answered" (with a note), "Set aside", "Reopen"/"Bring back", edit, and easy "New prayer". First Light **detail** and **create/edit** templates too; archive/reopen views + routes.
+- **Reading ↔ Prayer, connected through deterministic truth** (the Chief of Staff never invents it): the immersive reader offers **"Turn today's reading into a prayer"** (prefilled from the passage), and every prayer shows **"A word that meets this"** — real Scripture chosen from the prayer's category, else a keyword scan of its subject (`apps/faith/first_light/prayer.py`; e.g. a health prayer → Psalm 147:3, an anxious one → Philippians 4:6). Honest, grounded, never fabricated.
+- **First-class on Today:** two calm doorways side by side — **Prayer** ("N on your heart") beside **Your walk with God** (the Mirror) — so neither pillar is hidden. The companion already grounds its questions in real prayers.
+- CRUD preserved end-to-end; the classic prayer pages are untouched for non-First-Light users.
+
+**Verified in-browser as Danny (desktop + mobile + dark):** the Prayer wall, inline mark-answered, prayer detail with its Scripture connection, the reading→prayer bridge, and the Today doorways all render and work; archive/reopen round-trip; no console errors. **81 faith tests pass** (incl. 14 First Light + new prayer-lifecycle & Scripture-bridge tests) — no regressions. `check` + `collectstatic` + `makemigrations --check` clean.
+- **Files:** `apps/faith/models.py`, `apps/faith/migrations/0024_*`, `apps/faith/forms.py`, `apps/faith/views.py`, `apps/faith/urls.py`, `apps/faith/first_light/{prayer,today}.py`, `apps/faith/tests/test_first_light.py`, `templates/faith/prayer/{wall,detail,form}_first_light.html`, `templates/faith/today.html`, `templates/faith/journey/day_first_light.html`, `static/faith/first_light.css`.
+- **Deferred (roadmap):** structured relationship pickers (people/goals/events — today via the existing free-text subject), and reminder scheduling UI (field is future-ready).
+
 ## 2026-07-20 — refine(journal): the Chief of Staff reasons over WLJ truth to ask richer questions (deepen, never steer)
 
 **Reasoning refinement (no architecture / engine / truth-layer change).** Write Together / Talk It Through now ask questions that are BETTER because of what WLJ knows — without steering, diagnosing, or becoming an encyclopedia. "It asked exactly the question someone who really knows me would have asked."

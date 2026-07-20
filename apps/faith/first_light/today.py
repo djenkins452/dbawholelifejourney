@@ -77,7 +77,17 @@ def build_today(user) -> dict[str, Any]:
         "companion": _companion(user, cont),
         "invitation": _invitation(user, cont),
         "has_started": cont is not None,
+        "prayers": _prayer_summary(user),
     }
+
+
+def _prayer_summary(user) -> dict[str, Any]:
+    """A quiet count of what's on the heart — Prayer is a first-class pillar."""
+    from apps.faith.models import PrayerRequest
+    active = PrayerRequest.objects.filter(
+        user=user, is_answered=False, is_archived=False,
+    ).count()
+    return {"active": active}
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Prayer · Faith - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'faith/first_light.css' %}?v=20260719b">
+{% endblock %}
+
+{% block content %}
+<div class="fl-root" data-testid="faith-prayer-wall">
+  <div class="fl-wrap">
+    <div class="fl-pray">
+
+      <div class="fl-pray-hero">
+        <span class="fl-md-orb" aria-hidden="true"></span>
+        <h1>What you’re bringing before God</h1>
+        <p>Prayer walks beside your reading — the other half of the conversation.</p>
+        <a class="fl-btn fl-btn-glow" href="{% url 'faith:prayer_create' %}">New prayer</a>
+      </div>
+
+      {# Category doorways — a gentle grouping, not a filter wall #}
+      <div class="fl-pray-bar">
+        <div class="fl-cat-chips">
+          <a class="fl-cat-chip {% if not selected_category %}on{% endif %}" href="{% url 'faith:prayer_list' %}">All</a>
+          {% for val, label in prayer_categories %}
+          <a class="fl-cat-chip {% if selected_category == val %}on{% endif %}" href="?category={{ val }}">{{ label }}</a>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ── Active ── #}
+      <div class="fl-pray-section-h">On your heart {% if prayers %}<span class="n">{{ prayers|length }}</span>{% endif %}</div>
+      {% for p in prayers %}
+      <article class="fl-prayer {% if p.priority == 'urgent' %}urgent{% endif %}">
+        <div class="fl-prayer-title"><a href="{% url 'faith:prayer_detail' p.pk %}">{{ p.title }}</a></div>
+        <div class="fl-prayer-meta">
+          {% if p.category %}<span class="fl-tag">{{ p.get_category_display }}</span>{% endif %}
+          {% if p.person_or_situation %}<span>{{ p.person_or_situation }}</span>{% endif %}
+          {% if p.priority == 'urgent' %}<span style="color:var(--fl-gold-deep);font-weight:650">Urgent</span>{% endif %}
+        </div>
+        {% if p.description_plain %}<div class="fl-prayer-body">{{ p.description_plain|truncatechars:150 }}</div>{% endif %}
+        <div class="fl-prayer-actions">
+          <details class="fl-answer">
+            <summary>Mark as answered</summary>
+            <div class="fl-answer-body">
+              <form method="post" action="{% url 'faith:prayer_answered' p.pk %}">
+                {% csrf_token %}
+                <textarea name="notes" placeholder="How did God answer? (optional, but worth remembering)"></textarea>
+                <button type="submit" class="fl-btn-sage">Praise God — answered</button>
+              </form>
+            </div>
+          </details>
+          <form method="post" action="{% url 'faith:prayer_archive' p.pk %}" class="fl-inline">
+            {% csrf_token %}<input type="hidden" name="next" value="{% url 'faith:prayer_list' %}">
+            <button type="submit" class="fl-linkbtn muted">Set aside</button>
+          </form>
+          <a class="fl-linkbtn" href="{% url 'faith:prayer_update' p.pk %}">Edit</a>
+        </div>
+      </article>
+      {% empty %}
+      <div class="fl-pray-empty">Nothing here right now. When something is on your heart, <a href="{% url 'faith:prayer_create' %}" style="color:var(--fl-gold-deep);font-weight:600">bring it before Him</a>.</div>
+      {% endfor %}
+
+      {% if is_paginated %}
+      <div class="fl-center" style="margin-top:16px">
+        {% if page_obj.has_next %}<a class="fl-btn fl-btn-ghost fl-btn-sm" href="?page={{ page_obj.next_page_number }}{% if selected_category %}&category={{ selected_category }}{% endif %}">More</a>{% endif %}
+      </div>
+      {% endif %}
+
+      {# ── Answered — a record of His faithfulness ── #}
+      {% if answered_prayers %}
+      <div class="fl-pray-section-h">Prayers He’s answered <span class="n">{{ answered_count }}</span></div>
+      {% for p in answered_prayers %}
+      <article class="fl-prayer answered">
+        <div class="fl-prayer-title">{{ p.title }}</div>
+        {% if p.answer_notes_plain %}<div class="fl-prayer-answer">“{{ p.answer_notes_plain }}”</div>{% endif %}
+        <div class="fl-prayer-actions">
+          <span class="fl-answered-tag"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>Answered{% if p.answered_at %} · {{ p.answered_at|date:"M j, Y" }}{% endif %}</span>
+          <form method="post" action="{% url 'faith:prayer_reopen' p.pk %}" class="fl-inline">
+            {% csrf_token %}<input type="hidden" name="next" value="{% url 'faith:prayer_list' %}">
+            <button type="submit" class="fl-linkbtn">Reopen</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+      {% endif %}
+
+      {# ── Archived — set aside, quietly kept ── #}
+      {% if archived_prayers %}
+      <details class="fl-archived">
+        <summary>Set aside ({{ archived_prayers|length }}) — quietly kept</summary>
+        <div class="fl-archived-body">
+          {% for p in archived_prayers %}
+          <article class="fl-prayer">
+            <div class="fl-prayer-title"><a href="{% url 'faith:prayer_detail' p.pk %}">{{ p.title }}</a></div>
+            <div class="fl-prayer-actions">
+              <form method="post" action="{% url 'faith:prayer_reopen' p.pk %}" class="fl-inline">
+                {% csrf_token %}<input type="hidden" name="next" value="{% url 'faith:prayer_list' %}">
+                <button type="submit" class="fl-linkbtn">Bring back</button>
+              </form>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

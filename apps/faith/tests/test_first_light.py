@@ -161,3 +161,66 @@ class DispatchTests(TestCase):
         c.force_login(user)
         html = c.get("/faith/").content.decode()
         self.assertNotIn("fl-today", html)
+
+
+class PrayerLifecycleTests(TestCase):
+    def test_states_and_transitions(self):
+        user = _make_user(email="fl-pray@example.com")
+        p = PrayerRequest.objects.create(user=user, title="Peace", category="health")
+        self.assertEqual(p.state, "active")
+
+        p.archive()
+        self.assertTrue(p.is_archived)
+        self.assertEqual(p.state, "archived")
+
+        p.reopen()
+        self.assertFalse(p.is_archived)
+        self.assertEqual(p.state, "active")
+
+        p.mark_answered("He provided")
+        self.assertTrue(p.is_answered)
+        self.assertFalse(p.is_archived)  # answering clears the archive
+        self.assertEqual(p.state, "answered")
+
+        p.reopen()  # reopen from answered
+        self.assertFalse(p.is_answered)
+        self.assertEqual(p.state, "active")
+
+
+class PrayerScriptureBridgeTests(TestCase):
+    def test_category_and_keyword_scripture(self):
+        from apps.faith.first_light.prayer import scripture_for_prayer, prayer_prefill_from_reading
+        user = _make_user(email="fl-bridge@example.com")
+
+        health = PrayerRequest.objects.create(user=user, title="Healing", category="health")
+        self.assertEqual(scripture_for_prayer(health)["ref"], "Psalm 147:3")
+
+        # No category -> keyword scan of the subject.
+        anx = PrayerRequest.objects.create(user=user, title="I'm so anxious about work")
+        self.assertEqual(scripture_for_prayer(anx)["ref"], "Philippians 4:6")
+
+        # A default comfort verse always exists (never None).
+        misc = PrayerRequest.objects.create(user=user, title="Something else entirely")
+        self.assertIsNotNone(scripture_for_prayer(misc))
+
+        pre = prayer_prefill_from_reading("Matthew 2:1-12", arc_name="The Coming of Jesus")
+        self.assertIn("Coming of Jesus", pre["title"])
+
+
+class PrayerWallDispatchTests(TestCase):
+    def _onboard(self, user):
+        from django.conf import settings
+        from apps.users.models import TermsAcceptance
+        TermsAcceptance.objects.create(user=user, terms_version=settings.WLJ_SETTINGS["TERMS_VERSION"])
+        user.preferences.has_completed_onboarding = True
+        user.preferences.save()
+
+    def test_wall_first_light(self):
+        user = _make_user(email="fl-wall@example.com", first_light=True)
+        self._onboard(user)
+        PrayerRequest.objects.create(user=user, title="On my heart")
+        c = Client()
+        c.force_login(user)
+        html = c.get("/faith/prayers/").content.decode()
+        self.assertIn("faith-prayer-wall", html)
+        self.assertIn("What you’re bringing before God", html)

@@ -102,6 +102,14 @@ class FaithRequiredMixin(UserPassesTestMixin):
         return redirect("users:preferences")
 
 
+def _first_light(user) -> bool:
+    """True when the user has opted into the First Light Faith experience."""
+    try:
+        return user.preferences.is_feature_enabled("faith", "first_light")
+    except Exception:  # pragma: no cover - defensive
+        return False
+
+
 class FaithHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin,
                     FaithRequiredMixin, TemplateView):
     """
@@ -432,18 +440,38 @@ class PrayerListView(PageSummaryMixin, LoginRequiredMixin, FaithRequiredMixin, L
     page_summary_key = "faith.prayers"
     page_summary_title = "Prayers"
 
+    def get_template_names(self):
+        if _first_light(self.request.user):
+            return ["faith/prayer/wall_first_light.html"]
+        return [self.template_name]
+
     def get_queryset(self):
-        return PrayerRequest.objects.filter(
+        qs = PrayerRequest.objects.filter(
             user=self.request.user,
             is_answered=False,
-        ).order_by("-priority", "-created_at")
+            is_archived=False,
+        )
+        category = self.request.GET.get("category")
+        if category:
+            qs = qs.filter(category=category)
+            self.selected_category = category
+        return qs.order_by("-priority", "-created_at")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        user = self.request.user
         context["answered_count"] = PrayerRequest.objects.filter(
-            user=self.request.user,
-            is_answered=True,
+            user=user, is_answered=True,
         ).count()
+        # First Light wall shows active / answered / archived together.
+        context["answered_prayers"] = PrayerRequest.objects.filter(
+            user=user, is_answered=True,
+        ).order_by("-answered_at")[:12]
+        context["archived_prayers"] = PrayerRequest.objects.filter(
+            user=user, is_answered=False, is_archived=True,
+        ).order_by("-archived_at")
+        context["selected_category"] = getattr(self, "selected_category", None)
+        context["prayer_categories"] = PrayerRequest.CATEGORY_CHOICES
         return context
 
 
@@ -476,8 +504,20 @@ class PrayerDetailView(LoginRequiredMixin, FaithRequiredMixin, DetailView):
     template_name = "faith/prayer_detail.html"
     context_object_name = "prayer"
 
+    def get_template_names(self):
+        if _first_light(self.request.user):
+            return ["faith/prayer/detail_first_light.html"]
+        return [self.template_name]
+
     def get_queryset(self):
         return PrayerRequest.objects.filter(user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if _first_light(self.request.user):
+            from apps.faith.first_light.prayer import scripture_for_prayer
+            context["scripture"] = scripture_for_prayer(self.object)
+        return context
 
 
 class PrayerCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
@@ -489,6 +529,11 @@ class PrayerCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
     form_class = PrayerRequestForm
     template_name = "faith/prayer_form.html"
     success_url = reverse_lazy("faith:prayer_list")
+
+    def get_template_names(self):
+        if _first_light(self.request.user):
+            return ["faith/prayer/form_first_light.html"]
+        return [self.template_name]
 
     def get_initial(self):
         initial = super().get_initial()
@@ -505,6 +550,18 @@ class PrayerCreateView(LoginRequiredMixin, FaithRequiredMixin, CreateView):
                     initial["title"] = f"Pray for {names}"
             except Exception:
                 pass
+        # Pre-fill from today's reading ("Would you like to turn this into a
+        # prayer?"). Deterministic — seeds the title/description with the passage.
+        if self.request.GET.get("from") == "reading":
+            from apps.faith.first_light.prayer import prayer_prefill_from_reading
+            pre = prayer_prefill_from_reading(
+                self.request.GET.get("ref", ""),
+                arc_name=self.request.GET.get("arc", ""),
+                key_insight=self.request.GET.get("insight", ""),
+            )
+            for k, v in pre.items():
+                if v and not initial.get(k):
+                    initial[k] = v
         return initial
 
     def form_valid(self, form):
@@ -525,6 +582,11 @@ class PrayerUpdateView(LoginRequiredMixin, FaithRequiredMixin, UpdateView):
     model = PrayerRequest
     form_class = PrayerRequestForm
     template_name = "faith/prayer_form.html"
+
+    def get_template_names(self):
+        if _first_light(self.request.user):
+            return ["faith/prayer/form_first_light.html"]
+        return [self.template_name]
 
     def get_queryset(self):
         return PrayerRequest.objects.filter(user=self.request.user)
@@ -572,6 +634,26 @@ class PrayerDeleteView(LoginRequiredMixin, FaithRequiredMixin, View):
         prayer.soft_delete()
         messages.success(request, "Prayer request deleted.")
         return redirect("faith:prayer_list")
+
+
+class PrayerArchiveView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """Set a prayer aside without marking it answered."""
+
+    def post(self, request, pk):
+        prayer = get_object_or_404(PrayerRequest.objects.filter(user=request.user), pk=pk)
+        prayer.archive()
+        messages.success(request, "Prayer set aside. You can bring it back any time.")
+        return redirect(request.POST.get("next") or "faith:prayer_list")
+
+
+class PrayerReopenView(LoginRequiredMixin, FaithRequiredMixin, View):
+    """Return a prayer to the active list — from answered or archived."""
+
+    def post(self, request, pk):
+        prayer = get_object_or_404(PrayerRequest.objects.filter(user=request.user), pk=pk)
+        prayer.reopen()
+        messages.success(request, "Prayer reopened — still on your heart.")
+        return redirect(request.POST.get("next") or "faith:prayer_list")
 
 
 # Milestone Views

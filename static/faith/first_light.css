@@ -157,6 +157,10 @@ html[data-theme="midnight"] .fl-root{
   color:var(--fl-on-night);text-decoration:none;position:relative;overflow:hidden;box-shadow:var(--fl-shadow);
   background:radial-gradient(80% 160% at 12% 30%, rgba(233,197,107,.22), transparent 60%), linear-gradient(120deg,#1A2236,#2C2740 70%,#4A3B44)}
 .fl-mirror-door:hover{box-shadow:var(--fl-shadow-lg)}
+.fl-doorways{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:30px}
+.fl-doorways .fl-mirror-door{margin-top:0}
+.fl-doorways .fl-md-t{font-size:15.5px}
+@media (max-width:640px){.fl-doorways{grid-template-columns:1fr}}
 .fl-mirror-door .fl-md-orb{width:38px;height:38px;flex:none;border-radius:50%;background:radial-gradient(circle at 36% 32%,#F6E4B0,#C9A227 74%);box-shadow:0 0 20px 3px rgba(233,197,107,.4)}
 .fl-mirror-door .fl-md-k{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--fl-gold-on-night);font-weight:700}
 .fl-mirror-door .fl-md-t{font-family:var(--fl-serif);font-size:17px;color:#F6EEDC;margin-top:2px}
@@ -396,6 +400,82 @@ html[data-theme="midnight"] .fl-root{
   .fl-detail-hero{padding:34px 20px 30px}
   .fl-mirror-hero{padding:34px 20px}
 }
+/* ============================================================================
+   PRAYER — a first-class pillar of Faith, in the First Light language.
+   ============================================================================ */
+.fl-pray{max-width:760px;margin:0 auto;padding:6px 0 56px}
+.fl-pray-hero{position:relative;overflow:hidden;border-radius:var(--fl-r-xl);color:var(--fl-on-night);text-align:center;
+  padding:34px 26px;margin-bottom:20px;box-shadow:var(--fl-shadow-lg);
+  background:radial-gradient(90% 130% at 50% 120%, rgba(233,197,107,.28), transparent 60%), linear-gradient(180deg,#141B2A,#2C2740 70%,#4A3B44)}
+.fl-pray-hero .fl-md-orb{width:34px;height:34px;margin:0 auto 12px}
+.fl-pray-hero h1{font-family:var(--fl-serif);font-size:clamp(24px,3vw,32px);color:#F6EEDC}
+.fl-pray-hero p{color:var(--fl-on-night-soft);font-size:14px;margin-top:8px}
+.fl-pray-hero .fl-btn{margin-top:18px}
+
+.fl-pray-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:8px 0 16px}
+.fl-cat-chips{display:flex;gap:8px;flex-wrap:wrap}
+.fl-cat-chip{font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--fl-line);background:var(--fl-surface);color:var(--fl-ink-soft);text-decoration:none}
+.fl-cat-chip:hover{border-color:var(--fl-gold);color:var(--fl-gold-deep)}
+.fl-cat-chip.on{background:var(--fl-ink);color:var(--fl-surface-2);border-color:var(--fl-ink)}
+
+.fl-prayer{background:var(--fl-surface);border:1px solid var(--fl-line);border-radius:var(--fl-r);padding:16px 18px;margin-bottom:12px}
+.fl-prayer.urgent{border-left:3px solid var(--fl-gold)}
+.fl-prayer-title{font-family:var(--fl-serif);font-size:17px;font-weight:600;line-height:1.25}
+.fl-prayer-title a{text-decoration:none;color:inherit}
+.fl-prayer-title a:hover{color:var(--fl-gold-deep)}
+.fl-prayer-meta{font-size:12.5px;color:var(--fl-muted);margin-top:4px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.fl-prayer-meta .fl-tag{padding:2px 8px}
+.fl-prayer-body{font-size:14px;color:var(--fl-ink-soft);margin-top:10px;line-height:1.5}
+.fl-prayer-actions{display:flex;gap:16px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.fl-linkbtn{background:none;border:none;color:var(--fl-gold-deep);font-weight:600;font-size:13px;cursor:pointer;font-family:var(--fl-sans);padding:0;text-decoration:none}
+.fl-linkbtn:hover{color:var(--fl-gold)}
+.fl-linkbtn.muted{color:var(--fl-muted)}
+.fl-inline{display:inline}
+
+/* inline "mark answered" — reuse the explicit-collapse pattern (app globals
+   defeat native <details> hiding). */
+.fl-answer{display:inline-block}
+.fl-answer>summary{list-style:none;cursor:pointer;color:var(--fl-sage);font-weight:650;font-size:13px}
+.fl-answer>summary::-webkit-details-marker{display:none}
+.fl-answer>.fl-answer-body{display:none}
+.fl-answer[open]>.fl-answer-body{display:block;margin-top:10px}
+.fl-answer textarea{width:100%;min-height:64px;border:1px solid var(--fl-line);border-radius:10px;padding:10px 12px;font-family:var(--fl-serif);font-size:15px;color:var(--fl-ink);background:var(--fl-surface-2);resize:vertical}
+.fl-answer textarea:focus{outline:none;border-color:var(--fl-sage)}
+.fl-btn-sage{background:var(--fl-sage);color:#fff;border:none;font-weight:650;font-size:13px;padding:9px 16px;border-radius:10px;cursor:pointer;margin-top:8px;font-family:var(--fl-sans)}
+
+.fl-prayer.answered{background:linear-gradient(160deg,var(--fl-sage-wash),var(--fl-surface));border-color:transparent}
+.fl-prayer-answer{font-family:var(--fl-serif);font-style:italic;color:var(--fl-ink);font-size:15px;margin-top:8px;line-height:1.5}
+.fl-answered-tag{color:var(--fl-sage);font-weight:650;font-size:12px;display:inline-flex;align-items:center;gap:5px}
+.fl-pray-section-h{font-family:var(--fl-serif);font-size:19px;margin:34px 0 14px;display:flex;align-items:baseline;gap:10px}
+.fl-pray-section-h .n{font-size:13px;color:var(--fl-muted);font-weight:600}
+.fl-pray-empty{text-align:center;color:var(--fl-muted);padding:30px 20px;border:1px dashed var(--fl-line);border-radius:var(--fl-r)}
+
+/* archived — a quiet collapsed section */
+.fl-archived{margin-top:30px;border-top:1px solid var(--fl-line-soft)}
+.fl-archived>summary{list-style:none;cursor:pointer;padding:16px 2px;color:var(--fl-muted);font-weight:600;font-size:14px}
+.fl-archived>summary::-webkit-details-marker{display:none}
+.fl-archived>.fl-archived-body{display:none}
+.fl-archived[open]>.fl-archived-body{display:block}
+
+/* prayer detail — Scripture that speaks to this */
+.fl-pray-scripture{background:var(--fl-surface);border:1px solid var(--fl-line);border-left:3px solid var(--fl-gold);border-radius:var(--fl-r);padding:18px 20px;margin-top:22px}
+.fl-pray-scripture .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--fl-gold-deep);font-weight:700;margin-bottom:8px}
+.fl-pray-scripture .t{font-family:var(--fl-serif);font-size:17px;line-height:1.55;color:var(--fl-ink)}
+.fl-pray-scripture .r{font-size:12.5px;color:var(--fl-gold-deep);font-weight:650;margin-top:8px;letter-spacing:.02em}
+
+/* prayer form (First Light) */
+.fl-form{max-width:600px;margin:0 auto}
+.fl-form-field{margin-bottom:18px}
+.fl-form-field label{display:block;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fl-muted);font-weight:650;margin-bottom:7px}
+.fl-form-field input[type=text],.fl-form-field select,.fl-form-field textarea{width:100%;border:1px solid var(--fl-line);border-radius:11px;padding:12px 14px;font-size:16px;color:var(--fl-ink);background:var(--fl-surface-2);font-family:var(--fl-sans)}
+.fl-form-field input[type=text]:focus,.fl-form-field select:focus,.fl-form-field textarea:focus{outline:none;border-color:var(--fl-gold)}
+.fl-form-check{display:flex;align-items:center;gap:9px;font-size:14.5px;color:var(--fl-ink)}
+.fl-form-actions{display:flex;gap:12px;align-items:center;margin-top:24px}
+
+/* reader → prayer bridge */
+.fl-to-prayer{display:inline-flex;align-items:center;gap:8px;margin:26px auto 0;padding:11px 18px;border-radius:999px;border:1px solid var(--fl-line);background:var(--fl-surface);color:var(--fl-gold-deep);font-weight:600;font-size:13.5px;text-decoration:none;transition:.16s}
+.fl-to-prayer:hover{border-color:var(--fl-gold);color:var(--fl-gold)}
+
 @media (prefers-reduced-motion:reduce){
   .fl-breath{animation:none}
   .fl-fade,.fl-fade-2,.fl-fade-3,.fl-fade-4{animation:none}

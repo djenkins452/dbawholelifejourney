@@ -162,6 +162,17 @@ class PrayerRequest(RichTextMixin, UserOwnedModel):
         ("urgent", "Urgent"),
     ]
 
+    # Prayer categories — a gentle way to group what we bring before God.
+    CATEGORY_CHOICES = [
+        ("family", "Family & relationships"),
+        ("health", "Health & healing"),
+        ("provision", "Work & provision"),
+        ("guidance", "Guidance & decisions"),
+        ("gratitude", "Gratitude & praise"),
+        ("growth", "Spiritual growth"),
+        ("others", "Others & the world"),
+    ]
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     description_plain = models.TextField(blank=True, default="", editable=False)
@@ -199,10 +210,23 @@ class PrayerRequest(RichTextMixin, UserOwnedModel):
     )
     answer_notes_plain = models.TextField(blank=True, default="", editable=False)
 
+    category = models.CharField(
+        max_length=20, choices=CATEGORY_CHOICES, blank=True, default="",
+        help_text="A gentle grouping for this prayer",
+    )
+
+    # Archived — set aside without being answered (still part of the story).
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
     # Reminders
     remind_daily = models.BooleanField(
         default=False,
         help_text="Include in daily prayer reminders",
+    )
+    reminder_time = models.TimeField(
+        null=True, blank=True,
+        help_text="Optional time of day for a reminder (future-ready)",
     )
 
     class Meta:
@@ -213,12 +237,41 @@ class PrayerRequest(RichTextMixin, UserOwnedModel):
     def __str__(self):
         return self.title
 
+    @property
+    def state(self) -> str:
+        """active · answered · archived (answered takes precedence)."""
+        if self.is_answered:
+            return "answered"
+        if self.is_archived:
+            return "archived"
+        return "active"
+
     def mark_answered(self, notes=""):
-        """Mark this prayer as answered."""
+        """Mark this prayer as answered (and out of the archive, if there)."""
         self.is_answered = True
         self.answered_at = timezone.now()
         self.answer_notes = notes
-        self.save(update_fields=["is_answered", "answered_at", "answer_notes", "updated_at"])
+        self.is_archived = False
+        self.archived_at = None
+        self.save(update_fields=[
+            "is_answered", "answered_at", "answer_notes", "is_archived", "archived_at", "updated_at",
+        ])
+
+    def archive(self):
+        """Set a prayer aside without marking it answered."""
+        self.is_archived = True
+        self.archived_at = timezone.now()
+        self.save(update_fields=["is_archived", "archived_at", "updated_at"])
+
+    def reopen(self):
+        """Return a prayer to the active list — from answered or archived."""
+        self.is_answered = False
+        self.answered_at = None
+        self.is_archived = False
+        self.archived_at = None
+        self.save(update_fields=[
+            "is_answered", "answered_at", "is_archived", "archived_at", "updated_at",
+        ])
 
 
 class SavedVerse(UserOwnedModel):

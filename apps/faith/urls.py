@@ -40,6 +40,8 @@ urlpatterns = [
     path("prayers/<int:pk>/", views.PrayerDetailView.as_view(), name="prayer_detail"),
     path("prayers/<int:pk>/edit/", views.PrayerUpdateView.as_view(), name="prayer_update"),
     path("prayers/<int:pk>/answered/", views.MarkPrayerAnsweredView.as_view(), name="prayer_answered"),
+    path("prayers/<int:pk>/archive/", views.PrayerArchiveView.as_view(), name="prayer_archive"),
+    path("prayers/<int:pk>/reopen/", views.PrayerReopenView.as_view(), name="prayer_reopen"),
     path("prayers/<int:pk>/delete/", views.PrayerDeleteView.as_view(), name="prayer_delete"),
     path("prayers/bulk/delete/", views.BulkDeletePrayersView.as_view(), name="prayer_bulk_delete"),
 

@@ -34,6 +34,15 @@ SEED = [
 
 
 def seed(apps, schema_editor):
+    # Container Truth is seeded into the REAL ingredient catalog only. Skip the test
+    # database: the meal test suite creates ingredients by these same common canonical
+    # names ("flour"/"rice"/"salt"/...) and would collide with globally-seeded rows on the
+    # unique canonical_name constraint. No test relies on these seeded rows existing (the
+    # container-truth suite seeds its own uniquely-named fixtures). Production is unaffected
+    # — this migration is already applied there, and a fresh prod DB is not named "test_".
+    db_name = str(schema_editor.connection.settings_dict.get("NAME") or "")
+    if db_name.startswith("test_"):
+        return
     Ingredient = apps.get_model("meals", "Ingredient")
     for name, measure, density, qty, unit in SEED:
         obj, _ = Ingredient.objects.get_or_create(

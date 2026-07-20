@@ -223,7 +223,7 @@
             <div class="tonight-hero" style="margin-top: var(--space-4);">
                 <div class="tonight-hero-header">
                     <span class="tonight-hero-label">Tonight's Recommendation</span>
-                    <div class="tonight-hero-score" title="Match score">{{ tonight.score|floatformat:0 }}</div>
+                    <div class="tonight-hero-score" title="Match score">{% widthratio tonight.score 1 100 %}</div>
                 </div>
                 <h2 class="tonight-hero-title">
                     <a href="{% url 'meals:recipe_detail' pk=tonight.recipe_id %}">{{ tonight.recipe_title }}</a>
@@ -276,7 +276,7 @@
             <div class="tonight-hero">
                 <div class="tonight-hero-header">
                     <span class="tonight-hero-label">Tonight's Recommendation</span>
-                    <div class="tonight-hero-score" title="Match score">{{ tonight.score|floatformat:0 }}</div>
+                    <div class="tonight-hero-score" title="Match score">{% widthratio tonight.score 1 100 %}</div>
                 </div>
                 <h2 class="tonight-hero-title">
                     <a href="{% url 'meals:recipe_detail' pk=tonight.recipe_id %}">{{ tonight.recipe_title }}</a>

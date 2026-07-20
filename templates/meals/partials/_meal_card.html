@@ -12,8 +12,9 @@ Expected context:
         <h3 class="meal-card-title">
             <a href="{% url 'meals:recipe_detail' pk=item.recipe.pk %}">{{ item.recipe.title }}</a>
         </h3>
-        <div class="meal-card-score" title="Match score: {{ item.score.total_score|floatformat:0 }}%">
-            {{ item.score.total_score|floatformat:0 }}
+        {# total_score is a 0–1 fraction; render as a 0–100 match score. #}
+        <div class="meal-card-score" title="Match score: {% widthratio item.score.total_score 1 100 %}%">
+            {% widthratio item.score.total_score 1 100 %}
         </div>
     </div>
 

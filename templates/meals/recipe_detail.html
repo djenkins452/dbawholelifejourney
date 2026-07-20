@@ -71,7 +71,8 @@
                 <h2 class="recipe-section-title">Pantry Gap Analysis</h2>
                 <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-3);">
                     <div style="text-align: center;">
-                        <div style="font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-text);">{{ gap_analysis.availability_score|floatformat:0 }}%</div>
+                        {# availability_score is a 0–1 fraction; render as a 0–100 percentage. #}
+                        <div style="font-size: var(--font-size-2xl); font-weight: 700; color: var(--color-text);">{% widthratio gap_analysis.availability_score 1 100 %}%</div>
                         <div style="font-size: var(--font-size-xs); color: var(--color-text-muted);">Available</div>
                     </div>
                 </div>
@@ -100,7 +101,7 @@
                     {% for sub in subs %}
                     <div class="substitution-item">
                         <span class="substitution-arrow">&rarr;</span>
-                        <span>{{ sub.name|title }}</span>
+                        <span>{{ sub.substitute_name|title }}</span>
                         <span style="font-size: var(--font-size-xs); color: var(--color-text-muted);">({{ sub.reason }})</span>
                     </div>
                     {% endfor %}
@@ -130,8 +131,9 @@
             <div class="recipe-section">
                 <h2 class="recipe-section-title">Meal Score</h2>
                 <div style="text-align: center; margin-bottom: var(--space-3);">
+                    {# total_score is a 0–1 fraction; render as a 0–100 score. #}
                     <div class="tonight-hero-score" style="margin: 0 auto; width: 56px; height: 56px; font-size: var(--font-size-xl);">
-                        {{ meal_score.total_score|floatformat:0 }}
+                        {% widthratio meal_score.total_score 1 100 %}
                     </div>
                 </div>
                 {% with explanation=meal_score.explanation factors=meal_score.factor_scores %}

@@ -12,6 +12,10 @@ from typing import Optional
 
 from django.utils import timezone
 
+from apps.meals.services.pantry_availability import (
+    AVAIL_FULL, AVAIL_NONE, get_pantry_availability,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -86,51 +90,40 @@ def analyze_recipe_gaps(recipe, household) -> GapAnalysis:
         needed_qty = ri.quantity or Decimal("1")
         needed_unit = ri.unit
 
-        if pantry_item is None or pantry_item.quantity <= 0:
-            # Missing entirely
-            gaps.append(IngredientGap(
-                ingredient_id=ri.ingredient.id,
-                ingredient_name=ri.ingredient.canonical_name,
-                needed_quantity=needed_qty,
-                needed_unit=needed_unit,
-                available_quantity=Decimal("0"),
-                available_unit=needed_unit,
-                confidence=Decimal("1.0"),
-                gap_type="missing",
-            ))
+        # Availability comes from THE single pantry-availability authority — the same
+        # density-aware, Container-Truth-aware logic recipe Preparation deducts with — so
+        # Suggestions and Preparation can never disagree on "is this in the pantry?".
+        avail = get_pantry_availability(pantry_item, needed_qty, needed_unit,
+                                        getattr(ri.ingredient, "density_g_per_ml", None))
+
+        days_until_exp = pantry_item.days_until_expiration if pantry_item else None
+        is_expiring = days_until_exp is not None and 0 < days_until_exp <= 3
+
+        if avail.status == AVAIL_NONE:
+            gap_type = "missing"
             missing_count += 1
+        elif avail.status == AVAIL_FULL:
+            gap_type = "expiring" if is_expiring else "available"
+            available_count += 1
+            if is_expiring:
+                expiring_count += 1
         else:
-            # Check expiration
-            days_until_exp = pantry_item.days_until_expiration
-            is_expiring = days_until_exp is not None and 0 < days_until_exp <= 3
+            # AVAIL_PARTIAL (short) or AVAIL_NEEDS_INFO (unconvertible) — both are a
+            # conservative "partial": some stock exists but we can't confirm it fully covers.
+            gap_type = "partial"
+            partial_count += 1
 
-            # Simple quantity comparison (same unit assumed for now)
-            # TODO: Cross-unit conversion in Phase 4+
-            if pantry_item.unit == needed_unit:
-                if pantry_item.quantity >= needed_qty:
-                    gap_type = "expiring" if is_expiring else "available"
-                    available_count += 1
-                    if is_expiring:
-                        expiring_count += 1
-                else:
-                    gap_type = "partial"
-                    partial_count += 1
-            else:
-                # Different units — treat as partial with lower confidence
-                gap_type = "partial"
-                partial_count += 1
-
-            gaps.append(IngredientGap(
-                ingredient_id=ri.ingredient.id,
-                ingredient_name=ri.ingredient.canonical_name,
-                needed_quantity=needed_qty,
-                needed_unit=needed_unit,
-                available_quantity=pantry_item.quantity,
-                available_unit=pantry_item.unit,
-                confidence=pantry_item.confidence_score,
-                gap_type=gap_type,
-                days_until_expiration=days_until_exp,
-            ))
+        gaps.append(IngredientGap(
+            ingredient_id=ri.ingredient.id,
+            ingredient_name=ri.ingredient.canonical_name,
+            needed_quantity=needed_qty,
+            needed_unit=needed_unit,
+            available_quantity=(pantry_item.quantity if pantry_item else Decimal("0")),
+            available_unit=(pantry_item.unit if pantry_item else needed_unit),
+            confidence=(pantry_item.confidence_score if pantry_item else Decimal("1.0")),
+            gap_type=gap_type,
+            days_until_expiration=days_until_exp,
+        ))
 
     total = len(gaps)
     availability_score = Decimal(str(

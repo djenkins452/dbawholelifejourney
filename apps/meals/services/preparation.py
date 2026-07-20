@@ -29,8 +29,10 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.meals.models import Leftover, PantryItem, PreparationEvent, RecipeIngredient
+from apps.meals.services.pantry_availability import (
+    AVAIL_NEEDS_INFO, get_pantry_availability,
+)
 from apps.meals.services.pantry_ingestion import deduct_pantry_item
-from apps.meals.services.unit_conversion import convert_between
 
 
 # Per-ingredient deduction outcome statuses (audit vocabulary).
@@ -98,14 +100,15 @@ def _deduct_one(household, ri: RecipeIngredient, scale: Decimal, prep: Preparati
         return {"ingredient": name, "status": D_NO_PANTRY, "required": float(required_scaled),
                 "required_unit": req_unit, "deducted": 0.0, "note": "not in pantry"}
 
-    # Remaining Truth is stored as an EXACT base quantity in `pantry.unit` (ml/g/count for
-    # container items; the native unit for legacy items). Deduction converts the required
-    # recipe amount into that stored unit — using the ingredient's density for mass↔volume
-    # — and subtracts it directly. There is no container-fraction arithmetic; container
-    # views are derived at presentation from net_content.
-    amount = convert_between(required_scaled, req_unit, pantry.unit, density)
-    if amount is None:
-        if pantry.net_content and pantry.net_content_unit:
+    # Availability + the exact deduction amount come from THE single pantry-availability
+    # authority (density-aware; Remaining Truth stored as an exact base quantity in
+    # `pantry.unit`). The authority is READ-ONLY; deduction stays with the canonical writer
+    # deduct_pantry_item. Meal Suggestions consume the SAME authority so the two can never
+    # disagree on "is this in the pantry?". Container views are derived at presentation.
+    avail = get_pantry_availability(pantry, required_scaled, req_unit, density)
+
+    if avail.status == AVAIL_NEEDS_INFO:
+        if avail.has_container_truth:
             # Container truth exists but this recipe unit can't be bridged (e.g. a mass
             # recipe against a volume item with no density) — a real conversion gap.
             return {"ingredient": name, "status": D_UNSUPPORTED,
@@ -121,7 +124,8 @@ def _deduct_one(household, ri: RecipeIngredient, scale: Decimal, prep: Preparati
                 "note": f"How much is one {pantry.unit or 'container'} of {name}? "
                         f"Add its net contents once and this becomes automatic."}
 
-    available = pantry.quantity or Decimal("0")
+    amount = avail.deduct_amount
+    available = avail.usable_base
     deducted = deduct_pantry_item(
         pantry_item=pantry, amount=amount, source="preparation",
         notes=notes, preparation=prep)

@@ -6,6 +6,18 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — fix(model-interface): salient ATTACHMENT LEAD — model no longer asks to upload a document that's already attached
+
+**Production regression (different from the prior zero-records/filename bug):** the UI showed the attachment receipt ("Danny's Journal.docx — Attached"), but the assistant replied "Please upload the journal document…" — behaving as if no attachment existed.
+
+**Runtime trace (temporary glass-box `convo-trace` endpoint + per-turn attach instrumentation, both removed):** dumped Danny's actual conversation (id 14). The **user message carried a SERVER-SIDE `attachment_receipts` for the DOCX** — and that receipt is set in the streaming task FROM the resolved `attachments`, proving the server received, resolved, and passed the attachment to `generate()`. Verified the threading: `generate(attachments) → build_standing_context(attachments) → current_context.attachments`. So UI-receipt == conversation-attachment == model-payload were ALL present. **The divergence was SALIENCE (layer 5→6):** the attachment (filename + 19KB extracted text) sat as one small entry buried in a ~60k-char JSON, and the model overlooked it and asked for an upload — the SAME class the `_focus_lead` fix already solved for on-screen content.
+
+**Fix:** `ModelInterfaceService._attachment_lead` surfaces this-turn attachment(s) prominently at the TOP of the system prompt (before the buried JSON) — name + readable/processing state + `artifact_id`, with an explicit directive: never ask to upload a listed file; to import a journal call `import_journal_entries(source_artifact_id=<id or filename>)`. Single source (the SAME `current_context.attachments`, no duplication), same inline-salience pattern as `_focus_lead`/`_profile_lead`.
+
+**Behavioral verification (real OpenAI call through the actual CoS sync path, local):** with the lead, the CoS responded *"I found 15 entries … Aug 29 2022 – Jan 1 2023. 14 will be imported. 1 won't (Sep 5, marked skipped). Would you like to proceed?"* + a Rich Confirmation card (14 import / 1 skip / correct date range). No "please upload." Full workflow now works: acknowledge → Structured Import → 15 found / 14 import / Sep 5 skipped → confirmation preview → correct dates → skipped not inserted → no fabrication.
+
+**Files:** MODIFIED `apps/ai/model_interface/service.py` (`_attachment_lead`), NEW `apps/ai/tests/test_attachment_lead.py` (5). Added+removed temporary `apps/admin_console/glassbox_convo_trace.py` + its URL + a task `_attach_debug` instrumentation (temporary-infra lifecycle). **Tests:** attachment-lead + model-interface suite green; `check` clean. **Why:** an attachment the CoS demonstrably has must never be answered with "please upload" — the model has to see it, not just receive it.
+
 ## 2026-07-20 — fix(cos): Conversation State — active-artifact CONTINUITY (re-perceive, not just reference)
 
 **Production defect:** user uploads an image ("What is this?" → "French's mustard"), then "How many ounces is it?" → *"I need more context"*, then "the bottle I just sent you" → *"the image isn't available right now."* The uploaded artifact was lost across follow-ups.

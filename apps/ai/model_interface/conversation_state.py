@@ -28,9 +28,26 @@ Facts and references only — never a model-authored summary of the conversation
 Determinism (WLJ):
   * active_subject is DERIVED from concrete signals — this turn's uploaded attachment,
     or an entity the model just retrieved via get_entity — never from parsing language.
-  * it persists for a bounded window and expires; a new subject supersedes the old.
 Reasoning (model): whether a follow-up ("for a leak?", "is that dangerous?", "it/that")
   refers to the active subject, and whether a short "yes" answers a pending confirmation.
+
+DETERMINISTIC LIFECYCLE — EVENT-DRIVEN PRIMARY, turn/time only as a last-resort fallback:
+  * ACTIVATE  — an upload arrives, or the model retrieves an entity/artifact (get_entity).
+  * UPDATE    — the SAME subject is re-surfaced (re-retrieved) → its source_turn resets
+                (deterministic reinforcement; a text-only "is it about the subject?" is the
+                model's semantic call, not a WLJ event).
+  * SUPERSEDE — a NEW upload, or a retrieval of a DIFFERENT subject, replaces the subject.
+                This is the PRIMARY way a subject changes.
+  * CLEAR (event) — an explicit reset (`clear()`; `AssistantConversation.clear_messages`).
+                Pending confirmations clear on their own event path (single-use consume in
+                `confirmation.py`) when resolved/declined/cancelled.
+  * PRESERVE  — an ambiguous follow-up with no new subject signal → keep the subject.
+  * CLEAR (fallback, ONLY when no event above fired) — the whole state expires after
+                TTL_SECONDS of INACTIVITY, and an unreinforced subject ages out after a
+                GENEROUS turn backstop. These are safety nets for state the model
+                SEMANTICALLY abandoned ("never mind" / a new task) — which WLJ cannot detect
+                deterministically (that is language = the model's job, Article I.2) — NOT the
+                primary clear mechanism.
 """
 from __future__ import annotations
 
@@ -39,8 +56,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 _KEY = "conversation_state"
-TTL_SECONDS = 1800          # whole-state inactivity expiry (30 min)
-MAX_SUBJECT_TURNS = 4       # turns an unreinforced active subject stays offered
+# FALLBACKS ONLY (not the primary lifecycle — supersession/clear events are). They bound
+# state the model silently moved on from, which WLJ cannot observe deterministically.
+TTL_SECONDS = 1800          # whole-state INACTIVITY fallback (30 min)
+MAX_SUBJECT_TURNS = 12      # generous turn BACKSTOP for an unreinforced, never-superseded subject
 _MAX_ARTIFACTS = 6          # bounded active-artifact list
 SCHEMA_VERSION = 1
 
@@ -113,7 +132,8 @@ def read(conversation, *, now=None) -> dict | None:
         "active_artifacts": list(state.get("active_artifacts") or [])[:_MAX_ARTIFACTS],
     }
     subj = state.get("active_subject")
-    # Turn-based expiry of the active subject (kept as facts if still in window).
+    # FALLBACK backstop (not the primary clear — supersession events are): an unreinforced,
+    # never-superseded subject ages out only after a generous turn window.
     if isinstance(subj, dict) and subj.get("ref") is not None:
         cur_turn = state.get("turn") or 0
         src_turn = subj.get("source_turn") or 0
@@ -126,14 +146,17 @@ def read(conversation, *, now=None) -> dict | None:
 
 def record_turn(conversation, *, attachments=None, retrieved_subject=None,
                 now=None) -> None:
-    """Deterministically advance the working-state after a turn. Never raises.
+    """Deterministically advance the working-state after a turn — the EVENT-DRIVEN write
+    path (ACTIVATE / SUPERSEDE / PRESERVE). Never raises.
 
-    Signals (concrete, not language):
-      * attachments — artifacts uploaded THIS turn → the primary one becomes the active
-        subject and joins active_artifacts (the leak-video case).
+    Events (concrete signals, not language):
+      * attachments — an upload THIS turn → ACTIVATE/SUPERSEDE: the primary upload becomes the
+        active subject and joins active_artifacts (the leak-video case).
       * retrieved_subject — an entity/artifact the model just retrieved via get_entity
-        ({kind, ref, label}) → becomes the active subject when no upload this turn.
-    Otherwise the prior subject persists (until its turn/time window expires)."""
+        ({kind, ref, label}) → ACTIVATE/SUPERSEDE (or UPDATE, when it re-surfaces the SAME
+        subject: source_turn resets → reinforced).
+    Otherwise PRESERVE: the prior subject persists unchanged (cleared only by a later
+    supersession/clear event, or — as a last resort — the turn/time FALLBACKS in read())."""
     if conversation is None:
         return
     try:

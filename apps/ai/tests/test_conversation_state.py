@@ -59,6 +59,25 @@ class ConversationStateAuthorityTests(TestCase):
         self.assertLess(sp.find("ACTIVE CONVERSATION STATE"), sp.find("STRUCTURED CONTEXT"))
 
     # 3./4./5. Pending confirmation is surfaced saliently + resolvable by id ---
+    # Event-driven-primary lifecycle (Q2 refinement) ------------------------
+    def test_supersession_is_event_primary_not_turn_bounded(self):
+        # A new retrieval SUPERSEDES immediately (event), independent of any turn count.
+        cs.record_turn(self.conv, attachments=_VIDEO)
+        cs.record_turn(self.conv, retrieved_subject={
+            "kind": "entity", "ref": "Dad's health", "label": "Dad's health"})
+        self.assertEqual(cs.read(self.conv)["active_subject"]["label"], "Dad's health")
+
+    def test_subject_survives_a_normal_thread_backstop_is_generous(self):
+        # The active subject must survive a normal multi-turn discussion (this FAILED under
+        # the old eager 4-turn cap; the raised backstop makes turn-count a genuine fallback).
+        cs.record_turn(self.conv, attachments=_VIDEO)
+        for _ in range(6):                       # six unreinforced follow-ups
+            cs.record_turn(self.conv, attachments=None)
+        st = cs.read(self.conv)
+        self.assertIsNotNone(st.get("active_subject"), "subject must survive a normal thread")
+        self.assertEqual(st["active_subject"]["ref"], 999)
+        self.assertGreaterEqual(cs.MAX_SUBJECT_TURNS, 8, "backstop must be a generous fallback")
+
     def test_single_pending_confirmation_is_salient_and_bound(self):
         rec = confirmation.create(self.user, "import_journal_entries",
                                   {"records": [{"title": "A day"}]}, "Import 1 journal entry")

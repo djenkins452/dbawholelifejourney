@@ -1,6 +1,6 @@
 # WLJ Chief-of-Staff — Conversation State Management (Governing Architecture)
 
-**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented (see §Implementation Status). AWAITING production validation.
+**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** AWAITING production validation.
 **Date:** 2026-07-20
 **Runtime scope:** Danny's production runtime is `use_model_interface=True` → `CoSGateway.respond` → `ModelInterfaceService` (proven). All design and tests target that runtime.
 
@@ -12,6 +12,17 @@
 currently talking about, doing, or waiting on?"* These are different deterministic truths. WLJ owns
 the deterministic conversation working-state; the conversational model reasons over it. WLJ does **not**
 perform semantic reasoning and does **not** become a conversation conductor.
+
+**Architectural position (refined 2026-07-20, Q1 review): Conversation State is NOT an independent
+Truth Surface — it is deterministic conversational truth CARRIED INSIDE the Executive Context Envelope.**
+It is a peer *field* to `current_context` within the one envelope (`ModelInterfaceService.build_standing_context`),
+assembled by the same one path each turn. The four Truth Surfaces are the *tools* the model calls
+(`get_entity` / `get_history` / `get_analysis` / `search_history`); **Conversation State is not one of them
+— there is no `get_conversation_state` tool and the model never fetches it.** This preserves all four design
+goals with the *simpler* architecture: one authority (`conversation_state.py`), one read (metadata — no
+duplicated retrieval), one precedence list (the operating prompt — no competing chains), no parallel context
+system. Current Context remains authoritative for page questions (Article II); Conversation State never
+overrides it — it is a *sibling field* the model reads for follow-ups and pending resolutions.
 
 ---
 
@@ -92,17 +103,23 @@ AssistantConversation.metadata["conversation_state"] = {
 ```
 Facts and references only; no free-form conversation summary.
 
-## 6. State transitions (deterministic)
+## 6. Deterministic lifecycle — EVENT-DRIVEN PRIMARY (refined 2026-07-20, Q2 review)
 
-- **Artifact uploaded** → its id becomes an `active_artifacts` entry and the `active_subject` (kind=artifact).
-- **Model retrieves an artifact/entity** (`get_entity`) → that becomes the `active_subject`.
-- **Follow-up with no new subject signal** → the active subject **persists** (within the turn/time window).
-- **Explicit new topic** (the model retrieves a *different* subject, or a new upload) → the subject is
-  superseded.
-- **Confirmation requested** → recorded by `confirmation.create` (existing); surfaced saliently next turn.
-- **yes / no / cancel** → the model calls `resolve_pending_action(id, confirm)` (existing path).
-- **Workflow completes / action fails / cancelled** → confirmation consumed (existing); subject unaffected.
-- **Interruption / return later** → durable in metadata; expiry (below) governs whether it is still active.
+State transitions are driven by **deterministic events** WLJ can actually observe. Turn/time
+(§8) are **last-resort fallbacks**, never the primary clear. The semantic transitions WLJ
+*cannot* observe ("never mind", an implicit topic change) are the **model's** job (Article I.2):
+the model simply stops referring to the subject, and — absent a new event — the fallback bounds it.
+
+| Verb | Deterministic event (WLJ-observable) | Effect |
+|------|--------------------------------------|--------|
+| **ACTIVATE** | an upload arrives; the model retrieves an entity/artifact (`get_entity`); a confirmation is created (`confirmation.create`) | subject/artifact/pending becomes active |
+| **UPDATE** | the SAME subject is re-surfaced (re-retrieved) | `source_turn` resets → reinforced (backstop clock restarts) |
+| **SUPERSEDE** | a NEW upload; a retrieval of a DIFFERENT subject | the new subject **replaces** the old (the primary way a subject changes) |
+| **CLEAR (event)** | explicit reset (`clear()` / `clear_messages()`); a pending confirmation resolved/declined/cancelled | working-state / that pending is dropped (single-use `consume` for pendings) |
+| **PRESERVE** | an ambiguous follow-up with no new subject signal | the subject **persists** unchanged |
+| **CLEAR (fallback)** | *no event above fired* → §8 | inactivity TTL / generous turn backstop bound state the model silently abandoned |
+
+Interruption / return-later is durable in metadata; §8 governs whether it is still active.
 
 ## 7. Precedence (as surfaced to the model; the model reasons, WLJ never overrides Article II)
 
@@ -118,16 +135,23 @@ This prevents *unrelated* page Current Context from displacing an active convers
 Article II**: an explicit page reference still answers from Current Context. WLJ presents both; the model
 disambiguates.
 
-## 8. Expiration & recovery
+## 8. Expiration & recovery — FALLBACKS ONLY (events in §6 are primary)
 
-- **Turn-based:** the active subject is offered for up to `MAX_SUBJECT_TURNS` (default 4) turns without
-  reinforcement.
-- **Time-based:** the whole state expires after `TTL_SECONDS` (default 1800s / 30 min) of inactivity.
-- **Completion/cancellation:** confirmations are single-use (existing); a superseding subject replaces the old.
+The clears below fire **only when no §6 event has already superseded or cleared the state**. They
+exist because WLJ cannot deterministically detect *semantic* abandonment ("never mind", a silent new
+task) — that is language (Article I.2). They are safety nets, not the primary lifecycle.
+
+- **Inactivity (primary fallback):** the whole state expires after `TTL_SECONDS` (30 min) of inactivity.
+- **Turn backstop (secondary fallback):** an unreinforced, never-superseded subject ages out after a
+  **generous** `MAX_SUBJECT_TURNS` (12). Raised from 4 in the Q2 refinement so turn-count is a genuine
+  last resort — not an eager primary clear that drops a subject the user is still discussing. A
+  re-retrieval (UPDATE event) resets this clock.
+- **Superseded/completed:** handled as EVENTS in §6 (not here) — a new subject replaces the old; a
+  resolved confirmation is consumed.
 - **Refresh/reconnect:** durable in the DB row → survives browser refresh and worker reconnect (same
   conversation). A *new* conversation (`get_or_create_active`) starts clean — expired state never
   contaminates a later conversation.
-- **Explicit clear:** `clear_messages()` already resets `metadata` (existing).
+- **Explicit clear (event):** `clear()` / `clear_messages()` resets the state.
 
 ## 9. Multiple simultaneous workflows
 

@@ -139,7 +139,11 @@ class ModelInterfaceService:
         }
 
         # CONVERSATION STATE — "what are we talking about / doing / waiting on" (a DIFFERENT
-        # deterministic truth from Current Context's "what PAGE is the user on"). The active
+        # deterministic truth from Current Context's "what PAGE is the user on"). It is an
+        # OWNED INTERFACE carried INSIDE this Executive Context Envelope — a peer FIELD to
+        # `current_context`, assembled here by the SAME one path — NOT an independent retrieval
+        # surface (there is no get_conversation_state tool; the model never fetches it). One
+        # authority (conversation_state.py), one read, one precedence list. The active
         # subject/artifacts carried across turns; pending confirmations are surfaced from the
         # confirmation authority in the salient lead. Facts only; the model reasons over them.
         try:

@@ -23,6 +23,15 @@
     <div class="scan-location-buttons">
         <h2 class="scan-section-title">Add to Pantry</h2>
         <div class="scan-buttons-row">
+            <!-- Manual entry — the universal fallback: anything you can buy, grow, cook, or
+                 receive goes here, and lands in the same canonical PantryItem as every scan. -->
+            <button type="button" class="scan-location-btn" id="manual-add-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                <span>Add Manually</span>
+            </button>
+
             <!-- Barcode Scanner -->
             <button type="button" class="scan-location-btn" id="barcode-scan-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
@@ -76,7 +85,7 @@
                 </button>
             </form>
         </div>
-        <p class="scan-hint">Scan a barcode to add a product, or upload photos for AI detection.</p>
+        <p class="scan-hint">Add anything by hand, scan a barcode, or upload photos for AI detection — every method lands in the same pantry.</p>
     </div>
 
     {% if pantry_confidence and pantry_confidence.overall_confidence > 0 %}
@@ -322,6 +331,142 @@
         </div>
     </div>
 
+    <!-- Manual Entry Modal — the universal fallback path. Ends in the SAME canonical
+         PantryItem as barcode/receipt/scan via finalize_pantry_item(source="manual"). -->
+    <div class="barcode-modal-overlay" id="manual-modal" style="display:none;">
+        <div class="barcode-modal manual-modal">
+            <div class="barcode-modal-header">
+                <h3>Add to Pantry</h3>
+                <button type="button" class="barcode-modal-close" id="manual-close-btn" aria-label="Close">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <form method="post" action="{% url 'meals:pantry_add_manual' %}" id="manual-form">
+                {% csrf_token %}
+                <input type="hidden" name="ingredient_id" id="manual-ingredient-id" value="">
+
+                <!-- Step 1: find an existing canonical ingredient (prefer reuse) -->
+                <div class="manual-field">
+                    <label class="field-label-sm" for="manual-search">What are you adding?</label>
+                    <input type="text" id="manual-search" class="manual-input" autocomplete="off"
+                           placeholder="Search ingredients — e.g. flour, ketchup, ham"
+                           aria-label="Search ingredients">
+                    <div class="manual-results" id="manual-results" hidden></div>
+                    <div class="manual-chosen" id="manual-chosen" hidden>
+                        <span id="manual-chosen-name"></span>
+                        <button type="button" class="manual-clear" id="manual-clear-chosen">change</button>
+                    </div>
+                </div>
+
+                <!-- Step 2: create a new ingredient only on explicit choice (no duplicates) -->
+                <div class="manual-field" id="manual-new-wrap" hidden>
+                    <label class="field-label-sm">New ingredient</label>
+                    <input type="text" name="new_ingredient_name" id="manual-new-name" class="manual-input"
+                           placeholder="Ingredient name">
+                    <select name="category" id="manual-category" class="manual-input" style="margin-top: var(--space-2);">
+                        <option value="other">Other</option>
+                        <option value="protein">Protein</option>
+                        <option value="vegetable">Vegetable</option>
+                        <option value="fruit">Fruit</option>
+                        <option value="grain">Grain</option>
+                        <option value="dairy">Dairy</option>
+                        <option value="fat">Fat / Oil</option>
+                        <option value="spice">Spice</option>
+                        <option value="condiment">Condiment</option>
+                        <option value="beverage">Beverage</option>
+                        <option value="legume">Legume</option>
+                        <option value="nut">Nut</option>
+                        <option value="sweetener">Sweetener</option>
+                        <option value="baking">Baking</option>
+                    </select>
+                </div>
+
+                <!-- Step 3: quantity -->
+                <div class="manual-row">
+                    <div class="manual-field manual-field-grow">
+                        <label class="field-label-sm" for="manual-quantity">Quantity</label>
+                        <input type="number" name="quantity" id="manual-quantity" class="manual-input"
+                               value="1" min="0" step="0.01" inputmode="decimal">
+                    </div>
+                    <div class="manual-field">
+                        <label class="field-label-sm" for="manual-unit">Unit</label>
+                        <select name="unit" id="manual-unit" class="manual-input">
+                            <option value="piece">piece(s)</option>
+                            <option value="g">g</option>
+                            <option value="oz">oz</option>
+                            <option value="lb">lb</option>
+                            <option value="ml">ml</option>
+                            <option value="cup">cup</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Step 4: container / package size (optional, reuses Container Truth) -->
+                <details class="manual-details">
+                    <summary>Container / package size <span class="manual-optional">(optional)</span></summary>
+                    <p class="manual-help">Tell us what's in one container once — future recipes then deduct it precisely (Capture Once, Reuse Everywhere).</p>
+                    <div class="manual-row">
+                        <div class="manual-field manual-field-grow">
+                            <label class="field-label-sm" for="manual-net-amount">Amount</label>
+                            <input type="number" name="net_content_amount" id="manual-net-amount" class="manual-input"
+                                   min="0" step="0.01" inputmode="decimal" placeholder="20">
+                        </div>
+                        <div class="manual-field">
+                            <label class="field-label-sm" for="manual-net-unit">Unit</label>
+                            <select name="net_content_unit" id="manual-net-unit" class="manual-input">
+                                <option value="">—</option>
+                                <option value="fl_oz">fl oz</option>
+                                <option value="ml">ml</option>
+                                <option value="l">l</option>
+                                <option value="oz">oz</option>
+                                <option value="g">g</option>
+                                <option value="lb">lb</option>
+                                <option value="kg">kg</option>
+                            </select>
+                        </div>
+                        <div class="manual-field">
+                            <label class="field-label-sm" for="manual-container-type">Container</label>
+                            <select name="container_type" id="manual-container-type" class="manual-input">
+                                <option value="">—</option>
+                                <option value="bottle">Bottle</option>
+                                <option value="jar">Jar</option>
+                                <option value="can">Can</option>
+                                <option value="bag">Bag</option>
+                                <option value="box">Box</option>
+                                <option value="carton">Carton</option>
+                                <option value="tub">Tub</option>
+                                <option value="package">Package</option>
+                            </select>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Step 5: location -->
+                <div class="manual-field">
+                    <label class="field-label-sm" for="manual-location">Location</label>
+                    <select name="storage_location" id="manual-location" class="manual-input">
+                        <option value="pantry">Pantry</option>
+                        <option value="fridge">Refrigerator</option>
+                        <option value="freezer">Freezer</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+
+                <!-- Step 6: expiration (optional; never invented) -->
+                <div class="manual-field">
+                    <label class="field-label-sm" for="manual-expiration">Expiration <span class="manual-optional">(optional)</span></label>
+                    <input type="date" name="expiration_date" id="manual-expiration" class="manual-input">
+                </div>
+
+                <div class="barcode-result-actions">
+                    <button type="submit" class="btn btn-primary" id="manual-submit-btn">Add to Pantry</button>
+                    <button type="button" class="btn btn-ghost" id="manual-cancel-btn">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Scan Processing Overlay -->
     <div class="scan-overlay" id="scan-overlay" style="display:none;">
         <div class="scan-overlay-content">
@@ -559,6 +704,83 @@
     font-weight: 600;
     color: #16a34a;
 }
+
+/* Manual entry modal */
+.manual-modal { max-height: 90vh; overflow-y: auto; }
+.manual-form { display: block; }
+.manual-field { display: flex; flex-direction: column; margin-bottom: var(--space-3); position: relative; }
+.manual-row { display: flex; gap: var(--space-2); }
+.manual-field-grow { flex: 1; }
+.manual-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 16px; /* prevent iOS zoom */
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    background: var(--color-bg, #fff);
+    color: var(--color-text, #111827);
+}
+.manual-input:focus {
+    outline: none;
+    border-color: var(--color-primary, #4f46e5);
+    box-shadow: 0 0 0 3px var(--color-primary-soft, rgba(79,70,229,0.15));
+}
+.manual-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    margin-top: 2px;
+    background: var(--color-bg, #fff);
+    border: 1px solid var(--color-border, #e5e7eb);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    max-height: 240px;
+    overflow-y: auto;
+}
+.manual-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    color: var(--color-text, #111827);
+}
+.manual-result-item:hover, .manual-result-item.is-active { background: var(--color-surface-2, #f3f4f6); }
+.manual-result-cat { font-size: var(--font-size-xs); color: var(--color-text-muted, #6b7280); text-transform: capitalize; }
+.manual-result-create { font-weight: 600; color: var(--color-primary, #4f46e5); }
+.manual-chosen {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--color-primary-soft, rgba(79,70,229,0.12));
+    font-weight: 600;
+    text-transform: capitalize;
+}
+.manual-clear {
+    border: none;
+    background: transparent;
+    color: var(--color-primary, #4f46e5);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    text-transform: none;
+}
+.manual-details { margin-bottom: var(--space-3); border: 1px solid var(--color-border, #e5e7eb); border-radius: 8px; padding: 8px 12px; }
+.manual-details summary { cursor: pointer; font-size: var(--font-size-sm); font-weight: 600; }
+.manual-optional { font-weight: 400; color: var(--color-text-muted, #6b7280); }
+.manual-help { font-size: var(--font-size-xs); color: var(--color-text-muted, #6b7280); margin: var(--space-2) 0; }
 </style>
 
 <!-- ZXing barcode scanner library -->
@@ -640,6 +862,128 @@
         input.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') clearSearch();
         });
+    })();
+
+    // ── Manual entry modal (the universal fallback acquisition path) ──
+    (function initManualEntry() {
+        var openBtn = document.getElementById('manual-add-btn');
+        var modal = document.getElementById('manual-modal');
+        if (!openBtn || !modal) return;
+        var closeBtn = document.getElementById('manual-close-btn');
+        var cancelBtn = document.getElementById('manual-cancel-btn');
+        var searchInput = document.getElementById('manual-search');
+        var resultsEl = document.getElementById('manual-results');
+        var chosenEl = document.getElementById('manual-chosen');
+        var chosenName = document.getElementById('manual-chosen-name');
+        var clearChosen = document.getElementById('manual-clear-chosen');
+        var idInput = document.getElementById('manual-ingredient-id');
+        var newWrap = document.getElementById('manual-new-wrap');
+        var newName = document.getElementById('manual-new-name');
+        var form = document.getElementById('manual-form');
+        var submitBtn = document.getElementById('manual-submit-btn');
+        var searchUrl = '{% url "meals:pantry_ingredient_search" %}';
+        var debounceTimer = null;
+
+        function open() { modal.style.display = 'flex'; setTimeout(function () { searchInput.focus(); }, 50); }
+        function close() { modal.style.display = 'none'; }
+
+        function resetChoice() {
+            idInput.value = '';
+            chosenEl.hidden = true;
+            newWrap.hidden = true;
+            newName.value = '';
+            searchInput.hidden = false;
+            searchInput.value = '';
+            resultsEl.hidden = true;
+            resultsEl.innerHTML = '';
+        }
+
+        function chooseExisting(id, name) {
+            idInput.value = id;
+            newWrap.hidden = true;
+            newName.value = '';
+            chosenName.textContent = name;
+            chosenEl.hidden = false;
+            searchInput.hidden = true;
+            resultsEl.hidden = true;
+        }
+
+        function chooseNew(name) {
+            idInput.value = '';
+            newName.value = name;
+            newWrap.hidden = false;
+            chosenName.textContent = name + ' (new)';
+            chosenEl.hidden = false;
+            searchInput.hidden = true;
+            resultsEl.hidden = true;
+            setTimeout(function () { newName.focus(); }, 50);
+        }
+
+        function renderResults(term, items) {
+            resultsEl.innerHTML = '';
+            items.forEach(function (it) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'manual-result-item';
+                var nm = document.createElement('span');
+                nm.textContent = it.name;
+                var cat = document.createElement('span');
+                cat.className = 'manual-result-cat';
+                cat.textContent = it.category || '';
+                b.appendChild(nm); b.appendChild(cat);
+                b.addEventListener('click', function () { chooseExisting(it.id, it.name); });
+                resultsEl.appendChild(b);
+            });
+            // Always offer explicit "create new" so the user never gets stuck.
+            if (term) {
+                var c = document.createElement('button');
+                c.type = 'button';
+                c.className = 'manual-result-item manual-result-create';
+                c.textContent = '+ Create new: "' + term + '"';
+                c.addEventListener('click', function () { chooseNew(term); });
+                resultsEl.appendChild(c);
+            }
+            resultsEl.hidden = false;
+        }
+
+        function doSearch() {
+            var term = searchInput.value.trim();
+            if (term.length < 1) { resultsEl.hidden = true; return; }
+            fetch(searchUrl + '?q=' + encodeURIComponent(term), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (data) { renderResults(term, (data && data.results) || []); })
+                .catch(function () { renderResults(term, []); });
+        }
+
+        openBtn.addEventListener('click', open);
+        closeBtn.addEventListener('click', close);
+        cancelBtn.addEventListener('click', close);
+        clearChosen.addEventListener('click', resetChoice);
+        modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex') close();
+        });
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(doSearch, 180);
+        });
+
+        // Guard submit: require either a chosen existing ingredient or a new name.
+        form.addEventListener('submit', function (e) {
+            if (!idInput.value && !newName.value.trim()) {
+                e.preventDefault();
+                searchInput.hidden = false;
+                searchInput.focus();
+                searchInput.placeholder = 'Please choose or create an ingredient first';
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Adding…';
+        });
+
+        resetChoice();
     })();
 
     // ── Pantry item actions (confirm/used) ──

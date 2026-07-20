@@ -1115,6 +1115,8 @@ class Command(BaseCommand):
         self._reset_structured_import_release_notes(DataLoadConfig, force, verbosity)
 
         self._reset_rich_confirmation_release_notes(DataLoadConfig, force, verbosity)
+        # Manual Pantry Entry (PK 284)
+        self._reset_manual_pantry_entry_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8305,6 +8307,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset rich confirmation release notes FAILED: {e}'))
+
+    def _reset_manual_pantry_entry_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 284 (Manual Pantry Entry —
+        the first-class '+ Add Manually' acquisition path)."""
+        reset_tracker_name = 'reset_manual_pantry_entry_2026_07_20'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for manual pantry entry (PK 284)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for manual pantry entry', 'command',
+                'One-time reset: added PK 284 for Manual Pantry Entry')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset manual pantry entry release notes FAILED: {e}'))
 
     def _reset_journal_passive_recognition_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes after extending PK 277 to cover passive

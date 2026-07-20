@@ -110,6 +110,8 @@ Grocery/meal-plan automation and meal-history analytics remain future milestones
 
 ## Milestone 4 — Supply & Inventory Intelligence
 
+**Manual Pantry Entry (2026-07-20, completes the Pantry capture story).** Pantry had barcode / receipt / vision-scan acquisition but no first-class manual path — a gap, since every WLJ capture must degrade to manual. Shipped a "+ Add Manually" workflow that resolves/reuses a canonical Ingredient (`get_or_create_ingredient`, no duplicates), writes through the SAME canonical path as every scan (`finalize_pantry_item(source="manual")`), captures Container Truth up front via the shared `capture_container_truth` helper, and reuses the existing storage/expiration models. A new type-ahead `pantry_ingredient_search` endpoint drives reuse-first search. Validated end-to-end (manual item consumed by Preparation). **Awaiting Danny's real-world validation.**
+
 **Objective.** Complete the supply-side derived truths and make pantry maintenance reliable, so planning and shopping run on accurate, current state.
 
 **Dependencies.** M2 (structured recipes for gap analysis) and M3 (pantry reflects consumption).

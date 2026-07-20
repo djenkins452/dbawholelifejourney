@@ -57,6 +57,9 @@ Every entity has exactly one canonical producer. No truth is written by two subs
 **P5 — Capture is separate from activation.**
 Ingestion captures *evidence*; a confirmation step commits *truth*. Vision OCR, barcode reads, and pantry photos produce candidate data that becomes canonical only through the confirmation-gated write path. This keeps machine perception from silently mutating a person's truth.
 
+**P5a — Every acquisition method converges on one canonical write, and always degrades to manual.**
+Pantry acquisition is deliberately multi-modal — barcode, receipt, vision scan (fridge/pantry/freezer), and **manual entry** — but there is exactly ONE write: `pantry_ingestion.finalize_pantry_item(source=…)`. Each method differs only in how it *perceives* the item; the resulting `PantryItem`, `InventoryTransaction`, container-truth resolution, and domain event are identical. **Manual entry is the universal fallback**: anything a user can buy, grow, cook, or receive — barcode-less produce, homemade food, bulk goods, restaurant leftovers, or an AI-recognition miss — can always be entered by hand and lands in the same canonical truth. A capture method that cannot degrade to manual is incomplete.
+
 **P6 — Supply is household; consumption and health are personal.**
 Every entity declares its scope. Supply and operational truth are household-scoped; consumption, targets, preferences, and physiological outcomes are person-scoped. The two scopes meet at exactly one seam (preparation → consumption).
 

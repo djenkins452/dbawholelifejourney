@@ -68,6 +68,44 @@ def resolve_net_content(ingredient, food_item=None):
     return (None, "")
 
 
+def capture_container_truth(pantry_item, amount, unit, container_type=""):
+    """Apply a user-supplied container size ("a 20 fl oz bottle") to a PantryItem AND record
+    the substance's canonical base_measure + typical net-content on its Ingredient, so every
+    FUTURE acquisition of this ingredient resolves the container automatically (Capture Once,
+    Reuse Everywhere). Deterministic: the raw unit determines the dimension (mass/volume) and
+    is converted to the base unit (g/ml). Returns (base_amount, base_unit) on success, or None
+    when the amount/unit can't be understood. Shared by manual pantry entry and the
+    preparation "what size is this?" follow-up — one path, no duplicate logic.
+    """
+    from apps.meals.services.unit_conversion import (
+        base_unit_for, convert_between, dimension_of,
+    )
+
+    amt = _d(amount)
+    dimension = dimension_of(unit) if unit else None
+    if amt is None or amt <= 0 or dimension is None:
+        return None
+    base_unit = base_unit_for(dimension)
+    base_amount = convert_between(amt, unit, base_unit)
+    if base_amount is None or base_amount <= 0:
+        return None
+
+    ingredient = pantry_item.ingredient
+    ing_fields = []
+    if ingredient.base_measure != dimension:
+        ingredient.base_measure = dimension
+        ing_fields.append("base_measure")
+    if not ingredient.default_quantity or not ingredient.default_unit:
+        ingredient.default_quantity = base_amount
+        ingredient.default_unit = base_unit
+        ing_fields += ["default_quantity", "default_unit"]
+    if ing_fields:
+        ingredient.save(update_fields=ing_fields + ["updated_at"])
+
+    set_container_truth(pantry_item, base_amount, base_unit, container_type=container_type)
+    return (base_amount, base_unit)
+
+
 def set_container_truth(pantry_item, net_content, net_content_unit, *,
                         container_type="", save=True):
     """Apply Container Truth to a PantryItem and normalize its Remaining Truth to an EXACT

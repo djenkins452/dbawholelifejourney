@@ -539,10 +539,7 @@ class PantrySetContainerView(LoginRequiredMixin, MealsHouseholdMixin, View):
     """
 
     def post(self, request, pk):
-        from apps.meals.services.container_truth import set_container_truth
-        from apps.meals.services.unit_conversion import (
-            base_unit_for, convert_between, dimension_of,
-        )
+        from apps.meals.services.container_truth import capture_container_truth
 
         household = self.get_household()
         item = get_object_or_404(PantryItem, pk=pk, household=household)
@@ -556,38 +553,142 @@ class PantrySetContainerView(LoginRequiredMixin, MealsHouseholdMixin, View):
             amount = Decimal(raw_amount)
         except Exception:
             amount = None
-        dimension = dimension_of(raw_unit) if raw_unit else None
-        if amount is None or amount <= 0 or dimension is None:
+
+        # Shared deterministic capture: writes the Ingredient's canonical base_measure +
+        # net-content AND normalizes this item's remaining to an exact base quantity.
+        result = capture_container_truth(item, amount, raw_unit, container_type=container_type)
+        if result is None:
             messages.error(request, "Enter a valid container size (amount and unit).")
             return redirect(next_url or "meals:pantry")
 
-        base_unit = base_unit_for(dimension)
-        base_amount = convert_between(amount, raw_unit, base_unit)
-        if base_amount is None or base_amount <= 0:
-            messages.error(request, "That container size could not be understood.")
-            return redirect(next_url or "meals:pantry")
-
-        # Canonical substance truth on the Ingredient so every future acquisition of this
-        # ingredient resolves the container automatically (Capture Once, Reuse Everywhere).
-        ingredient = item.ingredient
-        ing_fields = []
-        if ingredient.base_measure != dimension:
-            ingredient.base_measure = dimension
-            ing_fields.append("base_measure")
-        if not ingredient.default_quantity or not ingredient.default_unit:
-            ingredient.default_quantity = base_amount
-            ingredient.default_unit = base_unit
-            ing_fields += ["default_quantity", "default_unit"]
-        if ing_fields:
-            ingredient.save(update_fields=ing_fields + ["updated_at"])
-
-        set_container_truth(item, base_amount, base_unit, container_type=container_type)
+        base_amount, base_unit = result
         messages.success(
             request,
-            f"Saved — one {container_type or 'container'} of {ingredient.canonical_name} "
+            f"Saved — one {container_type or 'container'} of {item.ingredient.canonical_name} "
             f"is {base_amount.normalize():f} {base_unit}. This is now automatic.",
         )
         return redirect(next_url or "meals:pantry")
+
+
+class PantryIngredientSearchView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """Type-ahead ingredient search for manual pantry entry (Pantry Smart Search behavior).
+
+    Case-insensitive substring match on canonical name and aliases, preferring EXISTING
+    canonical ingredients so the user reuses them instead of creating duplicates. Read-only
+    JSON; user-scoped only by authentication (ingredients are a shared catalog).
+    """
+
+    def get(self, request):
+        from django.db.models import Q
+
+        q = (request.GET.get("q") or "").strip()
+        results = []
+        if len(q) >= 1:
+            qs = (
+                Ingredient.objects.filter(
+                    Q(canonical_name__icontains=q) | Q(aliases__icontains=q)
+                )
+                .order_by("canonical_name")[:12]
+            )
+            for ing in qs:
+                results.append({
+                    "id": ing.id,
+                    "name": ing.canonical_name,
+                    "category": ing.category,
+                    # Whether Container Truth is already known (so the UI can pre-fill/skip).
+                    "has_container_truth": bool(
+                        ing.base_measure != "count"
+                        and ing.default_quantity
+                        and ing.default_unit
+                    ),
+                })
+        return JsonResponse({"results": results})
+
+
+class PantryManualAddView(LoginRequiredMixin, MealsHouseholdMixin, View):
+    """First-class MANUAL pantry acquisition — the graceful-degradation path for anything a
+    user can buy, grow, cook, or receive (farmers-market produce, homemade salsa, bulk flour,
+    restaurant leftovers, barcode-less or AI-unrecognized items).
+
+    It is NOT a separate pantry system: it resolves/creates a canonical Ingredient (reusing
+    existing ones, never duplicating) and flows through the SAME canonical write path
+    (finalize_pantry_item, source="manual") as barcode, receipt, and scan — landing in an
+    identical PantryItem. Optionally captures Container Truth up front (Capture Once, Reuse
+    Everywhere) and an explicit expiration (never invented).
+    """
+
+    def post(self, request):
+        from apps.meals.services.container_truth import capture_container_truth
+        from apps.meals.services.ingredient_matching import get_or_create_ingredient
+        from apps.meals.services.pantry_ingestion import finalize_pantry_item
+
+        household = self.get_household()
+
+        # 1. Resolve the ingredient — reuse an existing canonical one, or create a new one
+        #    ONLY when the user explicitly asked to (no silent duplicates).
+        ingredient = None
+        ingredient_id = (request.POST.get("ingredient_id") or "").strip()
+        new_name = (request.POST.get("new_ingredient_name") or "").strip()
+        category = (request.POST.get("category") or "other").strip() or "other"
+        if ingredient_id:
+            ingredient = Ingredient.objects.filter(pk=ingredient_id).first()
+        if ingredient is None and new_name:
+            ingredient = get_or_create_ingredient(new_name, category=category)
+        if ingredient is None:
+            messages.error(request, "Choose an ingredient or enter a new one to add.")
+            return redirect("meals:pantry")
+
+        # 2. Quantity / unit / storage location.
+        try:
+            quantity = Decimal(str(request.POST.get("quantity") or "1"))
+        except Exception:
+            quantity = Decimal("1")
+        if quantity <= 0:
+            quantity = Decimal("1")
+        unit = (request.POST.get("unit") or "piece").strip() or "piece"
+        storage_location = (request.POST.get("storage_location") or "").strip() or None
+
+        # 3. Canonical write — the exact same PantryItem as every other acquisition path.
+        pantry_item, created = finalize_pantry_item(
+            household=household,
+            ingredient=ingredient,
+            quantity=quantity,
+            unit=unit,
+            confidence_score=Decimal("1.0"),  # user-entered → fully confident
+            storage_location=storage_location,
+            source="manual",
+            notes="Manual entry",
+        )
+
+        # Honor an explicit location even on an existing item (finalize only upgrades from
+        # "unknown"); mirrors the barcode path.
+        if storage_location and not created and pantry_item.storage_location != storage_location:
+            pantry_item.storage_location = storage_location
+            pantry_item.save(update_fields=["storage_location", "updated_at"])
+
+        # 4. Optional Container Truth captured up front (Capture Once, Reuse Everywhere).
+        raw_amount = (request.POST.get("net_content_amount") or "").strip()
+        raw_unit = (request.POST.get("net_content_unit") or "").strip().lower()
+        container_type = (request.POST.get("container_type") or "").strip()
+        if raw_amount and raw_unit:
+            try:
+                amount = Decimal(raw_amount)
+            except Exception:
+                amount = None
+            capture_container_truth(pantry_item, amount, raw_unit, container_type=container_type)
+
+        # 5. Optional explicit expiration — never invented.
+        raw_exp = (request.POST.get("expiration_date") or "").strip()
+        if raw_exp:
+            from django.utils.dateparse import parse_date
+
+            exp = parse_date(raw_exp)
+            if exp:
+                pantry_item.expiration_date_estimated = exp
+                pantry_item.save(update_fields=["expiration_date_estimated", "updated_at"])
+
+        messages.success(request, f"Added {ingredient.canonical_name} to your pantry.")
+        return redirect("meals:pantry")
 
 
 class PantryBarcodeLookupView(LoginRequiredMixin, MealsHouseholdMixin, View):

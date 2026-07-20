@@ -4518,5 +4518,21 @@
       "created_at": "2026-07-20T13:00:00Z",
       "updated_at": "2026-07-20T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 284,
+    "fields": {
+      "title": "Add anything to your pantry by hand",
+      "description": "Your Pantry can already learn items from barcodes, receipts, and fridge/pantry/freezer photos — now there's a first-class \"+ Add Manually\" button right alongside them, for everything that doesn't scan: farmers-market produce, homemade salsa, fresh bread, bulk flour, restaurant leftovers, the local butcher's cut, or anything without a barcode. Start typing and it finds your existing ingredients so you reuse them instead of creating duplicates (\"prot\" finds Protein Powder and Protein Bar); if it's genuinely new, you can create it in one tap. Optionally tell it the container size once (a 20 oz bottle, a 5 lb bag) and future recipes deduct it precisely. However you add an item — scan or by hand — it lands in exactly the same pantry and works everywhere the same way.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-07-20",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/meals/pantry/",
+      "created_at": "2026-07-20T14:00:00Z",
+      "updated_at": "2026-07-20T14:00:00Z"
+    }
   }
 ]

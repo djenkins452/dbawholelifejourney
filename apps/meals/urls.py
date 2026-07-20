@@ -34,6 +34,16 @@ urlpatterns = [
         name="pantry_set_container",
     ),
     path(
+        "pantry/ingredient-search/",
+        views.PantryIngredientSearchView.as_view(),
+        name="pantry_ingredient_search",
+    ),
+    path(
+        "pantry/add/",
+        views.PantryManualAddView.as_view(),
+        name="pantry_add_manual",
+    ),
+    path(
         "pantry/barcode/",
         views.PantryBarcodeLookupView.as_view(),
         name="pantry_barcode",

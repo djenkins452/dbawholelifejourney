@@ -6,6 +6,14 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — feat(journal M-D4): free movement between modes — the CoS reads the typed notes; "Continue Writing" on the card
+
+Completes the §13 "switch between methods without losing content" story on the unified draft. Type → talk → type is now seamless *and* coherent:
+- **The conversation is aware of the typed channel.** When a draft already holds written notes and the user switches to talking, `respond()` folds those notes into the system prompt (`_WRITTEN_NOTES_BLOCK`) — the CoS "reads what's there before it opens" (§13): it builds on the notes, never re-asks what's already on the page, and still lets the user lead. Request-path safe (reuses the already-loaded draft; no extra query).
+- **"Continue Writing" on the Draft card** — the card now offers all three modes symmetrically (✍️ Continue Writing · 💬 Resume Write Together · 🎙️ Resume Talk It Through · Finish & Review); Continue Writing anchors to the editor already on the page.
+
+**Files:** `apps/journal/services/journal_conversation.py` (`_WRITTEN_NOTES_BLOCK` + awareness in `respond`), `templates/journal/entry_form.html` (Continue Writing action + `#jc-write` anchor), `apps/journal/tests/test_write_together_conversation.py` (+1 awareness test). **Tests:** 43/43 journal green; `check` clean; browser-verified the card's four actions render. **Why:** morning-talk → lunch-type → evening-talk should feel like one continuous journal, with the CoS aware of everything the user has put in it. **Release notes deferred:** flag-gated preview.
+
 ## 2026-07-20 — feat(journal M-D2/M-D3): unify all three modes into ONE draft — Just Write autosaves; Finish & Review composes both channels
 
 The heart of "finish the Journal": **all three modes now contribute to one shared daily draft, and a `JournalEntry` exists only at Save.** Reuse-first — the draft is still the existing `JournalConversation` (the canon's `JournalDraftSession`, §11/§13); it gains a typed channel alongside its spoken/collaborative one. The morning talk, the lunch note, and the evening talk are one draft → one journal.

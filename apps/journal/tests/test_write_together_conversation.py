@@ -532,6 +532,22 @@ class UnifiedDraftTests(JournalTestMixin, TestCase):
         convo.refresh_from_db()
         self.assertEqual(convo.state, JournalConversation.STATE_REVIEWING)
 
+    @patch("apps.journal.services.journal_conversation.AIService")
+    def test_conversation_is_aware_of_typed_notes(self, MockAI):
+        # §13: type notes, then switch to talking — the CoS "reads what's there".
+        from apps.journal.services.journal_conversation import respond
+        MockAI.return_value._call_api.return_value = "What was the drive like?"
+        self._enable()
+        convo = JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>We drove up the coast this morning.</p>",
+        )
+        respond(self.user, convo, "It was a good day.")
+        call = MockAI.return_value._call_api.call_args
+        system = call.args[0] if call.args else call.kwargs.get("system", "")
+        self.assertIn("ALREADY WRITTEN", system)
+        self.assertIn("drove up the coast", system)
+
     def test_written_only_draft_shows_card(self):
         # A pure-written draft (no conversation) is still an in-progress draft.
         self._enable()

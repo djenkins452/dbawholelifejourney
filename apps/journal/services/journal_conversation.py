@@ -128,6 +128,19 @@ _CONTEXT_BLOCK = (
     "knows them would do, so do it."
 )
 
+# One shared draft (§13): the user may TYPE notes and TALK in the same journal. When
+# they've already written something and then start talking, the CoS should be aware of
+# it ("reads what's there before it opens") — building on it, never re-asking what's
+# already on the page — while STILL letting the user lead the conversation.
+_WRITTEN_NOTES_BLOCK = (
+    "\n\n─────────────\n"
+    "THE USER HAS ALREADY WRITTEN THIS in today's journal (the same journal you're "
+    "talking about — they typed it, then came to talk):\n{notes}\n\n"
+    "You've read it. Don't ask about things it already answers, and don't summarize it "
+    "back. If it's relevant to what they raise, you may gently build on it — otherwise "
+    "just let it inform you quietly. The user still chooses what to talk about."
+)
+
 # ── The generation posture (fidelity — UX §12) ────────────────────────────────
 _GEN_SYSTEM = (
     "You are writing the user's journal entry FOR them, in THEIR own voice, from the conversation "
@@ -225,6 +238,13 @@ def respond(user, convo, user_message):
     ctx = _personal_context(user)
     if ctx:
         system = _CONVO_SYSTEM + _CONTEXT_BLOCK.format(context=ctx)
+
+    # One shared draft (§13): if the user already TYPED notes in this same journal and
+    # then switched to talking, the CoS has "read what's there before it opens" — it is
+    # aware of the notes and may gently build on them, but the user still leads.
+    notes = _written_notes_text(convo)
+    if notes:
+        system += _WRITTEN_NOTES_BLOCK.format(notes=notes[:1200])
 
     history = _history_for_api(convo, exclude_last=True)
     reply = _call(user, system, text, conversation_history=history,

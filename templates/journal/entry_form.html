@@ -41,6 +41,7 @@
         </div>
         {% else %}
         <div class="jd-actions">
+            <a class="jd-btn" href="#jc-write">✍️ Continue Writing</a>
             <a class="jd-btn" href="{% url 'journal:write_together' %}">💬 Resume Write Together</a>
             <a class="jd-btn" href="{% url 'journal:write_together' %}?voice=1">🎙️ Resume Talk It Through</a>
             <form method="post" action="{% url 'journal:write_together_finish' %}" class="jd-finish-form">
@@ -85,7 +86,7 @@
     </div>
     {% endif %}
 
-    <div class="jc-body">
+    <div class="jc-body" id="jc-write">
 
         <form method="post" class="entry-form jc-main" data-testid="journal-entry-form">
             {% csrf_token %}

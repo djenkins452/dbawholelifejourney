@@ -155,6 +155,23 @@ def _parse_time(raw):
     return None
 
 
+def _time_from_title(title):
+    """Extract a clock time embedded in a title ('...2023 9:00pm', '...– 7:50 PM'), or None —
+    so a legacy entry whose time lives in the TITLE (entry_time=None) still dedups against a
+    new entry whose time is in the field. Normalizes AM/PM casing/spacing via _parse_time."""
+    return _time_from_text(title)
+
+
+def _norm_body(text):
+    """Normalize body text for duplicate comparison: collapse whitespace, lowercase, drop
+    punctuation/Unicode variants — so two imports that extracted the same entry with minor
+    whitespace/formatting differences compare equal. Prefix-bounded (tolerates trailing
+    extraction drift)."""
+    s = re.sub(r"\s+", " ", (text or "")).strip().lower()
+    s = re.sub(r"[^a-z0-9 ]+", "", s)
+    return s[:400]
+
+
 def _compose_title(d, t):
     """Deterministic, consistent title: 'Saturday, September 10, 2022 – 10:00 AM'."""
     title = d.strftime("%A, %B ") + str(d.day) + d.strftime(", %Y")
@@ -212,7 +229,7 @@ class JournalImportAdapter(StructuredImportAdapter):
                 skipped.append({"label": label, "reason": "no_content",
                                 "date_iso": d.isoformat()})
                 continue
-            valid.append(self._record(d, t, body_html))
+            valid.append(self._record(d, t, body_html, e["body"]))
         return valid, skipped
 
     # ── Fallback path: no source document to ground against (typed inline / image w/o text) ──
@@ -237,23 +254,41 @@ class JournalImportAdapter(StructuredImportAdapter):
                 skipped.append({"label": label, "reason": "no_content",
                                 "date_iso": d.isoformat()})
                 continue
-            valid.append(self._record(d, t, body_html))
+            valid.append(self._record(d, t, body_html, rec.get("body") or ""))
         return valid, skipped
 
     @staticmethod
-    def _record(d, t, body_html):
+    def _record(d, t, body_html, body_plain=""):
         label = _compose_title(d, t)
         return {"label": label, "title": label, "entry_date": d, "entry_time": t,
-                "date_iso": d.isoformat(), "has_time": t is not None, "body_html": body_html}
+                "date_iso": d.isoformat(), "has_time": t is not None,
+                "body_html": body_html, "body_plain": body_plain}
 
     def dedupe_exists(self, user, record):
+        """A record duplicates an existing entry when it is the SAME journal entry regardless
+        of TIMESTAMP FORMATTING or which import created it. Two entries on the same date at the
+        same clock time are the same entry — even if one import stored the time in `entry_time`
+        ('21:00') and an older one embedded it in the TITLE ('9:00pm') with entry_time=None, and
+        even if titles differ ('– 9:00 PM' vs '9:00pm'). Time is resolved from the field OR the
+        title and normalized; timeless entries fall back to a normalized-body match. (Root cause
+        of the 2026-07-20 dupes: dedup keyed on the formatted title + entry_time, so a legacy
+        'manual' entry with the time in its title was never matched.)"""
         from apps.journal.models import JournalEntry
-        return JournalEntry.objects.filter(
-            user=user, status="active",
-            entry_date=record["entry_date"],
-            entry_time=record["entry_time"],
-            title=record["title"],
-        ).exists()
+        d = record["entry_date"]
+        rec_t = record["entry_time"]
+        rec_body = _norm_body(record.get("body_plain"))
+        for e in JournalEntry.objects.filter(
+                user=user, status="active", entry_date=d
+        ).only("id", "entry_time", "title", "body_plain"):
+            ex_t = e.entry_time or _time_from_title(e.title)
+            if rec_t is not None and ex_t is not None:
+                if rec_t == ex_t:
+                    return True          # same date + same clock time = same entry
+                continue                 # both timed but different times → distinct
+            # No time to compare on at least one side → identity is the normalized body.
+            if rec_body and rec_body == _norm_body(e.body_plain):
+                return True
+        return False
 
     def create_one(self, user, record):
         from apps.core.models import UserOwnedModel
@@ -266,6 +301,50 @@ class JournalImportAdapter(StructuredImportAdapter):
             entry_time=record["entry_time"],
             created_via=UserOwnedModel.CREATED_VIA_IMPORT,
         )
+
+
+def find_journal_duplicates(user):
+    """One-time REPAIR helper (read-only): identify existing duplicate journal entries using the
+    SAME normalized identity as import dedup — same date + same resolved clock time (from the
+    field OR the title), or same date + same normalized body. Robust to timestamp formatting and
+    which import created each. Returns duplicate GROUPS, each RECOMMENDING which record to retain
+    (never deletes — the caller decides):
+
+        [{ "identity", "entry_date", "recommend_keep_id", "reason",
+           "entries": [{id, title, entry_time, created_via, word_count, created_at}] }]
+    """
+    from collections import defaultdict
+
+    from apps.journal.models import JournalEntry
+    groups = defaultdict(list)
+    for e in JournalEntry.objects.filter(user=user, status="active").only(
+            "id", "entry_date", "entry_time", "title", "body_plain", "word_count",
+            "created_via", "created_at"):
+        t = e.entry_time or _time_from_title(e.title)
+        key = (("t", str(e.entry_date), t.strftime("%H:%M")) if t is not None
+               else ("b", str(e.entry_date), _norm_body(e.body_plain)))
+        groups[key].append(e)
+
+    out = []
+    for key, entries in groups.items():
+        if len(entries) < 2 or not key[2]:  # need ≥2, and a real body/time (not empty)
+            continue
+        # Keeper: prefer a real entry_time (structured), then the fullest body, then newest.
+        keep = sorted(entries, key=lambda e: (e.entry_time is not None, e.word_count, e.id),
+                      reverse=True)[0]
+        out.append({
+            "identity": ("date+time" if key[0] == "t" else "date+body"),
+            "entry_date": key[1],
+            "recommend_keep_id": keep.id,
+            "reason": ("has a structured entry_time and the fullest body"
+                       if keep.entry_time is not None else "the fullest body"),
+            "entries": [{
+                "id": e.id, "title": e.title, "entry_time": str(e.entry_time),
+                "created_via": e.created_via, "word_count": e.word_count,
+                "created_at": e.created_at.isoformat(),
+            } for e in sorted(entries, key=lambda e: e.id)],
+        })
+    return sorted(out, key=lambda g: g["entry_date"])
 
 
 register_import_adapter(JournalImportAdapter())

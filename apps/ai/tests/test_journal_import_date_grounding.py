@@ -311,6 +311,88 @@ class FilenameAsIdResolutionTests(TestCase):
         self.assertIsNone(_resolve_artifact(self.user, "nonexistent.docx"))
 
 
+class DedupNormalizationTests(TestCase):
+    """Duplicate detection must be robust to timestamp FORMATTING and which import created the
+    entry — the 2026-07-20 dupes came from a legacy 'manual' entry with the time in its TITLE
+    (entry_time=None) that a new import (entry_time set, different title format) failed to match."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="dd@ex.com", password="x")
+        self.adapter = JournalImportAdapter()
+
+    def _manual(self, date, title, body, entry_time=None):
+        from apps.core.models import UserOwnedModel
+        return JournalEntry.objects.create(
+            user=self.user, entry_date=date, entry_time=entry_time, title=title, body=body,
+            created_via=UserOwnedModel.CREATED_VIA_MANUAL)
+
+    def test_time_in_title_vs_field_is_a_duplicate(self):
+        # The exact production case (Jan 1, 2023): legacy manual entry, time in TITLE, no field.
+        self._manual(dt.date(2023, 1, 1), "Sunday, January 1, 2023 9:00pm",
+                     "New year reflection body.")
+        rec = self.adapter._record(dt.date(2023, 1, 1), dt.time(21, 0), "<p>x</p>",
+                                   "New year reflection body (slightly different extraction).")
+        self.assertTrue(self.adapter.dedupe_exists(self.user, rec))  # same date + same time
+
+    def test_ampm_casing_and_punctuation_normalized(self):
+        self._manual(dt.date(2022, 9, 22), "Thursday, September 22, 2022 7:50pm", "b")
+        rec = self.adapter._record(dt.date(2022, 9, 22), dt.time(19, 50), "<p>b</p>", "b")
+        self.assertTrue(self.adapter.dedupe_exists(self.user, rec))
+
+    def test_different_times_same_date_not_a_duplicate(self):
+        self._manual(dt.date(2022, 9, 22), "Thursday, September 22, 2022 7:50am",
+                     "morning", entry_time=dt.time(7, 50))
+        rec = self.adapter._record(dt.date(2022, 9, 22), dt.time(19, 50), "<p>evening</p>",
+                                   "evening")
+        self.assertFalse(self.adapter.dedupe_exists(self.user, rec))  # 7:50am vs 7:50pm
+
+    def test_timeless_same_body_is_duplicate(self):
+        self._manual(dt.date(2022, 8, 30), "Tuesday, August 30, 2022",
+                     "Overall today was a great day.")
+        rec = self.adapter._record(dt.date(2022, 8, 30), None, "<p>x</p>",
+                                   "Overall  today   was a GREAT day!!")  # whitespace/case/punct
+        self.assertTrue(self.adapter.dedupe_exists(self.user, rec))
+
+    def test_timeless_different_body_not_duplicate(self):
+        self._manual(dt.date(2022, 8, 30), "Tuesday, August 30, 2022", "First entry content.")
+        rec = self.adapter._record(dt.date(2022, 8, 30), None, "<p>y</p>",
+                                   "A completely different second entry that day.")
+        self.assertFalse(self.adapter.dedupe_exists(self.user, rec))
+
+    def test_end_to_end_import_dedups_against_legacy_manual(self):
+        # A legacy manual entry (time in title) exists for one of the document's dates.
+        self._manual(dt.date(2023, 1, 1), "Sunday, January 1, 2023 9:00pm", "New-year body.")
+        art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="d" * 64, kind="document",
+            content_type="application/pdf",
+            perception_status=MultimodalArtifact.PERCEPTION_DONE, extracted_text=REAL_DOC_TEXT)
+        result = ActionHandler(self.user).handle_import_journal_entries(
+            source_artifact_id=art.id, confirmed=True)
+        self.assertTrue(result.success)
+        # 15 sections, Sep 5 skipped → 14 candidates; Jan 1 already exists → 13 created, 1 dup.
+        self.assertEqual(result.created_object["created"], 13)
+        self.assertEqual(result.created_object["duplicate"], 1)
+        # exactly ONE Jan 1 entry remains (no duplicate created)
+        self.assertEqual(JournalEntry.objects.filter(
+            user=self.user, entry_date=dt.date(2023, 1, 1)).count(), 1)
+
+    def test_repair_report_identifies_dupes_and_recommends_keeper(self):
+        from apps.ai.import_adapters.journal_import import find_journal_duplicates
+        # A legacy manual dup (time in title) + a structured import dup (entry_time set).
+        m = self._manual(dt.date(2023, 1, 1), "Sunday, January 1, 2023 9:00pm", "New year body.")
+        i = self.adapter.create_one(self.user, self.adapter._record(
+            dt.date(2023, 1, 1), dt.time(21, 0), "<p>New year body richer</p>", "New year body richer"))
+        # A NON-duplicate (different day) must not be reported.
+        self._manual(dt.date(2022, 8, 30), "Tuesday, August 30, 2022", "unique entry")
+        report = find_journal_duplicates(self.user)
+        self.assertEqual(len(report), 1)
+        grp = report[0]
+        self.assertEqual(grp["entry_date"], "2023-01-01")
+        self.assertEqual(grp["identity"], "date+time")
+        self.assertEqual({e["id"] for e in grp["entries"]}, {m.id, i.id})
+        self.assertEqual(grp["recommend_keep_id"], i.id)  # the structured (entry_time set) one
+
+
 class PerceptionTimingTests(TestCase):
     """A document import must NEVER fall back to model dates while perception is still running
     (the async window right after upload) — it reports honestly and creates nothing."""

@@ -97,6 +97,13 @@ class DupeTraceView(View):
                     "body_prefix": (e.body_plain or "")[:60],
                 })
 
+        # The one-time REPAIR report — normalized-identity duplicate groups + recommended keeper.
+        try:
+            from apps.ai.import_adapters.journal_import import find_journal_duplicates
+            repair = find_journal_duplicates(user)
+        except Exception as e:  # pragma: no cover
+            repair = [{"error": repr(e)}]
+
         return JsonResponse({
             "duplicate_dates": len(dupes),
             "extra_records": total_extra,
@@ -104,4 +111,5 @@ class DupeTraceView(View):
             "structured_import_runs": runs,
             "duplicates": dupes,
             "title_probe": probe,
+            "repair_report": repair,
         }, json_dumps_params={"ensure_ascii": False})

@@ -1069,6 +1069,17 @@ any in-flight stream survive a focus-mode toggle untouched.
        SEND MESSAGE — streaming for text, non-streaming for images
        ================================================================ */
     function sendMessage(message, container, inputEl, btnEl, imageOverride) {
+        // Wait for any in-flight (non-image) uploads to finish before reading their artifact
+        // ids — otherwise a document uploaded then immediately sent has its id dropped
+        // (getArtifactIds() is empty mid-upload) and the following clear() orphans it, so the
+        // CoS sees no attachment. Defer this send and re-run it once uploads are terminal.
+        if (!imageOverride && apAttach && apAttach.hasPending()) {
+            if (btnEl) btnEl.disabled = true;
+            apAttach.whenReady(20000).then(function () {
+                sendMessage(message, container, inputEl, btnEl, imageOverride);
+            });
+            return;
+        }
         // Thin CONSUMER of the WLJ Attachment Framework: images ride inline
         // (immediate perception), non-image attachments ride as artifact ids.
         var sentImages, sentAttachmentIds;

@@ -132,8 +132,10 @@ class EngineFlowTests(TestCase):
         self.assertEqual(JournalEntry.objects.filter(user=self.user).count(), 2)
 
     def test_artifact_idempotency(self):
+        # An IMAGE journal: no document text to ground against, so the model's records are the
+        # legitimate source (unlike a text document, whose dates WLJ reads deterministically).
         art = MultimodalArtifact.objects.create(
-            user=self.user, sha256="j" * 64, content_type="application/pdf", kind="document")
+            user=self.user, sha256="j" * 64, content_type="image/jpeg", kind="image")
         run_structured_import(self.user, self.adapter, self.records,
                               source_artifact_id=art.id, confirmed=True)
         art.refresh_from_db()

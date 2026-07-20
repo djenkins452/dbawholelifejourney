@@ -120,9 +120,30 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
     source_text = _load_artifact_text(user, source_artifact_id)
     has_source_doc = bool(source_text and source_text.strip())
     raw_records = raw_records if isinstance(raw_records, list) else []
+
+    # A document import NEVER uses model-transcribed dates. If the uploaded document is not yet
+    # readable (perception still running, or it failed), report that honestly instead of
+    # silently falling back to the model's records — which is exactly how a fabricated date
+    # could slip in during the async window right after upload.
+    if source_artifact_id and not has_source_doc:
+        state = _artifact_perception_state(user, source_artifact_id)
+        if state == "pending":
+            return ImportOutcome(
+                status="processing", error="perception_pending",
+                message=("I'm still reading that document — give me a few seconds, then ask me "
+                         "to add them again."))
+        if state in ("failed", "unreadable"):
+            return ImportOutcome(
+                status="validation_failed", error="unreadable_document",
+                message=("I wasn't able to read that document. Could you re-upload it, or paste "
+                         "the entries directly, and I'll add them?"))
+        # state in ('image', 'missing') → there is NO deterministic document text to ground
+        # against (an image journal is read BY THE MODEL; a missing/foreign id has no doc), so
+        # the model-provided records ARE the source here — fall through to the normal path.
+
     if not raw_records and not has_source_doc:
         return ImportOutcome(status="validation_failed", error="no_records",
-                             message="I couldn't find any records to import in that document.")
+                             message="I couldn't find any records to import.")
 
     # 1. Artifact-level IDEMPOTENCY — the SAME document never imports twice.
     if source_artifact_id:
@@ -247,6 +268,31 @@ def _load_artifact_text(user, source_artifact_id):
         ).values_list("extracted_text", flat=True).first()
     except Exception:  # pragma: no cover - defensive
         return None
+
+
+def _artifact_perception_state(user, source_artifact_id):
+    """'done' | 'pending' | 'failed' | 'unreadable' | 'image' | 'missing'. Distinguishes a TEXT
+    document (which must be deterministically parsed — never model dates) from an IMAGE journal
+    (no document text; the MODEL read the image, so its records are the legitimate source)."""
+    if not source_artifact_id:
+        return "missing"
+    try:
+        from apps.capture.models import MultimodalArtifact
+        a = MultimodalArtifact.objects.filter(id=source_artifact_id, user=user).first()
+        if a is None:
+            return "missing"
+        if a.has_perception:
+            return "done"
+        # An image is not text-perceived — the model reads it directly; no doc text to ground.
+        if (a.kind == "image") or (a.content_type or "").startswith("image/"):
+            return "image"
+        if a.perception_pending:
+            return "pending"
+        if a.perception_status == MultimodalArtifact.PERCEPTION_UNSUPPORTED:
+            return "unreadable"
+        return "failed"
+    except Exception:  # pragma: no cover - defensive
+        return "missing"
 
 
 def _existing_run(user, source_artifact_id, domain):

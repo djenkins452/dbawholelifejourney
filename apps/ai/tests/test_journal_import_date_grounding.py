@@ -195,3 +195,62 @@ class EndToEndCertification(TestCase):
         self.assertIn("September 8, 2022", text)
         self.assertNotIn("2023", text)
         self.assertNotIn("October", text)
+
+
+class PerceptionTimingTests(TestCase):
+    """A document import must NEVER fall back to model dates while perception is still running
+    (the async window right after upload) — it reports honestly and creates nothing."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="tim@ex.com", password="x")
+        self.handler = ActionHandler(self.user)
+
+    def test_pending_perception_reports_processing_not_model_dates(self):
+        art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="p" * 64, content_type="application/pdf", kind="document",
+            perception_status=MultimodalArtifact.PERCEPTION_PENDING)  # no extracted_text yet
+        result = self.handler.handle_import_journal_entries(
+            entries=FABRICATED_MODEL_ENTRIES, source="journal document",
+            source_artifact_id=art.id, confirmed=True)
+        self.assertFalse(result.success)
+        self.assertIn("still reading", (result.message or "").lower())
+        self.assertEqual(JournalEntry.objects.filter(user=self.user).count(), 0)
+
+    def test_failed_perception_reports_unreadable(self):
+        art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="f" * 64, content_type="application/pdf", kind="document",
+            perception_status=MultimodalArtifact.PERCEPTION_FAILED)
+        result = self.handler.handle_import_journal_entries(
+            entries=FABRICATED_MODEL_ENTRIES, source_artifact_id=art.id, confirmed=True)
+        self.assertFalse(result.success)
+        self.assertIn("re-upload", (result.message or "").lower())
+        self.assertEqual(JournalEntry.objects.filter(user=self.user).count(), 0)
+
+
+class AttachmentSurfacingTests(TestCase):
+    """The delivery payload must carry the FILENAME and an honest perception marker so the
+    model can never treat a real attachment as absent."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="surf@ex.com", password="x")
+
+    def test_filename_and_processing_marker_surfaced_for_pending_doc(self):
+        from apps.ai.multimodal import attachments_from_ids
+        art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="s" * 64, content_type="application/pdf", kind="document",
+            original_filename="Danny's Journal.docx",
+            perception_status=MultimodalArtifact.PERCEPTION_PENDING)
+        out = attachments_from_ids(self.user, [art.id])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["filename"], "Danny's Journal.docx")
+        self.assertEqual(out[0]["perception"], "processing")
+
+    def test_failed_perception_still_surfaces_marker(self):
+        from apps.ai.multimodal import attachments_from_ids
+        art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="t" * 64, content_type="application/pdf", kind="document",
+            original_filename="notes.docx",
+            perception_status=MultimodalArtifact.PERCEPTION_FAILED)
+        out = attachments_from_ids(self.user, [art.id])
+        self.assertEqual(out[0]["filename"], "notes.docx")
+        self.assertEqual(out[0]["perception"], "unreadable")

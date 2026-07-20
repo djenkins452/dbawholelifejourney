@@ -121,6 +121,12 @@ def attachments_from_ids(user, attachment_ids):
                 "content_type": a.content_type,
                 "kind": a.kind,
             }
+            # The filename is how the user refers to the file ("add these journals" →
+            # 'Danny's Journal.docx'); ALWAYS surface it so the model knows an attachment is
+            # present even before/without readable text (was omitted — the model could then
+            # overlook a real attachment).
+            if a.original_filename:
+                item["filename"] = a.original_filename
             if a.page_count:
                 item["page_count"] = a.page_count
             # Surface deterministic perception so the model can read documents.
@@ -135,6 +141,11 @@ def attachments_from_ids(user, attachment_ids):
                 item["perception"] = "processing"   # honest eventual-consistency signal
             elif a.perception_status == MultimodalArtifact.PERCEPTION_UNSUPPORTED:
                 item["perception"] = "unreadable"    # e.g. scanned/image-only PDF (OCR later)
+            elif a.perception_status == MultimodalArtifact.PERCEPTION_FAILED:
+                # A document whose extraction genuinely failed — surface an honest marker so
+                # the model doesn't treat a real attachment as absent. (Images are
+                # PERCEPTION_NONE — read directly by the model — and need no marker.)
+                item["perception"] = "unreadable"
             out.append(item)
     except Exception:  # pragma: no cover - defensive; never break a turn
         logger.warning("multimodal.attachments_from_ids failed", exc_info=True)

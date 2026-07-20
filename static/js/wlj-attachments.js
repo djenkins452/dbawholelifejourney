@@ -485,6 +485,23 @@
                 return it.status === 'uploading' || it.status === 'pending';
             });
         }
+        // Resolve once every attachment has reached a TERMINAL state (uploaded / error /
+        // ready) — so a caller can wait for in-flight uploads before reading getArtifactIds().
+        // This closes the race where Send fires mid-upload and the artifact_id is dropped
+        // (and then orphaned by clear()). Resolves immediately when nothing is pending; a
+        // timeout guarantees Send is never blocked indefinitely by a stuck upload.
+        function whenReady(timeoutMs) {
+            return new Promise(function (resolve) {
+                if (!hasPending()) return resolve();
+                var start = Date.now();
+                var iv = setInterval(function () {
+                    if (!hasPending() || (timeoutMs && Date.now() - start > timeoutMs)) {
+                        clearInterval(iv);
+                        resolve();
+                    }
+                }, 100);
+            });
+        }
 
         // Wire the provided input / triggers / drop zone.
         if (config.input) {
@@ -503,7 +520,7 @@
         return {
             addFiles: addFiles, remove: remove, clear: clear,
             getArtifactIds: getArtifactIds, getImagesPayload: getImagesPayload,
-            hasPending: hasPending, render: render,
+            hasPending: hasPending, whenReady: whenReady, render: render,
             count: function () { return items.length; },
             items: publicItems,
         };

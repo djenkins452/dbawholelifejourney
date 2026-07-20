@@ -6,6 +6,41 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — fix(multimodal): uploaded attachment lost — Send now waits for in-flight uploads (+ filename/marker/perception-timing hardening)
+
+**Production defect:** user uploaded a DOCX, asked "Add these journals," and the CoS replied "Please upload the journal document…" then "I don't see any attachments." The attachment never reached the CoS. **Traced the runtime end-to-end (upload→store→perception→Current Context→model request); the FIRST failed layer is the CLIENT SEND — a race, not the parser (the parser never ran).**
+
+**Root cause (client race):** documents (unlike images, which ride inline as base64) `autoUpload` asynchronously to `/assistant/api/attachments/`; `getArtifactIds()` only returns items whose upload reached `status==='uploaded'`. Neither chat surface called the framework's `hasPending()` guard, so sending BEFORE the upload finished made `getArtifactIds()` return `[]` → `attachment_ids` collapsed to `undefined` → the server saw no attachment. Then `clear()` orphaned the in-flight item, so the follow-up "here they are" also carried nothing — exactly the reported sequence.
+
+**Fix (eliminate the class):**
+- `static/js/wlj-attachments.js` — new `whenReady(timeoutMs)` resolves once every attachment reaches a terminal state (uploaded/error/ready); exposed on the mount API.
+- `templates/components/assistant_panel.html` (sync `sendMessage`) + `chat_widget.html` (async `sendMessage`) — before reading `getArtifactIds()`, if `hasPending()` the send now WAITS for `whenReady()` (desktop defers + re-invokes; mobile `await`s), so an in-flight document's id is captured, never dropped, and `clear()` no longer orphans it. Normal sends (nothing pending) are unaffected. `base.html` cache-bust bumped.
+
+**Robustness (so a delivered attachment is never treated as absent):**
+- `apps/ai/multimodal.py :: attachments_from_ids` — now ALWAYS surfaces the artifact's `filename` (was omitted; the model could overlook a real attachment), and surfaces an honest `perception:'unreadable'` marker for a genuinely FAILED document extraction (images stay marker-free — read directly).
+- `apps/ai/structured_import.py` — a DOCUMENT import now NEVER falls back to model-transcribed dates during the async perception window: if the source artifact's text isn't ready it reports `perception_pending` ("I'm still reading that document — ask again in a few seconds"); a failed extraction reports `unreadable_document`. An IMAGE journal (no document text; the model reads the photo) legitimately still uses model records (`_artifact_perception_state` distinguishes text-doc vs image). This closes a re-introduction of the date-fabrication class through the upload→immediate-send timing gap.
+
+**Files:** MODIFIED `static/js/wlj-attachments.js`, `templates/components/{assistant_panel,chat_widget}.html`, `templates/base.html`, `apps/ai/multimodal.py`, `apps/ai/structured_import.py`, `apps/ai/tests/{test_structured_import,test_journal_import_certification}.py` (image-journal idempotency), `apps/ai/tests/test_journal_import_date_grounding.py` (+PerceptionTiming/AttachmentSurfacing tests). **Tests:** 133 across the affected corpus (structured-import/grounding/certification/rich-confirmation/multimodal/pdf+office-perception/request-path-safety/intent-registration) all green; `check` clean; collectstatic 0 errors; JS syntax OK. **Why:** the attachment must reliably reach the CoS before anything downstream can work — and a document must never be imported with model-guessed dates just because perception hadn't finished. **Note:** the full click/upload/send E2E is validated in prod after `wlj-worker` + web redeploy (needs a live authenticated upload).
+
+## 2026-07-20 — refine(journal): the CoS reasons over RELATIONSHIPS between truths (not isolated facts)
+
+**Reasoning refinement (prompt-only; no architecture / engine / composition change).** Builds on the prior single-fact enrichment: the CoS now connects MULTIPLE relevant truths — and what the user just said — into one richer question, while staying curious (never advising) and mostly INVISIBLE (not announcing what it knows).
+
+**Traced, not guessed:** the conversation prompt receives durable facts (`build_personal_truth`) + the conversation; several truths are present but were connected only one at a time, and recent activity the user *didn't* mention is absent. `build_cos_context` — the composer that would add WLJ-known recent activity — is **too heavy for the request path** (it hung/timed out in the trace; the memory warns exactly this), and the per-domain recent queries (nutrition/glucose) also hung under the dev cache outage. So the smallest safe change is **prompt guidance over the truths already available + conversation content**; composing *extra* recent activity is deferred to a separate request-path-safe step (cheap cached per-domain snapshots).
+
+**Fix (prompt guidance, promoted into the CoS's core identity):**
+- **Relationship reasoning:** "reason over how the things you know RELATE — to each other and to what they said; facts become valuable when they explain each other" — ask like someone who sees how today's pieces fit, not someone reciting one stored fact.
+- **Experience, not management (guardrail):** a relationship question is CURIOUS about the user's *experience* (surprise/expectation/what stood out) — NEVER how they managed/handled/adjusted/prepared (that is advice). This fixed an advice-drift the first pass produced ("did you have snacks ready?").
+- **Invisible (guardrail):** by default let the question reflect what you know WITHOUT announcing it — mostly no "With your…" / "Knowing…" / "Since…".
+- **Playbook §5.2 added** with the governing principle + both guardrails + the per-domain pattern.
+
+**Verification:** 13 conversation tests pass; `check` clean; no migrations. Runtime (dev, real gpt-4o, seeded diabetes + half-marathon goal):
+- "My blood sugar kept dropping after my run this morning." → *"Were you expecting your blood sugar to drop like that after your run, or did it catch you off guard?"* (connects run × diabetes × the day; experience-focused; invisible — no "With your diabetes"; no advice)
+- "I spent the afternoon with my brother…" → *"What did you two end up doing together?"* (nothing relevant → simple, no forced reference, no steering)
+Preserved last turn's clean single-fact behavior — did **not** break what already works.
+
+**Honest scope:** delivered relationship reasoning over the truths currently supplied (durable facts) + what the user shares in the conversation. The deeper flagship — connecting today's activities WLJ knows but the user DIDN'T mention (today's swim, low-carb dinner, glucose trend) — needs a compact recent-activity truth composer, deferred because every available composer (`build_cos_context`; nutrition/glucose queries) is too heavy / request-path-unsafe (verified by hang). NEXT targeted step: cheap cached per-domain "today" snapshots (NOT `build_cos_context`). AWAITING Danny's production validation across domains.
+
 ## 2026-07-20 — refine(cos): Conversation State — Deterministic Writers governance (permanent protection)
 
 **Governance refinement** (documentation + a contract test; no runtime behavior change). Defines and permanently protects WHO may modify Conversation State, giving it the same architectural protection as Current Context. `docs/WLJ_CONVERSATION_STATE_ARCHITECTURE.md` §4a.

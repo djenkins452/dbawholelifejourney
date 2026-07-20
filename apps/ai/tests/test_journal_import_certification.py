@@ -105,8 +105,10 @@ class JournalImportCertification(TestCase):
 
     # ── 4. Idempotent re-import from the same artifact ──────────────────────
     def test_reimport_same_artifact_is_idempotent(self):
+        # An IMAGE journal — the model reads the photo and provides entries (no document text
+        # to ground against), so the model-provided records are the source here.
         art = MultimodalArtifact.objects.create(
-            user=self.user, sha256="c" * 64, content_type="application/pdf", kind="document")
+            user=self.user, sha256="c" * 64, content_type="image/jpeg", kind="image")
         first = self.handler.handle_import_journal_entries(
             entries=DOCUMENT_ENTRIES, source="journal document",
             source_artifact_id=art.id, confirmed=True)

@@ -2860,6 +2860,13 @@
         // history for the assistant's reply.
         markPendingRequest(savedMessage, sendContext);
 
+        // Wait for any in-flight (non-image) uploads to finish before reading their artifact
+        // ids — a document uploaded then immediately sent otherwise has its id dropped
+        // (getArtifactIds() is empty mid-upload) and the following clear() orphans it, so the
+        // CoS sees no attachment.
+        if (!imageOverride && widgetAttach && widgetAttach.hasPending()) {
+            await widgetAttach.whenReady(20000);
+        }
         // Thin CONSUMER of the WLJ Attachment Framework: images ride inline
         // (immediate perception), non-image attachments ride as artifact ids.
         var sentImages, sentAttachmentIds;

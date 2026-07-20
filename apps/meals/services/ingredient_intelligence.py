@@ -26,6 +26,12 @@ Every canonical relationship is explainable — a name resolves via (1) exact ca
 (2) an explicit alias, or (3) a deterministic ``normalized_name`` key — and resolves
 identically every time. ``normalized_name`` is a stored, indexed projection of the name
 (lowercased, de-punctuated, whitespace-collapsed, head-noun singularized).
+
+Aliases are CURATED truth, never auto-learned. Normal runtime resolution never writes an
+alias — normalization already re-derives case/plural/punctuation variants deterministically,
+and an unknown synonym (e.g. "Burger Bread") is resolved for the current workflow but is NOT
+silently promoted to a permanent alias. Aliases change only through an explicit curation path
+(seed migration / admin / review), so they stay explainable, deterministic, and reviewable.
 """
 import logging
 import re
@@ -95,9 +101,11 @@ def resolve_ingredient(raw_name: str, category: str = "other", *, create: bool =
       3. normalized_name key (case/punct/whitespace/plural)
       4. create a new canonical Ingredient (only when create=True)
 
-    When a surface form resolves to an existing ingredient by the normalized key (not by an
-    exact/alias hit), the surface form is recorded as an alias — so search finds it and the
-    relationship is visible. Returns the Ingredient, or None when create=False and no match.
+    Resolution never mutates aliases: a normalized-key match is resolved for the current
+    workflow but the surface form is NOT auto-learned (normalization re-derives it every
+    time). A genuinely unknown name creates a new canonical ingredient (create=True) rather
+    than being silently attached as a synonym. Returns the Ingredient, or None when
+    create=False and no match. Aliases change only via an explicit curation path.
     """
     from django.db import IntegrityError, transaction
 
@@ -117,15 +125,14 @@ def resolve_ingredient(raw_name: str, category: str = "other", *, create: bool =
     if ing:
         return ing
 
-    # 3. Deterministic normalized key.
+    # 3. Deterministic normalized key. Normalization alone re-derives this match every time,
+    #    so the surface form is resolved for THIS workflow WITHOUT being written back as an
+    #    alias. Aliases are curated deterministic truth (seeded / reviewed) — normal runtime
+    #    never auto-learns a synonym just because a user typed it once.
     norm = normalize_name(name_lower)
     if norm:
         ing = Ingredient.objects.filter(normalized_name=norm).order_by("id").first()
         if ing:
-            # Learn the surface form as an alias — but only on the write path, so a
-            # read-only match (create=False) never mutates truth.
-            if create:
-                _record_alias(ing, name_lower)
             return ing
 
     if not create:
@@ -147,18 +154,6 @@ def resolve_ingredient(raw_name: str, category: str = "other", *, create: bool =
         if existing:
             return existing
         raise
-
-
-def _record_alias(ingredient, alias_lower: str) -> None:
-    """Add a surface form to an ingredient's aliases if not already present (idempotent)."""
-    if not alias_lower or alias_lower == (ingredient.canonical_name or "").lower():
-        return
-    aliases = list(ingredient.aliases or [])
-    if alias_lower in (a.lower() for a in aliases):
-        return
-    aliases.append(alias_lower)
-    ingredient.aliases = aliases
-    ingredient.save(update_fields=["aliases", "updated_at"])
 
 
 def search_ingredients(query: str, limit: int = 12):

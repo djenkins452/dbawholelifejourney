@@ -57,7 +57,8 @@ class ResolveTests(TestCase):
         self.assertEqual(a.id, b.id)                                  # SAME canonical row
         self.assertEqual(Ingredient.objects.count(), before)         # no new row
         b.refresh_from_db()
-        self.assertIn("hamburger buns", b.aliases)                   # variant learned as alias
+        # Aliases are CURATED — a normalized (plural) variant is resolved but NOT auto-learned.
+        self.assertNotIn("hamburger buns", b.aliases)
 
     def test_alias_resolves(self):
         ing = Ingredient.objects.create(canonical_name="ketchup", category="condiment",
@@ -72,6 +73,17 @@ class ResolveTests(TestCase):
         self.assertEqual(got.id, ing.id)
         ing.refresh_from_db()
         self.assertNotIn("bagels", ing.aliases)
+
+    def test_aliases_are_never_auto_learned_at_runtime(self):
+        ing = resolve_ingredient("Ketchup", category="condiment")
+        ing.aliases = ["catsup"]   # curated truth
+        ing.save()
+        self.assertEqual(resolve_ingredient("Catsup").id, ing.id)  # curated alias honored
+        # Normal runtime (plural/normalized resolution) must NOT grow the curated alias list.
+        resolve_ingredient("Ketchups")
+        resolve_ingredient("KETCHUP!")
+        ing.refresh_from_db()
+        self.assertEqual(ing.aliases, ["catsup"])  # unchanged — no auto-learning
 
     def test_variants_do_not_merge(self):
         # Whole Milk and Milk are DIFFERENT identities (a substitution/variant relationship).

@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — refine(meals): Ingredient Intelligence — aliases are curated, never auto-learned at runtime
+
+Approved refinement to the just-shipped Ingredient Intelligence. The resolver previously recorded a surface form as an alias whenever it resolved via the normalized key (write path). That was redundant (normalization deterministically re-derives the variant every time) and violated the principle that aliases are **curated deterministic truth**. Removed the runtime alias-learning entirely (`resolve_ingredient` no longer writes aliases; the `_record_alias` helper is deleted).
+
+Behavior now: normalization still resolves case/plural/punctuation variants ("Hamburger Buns" → "hamburger bun") with no alias written; a genuinely unknown synonym ("Burger Bread") is resolved/created for the current workflow but is **not** silently promoted to a permanent alias. Aliases change only through an explicit curation path — the seed migration, admin, or review — so they stay explainable and reviewable. (The one-time `merge_duplicate_ingredients` still folds a real duplicate *row's* canonical name into aliases — a deliberate de-duplication, not runtime learning.)
+
+**Files:** `apps/meals/services/ingredient_intelligence.py` (drop auto-learning + docstrings), `apps/meals/tests/test_ingredient_intelligence.py` (assert no auto-learning; new `test_aliases_are_never_auto_learned_at_runtime`), `docs/WLJ_INGREDIENT_INTELLIGENCE.md`.
+
+**Verification:** `test_ingredient_intelligence` 18/18 — a curated alias is honored, but repeated plural/normalized resolution never grows the alias list; the reported Bun/Buns gap still resolves to one canonical ingredient via normalization. `check` clean; no migration (behavioral only).
+
 ## 2026-07-20 — refine(journal): one consistent Draft vocabulary (Journal Draft · Finish & Review · Save Journal; Publish reserved for Legacy)
 
 Wording-only refinement across the entire Journal Draft experience — no architecture, no model, no schema change. The old language was too narrowly tied to *daily* journaling ("Today's Journal," "Finish Today"), but a draft is broader (a trip, a story about a person, an old event, catching up on yesterday, a Christmas journal). The draft still *defaults* to today; the concept stays broad.

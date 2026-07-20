@@ -43,9 +43,14 @@ Resolution proceeds in a fixed, explainable order:
 3. **Normalized key** — `normalized_name` (the deterministic identity key).
 4. **Create** — a new canonical ingredient (write paths only).
 
-When a surface form resolves by the normalized key, it is recorded as an **alias** on the
-canonical ingredient — so the relationship becomes visible and search finds it. Read-only
-resolution (`create=False`) never mutates.
+**Aliases are curated, never auto-learned.** Normal runtime resolution never writes an alias:
+a normalized-key match is resolved for the current workflow, but the surface form is *not*
+persisted (normalization re-derives it every time), and a genuinely unknown synonym (e.g.
+"Burger Bread") is resolved/created for the workflow rather than silently promoted to a
+permanent alias. Aliases change only through an explicit **curation path** — the seed
+migration, admin, or review — so they stay explainable, deterministic, and reviewable. (The
+one-time `merge_duplicate_ingredients` folds the *canonical name of a real duplicate row*
+into aliases; that is a deliberate de-duplication, not runtime learning.)
 
 ### `normalized_name` — the identity key
 

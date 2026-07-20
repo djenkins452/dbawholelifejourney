@@ -86,6 +86,49 @@ class HealthSyncTelemetryTest(TestCase):
         run = HealthIngestionRun.objects.filter(user=self.user).latest("created_at")
         self.assertEqual(run.client_debug["steps"]["raw_samples"], 412)
 
+    # ---- heart-rate ingest must never fabricate a future timestamp ----
+    def test_heart_rate_preserves_real_sample_time(self):
+        """When the payload carries a real sample instant, it is stored verbatim —
+        never discarded for a noon default."""
+        from apps.health.models import HeartRateEntry
+        sample = (timezone.now() - timedelta(hours=3)).replace(microsecond=0)
+        self._ingest([
+            {"type": "heart_rate", "date": self.today, "resting_hr": 57,
+             "recorded_at": sample.isoformat(), "source": "apple_health", "sync_id": "hr1"},
+        ])
+        hr = HeartRateEntry.objects.get(sync_id="hr1")
+        self.assertEqual(hr.recorded_at, sample)
+
+    def test_heart_rate_date_only_is_never_in_the_future(self):
+        """A date-only daily aggregate must never land in the future (the noon-default
+        bug). With no sample time, recorded_at is clamped to no later than now."""
+        from apps.health.models import HeartRateEntry
+        self._ingest([
+            {"type": "heart_rate", "date": self.today, "resting_hr": 60,
+             "source": "apple_health", "sync_id": "hr2"},
+        ])
+        hr = HeartRateEntry.objects.get(sync_id="hr2")
+        self.assertLessEqual(hr.recorded_at, timezone.now())
+
+    def test_heart_rate_self_heals_noon_default_on_resync(self):
+        """A legacy noon/future-defaulted row heals to the real sample time when Apple
+        Health re-pushes the same sample."""
+        from apps.health.models import HeartRateEntry
+        stale_noon = timezone.make_aware(
+            timezone.datetime.combine(timezone.now().date(), timezone.datetime.min.time().replace(hour=12))
+        )
+        HeartRateEntry.objects.create(
+            user=self.user, source="apple_health", bpm=60, context="resting",
+            recorded_at=stale_noon, sync_id="hr3",
+        )
+        real = (timezone.now() - timedelta(hours=5)).replace(microsecond=0)
+        self._ingest([
+            {"type": "heart_rate", "date": self.today, "resting_hr": 60,
+             "recorded_at": real.isoformat(), "source": "apple_health", "sync_id": "hr3"},
+        ])
+        hr = HeartRateEntry.objects.get(sync_id="hr3")
+        self.assertEqual(hr.recorded_at, real)
+
     # ---- the endpoint exposes the rich truth ----
     def test_sync_status_returns_sync_health(self):
         self._ingest([
@@ -113,11 +156,16 @@ class BuildHealthSyncStatusTest(TestCase):
         )
 
     def test_steps_no_data_is_visible_and_actionable(self):
-        # The reported bug: other sources sync, Steps never arrives.
+        # The reported bug: sync verifiably works (a run completed with weight), yet
+        # Steps never arrives. Only then may WLJ claim Steps is missing and offer the
+        # Health-settings fix — the claim rests on a completed run, not record presence.
         WeightEntry.objects.create(
             user=self.user, source="apple_health", value=286,
             recorded_at=self.now,
         )
+        run = HealthIngestionRun.objects.create(user=self.user, metrics_received=1)
+        run.mark_completed(1, 0, 0, type_results={"weight": {"created": 1, "updated": 0,
+                                                             "skipped": 0, "failed": 0}})
         st = build_health_sync_status(self.user, now=self.now)
         steps = next(d for d in st["data_types"] if d["key"] == "steps")
         self.assertEqual(steps["status"], "no_data")
@@ -172,3 +220,83 @@ class BuildHealthSyncStatusTest(TestCase):
         weight = next(d for d in st["data_types"] if d["key"] == "weight")
         self.assertEqual(weight["status"], "idle")
         self.assertFalse(any(i["key"] == "weight" for i in st["issues"]))
+
+    # ── Truth bug 1: a future timestamp must never be surfaced as "newest data" ──
+    def test_future_dated_record_is_never_surfaced_as_future(self):
+        """A noon-defaulted heart-rate row synced in the morning lands in the FUTURE.
+        The Health Sync truth must never present that future instant — it clamps to the
+        moment the row was actually received (created_at), never later than ``now``."""
+        from apps.health.models import HeartRateEntry
+        # A completed run so the account is otherwise healthy.
+        run = HealthIngestionRun.objects.create(user=self.user, metrics_received=1)
+        run.mark_completed(1, 0, 0, type_results={"heart_rate": {"created": 1, "updated": 0,
+                                                                  "skipped": 0, "failed": 0}})
+        future_noon = self.now.replace(hour=12, minute=0, second=0, microsecond=0)
+        if future_noon <= self.now:                      # test running after noon
+            future_noon = self.now + timedelta(hours=6)
+        hr = HeartRateEntry.objects.create(
+            user=self.user, source="apple_health", bpm=58,
+            context="resting", recorded_at=future_noon,
+        )
+        st = build_health_sync_status(self.user, now=self.now)
+        heart = next(d for d in st["data_types"] if d["key"] == "heart_rate")
+        # The displayed instant is clamped into the past (never later than now), and the
+        # fabricated future value is never surfaced.
+        self.assertIsNotNone(heart["last_record_at"])
+        self.assertLessEqual(heart["last_record_at"], self.now.isoformat())
+        self.assertNotEqual(heart["last_record_at"], hr.recorded_at.isoformat())
+        self.assertGreaterEqual(heart["days_since_last_record"], 0)
+        # And the account-level "newest_data" surface is likewise never in the future.
+        if st["newest_data"]:
+            self.assertLessEqual(st["newest_data"]["at"], self.now.isoformat())
+
+    # ── Truth bug 2: "healthy" requires a VERIFIED completed sync, not records ──
+    def test_records_without_a_completed_run_are_not_healthy(self):
+        """Records exist but no ingestion run ever completed → status must be "setup"
+        (Not yet synced) with last_sync None (Never) — never "healthy"/"Never" together."""
+        WeightEntry.objects.create(
+            user=self.user, source="apple_health", value=200, recorded_at=self.now,
+        )
+        st = build_health_sync_status(self.user, now=self.now)
+        self.assertEqual(st["active_types_count"], 1)          # a record IS present
+        self.assertEqual(st["overall_health"]["status"], "setup")
+        self.assertIsNone(st["last_sync"])                     # → client shows "Never"
+
+    def test_in_flight_run_is_not_yet_healthy(self):
+        """A run that is still processing (never marked completed) is not proof of sync."""
+        WeightEntry.objects.create(
+            user=self.user, source="apple_health", value=200, recorded_at=self.now,
+        )
+        HealthIngestionRun.objects.create(
+            user=self.user, metrics_received=1, status="processing",
+        )
+        st = build_health_sync_status(self.user, now=self.now)
+        self.assertEqual(st["overall_health"]["status"], "setup")
+        self.assertIsNone(st["last_sync"])
+
+    def test_completed_run_is_healthy_with_a_real_last_sync(self):
+        """A completed run → healthy AND a concrete last_sync. The badge and
+        "Last synced" derive from the SAME run, so they always agree."""
+        self._steps(0)
+        run = HealthIngestionRun.objects.create(user=self.user, metrics_received=1)
+        run.mark_completed(1, 0, 0, type_results={"steps": {"created": 1, "updated": 0,
+                                                            "skipped": 0, "failed": 0}})
+        st = build_health_sync_status(self.user, now=self.now)
+        self.assertEqual(st["overall_health"]["status"], "healthy")
+        self.assertIsNotNone(st["last_sync"])
+        self.assertEqual(st["last_sync"]["ingestion_id"], run.id)
+        self.assertIn(st["last_sync"]["status"], ("completed", "partial"))
+
+    def test_earlier_success_survives_a_later_in_flight_run(self):
+        """If the latest run is in-flight but an earlier run completed, the account has
+        verifiably synced — stay healthy, and last_sync points at the earlier success."""
+        self._steps(0)
+        done = HealthIngestionRun.objects.create(user=self.user, metrics_received=1)
+        done.mark_completed(1, 0, 0, type_results={"steps": {"created": 1, "updated": 0,
+                                                            "skipped": 0, "failed": 0}})
+        HealthIngestionRun.objects.create(
+            user=self.user, metrics_received=1, status="processing",
+        )
+        st = build_health_sync_status(self.user, now=self.now)
+        self.assertEqual(st["overall_health"]["status"], "healthy")
+        self.assertEqual(st["last_sync"]["ingestion_id"], done.id)

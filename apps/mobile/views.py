@@ -1043,35 +1043,48 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
     if bpm < 20 or bpm > 300:
         raise ValueError(f"Heart rate out of range: {bpm}")
 
-    # Parse recorded_at timestamp (noon default for daily aggregates)
     from django.utils import timezone as tz
     import datetime
 
-    recorded_at_str = data.get("recorded_at")
-    if recorded_at_str:
-        try:
-            from django.utils.dateparse import parse_datetime
-            recorded_at = parse_datetime(recorded_at_str)
-            if recorded_at is None:
-                recorded_at = tz.make_aware(
-                    datetime.datetime.combine(metric_date, datetime.time(12, 0))
-                )
-        except Exception:
-            recorded_at = tz.make_aware(
-                datetime.datetime.combine(metric_date, datetime.time(12, 0))
-            )
+    # The REAL HealthKit sample instant, preserved by process_health_metric from
+    # recorded_at / timestamp / start_date / date. Prefer it — a daily aggregate that
+    # only carried a date must NEVER be stored at local noon, because a morning sync
+    # would then land the record in the FUTURE and surface as "Newest data · 12:00 PM".
+    sample_dt = data.get("_sample_dt")
+    if sample_dt is None:
+        recorded_at_str = data.get("recorded_at")
+        if recorded_at_str:
+            try:
+                from django.utils.dateparse import parse_datetime
+                parsed = parse_datetime(recorded_at_str)
+                if parsed is not None:
+                    sample_dt = parsed if tz.is_aware(parsed) else tz.make_aware(parsed)
+            except Exception:
+                sample_dt = None
+
+    now = tz.now()
+    if sample_dt is not None:
+        recorded_at = sample_dt
     else:
-        recorded_at = tz.make_aware(
-            datetime.datetime.combine(metric_date, datetime.time(12, 0))
-        )
+        # Genuinely date-only: use local noon, but clamp so it is never in the future
+        # (a same-day sync before noon must not fabricate a future timestamp).
+        noon = tz.make_aware(datetime.datetime.combine(metric_date, datetime.time(12, 0)))
+        recorded_at = min(noon, now)
 
     # Deduplication by sync_id
     if sync_id:
         existing = HeartRateEntry.objects.filter(sync_id=sync_id).first()
         if existing:
+            changed = False
             if existing.bpm != bpm:
                 existing.bpm = bpm
-                existing.recorded_at = recorded_at
+                changed = True
+            # Self-heal a legacy noon/future-defaulted time when a real sample time
+            # arrives on re-sync (never overwrites a real time with a fabricated one).
+            if sample_dt is not None and existing.recorded_at != sample_dt:
+                existing.recorded_at = sample_dt
+                changed = True
+            if changed:
                 existing.save(update_fields=["bpm", "recorded_at", "updated_at"])
                 return "updated"
             return "skipped"

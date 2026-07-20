@@ -125,6 +125,25 @@ def _latest_ingestion_run(user):
             .first())
 
 
+# A run "succeeded" only when the ingest endpoint marked it completed or partially
+# completed — never merely pending/processing (in flight) or failed. This is the ONE
+# verified proof that synchronization has actually worked, and it is what both the
+# health badge and "Last synced" derive from. Records existing is NOT proof of a sync.
+_SUCCESSFUL_RUN_STATUSES = ("completed", "partial")
+
+
+def _latest_successful_run(user, latest_run):
+    """The most recent run that actually completed. Reuses ``latest_run`` when it already
+    qualifies (the common case — one query), otherwise looks back for the last success."""
+    if latest_run is not None and latest_run.status in _SUCCESSFUL_RUN_STATUSES:
+        return latest_run
+    from apps.mobile.models import HealthIngestionRun
+    return (HealthIngestionRun.objects
+            .filter(user=user, status__in=_SUCCESSFUL_RUN_STATUSES)
+            .order_by("-created_at")
+            .first())
+
+
 def _error_types(run) -> dict:
     """{metric_type: error message} from the run's validation errors."""
     out = {}
@@ -214,6 +233,15 @@ def _type_status(user, t: HealthSyncType, now: datetime, run,
     recent = qs.filter(**{f"{t.date_field}__gte": recent_cutoff}).count()
 
     last_dt = _as_datetime(getattr(latest, t.date_field)) if latest is not None else None
+    # TRUTH GUARD — a record can never be newer than "now". A future date_field is a
+    # fabricated / clock-skewed value (most often a legacy daily aggregate whose real
+    # sample time was discarded and defaulted to local NOON — a morning sync therefore
+    # lands in the FUTURE). WLJ never presents a future instant as real data: fall back
+    # to when the row was actually received (created_at, always in the past). This kills
+    # the whole "Newest data · Today · 12:00 PM before noon" class for EVERY source.
+    if last_dt is not None and last_dt > now:
+        received = _as_datetime(getattr(latest, "created_at", None))
+        last_dt = received if (received is not None and received <= now) else now
     days_since = (now.date() - last_dt.date()).days if last_dt else None
 
     import_health, import_reason = _type_import_health(t, run, error_types)
@@ -318,10 +346,15 @@ def _last_sync_summary(run) -> Optional[dict]:
     }
 
 
-def _build_issues(data_types, sync_path, any_active) -> list:
+def _build_issues(data_types, sync_path, synced_ever) -> list:
     """The "what is actually broken" list. EVERY entry must be backed by verified
     technical truth — an ingestion failure, a proven read block, or the device having
     stopped checking in. Inactivity NEVER appears here.
+
+    ``synced_ever`` is the verified fact that a sync run has actually completed. It gates
+    the "a core source never sent data" issue: we only tell the user a phone-native
+    source is *missing* (and send them to Health settings) when synchronization has
+    demonstrably worked — never inferred from the mere presence of some records.
 
     ``action`` drives the client's corrective affordance and is only
     "open_health_settings" when Apple Health sharing is the PROVEN cause.
@@ -360,11 +393,11 @@ def _build_issues(data_types, sync_path, any_active) -> list:
                 "key": d["key"], "severity": "warning", "action": None,
                 "message": f"{d['label']} was rejected during the last sync: {d['import_reason']}",
             })
-        elif (d["status"] == STATUS_NO_DATA and t.core and any_active
+        elif (d["status"] == STATUS_NO_DATA and t.core and synced_ever
               and sync_path["status"] not in (SYNC_FAILED, SYNC_NOT_CHECKING_IN)):
-            # Sync demonstrably works (other sources HAVE arrived) yet a phone-native,
+            # Sync demonstrably works (a run has verifiably completed) yet a phone-native,
             # universally-produced source has NEVER delivered a single record. The
-            # evidence is the other sources' data, not record age. Suppressed when the
+            # evidence is a completed sync, not record age or optimism. Suppressed when the
             # sync path is already known broken — the account-level issue covers that.
             issues.append({
                 "key": d["key"], "severity": "warning", "action": "open_health_settings",
@@ -381,6 +414,7 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
     now = now or timezone.now()
 
     run = _latest_ingestion_run(user)
+    successful_run = _latest_successful_run(user, run)
     sync_path = _sync_path_health(run, now)
     error_types = _error_types(run)
 
@@ -418,7 +452,8 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
     newest = max(dated, key=lambda d: d["last_record_at"], default=None)
     oldest = min(dated, key=lambda d: d["last_record_at"], default=None)
 
-    issues = _build_issues(data_types, sync_path, any_active)
+    synced_ever = successful_run is not None
+    issues = _build_issues(data_types, sync_path, synced_ever)
 
     # ── Account-level rollup ──
     # HEALTH is import health: how many sources are importing without a technical
@@ -428,12 +463,18 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
     healthy_count = sum(
         1 for d in active if d["status"] != STATUS_ATTENTION
     )
-    if not any_active and sync_path["status"] in (SYNC_NEVER,):
-        overall_status = "setup"          # nothing has ever synced
-    elif issues:
+    # "Healthy" is a VERIFIED fact, never an optimistic inference. It requires a sync run
+    # that actually completed — the mere presence of records (which can arrive via legacy
+    # or non-run paths, or from a run still in flight) is NOT proof that synchronization
+    # works. Without a completed run we say "setup" ("Not yet synced"), which agrees with
+    # "Last synced: Never" below instead of contradicting it. (Bug: "Syncing Normally"
+    # shown alongside "Last synced Never".)
+    if issues:
         overall_status = "attention"      # a VERIFIED technical problem
+    elif successful_run is not None:
+        overall_status = "healthy"        # a sync has verifiably completed
     else:
-        overall_status = "healthy"
+        overall_status = "setup"          # no sync has ever completed — do not claim health
 
     # ACTIVITY, reported separately and never labeled as health.
     produced_recently = sum(1 for d in data_types if d["source_activity"] == ACTIVITY_RECENT)
@@ -463,9 +504,13 @@ def build_health_sync_status(user, now: Optional[datetime] = None) -> dict:
                 1 for d in data_types if d["source_activity"] == ACTIVITY_NEVER
             ),
         },
+        # "Last synced" reflects the last run that VERIFIABLY completed — the same fact
+        # the health badge is derived from, so the two can never disagree. None (→ the
+        # client's "Never") exactly when overall_status is "setup".
         "last_sync": (
-            {"at": run.created_at.isoformat(), "status": run.status, "ingestion_id": run.id}
-            if run else None
+            {"at": successful_run.created_at.isoformat(),
+             "status": successful_run.status, "ingestion_id": successful_run.id}
+            if successful_run else None
         ),
         "active_types_count": len(active),
         "total_types_count": len(data_types),

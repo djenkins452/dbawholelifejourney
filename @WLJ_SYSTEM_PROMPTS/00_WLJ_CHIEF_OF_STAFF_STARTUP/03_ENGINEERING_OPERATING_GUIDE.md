@@ -96,6 +96,8 @@ When a trust-breaking failure appears, don't ask "how do we catch/recover next t
 
 Report what actually happened. If tests fail, say so with the output. If a step was skipped, say so. Persist observed results with provenance — never inferred intent. WLJ facts are never fabricated; the model may reason from facts but may never invent one.
 
+**A fact's *precision* is part of the fact — never fabricate it either.** Never store or display more temporal precision than the source provided: a date-only value is never stored at a fabricated noon (before local noon that also invents a *future* instant — the Health Sync "Newest data · 12:00 PM at 6 AM" class), and never rendered with an invented clock time. Resolve every observed-moment timestamp through the ONE non-fabricating rule — `apps/core/truth/precision.py :: resolve_instant` (real time verbatim; date-only placed at noon **clamped to ≤ now**, precision reported) — and render via `format_instant` (DAY → "Today"/"July 20", never a clock time). Governing doc + phased per-domain rollout: `docs/WLJ_TIMESTAMP_PRECISION.md`.
+
 ## 8. Request-path safety (hard rule)
 
 Interactive requests (views, signals, polling/evidence/scan APIs) may only **read** pre-computed snapshots/cache. **Never** compute heavy analytics or issue an inline LLM call on the request path; if data isn't ready, return "pending" — never a live fallback. Enqueue via `apps/core/celery_utils.py :: safe_enqueue` (non-blocking); post-write intelligence goes through `fire_intelligence()`. Enforced by `apps/core/tests/test_request_path_safety_contract.py`.

@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — chore(startup): session close-out — fold Faith deterministic-truth + Timestamp Precision principles into the package; regenerate bootloader
+
+**Session Transition Protocol executed** (`@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`) for the session that shipped **Faith First Light + Prayer** (gated to Danny), the **Health Sync truth fix** (`6ce967a3`), and **Timestamp Precision Phase 1** (`25c21f30`). Durable knowledge folded UP into the permanent startup package, each principle in its ONE owning document (no duplication):
+
+- **`01_READ_FIRST…ARCHITECTURE.md` §6 (Major lessons)** — new lesson: *WLJ records what happened; it never interprets what happened between the user and God — a Faith surface states deterministic truth only* ("You completed today's reading," never "You sat with Him today"). The domain expression of "WLJ owns truth; the model interprets; WLJ never renders a verdict."
+- **`03_ENGINEERING_OPERATING_GUIDE.md` §7 (Results, not intentions)** — extended fact-fabrication to precision: *a fact's precision is part of the fact — never store/display more temporal precision than the source gave;* resolve observed timestamps via `precision.resolve_instant`, render via `format_instant`. Points to `docs/WLJ_TIMESTAMP_PRECISION.md`.
+- **`99_REFERENCE_INDEX.md`** — indexed the new governing doc `docs/WLJ_TIMESTAMP_PRECISION.md` (Phase 1 shipped; Phase 2/3 deferred).
+- **`00_NEXT_CHAT_STARTUP.md`** — regenerated from scratch (44 → 40 lines; removed the inlined Structured-Confirmation seam map now held in memory/changelog): live sprint = Timestamp Precision Phase 2/3 + CoS Domain Certification (Faith done→AWAITING validation; **Fitness next**); deferred carries Precision Phase 2/3, remaining Health precision rollout, remaining Faith refinements; **Seasons/Life Chapters carried as a long-term idea ONLY (intentionally tabled)**.
+
+No change to the Constitution (`02`) or Danny Preferences (`04`) — nothing constitutional or a new working preference was established. The runtime-trace-before-implementation standard is already permanent (`03 §4`). **Release notes deferred:** First Light is flag-gated (not GA), Health Sync is a native-iOS fix, Timestamp Precision is internal — no user-visible GA change this session. **Files:** the four package docs above + this changelog.
+
 ## 2026-07-20 — fix(multimodal): uploaded attachment lost — Send now waits for in-flight uploads (+ filename/marker/perception-timing hardening)
 
 **Production defect:** user uploaded a DOCX, asked "Add these journals," and the CoS replied "Please upload the journal document…" then "I don't see any attachments." The attachment never reached the CoS. **Traced the runtime end-to-end (upload→store→perception→Current Context→model request); the FIRST failed layer is the CLIENT SEND — a race, not the parser (the parser never ran).**

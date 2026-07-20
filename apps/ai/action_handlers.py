@@ -1743,19 +1743,19 @@ class ActionHandler:
             duplicate=False, source_artifact_id=source_artifact_id,
         ):
             src_label = source or "screenshot"
-            # RESULTS, not intentions: tell the user exactly what perception found and precisely
-            # what will and will NOT be saved (and why) BEFORE anything is written. Nothing a
-            # source contained is ever silently dropped. This is the generic multimodal-import
-            # confirmation pattern (apps/ai/multimodal.compose_import_confirmation_summary).
-            summary = multimodal.compose_import_confirmation_summary(
-                lead=f"I analyzed your body measurement {src_label}.",
-                validated=validated, skipped=skipped,
-                derived=({'waist_hip_ratio': whr} if whr is not None else None),
-                absent_count=absent_count, noun="measurements",
-            )
+            # The handler returns ONLY deterministic structured truth — what perception found,
+            # exactly what will and will NOT import (with reasons), the derived facts, and how
+            # many fields were blank. The RESULTS-not-intentions PRESENTATION is owned by the
+            # generic framework (apps/ai/import_confirmation.render_import_confirmation), which
+            # renders this confirmation_detail at the confirmation seam. `message` is only a
+            # short degradation fallback for any caller that doesn't run the presenter. Nothing
+            # perceived is ever dropped without appearing in `skipped`/`absent_count`.
+            skipped_note = (f" ({len(skipped)} couldn't be imported)" if skipped else "")
             return ActionResult(
                 success=False, error='confirmation_required',
-                message=summary,
+                message=(f"I found {len(validated)} body measurement"
+                         f"{'s' if len(validated) != 1 else ''} in your {src_label}"
+                         f"{skipped_note} — review before I save them."),
                 confirmation_detail={
                     'renderer': 'body_measurement_session',
                     'intent': 'log_body_measurements',
@@ -1765,6 +1765,7 @@ class ActionHandler:
                     'count': len(validated),
                     'measurements': validated,
                     'skipped': skipped,
+                    'absent_count': absent_count,
                     'derived': ({'waist_hip_ratio': whr} if whr is not None else {}),
                 },
             )

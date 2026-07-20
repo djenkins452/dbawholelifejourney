@@ -6,6 +6,26 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — refactor(ai/multimodal): Measurement Session Capture — confirmation PRESENTATION extracted into a generic framework (production hardening)
+
+Production-hardening pass on Measurement Session Capture — **no new features; architecture only.** The confirmation now cleanly separates deterministic TRUTH (domain handler) from PRESENTATION (generic framework), so it's the pattern we can live with for years and reuse for every future multimodal import.
+
+**What changed and why:**
+1. **Presentation left the domain handler.** Previously `handle_log_body_measurements` composed the RESULTS-not-intentions summary text itself (✓/⚠ glyphs, counts, CTA) *and* returned structured `confirmation_detail` — the handler owned both truth and presentation. Now the handler returns **only** structured truth (`measurements`, `skipped` with reasons, `absent_count`, `derived`, `count`) plus a short degradation-fallback `message`. The rich summary is rendered by a new generic framework.
+2. **New generic framework `apps/ai/import_confirmation.py`.** A domain-agnostic presenter (`render_import_confirmation(detail)`) + a renderer registry (`register_import_renderer`). Body measurements is simply the first registered renderer (`body_measurement_session`); Labs, Blood Pressure, Nutrition, Medications, Sleep, Body Composition — any future multimodal import — register a lead + noun and reuse the presenter unchanged. It reads only the structured `confirmation_detail` contract, formats value+unit generically (`16.29"` / `24.5%` / `120 mmHg`), lists recognized/skipped with plain-language reasons, reports blank-field counts, renders derived facts generically (no hardcoded `waist_hip_ratio`), and closes with "Import these N?". **Facts only — never a verdict, never "I think…".**
+3. **Rendered at the CoS confirmation seam.** `action_execution.py` now renders `confirmation_detail` → summary at the single `confirmation_required` envelope point, falling back to the handler message if no renderer is registered (rendering can never block a confirmation).
+4. **Genericity defect fixed:** the old composer hardcoded `waist_hip_ratio`; the framework now renders any `derived` fact generically. **No dead code:** the `renderer` key (previously write-only metadata) is now consumed by the framework.
+
+**When the structured confirmation CARD is later built (deferred Milestone 3), it consumes the SAME `confirmation_detail` — the truth contract is unchanged; this text presenter simply becomes the graceful-degradation fallback.**
+
+**Files:** `apps/ai/import_confirmation.py` (new framework), `apps/ai/multimodal.py` (presentation code removed; truth helpers + `DATA_CONFIRM_INTENTS` remain), `apps/ai/action_handlers.py` (handler returns structured truth + `absent_count`), `apps/ai/cos_services/action_execution.py` (renders at the seam), `apps/ai/tests/test_body_measurements_import.py` (split into structured-truth / presenter / seam tests + a domain-agnostic facts-not-verdict test).
+
+**Runtime trace (proven, isolated test DB):** candidate (7 perceived rows) → `execute_action` → `confirmation_required` with the framework-rendered summary (nothing written pre-confirm) → deterministic bare-"yes" confirm → import → **1 `BodyMeasurementSession` + 4 `BodyCompositionEntry`** (`shoulders` canonical; WHR never stored) → **Body Intelligence** (`shoulders` in `metric_labels`) → **CoS retrieval** (`BodyMeasurementQueries.describe` non-empty). Five-way agreement, no hidden bypass.
+
+**Verification:** `manage.py check` clean; no migrations. 102 scoped tests green: `test_body_measurements_import` (15, incl. new presenter/seam/structured-truth), `test_action_execution`, `test_crud_confirmation_bridge`, `test_multimodal`, `test_confirmation_detail`, `test_request_path_safety_contract`, `test_intent_registration`, `test_body_intelligence`.
+
+**Known/documented (not fixed — out of scope, no invented work):** (a) the generic humanizer renders the derived label as "waist hip ratio" (no hyphen) — a deliberate genericity trade vs a domain-specific label; (b) the singular typed-entry intent `log_body_measurement` enum (`health_intents.py:328`) still omits `abdomen`/`forearm_*`/`bmi` vs the plural — a pre-existing inconsistency in a different (typed) path, unrelated to screenshot capture. **AWAITING Danny's production validation** of the live screenshot→confirm→save flow.
+
 ## 2026-07-19 — fix(meals): three Meal Intelligence defects from product validation (pantry-availability drift, blank substitutions, meal score of 0)
 
 Product validation surfaced three defects on the recipe detail / suggestion surfaces. Each was traced to its runtime cause (file:line) before any code changed — no guessing.

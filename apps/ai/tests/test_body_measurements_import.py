@@ -222,64 +222,132 @@ class CoSReadbackTests(TestCase):
         self.assertIsNotNone(result)
 
 
-class ConfirmationSummaryTests(TestCase):
-    """The confirmation reports RESULTS, not intentions: exactly what perception found and
-    precisely what will and will NOT be saved (and why) BEFORE anything is written. Never a
-    silently-dropped value. (The generic multimodal-import confirmation pattern.)"""
+class StructuredTruthTests(TestCase):
+    """The DOMAIN HANDLER returns only deterministic structured truth (measurements / skipped
+    with reasons / absent_count / derived) — never composed presentation text. Nothing perceived
+    is dropped without appearing in `skipped` or `absent_count`."""
 
     def setUp(self):
-        self.user = _make_user("cap-summary@example.com")
+        self.user = _make_user("cap-truth@example.com")
         self.handler = ActionHandler(self.user)
         self.artifact = MultimodalArtifact.objects.create(
-            user=self.user, sha256="5umm0001", content_type="image/png", kind="image")
+            user=self.user, sha256="7ruth001", content_type="image/png", kind="image")
 
-    def test_summary_lists_recognized_skipped_counts_and_reasons(self):
+    def test_handler_returns_structured_detail_not_prose(self):
         res = self.handler.handle_log_body_measurements(
             measurements=[
-                {"metric": "Shoulder", "value": 50.43, "unit": "in"},  # first-class metric now
+                {"metric": "Shoulder", "value": 50.43, "unit": "in"},  # first-class metric
                 {"metric": "chest", "value": 50.90, "unit": "in"},
                 {"metric": "waist", "value": 54.72, "unit": "in"},
                 {"metric": "hips", "value": 47.16, "unit": "in"},
                 {"metric": "knee", "value": 15.0, "unit": "in"},       # unrecognized → surfaced
+                {"metric": "abdomen", "value": "--"},                  # blank → absent, counted
             ],
             source="Renpho Screenshot", source_artifact_id=self.artifact.id,
         )
         self.assertEqual(res.error, "confirmation_required")
-        msg = res.message
-        # Exactly what perception found, per line (with formatted values).
-        self.assertIn("Measurements recognized:", msg)
-        self.assertIn('✓ Shoulders — 50.43"', msg)  # a normal importable measurement now
-        self.assertIn('✓ Waist — 54.72"', msg)
-        self.assertIn("⚠ knee", msg)                # unrecognized surfaced, never hidden
-        # Exactly what will and won't import.
-        self.assertIn("• 5 recognized", msg)
-        self.assertIn("• 4 can be imported", msg)
-        self.assertIn("• 1 cannot be imported", msg)
-        # WHY it can't import.
-        self.assertIn("Skipped:", msg)
-        self.assertIn("doesn't have a place to store", msg)
-        # Derived WHR shown for display (never stored separately).
-        self.assertIn("waist-hip ratio", msg)
-        # And nothing was written on the confirmation turn.
+        d = res.confirmation_detail
+        # Structured truth — the presentation glyphs live ONLY in the framework, not the handler.
+        self.assertNotIn("✓", res.message)
+        self.assertEqual({m["metric"] for m in d["measurements"]},
+                         {"shoulders", "chest", "waist", "hips"})
+        self.assertTrue(any(s.get("label") == "knee" and s.get("reason") == "unrecognized_metric"
+                            for s in d["skipped"]))
+        self.assertEqual(d["absent_count"], 1)                          # the blank abdomen
+        self.assertAlmostEqual(d["derived"]["waist_hip_ratio"], 1.16, places=2)
         self.assertEqual(BodyMeasurementSession.objects.filter(user=self.user).count(), 0)
 
-    def test_all_recognized_reads_n_imported_zero_skipped(self):
-        """End state with Shoulder first-class: a clean set reads N recognized / N imported /
-        0 skipped, with no Skipped section."""
-        res = self.handler.handle_log_body_measurements(
-            measurements=[
-                {"metric": "Shoulder", "value": 50.43, "unit": "in"},
-                {"metric": "chest", "value": 50.90, "unit": "in"},
-                {"metric": "waist", "value": 54.72, "unit": "in"},
+
+class ImportConfirmationPresenterTests(TestCase):
+    """The GENERIC framework renders a confirmation_detail into RESULTS-not-intentions text.
+    Domain-agnostic: it reads only the structured contract, so Labs/BP/Nutrition reuse it."""
+
+    def _detail(self, **over):
+        base = {
+            "renderer": "body_measurement_session",
+            "source": "Renpho Screenshot",
+            "measurements": [
+                {"label": "Shoulders", "value": 50.43, "unit": "in"},
+                {"label": "Waist", "value": 54.72, "unit": "in"},
+                {"label": "Hips", "value": 47.16, "unit": "in"},
+                {"label": "Calf (right)", "value": 16.49, "unit": "in", "uncertain": True},
             ],
-            source="Renpho Screenshot", source_artifact_id=self.artifact.id,
-        )
-        self.assertEqual(res.error, "confirmation_required")
-        self.assertIn("• 3 recognized", res.message)
-        self.assertIn("• 3 can be imported", res.message)
-        self.assertIn("• 0 cannot be imported", res.message)
-        self.assertNotIn("Skipped:", res.message)
-        self.assertIn("Import these 3 measurements?", res.message)
+            "skipped": [{"label": "knee", "value": 15.0, "unit": "in",
+                         "reason": "unrecognized_metric"}],
+            "absent_count": 2,
+            "derived": {"waist_hip_ratio": 1.16},
+        }
+        base.update(over)
+        return base
+
+    def test_renders_recognized_skipped_counts_reasons_and_derived(self):
+        from apps.ai.import_confirmation import render_import_confirmation
+        msg = render_import_confirmation(self._detail())
+        self.assertIn("I analyzed your body measurement screenshot.", msg)
+        self.assertIn('✓ Shoulders — 50.43"', msg)
+        self.assertIn("please double-check (low confidence)", msg)   # the uncertain row
+        self.assertIn("⚠ knee — 15\" (can't import)", msg)
+        self.assertIn("• 5 recognized", msg)                         # 4 importable + 1 skipped
+        self.assertIn("• 4 will be imported", msg)
+        self.assertIn("• 1 cannot be imported", msg)
+        self.assertIn("• 2 fields were blank (not measured)", msg)
+        self.assertIn("Skipped:", msg)
+        self.assertIn("doesn't have a place to store", msg)          # the WHY
+        self.assertIn("waist hip ratio (1.16)", msg)                 # derived, generic humanize
+        self.assertIn("Import the remaining 4 measurements?", msg)
+
+    def test_clean_set_reads_n_imported_zero_skipped(self):
+        from apps.ai.import_confirmation import render_import_confirmation
+        msg = render_import_confirmation(self._detail(
+            skipped=[], absent_count=0, derived={},
+            measurements=[{"label": "Shoulders", "value": 50.43, "unit": "in"},
+                          {"label": "Chest", "value": 50.9, "unit": "in"},
+                          {"label": "Waist", "value": 54.72, "unit": "in"}]))
+        self.assertIn("• 3 recognized", msg)
+        self.assertIn("• 3 will be imported", msg)
+        self.assertIn("• 0 cannot be imported", msg)
+        self.assertNotIn("Skipped:", msg)
+        self.assertIn("Import these 3 measurements?", msg)
+
+    def test_unregistered_renderer_returns_none(self):
+        from apps.ai.import_confirmation import render_import_confirmation
+        self.assertIsNone(render_import_confirmation({"renderer": "not_a_real_renderer"}))
+        self.assertIsNone(render_import_confirmation(None))
+
+    def test_reports_facts_never_a_verdict(self):
+        from apps.ai.import_confirmation import render_import_confirmation
+        msg = render_import_confirmation(self._detail())
+        for hedge in ("I think", "probably", "on track", "looks good", "seems"):
+            self.assertNotIn(hedge, msg)
+
+
+class ExecuteActionSeamTests(TestCase):
+    """End-to-end through the CoS execution seam: a screenshot import returns a confirmation
+    envelope whose message IS the framework-rendered summary (proves the seam wiring)."""
+
+    def setUp(self):
+        self.user = _make_user("cap-seam@example.com")
+        self.artifact = MultimodalArtifact.objects.create(
+            user=self.user, sha256="5eam0001", content_type="image/png", kind="image")
+
+    def test_confirmation_envelope_carries_rendered_summary(self):
+        from apps.ai.cos_services.action_execution import execute_action
+        env = execute_action(self.user, "log_body_measurements", {
+            "measurements": [
+                {"metric": "Shoulder", "value": 50.43, "unit": "in"},
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+                {"metric": "hips", "value": 47.16, "unit": "in"},
+                {"metric": "knee", "value": 15.0, "unit": "in"},
+            ],
+            "source": "Renpho Screenshot",
+            "source_artifact_id": self.artifact.id,
+        })
+        self.assertEqual(env["status"], "confirmation_required")
+        self.assertIn("Recognized:", env["message"])
+        self.assertIn("will be imported", env["message"])
+        self.assertIn("Skipped:", env["message"])
+        # Nothing written until the user confirms.
+        self.assertEqual(BodyMeasurementSession.objects.filter(user=self.user).count(), 0)
 
 
 class DeterministicConfirmReplayTests(TestCase):

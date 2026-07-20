@@ -206,10 +206,20 @@ def execute_action(user, action, params):
     # asked first. On the confirmed re-run, `confirmed=true` (step 3) bypasses this gate.
     if not success and err == "confirmation_required":
         _emit(uid, action_norm, "confirmation_required", ms=ms)
+        # The generic import-confirmation framework owns PRESENTATION: if the handler returned a
+        # structured confirmation_detail with a registered renderer, render it into the RESULTS-
+        # not-intentions summary the user sees. Otherwise fall back to the handler's own message.
+        rendered = None
+        try:
+            from apps.ai.import_confirmation import render_import_confirmation
+            rendered = render_import_confirmation(getattr(result, "confirmation_detail", None))
+        except Exception:  # pragma: no cover - presentation must never block a confirmation
+            logger.warning("COS_ACTION confirmation render failed action=%s user=%s",
+                           action_norm, uid, exc_info=True)
         return _envelope(
             action_norm, "confirmation_required",
-            message=getattr(result, "message", "") or (
-                "This needs your confirmation before I log it."),
+            message=(rendered or getattr(result, "message", "") or
+                     "This needs your confirmation before I log it."),
             code="confirmation_required",
         )
 

@@ -791,12 +791,14 @@ def process_weight_metric(user, metric_date, source, sync_id, data):
     value = normalize_for_storage(value, WeightEntry, "value")
 
     # Check for existing entry by sync_id first, then fall back to date match
-    from datetime import time as dt_time
+    from apps.core.truth import precision as tprec
 
-    # The REAL HealthKit sample instant (preserved by process_health_metric). Noon is used
-    # ONLY when the payload is genuinely date-only (a legacy/manual entry with no time).
+    # The REAL HealthKit sample instant (preserved by process_health_metric). A genuinely
+    # date-only payload is placed at a NON-FUTURE instant via the ONE canonical rule
+    # (apps/core/truth/precision.py) — this completes the migration-0098 fix at the source
+    # so a morning weigh-in can never be re-stored in the future.
     sample_dt = data.get("_sample_dt")
-    recorded_at = sample_dt or timezone.make_aware(datetime.combine(metric_date, dt_time(12, 0)))
+    recorded_at, _precision = tprec.resolve_instant(sample_dt, fallback_date=metric_date)
 
     def _heal_time(entry):
         """Self-heal a stored recorded_at to the true sample instant on re-sync — corrects
@@ -1044,12 +1046,14 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
         raise ValueError(f"Heart rate out of range: {bpm}")
 
     from django.utils import timezone as tz
-    import datetime
+    from apps.core.truth import precision as tprec
 
     # The REAL HealthKit sample instant, preserved by process_health_metric from
-    # recorded_at / timestamp / start_date / date. Prefer it — a daily aggregate that
-    # only carried a date must NEVER be stored at local noon, because a morning sync
-    # would then land the record in the FUTURE and surface as "Newest data · 12:00 PM".
+    # recorded_at / timestamp / start_date / date. resolve_instant is the ONE canonical
+    # rule (apps/core/truth/precision.py): a real time is kept verbatim; a date-only
+    # daily aggregate is placed at a NON-FUTURE instant (never a fabricated future noon
+    # that would surface as "Newest data · 12:00 PM"). Precision is reported for future
+    # per-record storage — see docs/WLJ_TIMESTAMP_PRECISION.md.
     sample_dt = data.get("_sample_dt")
     if sample_dt is None:
         recorded_at_str = data.get("recorded_at")
@@ -1062,14 +1066,7 @@ def process_heart_rate_metric(user, metric_date, source, sync_id, data):
             except Exception:
                 sample_dt = None
 
-    now = tz.now()
-    if sample_dt is not None:
-        recorded_at = sample_dt
-    else:
-        # Genuinely date-only: use local noon, but clamp so it is never in the future
-        # (a same-day sync before noon must not fabricate a future timestamp).
-        noon = tz.make_aware(datetime.datetime.combine(metric_date, datetime.time(12, 0)))
-        recorded_at = min(noon, now)
+    recorded_at, _precision = tprec.resolve_instant(sample_dt, fallback_date=metric_date)
 
     # Deduplication by sync_id
     if sync_id:

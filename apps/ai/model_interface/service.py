@@ -138,6 +138,18 @@ class ModelInterfaceService:
             ),
         }
 
+        # CONVERSATION STATE — "what are we talking about / doing / waiting on" (a DIFFERENT
+        # deterministic truth from Current Context's "what PAGE is the user on"). The active
+        # subject/artifacts carried across turns; pending confirmations are surfaced from the
+        # confirmation authority in the salient lead. Facts only; the model reasons over them.
+        try:
+            from apps.ai.model_interface import conversation_state as _cs
+            cs = _cs.read(conversation)
+            if cs:
+                ctx["conversation_state"] = cs
+        except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
+            logger.warning("mi: conversation_state read skipped", exc_info=True)
+
         # Personal Truth — durable, explicitly-stored cross-module user facts (targets,
         # conditions, medications, relationship, priorities) the model reasons FROM every
         # turn. Cache-first + resilient (never raises); the bounded standing view and the
@@ -309,12 +321,62 @@ class ModelInterfaceService:
             "profile is in `personal_truth` below; deeper detail via get_user_truth."
         )
 
+    @staticmethod
+    def _conversation_state_lead(standing_context: dict) -> str:
+        """Raise the salience of the ACTIVE CONVERSATION STATE — what we're discussing and
+        what we're waiting on — so it is not overlooked as JSON ~97% through a 60k-char prompt
+        (the exact salience failure that lost a pending 'yes' and let page context displace an
+        active artifact). Same inline-salience pattern as _focus_lead/_profile_lead. Facts only;
+        the model decides whether a follow-up refers to it (WLJ never interprets language).
+        Empty when there is nothing active. Never raises."""
+        try:
+            pend = standing_context.get("pending_confirmations") or []
+            cs = standing_context.get("conversation_state") or {}
+            subj = cs.get("active_subject") or {}
+        except Exception:
+            return ""
+        if not pend and not subj.get("ref"):
+            return ""
+        parts = ["\n\n=== ACTIVE CONVERSATION STATE (what we're doing / waiting on — check "
+                 "BEFORE page context for follow-ups and short replies) ==="]
+        if pend:
+            if len(pend) == 1:
+                p = pend[0]
+                parts.append(
+                    f"AWAITING YOUR CONFIRMATION: you asked the user to confirm \""
+                    f"{p.get('summary','')}\". If their message is a yes/no/cancel/confirm/"
+                    f"\"do it\"/\"import it\" reply, resolve THAT by calling "
+                    f"resolve_pending_action(confirmation_id=\"{p.get('confirmation_id')}\", "
+                    f"confirm=true|false) — do NOT treat it as a new topic or a page question.")
+            else:
+                listed = "; ".join(f"[{p.get('confirmation_id')}] {p.get('summary','')}"
+                                   for p in pend[:5])
+                parts.append(
+                    f"MULTIPLE CONFIRMATIONS ARE PENDING: {listed}. A bare \"yes\" is AMBIGUOUS "
+                    "— ask which one the user means (or have them restate it) rather than "
+                    "resolving an arbitrary action. Fail closed: never execute on ambiguity.")
+        if subj.get("ref"):
+            kind = subj.get("kind") or "item"
+            label = subj.get("label") or "the item you were discussing"
+            ago = subj.get("turns_ago")
+            when = (" (introduced this turn)" if ago in (0, None)
+                    else f" (introduced {ago} turn(s) ago)")
+            parts.append(
+                f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"for a "
+                "leak?\", \"is that dangerous?\", \"tell me more\", \"what about this part\", "
+                "\"it/that/this\") refers to THIS unless the user clearly changes topic or "
+                "explicitly asks about the page/screen. To see or re-check it, retrieve it with "
+                f"get_entity (domain='artifacts' for an uploaded file). Do NOT let an unrelated "
+                "page's Current Context replace this active subject.")
+        return "\n".join(parts)
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
         # the standing supportive/question-frequency relationship signals in the context above.
         return (
             CONSTITUTION
+            + self._conversation_state_lead(standing_context)
             + self._focus_lead(standing_context)
             + self._profile_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
@@ -322,8 +384,43 @@ class ModelInterfaceService:
             + "\n\n" + RESPONSE_COMPLETION_REMINDER
         )
 
+    @staticmethod
+    def _subject_from_entity_result(name, args, result):
+        """Deterministically derive the ACTIVE SUBJECT from a get_entity retrieval (a concrete
+        signal, not language): the record the user just pulled up becomes what a follow-up
+        ("tell me more about it") refers to. Returns {kind, ref, label} or None."""
+        try:
+            if name != "get_entity" or not isinstance(result, dict):
+                return None
+            if result.get("status") not in ("ready", None) and result.get("status"):
+                if result.get("status") != "ready":
+                    return None
+            domain = (args.get("domain") or "").strip().lower()
+            ent = result.get("entity")
+            if ent is None:
+                ents = result.get("entities") or []
+                ent = ents[0] if ents else None
+            if not isinstance(ent, dict):
+                return None
+            label = (ent.get("identity") or ent.get("label")
+                     or args.get("name") or args.get("entity_type") or "the item you asked about")
+            if domain == "artifacts":
+                ref = None
+                try:
+                    from apps.ai.multimodal import artifact_ids_from_entity_envelope
+                    ids = artifact_ids_from_entity_envelope(result)
+                    ref = ids[0] if ids else None
+                except Exception:
+                    ref = None
+                return {"kind": "artifact", "ref": ref or label, "label": label}
+            return {"kind": "entity", "ref": args.get("name") or label, "label": label,
+                    "domain": domain}
+        except Exception:
+            return None
+
     # -- tool dispatch --------------------------------------------------------
-    def _make_dispatch(self, *, turn_id, surface, tools_called, observer=None):
+    def _make_dispatch(self, *, turn_id, surface, tools_called, observer=None,
+                       turn_capture=None):
         user = self.user
 
         def _do(name, args):
@@ -463,6 +560,11 @@ class ModelInterfaceService:
             args = args if isinstance(args, dict) else {}
             tools_called.append(name)
             result = _do(name, args)
+            # Capture the retrieved entity as a candidate ACTIVE SUBJECT (last retrieval wins).
+            if turn_capture is not None:
+                subj = self._subject_from_entity_result(name, args, result)
+                if subj is not None:
+                    turn_capture["subject"] = subj
             if observer is not None:  # observability only (validation harness); no-op in prod
                 try:
                     observer(name, args, result)
@@ -486,9 +588,10 @@ class ModelInterfaceService:
             writes_enabled=writes_enabled, attachments=attachments,
         )
         system_prompt = self._system_prompt(standing_context)
+        turn_capture = {}
         dispatch = self._make_dispatch(
             turn_id=turn_id, surface=surface, tools_called=tools_called,
-            observer=observer,
+            observer=observer, turn_capture=turn_capture,
         )
 
         answer = self.ai._call_api_with_tools(
@@ -497,6 +600,18 @@ class ModelInterfaceService:
             conversation_history=conversation_history, images=images,
         )
         answer = answer or ""
+
+        # CONVERSATION STATE — deterministically advance the working-state AFTER the turn:
+        # this turn's uploads (attachments) or the entity the model just retrieved become the
+        # ACTIVE SUBJECT carried to the next turn (the leak-video continuity). Durable in
+        # AssistantConversation.metadata; never breaks a turn. Skipped on an empty answer.
+        if answer:
+            try:
+                from apps.ai.model_interface import conversation_state as _cs
+                _cs.record_turn(conversation, attachments=attachments,
+                                retrieved_subject=turn_capture.get("subject"))
+            except Exception:  # pragma: no cover - defensive
+                logger.warning("mi: conversation_state.record_turn skipped", exc_info=True)
 
         _audit.record_tool_call(
             self.user, kind="response", turn_id=turn_id, surface=surface,

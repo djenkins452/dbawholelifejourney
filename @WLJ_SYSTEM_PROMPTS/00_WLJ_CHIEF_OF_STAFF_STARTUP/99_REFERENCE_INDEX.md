@@ -36,6 +36,7 @@ Legend — **Authority:** Constitutional / Governing / Reference / Operational. 
 | `WLJ_ARCHITECTURE_LAWS.md` | Governing | Engineer | CURRENT | Answer Precondition Pipeline (Laws 0–5). |
 | `WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` | Governing | Engineer | CURRENT | Layered development model (Truth→Reasoning→Action→Experience). |
 | `WLJ_CURRENT_CONTEXT_CONTRACT.md` | Governing | Engineer | CURRENT | Current Context two-pattern standard (Article II). |
+| `WLJ_CONVERSATION_STATE_ARCHITECTURE.md` | Governing | Engineer | AWAITING VALIDATION | **Conversation State — the deterministic authority for "what are we talking about / doing / waiting on" (distinct from Current Context's "what page").** Conversation-scoped (`AssistantConversation.metadata["conversation_state"]`); tracks active subject/artifacts + reads-through pending confirmations; surfaced as a salient lead in `ModelInterfaceService`. WLJ owns the state; the model reasons over it (constitutionally compliant, no Review). Read before any follow-up/pronoun/pending-confirmation/active-artifact continuity work. |
 | `WLJ_VISUAL_TRUTH_CONTRACT.md` | Governing | Engineer | CURRENT | Only real completion may look complete (Article V.1). |
 | `WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE.md` | Governing | Engineer | CURRENT | Reflection observes, never overrides. |
 | `LAYER1_DOMAIN_FRAMEWORK.md` | Governing | Engineer | CURRENT | How a new canonical truth domain is built (Article III.1). |

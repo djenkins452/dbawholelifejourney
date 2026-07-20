@@ -266,3 +266,120 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         convo.refresh_from_db()
         self.assertEqual(convo.state, JournalConversation.STATE_COMPLETED)
         self.assertEqual(convo.resulting_entry_id, entry.id)
+
+
+class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
+    """M-D1: the Journal knows today's draft is in progress and lets the user resume
+    it — the draft quietly travels with the user across the day."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.create_url = reverse("journal:entry_create")
+        self.list_url = reverse("journal:entry_list")
+        self.finish_url = reverse("journal:write_together_finish")
+
+    def _enable(self):
+        prefs = self.user.preferences
+        prefs.journal_features = dict(prefs.journal_features or {})
+        prefs.journal_features["write_together"] = True
+        prefs.personal_assistant_enabled = True
+        prefs.save()
+
+    def _make_draft(self, state=JournalConversation.STATE_ACTIVE, with_content=True):
+        from apps.core.utils import get_user_today
+        convo = JournalConversation.objects.create(
+            user=self.user, entry_date=get_user_today(self.user), state=state,
+        )
+        if with_content:
+            convo.add_turn(convo.ROLE_ASSISTANT, "What's on your mind?")
+            convo.add_turn(convo.ROLE_USER, "We drove up the coast today.")
+            convo.save()
+        return convo
+
+    def test_no_draft_shows_chooser_not_card(self):
+        self._enable()
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "How would you like to journal today?")
+        self.assertNotContains(resp, "Draft in progress")
+
+    def test_empty_conversation_is_not_a_draft(self):
+        # A conversation with only the opening (no user content) is NOT in progress.
+        self._enable()
+        self._make_draft(with_content=False)
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertContains(resp, "How would you like to journal today?")
+        self.assertNotContains(resp, "Draft in progress")
+
+    def test_active_draft_replaces_chooser_with_card(self):
+        self._enable()
+        self._make_draft()
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Draft in progress")
+        self.assertContains(resp, "Finish Today")
+        self.assertContains(resp, "Resume Write Together")
+        self.assertContains(resp, "Resume Talk It Through")
+        # the fresh chooser is replaced by the draft card
+        self.assertNotContains(resp, "How would you like to journal today?")
+
+    def test_reviewing_draft_shows_review_action(self):
+        self._enable()
+        convo = self._make_draft(state=JournalConversation.STATE_REVIEWING)
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertContains(resp, "Ready to review")
+        self.assertContains(resp, f"from_conversation={convo.pk}")
+
+    def test_draft_banner_on_entry_list(self):
+        self._enable()
+        self._make_draft()
+        self.login_user()
+        resp = self.client.get(self.list_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "journal-draft-banner")
+        self.assertContains(resp, "Today's Journal is in progress")
+
+    def test_no_draft_no_banner(self):
+        self._enable()
+        self.login_user()
+        resp = self.client.get(self.list_url)
+        self.assertNotContains(resp, "journal-draft-banner")
+
+    def test_draft_card_gated_off_when_disabled(self):
+        # No flag → no card even if a conversation row somehow exists.
+        self._make_draft()
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertNotContains(resp, "Draft in progress")
+
+    @patch("apps.journal.services.journal_conversation.AIService")
+    def test_finish_today_generates_and_redirects_to_review(self, MockAI):
+        MockAI.return_value._call_api.return_value = "We drove up the coast and it was calm."
+        self._enable()
+        convo = self._make_draft()
+        self.login_user()
+        resp = self.client.post(self.finish_url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(f"from_conversation={convo.pk}", resp.url)
+        convo.refresh_from_db()
+        self.assertEqual(convo.state, JournalConversation.STATE_REVIEWING)
+        self.assertTrue(convo.generated_draft)
+
+    def test_finish_today_requires_content(self):
+        self._enable()
+        self._make_draft(with_content=False)
+        self.login_user()
+        resp = self.client.post(self.finish_url)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse("journal:write_together"), resp.url)
+
+    def test_finish_today_404s_when_disabled(self):
+        self.login_user()
+        resp = self.client.post(self.finish_url)
+        # disabled → redirected away, never generates
+        self.assertEqual(resp.status_code, 302)

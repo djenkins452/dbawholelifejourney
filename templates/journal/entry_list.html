@@ -64,7 +64,36 @@
             </a>
         </div>
     </div>
-    
+
+    {% if todays_draft %}
+    {% comment %} Today's Journal is in progress — surface a quiet resume banner (M-D1). {% endcomment %}
+    <a class="journal-draft-banner" href="{% if todays_draft.state == 'reviewing' %}{% url 'journal:entry_create' %}?from_conversation={{ todays_draft.pk }}{% else %}{% url 'journal:write_together' %}{% endif %}">
+        <span class="jdb-dot" aria-hidden="true"></span>
+        <span class="jdb-text">
+            <strong>Today's Journal is {% if todays_draft.state == 'reviewing' %}ready to review{% else %}in progress{% endif %}</strong>
+            <span>Last updated {{ todays_draft.updated_at|timesince }} ago · pick up where you left off</span>
+        </span>
+        <span class="jdb-cta" aria-hidden="true">{% if todays_draft.state == 'reviewing' %}Review &amp; save →{% else %}Resume →{% endif %}</span>
+    </a>
+    <style nonce="{{ csp_nonce }}">
+    .journal-draft-banner {
+        display: flex; align-items: center; gap: var(--space-3);
+        padding: var(--space-3) var(--space-4); margin-bottom: var(--space-6);
+        border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+        border-radius: var(--radius-lg);
+        background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+        text-decoration: none; color: var(--color-text);
+        transition: all var(--transition-fast);
+    }
+    .journal-draft-banner:hover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface)); }
+    .jdb-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-accent); flex-shrink: 0; }
+    .jdb-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .jdb-text strong { font-size: var(--font-size-sm); }
+    .jdb-text span { font-size: var(--font-size-xs); color: var(--color-text-muted); }
+    .jdb-cta { font-size: var(--font-size-sm); color: var(--color-accent); flex-shrink: 0; }
+    </style>
+    {% endif %}
+
     <!-- Filters -->
     <div class="filters-bar mb-6">
         <form method="get" class="filters-form" data-dynamic-search>

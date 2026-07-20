@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — feat(journal M-D1): Draft awareness — today's Journal quietly travels with the user
+
+First slice of the Journal **Draft → Save** lifecycle. The Journal now KNOWS when today's journal is already in progress and lets the user resume it from the landing surfaces, instead of only ever offering a blank start. Reuse-first: the "draft" is the existing durable `JournalConversation` (migration `0015`) — which is exactly the canon's `JournalDraftSession` (docs/WLJ_JOURNAL_EXPERIENCE.md §11/§13). **No new model, no migration, no schema change.**
+
+**Naming decision (ratified this session):** the Journal's terminal act is **Save** (Draft → Finish Today → Review → **Save Journal** → canonical `JournalEntry`); **"Publish" is reserved exclusively for Legacy / Truth-Discovery** ("Publish to Legacy"). Journal = the private narrative of today (you *save* it); Legacy = the curated narrative of a lifetime (you *publish* to it). Canon/UX copy will be aligned to this distinction as each area is touched.
+
+**What shipped (M-D1):**
+- `_todays_draft(user)` — read-only, request-path-safe lookup of today's in-progress draft (an ACTIVE conversation with user content = still journaling, or REVIEWING = generated and awaiting Save). Never creates a draft, so merely opening Journal can't fabricate one. Flag-gated (Write Together preview).
+- **"Draft In Progress" card** replaces the three-method chooser on the New Journal page when a draft exists: *Today's Journal · Draft in progress · Started … · Last updated … ago* with **Resume Write Together / Resume Talk It Through / Finish Today** (a REVIEWING draft instead shows *Ready to review → Review & save your journal*).
+- **Quiet resume banner** on the entries list (the nav landing): *Today's Journal is in progress · pick up where you left off · Resume →*.
+- **"Finish Today"** — a server-rendered `WriteTogetherFinishView` (POST) that generates today's journal via the one existing generation path (`generate_entry`) and redirects to the review editor. No JS needed on the landing page; reuses the single pipeline (no alternate generate path).
+
+**Files:** MODIFIED `apps/journal/views.py` (`_todays_draft`, `todays_draft` context on EntryCreate + EntryList, `WriteTogetherFinishView`), `apps/journal/urls.py` (`write-together/finish/`), `templates/journal/entry_form.html` (draft card + CSS), `templates/journal/entry_list.html` (resume banner), `apps/journal/tests/test_write_together_conversation.py` (+10 tests). **Tests:** 28/28 in the module green; request-path safety 4/4; `check` + migration `--check` clean; browser-verified (card + banner render, no console errors). **Why:** a Journal should not require one uninterrupted sitting — the day's journal should follow the user. **Release notes deferred:** Write Together is still flag-gated (owner-only preview). **Next:** M-D2 — Just Write contributes to the same draft (Save Draft; entry only at Save Journal).
+
 ## 2026-07-20 — fix(model-interface): salient ATTACHMENT LEAD — model no longer asks to upload a document that's already attached
 
 **Production regression (different from the prior zero-records/filename bug):** the UI showed the attachment receipt ("Danny's Journal.docx — Attached"), but the assistant replied "Please upload the journal document…" — behaving as if no attachment existed.

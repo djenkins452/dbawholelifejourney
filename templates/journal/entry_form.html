@@ -17,7 +17,38 @@
         </div>
     </div>
 
-    {% if journal_methods_enabled and not is_edit and not reviewing_conversation %}
+    {% if todays_draft and not is_edit and not reviewing_conversation %}
+    {% comment %} Today's Journal is already in progress — the draft quietly travels with the user (M-D1). {% endcomment %}
+    <div class="journal-draft" role="group" aria-label="Today's Journal — draft in progress">
+        <div class="jd-top">
+            <span class="jd-kicker">Today's Journal</span>
+            {% if todays_draft.state == 'reviewing' %}
+                <span class="jd-badge jd-badge-review">Ready to review</span>
+            {% else %}
+                <span class="jd-badge">Draft in progress</span>
+            {% endif %}
+        </div>
+        <div class="jd-meta">
+            <span>Started {{ todays_draft.created_at|date:"g:i A" }}</span>
+            <span aria-hidden="true">·</span>
+            <span>Last updated {{ todays_draft.updated_at|timesince }} ago</span>
+        </div>
+        {% if todays_draft.state == 'reviewing' %}
+        <div class="jd-actions">
+            <a class="jd-btn jd-btn-primary" href="{% url 'journal:entry_create' %}?from_conversation={{ todays_draft.pk }}">Review &amp; save your journal</a>
+        </div>
+        {% else %}
+        <div class="jd-actions">
+            <a class="jd-btn" href="{% url 'journal:write_together' %}">💬 Resume Write Together</a>
+            <a class="jd-btn" href="{% url 'journal:write_together' %}?voice=1">🎙️ Resume Talk It Through</a>
+            <form method="post" action="{% url 'journal:write_together_finish' %}" class="jd-finish-form">
+                {% csrf_token %}
+                <button type="submit" class="jd-btn jd-btn-primary">Finish Today</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+    {% elif journal_methods_enabled and not is_edit and not reviewing_conversation %}
     <div class="journal-methods" role="group" aria-label="How would you like to journal today?">
         <div class="jm-heading">How would you like to journal today?</div>
         <div class="jm-options">
@@ -461,6 +492,42 @@
     background: var(--color-border);
     padding: 0 var(--space-1); border-radius: var(--radius-sm);
 }
+
+/* ── Draft In Progress card (M-D1) — today's Journal quietly travels with the user.
+   Shown in place of the chooser when a draft already exists for today. */
+.journal-draft {
+    margin-bottom: var(--space-6);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+.jd-top { display: flex; align-items: center; gap: var(--space-3); }
+.jd-kicker { font-size: 1.05rem; font-weight: 600; color: var(--color-text); }
+.jd-badge {
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    padding: 2px var(--space-2); border-radius: var(--radius-full);
+}
+.jd-badge-review { color: var(--color-success, #2e7d32); background: color-mix(in srgb, var(--color-success, #2e7d32) 12%, transparent); }
+.jd-meta {
+    display: flex; flex-wrap: wrap; gap: var(--space-2);
+    font-size: var(--font-size-xs); color: var(--color-text-muted);
+    margin-top: var(--space-1);
+}
+.jd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.jd-finish-form { display: inline; margin: 0; }
+.jd-btn {
+    display: inline-flex; align-items: center; gap: var(--space-1);
+    padding: var(--space-2) var(--space-4); border-radius: var(--radius-full);
+    border: 1px solid var(--color-border); background: var(--color-surface);
+    color: var(--color-text); font-size: var(--font-size-sm); text-decoration: none;
+    cursor: pointer; transition: all var(--transition-fast);
+}
+.jd-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.jd-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.jd-btn-primary:hover { opacity: 0.92; color: #fff; }
 {% endif %}
 
 /* ── Mobile ─────────────────────────────────────────────────────────────── */

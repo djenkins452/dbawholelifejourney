@@ -1,6 +1,6 @@
 # WLJ Chief-of-Staff — Conversation State Management (Governing Architecture)
 
-**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** → **Deterministic-Writers governance COMPLETE (2026-07-20): §4a documents the ONE writer authority + the reasoning-based mechanisms that may NEVER write it, runtime-proven and enforced by `test_conversation_state_writer_contract.py`.** → **Active-Artifact Continuity COMPLETE (2026-07-20): §4b — an active image/video is now RE-PERCEIVED (not just referenced) on follow-ups, with a bytes cache for the durable-storage-pending window (prod "the image isn't available" defect).** AWAITING production validation.
+**Status:** Phase 1A review COMPLETE → **constitutionally compliant, no Constitutional Review required** → Phase 1B implemented → **Architectural refinement review COMPLETE (2026-07-20): Q1 — Conversation State is carried INSIDE the Executive Context Envelope, not an independent Truth Surface (framing corrected; architecture already correct); Q2 — lifecycle reframed EVENT-DRIVEN PRIMARY with turn/time as genuine last-resort fallbacks (turn backstop 4→12).** → **Deterministic-Writers governance COMPLETE (2026-07-20): §4a documents the ONE writer authority + the reasoning-based mechanisms that may NEVER write it, runtime-proven and enforced by `test_conversation_state_writer_contract.py`.** → **Active-Artifact Continuity COMPLETE (2026-07-20): §4b — an active image/video is now RE-PERCEIVED (not just referenced) on follow-ups, with a bytes cache for the durable-storage-pending window (prod "the image isn't available" defect).** → **Permitted-Data + Expansion-Test governance COMPLETE (2026-07-20): §5a/§5b — runtime-verified every field is deterministic (no runtime changes needed); schema allow-list contract + Engineering Guide §3f. Artifact separation of concerns (§4b.1) + generic-support coverage (§4b.2) documented.** **The capability is ARCHITECTURALLY FROZEN** — it evolves only when production experience reveals a genuine need and the Expansion Test (§5b) passes. AWAITING production validation.
 **Date:** 2026-07-20
 **Runtime scope:** Danny's production runtime is `use_model_interface=True` → `CoSGateway.respond` → `ModelInterfaceService` (proven). All design and tests target that runtime.
 
@@ -153,6 +153,36 @@ available.") The completion (deterministic, general — image/video, not image-s
 This is exposure/completion of the existing capability — it adds no new writer (re-delivery is a
 READ of Conversation State) and no new store. `apps/ai/tests/test_conversation_state_artifact_continuity.py`.
 
+### 4b.1 Architectural separation of concerns (Conversation State is NOT an artifact engine)
+
+| Layer | Responsibility | Owns |
+|-------|----------------|------|
+| **Conversation State** | **WHICH** artifact is active (a reference + lifecycle) | `active_artifacts` / `active_subject.ref` |
+| **Artifact Adapters** (`perceive_images_for_artifacts`, `attachments_from_ids`, bytes cache) | **HOW** that artifact becomes perceivable again (bytes/frames/text reconstruction) | per-kind perception |
+| **Executive Context** (`build_standing_context`) | ASSEMBLES the active reference + the reconstructed perception into the turn | the envelope |
+| **Model Perception** | REASONS over the reconstructed artifact | — |
+
+Conversation State stores only the **identifier + lifecycle**; it never decodes bytes, renders pages,
+extracts text, or samples frames — that is the adapters' job. **Conversation State never becomes an
+artifact-processing engine.** Adding a new artifact type is an *adapter* change; Conversation State is
+untouched.
+
+### 4b.2 Generic artifact support (coverage — preserved from the 2026-07-20 analysis)
+
+Conversation State provides **universal artifact references** (any `kind` can be the active subject).
+Perception continuity is provided by the **adapters**, which today cover:
+
+| Type | Continuity | Status |
+|------|-----------|--------|
+| image · screenshot · receipt-photo (`kind=image`) | visual re-delivery (bytes + cache) | ✅ adapter |
+| video (`kind=video`) | frame re-delivery | ✅ adapter |
+| PDF · Word · text · receipt-PDF (`kind=document`) | text surface (`extracted_text` via `conversation_artifacts` + `get_entity`) | ⚠️ text only |
+| audio (`kind=audio`) | transcript via the text surface | ⚠️ text only |
+
+Future adapters — **PDF page rendering, DOCX embedded content, OCR for scanned documents** — extend
+*perception* for `document`/`audio` **without changing Conversation State itself** (its universal
+reference already holds; only the per-kind adapter is added).
+
 ## 5. State model (minimal, durable, reference-based — never model prose)
 
 ```
@@ -169,6 +199,47 @@ AssistantConversation.metadata["conversation_state"] = {
 # confirmation authority (confirmation.list_open) so there is ONE pending-action source.
 ```
 Facts and references only; no free-form conversation summary.
+
+## 5a. Permitted Data (governance — what Conversation State MAY and may NEVER contain)
+
+Conversation State is a **compact deterministic index into the current interaction** — nothing more.
+**Runtime-verified 2026-07-20:** every stored field is a deterministic scalar / reference / timestamp;
+no field violates this — no runtime changes were required.
+
+**MAY contain (deterministic references + deterministic state ONLY):**
+- active-subject / artifact / entity / workflow / confirmation **identifiers** (`ref`, `artifact_id`)
+- deterministic **lifecycle state** (`turn`, `source_turn`, `last_answer_turn`, a `kind` label, an
+  `artifact` flag, `schema_version`)
+- **timestamps** (`updated_ts`, `first_ts`, `ts`) and **provenance** (`source_turn`)
+- deterministic **references to durable truth** (an artifact id, an entity identity from a tool result)
+- a `label` — a **deterministic display name only** (a filename, or the retrieved entity's `identity`
+  from the tool RESULT, or a fixed fallback like "image you uploaded"). It is **never** model-authored
+  and is length-bounded; it exists solely so the salient lead reads naturally.
+
+**MUST NEVER contain:** conversation summaries · transcript summaries · AI-generated prose · semantic
+interpretations · inferred intent · generated explanations · heuristic classifications · reflection
+output · LLM-authored memory · model-generated free text · conversation analysis.
+
+Conversation State is **NOT** another transcript, another memory system, or another reasoning engine.
+The conversational model **reasons OVER** Conversation State; it **never writes it** (§4a). Enforced by
+`apps/ai/tests/test_conversation_state_schema_contract.py` (allow-list schema; forbids free-text/summary
+keys) and `test_conversation_state_writer_contract.py` (single writer authority).
+
+## 5b. Expansion Test (governance — when Conversation State is allowed to grow)
+
+Conversation State is a **system eliminator, not another system.** Before extending it, answer:
+
+1. Does this **replace an existing deterministic system**?
+2. Does it **eliminate duplicate logic**?
+3. Does it **reduce architecture** (net fewer systems)?
+4. Does it preserve the **deterministic / reasoning boundary** (deterministic in; model reasons over)?
+5. Does it preserve the **writer contract** (one authority; concrete signals only)?
+
+**If #1 and #2 are both NO, the proposal is presumed architectural scope creep and must not be added.**
+Any proposal to place *generated text* inside Conversation State is scope creep unless it *demonstrably
+replaces* an existing deterministic system. Durable records (`JournalConversation`, `*Session`,
+`ConversationMemory`) and long-term memory are out of scope by definition — Conversation State may hold a
+*reference* to them, never their contents.
 
 ## 6. Deterministic lifecycle — EVENT-DRIVEN PRIMARY (refined 2026-07-20, Q2 review)
 

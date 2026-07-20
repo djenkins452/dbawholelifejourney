@@ -113,4 +113,29 @@ class ImportTraceView(View):
         except Exception as e:  # pragma: no cover
             out["import_error"] = repr(e)
 
+        # The ACTUAL tool calls the model made — did it pass source_artifact_id? (Q: model
+        # behavior vs deterministic layer.) Reads the append-only audit ledger.
+        try:
+            from apps.ai.models import ToolCallLog
+            calls = (ToolCallLog.objects
+                     .filter(user=user, tool_name="import_journal_entries")
+                     .order_by("-created_at")[:5])
+            out["recent_import_tool_calls"] = [
+                {"created_at": c.created_at.isoformat(), "args": c.args,
+                 "result_status": c.result_status, "result_digest": c.result_digest}
+                for c in calls
+            ]
+            # Also: any action call in the last day, to see what the model actually did.
+            recent = (ToolCallLog.objects.filter(user=user, kind="action")
+                      .order_by("-created_at")[:8])
+            out["recent_action_calls"] = [
+                {"tool": c.tool_name, "status": c.result_status,
+                 "args_keys": sorted((c.args or {}).keys()),
+                 "has_source_artifact_id": bool((c.args or {}).get("source_artifact_id")),
+                 "created_at": c.created_at.isoformat()}
+                for c in recent
+            ]
+        except Exception as e:  # pragma: no cover
+            out["toolcall_error"] = repr(e)
+
         return JsonResponse(out, json_dumps_params={"ensure_ascii": False})

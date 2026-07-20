@@ -5,7 +5,7 @@
 """
 Write Together / Talk It Through — the dedicated Journal conversation.
 
-One focused conversation whose sole purpose is to create today's journal. It runs
+One focused conversation whose sole purpose is to create the user's journal. It runs
 under the Journal Conversation Playbook and the Conversational Memory Model, and
 at the end it generates the entry in the user's own voice for review → approve.
 
@@ -94,7 +94,7 @@ _CONVO_SYSTEM = (
     "gently reassure them ('That's okay — not every day has a big story') and ask if there's anything "
     "on their mind lately.\n\n"
     "Ending: when the user seems to have said what they came to say, warmly let them know you have "
-    "enough for today's journal whenever they're ready. Never rush there; never keep fishing once the "
+    "enough for their journal whenever they're ready. Never rush there; never keep fishing once the "
     "story has landed."
 )
 
@@ -130,8 +130,8 @@ _CONTEXT_BLOCK = (
 
 # ── The generation posture (fidelity — UX §12) ────────────────────────────────
 _GEN_SYSTEM = (
-    "You are writing today's journal entry FOR the user, in THEIR own voice, from the conversation "
-    "you just had with them. You are a scribe preserving their day — not an author.\n\n"
+    "You are writing the user's journal entry FOR them, in THEIR own voice, from the conversation "
+    "you just had with them. You are a scribe preserving what they told you — not an author.\n\n"
     "Rules:\n"
     "- First person, past tense, as if the user wrote it themselves.\n"
     "- Include ONLY what the user actually said or clearly meant. Never invent an event, a feeling, "
@@ -204,7 +204,7 @@ def respond(user, convo, user_message):
 
 
 def generate_entry(user, convo):
-    """Generate today's journal from the conversation, in the user's voice.
+    """Generate the journal from the conversation, in the user's voice.
 
     Stores the draft on the conversation and moves it to REVIEWING. Returns the
     draft text (plain prose) for the review step. Never raises to the caller.
@@ -214,7 +214,7 @@ def generate_entry(user, convo):
     user_prompt = (
         "Here is the conversation with the user about their day:\n\n"
         f"{transcript}\n\n"
-        "Write today's journal entry in their voice, following the rules exactly."
+        "Write their journal entry in their voice, following the rules exactly."
     )
     draft = _call(user, system, user_prompt, max_tokens=700, temperature=0.5,
                   endpoint="journal_write_together_generate")

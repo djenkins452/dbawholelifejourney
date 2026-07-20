@@ -63,7 +63,7 @@
         </form>
         <div class="wt-finish">
             <span id="wt-notice" class="wt-notice" hidden></span>
-            <button type="button" id="wt-generate" class="wt-generate">When you're ready — create today's journal</button>
+            <button type="button" id="wt-generate" class="wt-generate">When you're ready — finish & review</button>
         </div>
     </div>
 
@@ -592,17 +592,17 @@ document.addEventListener('DOMContentLoaded', function() {
             postJSON(GEN_URL, {}).then(function(data) {
                 if (data && data.redirect) { window.location.href = data.redirect; return; }
                 genBtn.disabled = false;
-                genBtn.textContent = "When you're ready — create today's journal";
+                genBtn.textContent = "When you're ready — finish & review";
                 if (data && data.message && notice) { notice.textContent = data.message; notice.hidden = false; }
             }).catch(function() {
                 genBtn.disabled = false;
-                genBtn.textContent = "When you're ready — create today's journal";
+                genBtn.textContent = "When you're ready — finish & review";
             });
         }
         // In voice, the Chief of Staff confirms out loud, then we generate.
         if (wasVoice && ttsSupported) {
             try { window.speechSynthesis.cancel(); } catch (_) {}
-            const u = new SpeechSynthesisUtterance("I've got it. Give me a moment to turn our conversation into today's journal.");
+            const u = new SpeechSynthesisUtterance("I've got it. Give me a moment to turn our conversation into your journal.");
             u.onend = doGenerate; u.onerror = doGenerate;
             try { window.speechSynthesis.speak(u); } catch (_) { doGenerate(); }
             setTimeout(doGenerate, 4500);  // safety: never wait indefinitely on TTS

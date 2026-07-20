@@ -149,6 +149,7 @@
       <span><i class="dot" style="background:#a3505a"></i> Failure / attention</span>
       <span><i class="dot" style="background:#b3a894"></i> Placeholder / empty</span>
     </div>
+    <p class="sub" style="margin-top:14px;font-size:13.5px"><b>Vocabulary (ratified 2026-07-20).</b> The in-progress object is a <b>Journal Draft</b> (defaults to today; the concept is broader — a trip, a memory, catching up). Lifecycle: <b>Draft → Resume → Finish &amp; Review → Review → Save Journal → <code>JournalEntry</code></b>. The Journal is <b>saved</b>, never "published." <b>Publish</b> is reserved exclusively for Legacy (<i>Publish to Legacy</i>) — promoting a saved journal into the lifetime narrative.</p>
   </header>
 
   <!-- ===================== ONE CANVAS ===================== -->
@@ -212,7 +213,7 @@
         </div>
         <div class="bottombar"><div class="on"><span class="ic">✍️</span>Just Write</div><div><span class="ic">🎙️</span>Talk It Through</div><div><span class="ic">✨</span>Write Together</div></div>
       </div></div>
-      <figcaption class="cap"><b>Just Write — writing</b><span>No AI, no suggestions, no interruptions. Quiet autosave-to-draft. Exactly today's journal.</span></figcaption>
+      <figcaption class="cap"><b>Just Write — writing</b><span>No AI, no suggestions, no interruptions. Quiet autosave-to-draft. Just your words.</span></figcaption>
     </figure>
 
   </div>
@@ -271,7 +272,7 @@
             <div class="vstate">Listening</div>
             <div class="vhint">Take your time. I'm not going anywhere.</div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>Active listening (idle)</b><span>Attentive, comfortable with silence — nothing alarming. Subtle progress pill; End always reachable.</span></figcaption>
@@ -292,7 +293,7 @@
             <div class="vstate" style="color:var(--ink)">You</div>
             <div class="vhint">"…and Parker looked back at me from second base like—"</div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>User speaking</b><span>Live level + running transcript of the user's words. The CoS is visibly holding space — not queuing a reply.</span></figcaption>
@@ -313,7 +314,7 @@
             </div>
             <div class="vhint" style="margin-top:10px">You can jump in any time — just start talking.</div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>Chief of Staff speaking</b><span>One curious, personal, non-directive question — connected to known history. Spoken aloud + shown in transcript.</span></figcaption>
@@ -335,7 +336,7 @@
             <div class="vstate" style="color:var(--ink)">You (jumped in)</div>
             <div class="vhint">"Oh — yeah, exactly like the '02 season…"</div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>User interruption (barge-in)</b><span>User talks over the CoS → it stops instantly and listens. User is always the primary speaker.</span></figcaption>
@@ -397,7 +398,7 @@
           </div>
         </div>
         <div style="padding:0 14px 12px">
-          <div class="actionrow"><div class="a save">Save entry</div><div class="a edit">Edit</div><div class="a discard">Discard</div></div>
+          <div class="actionrow"><div class="a save">Save Journal</div><div class="a edit">Edit</div><div class="a discard">Discard</div></div>
         </div>
       </div></div>
       <figcaption class="cap"><b>Journal reveal</b><span>Assembled at the end (gentle rise-in). Their voice, their specifics, only what they said. Never auto-saved unseen.</span></figcaption>
@@ -417,7 +418,7 @@
           </div>
           <div class="metarow"><span class="chip">😊 Good</span><span class="chip">🏷 family</span><span class="chip">＋ tag</span></div>
         </div>
-        <div style="padding:0 14px 12px"><div class="actionrow"><div class="a save">Save entry</div><div class="a discard">Cancel</div></div></div>
+        <div style="padding:0 14px 12px"><div class="actionrow"><div class="a save">Save Journal</div><div class="a discard">Cancel</div></div></div>
       </div></div>
       <figcaption class="cap"><b>Review / edit / save</b><span>Full rich-text editor inline. Edit freely; add mood/tags. Save → normal <code>JournalEntry</code> (fires full intelligence chain).</span></figcaption>
     </figure>
@@ -442,7 +443,7 @@
 
   <!-- ===================== WRITE TOGETHER ===================== -->
   <h2 class="sect">4 · Write Together</h2>
-  <div class="note" style="border-color:#b7791f;background:var(--amber-soft);color:var(--amber-ink)"><b>⚠ REVISED 2026-07-19 — these screens depict the RETIRED model.</b> After production validation, Write Together became a dedicated <b>conversation</b> (no editor visible), identical to Talk It Through except modality: conversation → "I think I have today's journal" → generate → review → approve → <code>JournalEntry</code>. See <code>WLJ_JOURNAL_EXPERIENCE.md §5 (revised)</code>. The screens below (draft + one-question-at-a-time) are kept only as history and will be re-rendered to the conversation model during the M2 build.</div>
+  <div class="note" style="border-color:#b7791f;background:var(--amber-soft);color:var(--amber-ink)"><b>⚠ REVISED 2026-07-19 — these screens depict the RETIRED model.</b> After production validation, Write Together became a dedicated <b>conversation</b> (no editor visible), identical to Talk It Through except modality: conversation → "I think I have your journal" → generate → review → Save Journal → <code>JournalEntry</code>. See <code>WLJ_JOURNAL_EXPERIENCE.md §5 (revised)</code>. The screens below (draft + one-question-at-a-time) are kept only as history and will be re-rendered to the conversation model during the M2 build.</div>
   <p class="sect-note" style="opacity:0.6"><s>The user writes, then invites the CoS. It reads the current draft and asks one useful question at a time. Answer by voice or text; return to writing alone anytime. No unsolicited interruptions.</s> — retired model (see note above).</p>
   <div class="grid">
 
@@ -537,7 +538,7 @@
         <div class="stat"><span>10:03</span><span>▂▄ 🔋</span></div>
         <div class="bar"><span class="t">Journal</span><span class="r">⋯</span></div>
         <div class="body">
-          <div class="banner warn" style="margin-bottom:14px"><span class="bi">↩</span><span><b>You were journaling about today.</b><br>Your conversation was saved — pick up where you left off?</span></div>
+          <div class="banner warn" style="margin-bottom:14px"><span class="bi">↩</span><span><b>You have a journal draft in progress.</b><br>Your conversation was saved — pick up where you left off?</span></div>
           <div class="tline"><span class="who">You</span><span class="txt">…exactly like the '02 season in Alabama.</span></div>
           <div class="tline cos"><span class="who">Chief of Staff</span><span class="txt">What do you remember most from that season?</span></div>
           <div style="display:flex;gap:8px;margin-top:12px">
@@ -561,7 +562,7 @@
             <div class="banner rose" style="margin:14px 4px 0;justify-content:center"><span class="bi">🎧</span><span>I didn't quite catch that last bit — mind saying it again?</span></div>
             <div class="vhint" style="margin-top:8px">Everything before it is safe and captured.</div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>Transcription failure (partial)</b><span>Unobtrusive re-ask. Prior segments safe. Sustained failure → graceful degrade to Just Write with the draft preserved.</span></figcaption>
@@ -578,7 +579,7 @@
             <div class="orb"><div class="ring"></div><div class="core"></div></div>
             <div class="banner warn" style="margin:14px 4px 0;justify-content:center"><span class="bi">💬</span><span>I lost my footing for a second — keep going, I'm still capturing everything.</span></div>
           </div>
-          <div class="endbtn">Tap when you're done for tonight</div>
+          <div class="endbtn">Finish &amp; review</div>
         </div>
       </div></div>
       <figcaption class="cap"><b>Model failure (mid-session)</b><span>CoS pauses; transcript keeps persisting; no lost words. Composition failure → offer the entry from the user's own segments + retry.</span></figcaption>
@@ -687,7 +688,7 @@
           <div style="position:absolute;left:15px;right:15px;bottom:12px">
             <div style="background:var(--paper-2);border:1px solid var(--line);border-radius:14px;padding:12px">
               <div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text);font-weight:700;margin-bottom:5px">✨ Chief of Staff</div>
-              <div style="font-size:12px;line-height:1.45;margin-bottom:10px">I think today's conversation captured something worth preserving beyond today's journal — <b>the day you taught Parker to drive.</b> Keep it as a Legacy story?</div>
+              <div style="font-size:12px;line-height:1.45;margin-bottom:10px">I think this conversation captured something worth preserving beyond your journal — <b>the day you taught Parker to drive.</b> Keep it as a Legacy story?</div>
               <div style="display:flex;gap:8px">
                 <div class="chip" style="flex:1;text-align:center;background:var(--accent);color:#fff;border:none;padding:8px">Keep as a Legacy story</div>
                 <div class="chip" style="text-align:center;padding:8px">Not now</div>
@@ -709,7 +710,7 @@
           <div style="font-family:var(--serif);font-size:17px;text-align:center;margin:4px 0 2px">Teaching Parker to Drive</div>
           <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-bottom:12px">Legacy story · drawn from today's conversation</div>
           <div class="entrytext" style="font-size:12.5px"><p>He was nervous gripping the wheel in that empty lot, the same way I was the first time. By the third loop he was grinning…</p></div>
-          <div class="note" style="margin-top:12px">Lives in <b>Legacy</b>, linked to today's journal entry. You can edit it now or anytime. WLJ creates it — it isn't saved until you say so.</div>
+          <div class="note" style="margin-top:12px">Lives in <b>Legacy</b>, linked to your journal entry. You can edit it now or anytime. WLJ creates it — it isn't saved until you say so.</div>
           <div class="actionrow"><div class="a save">Publish to Legacy</div><div class="a edit">Edit first</div><div class="a discard">Not now</div></div>
         </div>
       </div></div>

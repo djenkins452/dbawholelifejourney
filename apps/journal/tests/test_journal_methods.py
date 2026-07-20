@@ -1,5 +1,5 @@
 """
-Tests for the Journal "How would you like to journal today?" methods chooser
+Tests for the Journal "How would you like to journal?" methods chooser
 (the pivot away from the retired editor-conversation model).
 
 Covers flag gating of the chooser, that the classic blank page is unchanged when
@@ -35,7 +35,7 @@ class JournalMethodsChooserTests(JournalTestMixin, TestCase):
         self.login_user()
         resp = self.client.get(reverse("journal:entry_create"))
         self.assertEqual(resp.status_code, 200)
-        self.assertNotContains(resp, "How would you like to journal today?")
+        self.assertNotContains(resp, "How would you like to journal?")
         self.assertNotContains(resp, "journal-methods")
 
     def test_chooser_shown_when_flag_on(self):
@@ -43,7 +43,7 @@ class JournalMethodsChooserTests(JournalTestMixin, TestCase):
         self.login_user()
         resp = self.client.get(reverse("journal:entry_create"))
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "How would you like to journal today?")
+        self.assertContains(resp, "How would you like to journal?")
         self.assertContains(resp, "Just Write")
         self.assertContains(resp, "Write Together")
         self.assertContains(resp, "Talk It Through")

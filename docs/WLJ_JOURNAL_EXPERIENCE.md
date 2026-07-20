@@ -20,6 +20,21 @@ It is still called **Journal.** Journaling is a category people already understa
 
 ---
 
+## Vocabulary (ratified 2026-07-20) — one consistent language across the whole experience
+
+The user should never wonder *"am I creating, editing, publishing, saving, or drafting a journal?"* The words answer it:
+
+- **Journal Draft** — the in-progress work. It **defaults to today but the concept is broader** (a trip, a story about a person, an old event, catching up on yesterday, a Christmas journal). Never call it "Today's Journal." One draft is shared by all three methods (§13); it is the durable `JournalConversation` (= the working-named `JournalDraftSession`, §11).
+- **Resume** — return to an in-progress draft (Resume Write Together / Resume Talk It Through / Continue Writing).
+- **Finish & Review** — the user decides the telling is done. Ends the conversation, generates the journal, leads into Review. It does **not** mean the journal is saved yet.
+- **Review** — the user reads their own words rendered back, edits, and owns them.
+- **Save Journal** — the terminal act that mints the canonical `JournalEntry` and fires everything downstream. The Journal is **saved**.
+- **Publish** — **reserved exclusively for Legacy / Truth-Discovery** ("Publish to Legacy"): promoting a *saved* journal into the lifetime narrative. Never used for the Journal itself.
+
+Lifecycle: **Journal Draft → Resume → Finish & Review → Review → Save Journal → `JournalEntry` → (post-save) Truth Discovery → Publish to Legacy.** The distinction is deliberate: the Journal is the private narrative of *today*; Legacy is the curated narrative of a *lifetime*. Saving and Publishing reinforce that difference.
+
+---
+
 ## The deeper principle — the user is always journaling (read this first)
 
 A reframe that makes this bigger than a Journal feature. **This is a Whole Life Journey capability that begins with journaling.**
@@ -171,7 +186,7 @@ A natural voice conversation with the user's Chief of Staff. The user speaks; th
 3. **Converse.** The user talks naturally. The CoS mostly listens (§6, §9), offering minimal presence and, when earned, **one** curious, personal, non-directive follow-up. The user may continue or interrupt at any time; the CoS yields immediately.
 4. **See it captured.** A calm live transcript shows both sides as they speak (§10). A subtle indicator signals the entry is taking shape ("Your journal is taking shape · 3 moments") — never live polished prose (§8).
 5. **End.** The user ends naturally ("that's it for tonight"), or taps End. The CoS closes warmly and briefly, then composes.
-6. **Reveal.** The crafted entry appears — the delight moment (§12). The user reviews, edits inline, and approves. Approve → a normal `JournalEntry`.
+6. **Reveal.** The crafted entry appears — the delight moment (§12). The user reviews, edits inline, and saves. **Save Journal** → a normal `JournalEntry`.
 
 ### 4.2 What makes it *not* ChatGPT Voice
 Restraint and knowledge. The CoS is comfortable with silence, doesn't reply after every sentence, and — because it knows the user's life — asks the question a friend would ask, not a generic one. It sounds like someone attentive at the end of your day, not a dictation utility or a chatty assistant. Full voice journey in §9.
@@ -185,21 +200,21 @@ A *Talk It Through* entry is a normal `JournalEntry` (`created_via='voice'`) wit
 
 > **REVISED 2026-07-19 (post production validation).** Write Together is **a conversation, not the editor with occasional questions.** The earlier "invite the CoS into your draft, one question at a time, return to writing" model was retired after production validation: *editors are for writing; conversations happen in conversations — and both produce the same `JournalEntry`.* The section below is the ratified model.
 
-**Write Together is a dedicated, calm, focused *conversation* whose single purpose is to create today's journal** — exactly like chatting with the Chief of Staff, except it runs under the Journal Conversation Playbook and ends by producing a journal. **The editor is not visible during the conversation.** The user is not writing prose while thinking; the CoS is helping them think.
+**Write Together is a dedicated, calm, focused *conversation* whose single purpose is to create the user's journal** — exactly like chatting with the Chief of Staff, except it runs under the Journal Conversation Playbook and ends by producing a journal. **The editor is not visible during the conversation.** The user is not writing prose while thinking; the CoS is helping them think.
 
 **Behavior:**
 1. From the Journal chooser ("How would you like to journal today?"), the user picks **💬 Write Together** and enters a dedicated conversational workspace — **not** the general CoS chat, and **not** the editor.
 2. The CoS opens per the Playbook (§7 hierarchy): *"What would you like to remember today?"* or a strong personal opener.
 3. **It's just a conversation.** The user types; the CoS replies; the thread continues naturally — no editor, no side panel, no "Ask another question," no buttons after each turn. One conversation, one purpose. The CoS operates under the full Playbook (§6) and Memory Model.
-4. When the CoS judges it has enough (Playbook §14), it says something like *"I think I have today's journal."*
+4. When the CoS judges it has enough (Playbook §14), it says something like *"I think I have your journal."*
 5. It **generates the entry** in the user's voice (§12 fidelity rules). The **journal is revealed only now** — not built beside the conversation (§8).
-6. The user **reviews, edits if desired, and approves** — approval creates the canonical **`JournalEntry`**.
+6. The user **reviews, edits if desired, and saves** — **Save Journal** creates the canonical **`JournalEntry`**.
 
 **Posture:** the full conversation behavior (§6) and memory (Conversational Memory Model) apply — preservation not understanding, follow energy, one question at a time, silence, never therapy. It never forces a topic to completion and never turns the conversation into coaching.
 
 **Truth outcome:** a normal `JournalEntry` (`created_via='voice_together'` when produced from a text conversation), identical spine to any other entry. Truth Discovery runs **post-save** (§22), never during the conversation.
 
-**Relationship to Talk It Through (§4):** these two are now **the same experience with a different modality** — Write Together is typed, Talk It Through is spoken. Same conversation, same Playbook, same Memory Model, same generation → review → approve → `JournalEntry`. Only the input/output surface differs.
+**Relationship to Talk It Through (§4):** these two are now **the same experience with a different modality** — Write Together is typed, Talk It Through is spoken. Same conversation, same Playbook, same Memory Model, same generation → review → Save Journal → `JournalEntry`. Only the input/output surface differs.
 
 ---
 
@@ -334,9 +349,9 @@ The live transcript is **essential** — it's the user's reassurance that they'r
 - **Durable-first capture.** Every **completed speech segment** (user or CoS) is persisted to a durable server-side draft **the instant it's final** — not held in browser memory. The client is a *view* onto server truth, not the source of truth.
 - **A resumable session object.** A `JournalDraftSession` (working name) holds: state (recording / paused / reviewing), ordered transcript segments, the structured *moments* the entry will be built from, the target `entry_date`, and the method (voice / together). It survives any client death.
 - **No audio.** Transcript recovery is required; **the original audio is not retained** — no audio storage, no playback, no Legacy audio asset (§17, § Non-goals). This is journaling through voice, not a multimedia capture feature. Segments are persisted as **text**.
-- **Reopen = resume.** Returning to Journal after a crash offers: *"You were journaling about today — pick up where you left off?"* Reconnect mid-conversation; the transcript is intact.
+- **Reopen = resume.** Returning to Journal offers: *"You have a journal draft in progress — pick up where you left off?"* (whether the user left deliberately or after a crash). Reconnect mid-conversation; the transcript is intact.
 - **Offline tolerance.** The client buffers locally and reconciles to the durable session on reconnect. A dropped connection *pauses*; it never destroys.
-- **Explicit disposal only.** A draft is discarded only when the user approves the final entry (draft → entry) or explicitly abandons it. Idle drafts are offered back, then aged out on a long timer *with warning* — never silently deleted.
+- **Explicit disposal only.** A draft is discarded only when the user saves the final journal (draft → entry) or explicitly abandons it. Idle drafts are offered back, then aged out on a long timer *with warning* — never silently deleted.
 - **Request-path safe.** Persisting segments and structuring moments goes through the non-blocking write path (`safe_enqueue`), never a synchronous heavy call on the interactive request (`WLJ_REQUEST_PATH_SAFETY.md`).
 
 ---
@@ -351,7 +366,7 @@ The finished entry is **not a transcript, not a summary, not bullet points.** It
 - **First person, past tense, theirs.** It's their diary, not a report about them.
 - **Preserve the specifics.** Names, places, the exact small details that make it real survive into the prose. Generic-ization is failure.
 
-**Review = authorship, not AI-review.** The user approves **their own words rendered back to them** — that is ownership, not reviewing a machine's guess (this is *not* the prohibited AI-Review pattern).
+**Review = authorship, not AI-review.** The user saves **their own words rendered back to them** — that is ownership, not reviewing a machine's guess (this is *not* the prohibited AI-Review pattern).
 - Presented as *a draft of your own words*; edit inline freely (the rich-text editor is right there).
 - **Approve** → saved as a normal `JournalEntry` (fires the full intelligence chain, signals, etc.). **Discard** → nothing kept.
 - **Never auto-save a generated entry unseen.** The user is the author; the CoS is the scribe.
@@ -408,7 +423,7 @@ Every state below is a first-class part of the design (visualized in `journal_ex
 | **Model failure (mid-session)** | The CoS pauses; the transcript keeps persisting; "I lost my footing for a second — keep going, I'm still capturing everything." No lost words. |
 | **Model failure (composition)** | The entry can't be crafted right now → offer the entry built from the user's own transcript segments (their words, lightly ordered) + retry later. Never lose the telling. |
 | **Network drop / reconnecting** | Client buffers locally; a quiet "Reconnecting…" indicator; on reconnect, reconcile to the durable session. Voice pauses, doesn't die. |
-| **Recovered session** | On return after any crash: "You were journaling about today — pick up where you left off?" with the transcript restored. |
+| **Recovered session** | On return (deliberate or after a crash): "You have a journal draft in progress — pick up where you left off?" with the transcript restored. |
 | **Saving / generating** | The reveal's compose moment (a brief, satisfying assemble) — not a bare spinner. |
 | **Save success** | Lands on the finished `JournalEntry` detail (existing page), fully in the truth spine. |
 | **Offline (no connection at all)** | Just Write works fully offline and syncs later; Talk It Through requires connectivity and says so plainly, preserving any typed draft. |
@@ -594,7 +609,7 @@ The user may journal about these moments; the CoS may recognize them; **the user
 - **After the entry is saved, never during the telling.** Discovery never interrupts the story and never blocks the Journal.
 - **At most ONE suggestion per session.** One is powerful; five are annoying.
 - **Most sessions produce none.** The bar is "this clearly deserves to live beyond today," not "this is mentionable." Silence is the common case.
-- **Single, gentle, dismissible.** *"I think today's conversation captured something worth preserving beyond today's journal."* One tap to keep, one tap to decline.
+- **Single, gentle, dismissible.** *"I think this conversation captured something worth preserving beyond your journal."* One tap to keep, one tap to decline.
 - **Declining teaches quiet.** A dismissed subject/type goes quiet; the CoS does not re-pitch the same kind of thing repeatedly.
 - **The user never chooses a destination.** The candidate names where it would go ("as a Legacy story"); the user only confirms or declines. They are only ever *journaling*.
 

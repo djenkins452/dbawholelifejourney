@@ -65,15 +65,15 @@
         </div>
     </div>
 
-    {% if todays_draft %}
-    {% comment %} Today's Journal is in progress — surface a quiet resume banner (M-D1). {% endcomment %}
-    <a class="journal-draft-banner" href="{% if todays_draft.state == 'reviewing' %}{% url 'journal:entry_create' %}?from_conversation={{ todays_draft.pk }}{% else %}{% url 'journal:write_together' %}{% endif %}">
+    {% if journal_draft %}
+    {% comment %} A journal draft is in progress — surface a quiet resume banner (M-D1). {% endcomment %}
+    <a class="journal-draft-banner" href="{% if journal_draft.state == 'reviewing' %}{% url 'journal:entry_create' %}?from_conversation={{ journal_draft.pk }}{% else %}{% url 'journal:write_together' %}{% endif %}">
         <span class="jdb-dot" aria-hidden="true"></span>
         <span class="jdb-text">
-            <strong>Today's Journal is {% if todays_draft.state == 'reviewing' %}ready to review{% else %}in progress{% endif %}</strong>
-            <span>Last updated {{ todays_draft.updated_at|timesince }} ago · pick up where you left off</span>
+            <strong>{% if journal_draft.state == 'reviewing' %}Your journal is ready to review{% else %}Your journal draft is in progress{% endif %}</strong>
+            <span>Last updated {{ journal_draft.updated_at|timesince }} ago · pick up where you left off</span>
         </span>
-        <span class="jdb-cta" aria-hidden="true">{% if todays_draft.state == 'reviewing' %}Review &amp; save →{% else %}Resume →{% endif %}</span>
+        <span class="jdb-cta" aria-hidden="true">{% if journal_draft.state == 'reviewing' %}Review &amp; Save Journal →{% else %}Resume →{% endif %}</span>
     </a>
     <style nonce="{{ csp_nonce }}">
     .journal-draft-banner {

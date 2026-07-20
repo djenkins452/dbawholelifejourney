@@ -306,7 +306,7 @@ The Chief of Staff must **not dominate.** A healthy rhythm looks like:
 
 The Chief of Staff must not *decide* the tempo; it must *fit* whatever tempo the user sets. The failure this closes: the CoS treating a pause as "your turn is over" and jumping in while the user was still gathering a thought — the conversational equivalent of being talked over.
 
-- **A pause is not an ending.** End-of-turn is detected by *sustained* silence, and speech is accumulated across short pauses into one turn — a breath mid-sentence never hands the floor away. Only the user ends the conversation (the explicit "create today's journal"); **silence never does.**
+- **A pause is not an ending.** End-of-turn is detected by *sustained* silence, and speech is accumulated across short pauses into one turn — a breath mid-sentence never hands the floor away. Only the user ends the conversation (the explicit "Finish & Review"); **silence never does.**
 - **The user sets the patience, once, and it's remembered.** A **Conversation Style** — Quick / Natural / Reflective — governs *how long the CoS waits before responding* and the beat before it answers (the whole rhythm, not "speech speed"). It persists across conversations so the user configures their pace once, not every time.
 - **The user can always hold the moment.** **Pause** safely suspends the conversation (nothing generates, nothing is lost) for a knock at the door or a thought that needs room; **Resume** returns exactly where they were.
 - **The user can always take the floor back.** If the CoS is speaking and the user simply starts talking, the CoS **stops gracefully** and listens — interruption is a normal, expected act, never an error.
@@ -386,7 +386,7 @@ A clear, testable list. Any one of these, even once, is a defect.
 3. **Close briefly and warmly** — *"Thanks for telling me about today. Give me a moment and I'll write it up."* No summary, no celebration, no scorecard.
 
 **The final question** should be framed around *keeping*, because that's the whole point. Options, and how to choose:
-- *"Before I turn this into today's journal — is there anything from today you don't want to forget?"* ← **default**; names the artifact and invites preservation directly.
+- *"Before I turn this into your journal — is there anything you don't want to forget?"* ← **default**; names the artifact and invites preservation directly.
 - *"Anything else you'd want to remember about today?"*
 - *"Is there a part of today you'd want to read back in a year?"*
 - When a clear thread carried the day: make it specific — *"before I write this up — anything more about the game you'd want to keep?"*

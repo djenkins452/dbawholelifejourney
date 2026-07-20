@@ -89,14 +89,15 @@ def _conversation_style(user):
     return style if style in CONVERSATION_STYLES else "natural"
 
 
-def _todays_draft(user):
-    """Today's in-progress Journal draft (the durable ``JournalConversation``), if any.
+def _current_journal_draft(user):
+    """The user's in-progress Journal Draft (the durable ``JournalConversation``), if any.
 
-    This is the canon's ``JournalDraftSession`` — the day's single draft the three
-    methods share (docs/WLJ_JOURNAL_EXPERIENCE.md §11, §13). A draft is "in progress"
-    when there is a conversation for today that the user has actually contributed to
-    and has NOT yet turned into a saved ``JournalEntry``. Read-only: never creates a
-    draft (so merely opening Journal can't fabricate one), request-path safe.
+    This is the canon's ``JournalDraftSession`` — the single draft the three methods
+    share (docs/WLJ_JOURNAL_EXPERIENCE.md §11, §13). The draft defaults to today but
+    the concept is broader (a trip, a memory, catching up on yesterday); it is "in
+    progress" when the user has actually contributed to it and it has NOT yet been
+    turned into a saved ``JournalEntry``. Read-only: never creates a draft (so merely
+    opening Journal can't fabricate one), request-path safe.
 
     Returns the ``JournalConversation`` (state ACTIVE = still journaling, or REVIEWING
     = generated and awaiting Save), or ``None`` when there's nothing to resume.
@@ -121,7 +122,7 @@ def _todays_draft(user):
             return convo
     except Exception:
         import logging
-        logging.getLogger(__name__).debug("todays_draft lookup failed", exc_info=True)
+        logging.getLogger(__name__).debug("current_journal_draft lookup failed", exc_info=True)
     return None
 
 
@@ -192,8 +193,8 @@ class EntryListView(HelpContextMixin, LoginRequiredMixin, ListView):
         }
         context["total_count"] = JournalEntry.objects.filter(user=self.request.user).count()
         context["archived_count"] = JournalEntry.objects.archived_only().filter(user=self.request.user).count()
-        # Draft awareness (M-D1): a quiet banner when today's Journal is in progress.
-        context["todays_draft"] = _todays_draft(self.request.user)
+        # Draft awareness (M-D1): a quiet banner when a journal draft is in progress.
+        context["journal_draft"] = _current_journal_draft(self.request.user)
         return context
 
 
@@ -596,10 +597,10 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         # journal for review. Hides the chooser and shows a calm review banner.
         context["reviewing_conversation"] = self._review_conversation() is not None
 
-        # Draft awareness (M-D1): if today's Journal is already in progress, the
-        # chooser is replaced by a "Draft In Progress" card so the day's journal
-        # quietly travels with the user (docs/WLJ_JOURNAL_EXPERIENCE.md §11).
-        context["todays_draft"] = _todays_draft(self.request.user)
+        # Draft awareness (M-D1): if a journal draft is already in progress, the
+        # chooser is replaced by a "Your Journal Draft" card so the journal quietly
+        # travels with the user (docs/WLJ_JOURNAL_EXPERIENCE.md §11).
+        context["journal_draft"] = _current_journal_draft(self.request.user)
 
         return context
 
@@ -682,8 +683,8 @@ class WriteTogetherMessageView(LoginRequiredMixin, View):
 
 
 class WriteTogetherGenerateView(LoginRequiredMixin, View):
-    """End the conversation → generate today's journal → send the user to the
-    editor (prefilled) to review, edit, and approve into a canonical JournalEntry."""
+    """Finish & review — end the conversation → generate the journal → send the user
+    to the editor (prefilled) to review, edit, and Save into a canonical JournalEntry."""
 
     http_method_names = ["post"]
 
@@ -696,7 +697,7 @@ class WriteTogetherGenerateView(LoginRequiredMixin, View):
         if not convo.has_user_content:
             return JsonResponse({
                 "error": "nothing_to_journal",
-                "message": "Tell me a little about your day first, then I'll write it up.",
+                "message": "Tell me a little first, then I'll write it up.",
             }, status=400)
 
         generate_entry(request.user, convo)
@@ -705,9 +706,9 @@ class WriteTogetherGenerateView(LoginRequiredMixin, View):
 
 
 class WriteTogetherFinishView(LoginRequiredMixin, View):
-    """"Finish Today" from the Draft In Progress card: generate today's journal from
-    the conversation and go to the review editor. Server-rendered redirect so the
-    landing page needs no JavaScript; reuses the one generation path (generate_entry).
+    """"Finish & Review" from the Journal Draft card: generate the journal from the
+    conversation and go to the review editor. Server-rendered redirect so the landing
+    page needs no JavaScript; reuses the one generation path (generate_entry).
     """
 
     http_method_names = ["post"]
@@ -718,7 +719,7 @@ class WriteTogetherFinishView(LoginRequiredMixin, View):
         from .services.journal_conversation import get_or_create_active, generate_entry
         convo = get_or_create_active(request.user)
         if not convo.has_user_content:
-            messages.info(request, "Tell me a little about your day first, then I'll write it up.")
+            messages.info(request, "Tell me a little first, then I'll write it up.")
             return redirect("journal:write_together")
         generate_entry(request.user, convo)
         return redirect(reverse("journal:entry_create") + f"?from_conversation={convo.pk}")

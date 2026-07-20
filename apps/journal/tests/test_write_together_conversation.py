@@ -243,7 +243,7 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         resp = self.client.get(reverse("journal:entry_create") + f"?from_conversation={convo.pk}")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Today was a good day at the field.")
-        self.assertContains(resp, "journal from your conversation")
+        self.assertContains(resp, "from your conversation")
         # the chooser is hidden in review mode
         self.assertNotContains(resp, 'class="journal-methods"')
 
@@ -302,8 +302,8 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         self.login_user()
         resp = self.client.get(self.create_url)
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "How would you like to journal today?")
-        self.assertNotContains(resp, "Draft in progress")
+        self.assertContains(resp, "How would you like to journal?")
+        self.assertNotContains(resp, "Your Journal Draft")
 
     def test_empty_conversation_is_not_a_draft(self):
         # A conversation with only the opening (no user content) is NOT in progress.
@@ -311,8 +311,8 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         self._make_draft(with_content=False)
         self.login_user()
         resp = self.client.get(self.create_url)
-        self.assertContains(resp, "How would you like to journal today?")
-        self.assertNotContains(resp, "Draft in progress")
+        self.assertContains(resp, "How would you like to journal?")
+        self.assertNotContains(resp, "Your Journal Draft")
 
     def test_active_draft_replaces_chooser_with_card(self):
         self._enable()
@@ -320,12 +320,12 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         self.login_user()
         resp = self.client.get(self.create_url)
         self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, "Draft in progress")
-        self.assertContains(resp, "Finish Today")
+        self.assertContains(resp, "Your Journal Draft")
+        self.assertContains(resp, "Finish &amp; Review")
         self.assertContains(resp, "Resume Write Together")
         self.assertContains(resp, "Resume Talk It Through")
         # the fresh chooser is replaced by the draft card
-        self.assertNotContains(resp, "How would you like to journal today?")
+        self.assertNotContains(resp, "How would you like to journal?")
 
     def test_reviewing_draft_shows_review_action(self):
         self._enable()
@@ -342,7 +342,7 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         resp = self.client.get(self.list_url)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "journal-draft-banner")
-        self.assertContains(resp, "Today's Journal is in progress")
+        self.assertContains(resp, "Your journal draft is in progress")
 
     def test_no_draft_no_banner(self):
         self._enable()
@@ -355,7 +355,7 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         self._make_draft()
         self.login_user()
         resp = self.client.get(self.create_url)
-        self.assertNotContains(resp, "Draft in progress")
+        self.assertNotContains(resp, "Your Journal Draft")
 
     @patch("apps.journal.services.journal_conversation.AIService")
     def test_finish_today_generates_and_redirects_to_review(self, MockAI):

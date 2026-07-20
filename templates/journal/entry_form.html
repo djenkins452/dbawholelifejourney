@@ -17,25 +17,27 @@
         </div>
     </div>
 
-    {% if todays_draft and not is_edit and not reviewing_conversation %}
-    {% comment %} Today's Journal is already in progress — the draft quietly travels with the user (M-D1). {% endcomment %}
-    <div class="journal-draft" role="group" aria-label="Today's Journal — draft in progress">
+    {% if journal_draft and not is_edit and not reviewing_conversation %}
+    {% comment %} A journal draft is already in progress — it quietly travels with the user. {% endcomment %}
+    <div class="journal-draft" role="group" aria-label="Your journal draft — in progress">
         <div class="jd-top">
-            <span class="jd-kicker">Today's Journal</span>
-            {% if todays_draft.state == 'reviewing' %}
+            <span class="jd-kicker">Your Journal Draft</span>
+            {% if journal_draft.state == 'reviewing' %}
                 <span class="jd-badge jd-badge-review">Ready to review</span>
             {% else %}
-                <span class="jd-badge">Draft in progress</span>
+                <span class="jd-badge">In progress</span>
             {% endif %}
         </div>
         <div class="jd-meta">
-            <span>Started {{ todays_draft.created_at|date:"g:i A" }}</span>
+            <span>About {{ journal_draft.entry_date|date:"l, F j" }}</span>
             <span aria-hidden="true">·</span>
-            <span>Last updated {{ todays_draft.updated_at|timesince }} ago</span>
+            <span>Started {{ journal_draft.created_at|date:"g:i A" }}</span>
+            <span aria-hidden="true">·</span>
+            <span>Last updated {{ journal_draft.updated_at|timesince }} ago</span>
         </div>
-        {% if todays_draft.state == 'reviewing' %}
+        {% if journal_draft.state == 'reviewing' %}
         <div class="jd-actions">
-            <a class="jd-btn jd-btn-primary" href="{% url 'journal:entry_create' %}?from_conversation={{ todays_draft.pk }}">Review &amp; save your journal</a>
+            <a class="jd-btn jd-btn-primary" href="{% url 'journal:entry_create' %}?from_conversation={{ journal_draft.pk }}">Review &amp; Save Journal</a>
         </div>
         {% else %}
         <div class="jd-actions">
@@ -43,14 +45,14 @@
             <a class="jd-btn" href="{% url 'journal:write_together' %}?voice=1">🎙️ Resume Talk It Through</a>
             <form method="post" action="{% url 'journal:write_together_finish' %}" class="jd-finish-form">
                 {% csrf_token %}
-                <button type="submit" class="jd-btn jd-btn-primary">Finish Today</button>
+                <button type="submit" class="jd-btn jd-btn-primary">Finish &amp; Review</button>
             </form>
         </div>
         {% endif %}
     </div>
     {% elif journal_methods_enabled and not is_edit and not reviewing_conversation %}
-    <div class="journal-methods" role="group" aria-label="How would you like to journal today?">
-        <div class="jm-heading">How would you like to journal today?</div>
+    <div class="journal-methods" role="group" aria-label="How would you like to journal?">
+        <div class="jm-heading">How would you like to journal?</div>
         <div class="jm-options">
             <div class="jm-item is-active" aria-current="true">
                 <span class="jm-emoji" aria-hidden="true">✍️</span>
@@ -70,8 +72,8 @@
 
     {% if reviewing_conversation %}
     <div class="jc-review-banner">
-        <strong>Here's today's journal from your conversation.</strong>
-        Read it over, edit anything that doesn't sound like you, then save it.
+        <strong>Here's your journal, from your conversation.</strong>
+        Read it over, edit anything that doesn't sound like you, then save your journal.
     </div>
     {% endif %}
 
@@ -209,7 +211,7 @@
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary" data-testid="journal-entry-save-button">
-                    {% if is_edit %}Save Changes{% else %}Save Entry{% endif %}
+                    {% if is_edit %}Save Changes{% else %}Save Journal{% endif %}
                 </button>
                 {% if not is_edit %}
                 <button type="submit" name="save_add_another" class="btn btn-ghost" data-testid="journal-save-add-another-button">
@@ -528,7 +530,7 @@
     padding: 0 var(--space-1); border-radius: var(--radius-sm);
 }
 
-/* ── Draft In Progress card (M-D1) — today's Journal quietly travels with the user.
+/* ── Journal Draft card (M-D1) — the journal draft quietly travels with the user.
    Shown in place of the chooser when a draft already exists for today. */
 .journal-draft {
     margin-bottom: var(--space-6);

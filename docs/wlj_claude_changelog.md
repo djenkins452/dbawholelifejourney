@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — polish(journal): Draft card's "Finish & Review" shows only when there's a conversation to generate
+
+Small consistency fix on the unified Draft card: **Finish & Review** (which *generates* a journal from the conversation) now renders only when the draft actually holds a conversation (`journal_draft.has_user_content`). A **pure-written** draft has nothing to generate — it finishes with the editor's own **Save Journal** below — so offering "Finish & Review" there was misleading. File: `templates/journal/entry_form.html`. Browser-verified desktop + mobile (375px); no console errors.
+
 ## 2026-07-20 — feat(journal M-D4): free movement between modes — the CoS reads the typed notes; "Continue Writing" on the card
 
 Completes the §13 "switch between methods without losing content" story on the unified draft. Type → talk → type is now seamless *and* coherent:

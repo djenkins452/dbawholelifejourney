@@ -6,6 +6,20 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — fix(structured-import): duplicate journal entries — normalized dedup + one-time repair report
+
+**Production defect:** journal list showed duplicate entries differing only in TIMESTAMP FORMATTING ("7:50 PM" vs "7:50pm"), and the CoS wrongly said "no duplicates were added."
+
+**Runtime trace (temporary glass-box `dupe-trace` on prod, removed):** grouped the user's entries and dumped provenance. The remaining clear duplicate (Jan 1, 2023) proved the mechanism: `created_via` shows **170 legacy `manual`** entries + **14 `import`** — two implementations. The legacy `manual` bulk import embeds the time in the **TITLE** with `entry_time=None` ("Sunday, January 1, 2023 9:00pm"); Structured Import sets `entry_time=21:00` and a differently-formatted title ("…– 9:00 PM"). Dedup keyed on `(entry_date, entry_time, title)` → **both `entry_time` and `title` differed → no match → a duplicate was created**. (Import run 3: created 13 / skipped 1 / duplicate 1 — it caught import-vs-import same-format dupes but missed import-vs-`manual`.)
+
+**Fix (eliminate the class):** `JournalImportAdapter.dedupe_exists` now compares a NORMALIZED identity — same `entry_date` + same **resolved clock time** (from `entry_time` OR parsed from the title, AM/PM-/whitespace-normalized), or same date + **normalized body** (whitespace/case/punctuation-insensitive) when timeless. Robust to formatting and to which import created each. `_record` now carries `body_plain` for the body-identity fallback.
+
+**One-time repair (read-only, never deletes):** `find_journal_duplicates(user)` groups existing active entries by the SAME normalized identity and RECOMMENDS which to retain (prefer a structured `entry_time` + the fullest body). Prod report: **1 remaining duplicate** — 2023-01-01, keep id 226 (`import`, entry_time 21:00, 317 words) over id 218 (`manual`, time-in-title, 296 words). (The Sep 22/18/17 pairs from the screenshot were already deleted before the trace.) Per "do not simply delete," the recommendation is surfaced for review; deletion is the user's call.
+
+**CoS truth (noted):** the model answered "no duplicates were added" from the import's idempotency result (that specific re-import added none — true) WITHOUT verifying the actual journal records; it conflated "this import" with "the journal." The deterministic remedies here are the dedup fix (no new dupes) + the detector; a journal duplicate-detection TRUTH SURFACE so the CoS answers accurately is a sensible follow-up.
+
+**Files:** MODIFIED `apps/ai/import_adapters/journal_import.py` (`dedupe_exists` normalization, `_time_from_title`/`_norm_body`, `find_journal_duplicates`, `_record` body_plain), `apps/ai/tests/test_journal_import_date_grounding.py` (DedupNormalization + repair-report, 7). Added+removed temporary `apps/admin_console/glassbox_dupe_trace.py` + URL (temporary-infra lifecycle). **Tests:** 58 across the affected corpus green; `check` + migration `--check` clean; no migration. **Why:** the same journal entry must be recognized as one regardless of timestamp formatting or which import created it — and existing duplicates identified without destructive auto-deletion.
+
 ## 2026-07-20 — feat(meals): Manual Pantry Entry — completing the capture story (universal fallback, same canonical truth)
 
 Pantry Intelligence had sophisticated acquisition (barcode, receipt, scan fridge/pantry/freezer) but **no obvious manual entry** — a product gap, since every WLJ capture workflow must gracefully degrade to manual. This ships a first-class "+ Add Manually" path so anything a user can buy, grow, cook, or receive (farmers-market produce, homemade salsa, bulk flour, restaurant leftovers, barcode-less or AI-unrecognized items) can always be entered — and it lands in the **exact same** `PantryItem` as every scan.

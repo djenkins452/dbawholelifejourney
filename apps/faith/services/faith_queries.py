@@ -222,19 +222,46 @@ class FaithQueries:
             freshness=F.CURRENT,
         )
 
+    # A completed plan older than this is no longer "current/recent study" and must not
+    # surface as a current theme in the Analysis surface (prod: "themes lately" referenced
+    # long-completed plans like Journey Through Matthew, started/completed months ago).
+    _RECENT_STUDY_DAYS = 120
+
     @classmethod
     def describe_plans(cls, user, *, limit=10):
-        """Active/recent Bible reading plans as CompleteEntity objects — exposes the
-        UserReadingPlan/Progress study truth that had no entity surface.
+        """CURRENT / RECENT Bible reading plans as CompleteEntity objects — "what I'm studying
+        (and recently studied)". This composer ALSO feeds the faith Analysis surface, so its
+        window is the domain's definition of "recent study":
 
-        Excludes ABANDONED plans: an abandoned plan is not study truth ("what I'm studying")
-        and, because this composer also feeds the faith Analysis surface, an abandoned plan
-        surfaced there as a current "theme" (prod: analysis themes referenced long-abandoned
-        plans). Active/paused/completed remain — the person's real recent study history."""
+          * ABANDONED plans are excluded (not study truth).
+          * ACTIVE and PAUSED plans are always in-progress → always included.
+          * COMPLETED plans are included only if finished within the last _RECENT_STUDY_DAYS
+            (by completed_at, falling back to started_at) — a plan completed months ago is not
+            a CURRENT theme; it stays retrievable BY NAME via describe_plan_one and as history
+            via history('reading'), just not as "what I'm studying/exploring lately."
+
+        Ordered active/paused first, then most-recent. Non-fatal on any date edge case."""
+        from datetime import timedelta
+
+        from django.db.models import Q
+        from django.utils import timezone
+
+        cutoff = timezone.now() - timedelta(days=cls._RECENT_STUDY_DAYS)
         qs = (UserReadingPlan.objects.filter(user=user)
               .exclude(plan_status="abandoned")
-              .select_related("template").order_by("-started_at")[:limit])
-        return [cls._plan_to_entity(pl) for pl in qs]
+              .filter(
+                  Q(plan_status__in=("active", "paused"))
+                  | Q(completed_at__gte=cutoff)
+                  | (Q(plan_status="completed") & Q(completed_at__isnull=True)
+                     & Q(started_at__gte=cutoff)))
+              .select_related("template")
+              # active/paused (in-progress) ahead of completed, then most-recent.
+              .order_by("plan_status", "-started_at")[:limit])
+        # plan_status order: 'active' < 'completed' < 'paused' alphabetically is not the
+        # intent — sort in Python so in-progress leads deterministically.
+        rows = sorted(qs, key=lambda p: (0 if p.plan_status in ("active", "paused") else 1,
+                                         -(p.started_at.timestamp() if p.started_at else 0)))
+        return [cls._plan_to_entity(pl) for pl in rows]
 
     @classmethod
     def describe_plan_one(cls, user, name):

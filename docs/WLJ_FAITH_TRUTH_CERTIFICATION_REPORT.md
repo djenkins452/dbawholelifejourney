@@ -371,3 +371,27 @@ renders no verdict). Runtime-proven with rolled-back real records + a new regres
 
 **No new deterministic truth. No reasoning. STOP before Step 4** — the milestone is
 `AWAITING VALIDATION` until Danny runs the questions in production and confirms.
+
+---
+
+## 11. Production-Validation Cleanup — Round 2 (2026-07-20)
+
+Danny's second production pass surfaced four issues + a Current-Context regression check. **CRITICAL
+METHOD LESSON (documented per the standard):** the local development database `wlj_dev` is **NOT
+Danny's production truth.** A round-1 harness reported "My dad's health (2026-07-19)" as his most
+recent prayer; production returned "Haley and Parker's Move Experience (created 2026-06-24)". Proven:
+the `wlj_dev` "My dad's health" row is a **dev-only** record — `user_id=1` (Danny), `created_via=manual`,
+created 2026-07-19 — **user-scoped correctly, with zero cross-user leakage** (no other user owns that
+title; the Faith provider filters `PrayerRequest.objects.filter(user=user)` throughout). It is
+representative dev data, **not** production truth. **Local fixture/dev data must never be described as
+Danny's real production truth; production validation is the authoritative customer gate.**
+
+| # | Issue | Root cause (data-independent logic, runtime-traced) | Fix |
+|---|-------|-----------------------------------------------------|-----|
+| 1 | Family search defaulted to an old ANSWERED prayer | prayer search ranked by `-created_at` only — no active-first status rank | `_search_faith_prayer` orders `('is_answered', '-created_at')` → **active first, then recent; answered NOT excluded** (a general rule; no hardcoded "family"). *Residual:* keyword "family" only literally matches one (answered) prayer; the active family-member prayers ("Heather", "my dad") lack the token — a keyword-search limitation, not a truth defect; no relationship truth built (out of scope). |
+| 2 | "most recent prayer" discrepancy | **NOT a code defect** — dev≠prod data (above). Canonical definition confirmed. | "most recent prayer request" = **newest by `created_at`** (existing `describe()` order; matches prod's "Created June 24"). User-scoping verified. Documented lesson. |
+| 3 | Bible study notes → reading plan / "insufficient recent" | reading-plan **description** keyword-matches were fixed round-1 (title-only); empty-state must be honest | Verified: `get_entity(study_note)` with no notes → `status: empty` (honest "no notes"); a "study notes" keyword search returns **no** reading plan (regression-locked). If notes exist they return. No further code change needed beyond round-1. |
+| 4 | Analysis "themes lately" referenced long-completed plans | `describe_plans` (which feeds `get_analysis`) returned completed plans started/finished **months** ago | `describe_plans` bounded to **CURRENT/RECENT study**: active/paused always + completed within `_RECENT_STUDY_DAYS` (120d); long-completed excluded from the LIST but still retrievable **by name** (`describe_plan_one`) and as `history('reading')`. Verified: analysis evidence dropped from 10 stale plans → the active plan only. *Residual:* in one harness phrasing the model did not route "themes lately" to `get_analysis` at all (a non-deterministic routing miss) — the recency fix governs the evidence WHEN analysis runs; routing is the model's, observed for the prod gate. |
+| 5 | Current Context after Conversation State (Milestone 1) | regression check | Verified coexistence: with both an active conversation subject AND a page focus, the standing context carries BOTH; both salient leads render (`ACTIVE CONVERSATION STATE` + `ON SCREEN RIGHT NOW`). Conversation State integrates with — does not break — Current Context. |
+
+**Files:** `apps/ai/search_service.py`, `apps/faith/services/faith_queries.py`, `apps/faith/tests/test_faith_closeout.py` (new). **Verification:** `test_faith_closeout` + `test_faith_cos_cleanup` = 14 OK (isolated worktree at the deployed SHA); deterministic traces + a live-model production-path harness confirm the ranking + recency behavior. **Faith remains `AWAITING PRODUCTION VALIDATION` — do NOT mark PRODUCTION COMPLETE until Danny verifies the 10 questions against the deployed Chief of Staff on his real data.**

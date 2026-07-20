@@ -1034,7 +1034,13 @@ class SearchService:
             )
             prayers = prayers.filter(keyword_q)
 
-        prayers = prayers.order_by('-created_at')[:limit]
+        # Default ranking for an unqualified prayer search: ACTIVE (unanswered) first, then
+        # by recency. An answered prayer that has not been active for a while should not be the
+        # DEFAULT top result (prod: "find my prayer requests about family" surfaced an old
+        # answered Uncle-Dean/Brandon prayer). Answered prayers are NOT excluded — they rank
+        # after active ones, so explicit historical searches ("all ... including answered",
+        # "which were answered") still see them; the model reads is_answered per result.
+        prayers = prayers.order_by('is_answered', '-created_at')[:limit]
 
         results = []
         for prayer in prayers:

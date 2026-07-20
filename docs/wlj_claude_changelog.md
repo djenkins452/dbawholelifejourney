@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — chore(startup): session close-out — Conversation State frozen; folded into permanent docs; bootloader regenerated
+
+**Session close-out (`99_PREPARE_NEXT_CHAT`).** This session established **Conversation State Management** as a foundational, now-**architecturally-frozen** CoS capability (deployed `a53355a9`), plus the **Faith certification close-out (round 2)** (`178231ae`) — both AWAITING Danny prod validation. Folded every durable lesson UP into the permanent startup package and regenerated the bootloader onto the next milestone.
+
+- **`01 …ARCHITECTURE.md §6`** — new permanent lesson: *Conversation State is the deterministic working-state authority ("what are we talking about / doing / waiting on", distinct from Current Context's "what page"), carried INSIDE the Executive Context Envelope; a compact deterministic index (references only, never model prose); one writer, the model reasons OVER it; event-driven-primary lifecycle; preserving an artifact reference ≠ keeping it perceivable (adapters reconstruct perception); a system eliminator, not another system.*
+- **`03 …ENGINEERING_OPERATING_GUIDE.md §3e/§3f`** (added this session) — one deterministic writer authority (the model never writes truth); working-state stays compact/deterministic/reference-oriented + the **Expansion Test** (replace a system AND eliminate duplicate logic, or it's scope creep).
+- **`99_REFERENCE_INDEX.md`** — `WLJ_CONVERSATION_STATE_ARCHITECTURE.md` reclassified **FROZEN**; §4a/§4b/§5a/§5b + contract tests noted.
+- **`00_NEXT_CHAT_STARTUP.md`** — regenerated: Conversation State moved from live track → folded/permanent; live tracks now Timestamp Precision Phase 2 + CoS Domain Certification (Fitness next); Conversation State prod-validation added to "Waiting on Danny"; artifact-adapter future work (PDF page-render, DOCX, OCR) carried as deferred.
+
+Governing doc `docs/WLJ_CONVERSATION_STATE_ARCHITECTURE.md` (Permitted Data §5a + Expansion Test §5b + artifact separation §4b.1/§4b.2). CI: `test_conversation_state_{writer,schema}_contract.py`. No Constitutional change. No code/behavior change in this close-out — documentation + bootloader only.
+
 ## 2026-07-20 — refine(meals): Ingredient Intelligence — aliases are curated, never auto-learned at runtime
 
 Approved refinement to the just-shipped Ingredient Intelligence. The resolver previously recorded a surface form as an alias whenever it resolved via the normalized key (write path). That was redundant (normalization deterministically re-derives the variant every time) and violated the principle that aliases are **curated deterministic truth**. Removed the runtime alias-learning entirely (`resolve_ingredient` no longer writes aliases; the `_record_alias` helper is deleted).

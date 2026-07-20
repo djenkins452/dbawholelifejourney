@@ -6,6 +6,13 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — refine(faith): First Light — completion CTA "I sat with this today" → "Done for Today"
+
+Wording-only refinement of the First Light reader's primary completion button. The old "I sat with this today" was vague and unnatural; "Done for Today" is an honest, immediate acknowledgment that today's session is finished — it doesn't imply mastery, obedience, or that reflection/growth is "complete." Behavior, completion logic, and architecture unchanged; the already-completed/disabled state still reads "Day complete."
+
+- Single occurrence: `templates/faith/journey/day_first_light.html` (First Light immersive reader). The classic reader ("Mark today complete") and the hushed post-completion headline ("You sat with Him today" — a reflection, not a CTA) are untouched.
+- **Verified in-browser as Danny:** button reads "Done for Today", 194×50px, single line (no wrap), centered — desktop **light + dark** and **mobile** (fits the 375px viewport; the new label is shorter than the old, so spacing/sizing only improved). No console errors. **94 tests pass** (First Light + journey) — no regressions.
+
 ## 2026-07-20 — feat(cos): Conversation State Management — a foundational Chief-of-Staff capability
 
 **The architectural class behind two distinct production failures** (a video losing the conversation when the user asks a text-only follow-up; a pending journal-import "yes" being forgotten) proved to be **one missing capability**: Current Context answers *"what page is the user on?"*; there was no authority answering *"what are we currently talking about / doing / waiting on?"* Governing doc: `docs/WLJ_CONVERSATION_STATE_ARCHITECTURE.md`.

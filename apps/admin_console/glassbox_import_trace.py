@@ -110,6 +110,16 @@ class ImportTraceView(View):
             cd = outcome.confirmation_detail or {}
             out["import_records"] = len(cd.get("records") or [])
             out["import_skipped"] = len(cd.get("skipped") or [])
+            # PROVE the fix: run the SAME import using the FILENAME as source_artifact_id
+            # (exactly what the model passed in production) — must resolve and match.
+            byname = run_structured_import(
+                user, JournalImportAdapter(), [],
+                source_artifact_id=art.original_filename, source="journal document",
+                confirmed=False)
+            out["import_by_filename_status"] = byname.status
+            out["import_by_filename_message"] = byname.message
+            bcd = byname.confirmation_detail or {}
+            out["import_by_filename_records"] = len(bcd.get("records") or [])
         except Exception as e:  # pragma: no cover
             out["import_error"] = repr(e)
 

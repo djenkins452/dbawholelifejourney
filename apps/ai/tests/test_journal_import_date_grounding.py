@@ -197,6 +197,120 @@ class EndToEndCertification(TestCase):
         self.assertNotIn("October", text)
 
 
+# The REAL production document's STRUCTURE (Danny's Journal.docx, artifact 11), reconstructed
+# from the runtime trace: header on its own line, TIME ON THE NEXT LINE, descending dates from
+# Jan 1 2023 back to Aug 29 2022, and "…September 5, 2022 (skipped)" immediately followed by the
+# next header (skipped day has no body). Bodies are SYNTHETIC (the real journal is private) — the
+# parser only cares about structure. 15 dated sections → 14 entries + Sep 5 skipped.
+REAL_DOC_TEXT = "\n".join([
+    "Danny's Journal.docx",
+    "Sunday, January 1, 2023", "9:00pm", "New-year reflection body.",
+    "Thursday, September 22, 2022", "7:50pm", "Body twenty-two.",
+    "Sunday, September 18, 2022", "8:27pm", "Body eighteen.",
+    "Saturday, September 17, 2022", "10:38am", "Body seventeen.",
+    "Wednesday, September 14, 2022", "8:15pm", "Body fourteen.",
+    "Sunday, September 11, 2022", "5:30pm", "Body eleven.",
+    "Saturday, September 10, 2022", "10:00am", "Body ten.",
+    "Thursday, September 8, 2022", "7:00am", "Body eight.",
+    "Wednesday, September 7, 2022", "7:00am", "Body seven.",
+    "Tuesday, September 6, 2022", "9:38pm", "Body six.",
+    "Monday, September 5, 2022 (skipped)",
+    "Sunday, September 4, 2022", "1:40pm", "Body four.",
+    "Saturday, Sept 3, 2022", "Body three, no time.",
+    "Tuesday, Aug 30, 22", "Body thirty, two-digit year.",
+    "Monday, Aug 29, 22", "Body twenty-nine.",
+])
+
+REAL_DOC_DATES = {
+    dt.date(2023, 1, 1), dt.date(2022, 9, 22), dt.date(2022, 9, 18), dt.date(2022, 9, 17),
+    dt.date(2022, 9, 14), dt.date(2022, 9, 11), dt.date(2022, 9, 10), dt.date(2022, 9, 8),
+    dt.date(2022, 9, 7), dt.date(2022, 9, 6), dt.date(2022, 9, 5), dt.date(2022, 9, 4),
+    dt.date(2022, 9, 3), dt.date(2022, 8, 30), dt.date(2022, 8, 29),
+}
+
+
+class RealDocumentCertification(TestCase):
+    """The actual production document's structure — proven by the runtime trace to yield 14
+    entries + 1 skipped. Times are on their OWN lines (not smushed). Permanent regression."""
+
+    def test_parses_all_fifteen_sections(self):
+        entries, had = parse_journal_document(REAL_DOC_TEXT)
+        self.assertTrue(had)
+        self.assertEqual(len(entries), 15)
+        self.assertEqual({e["entry_date"] for e in entries}, REAL_DOC_DATES)
+
+    def test_times_on_own_lines_absorbed(self):
+        by = {e["entry_date"]: e for e in parse_journal_document(REAL_DOC_TEXT)[0]}
+        self.assertEqual(by[dt.date(2023, 1, 1)]["entry_time"], dt.time(21, 0))    # 9:00pm
+        self.assertEqual(by[dt.date(2022, 9, 17)]["entry_time"], dt.time(10, 38))  # 10:38am
+        self.assertEqual(by[dt.date(2022, 9, 6)]["entry_time"], dt.time(21, 38))   # 9:38pm
+        self.assertIsNone(by[dt.date(2022, 9, 3)]["entry_time"])                    # no time
+        self.assertIsNone(by[dt.date(2022, 8, 30)]["entry_time"])
+
+    def test_skipped_then_header_no_phantom_body(self):
+        by = {e["entry_date"]: e for e in parse_journal_document(REAL_DOC_TEXT)[0]}
+        self.assertTrue(by[dt.date(2022, 9, 5)]["skipped"])
+        self.assertEqual(by[dt.date(2022, 9, 5)]["body"], "")     # skipped day carries no body
+        self.assertIn("four", by[dt.date(2022, 9, 4)]["body"])    # Sep 4 body not swallowed
+
+    def test_no_fabricated_dates(self):
+        for e in parse_journal_document(REAL_DOC_TEXT)[0]:
+            self.assertIn(e["entry_date"], REAL_DOC_DATES)
+        # never October 2023 (the original hallucination)
+        self.assertFalse(any(e["entry_date"].year == 2023 and e["entry_date"].month == 10
+                             for e in parse_journal_document(REAL_DOC_TEXT)[0]))
+
+    def test_end_to_end_from_artifact(self):
+        user = User.objects.create_user(email="realdoc@ex.com", password="x")
+        art = MultimodalArtifact.objects.create(
+            user=user, sha256="r" * 64, kind="document",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            original_filename="Danny's Journal.docx",
+            perception_status=MultimodalArtifact.PERCEPTION_DONE, extracted_text=REAL_DOC_TEXT)
+        result = ActionHandler(user).handle_import_journal_entries(
+            source="journal document", source_artifact_id=art.id, confirmed=True)
+        self.assertTrue(result.success)
+        self.assertEqual(result.created_object["created"], 14)
+        self.assertEqual(result.created_object["skipped"], 1)
+        self.assertEqual(JournalEntry.objects.filter(user=user, entry_date__year=2023).count(), 1)
+
+
+class FilenameAsIdResolutionTests(TestCase):
+    """THE production defect: the model passed the FILENAME as source_artifact_id, not the
+    numeric id — WLJ found no artifact and reported 'no records'. WLJ must resolve either."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="fn@ex.com", password="x")
+        self.handler = ActionHandler(self.user)
+        self.art = MultimodalArtifact.objects.create(
+            user=self.user, sha256="z" * 64, kind="document",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            original_filename="Danny's Journal.docx",
+            perception_status=MultimodalArtifact.PERCEPTION_DONE, extracted_text=REAL_DOC_TEXT)
+
+    def test_import_by_filename_works(self):
+        # Exactly what the model sent in production: source_artifact_id = the filename string.
+        result = self.handler.handle_import_journal_entries(
+            source="journal document",
+            source_artifact_id="Danny's Journal.docx", confirmed=True)
+        self.assertTrue(result.success)
+        self.assertEqual(result.created_object["created"], 14)
+        self.assertEqual(JournalEntry.objects.filter(user=self.user).count(), 14)
+
+    def test_import_by_numeric_id_still_works(self):
+        result = self.handler.handle_import_journal_entries(
+            source_artifact_id=self.art.id, confirmed=True)
+        self.assertTrue(result.success)
+        self.assertEqual(result.created_object["created"], 14)
+
+    def test_resolver_by_filename_and_id(self):
+        from apps.ai.structured_import import _resolve_artifact
+        self.assertEqual(_resolve_artifact(self.user, "Danny's Journal.docx").id, self.art.id)
+        self.assertEqual(_resolve_artifact(self.user, str(self.art.id)).id, self.art.id)
+        self.assertEqual(_resolve_artifact(self.user, "danny's journal.docx").id, self.art.id)
+        self.assertIsNone(_resolve_artifact(self.user, "nonexistent.docx"))
+
+
 class PerceptionTimingTests(TestCase):
     """A document import must NEVER fall back to model dates while perception is still running
     (the async window right after upload) — it reports honestly and creates nothing."""

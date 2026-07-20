@@ -114,6 +114,15 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
 
     from apps.ai import multimodal
 
+    # RESOLVE the source artifact robustly. The model frequently passes the human FILENAME
+    # ("Danny's Journal.docx") instead of the numeric artifact id — WLJ must not depend on the
+    # model getting an exact id right. Resolve by id OR filename and NORMALIZE to the numeric id
+    # so every downstream step (text load, perception state, idempotency, provenance) is exact.
+    if source_artifact_id:
+        _art = _resolve_artifact(user, source_artifact_id)
+        if _art is not None:
+            source_artifact_id = _art.id
+
     # Load the source document's own text up front. When a document was uploaded, IT is the
     # authority — WLJ parses records/dates from it and does NOT need (or trust) the model's
     # transcription. So a document import may proceed even with an empty model `raw_records`.
@@ -255,19 +264,36 @@ def run_structured_import(user, adapter, raw_records, *, source_artifact_id=None
 
 
 # ── Provenance/audit helpers (StructuredImportRun) ──────────────────────────
+def _resolve_artifact(user, ref):
+    """Resolve the source artifact from whatever the model passed — a numeric id, OR the human
+    FILENAME (the model often passes 'Danny's Journal.docx' instead of the id). Owner-scoped;
+    returns the MultimodalArtifact or None. WLJ never depends on the model echoing an exact id."""
+    if not ref:
+        return None
+    try:
+        from apps.capture.models import MultimodalArtifact
+        qs = MultimodalArtifact.objects.filter(user=user)
+        # 1) exact numeric id.
+        try:
+            a = qs.filter(id=int(ref)).first()
+            if a is not None:
+                return a
+        except (ValueError, TypeError):
+            pass
+        # 2) by filename (exact, then case-insensitive) — most recent match wins.
+        s = str(ref).strip()
+        return (qs.filter(original_filename=s).order_by("-id").first()
+                or qs.filter(original_filename__iexact=s).order_by("-id").first())
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
 def _load_artifact_text(user, source_artifact_id):
     """The extracted text of the source artifact (owner-scoped), or None. This is the
     deterministic ground truth a document adapter parses — WLJ reads the source, it does not
     take the model's word for what the document said."""
-    if not source_artifact_id:
-        return None
-    try:
-        from apps.capture.models import MultimodalArtifact
-        return MultimodalArtifact.objects.filter(
-            id=source_artifact_id, user=user
-        ).values_list("extracted_text", flat=True).first()
-    except Exception:  # pragma: no cover - defensive
-        return None
+    a = _resolve_artifact(user, source_artifact_id)
+    return (a.extracted_text or "") if a is not None else None
 
 
 def _artifact_perception_state(user, source_artifact_id):
@@ -277,8 +303,8 @@ def _artifact_perception_state(user, source_artifact_id):
     if not source_artifact_id:
         return "missing"
     try:
-        from apps.capture.models import MultimodalArtifact
-        a = MultimodalArtifact.objects.filter(id=source_artifact_id, user=user).first()
+        from apps.capture.models import MultimodalArtifact  # noqa: F401 (kind constants)
+        a = _resolve_artifact(user, source_artifact_id)
         if a is None:
             return "missing"
         if a.has_perception:

@@ -71,8 +71,9 @@ DAY1_ACTION_ALLOWLIST = {
 # Intents that decide confirmation from the CANDIDATE DATA (not a static per-action policy) —
 # e.g. multimodal writes confirm on low perception confidence / suspected duplicate. For these,
 # `confirmed=true` must reach the handler so a confirmed re-execution BYPASSES the data gate
-# (otherwise it would loop). See apps/ai/multimodal.py :: requires_confirmation.
-_DATA_CONFIRM_INTENTS = {"log_weight", "log_body_measurements"}
+# (otherwise it would loop). Single source of truth: apps/ai/multimodal.DATA_CONFIRM_INTENTS
+# (also honoured by the deterministic bare-"yes" replay in intent_service.handle_crud_confirmation).
+from apps.ai.multimodal import DATA_CONFIRM_INTENTS as _DATA_CONFIRM_INTENTS
 
 
 def allowed_actions():

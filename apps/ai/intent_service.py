@@ -2201,6 +2201,19 @@ the Medications page), honor the explicit domain.
             pending['executed'] = True
             cache.set(f"pending_crud_{user.id}", pending, 300)
 
+            # Some handlers (multimodal DATA imports) gate confirmation on the candidate data
+            # via a `confirmed` kwarg. The user HAS now confirmed, so forward confirmed=True or
+            # the replay re-triggers the handler's own gate and the import never persists — the
+            # deterministic mirror of the CoS re-call path (action_execution.py). Single source
+            # of truth for the set: multimodal.DATA_CONFIRM_INTENTS.
+            replay_params = dict(pending.get('parameters') or {})
+            try:
+                from apps.ai.multimodal import DATA_CONFIRM_INTENTS
+                if pending.get('intent_type') in DATA_CONFIRM_INTENTS:
+                    replay_params['confirmed'] = True
+            except Exception:  # pragma: no cover - defensive
+                pass
+
             # Execute through full pipeline (safety → handler → intelligence)
             try:
                 from apps.core.ai_orchestrator.action_router import EnrichedAction
@@ -2208,7 +2221,7 @@ the Medications page), honor the explicit domain.
 
                 enriched = EnrichedAction(
                     intent_type=pending['intent_type'],
-                    parameters=pending['parameters'],
+                    parameters=replay_params,
                     original_input=pending.get('original_input'),
                 )
                 self.clear_pending_crud_action(user)

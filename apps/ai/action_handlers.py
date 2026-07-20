@@ -1681,6 +1681,7 @@ class ActionHandler:
 
         # \u2500\u2500 Deterministic validation of each candidate (WLJ validates the extraction) \u2500\u2500
         validated, skipped = [], []
+        absent_count = 0  # perceived-but-blank fields \u2014 reported in the summary, never hidden
         for m in measurements:
             if not isinstance(m, dict):
                 continue
@@ -1702,6 +1703,7 @@ class ActionHandler:
                 continue
             raw_val = m.get('value')
             if multimodal.is_absent_measurement(raw_val):
+                absent_count += 1
                 continue  # '--' / blank / 0 = not measured (never a real zero circumference)
             unit = (m.get('unit') or multimodal.default_body_unit(metric) or '').lower()
             if not multimodal.validate_body_measurement(metric, raw_val, unit):
@@ -1741,11 +1743,19 @@ class ActionHandler:
             duplicate=False, source_artifact_id=source_artifact_id,
         ):
             src_label = source or "screenshot"
+            # RESULTS, not intentions: tell the user exactly what perception found and precisely
+            # what will and will NOT be saved (and why) BEFORE anything is written. Nothing a
+            # source contained is ever silently dropped. This is the generic multimodal-import
+            # confirmation pattern (apps/ai/multimodal.compose_import_confirmation_summary).
+            summary = multimodal.compose_import_confirmation_summary(
+                lead=f"I analyzed your body measurement {src_label}.",
+                validated=validated, skipped=skipped,
+                derived=({'waist_hip_ratio': whr} if whr is not None else None),
+                absent_count=absent_count, noun="measurements",
+            )
             return ActionResult(
                 success=False, error='confirmation_required',
-                message=(f"I found {len(validated)} body measurement"
-                         f"{'s' if len(validated) != 1 else ''} in your {src_label} \u2014 "
-                         "review and press Import to save them."),
+                message=summary,
                 confirmation_detail={
                     'renderer': 'body_measurement_session',
                     'intent': 'log_body_measurements',

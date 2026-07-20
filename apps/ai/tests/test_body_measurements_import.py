@@ -220,3 +220,97 @@ class CoSReadbackTests(TestCase):
         from apps.health.services.body_measurement_queries import BodyMeasurementQueries
         result = BodyMeasurementQueries.describe(self.user)
         self.assertIsNotNone(result)
+
+
+class ConfirmationSummaryTests(TestCase):
+    """The confirmation reports RESULTS, not intentions: exactly what perception found and
+    precisely what will and will NOT be saved (and why) BEFORE anything is written. Never a
+    silently-dropped value. (The generic multimodal-import confirmation pattern.)"""
+
+    def setUp(self):
+        self.user = _make_user("cap-summary@example.com")
+        self.handler = ActionHandler(self.user)
+        self.artifact = MultimodalArtifact.objects.create(
+            user=self.user, sha256="5umm0001", content_type="image/png", kind="image")
+
+    def test_summary_lists_recognized_skipped_counts_and_reasons(self):
+        res = self.handler.handle_log_body_measurements(
+            measurements=[
+                {"metric": "Shoulder", "value": 50.43, "unit": "in"},  # first-class metric now
+                {"metric": "chest", "value": 50.90, "unit": "in"},
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+                {"metric": "hips", "value": 47.16, "unit": "in"},
+                {"metric": "knee", "value": 15.0, "unit": "in"},       # unrecognized → surfaced
+            ],
+            source="Renpho Screenshot", source_artifact_id=self.artifact.id,
+        )
+        self.assertEqual(res.error, "confirmation_required")
+        msg = res.message
+        # Exactly what perception found, per line (with formatted values).
+        self.assertIn("Measurements recognized:", msg)
+        self.assertIn('✓ Shoulders — 50.43"', msg)  # a normal importable measurement now
+        self.assertIn('✓ Waist — 54.72"', msg)
+        self.assertIn("⚠ knee", msg)                # unrecognized surfaced, never hidden
+        # Exactly what will and won't import.
+        self.assertIn("• 5 recognized", msg)
+        self.assertIn("• 4 can be imported", msg)
+        self.assertIn("• 1 cannot be imported", msg)
+        # WHY it can't import.
+        self.assertIn("Skipped:", msg)
+        self.assertIn("doesn't have a place to store", msg)
+        # Derived WHR shown for display (never stored separately).
+        self.assertIn("waist-hip ratio", msg)
+        # And nothing was written on the confirmation turn.
+        self.assertEqual(BodyMeasurementSession.objects.filter(user=self.user).count(), 0)
+
+    def test_all_recognized_reads_n_imported_zero_skipped(self):
+        """End state with Shoulder first-class: a clean set reads N recognized / N imported /
+        0 skipped, with no Skipped section."""
+        res = self.handler.handle_log_body_measurements(
+            measurements=[
+                {"metric": "Shoulder", "value": 50.43, "unit": "in"},
+                {"metric": "chest", "value": 50.90, "unit": "in"},
+                {"metric": "waist", "value": 54.72, "unit": "in"},
+            ],
+            source="Renpho Screenshot", source_artifact_id=self.artifact.id,
+        )
+        self.assertEqual(res.error, "confirmation_required")
+        self.assertIn("• 3 recognized", res.message)
+        self.assertIn("• 3 can be imported", res.message)
+        self.assertIn("• 0 cannot be imported", res.message)
+        self.assertNotIn("Skipped:", res.message)
+        self.assertIn("Import these 3 measurements?", res.message)
+
+
+class DeterministicConfirmReplayTests(TestCase):
+    """A bare-'yes'/'Import' reply resolves through the deterministic crud bridge, NOT a model
+    re-call. That replay must forward confirmed=True for data-confirm imports or the handler's
+    own data gate re-fires and the import silently never persists."""
+
+    def setUp(self):
+        self.user = _make_user("cap-replay@example.com")
+
+    def test_yes_after_confirmation_actually_persists_the_session(self):
+        from apps.ai.intent_service import IntentService
+        svc = IntentService()
+        # Simulate the state after the first turn returned confirmation_required: the CoS bridge
+        # stored the pending action with the ORIGINAL tool params (no `confirmed`).
+        svc.store_pending_crud_action(self.user, {
+            "intent_type": "log_body_measurements",
+            "parameters": {
+                "measurements": [
+                    {"metric": "waist", "value": 54.72, "unit": "in"},
+                    {"metric": "hips", "value": 47.16, "unit": "in"},
+                ],
+                "source": "Renpho Screenshot",
+            },
+            "original_intent": "log_body_measurements",
+            "confirmation_message": "Import these 2 measurements?",
+        })
+        result = svc.handle_crud_confirmation(self.user, "yes")
+        self.assertIsNotNone(result)
+        self.assertTrue(getattr(result, "success", False),
+                        getattr(result, "message", "no message"))
+        # The confirmed import actually wrote the canonical session (did NOT re-gate/loop).
+        self.assertEqual(BodyMeasurementSession.objects.filter(user=self.user).count(), 1)
+        self.assertEqual(BodyCompositionEntry.objects.filter(user=self.user).count(), 2)

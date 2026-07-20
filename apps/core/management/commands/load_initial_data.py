@@ -1109,6 +1109,8 @@ class Command(BaseCommand):
         self._reset_journal_passive_recognition_release_notes(DataLoadConfig, force, verbosity)
         # Live Pantry search (PK 278)
         self._reset_pantry_search_release_notes(DataLoadConfig, force, verbosity)
+        # Measurement Session Capture — clearer import confirmation (PK 281)
+        self._reset_measurement_import_confirmation_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
@@ -8222,6 +8224,32 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset pantry search release notes FAILED: {e}'))
+
+    def _reset_measurement_import_confirmation_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 281 (Measurement Session
+        Capture — clearer screenshot-import confirmation that reports exactly what was read
+        and what will/won't be saved)."""
+        reset_tracker_name = 'reset_measurement_import_confirmation_2026_07_19'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for measurement import confirmation (PK 281)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for measurement import confirmation', 'command',
+                'One-time reset: added PK 281 for the clearer measurement-import confirmation')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset measurement import confirmation release notes FAILED: {e}'))
 
     def _reset_journal_passive_recognition_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes after extending PK 277 to cover passive

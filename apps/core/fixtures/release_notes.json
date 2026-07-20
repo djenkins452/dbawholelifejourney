@@ -4470,5 +4470,21 @@
       "learn_more_url": "/dashboard/",
       "is_major": true
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 281,
+    "fields": {
+      "title": "Clearer confirmation when you import measurements from a screenshot",
+      "description": "When you send your Chief of Staff a screenshot of your body measurements, it now shows you exactly what it read — and precisely what it will and won't save — before anything is stored. You'll see each measurement it recognized (with its value), a short summary of how many can be imported, and, if anything can't be saved yet, a plain-language reason why. Nothing you sent is ever silently dropped: you always see the full picture and confirm before it saves. Shoulder measurements are now imported like any other, so a full check-in comes in complete.",
+      "entry_type": "enhancement",
+      "version": "",
+      "release_date": "2026-07-19",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/health/physical/body-intelligence/",
+      "created_at": "2026-07-19T12:00:00Z",
+      "updated_at": "2026-07-19T12:00:00Z"
+    }
   }
 ]

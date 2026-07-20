@@ -186,6 +186,10 @@ _r('add_reminder', ActionCategory.CREATE, RiskLevel.MEDIUM, AuthorityLevel.CONFI
    label='Add reminder')
 _r('create_journal_entry', ActionCategory.CREATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
    label='Create journal entry')
+# Structured Import Orchestration: LOW risk so the external gate defers to the handler's own
+# data-gate, which produces the rich per-batch preview (the whole batch confirms as one).
+_r('import_journal_entries', ActionCategory.CREATE, RiskLevel.LOW, AuthorityLevel.CONFIRM,
+   label='Import journal entries')
 _r('add_gratitude', ActionCategory.CREATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,
    label='Log gratitude')
 _r('add_faith_milestone', ActionCategory.CREATE, RiskLevel.MEDIUM, AuthorityLevel.CONFIRM,

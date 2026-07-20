@@ -48,6 +48,65 @@ JOURNAL_INTENT_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "import_journal_entries",
+            "description": (
+                "Import a document the user uploaded that contains MANY journal entries at once "
+                "(a historical journal export, a Day One / Evernote / Apple Notes export, a "
+                "pasted multi-day journal). Use THIS — not create_journal_entry repeatedly — "
+                "when one source holds several dated entries; WLJ shows the user a preview and "
+                "imports them as separate entries only after they confirm. Recognize the "
+                "structure yourself: split the document into one entry per date; read the "
+                "ORIGINAL body verbatim (do NOT rewrite, summarize, or add headings); normalize "
+                "each date to ISO YYYY-MM-DD and each time to 24-hour HH:MM (omit the time when "
+                "the source shows none); mark a day the source labels skipped with skipped=true; "
+                "and EXCLUDE document noise (repeated file-name headers/footers, page numbers, "
+                "blank pages). Attach source_artifact_id when the entries came from an upload."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "entries": {
+                        "type": "array",
+                        "description": "One item per journal entry (and per explicitly-skipped day) recognized in the document.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "entry_date": {
+                                    "type": "string",
+                                    "description": "The entry's date, normalized to ISO YYYY-MM-DD (resolve 2-digit years to the full year shown in the document)."
+                                },
+                                "entry_time": {
+                                    "type": "string",
+                                    "description": "The entry's clock time in 24-hour HH:MM, if the source shows one. Omit when there is no time."
+                                },
+                                "body": {
+                                    "type": "string",
+                                    "description": "The COMPLETE original entry text, verbatim. Preserve paragraphs with blank lines. Never rewrite, summarize, or add section headings."
+                                },
+                                "skipped": {
+                                    "type": "boolean",
+                                    "description": "True when the source explicitly marks this day as skipped / no entry. Include such days so the user sees them; WLJ will not create an entry for them."
+                                }
+                            },
+                            "required": ["entry_date"]
+                        }
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "A short label for where the entries came from, e.g. 'journal document', 'Day One export'."
+                    },
+                    "source_artifact_id": {
+                        "type": "string",
+                        "description": "The uploaded attachment's artifact_id when the entries were read from an upload."
+                    }
+                },
+                "required": ["entries"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "add_gratitude",
             "description": "Log something the user is grateful for. Use when user expresses thankfulness or wants to record gratitude.",
             "parameters": {

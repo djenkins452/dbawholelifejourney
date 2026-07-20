@@ -130,6 +130,12 @@ class JournalEntry(RichTextMixin, UserOwnedModel):
     # The date this entry is "about" (may differ from created_at)
     entry_date = models.DateField(default=timezone.now)
 
+    # The time-of-day this entry is "about" — OPTIONAL, first-class truth (queryable/
+    # sortable), set primarily by structured imports that preserve the original clock time
+    # (docs/WLJ_STRUCTURED_IMPORT_ARCHITECTURE.md). Null for entries with no recorded time;
+    # existing behavior is unchanged for those (default title stays date-only).
+    entry_time = models.TimeField(null=True, blank=True)
+
     # Optional mood tracking (lightweight)
     mood = models.CharField(
         max_length=20,
@@ -187,9 +193,13 @@ class JournalEntry(RichTextMixin, UserOwnedModel):
         # Word count from the plain-text shadow (never counts HTML tags).
         self.word_count = len((self.body_plain or "").split())
 
-        # Set default title if not provided
+        # Set default title if not provided. Timeless entries keep the exact date-only
+        # title they always had; when an entry_time is recorded (e.g. an import), the
+        # default title carries it too so the clock time is visible.
         if not self.title:
             self.title = self.entry_date.strftime("%A, %B %d, %Y")
+            if self.entry_time:
+                self.title += f" – {self.entry_time.strftime('%I:%M %p').lstrip('0')}"
 
         super().save(*args, **kwargs)
 

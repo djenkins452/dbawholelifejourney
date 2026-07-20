@@ -1112,6 +1112,8 @@ class Command(BaseCommand):
         # Measurement Session Capture — clearer import confirmation (PK 281)
         self._reset_measurement_import_confirmation_release_notes(DataLoadConfig, force, verbosity)
 
+        self._reset_structured_import_release_notes(DataLoadConfig, force, verbosity)
+
         # One-time: Reload fixtures for Routine History (release note PK 210,
         # help topic PK 157, teaching destination PK 187)
         self._reset_routine_history_fixtures(DataLoadConfig, force, verbosity)
@@ -8250,6 +8252,32 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset measurement import confirmation release notes FAILED: {e}'))
+
+    def _reset_structured_import_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 282 (Structured Import
+        Orchestration — import a whole journal document as many separate entries after a
+        preview + confirmation)."""
+        reset_tracker_name = 'reset_structured_import_2026_07_20'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for structured import (PK 282)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for structured import', 'command',
+                'One-time reset: added PK 282 for Structured Import Orchestration')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset structured import release notes FAILED: {e}'))
 
     def _reset_journal_passive_recognition_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes after extending PK 277 to cover passive

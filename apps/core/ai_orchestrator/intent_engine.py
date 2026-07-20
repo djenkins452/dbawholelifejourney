@@ -40,6 +40,7 @@ FASTING_INTENTS = {
 
 JOURNAL_INTENTS = {
     "create_journal_entry",
+    "import_journal_entries",
     "add_gratitude",
 }
 

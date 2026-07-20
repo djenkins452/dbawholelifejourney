@@ -66,6 +66,7 @@ DAY1_ACTION_ALLOWLIST = {
     "log_workout",
     "log_weight",
     "log_body_measurements",   # import a full body check-in from a screenshot/photo/typed set
+    "import_journal_entries",  # Structured Import: one document → many journal entries
 }
 
 # Intents that decide confirmation from the CANDIDATE DATA (not a static per-action policy) —

@@ -25,10 +25,15 @@ emits a verdict or an "I think…". Every line traces to a field the handler det
 """
 
 # reason code (set by the handler) → the plain-language WHY the user reads. Domain-agnostic:
-# every multimodal import shares "unrecognised" and "implausible" skip classes.
+# every multimodal import shares "unrecognised" and "implausible" skip classes; record imports
+# (Structured Import Orchestration) add marked-skipped / no-content / invalid / duplicate.
 _SKIP_REASON_TEXT = {
     "unrecognized_metric": "WLJ doesn't have a place to store this one yet, so I left it out.",
     "implausible": "the reading looked out of range, so I left it out rather than save a likely misread.",
+    "marked_skipped": "the source marked this day as skipped, so I didn't create an entry.",
+    "no_content": "there was no entry text for this one, so I left it out.",
+    "invalid_date": "I couldn't read a valid date for this one, so I left it out.",
+    "duplicate": "you already have this one, so I won't create it again.",
 }
 
 # renderer key → presentation config. A future domain adds one line here (or calls
@@ -36,10 +41,12 @@ _SKIP_REASON_TEXT = {
 _RENDERERS = {}
 
 
-def register_import_renderer(key, *, lead, noun="items"):
-    """Register a multimodal-import renderer. ``lead`` is a one-line template that may reference
-    ``{source}``; ``noun`` is the plural noun for the import summary ("measurements", "results")."""
-    _RENDERERS[key] = {"lead": lead, "noun": noun}
+def register_import_renderer(key, *, lead, noun="items", kind="measurement"):
+    """Register an import renderer. ``lead`` is a one-line template that may reference
+    ``{source}``; ``noun`` is the plural summary noun ("measurements", "entries"). ``kind``
+    selects the render shape: 'measurement' (value+unit rows — the multimodal default) or
+    'record' (Structured Import Orchestration — one uploaded document → many dated records)."""
+    _RENDERERS[key] = {"lead": lead, "noun": noun, "kind": kind}
 
 
 register_import_renderer(
@@ -72,6 +79,8 @@ def _source_phrase(source):
     s = (source or "").lower()
     if "photo" in s:
         return "photo"
+    if "document" in s or "export" in s or "file" in s:
+        return "document"
     return "screenshot"
 
 
@@ -79,18 +88,78 @@ def _humanize(key):
     return str(key).replace("_", " ").replace("-", " ").strip()
 
 
+def _fmt_date(iso):
+    """'2022-09-10' → 'September 10, 2022' (de-zeroed). Falls back to the raw string."""
+    from datetime import date
+    try:
+        d = date.fromisoformat(str(iso))
+    except (ValueError, TypeError):
+        return str(iso)
+    return d.strftime("%B ") + str(d.day) + d.strftime(", %Y")
+
+
+def _render_record(detail, cfg):
+    """Render a Structured Import Orchestration ``confirmation_detail`` (one document → many
+    dated records). Facts only: count, date range, how many have/haven't a time, what will and
+    won't be created and why. Every line derives from structured fields the adapter set."""
+    records = list(detail.get("records") or [])
+    skipped = list(detail.get("skipped") or [])
+    noun = cfg["noun"]
+    n = len(records)
+    recognized = n + len(skipped)  # every dated item the model surfaced (created + skipped)
+
+    isos = [r.get("date_iso") for r in records if r.get("date_iso")]
+    isos += [s.get("date_iso") for s in skipped if s.get("date_iso")]
+    isos = sorted(i for i in isos if i)
+    with_time = sum(1 for r in records if r.get("has_time"))
+    without_time = n - with_time
+
+    lines = [cfg["lead"].format(source=_source_phrase(detail.get("source")))]
+    if isos and isos[0] != isos[-1]:
+        lines.append(f"Found {recognized} {noun} — "
+                     f"{_fmt_date(isos[0])} through {_fmt_date(isos[-1])}.")
+    else:
+        lines.append(f"Found {recognized} {noun}"
+                     f"{f' — {_fmt_date(isos[0])}' if isos else ''}.")
+
+    lines += ["", "Will be imported:"]
+    for r in records:
+        lines.append(f"✓ {r.get('label')}")
+    if skipped:
+        lines += ["", "Won't be imported:"]
+        for s in skipped:
+            lines.append(f"⚠ {s.get('label')} — "
+                         f"{_SKIP_REASON_TEXT.get(s.get('reason'), 'I left it out.')}")
+
+    lines += ["", "Import summary:",
+              f"• {n} will be imported"]
+    if with_time:
+        lines.append(f"• {with_time} {'has' if with_time == 1 else 'have'} a recorded time")
+    if without_time:
+        lines.append(f"• {without_time} {'has' if without_time == 1 else 'have'} no recorded time")
+    if skipped:
+        lines.append(f"• {len(skipped)} won't be imported")
+
+    lines += ["", (f"Import this {noun[:-1] if noun.endswith('s') else noun}?"
+                   if n == 1 else f"Import these {n} {noun}?")]
+    return "\n".join(lines)
+
+
 def render_import_confirmation(detail):
-    """Render a multimodal-import ``confirmation_detail`` to RESULTS-not-intentions text.
+    """Render an import ``confirmation_detail`` to RESULTS-not-intentions text.
 
     Returns the summary string, or ``None`` when ``detail`` carries no registered renderer — the
     caller then keeps its own fallback message. Pure presentation over deterministic truth: every
-    line comes from a field the handler set; no verdicts, no invented facts.
+    line comes from a field the handler/adapter set; no verdicts, no invented facts. Dispatches by
+    the renderer's ``kind``: 'record' (Structured Import) vs 'measurement' (multimodal default).
     """
     if not isinstance(detail, dict):
         return None
     cfg = _RENDERERS.get(detail.get("renderer"))
     if cfg is None:
         return None
+    if cfg.get("kind") == "record":
+        return _render_record(detail, cfg)
 
     validated = list(detail.get("measurements") or [])
     skipped = list(detail.get("skipped") or [])

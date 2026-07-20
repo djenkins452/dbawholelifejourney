@@ -1829,6 +1829,55 @@ class ActionHandler:
                 error='internal_error',
             )
 
+    def handle_import_journal_entries(self, entries=None, source: str = "",
+                                      **kwargs) -> ActionResult:
+        """Import a document the model recognized as MANY journal entries (Structured Import
+        Orchestration — docs/WLJ_STRUCTURED_IMPORT_ARCHITECTURE.md). THIN by design: the
+        generic engine owns idempotency, validation, the preview/confirmation, atomic
+        creation, provenance, and audit; the Journal adapter owns field mapping and the
+        faithful write. WLJ never rewrites the user's words. `confirmed` arrives on the
+        re-execution after the user approves the preview (it bypasses ONLY the confirmation
+        gate, never validation)."""
+        import json
+
+        # Importing the adapter module registers the adapter + its preview renderer.
+        from apps.ai.import_adapters.journal_import import JournalImportAdapter
+        from apps.ai.structured_import import ImportOutcome, run_structured_import
+
+        if isinstance(entries, str):
+            try:
+                entries = json.loads(entries)
+            except (ValueError, TypeError):
+                entries = None
+
+        outcome = run_structured_import(
+            self.user, JournalImportAdapter(), entries,
+            source_artifact_id=kwargs.get("source_artifact_id"),
+            source=(source or "journal document"),
+            confirmed=bool(kwargs.get("confirmed")),
+        )
+        if not isinstance(outcome, ImportOutcome):  # pragma: no cover - defensive
+            return ActionResult(success=False, error="internal_error",
+                                message="I couldn't import that document.")
+
+        if outcome.status == "confirmation_required":
+            return ActionResult(
+                success=False, error="confirmation_required",
+                message=outcome.message,
+                confirmation_detail=outcome.confirmation_detail,
+            )
+        if outcome.status == "success":
+            return ActionResult(
+                success=True, message=outcome.message,
+                created_object=outcome.created_object,
+                action_type="import_journal_entries",
+            )
+        # validation_failed / error / duplicate
+        return ActionResult(
+            success=False, error=(outcome.error or "validation_failed"),
+            message=(outcome.message or "I couldn't import that document."),
+        )
+
     # =========================================================================
     # FINANCE HANDLERS
     # =========================================================================

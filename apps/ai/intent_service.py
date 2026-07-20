@@ -1491,6 +1491,9 @@ the Medications page), honor the explicit domain.
             elif intent_type == 'create_journal_entry':
                 return handler.handle_create_journal_entry(**parameters)
 
+            elif intent_type == 'import_journal_entries':
+                return handler.handle_import_journal_entries(**parameters)
+
             elif intent_type == 'add_gratitude':
                 return handler.handle_add_gratitude(**parameters)
 

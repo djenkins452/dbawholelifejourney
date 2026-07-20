@@ -2047,6 +2047,60 @@ class LearnedCommunicationPreference(models.Model):
         return f"{self.user_id}:{self.category}.{self.key}={self.value} ({self.source})"
 
 
+class StructuredImportRun(models.Model):
+    """One CoS-orchestrated structured-import batch (Structured Import Orchestration).
+
+    docs/WLJ_STRUCTURED_IMPORT_ARCHITECTURE.md — a single uploaded document that contains
+    MANY logical records (a journal export, a statement, a lab panel) becomes many
+    deterministic records. This row is the batch's PROVENANCE + AUDIT substrate, shared by
+    every domain adapter (journal, future expenses/health readings/…):
+
+      • ARTIFACT IDEMPOTENCY — a source artifact that already produced a run for a domain
+        never re-imports (the same document is one import event, not two).
+      • PER-RECORD AUDIT — `manifest` records each record's outcome
+        (created/skipped/duplicate/failed) and reason; counts are denormalized for display.
+      • PROVENANCE — `multimodal.link_artifact()` points the artifact at this run.
+
+    Domain-agnostic on purpose: it references the target domain by name, never a domain FK,
+    so no domain has to depend on this model. It is truth/audit infrastructure, not reasoning.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='structured_import_runs',
+    )
+    # The Layer-1 domain the records were created in (e.g. 'journal').
+    target_domain = models.CharField(max_length=32, db_index=True)
+    # The typed batch intent that produced this run (e.g. 'import_journal_entries').
+    intent = models.CharField(max_length=64, blank=True, default='')
+    # The MultimodalArtifact the batch was read from (soft ref — no cross-app FK cycle).
+    source_artifact_id = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    # A human label for where the batch came from ('Journal document', 'photo', 'typed').
+    source = models.CharField(max_length=120, blank=True, default='')
+
+    created_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    duplicate_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+
+    # Per-record outcomes: [{label, outcome, reason?, object_id?}] — the batch audit.
+    manifest = models.JSONField(default=list, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'target_domain']),
+            models.Index(fields=['source_artifact_id', 'target_domain']),
+        ]
+
+    def __str__(self):
+        return (f"{self.user_id}:{self.target_domain}:import "
+                f"created={self.created_count} skipped={self.skipped_count} "
+                f"dup={self.duplicate_count} failed={self.failed_count}")
+
+
 class ToolCallLog(models.Model):
     """
     Append-only ledger of the WLJ ↔ conversational-model interface (Pillar: Audit).

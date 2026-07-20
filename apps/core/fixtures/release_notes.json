@@ -4486,5 +4486,21 @@
       "created_at": "2026-07-19T12:00:00Z",
       "updated_at": "2026-07-19T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 282,
+    "fields": {
+      "title": "Import a whole journal at once",
+      "description": "You can now hand your Chief of Staff a document that holds many journal entries — a years-old export, a multi-day journal, notes from another app — and it will recognize each entry, show you exactly what it found (how many entries, the date range, which have a time and which don't, and any days marked skipped), and import them as separate entries only after you confirm. Your original words, dates, and times are preserved faithfully — nothing is rewritten or summarized — and each imported entry is linked back to the file it came from. Nothing is saved until you say go.",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-07-20",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/journal/",
+      "created_at": "2026-07-20T12:00:00Z",
+      "updated_at": "2026-07-20T12:00:00Z"
+    }
   }
 ]

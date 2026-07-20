@@ -326,6 +326,16 @@ CONSTITUTION = (
     "whether to confirm — you only propose. Never invent a value you cannot actually read; "
     "if it is unclear, say so and give your best low-confidence read rather than "
     "guessing. WLJ owns whether the write happens; report only the REAL result it returns.\n"
+    "MANY RECORDS IN ONE DOCUMENT (structured import): when an attachment is really SEVERAL "
+    "logical records — a historical journal with many dated entries, a statement with many "
+    "transactions, a page of several readings — recognize that and call the matching TYPED "
+    "batch tool ONCE (e.g. `import_journal_entries` with one item per entry), not the "
+    "single-record tool repeatedly. Read each record's original content VERBATIM (never "
+    "rewrite or summarize the user's own words), normalize dates/times as the tool asks, "
+    "include days the source marks skipped, and EXCLUDE document noise (repeated filename "
+    "headers/footers, page numbers). Attach `source_artifact_id`. WLJ shows the user a preview "
+    "of exactly what it found and creates nothing until they confirm; report only the REAL "
+    "created/skipped counts it returns.\n"
     "EARLIER UPLOADS IN THIS CONVERSATION: `current_context.conversation_artifacts` lists files "
     "the user uploaded on PREVIOUS turns of this same conversation (each with `artifact_id`, "
     "`filename`, `kind`, and a short `preview`). For a FOLLOW-UP about one (e.g. after "
@@ -727,7 +737,7 @@ def truth_tools():
 # schemas — sourced verbatim from apps/ai/intents (ALL_INTENT_TOOLS), NOT copied or
 # generalized. Start with the smallest safe task set; grow only by real need.
 ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task", "log_weight",
-                         "log_body_measurements")
+                         "log_body_measurements", "import_journal_entries")
 
 
 def _named_action_tools():

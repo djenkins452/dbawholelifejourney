@@ -681,6 +681,9 @@ _ALWAYS_CONFIRM_INTENTS = frozenset({
     # A full body check-in read from a screenshot/photo always gets a review card —
     # perception can misread a value and a session writes many measurements at once.
     "log_body_measurements",
+    # Structured Import Orchestration: a document parsed into MANY records always previews
+    # first — the user confirms the whole batch before anything is created.
+    "import_journal_entries",
 })
 _CONFIDENCE_FLOOR = 0.85
 
@@ -712,7 +715,8 @@ def requires_confirmation(intent, *, confidence=None, duplicate=False,
 # persists: the CoS model re-call path (apps/ai/cos_services/action_execution.py) AND the
 # deterministic bare-"yes" replay (apps/ai/intent_service.py :: handle_crud_confirmation).
 # This is the single source of truth for that set.
-DATA_CONFIRM_INTENTS = frozenset({"log_weight", "log_body_measurements"})
+DATA_CONFIRM_INTENTS = frozenset({"log_weight", "log_body_measurements",
+                                  "import_journal_entries"})
 
 # NOTE: the multimodal-import confirmation PRESENTATION (turning a handler's structured
 # confirmation_detail into the RESULTS-not-intentions text the user sees) lives in the generic

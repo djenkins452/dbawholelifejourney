@@ -85,6 +85,7 @@ INTENT_HANDLERS = {
     'end_fast': 'fasting',
     # Journal
     'create_journal_entry': 'journal',
+    'import_journal_entries': 'journal',
     'add_gratitude': 'journal',
     # Faith
     'log_prayer': 'faith',

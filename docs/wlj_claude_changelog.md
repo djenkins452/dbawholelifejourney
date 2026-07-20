@@ -6,6 +6,23 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-19 — feat(journal M4): Talk It Through — voice modality over the SAME Write Together conversation
+
+**M4 = voice as a modality, not a new system.** Talk It Through opens the *same* dedicated Journal conversation as Write Together, with the microphone primary. **Zero backend changes:** browser speech-to-text feeds the existing `/message/` turn; the reply text is spoken via text-to-speech. Conversation, Playbook, Memory Model, generation, review, Truth Discovery, canonical `JournalEntry`, and recovery are all reused unchanged — voice turns are text turns through the same persisted flow, so nothing is ever lost and resume is identical. The architecture got *simpler*, not more complex.
+
+**Implementation (client-side only):**
+- `templates/journal/write_together.html` — a voice layer over the existing conversation JS: **SpeechRecognition** (STT — continuous turn loop, live interim transcript, auto-endpointing), **SpeechSynthesis** (TTS speaks the CoS reply, then resumes listening), a calm mic toggle + voice-status bar (Listening / thinking / "Chief of Staff is speaking") with a tap-to-talk barge-in, and a spoken "I've got it — give me a moment…" confirmation on Finish. Typing and speaking interchange mid-conversation (same conversation). Graceful degradation: no SpeechRecognition, or mic denied → clean fallback to typing with a plain notice.
+- `entry_form.html` — the chooser's **Talk It Through** is now a live link (`write-together/?voice=1`, which auto-enters voice); removed "soon".
+- **No new endpoint, model, service, or migration.** The batch Whisper `TranscriptionService` remains available for a future server-STT phase.
+
+**Conversation behavior is identical to text** (same Playbook prompt, same deterministic simple opener, same last-resort-context gate). If voice and text ever diverge, that's a defect.
+
+**Files:** `templates/journal/write_together.html`, `templates/journal/entry_form.html`, `tests/test_write_together_conversation.py`.
+
+**Verification:** 21 scoped tests pass (conversation + chooser + request-path-safety), incl. new: *voice controls render* + *Talk It Through links to voice*. `check` clean; no migrations. Runtime (dev): Talk It Through opens the same conversation in voice mode; SpeechRecognition + TTS detected; mic renders; when the browser blocked the mic, voice **degraded cleanly** to text (notice + input stayed live) and the conversation continued on-topic ("We fixed the hot tub" → "What was the issue that took so long?"); the opening rendered/spoke identically. **Full voice STT/TTS requires a real microphone → AWAITING Danny's real-voice production validation.**
+
+**Known limitations:** browser Web Speech API (best in Chrome; Safari/WKWebView limited — iOS app would need native voice later); browser STT routes audio through the browser's speech service (a future phase could move STT server-side via Whisper for provider/privacy alignment); barge-in is tap-to-talk, not full-duplex voice-activity interrupt (echo cancellation is a later refinement). Flag-gated + CoS-gated.
+
 ## 2026-07-19 — feat(faith/cos): Faith Domain Certification Step 2 — expose existing truth (AWAITING VALIDATION)
 
 **Faith CoS Domain Certification — Step 2 (Expose existing truth).** Following the ratified CoS Domain Certification Standard, this is EXPOSURE of truth Step 1 proved already exists — **no new deterministic truth, no reasoning; WLJ still renders no verdict.** Report ledger: `docs/WLJ_FAITH_TRUTH_CERTIFICATION_REPORT.md`.

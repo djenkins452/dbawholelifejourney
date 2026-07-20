@@ -57,6 +57,28 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
             JournalConversation.objects.filter(user=self.user, state="active").exists()
         )
 
+    def test_voice_controls_render(self):
+        # Talk It Through is the SAME page with a voice layer (mic + status bar).
+        self._enable()
+        self.login_user()
+        resp = self.client.get(self.page_url + "?voice=1")
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="wt-mic"')
+        self.assertContains(resp, 'id="wt-voicebar"')
+        self.assertContains(resp, 'data-voice="1"')  # auto-enters voice mode
+
+    def test_talk_it_through_chooser_links_to_voice(self):
+        from django.urls import reverse as _rev
+        prefs = self.user.preferences
+        prefs.journal_features = dict(prefs.journal_features or {})
+        prefs.journal_features["write_together"] = True
+        prefs.personal_assistant_enabled = True
+        prefs.save()
+        self.login_user()
+        resp = self.client.get(_rev("journal:entry_create"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "write-together/?voice=1")  # Talk It Through is live
+
     # --- opening ------------------------------------------------------------
 
     @patch("apps.journal.services.journal_conversation.AIService")

@@ -118,7 +118,7 @@ def _current_journal_draft(user):
             .order_by("-updated_at")
             .first()
         )
-        if convo is not None and convo.has_user_content:
+        if convo is not None and convo.has_content:
             return convo
     except Exception:
         import logging
@@ -454,6 +454,13 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         if review_convo is not None:
             initial["body"] = _draft_to_html(review_convo.generated_draft)
             initial["entry_date"] = review_convo.entry_date
+        else:
+            # Draft-aware Just Write: resume the typed channel of today's shared draft,
+            # so a refresh / logout / device switch never loses a word (§3/§11/§13).
+            bound = self._bound_draft()
+            if bound is not None and bound.written_body and not people_param:
+                initial["body"] = bound.written_body
+                initial["entry_date"] = bound.entry_date
 
         return initial
 
@@ -485,11 +492,20 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
 
         response = super().form_valid(form)
 
-        # Link the source conversation and mark it completed (the entry is the artifact).
+        # Link the source draft and mark it completed — a draft is disposed only when
+        # the user saves the final journal (§11 "explicit disposal only"). Review flow
+        # completes its conversation; Just Write completes today's shared draft (a pure
+        # written draft — a conversation draft finishes via Finish & Review, not here).
         if review_convo is not None:
             review_convo.resulting_entry = self.object
             review_convo.state = review_convo.STATE_COMPLETED
             review_convo.save(update_fields=["resulting_entry", "state", "updated_at"])
+        else:
+            bound = self._bound_draft()
+            if bound is not None and not bound.has_user_content:
+                bound.resulting_entry = self.object
+                bound.state = bound.STATE_COMPLETED
+                bound.save(update_fields=["resulting_entry", "state", "updated_at"])
 
         # Fire intelligence chain (SAE → PIE → PRIE)
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence
@@ -602,6 +618,17 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
         # travels with the user (docs/WLJ_JOURNAL_EXPERIENCE.md §11).
         context["journal_draft"] = _current_journal_draft(self.request.user)
 
+        # Draft-aware Just Write (M-D2): the editor autosaves the typed channel into
+        # today's shared draft so nothing is ever lost. When that draft also holds a
+        # conversation, finishing must compose BOTH channels — so the editor offers
+        # "Finish & Review" (generate) instead of a direct write-only Save.
+        context["draft_mode"] = self._draft_aware()
+        if context["draft_mode"]:
+            context["draft_autosave_url"] = reverse("journal:draft_autosave")
+            context["draft_finish_url"] = reverse("journal:write_together_finish")
+            bound = self._bound_draft()
+            context["draft_has_conversation"] = bool(bound and bound.has_user_content)
+
         return context
 
     def _journal_methods_enabled(self):
@@ -609,6 +636,26 @@ class EntryCreateView(HelpContextMixin, SaveAddAnotherMixin, LoginRequiredMixin,
             return bool(self.request.user.preferences.is_feature_enabled("journal", "write_together"))
         except Exception:
             return False
+
+    def _draft_aware(self):
+        """Whether this editor autosaves into today's shared Journal Draft. True for
+        plain Just Write when the preview is on — never for editing, AI-camera scans,
+        or the conversation-review screen (those are their own flows)."""
+        if not _write_together_enabled(self.request.user):
+            return False
+        if self.request.GET.get("source") == "ai_camera":
+            return False
+        if self._review_conversation() is not None:
+            return False
+        return True
+
+    def _bound_draft(self):
+        """Today's ACTIVE draft this editor autosaves into (draft-aware mode), or None.
+        Never creates one — the first autosave keystroke does that."""
+        if not self._draft_aware():
+            return None
+        from .services.journal_conversation import _find_active_today
+        return _find_active_today(self.request.user)
 
     def _review_conversation(self):
         """The Write Together conversation being reviewed, if ?from_conversation=<id>."""
@@ -723,6 +770,31 @@ class WriteTogetherFinishView(LoginRequiredMixin, View):
             return redirect("journal:write_together")
         generate_entry(request.user, convo)
         return redirect(reverse("journal:entry_create") + f"?from_conversation={convo.pk}")
+
+
+class JournalDraftAutosaveView(LoginRequiredMixin, View):
+    """Quietly autosave the Just Write channel into today's shared Journal Draft
+    (§3/§11: 'autosave-to-draft runs quietly so a crash never costs work').
+
+    Request-path safe: a single indexed-row write via the service layer, never a
+    heavy call. Never creates a draft for empty content. Returns the draft id so the
+    client can reflect saved state; the user still Saves explicitly to mint the entry.
+    """
+
+    http_method_names = ["post"]
+
+    def post(self, request, *args, **kwargs):
+        if not _write_together_enabled(request.user):
+            return JsonResponse({"error": "not_available"}, status=404)
+        try:
+            payload = json.loads((request.body or b"").decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        from .services.journal_conversation import save_written_body
+        convo = save_written_body(request.user, payload.get("body", ""))
+        if convo is None:
+            return JsonResponse({"ok": True, "draft_id": None})
+        return JsonResponse({"ok": True, "draft_id": convo.pk})
 
 
 class WriteTogetherStyleView(LoginRequiredMixin, View):

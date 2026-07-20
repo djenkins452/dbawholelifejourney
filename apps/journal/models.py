@@ -349,6 +349,11 @@ class JournalConversation(UserOwnedModel):
     # Ordered list of {"role": "assistant"|"user", "text": str}. Persisted every turn.
     transcript = models.JSONField(default=list, blank=True)
     generated_draft = models.TextField(blank=True, default="")
+    # Free-written prose from Just Write — sanitized rich-text HTML, autosaved as the
+    # user types (§3/§11/§13). The three methods share ONE draft: this is the typed
+    # channel, `transcript` is the spoken/collaborative channel. Both compose into the
+    # single JournalEntry at Save (see generate_entry).
+    written_body = models.TextField(blank=True, default="")
     resulting_entry = models.ForeignKey(
         "journal.JournalEntry",
         null=True,
@@ -376,5 +381,19 @@ class JournalConversation(UserOwnedModel):
 
     @property
     def has_user_content(self):
+        """True when the user has actually said something in the CONVERSATION channel
+        (transcript). Distinct from written prose — see ``has_written_content``."""
         return any(t.get("role") == self.ROLE_USER and (t.get("text") or "").strip()
                    for t in (self.transcript or []))
+
+    @property
+    def has_written_content(self):
+        """True when the user has typed free prose (Just Write channel)."""
+        from apps.core.rich_text import rich_text_to_plaintext
+        return bool(rich_text_to_plaintext(self.written_body or "").strip())
+
+    @property
+    def has_content(self):
+        """True when the draft has ANY user content — spoken/collaborative or typed.
+        This is what makes a draft 'in progress' and resumable."""
+        return self.has_user_content or self.has_written_content

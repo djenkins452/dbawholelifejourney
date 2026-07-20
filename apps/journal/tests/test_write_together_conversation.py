@@ -383,3 +383,162 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         resp = self.client.post(self.finish_url)
         # disabled → redirected away, never generates
         self.assertEqual(resp.status_code, 302)
+
+
+class UnifiedDraftTests(JournalTestMixin, TestCase):
+    """M-D2/M-D3: all three modes contribute to ONE draft. Just Write autosaves the
+    typed channel into today's shared draft; Finish & Review composes both channels."""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = self.create_user()
+        self.create_url = reverse("journal:entry_create")
+        self.autosave_url = reverse("journal:draft_autosave")
+        self.finish_url = reverse("journal:write_together_finish")
+
+    def _enable(self):
+        prefs = self.user.preferences
+        prefs.journal_features = dict(prefs.journal_features or {})
+        prefs.journal_features["write_together"] = True
+        prefs.personal_assistant_enabled = True
+        prefs.save()
+
+    def _today(self):
+        from apps.core.utils import get_user_today
+        return get_user_today(self.user)
+
+    # --- autosave -----------------------------------------------------------
+
+    def test_autosave_creates_and_updates_written_draft(self):
+        self._enable()
+        self.login_user()
+        resp = self.client.post(self.autosave_url,
+                                data=json.dumps({"body": "<p>Drove up the coast.</p>"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json().get("draft_id"))
+        convo = JournalConversation.objects.get(user=self.user, entry_date=self._today())
+        self.assertIn("coast", convo.written_body)
+        self.assertTrue(convo.has_written_content)
+        self.assertTrue(convo.has_content)
+        # a second autosave updates the same row (one draft)
+        resp2 = self.client.post(self.autosave_url,
+                                 data=json.dumps({"body": "<p>Drove up the coast with Dad.</p>"}),
+                                 content_type="application/json")
+        self.assertEqual(resp2.json()["draft_id"], convo.pk)
+        self.assertEqual(JournalConversation.objects.filter(user=self.user).count(), 1)
+
+    def test_autosave_does_not_fabricate_empty_draft(self):
+        self._enable()
+        self.login_user()
+        resp = self.client.post(self.autosave_url,
+                                data=json.dumps({"body": "<p><br></p>"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNone(resp.json().get("draft_id"))
+        self.assertFalse(JournalConversation.objects.filter(user=self.user).exists())
+
+    def test_autosave_sanitizes_html(self):
+        self._enable()
+        self.login_user()
+        self.client.post(self.autosave_url,
+                         data=json.dumps({"body": "<p>ok</p><script>alert(1)</script>"}),
+                         content_type="application/json")
+        convo = JournalConversation.objects.get(user=self.user)
+        self.assertNotIn("<script>", convo.written_body)
+
+    def test_autosave_404_when_disabled(self):
+        self.login_user()
+        resp = self.client.post(self.autosave_url,
+                                data=json.dumps({"body": "<p>x</p>"}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 404)
+
+    # --- draft-aware editor -------------------------------------------------
+
+    def test_editor_prefills_written_body_and_enables_autosave(self):
+        self._enable()
+        JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>Lunch notes.</p>",
+        )
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertContains(resp, "Lunch notes.")
+        self.assertContains(resp, "draft/autosave")  # autosave wired
+
+    def test_just_write_save_completes_written_draft(self):
+        self._enable()
+        draft = JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>My day.</p>",
+        )
+        self.login_user()
+        resp = self.client.post(self.create_url, {
+            "title": "", "body": "<p>My day, saved.</p>",
+            "entry_date": self._today().isoformat(),
+        })
+        self.assertEqual(resp.status_code, 302)
+        entry = JournalEntry.objects.get(user=self.user)
+        draft.refresh_from_db()
+        self.assertEqual(draft.state, JournalConversation.STATE_COMPLETED)
+        self.assertEqual(draft.resulting_entry_id, entry.id)
+
+    def test_editor_with_conversation_offers_finish_not_direct_save(self):
+        # A draft that also holds a conversation must finish via Finish & Review so the
+        # conversation is not dropped — the direct write-only Save is replaced.
+        self._enable()
+        convo = JournalConversation.objects.create(user=self.user, entry_date=self._today())
+        convo.add_turn(convo.ROLE_USER, "We drove up the coast.")
+        convo.save()
+        self.login_user()
+        resp = self.client.get(self.create_url)
+        self.assertContains(resp, "jc-finish-form")
+        self.assertContains(resp, "combine your notes and your conversation")
+
+    # --- generation composes both channels ----------------------------------
+
+    @patch("apps.journal.services.journal_conversation.AIService")
+    def test_generate_composes_transcript_and_written_notes(self, MockAI):
+        from apps.journal.services.journal_conversation import generate_entry
+        MockAI.return_value._call_api.return_value = "We drove up the coast and fixed the fence."
+        self._enable()
+        convo = JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>Also: fixed the fence.</p>",
+        )
+        convo.add_turn(convo.ROLE_USER, "We drove up the coast.")
+        convo.save()
+        generate_entry(self.user, convo)
+        # the model was asked to weave in the typed notes
+        call = MockAI.return_value._call_api.call_args
+        user_prompt = call.args[1] if len(call.args) > 1 else call.kwargs.get("user_prompt", "")
+        self.assertIn("fixed the fence", user_prompt)
+        self.assertIn("drove up the coast", user_prompt.lower())
+
+    @patch("apps.journal.services.journal_conversation.AIService")
+    def test_pure_written_generate_passes_through_without_rewrite(self, MockAI):
+        # Pure Just Write has no conversation → never send the user's prose to be
+        # rewritten; it passes straight through to review (fidelity).
+        from apps.journal.services.journal_conversation import generate_entry
+        self._enable()
+        convo = JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>My own words, untouched.</p>",
+        )
+        draft = generate_entry(self.user, convo)
+        self.assertIn("My own words, untouched.", draft)
+        MockAI.return_value._call_api.assert_not_called()
+        convo.refresh_from_db()
+        self.assertEqual(convo.state, JournalConversation.STATE_REVIEWING)
+
+    def test_written_only_draft_shows_card(self):
+        # A pure-written draft (no conversation) is still an in-progress draft.
+        self._enable()
+        JournalConversation.objects.create(
+            user=self.user, entry_date=self._today(),
+            written_body="<p>Started writing.</p>",
+        )
+        self.login_user()
+        resp = self.client.get(reverse("journal:entry_list"))
+        self.assertContains(resp, "journal-draft-banner")

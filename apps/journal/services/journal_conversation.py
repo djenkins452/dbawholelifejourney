@@ -164,6 +164,39 @@ def get_or_create_active(user):
     return convo
 
 
+def _find_active_today(user):
+    """Today's ACTIVE draft, or None — never creates one (autosave must not fabricate
+    an empty draft just because the editor was opened)."""
+    from apps.journal.models import JournalConversation
+    from apps.core.utils import get_user_today
+    return (
+        JournalConversation.objects
+        .filter(user=user, state=JournalConversation.STATE_ACTIVE, entry_date=get_user_today(user))
+        .order_by("-updated_at")
+        .first()
+    )
+
+
+def save_written_body(user, html):
+    """Autosave the Just Write channel into today's shared draft (§3/§11/§13).
+
+    Sanitized-HTML in, request-path safe (a single indexed-row write — no heavy call).
+    Does NOT create a draft for empty content, so merely opening the editor can't
+    fabricate a draft. Returns the draft, or None when there was nothing to save.
+    """
+    from apps.core.rich_text import sanitize_rich_html, rich_text_to_plaintext
+    clean = sanitize_rich_html(html or "")
+    has_text = bool(rich_text_to_plaintext(clean).strip())
+    convo = _find_active_today(user)
+    if convo is None and not has_text:
+        return None
+    if convo is None:
+        convo = get_or_create_active(user)
+    convo.written_body = clean
+    convo.save(update_fields=["written_body", "updated_at"])
+    return convo
+
+
 def ensure_opening(user, convo):
     """If the conversation hasn't started, persist a simple, purpose-neutral opening.
 
@@ -209,13 +242,32 @@ def generate_entry(user, convo):
     Stores the draft on the conversation and moves it to REVIEWING. Returns the
     draft text (plain prose) for the review step. Never raises to the caller.
     """
+    written_plain = _written_notes_text(convo)
+
+    # Pure Just Write (no conversation): the user's own prose IS the journal — never
+    # rewrite their words (fidelity, §12). Pass it through to review unchanged.
+    if not convo.has_user_content:
+        draft = written_plain
+        convo.generated_draft = draft
+        convo.state = convo.STATE_REVIEWING
+        convo.save(update_fields=["generated_draft", "state", "updated_at"])
+        return draft
+
     system = _GEN_SYSTEM + _voice_samples_block(user)
     transcript = _transcript_as_text(convo)
-    user_prompt = (
-        "Here is the conversation with the user about their day:\n\n"
-        f"{transcript}\n\n"
-        "Write their journal entry in their voice, following the rules exactly."
-    )
+    parts = [
+        "Here is the conversation with the user about their day:\n\n",
+        f"{transcript}\n\n",
+    ]
+    if written_plain:
+        # The typed channel of the SAME draft — weave it in as their own words (§13).
+        parts.append(
+            "The user also typed these notes directly into this same journal — weave "
+            "them in as their own words (don't repeat anything the conversation already "
+            f"covers):\n\n{written_plain}\n\n"
+        )
+    parts.append("Write their journal entry in their voice, following the rules exactly.")
+    user_prompt = "".join(parts)
     draft = _call(user, system, user_prompt, max_tokens=700, temperature=0.5,
                   endpoint="journal_write_together_generate")
     draft = (draft or "").strip()
@@ -335,6 +387,12 @@ def _history_for_api(convo, exclude_last=False):
         if role in ("user", "assistant") and content:
             out.append({"role": role, "content": content})
     return out
+
+
+def _written_notes_text(convo):
+    """Plain-text of the Just Write channel (the typed notes on this draft)."""
+    from apps.core.rich_text import rich_text_to_plaintext
+    return rich_text_to_plaintext(convo.written_body or "").strip()
 
 
 def _transcript_as_text(convo):

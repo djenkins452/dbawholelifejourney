@@ -210,6 +210,10 @@
             </details>
 
             <div class="form-actions">
+                {% comment %} When this draft also holds a conversation, the typed-only Save is
+                replaced by Finish & Review (below), which composes BOTH channels — so no direct
+                Save is rendered here (rendering it hidden fails: .btn's display overrides [hidden]). {% endcomment %}
+                {% if not draft_has_conversation %}
                 <button type="submit" class="btn btn-primary" data-testid="journal-entry-save-button">
                     {% if is_edit %}Save Changes{% else %}Save Journal{% endif %}
                 </button>
@@ -218,11 +222,23 @@
                     Save &amp; Add Another
                 </button>
                 {% endif %}
+                {% endif %}
                 <a href="{% if is_edit %}{% url 'journal:entry_detail' object.pk %}{% else %}{% url 'journal:entry_list' %}{% endif %}" class="btn btn-ghost" data-testid="journal-cancel-button">
                     Cancel
                 </a>
             </div>
         </form>
+
+        {% if draft_has_conversation %}
+        {% comment %} Combine the typed notes with the day's conversation into one journal. {% endcomment %}
+        <div class="jc-combine">
+            <p class="jc-combine-note">This draft also has a conversation with your Chief of Staff. Finishing will combine your notes and your conversation into one journal.</p>
+            <form method="post" action="{{ draft_finish_url }}" id="jc-finish-form" class="jc-combine-form">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary" id="jc-finish-btn">Finish &amp; Review</button>
+            </form>
+        </div>
+        {% endif %}
 
     </div>
 </div>
@@ -635,4 +651,70 @@ document.addEventListener('DOMContentLoaded', function() {
     // wanted later, it should be an explicit, opt-in user preference — not implicit local state.)
 });
 </script>
+
+{% if draft_mode %}
+<style nonce="{{ csp_nonce }}">
+.jc-combine {
+    margin-top: var(--space-5); padding: var(--space-4) var(--space-5);
+    border: 1px solid color-mix(in srgb, var(--color-accent) 22%, var(--color-border));
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--color-accent) 6%, var(--color-surface));
+}
+.jc-combine-note { margin: 0 0 var(--space-3); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.jc-combine-form { margin: 0; }
+</style>
+<script nonce="{{ csp_nonce }}">
+// Just Write — quiet autosave into today's shared Journal Draft (§3/§11). The rich
+// editor mirrors its HTML into #id_body on every update; we persist changes without
+// ever interrupting the writer. Explicit Save still mints the JournalEntry.
+document.addEventListener('DOMContentLoaded', function() {
+    const AUTOSAVE_URL = '{{ draft_autosave_url }}';
+    const body = document.getElementById('id_body');
+    if (!body || !AUTOSAVE_URL) return;
+    const csrfEl = document.querySelector('.entry-form [name=csrfmiddlewaretoken]')
+                || document.querySelector('[name=csrfmiddlewaretoken]');
+    const csrf = csrfEl ? csrfEl.value : '';
+    let lastSaved = body.value;
+    let inFlight = false;
+
+    function save(useKeepalive) {
+        const current = body.value;
+        if (current === lastSaved) return Promise.resolve();
+        if (inFlight && !useKeepalive) return Promise.resolve();
+        inFlight = true;
+        lastSaved = current;
+        const opts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ body: current })
+        };
+        if (useKeepalive) opts.keepalive = true;
+        return fetch(AUTOSAVE_URL, opts)
+            .then(function() { inFlight = false; })
+            .catch(function() { inFlight = false; lastSaved = ' '; });  // force retry next tick
+    }
+
+    setInterval(function() { save(false); }, 2500);          // only writes when text changed
+    window.addEventListener('pagehide', function() { save(true); });
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') save(true);
+    });
+
+    // Finish & Review (when this draft also holds a conversation) must include the
+    // latest typed notes before generating — flush the autosave, then submit.
+    const finishForm = document.getElementById('jc-finish-form');
+    if (finishForm) {
+        let finishing = false, didSubmit = false;
+        function doSubmit() { if (didSubmit) return; didSubmit = true; finishing = true; finishForm.submit(); }
+        finishForm.addEventListener('submit', function(e) {
+            if (finishing) return;                            // let the programmatic submit through
+            if (body.value === lastSaved) return;             // already saved → submit normally
+            e.preventDefault();
+            save(true).then(doSubmit);
+            setTimeout(doSubmit, 1000);                       // safety if the save hangs
+        });
+    }
+});
+</script>
+{% endif %}
 {% endblock %}

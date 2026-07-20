@@ -6,6 +6,15 @@
 # Last Updated: 2026-07-19 (chore(startup): session close-out — fold CoS Domain Certification Standard into the package; regenerate bootloader (Nutrition ✅ + Journal ✅; Faith next))
 # ================================================================# WLJ Change History
 
+## 2026-07-20 — refine(faith): First Light completion headline — "You sat with Him today" → "You completed today's reading"
+
+**Wording refinement only — no behavioral or architectural change.** After completing a First Light reading day, the quiet-completion confirmation headline claimed something WLJ cannot deterministically know: *"You sat with Him today."* Replaced with the honest, humble statement of what the system actually recorded: **"You completed today's reading."** Guiding principle: *WLJ records what happened; it does not interpret what happened between the user and God.*
+
+- **One string changed** — `.fl-quiet-line` in `templates/faith/journey/day_first_light.html`. Everything else in the quiet-completion panel is untouched: the eyebrow ("Amen"), the verse ("Well done."), the "Rest well, {name}…" line, layout, spacing, and the panel's own hushed dark atmosphere all preserved — the reflective feel is intact.
+- **Verification:** browser-verified with `?just_completed=1` on the reading day across **mobile (375px), desktop, light, and dark** — headline renders in the serif display face (22px), centered and balanced with the eyebrow and verse; wraps to two lines on mobile, one line on desktop; no console errors. `apps.faith.tests.test_first_light` + `apps.faith.journey` = **94 tests pass**.
+
+**Files:** `templates/faith/journey/day_first_light.html`.
+
 ## 2026-07-20 — fix(faith/cos): Faith close-out cleanup round 2 — search ranking, recent-only analysis, dev≠prod lesson
 
 **Faith production-validation cleanup, round 2** (`docs/WLJ_FAITH_TRUTH_CERTIFICATION_REPORT.md` §11). Data-independent LOGIC fixes (values come from PRODUCTION — the authoritative gate). **METHOD LESSON documented:** the local `wlj_dev` DB is **NOT Danny's production truth** — a round-1 harness reported "My dad's health" as his most recent prayer; that is a **dev-only** record (`user_id=1`, `created_via=manual`, user-scoped, zero cross-user leakage), not prod. Local fixture data must never be described as real production truth.

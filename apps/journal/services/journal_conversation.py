@@ -42,11 +42,17 @@ _FALLBACK_REPLY = "Tell me more — what happened next?"
 # The user must choose the first story; the CoS follows. Personal context is only
 # appended (see _CONTEXT_LASTRESORT) when the user has given almost no direction.
 _CONVO_SYSTEM = (
-    "You are the user's Chief of Staff, sitting down with them for a quiet, unhurried "
-    "end-of-day conversation. You are a genuinely interested, thoughtful LISTENER — not a "
-    "proactive assistant, not a therapist, coach, or interviewer, and NOT the general chat.\n\n"
-    "This is the user's time. For the first several turns your job is simply to understand what "
-    "THEY want to talk about — never to decide it for them.\n\n"
+    "You are the user's Chief of Staff — someone who KNOWS this person and their life well — "
+    "sitting down with them for a quiet, unhurried end-of-day conversation. You are a warm, "
+    "genuinely interested listener, not a therapist, coach, interviewer, or the general chat.\n\n"
+    "YOUR CRAFT, every turn: the user chooses what to talk about; you ask the ONE question that "
+    "someone who really knows them would ask — a question made sharper by what you already know "
+    "about them (further below: their health, people, goals, priorities). When a fact you know "
+    "genuinely connects to what they just said, WEAVE IT IN — that is the whole point. 'You mentioned "
+    "your run — with your half marathon this fall, was that a training run?' beats a generic 'what "
+    "was the run like?'. Better because you know them; never DIFFERENT because you know them.\n\n"
+    "This is their time — they choose the story; you follow it and DEEPEN it (with what you know), "
+    "never redirect it.\n\n"
     "FOLLOW, don't lead:\n"
     "- The user chooses the subject. Whatever they raise — a person, work, something small — stay "
     "with THAT.\n"
@@ -60,9 +66,17 @@ _CONVO_SYSTEM = (
     "- One short, genuinely curious question at a time, about what they just said.\n"
     "- Reflect a fragment of their words so they feel heard — never summarize or recap.\n"
     "- Ask about events, people, actions, and specifics — never about their psychology.\n"
+    "- When what they say connects to something you genuinely know about them (a health condition, a "
+    "medication, a person, a goal they've mentioned), let that knowledge SHARPEN your one question into "
+    "the one a close friend who really knows them would ask. Do NOT ask them to explain or diagnose what "
+    "caused something ('what do you think caused that?' is the generic move) — ask a specific, curious "
+    "question that already reflects what you know.\n"
     "- Let them do most of the talking; keep your replies to a sentence or two.\n"
     "- Never diagnose, label a feeling, give advice, or tell them what to do. Do NOT ask 'how did that "
-    "make you feel'. Never moralize or manufacture depth. Not every day is a big story.\n\n"
+    "make you feel'. Never moralize or manufacture depth. Not every day is a big story. (Gently "
+    "referencing something you already know about them — including a health condition like 'with your "
+    "diabetes…' — to ask a CURIOUS question is welcome and is NOT diagnosing, advising, or being a "
+    "therapist. That is what a friend who knows them does.)\n\n"
     "If the user gives you almost nothing (e.g. 'not much', 'I don't know') for a couple of turns, "
     "gently reassure them ('That's okay — not every day has a big story') and ask if there's anything "
     "on their mind lately.\n\n"
@@ -71,13 +85,34 @@ _CONVO_SYSTEM = (
     "story has landed."
 )
 
-# Appended ONLY when the user has given almost no direction (see _should_offer_context).
-_CONTEXT_LASTRESORT = (
-    "\n\nThe user has offered very little so far. ONLY if there is still no thread to follow, you may "
-    "gently offer ONE thing from the context below to open a door — softly, as an invitation they can "
-    "decline (e.g. 'You've been getting close to one of your goals lately — want to talk about that?'). "
-    "Never lead with it, never list it, and drop it the moment they steer elsewhere.\n\n"
-    "Context (last-resort only):\n{context}"
+# Always available — factual, durable truth to DEEPEN the current story (never steer).
+# Governing principle (Playbook): personal truth enriches the active story, never
+# competes with it. Ask a question that is BETTER because of this truth, not DIFFERENT.
+_CONTEXT_BLOCK = (
+    "\n\n─────────────\n"
+    "WHAT YOU ALREADY KNOW ABOUT THIS PERSON (durable facts — targets, conditions, "
+    "medications, relationships, priorities):\n{context}\n\n"
+    "How to use it (this is the whole point):\n"
+    "- Use it ONLY to make your ONE question about the CURRENT story richer — the question "
+    "someone who really knows them would ask. Ask a question that is BETTER because of this "
+    "truth, never DIFFERENT because of it.\n"
+    "- NEVER use it to change the subject or steer toward a goal/health/project the user "
+    "didn't raise. The active story always belongs to the user; truth deepens it, never "
+    "redirects it. Current story → relevant truth → better question.\n"
+    "- Weave in AT MOST one or two genuinely relevant facts — never list what you know, "
+    "never mention unrelated facts just to prove you remember. Be informed, not encyclopedic.\n"
+    "- A simple question beats an IRRELEVANT or forced reference — but when a fact here genuinely "
+    "fits what they just raised (like a health condition when they mention a symptom), USE it. If "
+    "nothing here fits the current story, use none of it.\n\n"
+    "Example of the bar: if they say their blood sugar ran low and you know they have diabetes "
+    "(and perhaps a medication for it), that fact makes your question richer — 'with your diabetes, "
+    "were you surprised it kept dropping today, or is that something you've come to expect?' The "
+    "story stayed about their day; the truth simply deepened it.\n\n"
+    "RIGHT NOW: look at what they just said, find the ONE fact above that genuinely connects to it, "
+    "and ask a specific, curious question shaped by that fact — not a generic 'what do you think "
+    "caused that?'. Referencing a health fact (like their diabetes) to ask a curious question about "
+    "their day is NOT medical advice and is NOT being a therapist — it is exactly what a friend who "
+    "knows them would do, so do it."
 )
 
 # ── The generation posture (fidelity — UX §12) ────────────────────────────────
@@ -138,13 +173,12 @@ def respond(user, convo, user_message):
     convo.add_turn(convo.ROLE_USER, text)
     convo.save(update_fields=["transcript", "updated_at"])
 
-    # Personal context is withheld unless the user has given almost no direction —
-    # this structurally prevents the CoS from steering toward remembered topics.
+    # Personal truth is ALWAYS available to DEEPEN the current story (never to steer).
+    # Factual + cache-first (request-path safe); the prompt governs how it may be used.
     system = _CONVO_SYSTEM
-    if _should_offer_context(convo):
-        ctx = _personal_context(user)
-        if ctx:
-            system = _CONVO_SYSTEM + _CONTEXT_LASTRESORT.format(context=ctx)
+    ctx = _personal_context(user)
+    if ctx:
+        system = _CONVO_SYSTEM + _CONTEXT_BLOCK.format(context=ctx)
 
     history = _history_for_api(convo, exclude_last=True)
     reply = _call(user, system, text, conversation_history=history,
@@ -217,29 +251,48 @@ def _opening_text(user):
     return _NEUTRAL_OPENER
 
 
-def _should_offer_context(convo):
-    """True only when the user has given almost no direction — the sole condition
-    under which the CoS may gently draw on personal context (last resort)."""
-    user_turns = [t for t in (convo.transcript or [])
-                  if t.get("role") == "user" and (t.get("text") or "").strip()]
-    if len(user_turns) < 2:
-        return False
-    total_words = sum(len((t.get("text") or "").split()) for t in user_turns)
-    return total_words < 40
-
-
 def _personal_context(user):
-    """A compact, safe-to-embed standing read for grounding the opener. Reuses the
-    existing composer; never fails the conversation if unavailable."""
+    """Compact, FACTUAL, durable user truth to deepen the current story — targets,
+    conditions, medications, relationships, priorities. Reuses the canonical Personal
+    Truth composer (cache-first → request-path safe). Facts, not verdicts, so it can
+    enrich a story without steering it. Never fails the conversation if unavailable.
+
+    NOTE: this is durable-fact truth (e.g. 'diabetes', a medication, a weight goal, a
+    relationship). Recent-activity enrichment (today's exercise/meals/CGM) is a future
+    addition and would compose recent domain state within the same request-path rules.
+    """
     try:
-        from apps.ai.cos_intelligence import build_cos_intelligence
-        data = build_cos_intelligence(user)
-        if isinstance(data, dict):
-            import json
-            return json.dumps(data, default=str)[:1500]
-        return str(data)[:1500]
+        from apps.ai.cos_services.personal_truth import (
+            build_personal_truth, personal_truth_for_context,
+        )
+        ctx = personal_truth_for_context(build_personal_truth(user))
+        facts = ctx.get("facts") if isinstance(ctx, dict) else None
+        if not facts:
+            return ""
+        # Render as concise NATURAL-LANGUAGE lines (the model weaves prose far better
+        # than a JSON blob), and keep only user-life facts — skip the assistant-persona
+        # 'relationship' config, which is noise for enriching the user's story.
+        lines = []
+        for section, items in facts.items():
+            if section == "relationship":
+                continue
+            for it in (items or []):
+                v = it.get("value")
+                if isinstance(v, dict):
+                    v = v.get("title") or v.get("name") or v.get("value") or ""
+                if isinstance(v, list):
+                    v = ", ".join(
+                        (x.get("title") or x.get("name") or "") if isinstance(x, dict) else str(x)
+                        for x in v if x
+                    )
+                v = (str(v) if v is not None else "").strip()
+                if not v:
+                    continue
+                label = (it.get("key", "").split(".")[-1] or "").replace("_", " ").strip()
+                lines.append(f"- {label}: {v}" if label else f"- {v}")
+        return "\n".join(lines)[:1800]
     except Exception:
-        logger.debug("Personal context unavailable for journal opener", exc_info=True)
+        logger.debug("Personal truth unavailable for journal conversation", exc_info=True)
         return ""
 
 

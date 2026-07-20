@@ -99,23 +99,26 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         self.assertEqual(len(convo.transcript), 1)
         self.assertEqual(convo.transcript[0]["role"], "assistant")
 
-    def test_context_is_withheld_until_user_gives_little(self):
-        # Personal context (last resort) is only offered after >=2 sparse user turns.
-        from apps.journal.services.journal_conversation import _should_offer_context
-
-        class _C:
-            def __init__(self, transcript):
-                self.transcript = transcript
-
-        self.assertFalse(_should_offer_context(_C([])))
-        self.assertFalse(_should_offer_context(_C([{"role": "user", "text": "hi"}])))
-        # a rich first answer → keep following the user, no context
-        long = " ".join(["word"] * 50)
-        self.assertFalse(_should_offer_context(_C([
-            {"role": "user", "text": long}, {"role": "user", "text": "more stuff here"}])))
-        # two sparse turns → last-resort context is allowed
-        self.assertTrue(_should_offer_context(_C([
-            {"role": "user", "text": "not much"}, {"role": "user", "text": "i dunno"}])))
+    @patch("apps.ai.cos_services.personal_truth.personal_truth_for_context",
+           return_value={"facts": {"health": [{"key": "condition", "value": "diabetes"}]}})
+    @patch("apps.ai.cos_services.personal_truth.build_personal_truth", return_value={"status": "ready"})
+    @patch("apps.journal.services.journal_conversation.AIService")
+    def test_conversation_prompt_always_supplies_and_governs_personal_truth(self, MockAI, _bpt, _ptfc):
+        # Personal truth is available EVERY turn (no gate) and the prompt governs it:
+        # deepen the current story, never redirect. (Fixes the earlier over-correction.)
+        MockAI.return_value._call_api.return_value = "What was that like?"
+        self._enable()
+        self.login_user()
+        self.client.post(
+            self.msg_url,
+            data=json.dumps({"message": "My blood sugar kept running low today."}),
+            content_type="application/json",
+        )
+        call = MockAI.return_value._call_api.call_args
+        system_prompt = call.args[0] if call.args else call.kwargs.get("system", "")
+        self.assertIn("diabetes", system_prompt)                       # truth supplied every turn
+        self.assertIn("BETTER because of this truth", system_prompt)   # deepen-not-redirect guidance
+        self.assertIn("never DIFFERENT because of it", system_prompt)
 
     # --- a turn + durability ------------------------------------------------
 

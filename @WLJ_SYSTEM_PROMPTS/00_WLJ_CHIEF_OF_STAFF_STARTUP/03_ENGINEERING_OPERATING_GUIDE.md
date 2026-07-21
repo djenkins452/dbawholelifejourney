@@ -14,6 +14,23 @@ Supersedes and merges the retired `00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION
 
 Velocity comes from collapsing *investigation* time, not from skipping the gate before a *write*. And one measure sits above the rest: every change exists to make the **WLJ Chief of Staff** something a paying customer trusts enough to rely on every day. Correct engineering, passing tests, and clean architecture are necessary but never sufficient — they are the means; a *more trusted Chief of Staff* is the end. **The implementation is not the product; the trusted conversation is.**
 
+### 1a. The investigation prime directive — preserve truth ownership first, then improve the Chief of Staff
+
+**The first responsibility of every architectural investigation is to preserve and strengthen WLJ's deterministic truth architecture. Evaluate truth-preservation *before* any other architectural consideration.** The order is not negotiable:
+
+1. **Preserve WLJ as the single deterministic owner of truth.** Start every investigation here — not with the Chief of Staff, the experience, or the feature.
+2. **If a proposal weakens, duplicates, bypasses, or blurs WLJ's ownership of truth, it is rejected or redesigned before anything else is discussed.** This gate runs first, and a proposal that fails it does not proceed on the strength of its product upside.
+3. **Only after deterministic truth is fully preserved** do we evaluate improvements to the Chief of Staff's reasoning, behavior, experience, workflows, conversations, navigation, or product capabilities.
+
+The two halves of the system evolve on **different clocks**: the **Chief of Staff is expected to change continuously** — smarter, more helpful, more proactive, more natural; **WLJ's ownership of deterministic truth is expected to stay stable**. Progress means a more capable Chief of Staff standing on an *increasingly stable* truth foundation — never a truth foundation reshaped to make the assistant look smarter.
+
+Every investigation therefore assumes, by default:
+- **improve WLJ truth first**; **expose existing truth before inventing new truth** (IV.2, IV.4);
+- **preserve the deterministic authorities** — **one authority per truth domain** (III.1), **one execution authority** (III.2), **Current Context authority** (II), **Conversation State authority** (the working-state index, `03 §3e/§3f`);
+- **never move a deterministic responsibility into the model** (I.1–I.4). The model reasons over truth; it never becomes the truth.
+
+**The default question that opens every investigation is: _"Can we improve the Chief of Staff without changing who owns truth?"_** The expected answer is almost always **yes** — and the investigation's job is to find that path. If the honest answer is **no**, the investigation must clearly *prove why*, and any change to who owns truth is an architecture change subject to Constitutional Review (default NO, `02 §3`). *(This is why the CoS-platform investigations of 2026-07-20/21 landed on composition and elimination — bidirectional Current Context, one destination authority — rather than any new subsystem that would have re-owned truth: the truth-preservation gate ran first and the reuse path was found. See `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md`.)*
+
 ## 2. Product-first engineering
 
 Before any architecture review, run the **product review**, in this order:

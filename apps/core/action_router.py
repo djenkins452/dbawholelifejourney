@@ -144,8 +144,14 @@ _SUBJECT_FALLBACK: dict[str, tuple[str, str]] = {
     "calendar":   ("life:calendar",            "Open calendar"),
     "task":       ("life:task_list",           "Open tasks"),
 }
+# Canonical module/workspace home authority = ModuleDefinition.route_name
+# (apps/users/models.py). These entries MUST agree with it; this hardcoded copy
+# exists only as a zero-query briefing fallback. Health corrected 2026-07-21 from
+# the drifted "health:home" (/health/physical/, a sub-page) to the canonical
+# "health:landing" (/health/) — matching ModuleDefinition, MODULE_URL_MAP, and the
+# nav chrome's CORRECT_ROUTES. Locked by test_module_home_authority.
 _MODULE_HOME: dict[str, tuple[str, str]] = {
-    "health":  ("health:home",   "Open health"),
+    "health":  ("health:landing", "Open health"),
     "faith":   ("faith:home",    "Open faith"),
     "purpose": ("purpose:home",  "Open goals"),
     "journal": ("journal:home",  "Open your journal"),

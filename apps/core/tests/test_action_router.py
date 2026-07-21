@@ -43,9 +43,14 @@ class ResolveRouteTests(_RouterTestBase):
 
     def test_module_home_fallback_when_subject_unknown(self):
         # No specific subject keyword, but a known module → land on its home.
+        # Canonical Health workspace home is health:landing (/health/), NOT the
+        # health:home sub-page (/health/physical/). Corrected 2026-07-21 to match
+        # the canonical ModuleDefinition.route_name authority (Phase A drift fix;
+        # see docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md Part III). This
+        # assertion previously codified the drift.
         r = resolve_route(text="Overtraining risk detected", module="health")
         self.assertEqual(r.action_type, ActionType.OPEN_WORKFLOW)
-        self.assertEqual(r.destination_url, "/health/physical/")
+        self.assertEqual(r.destination_url, "/health/")
 
     def test_as_dict_shape(self):
         d = resolve_route(destination_url="/journal/").as_dict()

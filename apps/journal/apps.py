@@ -12,3 +12,4 @@ class JournalConfig(AppConfig):
 
     def ready(self):
         import apps.journal.signals  # noqa: F401
+        import apps.journal.page_summaries  # noqa: F401  (self-registers Current Context providers)

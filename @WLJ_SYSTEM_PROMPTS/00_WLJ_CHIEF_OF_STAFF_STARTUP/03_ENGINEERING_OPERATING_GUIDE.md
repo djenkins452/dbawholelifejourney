@@ -14,7 +14,7 @@ Supersedes and merges the retired `00_CORE_STARTUP/WLJ CLAUDE OPUS 4.8 EXECUTION
 
 Velocity comes from collapsing *investigation* time, not from skipping the gate before a *write*. And one measure sits above the rest: every change exists to make the **WLJ Chief of Staff** something a paying customer trusts enough to rely on every day. Correct engineering, passing tests, and clean architecture are necessary but never sufficient — they are the means; a *more trusted Chief of Staff* is the end. **The implementation is not the product; the trusted conversation is.**
 
-### 1a. The investigation prime directive — preserve truth ownership first, then improve the Chief of Staff
+### 1a. The investigation prime directive — build upward from the lowest deterministic layer
 
 **The first responsibility of every architectural investigation is to preserve and strengthen WLJ's deterministic truth architecture. Evaluate truth-preservation *before* any other architectural consideration.** The order is not negotiable:
 
@@ -30,6 +30,15 @@ Every investigation therefore assumes, by default:
 - **never move a deterministic responsibility into the model** (I.1–I.4). The model reasons over truth; it never becomes the truth.
 
 **The default question that opens every investigation is: _"Can we improve the Chief of Staff without changing who owns truth?"_** The expected answer is almost always **yes** — and the investigation's job is to find that path. If the honest answer is **no**, the investigation must clearly *prove why*, and any change to who owns truth is an architecture change subject to Constitutional Review (default NO, `02 §3`). *(This is why the CoS-platform investigations of 2026-07-20/21 landed on composition and elimination — bidirectional Current Context, one destination authority — rather than any new subsystem that would have re-owned truth: the truth-preservation gate ran first and the reuse path was found. See `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md`.)*
+
+**Build upward from the lowest deterministic layer.** Truth-first is the first rung of a full **ascending order** — the layers of `§3` climbed from the bottom: **① Truth → ② Current Context → ③ Reasoning → ④ Actions → ⑤ Experience.** An investigation *starts* at ① and only rises to a higher layer when the layers beneath it genuinely cannot solve the problem:
+- **① Truth** — preserve WLJ as the single deterministic truth owner; protect one authority per truth domain (III.1), deterministic calculations (I.3), and deterministic execution (III.2, I.7); never move a deterministic responsibility into the model (I.1–I.4).
+- **② Current Context** — preserve and *strengthen* the deterministic understanding of what the user is viewing and doing (Article II); prefer improving deterministic context over adding a higher-level reasoning system. Most "the assistant didn't know what I meant" problems are a Current-Context-coverage gap, not a reasoning gap.
+- **③ Reasoning** — only once ① and ② hold, make the Chief of Staff more helpful, proactive, conversational, and human — reasoning *over* deterministic truth, never *replacing* it.
+- **④ Actions** — improve the safe, audited execution path only after ①–③ hold.
+- **⑤ Experience** — presentation, workflows, navigation, and conversation last, and only while ①–④ remain intact.
+
+So the second default question of every investigation is: **_"Can this problem be solved by strengthening a lower deterministic layer instead of changing a higher one?"_** — again, almost always **yes**. This is the **bottom-up construction** order for a *new* investigation or feature; it is the mirror of `§3`'s **top-down diagnosis** order (for a *reported failure*, find the first layer that *broke*, from the top). Same five layers, opposite direction, different job — climb up when building, look down when diagnosing.
 
 ## 2. Product-first engineering
 

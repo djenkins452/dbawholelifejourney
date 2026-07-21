@@ -3543,19 +3543,32 @@ class IntakeListView(LoginRequiredMixin, ListView):
         return context
 
 
-class IntakeDetailView(LoginRequiredMixin, TemplateView):
+class IntakeDetailView(CurrentContextMixin, LoginRequiredMixin, TemplateView):
     """
     View intake details and history.
     """
 
     template_name = "health/intake/intake_detail.html"
 
+    def _get_intake(self):
+        # Fetched once; reused by both the template context and the Current Context
+        # declaration (get_current_context_object) — one query, one source of truth.
+        if not hasattr(self, "_intake_obj"):
+            self._intake_obj = get_object_or_404(
+                Intake.objects.filter(user=self.request.user),
+                pk=self.kwargs["pk"],
+            )
+        return self._intake_obj
+
+    def get_current_context_object(self):
+        # Current Context Contract — this TemplateView isn't a DetailView, so it declares
+        # its focused canonical object explicitly. CurrentContextMixin emits the
+        # <meta name="wlj-context"> so the medication is what the assistant sees on screen.
+        return self._get_intake()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        intake_obj = get_object_or_404(
-            Intake.objects.filter(user=self.request.user),
-            pk=self.kwargs["pk"],
-        )
+        intake_obj = self._get_intake()
         context["intake"] = intake_obj
         context["schedules"] = intake_obj.schedules.all()
 

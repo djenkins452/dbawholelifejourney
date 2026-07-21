@@ -424,3 +424,52 @@ Traced to real routes: `health:landing` → `HealthLandingView` at `""` = **`/he
 ## DEFERRED to a later increment (with reason)
 
 The **three-central-resolver merge** (`action_router` + `execution/action_routing` + `ai_orchestrator/url_resolver` → one internal resolver), **`NAVIGATION_HINTS` removal**, and the **duplicate-scorer/keyword-bridge dedup** are behavior-touching across user-facing CoS/executive/nav surfaces. Per the milestone's own completion gate ("runtime validation proves behavior preservation"), those require **production behavior validation that only the operator (Danny) can perform** — WLJ sessions have no prod access — and a clean concurrency window. They are sequenced next, each as its own parity-tested increment. This is a bounded, honest first cut (V.2 blast-radius discipline), not the whole of Phase A.
+
+---
+---
+
+# PART V — Phase A.5: Current Context Certification (increment 1)
+
+**Why this milestone:** the Part III/IV work proved the real blocker to bidirectional Current Context is **Current Context coverage** — many workspaces don't declare deterministic context, so a future `reveal(target)` would have nothing precise to target and `already_visible` could rarely fire. This milestone **strengthens the deterministic foundation only** — no `reveal`, no outbound/Desired Context, no client adapter, no CoS/routing/nav/presentation change (Article II only).
+
+## The correcting structural finding
+
+`UserOwnedModel(NarratableMixin,…)` (`apps/core/models.py:183`) makes **every `UserOwnedModel` Narratable**, and `base.html:18-21` **auto-emits `object.context_ref` for any `DetailView` of one** — zero per-view code. So **object-detail pages are largely auto-certified already** (an earlier trace's claim that journal entries "aren't targets" was wrong — `EntryDetailView` is a `DetailView` of a `UserOwnedModel` and auto-declares). The real gaps concentrate in **(a) overview/summary pages** (need a `@register_page_summary` provider) and **(b) object pages built as `TemplateView`/`View`** (no `object` in context → need `CurrentContextMixin`).
+
+## Certification matrix (as-built inventory; full per-page tables in the session investigation)
+
+| Class | Meaning | Count (approx.) | Examples |
+|---|---|---|---|
+| **CERTIFIED** | declares correct CC | large | All `DetailView`-of-`UserOwnedModel` object pages (journal entry, goals, projects, habits, reflections, recipes, finance accounts/txns/goals, faith prayer/milestone/study-note, legacy person/place/milestone/media, note, people person); registered summaries `health.weight/nutrition/body_intelligence`, `faith.home/prayers/reading_plans`, `meals.leftovers`, `artifacts.library/detail`; `WorkoutDetailView` (`CurrentContextMixin`), Purpose home/goal-list (`CurrentContextMixin`) |
+| **PARTIAL** | auto object identity but thin/unexposed numeric truth | small | Medical `ResultDetailView`/`PanelDetailView` (auto identity, but lab value/range/flag not in `get_context_summary`); `RecipeIntelligenceDetailView`, `UserReadingPlan` (thin) |
+| **MISSING — overview** | overview page, no `page_summary_key` | **many (the real gap)** | **all dashboards** (`dashboard_v2`=`/dashboard/`, `v3`), health landing/home + sleep/hydration/steps/glucose/BP/heart-rate/fasting/fitness/medications overviews, meals dashboard/pantry/plan, **journal home** ✅(now), legacy hearth/library, finance dashboard, life home/tasks/calendar, purpose reflections/habits lists, capture inbox, notes list, relationships lists, sports/brain hubs |
+| **MISSING — object (non-DetailView)** | object page as `TemplateView`/`View` | small | **medication `IntakeDetailView`** ✅(now), **legacy story `EditorView`** ✅(now), relationships `PersonDetailView` (non-`UserOwnedModel`), capture `CaptureDetailView`, medical `TestTrendView` |
+| **NO CC (correct)** | transient action / reference data | large | all create/update/delete/toggle/log/OAuth/import/status endpoints; WriteTogether/Talk-It-Through conversational surfaces; Bible-API proxies; reference catalogs |
+| **N/A** | app not registered | — | **Travel** (no `apps/travel/`, not in `INSTALLED_APPS`) |
+
+## Implemented this increment (highest-value, request-path-safe, zero CoS-behavior change)
+
+1. **`journal.home` OVERVIEW summary** — new shared source `apps/journal/services/journal_home_summary.py :: build_journal_home_summary` (cheap counts + streak; facts only); provider `apps/journal/page_summaries.py` (`@register_page_summary("journal.home")`); self-registered via `JournalConfig.ready`; `JournalHomeView` set to `PageSummaryMixin` + `page_summary_key="journal.home"` and its `stats` now read the **same** builder (one source feeds both — no page-vs-assistant drift).
+2. **`health.IntakeDetailView`** (medication detail) — added `CurrentContextMixin` + memoized `_get_intake()` + `get_current_context_object()` (mirrors the certified `WorkoutDetailView`). `Intake` is a `UserOwnedModel`; the page now declares `health.intake:pk`.
+3. **`legacy.EditorView`** (story editor) — added `CurrentContextMixin` + memoized `_get_memory()` + `get_current_context_object()`; declares `legacy.memory:pk`, and emits **no** context for a brand-new story (no pk) — the `None` case is guarded by the mixin.
+
+**Chosen for safety:** all three are pure exposure of already-fetched truth. The medication/story pages add **zero request-path compute** (the object is already fetched; CoS resolution is a single cheap object read). The `journal.home` provider is request-path-safe (indexed counts, no heavy builder, no LLM).
+
+## Runtime evidence (results, not intentions)
+
+New contract `apps/core/tests/test_current_context_certification.py` — **5/5 OK**, proving each declaration resolves on the actual CoS path:
+- `build_journal_home_summary` returns `total=2`; the registered `journal.home` provider composes `"Total entries: 2"` from the same source; empty-state deterministic.
+- `IntakeDetailView.get_current_context_object()` returns the `Intake`, and `resolve_current_context(user, intake.context_ref())` resolves it (the assistant-side path).
+- `EditorView.get_current_context_object()` returns the `Memory` and resolves; a new story (no pk) returns `None` (no context emitted).
+
+Regression + contracts: **journal suite 190/190 OK**; `test_request_path_safety_contract` + `test_constitution_contract` **13/13 OK**; `makemigrations --check` **No changes**; `manage.py check` clean; `journal.home` confirmed self-registered at app-ready (10 providers total).
+
+## Remaining gaps (deferred, prioritized) and readiness
+
+**Next-highest value (documented for the follow-on increment):**
+- **`summary:dashboard.day`** — the #1 overview gap, BUT `current_action()` falls through to `build_execution_state()` (heavy) when no state is passed; a provider would run heavy compute on the **chat request path** — a request-path-safety violation. **Prerequisite: a cached/snapshot execution state** (read with `allow_rebuild=False`) before this can ship. Deliberately deferred, not skipped.
+- **Overview summaries with existing cheap-ish truth**: health landing/home (`DailyHealthSummaryBuilder`), finance dashboard (`CurrentFinance`/`FinanceDomainTruth`), meals dashboard, legacy hearth/library, capture inbox — each needs a `build_*_summary` extraction + request-path-safety verification per page.
+- **Object (non-DetailView)**: relationships `PersonDetailView` (route through the already-built canonical `people.Person` mirror — has creation side-effects, needs care), capture `CaptureDetailView` (`CaptureEntry` is not `UserOwnedModel`), medical `Result/Panel` `CONTEXT_FIELDS` enrichment.
+- **Bulk win**: health metric dashboards share `HealthMetricDashboardMixin` — one `get_page_summary_key` hook could certify ~10 pages at once.
+
+**Readiness for bidirectional Current Context:** **Not yet.** This increment proves the pattern and closes three high-value gaps, but the dashboard day-summary (the single most-used surface) and the domain overview summaries remain. Bidirectional Current Context should begin only after the overview coverage — dashboard day-summary first (gated on a cached execution state) — is in place, so `reveal(target)` and `already_visible` have precise deterministic context to operate on across the workspaces a user actually sits in.

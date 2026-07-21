@@ -53,9 +53,11 @@ from django.views.generic import (
     View,
 )
 
+from apps.core.current_context import PageSummaryMixin
 from apps.core.models import Category, Tag
 from apps.core.views import SaveAddAnotherMixin
 from apps.help.mixins import HelpContextMixin
+from apps.journal.services.journal_home_summary import build_journal_home_summary
 
 from .forms import JournalEntryForm, TagForm
 from .models import JournalEntry, JournalPrompt
@@ -1097,9 +1099,14 @@ class HTMXTagCreateModalView(LoginRequiredMixin, View):
 
 
 
-class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class JournalHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
     template_name = "journal/home.html"
     help_context_id = "JOURNAL_HOME"
+    # Current Context — this overview declares a deterministic page summary. The provider
+    # (apps/journal/page_summaries.py) reads the SAME build_journal_home_summary source
+    # this view renders, so the page and the assistant can never disagree.
+    page_summary_key = "journal.home"
+    page_summary_title = "Journal"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1114,12 +1121,9 @@ class JournalHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
         entries = JournalEntry.objects.filter(user=user)
 
-        context["stats"] = {
-            "total": entries.count(),
-            "this_week": entries.filter(entry_date__gte=week_ago).count(),
-            "this_month": entries.filter(entry_date__gte=month_ago).count(),
-            "streak": self._calculate_streak(entries, today),
-        }
+        # ONE deterministic source feeds both this render and the journal.home page
+        # summary provider (Current Context contract — never re-derive independently).
+        context["stats"] = build_journal_home_summary(user)
 
         context["recent_entries"] = entries.order_by("-entry_date")[:5]
         context["mood_stats"] = self._get_mood_stats(entries, week_ago)

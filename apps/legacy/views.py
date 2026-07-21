@@ -22,6 +22,7 @@ from django.views.generic import CreateView, DetailView, TemplateView, UpdateVie
 
 from django.template.loader import render_to_string
 
+from apps.core.current_context import CurrentContextMixin
 from apps.legacy.forms import (
     ContributorForm, ImportForm, OutputForm, PersonForm, PlaceForm, RelationshipForm,
 )
@@ -266,18 +267,31 @@ def build_story_connections(memory):
 
 
 # ── Editor ─────────────────────────────────────────────────────────────────
-class EditorView(LegacyContextMixin, TemplateView):
+class EditorView(CurrentContextMixin, LegacyContextMixin, TemplateView):
     template_name = "legacy/editor.html"
     nav_active = "stories"
 
+    def _get_memory(self):
+        # Fetched once; reused by the template context AND the Current Context declaration
+        # (get_current_context_object) — one query, one source of truth. Returns None when
+        # composing a brand-new story (no pk), in which case there is no focused object.
+        if not hasattr(self, "_memory_obj"):
+            pk = self.kwargs.get("pk")
+            self._memory_obj = (
+                get_object_or_404(Memory.all_objects, pk=pk, user=self.request.user)
+                if pk is not None else None
+            )
+        return self._memory_obj
+
+    def get_current_context_object(self):
+        # Current Context Contract — this TemplateView isn't a DetailView, so it declares
+        # its focused canonical object explicitly. The Memory (a narratable LegacyOwnedModel)
+        # becomes what the assistant sees on screen; None (new story) emits no context.
+        return self._get_memory()
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        memory = None
-        pk = kwargs.get("pk")
-        if pk is not None:
-            memory = get_object_or_404(
-                Memory.all_objects, pk=pk, user=self.request.user
-            )
+        memory = self._get_memory()
         ctx["memory"] = memory
         ctx["media_items"] = list(memory.media.all()) if memory else []
         ctx["all_people"] = Person.objects.filter(user=self.request.user)

@@ -8,3 +8,4 @@ class DashboardV2Config(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
+        from . import page_summaries  # noqa: F401  (self-registers dashboard.day Current Context)

@@ -40,6 +40,8 @@ Every investigation therefore assumes, by default:
 
 So the second default question of every investigation is: **_"Can this problem be solved by strengthening a lower deterministic layer instead of changing a higher one?"_** — again, almost always **yes**. This is the **bottom-up construction** order for a *new* investigation or feature; it is the mirror of `§3`'s **top-down diagnosis** order (for a *reported failure*, find the first layer that *broke*, from the top). Same five layers, opposite direction, different job — climb up when building, look down when diagnosing.
 
+**Certification precedes expansion.** Building *upward* is licensed only when the layer beneath is **certified** — *complete, authoritative, request-path-safe, and production-ready* — not merely *present*. An excitingly higher-level feature never licenses skipping ahead over an uncertified layer, because a layer built on an incomplete one silently inherits its gaps. So the gate before any higher-layer work is: **_"Is the lower deterministic layer fully certified before we build on top of it?"_** If no, strengthen and certify the lower layer first. *(Precedent: the CoS-platform work deliberately stopped to certify Current Context coverage — the Dashboard Day Summary and the domain overview summaries — before starting bidirectional Current Context.)* This is the *when* of construction; the *how* of certifying a layer — the per-domain Owner-1/Owner-2 loop — is `§3c`.
+
 ## 2. Product-first engineering
 
 Before any architecture review, run the **product review**, in this order:

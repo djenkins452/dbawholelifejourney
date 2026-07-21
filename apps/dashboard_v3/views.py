@@ -17,6 +17,8 @@ from django.views import View
 from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 
+from apps.core.current_context import PageSummaryMixin
+from apps.core.execution.dashboard_day_summary import build_dashboard_day_summary
 from apps.help.mixins import HelpContextMixin
 
 from apps.dashboard_v3.services import build_dashboard_v3_context, build_weather_tile
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 @method_decorator(never_cache, name="dispatch")
-class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class DashboardV3View(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
     """The CoS-first dashboard — PRODUCTION default at /dashboard/ (2026-05-28).
 
     Also reachable at /dashboard-v3/ for validation. The preserved v2
@@ -44,6 +46,11 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     template_name = "dashboard_v3/home.html"
     help_context_id = "DASHBOARD_V2_HOME"
+    # Current Context — the Dashboard workspace declares a deterministic day summary,
+    # read from the SAME request-path-safe build_dashboard_day_summary source the
+    # dashboard.day provider uses (see _build_context). Page and assistant never disagree.
+    page_summary_key = "dashboard.day"
+    page_summary_title = "Today"
 
     def get_context_data(self, **kwargs):
         # Phase 4 step 1 — production GET timing. Same instrumentation
@@ -58,6 +65,11 @@ class DashboardV3View(HelpContextMixin, LoginRequiredMixin, TemplateView):
 
     def _build_context(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+
+        # ONE deterministic source feeds both this render and the dashboard.day page
+        # summary provider (Current Context contract — never re-derive independently).
+        # Reads the SAE snapshot (request-path-safe), matching the provider exactly.
+        ctx["day_summary"] = build_dashboard_day_summary(self.request.user)
 
         # VERIFIED AUTO-COMPLETION (Rule 1 — authenticated presence proves
         # wakefulness). Loading the dashboard IS authenticated activity.

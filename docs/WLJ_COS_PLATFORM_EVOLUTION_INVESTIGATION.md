@@ -473,3 +473,66 @@ Regression + contracts: **journal suite 190/190 OK**; `test_request_path_safety_
 - **Bulk win**: health metric dashboards share `HealthMetricDashboardMixin` — one `get_page_summary_key` hook could certify ~10 pages at once.
 
 **Readiness for bidirectional Current Context:** **Not yet.** This increment proves the pattern and closes three high-value gaps, but the dashboard day-summary (the single most-used surface) and the domain overview summaries remain. Bidirectional Current Context should begin only after the overview coverage — dashboard day-summary first (gated on a cached execution state) — is in place, so `reveal(target)` and `already_visible` have precise deterministic context to operate on across the workspaces a user actually sits in.
+
+---
+---
+
+# PART VI — Dashboard Day Summary Certification (Truth milestone)
+
+**Why:** the Part V blocker. The Dashboard is the single most-used workspace but had **no** Current Context, and the naive source (`current_action`→`build_execution_state`) is too heavy for request-path Current Context resolution. This milestone certifies a deterministic, **request-path-safe** Dashboard Day Summary — a Truth milestone, not a CoS one.
+
+## 1. Investigation findings (the 7 questions)
+
+1. **What should it contain?** Facts-only projection of today's execution: counts (total / completed / remaining / overdue / still-to-come), completed-tasks, a by-type breakdown, and the next *scheduled* (not prioritized) item. No verdicts, no prose.
+2. **Which already exists as deterministic truth?** All of it — the execution contract (`build_today_execution` → `{items, summaries}`) already carries per-item `completed_today`, `time_status`/`status`, `scheduled_time`, `source_type`, and `summaries.tasks_completed_today`.
+3. **Which producer owns it?** `apps/core/execution/today_execution.py :: build_today_execution` — the single execution-contract authority (III.1/III.2). The heavy `build_execution_state` (prioritization/phase) sits *on top of* it.
+4. **Which is already cached?** The execution contract **is** an SAE module: `MODULE_BUILDERS["execution"] = _build_execution_state` → `build_today_execution` (`apps/core/ai_state/state_builder.py:6058-6103`), read via `get_module_state(user, "execution", allow_rebuild=False)` (`state_engine.py:74`).
+5. **Which requires heavy compute?** `build_execution_state` (prioritized buckets, timing, `execution_phase`, at-risk, blocked-dependents) — uncached; the envelope calls it live *in the worker*. Excluded from this summary.
+6. **Which can run on the request path?** The **cached SAE read** (`allow_rebuild=False`) — a single dict read, no queries on miss. Nothing else.
+7. **Which must first become cached?** **Nothing new** — the SAE `execution` snapshot already provides the substrate. `execution_phase`/prioritized "do-now" are intentionally *out of scope* (they'd require the heavy builder); they can be added later only if cached.
+
+## 2. Dashboard Summary Contract (facts only)
+
+`{ status: "ready"|"pending", total, completed, remaining, overdue, upcoming, tasks_completed_today, by_type:{source_type:count}, next_item:{title,time}|None }`. `next_item` is the *earliest not-completed scheduled* item — explicitly **not** a prioritized "what to do now" (that stays with the single execution decision authority). WLJ exposes numbers/titles; the model interprets.
+
+## 3. Shared builder design
+
+`apps/core/execution/dashboard_day_summary.py :: build_dashboard_day_summary(user)` — the ONE source. Reads only the SAE snapshot; projects the cached contract into the contract above; never raises. Consumers (all read this one builder — no parallel implementation):
+- `dashboard.day` page-summary provider (`apps/dashboard_v2/page_summaries.py`, `@register_page_summary`, self-registered via `DashboardV2Config.ready`).
+- `DashboardV2View` **and** `DashboardV3View` — `PageSummaryMixin` + `page_summary_key="dashboard.day"`, and `context["day_summary"] = build_dashboard_day_summary(user)` (reads the **cached** builder, matching the provider exactly — so the page's summary and the assistant's summary are identical, not the page's live contract).
+
+## 4. Cache architecture (reused, not invented)
+
+No new cache. Reuses the SAE `execution` snapshot: **ownership** = SAE (`UserState.state_data["execution"]`); **producer** = `build_today_execution`; **refresh** = SAE background cycle + incremental `state_updater`; **invalidation** = task/routine writes drop `wlj:user_state:<id>:execution` (e.g. `apps/life/services/routine_helpers.py:973`); **dependencies** = execution domains; **runtime cost** = one cached dict read. **Pending** contract: on a cold snapshot the builder returns `status="pending"` and the provider says *"being prepared"* — it **never** rebuilds on the request path (the CLAUDE.md rule verbatim).
+
+## 5. Runtime validation (same truth at every step)
+
+Injected a known cached contract (3 items: 1 completed, 1 overdue, 1 upcoming med) into `UserState.state_data["execution"]`, then observed the identical numbers across the chain:
+`build_dashboard_day_summary` → `{total:3, completed:1, remaining:2, overdue:1, upcoming:1, next_item:Vit D@08:00}` → provider content `"Commitments today: 3 … Completed: 1"` → `resolve_current_context(user, "summary:dashboard.day")` (the CoS path) returns the same content → both dashboard views expose the same builder (identity-checked). Cold user → `status="pending"` at every step. **No drift.**
+
+## 6. Certification evidence
+
+| Property | Evidence |
+|---|---|
+| deterministic | pure projection of the cached contract; fixed inputs → fixed facts (test) |
+| authoritative | reads the single execution-contract authority via SAE; no re-derivation |
+| request-path safe | only `get_module_state(..., allow_rebuild=False)`; grep proves no `build_execution_state`/`build_today_execution` call; `test_request_path_safety_contract` 4/4 |
+| shared | provider + both views import the *same* `build_dashboard_day_summary` (identity-asserted) |
+| reusable | plain `(user)→facts` builder; any surface (page, CoS, future card, watch) can read it |
+| suitable for Current Context | registered `summary:dashboard.day`; resolves via `resolve_current_context` |
+| suitable for bidirectional CC | `summary:dashboard.day` is a terminal ref in the existing grammar — a future `reveal(target)` can target it and `already_visible` can compare it |
+| suitable for Reveal Target | the Dashboard workspace now has a canonical context ref to reveal to |
+
+## 7. Remaining gaps
+
+- **`execution_phase` + prioritized "do-now"** are intentionally excluded (need the heavy builder). A future increment could add a *cached phase* to the SAE execution snapshot and extend the summary — deferred, documented.
+- Other domain overview summaries (health home, finance, meals, legacy, capture) still pending (Part V).
+- **Pre-existing dashboard_v3 test failures (7)** exist in the base from the concurrent Journal-Workspace/Dashboard redesign (`eb7392ed`) — confirmed **not** caused by this milestone (they fail with these edits shelved). Flagged for a separate fix; out of this milestone's scope.
+
+## 8. Test results
+
+`apps/core/tests/test_dashboard_day_summary.py` — **5/5 OK** (facts projection; pending-when-cold; honest pending message; full-chain one-source; views declare + share builder). `test_request_path_safety_contract` **4/4**; `test_constitution_contract` **9/9**; `makemigrations --check` **No changes**; `manage.py check` clean; `dashboard.day` self-registered at app-ready. Dashboard regression: **0 new failures** from this change (the 7 failures are pre-existing, proven by shelving the edits).
+
+## 9. Readiness for bidirectional Current Context
+
+**Closer, but finish the overview tier first.** The Dashboard — the highest-value surface — is now certified with a request-path-safe deterministic summary, which was *the* blocker named in Part V. Recommended before starting bidirectional CC: certify the remaining high-traffic domain overviews (health home, finance, meals) with the same shared-builder + SAE-cached pattern. Once those land, `reveal(target)` and `already_visible` will have precise deterministic context across the workspaces users actually sit in, and bidirectional Current Context can begin on a fully certified foundation.

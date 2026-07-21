@@ -17,6 +17,8 @@ from django.views import View
 from django.views.decorators.cache import never_cache
 from django.views.generic import TemplateView
 
+from apps.core.current_context import PageSummaryMixin
+from apps.core.execution.dashboard_day_summary import build_dashboard_day_summary
 from apps.core.utils import get_user_today
 from apps.help.mixins import HelpContextMixin
 
@@ -64,14 +66,24 @@ def dashboard_home_dispatch(request, *args, **kwargs):
 # ── Main Dashboard View ─────────────────────────────────────────────
 
 
-class DashboardV2View(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class DashboardV2View(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
     """Main dashboard shell. Delivers critical-path data synchronously."""
 
     template_name = "dashboard_v2/home.html"
     help_context_id = "DASHBOARD_V2_HOME"
+    # Current Context — the Dashboard workspace declares a deterministic day summary.
+    # The dashboard.day provider reads the SAME build_dashboard_day_summary source this
+    # view exposes below (request-path-safe SAE snapshot), so the page and the assistant
+    # never disagree about today's figures.
+    page_summary_key = "dashboard.day"
+    page_summary_title = "Today"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # ONE deterministic source feeds both this render and the dashboard.day page
+        # summary provider (Current Context contract — never re-derive independently).
+        context["day_summary"] = build_dashboard_day_summary(self.request.user)
 
         # ?refresh=1 bypasses cache for action center + daily progress
         # (used when returning to dashboard after acting externally)

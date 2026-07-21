@@ -9,6 +9,16 @@ This document exists because the Journal editor's height/scroll behavior was "fi
 
 On the reliable document-flow base below, the form presents as a **writing-first compose view**: a quiet title, a large editor, and a **compose dock** — a `position: sticky; bottom: 0` bar (inside the shell scroll, paint-only) that carries **always-visible mood / tags / categories chips** plus **Save / Cancel**. The chips mirror the current selection (e.g. `😊 Great · 🙏 Grateful`, `🏷 Family • Work`) so the user has continuous awareness without opening anything; tapping a chip opens a **lightweight picker** — an overlay anchored above the dock (`position: absolute`), so opening it causes **zero layout shift and no change to editor height or page scroll**. The metadata `<input>`s live inside the pickers, unchanged (names `emotions`/`categories`/`tags`), so POST is byte-for-byte identical. A small JS controller (CSP-safe: nonce, `addEventListener`, delegation) opens/closes one picker at a time and re-renders each chip live on `change`. This is Option C from the UI-architecture proposal, and it obeys every invariant in §8 — it is *the document-flow base wearing a writing-app surface*, not a new layout model.
 
+**Visual hierarchy (fixed — the editor owns the screen; everything else supports writing):**
+
+1. **Journal mode** (Just Write / Write Together / Talk It Through)
+2. **Document** (the entry: title, date)
+3. **Writing** (the editor — the largest, primary surface)
+4. **Metadata** (mood / tags / categories — informational-first, editable-second; always visible, never competing)
+5. **Save** (predictable, in the dock, always in reach)
+
+**This is not a Journal control — it is the first implementation of a reusable WLJ *Workspace Dock*.** The pattern (a constant editor/workspace + a sticky dock of always-visible, domain-specific metadata chips + the primary action) generalizes across workspaces — Health (Measurements · Symptoms · Medications · Save), Travel (Destination · Travelers · Budget · Save), Faith (Scripture · Prayer · Reflection · Save) — the editor stays constant; only the metadata controls change. **Generalize the Compose Dock into a shared WLJ Workspace Dock only *after* the Journal implementation is complete** (a platform-consumer capability per architecture `01 §6`, not a Journal fork). Governing statement of the platform pattern: `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/01_READ_FIRST…ARCHITECTURE.md §6`.
+
 ---
 
 ## 1. Layout hierarchy (as-built)

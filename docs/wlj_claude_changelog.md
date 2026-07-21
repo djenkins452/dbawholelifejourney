@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-21 (chore(startup): session close-out — Travel Intelligence designed as first platform-consumer domain; strategic direction folded into 01 §6; bootloader regenerated)
 # ================================================================# WLJ Change History
 
+## 2026-07-21 — docs(startup): CoS-Platform Architecture session close-out — architecture ESTABLISHED, next session implements on the certified foundation
+
+**Docs only — no code.** Transition Protocol (`99_PREPARE_NEXT_CHAT.md`) for the CoS-platform architecture-and-discovery session (routing consolidation Phase A inc.1 `62ebd29b`, Current Context Certification Phase A.5 inc.1 `8b9521ca`, Dashboard Day Summary `59b1467b` — all shipped earlier, AWAITING Danny prod validation). The architecture arc is complete and folded UP into the permanent package:
+- **`01 §6` (new lesson):** the CoS-platform architecture is ESTABLISHED — the settled chain (one CoS/many workspaces → navigation/presentation are not the abstraction → "reveal a target" via **bidirectional Current Context** → **Current Context Certification** milestone → certification precedes expansion) + the ascending, certification-gated roadmap (Truth → CC Certification → bidirectional CC → Desired Context → Reveal Target → client adapters). **`01 §5`:** Current Context maturity updated (certified providers now include the Dashboard Day Summary; remaining = health-home/finance/meals).
+- **`98 §4` (new):** *separate architecture sessions from implementation sessions* — close an architecture session at the boundary where investigations stop changing the architecture and the remaining work becomes implementation; begin a fresh implementation-focused chat.
+- **`99_REFERENCE_INDEX`:** indexed `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md` (Governing — roadmap).
+- **`00` bootloader:** PRIMARY FOCUS rewritten from "start with investigation" → **implement on the certified foundation** — next milestone = finish Current Context Certification (health-home/finance/meals, copying the Dashboard Day Summary reference), then Truth consolidation (Phase A remainder, operator-validated); bidirectional CC / Desired Context / Reveal Target / client adapters **explicitly deferred** until overview certification is complete. Parallel tracks (Meal Intelligence, Journal Workspace, Travel) + Waiting-on-Danny preserved.
+- Principles #1 (ascending investigation order) and #2 (certification precedes expansion) were already in `03 §1a` from earlier this session — no change.
+
+**No Constitutional Review.** Reference Index updated. No user-visible change (no release note). Flagged (spawned task): 7 pre-existing `apps.dashboard_v3` failures from the concurrent Journal-Workspace/Dashboard redesign (`eb7392ed`) — not caused by this session.
+
 ## 2026-07-21 — feat(current-context/truth) + docs(startup): Dashboard Day Summary Certification — request-path-safe canonical Dashboard Current Context; §1a "certification precedes expansion"
 
 **STEP 1 — permanent governing principle (`03_ENGINEERING_OPERATING_GUIDE.md` §1a, extended).** Integrated **"Certification precedes expansion"** — building *upward* is licensed only when the layer beneath is *certified* (complete, authoritative, request-path-safe, production-ready), not merely present; gate question *"Is the lower deterministic layer fully certified before we build on top of it?"* Cross-referenced `§3c` (the how-to-certify Owner-1/Owner-2 loop) to avoid duplication. Kept in `03` only; 99 index unchanged. No Constitutional Review.

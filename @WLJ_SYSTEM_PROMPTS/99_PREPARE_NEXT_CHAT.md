@@ -37,7 +37,9 @@ If any governing/supporting doc was added, moved, or reclassified, update `00_WL
 Ask: **"What did we learn about the startup/transition workflow itself?"** If anything, update `98_SESSION_TRANSITION_PROTOCOL.md` (doctrine) or this file (`99_PREPARE_NEXT_CHAT.md`, procedure) so Danny never has to remember the improvement again. This is what keeps the close-out self-improving.
 
 ### 7. Rewrite the bootloader
-Rewrite `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md` from scratch (it lives inside the package as `00`, read first). For **each** item ask: *"Has this now been incorporated into a permanent startup document?"* If yes → **remove it**. Keep only live sprint state. The bootloader should be **shorter** than last time whenever possible.
+Rewrite `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md` (it lives inside the package as `00`, read first). For **each** item ask: *"Has this now been incorporated into a permanent startup document?"* If yes → **remove it**. Keep only live sprint state. The bootloader should be **shorter** than last time whenever possible.
+
+> **Concurrency caveat (learned 2026-07-20):** Danny runs **many parallel sessions on one shared bootloader**, each owning a different track. "Rewrite from scratch" means *for the sections your session owns* — **surgically update your track's state, fold your durable knowledge up, and PRESERVE the other sessions' live state** (CoS primary focus, other parallel tracks, Waiting-on-Danny). A literal full-file rewrite would clobber foreign sessions' live sprint state — don't. Then commit **your hunk only** by explicit pathspec and verify a fast-forward.
 
 ### 8. Startup Package Integrity Review — verify before finishing
 Ask and fix before continuing:

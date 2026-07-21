@@ -6,6 +6,19 @@
 # Last Updated: 2026-07-21 (chore(startup): session close-out — Travel Intelligence designed as first platform-consumer domain; strategic direction folded into 01 §6; bootloader regenerated)
 # ================================================================# WLJ Change History
 
+## 2026-07-21 — chore(startup): Meal Intelligence session close-out — foundationally complete, now a CoS-consumed truth domain
+
+End-of-chat close-out for the Meal Intelligence session (`@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`). This session took Meal Intelligence from a collection of features to a mature standalone deterministic truth domain: canonical architecture + truth-certification framework + roadmap, Foundation 1 (canonical truth) + behavioral certification, Foundation 2 (recipe ownership move, enrichment-at-write, preparation → pantry deduction → leftovers → consumption → nutrition → waste), Pantry Container Truth + Remaining Truth, Pantry Smart Search, Manual Pantry Entry, the single Pantry Availability authority, Ingredient Intelligence (deterministic canonical identity; curated aliases, no runtime learning), plus multiple production defects fixed via runtime tracing.
+
+Durable knowledge + the confirmed strategic direction folded UP into the permanent startup package (no bootloader duplication):
+- **`01 §5` (maturity):** Meal Intelligence is foundationally complete (Foundations 1–2 shipped); continuing work is product refinement + M4+ capabilities, not redesign.
+- **`01 §6` (lessons):** new lesson — Meal Intelligence is a mature standalone truth domain the CoS will *consume*, not redesign around; **Meals owns food truth, the CoS orchestrates, the CoS never owns Meal truth**; future meal/grocery/pantry/recipe/nutrition conversations flow through the CoS once it stabilizes; plus the four durable Meal engineering principles (one canonical write per acquisition + degrade-to-manual; deterministic ingredient identity vs substitution; one Pantry Availability authority; Container vs Remaining Truth).
+- **`99_REFERENCE_INDEX`:** added `docs/WLJ_INGREDIENT_INTELLIGENCE.md` (new governing doc); Meal roadmap entry marked Foundations 1–2 shipped.
+- **Bootloader (`00_NEXT_CHAT_STARTUP`):** added a dedicated Meal Intelligence section (foundationally complete; refine-not-redesign; awaiting-validation list; carried remaining work — meal planning, grocery/shopping, price/store intelligence, analytics, refinements); removed the stale "Meals Ingredient Intelligence" parallel-owner line; preserved the CoS primary focus and other sessions' live state (parallel-session discipline).
+- **Workflow self-improvement (`99_PREPARE_NEXT_CHAT` step 7):** recorded that, under many parallel sessions on one shared bootloader, "rewrite from scratch" means surgically update your own track and preserve others' live state.
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE.md`, `99_REFERENCE_INDEX.md`, `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`, `docs/wlj_claude_changelog.md`. Docs-only; no code, no migration. (User-facing release notes for the shipped features were added in their own commits during the session — none needed here.)
+
 ## 2026-07-21 — chore(startup): session close-out — Travel Intelligence designed as the first platform-consumer domain; strategic direction folded up; bootloader regenerated
 
 **Session Transition Protocol executed** (`@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`) for a **design-only** session (no code shipped) that produced the **Travel Intelligence domain architecture & product vision** and ratified a strategic shift in how future WLJ domains are built. Durable knowledge folded UP into the permanent startup package:

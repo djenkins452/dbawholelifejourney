@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-21 (chore(startup): session close-out — Travel Intelligence designed as first platform-consumer domain; strategic direction folded into 01 §6; bootloader regenerated)
+# Last Updated: 2026-07-21 (docs(startup): Truth Retrieval Selection investigation close-out — "protein yesterday" runtime-proven as a shadow-authority class; findings folded UP, implementation deferred to the Truth Retrieval Certification track)
 # ================================================================# WLJ Change History
+
+## 2026-07-21 — docs(startup): Truth Retrieval Selection investigation close-out — "protein yesterday" proven (with runtime evidence) as a shadow-authority class; implementation deferred to the Truth Retrieval Certification track
+
+**Docs only — no code, no implementation.** A read-only, runtime-trace investigation of a customer trust failure ("How much protein did I get yesterday?" → CoS said none recorded, then listed meals without summing, then only "reported" 134 g by accepting the customer's number). Value = the architectural knowledge; the fix belongs to the CoS-platform / Truth Retrieval Certification track (this session intentionally did NOT implement, to avoid overlapping that track).
+
+- **What was proven (runtime, not inference):** the deterministic truth existed the whole time — `get_history("nutrition","protein","yesterday")` → **134 g, confidence high**, deployed since 2026-07-18. The `ToolCallLog` trace, reproduced **4/4** through the real production path (`CoSGateway.respond(surface=chat)` → `model_interface` runtime → real gpt-4o), shows the model reached `get_foundational_health_facts` (a **hand-curated key-value facts list that shadows the systematic `get_history` authority**) whose key set is **incomplete/asymmetric** (`calories_yesterday` works; `protein_yesterday` absent, `protein_today` present-but-broken), returned a false "not available," and **never called `get_history`.** Investigation 1's inferred cause (`get_domain_state`/`get_entity` traps) was **disproved** by the trace.
+- **The class:** a parallel deterministic authority violating **one-authority-per-domain**. **Smallest fix (deferred, owned by the retrieval track):** retire OR delegate the overlapping `*_today`/`*_yesterday` metric keys so there is one authority, + a **single-authority summary-retrieval certification gate**. Do NOT patch the one missing Nutrition key.
+- **Preserved:** new investigation doc `docs/WLJ_TRUTH_RETRIEVAL_SELECTION_INVESTIGATION.md` (evidence + decision). **Folded UP:** `01 §6` (new lesson — tool-selection ≠ truth-surface failure; "routing" split into Deterministic Routing vs Truth Retrieval Selection; Truth Production ≠ Truth Retrieval; parallel-authority smell; runtime-evidence-before-conclusions), `98 §4b` (investigation discipline: hypothesis → runtime proof → decision), `99_REFERENCE_INDEX` (new doc indexed), `00` bootloader (finding transferred into the Truth Retrieval Certification PRIMARY FOCUS as owned work; implementation deferred). **Residual flagged:** the `ToolCallLog` audit ledger has **no operator read channel** (a small read-only endpoint would let the next incident be answered from real audit rows).
+- **`02` (Constitution), `03`, `04`:** no change. **No Constitutional Review. No user-visible change (no release note).** No production code changed.
 
 ## 2026-07-21 — docs(startup): Current Context Certification milestone close-out — first implementation milestone on the certified CoS-platform architecture; promote Truth Retrieval Certification
 

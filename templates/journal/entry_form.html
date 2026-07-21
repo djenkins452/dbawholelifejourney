@@ -128,109 +128,106 @@
                 </div>
             </div>
 
-            <details class="journal-details" open>
-                <summary class="jd-summary">
-                    <span class="jd-summary-label">Mood, tags &amp; categories</span>
-                    <span class="jd-summary-chevron" aria-hidden="true">⌄</span>
-                </summary>
-                <div class="jd-content">
+            {% comment %} Compose dock — where the journal is completed. Always-visible mood / tags /
+            categories chips (mirroring the current selection) + Save / Cancel, docked at the bottom.
+            The metadata inputs live in lightweight pickers INSIDE the dock (so the pickers anchor to
+            it and open as overlays with no layout shift). The input markup — names emotions /
+            categories / tags, values and checked state — is byte-for-byte the old form, so POST is
+            unchanged. Sticky within the app-shell scroll (paint-only; never creates/suppresses page
+            scroll). See docs/WLJ_JOURNAL_FORM_LAYOUT.md. {% endcomment %}
+            <div class="compose-dock">
 
-                    <div class="form-group">
-                        <label class="form-label">How are you feeling? <span class="form-optional">optional</span></label>
-                        <div class="emotion-selector">
-                            {% for emotion in form.fields.emotions.queryset %}
-                                <label class="emotion-option">
-                                    <input
-                                        type="checkbox"
-                                        name="emotions"
-                                        value="{{ emotion.pk }}"
-                                        {% if emotion.pk in form.emotions.value %}checked{% endif %}
-                                    >
-                                    <span class="emotion-button">
-                                        <span class="emotion-emoji">{{ emotion.emoji }}</span>
-                                        <span class="emotion-name">{{ emotion.name }}</span>
-                                    </span>
-                                </label>
-                            {% empty %}
-                                <p class="text-muted text-sm">No emotions configured.</p>
-                            {% endfor %}
-                        </div>
+                {% comment %} Mood picker {% endcomment %}
+                <div class="picker" id="picker-mood" data-picker-panel="mood" role="dialog" aria-label="How are you feeling?" hidden>
+                    <div class="picker-head">
+                        <span class="picker-title">How are you feeling?</span>
+                        <button type="button" class="picker-done" data-picker-close>Done</button>
                     </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Categories <span class="form-optional">optional</span></label>
-                        <div class="category-selector">
-                            {% for category in form.fields.categories.queryset %}
-                                <label class="category-option">
-                                    <input
-                                        type="checkbox"
-                                        name="categories"
-                                        value="{{ category.pk }}"
-                                        {% if category.pk in form.categories.value %}checked{% elif selected_prompt and selected_prompt.category and selected_prompt.category.pk == category.pk %}checked{% endif %}
-                                    >
-                                    <span class="category-button">{{ category.name }}</span>
-                                </label>
-                            {% endfor %}
-                        </div>
+                    <div class="emotion-selector">
+                        {% for emotion in form.fields.emotions.queryset %}
+                            <label class="emotion-option">
+                                <input type="checkbox" name="emotions" value="{{ emotion.pk }}" {% if emotion.pk in form.emotions.value %}checked{% endif %}>
+                                <span class="emotion-button">
+                                    <span class="emotion-emoji">{{ emotion.emoji }}</span>
+                                    <span class="emotion-name">{{ emotion.name }}</span>
+                                </span>
+                            </label>
+                        {% empty %}
+                            <p class="text-muted text-sm">No emotions configured.</p>
+                        {% endfor %}
                     </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Tags <span class="form-optional">optional</span></label>
-                        <div id="tag-selector-container">
-                            {% if form.fields.tags.queryset.exists %}
-                            <div class="tag-selector">
-                                {% for tag in form.fields.tags.queryset %}
-                                    <label class="tag-option">
-                                        <input
-                                            type="checkbox"
-                                            name="tags"
-                                            value="{{ tag.pk }}"
-                                            {% if tag.pk in form.tags.value %}checked{% endif %}
-                                        >
-                                        <span class="tag-button" style="--tag-color: {{ tag.color }}">{{ tag.name }}</span>
-                                    </label>
-                                {% endfor %}
-                            </div>
-                            <button
-                                type="button"
-                                class="text-sm create-tag-btn"
-                                hx-get="{% url 'journal:htmx_tag_create' %}"
-                                hx-target="body"
-                                hx-swap="beforeend"
-                            >+ Create new tag</button>
-                            {% else %}
-                            <p class="text-muted text-sm">No tags created yet.</p>
-                            <button
-                                type="button"
-                                class="text-sm create-tag-btn"
-                                hx-get="{% url 'journal:htmx_tag_create' %}"
-                                hx-target="body"
-                                hx-swap="beforeend"
-                            >Create a tag</button>
-                            {% endif %}
-                        </div>
-                    </div>
-
                 </div>
-            </details>
 
-            <div class="form-actions">
-                {% comment %} When this draft also holds a conversation, the typed-only Save is
-                replaced by Finish & Review (below), which composes BOTH channels — so no direct
-                Save is rendered here (rendering it hidden fails: .btn's display overrides [hidden]). {% endcomment %}
-                {% if not draft_has_conversation %}
-                <button type="submit" class="btn btn-primary" data-testid="journal-entry-save-button">
-                    {% if is_edit %}Save Changes{% else %}Save Journal{% endif %}
-                </button>
-                {% if not is_edit %}
-                <button type="submit" name="save_add_another" class="btn btn-ghost" data-testid="journal-save-add-another-button">
-                    Save &amp; Add Another
-                </button>
-                {% endif %}
-                {% endif %}
-                <a href="{% if is_edit %}{% url 'journal:entry_detail' object.pk %}{% else %}{% url 'journal:entry_list' %}{% endif %}" class="btn btn-ghost" data-testid="journal-cancel-button">
-                    Cancel
-                </a>
+                {% comment %} Tags picker {% endcomment %}
+                <div class="picker" id="picker-tags" data-picker-panel="tags" role="dialog" aria-label="Tags" hidden>
+                    <div class="picker-head">
+                        <span class="picker-title">Tags</span>
+                        <button type="button" class="picker-done" data-picker-close>Done</button>
+                    </div>
+                    <div id="tag-selector-container">
+                        {% if form.fields.tags.queryset.exists %}
+                        <div class="tag-selector">
+                            {% for tag in form.fields.tags.queryset %}
+                                <label class="tag-option">
+                                    <input type="checkbox" name="tags" value="{{ tag.pk }}" {% if tag.pk in form.tags.value %}checked{% endif %}>
+                                    <span class="tag-button" style="--tag-color: {{ tag.color }}">{{ tag.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                        <button type="button" class="text-sm create-tag-btn" hx-get="{% url 'journal:htmx_tag_create' %}" hx-target="body" hx-swap="beforeend">+ Create new tag</button>
+                        {% else %}
+                        <p class="text-muted text-sm">No tags created yet.</p>
+                        <button type="button" class="text-sm create-tag-btn" hx-get="{% url 'journal:htmx_tag_create' %}" hx-target="body" hx-swap="beforeend">Create a tag</button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% comment %} Categories picker {% endcomment %}
+                <div class="picker" id="picker-categories" data-picker-panel="categories" role="dialog" aria-label="Categories" hidden>
+                    <div class="picker-head">
+                        <span class="picker-title">Categories</span>
+                        <button type="button" class="picker-done" data-picker-close>Done</button>
+                    </div>
+                    <div class="category-selector">
+                        {% for category in form.fields.categories.queryset %}
+                            <label class="category-option">
+                                <input type="checkbox" name="categories" value="{{ category.pk }}" {% if category.pk in form.categories.value %}checked{% elif selected_prompt and selected_prompt.category and selected_prompt.category.pk == category.pk %}checked{% endif %}>
+                                <span class="category-button">{{ category.name }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="dock-meta">
+                    <button type="button" class="dock-chip is-empty" data-picker-open="mood" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker-mood">
+                        <span class="chip-body" data-chip="mood">☺ Mood</span>
+                    </button>
+                    <button type="button" class="dock-chip is-empty" data-picker-open="tags" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker-tags">
+                        <span class="chip-body" data-chip="tags">🏷 Tags</span>
+                    </button>
+                    <button type="button" class="dock-chip is-empty" data-picker-open="categories" aria-haspopup="dialog" aria-expanded="false" aria-controls="picker-categories">
+                        <span class="chip-body" data-chip="categories">📁 Categories</span>
+                    </button>
+                </div>
+
+                <div class="dock-actions">
+                    {% comment %} When this draft also holds a conversation, the typed-only Save is
+                    replaced by Finish & Review (below), which composes BOTH channels — so no direct
+                    Save is rendered here (rendering it hidden fails: .btn's display overrides [hidden]). {% endcomment %}
+                    {% if not draft_has_conversation %}
+                    <button type="submit" class="btn btn-primary" data-testid="journal-entry-save-button">
+                        {% if is_edit %}Save Changes{% else %}Save Journal{% endif %}
+                    </button>
+                    {% if not is_edit %}
+                    <button type="submit" name="save_add_another" class="btn btn-ghost" data-testid="journal-save-add-another-button">
+                        Save &amp; Add Another
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                    <a href="{% if is_edit %}{% url 'journal:entry_detail' object.pk %}{% else %}{% url 'journal:entry_list' %}{% endif %}" class="btn btn-ghost" data-testid="journal-cancel-button">
+                        Cancel
+                    </a>
+                </div>
             </div>
         </form>
 
@@ -395,27 +392,76 @@
     font-style: italic;
 }
 
-/* ── Quiet details disclosure (mood / categories / tags) ────────────────── */
-.journal-details {
-    margin-top: var(--space-6);
-    border-top: 1px solid var(--color-border);
-}
-.jd-summary {
+/* ── Compose dock — where the journal is completed ──────────────────────────
+   Always-visible mood/tags/categories chips + Save/Cancel, docked at the bottom.
+   Sticky within the app-shell scroll (paint-only; never creates/suppresses page
+   scroll). It is a positioning context so the pickers can open as overlays above
+   it with no layout shift. */
+.compose-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    list-style: none;
-    cursor: pointer;
-    padding: var(--space-4) var(--space-1);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    transition: color var(--transition-fast);
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-top: var(--space-6);
+    padding: var(--space-3) 0 var(--space-2);
+    border-top: 1px solid var(--color-border);
+    background: linear-gradient(to top,
+        var(--color-background) 70%, color-mix(in srgb, var(--color-background) 0%, transparent));
 }
-.jd-summary::-webkit-details-marker { display: none; }
-.jd-summary:hover { color: var(--color-text); }
-.jd-summary-chevron { transition: transform var(--transition-fast); font-size: 1rem; }
-.journal-details[open] .jd-summary-chevron { transform: rotate(180deg); }
-.jd-content { padding: var(--space-2) var(--space-1) var(--space-4); }
+.dock-meta { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.dock-actions { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
+
+/* Chips — always visible, mirror the current metadata, open a picker on click */
+.dock-chip {
+    display: inline-flex; align-items: center;
+    max-width: 100%; min-height: 36px;
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-family: inherit; font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.dock-chip:hover { border-color: var(--color-accent); }
+.dock-chip[aria-expanded="true"] {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
+}
+.dock-chip.is-empty { color: var(--color-text-muted); }
+.dock-chip .chip-body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.dock-chip .chip-emoji { font-size: 1.05rem; line-height: 1; }
+.dock-chip .chip-sep { opacity: 0.4; margin: 0 2px; }
+
+/* Lightweight pickers — overlays anchored above the dock (no layout shift). The
+   internal scroll here is a bounded popover, not the page scroll owner. */
+.picker {
+    position: absolute;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    width: min(440px, 100%);
+    max-height: 340px;
+    overflow-y: auto;
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: 0 16px 44px -16px rgba(0,0,0,0.4);
+    z-index: 30;
+}
+.picker[hidden] { display: none; }
+.picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.picker-title { font-size: var(--font-size-sm); font-weight: 600; color: var(--color-text); }
+.picker-done {
+    border: none; background: none; color: var(--color-accent);
+    font-family: inherit; font-size: var(--font-size-sm); font-weight: 600;
+    cursor: pointer; padding: var(--space-1) var(--space-2);
+}
+.picker-done:hover { text-decoration: underline; }
 
 .form-group { margin-bottom: var(--space-5); }
 .form-label {
@@ -480,22 +526,6 @@
 }
 .create-tag-btn:hover { text-decoration: underline; }
 
-/* ── Actions — calm, low-key ────────────────────────────────────────────── */
-.form-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    margin-top: var(--space-5);
-    /* Keep the actions visually tied to the editor: pinned to the bottom of the scroll
-       area so they never drift far below the writing surface, whatever the entry length
-       or the mood/tags state. */
-    position: sticky;
-    bottom: 0;
-    padding: var(--space-4) 0 var(--space-2);
-    background: linear-gradient(to top,
-        var(--color-background) 55%, color-mix(in srgb, var(--color-background) 0%, transparent));
-    z-index: 5;
-}
 
 {% if journal_methods_enabled %}
 /* ── Journal methods chooser (preview, flag-gated) ──
@@ -581,8 +611,12 @@
     .notebook { padding: var(--space-4); border-radius: var(--radius-lg); }
     /* Styling only — the editor height stays the shared RTE's 420px min-height (no viewport units). */
     .notebook-body .ProseMirror { font-size: 1.05rem; }
-    .form-actions { flex-direction: column; align-items: stretch; }
-    .form-actions .btn { width: 100%; justify-content: center; }
+    /* Dock: chips wrap on their own line, Save/Cancel span full width beneath them. */
+    .dock-meta { flex: 1 1 100%; }
+    .dock-actions { width: 100%; margin-left: 0; }
+    .dock-actions .btn { flex: 1; justify-content: center; }
+    /* Pickers become near-full-width sheets anchored above the dock. */
+    .picker { left: 0; right: 0; width: auto; }
     .emotion-button { min-width: 60px; }
 }
 </style>
@@ -642,10 +676,103 @@ document.addEventListener('DOMContentLoaded', function() {
         updateWordCount(); // Initial count
     }
 
-    // Mood/tags disclosure always DEFAULTS EXPANDED (the HTML `open` attribute). The user can
-    // collapse it within a session, but each visit re-opens it — we do NOT silently persist a
-    // collapse, which would override the "default expanded" requirement. (If persistence is
-    // wanted later, it should be an explicit, opt-in user preference — not implicit local state.)
+});
+</script>
+
+<script nonce="{{ csp_nonce }}">
+/* Compose dock controller — always-visible chips that mirror the current metadata and open
+   lightweight pickers. Overlays only: opening a picker never shifts layout or the page scroll.
+   CSP-safe: nonce script, addEventListener, event delegation, no inline handlers. */
+document.addEventListener('DOMContentLoaded', function () {
+    var dock = document.querySelector('.compose-dock');
+    if (!dock) return;
+
+    var CHIPS = {
+        mood:       { panel: 'picker-mood',       empty: '☺ Mood',       icon: '' },
+        tags:       { panel: 'picker-tags',       empty: '🏷 Tags',       icon: '🏷 ' },
+        categories: { panel: 'picker-categories', empty: '📁 Categories', icon: '📁 ' }
+    };
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+    function buildMood(panel) {
+        var chosen = panel.querySelectorAll('.emotion-option input:checked');
+        if (!chosen.length) return null;
+        var parts = [];
+        chosen.forEach(function (inp) {
+            var lab = inp.closest('.emotion-option');
+            var emoji = lab.querySelector('.emotion-emoji');
+            var name = lab.querySelector('.emotion-name');
+            parts.push('<span class="chip-emoji">' + esc(emoji ? emoji.textContent : '') + '</span> ' + esc(name ? name.textContent.trim() : ''));
+        });
+        return parts.join('<span class="chip-sep">·</span>');
+    }
+    function buildLabels(panel) {
+        var chosen = panel.querySelectorAll('input[type="checkbox"]:checked');
+        if (!chosen.length) return null;
+        var names = [];
+        chosen.forEach(function (inp) {
+            var lab = inp.closest('label');
+            names.push(esc(lab ? lab.textContent.trim() : inp.value));
+        });
+        return names.join('<span class="chip-sep">•</span>');
+    }
+
+    function refresh(key) {
+        var cfg = CHIPS[key];
+        var panel = document.getElementById(cfg.panel);
+        var chip = dock.querySelector('.dock-chip[data-picker-open="' + key + '"]');
+        if (!panel || !chip) return;
+        var body = chip.querySelector('.chip-body');
+        var built = key === 'mood' ? buildMood(panel) : buildLabels(panel);
+        if (built == null) {
+            chip.classList.add('is-empty');
+            body.innerHTML = esc(cfg.empty);
+        } else {
+            chip.classList.remove('is-empty');
+            body.innerHTML = cfg.icon + built;
+        }
+    }
+    function refreshAll() { Object.keys(CHIPS).forEach(refresh); }
+
+    var openKey = null;
+    function close() {
+        if (!openKey) return;
+        document.getElementById(CHIPS[openKey].panel).hidden = true;
+        var chip = dock.querySelector('.dock-chip[data-picker-open="' + openKey + '"]');
+        if (chip) chip.setAttribute('aria-expanded', 'false');
+        openKey = null;
+    }
+    function open(key) {
+        if (openKey === key) { close(); return; }
+        close();
+        var panel = document.getElementById(CHIPS[key].panel);
+        if (!panel) return;
+        panel.hidden = false;
+        var chip = dock.querySelector('.dock-chip[data-picker-open="' + key + '"]');
+        if (chip) chip.setAttribute('aria-expanded', 'true');
+        openKey = key;
+    }
+
+    dock.addEventListener('click', function (e) {
+        var opener = e.target.closest('[data-picker-open]');
+        if (opener) { e.preventDefault(); open(opener.getAttribute('data-picker-open')); return; }
+        if (e.target.closest('[data-picker-close]')) { e.preventDefault(); close(); }
+    });
+    dock.addEventListener('change', function (e) {
+        if (e.target.matches && e.target.matches('input[type="checkbox"]')) {
+            var panel = e.target.closest('.picker');
+            if (panel) refresh(panel.getAttribute('data-picker-panel'));
+        }
+    });
+    document.addEventListener('click', function (e) {
+        if (!openKey) return;
+        if (e.target.closest('.picker') || e.target.closest('[data-picker-open]')) return;
+        close();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+    refreshAll();
 });
 </script>
 

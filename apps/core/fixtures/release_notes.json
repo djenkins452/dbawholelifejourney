@@ -4539,8 +4539,8 @@
     "model": "core.releasenote",
     "pk": 285,
     "fields": {
-      "title": "A roomier, steadier Journal editor",
-      "description": "The journal writing area now fills the space available instead of sitting in a small box with a large empty gap below it — and it stays put when you pick a mood or a tag, so the editor no longer shrinks out from under you mid-entry. Mood, tags, and categories are open by default (collapsible whenever you like), and the Save Changes / Cancel buttons stay pinned just beneath your writing so they're always within reach.",
+      "title": "A calmer, writing-first Journal editor",
+      "description": "The Journal editor is redesigned around your writing. The page is now one large, steady writing area, and everything else lives in a tidy bar along the bottom: your mood and tags show as small chips so you can always see what's set at a glance, and tapping one opens a quick picker to change it — the writing area never jumps or resizes. Save and Cancel sit right there in the same bar, always within reach.",
       "entry_type": "improvement",
       "version": "",
       "release_date": "2026-07-20",

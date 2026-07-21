@@ -5,6 +5,10 @@
 
 This document exists because the Journal editor's height/scroll behavior was "fixed" six times, each fix moving the failure instead of removing it. It records the layout stack, the scroll-ownership model, why the earlier fixes failed, and the durable design — so no future change reintroduces the class.
 
+## 0. Presentation — the Compose Dock (Option C, shipped 2026-07-21)
+
+On the reliable document-flow base below, the form presents as a **writing-first compose view**: a quiet title, a large editor, and a **compose dock** — a `position: sticky; bottom: 0` bar (inside the shell scroll, paint-only) that carries **always-visible mood / tags / categories chips** plus **Save / Cancel**. The chips mirror the current selection (e.g. `😊 Great · 🙏 Grateful`, `🏷 Family • Work`) so the user has continuous awareness without opening anything; tapping a chip opens a **lightweight picker** — an overlay anchored above the dock (`position: absolute`), so opening it causes **zero layout shift and no change to editor height or page scroll**. The metadata `<input>`s live inside the pickers, unchanged (names `emotions`/`categories`/`tags`), so POST is byte-for-byte identical. A small JS controller (CSP-safe: nonce, `addEventListener`, delegation) opens/closes one picker at a time and re-renders each chip live on `change`. This is Option C from the UI-architecture proposal, and it obeys every invariant in §8 — it is *the document-flow base wearing a writing-app surface*, not a new layout model.
+
 ---
 
 ## 1. Layout hierarchy (as-built)

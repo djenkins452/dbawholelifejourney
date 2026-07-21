@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-21 (chore(startup): session close-out — Travel Intelligence designed as first platform-consumer domain; strategic direction folded into 01 §6; bootloader regenerated)
 # ================================================================# WLJ Change History
 
+## 2026-07-21 — docs(startup): Measurement Session Capture close-out — fold the truth↔presentation + confirmation-reports-results lessons into the Engineering Guide
+
+Session close-out for the Measurement Session Capture production-hardening work (code shipped 2026-07-19/20 in prior commits). **Docs only — no code.** Two durable engineering lessons were promoted from the session into the permanent startup package (per `99_PREPARE_NEXT_CHAT.md`), so they never live in the temporary bootloader:
+
+1. **`03_ENGINEERING_OPERATING_GUIDE.md` §3g (new)** — *Truth and presentation are separate layers.* A domain handler emits deterministic structured data; a **reusable presentation layer** consumes the same contract and renders it (chat / web / mobile / API / a future card). Never embed presentation inside a domain handler. Reference implementation named: the multimodal-import confirmation framework `apps/ai/import_confirmation.py` — already reused this week by Structured Import (journal-document import), which is the durability proof.
+2. **`03 §7` (extended)** — *A confirmation reports RESULTS, not intentions:* it must state what was recognized, what will import, what cannot import and why, the counts, and any blank fields — and **never silently drop** a perceived value. Rendered by the reusable layer (§3g) so the guarantee holds on every surface.
+
+Assessed and deliberately **not** changed: `01_…ARCHITECTURE.md` already carries the higher-altitude product lessons ("the source is never the feature — the structured candidate is"; "never silently drop"; "the confirmation framework" as a reusable platform capability) from prior sessions — the new material is the complementary *engineering* discipline, so no duplication. Reference Index unchanged (the governing `WLJ_MULTIMODAL_INTAKE_ARCHITECTURE.md` is already indexed; no new doc). Constitution untouched (no Article changed). Bootloader: my track's live state (validate the new confirmation experience in production) added to *Waiting on Danny*; parallel sessions' state preserved.
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/03_ENGINEERING_OPERATING_GUIDE.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `docs/wlj_claude_changelog.md`, memory files.
+
 ## 2026-07-21 — fix(journal): Create/Edit layout — return to plain document flow (stop fighting the app shell's scroll ownership)
 
 **Production regression + architectural reset.** After the `svh` editor-sizing fix, the Journal **Create** screen lost its scrollbar entirely — the editor region read blank/inaccessible, content was clipped in the viewport, and neither the content above nor below could be reached. This was the sixth partial fix in a row where each change *moved* the failure instead of removing it (fixed-height → deep flex-fill → sticky footer → `dvh` → `svh` → direct ProseMirror viewport sizing). Per the request, I stopped patching symptoms and reassessed the whole layout from first principles.

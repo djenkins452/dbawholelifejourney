@@ -27,7 +27,9 @@ from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, View
 )
 
+from apps.core.current_context import PageSummaryMixin
 from apps.core.utils import get_user_today
+from apps.finance.services.finance_home_summary import build_finance_home_summary
 
 from apps.core.events.domain_events import safe_emit_event, EventTypes
 
@@ -229,16 +231,26 @@ class FinanceAuditMixin:
 # Dashboard / Home
 # =============================================================================
 
-class FinanceDashboardView(LoginRequiredMixin, TemplateView):
+class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
     """Main finance dashboard with overview of all financial data."""
 
     template_name = 'finance/dashboard.html'
+    # Current Context — the Finance workspace declares a deterministic overview summary.
+    # The finance.dashboard provider reads the SAME build_finance_home_summary source this
+    # view exposes below (request-path-safe SAE snapshot), so the page and the assistant
+    # never disagree about the figures.
+    page_summary_key = "finance.dashboard"
+    page_summary_title = "Finance"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         today = get_user_today(user)
         month_start = today.replace(day=1)
+
+        # ONE deterministic source feeds both this render and the finance.dashboard page
+        # summary provider (Current Context contract — never re-derive independently).
+        context["finance_summary"] = build_finance_home_summary(user)
 
         # Accounts summary
         accounts = FinancialAccount.objects.filter(

@@ -21,6 +21,57 @@ def _d(dt):
     return _dj_date(timezone.localtime(dt), "M j, Y") if dt else "—"
 
 
+@register_page_summary("health.home")
+def health_home_summary(user, params):
+    """The Health Home workspace (physical health overview). Deterministic facts only —
+    reads the ONE shared source (build_health_home_summary), the SAME cached SAE health
+    snapshot the page renders (`hs`), so the assistant can never contradict the screen.
+    WLJ exposes numbers; the model decides what they mean (no verdicts)."""
+    from apps.health.services.health_home_summary import build_health_home_summary
+
+    facts = build_health_home_summary(user)
+
+    if facts.get("status") == "pending":
+        return {"title": "Health", "kind": "health overview",
+                "content": "Your health snapshot — being prepared (up-to-date figures "
+                           "load momentarily)."}
+
+    lines = []
+    if facts.get("weight_current") is not None:
+        line = f"Current weight: {facts['weight_current']:g} lb"
+        ch = facts.get("weight_change_30d")
+        if ch is not None:
+            line += f" ({'+' if ch > 0 else ''}{ch:g} lb over 30 days)"
+        lines.append(line)
+    if facts.get("sleep_avg_hours_7d") is not None:
+        lines.append(f"Sleep (7-day avg): {facts['sleep_avg_hours_7d']:g} hours")
+    if facts.get("steps_avg_7d") is not None:
+        lines.append(f"Steps (7-day avg): {facts['steps_avg_7d']:g}")
+    if facts.get("heart_rate_avg_7d") is not None:
+        lines.append(f"Heart rate (7-day avg): {facts['heart_rate_avg_7d']:g} bpm")
+    if facts.get("glucose_latest") is not None:
+        line = f"Glucose (latest): {facts['glucose_latest']:g}"
+        if facts.get("glucose_avg_7d") is not None:
+            line += f" (7-day avg {facts['glucose_avg_7d']:g})"
+        lines.append(line)
+    if facts.get("bp_systolic") is not None and facts.get("bp_diastolic") is not None:
+        lines.append(f"Blood pressure (latest): {facts['bp_systolic']:g}/{facts['bp_diastolic']:g}")
+    if facts.get("water_today_oz") is not None:
+        line = f"Water today: {facts['water_today_oz']:g} oz"
+        if facts.get("water_goal_oz"):
+            line += f" of {facts['water_goal_oz']:g} oz goal"
+        lines.append(line)
+    if facts.get("medication_status") and facts["medication_status"] != "no_data":
+        lines.append(f"Medication status: {facts['medication_status']}")
+
+    if not lines:
+        return {"title": "Health", "kind": "health overview",
+                "content": "Health overview — no health metrics logged yet."}
+
+    return {"title": "Health", "kind": "health overview",
+            "content": "Health overview\n" + "\n".join(lines)}
+
+
 @register_page_summary("health.weight")
 def weight_page_summary(user, params):
     """The Weight overview page. Deterministic facts only — WLJ exposes the numbers; the

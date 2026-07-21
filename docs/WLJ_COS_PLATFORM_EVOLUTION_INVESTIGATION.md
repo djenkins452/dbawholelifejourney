@@ -536,3 +536,38 @@ Injected a known cached contract (3 items: 1 completed, 1 overdue, 1 upcoming me
 ## 9. Readiness for bidirectional Current Context
 
 **Closer, but finish the overview tier first.** The Dashboard — the highest-value surface — is now certified with a request-path-safe deterministic summary, which was *the* blocker named in Part V. Recommended before starting bidirectional CC: certify the remaining high-traffic domain overviews (health home, finance, meals) with the same shared-builder + SAE-cached pattern. Once those land, `reveal(target)` and `already_visible` will have precise deterministic context across the workspaces users actually sit in, and bidirectional Current Context can begin on a fully certified foundation.
+
+---
+---
+
+# PART VII — Health / Finance / Meals Home Certification (Truth milestone)
+
+**Why:** the Part VI §9 recommendation — the remaining three high-traffic domain overviews. Each was an overview page with **no** Current Context. Certified here with the **exact Dashboard Day Summary pattern**: one shared, facts-only, request-path-safe builder that reads the domain's **already-cached SAE snapshot** (`allow_rebuild=False`), returns `status="pending"` on a cold snapshot, and feeds BOTH the page render and the Current Context provider. No new authority, no new cache, no new calculation — pure exposure of existing cached truth.
+
+## 1. Reused truth (no new authority)
+
+| Workspace | Page (view) | SAE module | Producer (single authority) | Builder (new, shared) | Provider (`summary:<key>`) |
+|---|---|---|---|---|---|
+| **Health Home** | `HealthHomeView` (`health:home`, `/health/physical/`) | `health` | `build_health_state` | `apps/health/services/health_home_summary.py :: build_health_home_summary` | `health.home` (`apps/health/page_summaries.py`) |
+| **Finance** | `FinanceDashboardView` (`finance:dashboard`, `/finance/`) | `finance` | `build_finance_state` (`_contract.summary/upcoming/alerts`) | `apps/finance/services/finance_home_summary.py :: build_finance_home_summary` | `finance.dashboard` (`apps/finance/page_summaries.py`, new file) |
+| **Meals** | `MealsDashboardView` (`meals:dashboard`, `/meals/`) | `meals` | `build_meals_state` | `apps/meals/services/meals_home_summary.py :: build_meals_home_summary` | `meals.dashboard` (`apps/meals/page_summaries.py`) |
+
+Each SAE module is registered in `MODULE_BUILDERS` (`state_builder.py:6058-6103`) → populated by the SAE cycle → read request-path-safe via `get_module_state(user, "<module>", allow_rebuild=False)`. Health Home reads the SAME `health` snapshot the page renders from (`hs`); Finance's `finance` snapshot is the same `_contract` `CurrentFinance` reads; Meals' `meals` snapshot is thinner than the full live dashboard (pantry / expiring / dinner-plan / grocery-cycle / dietary-targets facts) — the certified summary exposes those snapshot facts.
+
+## 2. Facts-only contracts (no verdicts)
+
+- **`health.home`** — weight (current + 30d change), 7-day sleep/steps/heart-rate, latest+7-day glucose, latest BP, water today vs goal, medication status (a SAE-resolved fact, not a WLJ verdict).
+- **`finance.dashboard`** — net worth (+ assets/liabilities), account count, month spending/income, cash-pressure level (SAE fact), active-goal / overdue-bill / over-budget / recurring-due-14d counts. `enabled=False` and empty-`_contract` are distinct honest states.
+- **`meals.dashboard`** — pantry item count, expiring-within-3-days count + names, tonight's dinner plan, grocery cycle days, daily protein/carb targets. No-household is a READY (not pending) honest state.
+
+## 3. Certification evidence
+
+Per workspace, mirroring the Dashboard 5-point certification (identical structure in each test file): (1) builder projects the cached snapshot deterministically; (2) `status="pending"` when the snapshot is cold; (3) the provider's pending message is honest ("being prepared"); (4) full chain reads ONE source — builder → provider → `resolve_current_context(user, "summary:<key>")` (the actual CoS path) agree; (5) the view declares `page_summary_key` AND imports the SAME builder by identity (no parallel impl). Meals adds a 6th (no-household is READY, not pending).
+
+## 4. Test results
+
+`apps/finance/tests/test_finance_home_summary.py` (5), `apps/meals/tests/test_meals_home_summary.py` (6), `apps/health/tests/test_health_home_summary.py` (5) — **16/16 OK**. `test_request_path_safety_contract` **4/4**; `test_constitution_contract` **9/9**; `makemigrations --check` **No changes**; `manage.py check` clean; all three providers (`health.home`, `finance.dashboard`, `meals.dashboard`) self-register at app-ready (14 providers total). No model changes; no new cache; no new authority.
+
+## 5. Overview tier — certified
+
+The three highest-traffic domain overviews (Health Home, Finance, Meals) now carry request-path-safe deterministic Current Context, alongside the Dashboard (Part VI) and Weight/Nutrition/Body-Intelligence (reference impls). The overview tier the Part VI §9 readiness note gated bidirectional Current Context on is complete for the primary workspaces users sit in. Remaining overview summaries (glucose, calendar, goals, tasks, reports, analytics, legacy hearth/library, capture) follow the identical pattern when their turn comes.

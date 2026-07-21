@@ -29,6 +29,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView, ListView, TemplateView, View
 
 from apps.core.current_context import PageSummaryMixin
+from apps.meals.services.meals_home_summary import build_meals_home_summary
 from apps.help.mixins import HelpContextMixin
 from apps.meals.models import Recipe
 
@@ -96,7 +97,8 @@ class MealsHouseholdMixin:
 
 
 class MealsDashboardView(
-    HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin, TemplateView
+    PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, MealsHouseholdMixin,
+    TemplateView
 ):
     """
     Meal Intelligence Command Center.
@@ -107,10 +109,21 @@ class MealsDashboardView(
 
     template_name = "meals/dashboard.html"
     help_context_id = "MEALS_DASHBOARD"
+    # Current Context — the Meals workspace declares a deterministic overview summary.
+    # The meals.dashboard provider reads the SAME build_meals_home_summary source this
+    # view exposes below (request-path-safe SAE snapshot), so the page and the assistant
+    # never disagree about the figures.
+    page_summary_key = "meals.dashboard"
+    page_summary_title = "Meals"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
+
+        # ONE deterministic source feeds both this render and the meals.dashboard page
+        # summary provider (Current Context contract — never re-derive independently).
+        context["meals_summary"] = build_meals_home_summary(user)
+
         household = self.get_household()
         dietary_profile = self.get_dietary_profile()
         today = timezone.now().date()

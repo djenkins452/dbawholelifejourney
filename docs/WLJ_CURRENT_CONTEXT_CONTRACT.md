@@ -24,11 +24,14 @@ When building or changing ANY page, ask **"what is the user looking at here, det
 | Overview page | `summary:<key>` | Status |
 |---------------|-----------------|--------|
 | Weight | `health.weight` | ✅ 2026-07-11 (reference impl) |
-| Home / Dashboard | `core.dashboard` | ☐ |
+| Home / Dashboard | `dashboard.day` | ✅ 2026-07-21 (SAE `execution` snapshot) |
+| Nutrition | `health.nutrition` | ✅ |
+| Body Intelligence | `health.body_intelligence` | ✅ |
+| Health Home | `health.home` | ✅ 2026-07-21 (SAE `health` snapshot) |
+| Finance Dashboard | `finance.dashboard` | ✅ 2026-07-21 (SAE `finance` snapshot) |
+| Meals Home | `meals.dashboard` | ✅ 2026-07-21 (SAE `meals` snapshot) |
 | Glucose | `health.glucose` | ☐ |
-| Health Overview | `health.overview` | ☐ |
 | Calendar Overview | `calendar.overview` | ☐ |
-| Finance Dashboard | `finance.dashboard` | ☐ |
 | Goals Dashboard | `purpose.goals` | ☐ |
 | Task Dashboard | `life.tasks` | ☐ |
 | Reports | `reports.overview` | ☐ |

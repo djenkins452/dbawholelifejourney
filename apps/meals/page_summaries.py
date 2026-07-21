@@ -12,6 +12,46 @@ the screen.
 from apps.core.current_context import register_page_summary
 
 
+@register_page_summary("meals.dashboard")
+def meals_dashboard_summary(user, params):
+    """The Meals workspace — deterministic facts only. Reads the ONE shared source
+    (build_meals_home_summary), which is request-path-safe (SAE snapshot only). WLJ
+    exposes counts / names / dates; the model decides what they mean."""
+    from apps.meals.services.meals_home_summary import build_meals_home_summary
+
+    facts = build_meals_home_summary(user)
+
+    if facts.get("status") == "pending":
+        return {"title": "Meals", "kind": "meals overview",
+                "content": "Your meals — being prepared (up-to-date figures load momentarily)."}
+
+    if not facts.get("has_household"):
+        return {"title": "Meals", "kind": "meals overview",
+                "content": "Meals — no household set up yet."}
+
+    lines = [f"Pantry items on hand: {facts.get('pantry_item_count', 0)}"]
+    exp_ct = facts.get("pantry_expiring_count", 0)
+    if exp_ct:
+        names = facts.get("expiring_item_names") or []
+        detail = f" ({', '.join(names)})" if names else ""
+        lines.append(f"Expiring within 3 days: {exp_ct}{detail}")
+    if facts.get("has_dinner_planned"):
+        recipe = facts.get("dinner_recipe")
+        lines.append(f"Dinner planned tonight: {recipe}" if recipe
+                     else "Dinner planned tonight: yes")
+    else:
+        lines.append("Dinner planned tonight: none")
+    if facts.get("grocery_cycle_days"):
+        lines.append(f"Grocery cycle: every {facts['grocery_cycle_days']} days")
+    if facts.get("protein_target_daily") is not None:
+        lines.append(f"Daily protein target: {facts['protein_target_daily']:g} g")
+    if facts.get("carb_limit_daily") is not None:
+        lines.append(f"Daily carb limit: {facts['carb_limit_daily']:g} g")
+
+    return {"title": "Meals", "kind": "meals overview",
+            "content": "Meals overview\n" + "\n".join(lines)}
+
+
 @register_page_summary("meals.leftovers")
 def leftovers_page_summary(user, params):
     """The Leftovers overview page. Facts only — reads the same leftover_summary the

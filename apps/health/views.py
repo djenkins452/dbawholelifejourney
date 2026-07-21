@@ -27,6 +27,7 @@ from django.template.loader import render_to_string
 
 from apps.core.current_context import CurrentContextMixin, PageSummaryMixin
 from apps.core.events.domain_events import safe_emit_event, EventTypes
+from apps.health.services.health_home_summary import build_health_home_summary
 from apps.core.utils import get_user_today, user_log_id
 from apps.core.views import SaveAddAnotherMixin, UndoDeleteMixin
 from apps.help.mixins import HelpContextMixin
@@ -103,18 +104,28 @@ class HealthLandingView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         return context
 
 
-class HealthHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class HealthHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
     """
     Physical Health home - overview of all physical health metrics.
     """
 
     template_name = "health/home.html"
     help_context_id = "HEALTH_PHYSICAL_HOME"
+    # Current Context — the Health workspace declares a deterministic overview summary,
+    # read from the SAME request-path-safe SAE health snapshot (build_health_home_summary)
+    # this page renders from (`hs`). Page and assistant never disagree about the figures.
+    page_summary_key = "health.home"
+    page_summary_title = "Health"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         now = timezone.now()
+
+        # ONE deterministic source feeds both this render and the health.home page summary
+        # provider (Current Context contract — never re-derive independently). Reads the
+        # SAME SAE health snapshot as the page's `hs`, request-path-safe (allow_rebuild=False).
+        context["health_summary"] = build_health_home_summary(user)
         week_ago = now - timedelta(days=7)
         month_ago = now - timedelta(days=30)
 

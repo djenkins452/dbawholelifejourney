@@ -13,3 +13,7 @@ class FinanceConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.finance'
     verbose_name = 'Finance'
+
+    def ready(self):
+        # Register Current Context page-summary providers (finance.dashboard).
+        from apps.finance import page_summaries  # noqa: F401

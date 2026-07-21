@@ -254,11 +254,11 @@
     max-width: 760px;
     margin: 0 auto;
     padding: var(--space-6) var(--space-4) var(--space-6);
-    /* The writing surface fills the viewport via a stable min-height on the editor itself
-       (see .notebook-body .ProseMirror). We deliberately do NOT fill via a flex-grow chain
-       against an indefinite (min-height) container: WebKit re-resolves that chain on the FIRST
-       reflow (e.g. selecting a mood toggles :checked), collapsing the editor to its floor and
-       opening a blank gap — the exact defect this replaces. Plain block flow is reflow-stable. */
+    /* Plain document flow. The Journal form is ordinary page content inside the app shell,
+       which already owns scrolling on desktop (.desktop-main-area is the single scroll region;
+       body is 100vh/overflow:hidden). This page therefore sets NO viewport heights, NO overflow,
+       NO flex-fill chain — the editor sizes itself from the shared RTE's own min-height and the
+       page scrolls exactly like every other page. See docs/WLJ_JOURNAL_FORM_LAYOUT.md. */
 }
 
 .journal-compose .sr-only {
@@ -370,23 +370,20 @@
     margin-top: var(--space-5);
 }
 
-/* ── Fill the available height (reflow-stable, engine-agnostic) ─────────────
-   The editor fills the viewport via ONE stable rule: a viewport-based min-height on the
-   editable surface itself. No flex-grow-to-fill chain (WebKit collapses that on the first
-   reflow — e.g. selecting a mood — dropping the editor to its floor and opening a blank gap)
-   and no live `dvh` (which jumps as the iOS URL bar shows/hides). `svh` is the *smallest*
-   stable viewport height, so it never jumps mid-session; `max(280px, …)` is the usable floor.
-   Because the height lives on the editor and depends on nothing but the viewport, selecting or
-   removing a mood/tag/category cannot change it. */
-.notebook-body .wlj-rte-content { min-height: 0 !important; }   /* neutralize the RTE's inline min-height */
-/* Premium-notebook writing surface: warm serif, generous rhythm */
+/* ── Editor height: from the shared RTE, NOT the viewport ───────────────────
+   The editor's height comes entirely from the shared Rich Text Editor, which the journal
+   form configures with min_height=420 (apps/journal/forms.py). That inline min-height sits on
+   .wlj-rte-content and the editable surface inherits it (min-height:inherit in wlj-rich-text.css),
+   so the writing area is a comfortable 420px and grows naturally with the text — plain document
+   flow, no viewport units. We do NOT override .wlj-rte-content's min-height here (doing so is what
+   forced the earlier fragile viewport-sizing). Because the height is a fixed floor + content, a
+   mood/tag/category selection cannot change it, and nothing here can suppress page scrolling. */
+/* Premium-notebook writing surface: warm serif, generous rhythm (styling only — no sizing) */
 .notebook-body .ProseMirror {
     font-family: "New York", "Iowan Old Style", Georgia, "Times New Roman", serif;
     font-size: 1.08rem;
     line-height: 1.85;
     color: var(--color-text);
-    min-height: 280px;                               /* fallback for engines without svh */
-    min-height: max(280px, calc(100svh - 400px));    /* fills the viewport; never below 280px */
     caret-color: var(--color-accent);
 }
 .notebook-body .ProseMirror p { margin-bottom: 1em; }
@@ -582,13 +579,8 @@
 @media (max-width: 640px) {
     .journal-compose { padding: var(--space-4) var(--space-3) var(--space-8); }
     .notebook { padding: var(--space-4); border-radius: var(--radius-lg); }
-    /* Same stable viewport-fill on mobile (less chrome above the editor); svh keeps it from
-       jumping as the iOS URL bar / keyboard shows. Never below the 300px usable floor. */
-    .notebook-body .ProseMirror {
-        font-size: 1.05rem;
-        min-height: 300px;                              /* fallback for engines without svh */
-        min-height: max(300px, calc(100svh - 320px));
-    }
+    /* Styling only — the editor height stays the shared RTE's 420px min-height (no viewport units). */
+    .notebook-body .ProseMirror { font-size: 1.05rem; }
     .form-actions { flex-direction: column; align-items: stretch; }
     .form-actions .btn { width: 100%; justify-content: center; }
     .emotion-button { min-width: 60px; }

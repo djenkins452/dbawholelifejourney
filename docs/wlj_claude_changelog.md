@@ -54549,3 +54549,26 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** Runtime traces captured via `CoSGateway` against the test DB (full schema); deterministic truth confirmed present for all three failures via the providers directly. Live-runtime harness was throwaway (hits OpenAI) and was **not committed** (per the no-committed-OpenAI-test rule). No production code modified.
 
 **Files:** `docs/WLJ_TRUTH_RETRIEVAL_CERTIFICATION_PROGRAM.md` (new — the governing program + runtime evidence), `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-22 — Milestone 1: Natural Date Authority (`get_history`) — WLJ resolves dates, not the model
+
+**Why:** Runtime investigation (`952598ba`) proved the production defect *"What did I weigh on July 4?"* → the model emitted **2023**-07-04 and got a false "no data" (the weight was on record). Root cause was **date-contract drift**: `get_entity` told the model *"pass the natural expression… do NOT compute the calendar date yourself (you will get the year wrong)"*, while `get_history` instructed the opposite (*"set start=end=that date… ISO 'YYYY-MM-DD'"*) — and its `period` **enum structurally blocked** natural phrases. Same concept (a date), two contracts. This eliminates the class: WLJ is the single date-resolution authority for every retrieval tool.
+
+**What:**
+- **`get_domain_history` resolves natural date expressions** ("July 4", "yesterday", "last Monday", "two weeks ago", "July 4, 2025") via the **ONE existing shared resolver** `apps/core/truth/periods.py :: resolve_date_expression` — no second parser. Resolution is anchored to the user's **local** today (`get_user_today`), never UTC. Helpers `_resolve_phrase_period` / `_resolve_phrase_date` delegate only; no date math added to the service.
+- **Backward compatible:** explicit ISO `start`/`end` and named windows are untouched (the existing `domain_analysis` and test callers pass through unchanged).
+- **Honest rejection preserved:** an unparseable phrase returns `unsupported` with `valid_periods` and guidance — never a fabricated date, never a silent wrong answer.
+- **Shared resolver extended (additive)** with relative offsets — "two weeks ago", "3 days ago", "a week ago", "2 months ago" (month clamps short months: Mar 31 − 1mo → Feb 28), "one year ago". Phrases that previously resolved are unchanged; `get_entity` gains the same forms, keeping both surfaces identical.
+- **Tool schema/description updated** (`model_interface/constitution.py`): the `period` **enum was removed** (it blocked natural phrases) and the model is now instructed to pass the user's natural expression, mirroring `get_entity`'s contract.
+
+**Verification:**
+- **15 new deterministic tests** (`apps/ai/tests/test_domain_history_natural_dates.py`) — bare "July 4" → correct occurrence + value; **model cannot fabricate the year** (asserts the resolved year is this/last year, never 2023); explicit "July 4, 2025" honored; yesterday / last-Monday / two-weeks-ago; ISO + named-window backward compatibility; natural phrase in `start`; unparseable → honest `unsupported`; **timezone** (Pacific/Kiritimati UTC+14 resolves against user-local today). All 15 pass.
+- **Regression:** 40 tests green across `test_domain_history`, `test_truth_surface_contract`, `test_entity_date_normalization`, `test_date_expression`, `test_workout_history_count`.
+- **Constitutional/safety gates:** `test_request_path_safety_contract`, `test_constitution_contract`, `test_intent_registration` — 24 green. `check` clean; `makemigrations --check` → no changes.
+- **REAL model-interface runtime** (`CoSGateway.respond(surface=chat)` → `ModelInterfaceRuntime` → gpt-4o, ToolCallLog read back): *"What did I weigh on July 4?"* → model sent `get_history(period="July 4")` — **a natural expression, no computed date** — → **"On July 4, your weight was 178 lb."** *"…two weeks ago?"* → `period="two weeks ago"` → honest `empty`. The live harness was throwaway and **not committed** (hits OpenAI).
+
+**Docs:** `WLJ_TRUTH_RETRIEVAL_CERTIFICATION_PROGRAM.md` corrected to distinguish **three separate defect classes** — D1 date-contract drift (fixed here), D2 shadow/parallel authority (protein), D3 missing systematic exposure (blood pressure). Blood pressure is explicitly **not** the protein defect: `get_history("health","blood_pressure")` is `unsupported`, so there is nothing to delegate to; a BP authority must be proven and exposed separately (Milestone 3), never hidden inside the foundational-facts cleanup.
+
+**Files:** `apps/core/truth/periods.py` (relative offsets, additive), `apps/ai/cos_services/domain_history.py` (natural date authority), `apps/ai/model_interface/constitution.py` (get_history schema/description), `apps/ai/tests/test_domain_history_natural_dates.py` (new), `docs/WLJ_TRUTH_RETRIEVAL_CERTIFICATION_PROGRAM.md`.

@@ -14,16 +14,24 @@
 
 Six representative questions were run through the **real production path** (`CoSGateway.respond(surface="chat")` → `ModelInterfaceRuntime` → gpt-4o, owner flag on), reading back the `ToolCallLog` ledger per turn, then cross-checked against the deterministic providers directly (no OpenAI).
 
-**3 / 6 correct, 3 / 6 failed — and every failure is the same root pathology: more than one retrieval authority (or contract) exists for one class of question, and the model reached the weaker one.**
+**3 / 6 correct, 3 / 6 failed.** All three share the broader principle of **retrieval-contract fragmentation**, but they are **three DISTINCT implementation defects** and must not be conflated:
 
-| # | Question | Result | Failing condition |
-|---|----------|--------|-------------------|
-| 1 | What did I weigh on July 4? | ❌ | `get_history` told the model to compute the ISO date; it produced **2023**-07-04 → empty |
-| 2 | How much protein did I eat yesterday? | ❌ | `get_foundational_health_facts` (SAE snapshot) **shadowed** `get_history` (live) → false 0 g |
-| 3 | When was the last time I had pizza? | ✅ | `get_entity(nutrition, meal, contains=pizza)` — correct |
-| 4 | Did I do calf raises during my last workout? | ✅ | `get_entity(health, workout, period=yesterday)` — correct |
-| 5 | What is my current blood pressure? | ❌ | Snapshot-only surfaces (`get_foundational` / `get_domain_state`) missed it; **no live BP authority** exists |
-| 6 | What is my current mission? | ✅ | `get_user_truth(section=goals)` — correct |
+| Defect class | Meaning | Instance | Fix |
+|---|---|---|---|
+| **D1 — Date-contract drift** | Two retrieval tools disagree about *who* resolves a date; the one that delegates to the model gets a fabricated year | weight × "July 4" | **Milestone 1 — DONE** |
+| **D2 — Shadow / parallel authority** | A curated snapshot surface answers a question a canonical **live** authority already owns, and wins | protein × yesterday | Milestone 2 |
+| **D3 — Missing systematic exposure** | **No** canonical live retrieval authority exists for the metric at all; snapshot surfaces are the only path | blood pressure | Milestone 3 |
+
+> **D2 ≠ D3.** Delegating `get_foundational_health_facts` to `get_history` eliminates the protein shadow class — but it **cannot** fix blood pressure, because `get_history("health", "blood_pressure")` is `unsupported`: there is nothing to delegate *to*. Creating or selecting a BP authority is separate work and must not be hidden inside the foundational-facts cleanup.
+
+| # | Question | Result | Failing condition | Class |
+|---|----------|--------|-------------------|-------|
+| 1 | What did I weigh on July 4? | ✅ **FIXED** | `get_history` told the model to compute the ISO date; it produced **2023**-07-04 → empty | D1 |
+| 2 | How much protein did I eat yesterday? | ❌ | `get_foundational_health_facts` (SAE snapshot) **shadowed** `get_history` (live) → false 0 g | D2 |
+| 3 | When was the last time I had pizza? | ✅ | `get_entity(nutrition, meal, contains=pizza)` — correct | — |
+| 4 | Did I do calf raises during my last workout? | ✅ | `get_entity(health, workout, period=yesterday)` — correct | — |
+| 5 | What is my current blood pressure? | ❌ | Snapshot-only surfaces missed it AND `get_history(blood_pressure)` = `unsupported`: **no canonical live BP authority exists to delegate to** | D3 |
+| 6 | What is my current mission? | ✅ | `get_user_truth(section=goals)` — correct | — |
 
 **The deterministic truth existed for all three failures** (proven directly): weight-Jul-4 via `get_history` at the *correct* year → 178 lb; protein-yesterday via `get_history(nutrition, protein, yesterday)` → 75 g; a live `BloodPressureEntry` of 118/76 was on record. **These are retrieval failures, not data failures.**
 
@@ -90,7 +98,9 @@ Runtime ledger evidence lives in `scratchpad/runtime_trace.json` (this session).
 
 **Do not patch missing fields.** Every item below is an *architectural* duplication; the fix removes an authority, it never adds a key.
 
-### Class A — the SAE-snapshot "facts" surface shadows the live systematic authority *(Q2, Q5, latent Q6)*
+### Class A (= D2) — the SAE-snapshot "facts" surface shadows the live systematic authority *(Q2, latent Q6)*
+
+> **Scope correction:** blood pressure (Q5) is **NOT** in this class. Class A is defined by the existence of a canonical **live** authority that the snapshot surface shadows. BP has no such authority (`get_history` = `unsupported`), so it is **D3 — missing systematic exposure**, handled separately in Milestone 3. Fixing Class A will not fix BP.
 `get_foundational_health_facts` and `get_domain_state` both project the **SAE snapshot** (`get_module_state(..., allow_rebuild=False)`); `get_history` reads **live**. For a *"current / on-a-day metric"* question the model can reach any of the three, and the snapshot surfaces:
 - return **false absence / false zero** when the module omits the field (protein `daily_protein_g`) or the snapshot is cold/stale (BP);
 - **answer instead of deferring**, so the model never falls through to the live authority that holds the number.
@@ -102,7 +112,7 @@ This is a direct violation of *one deterministic authority per truth*. **It is a
 2. **Guarantee current-fact freshness or read live.** Where a genuine *current* fact must come from the snapshot, route it through the existing `ensure_fresh` self-heal (see `journal_snapshot_freshness`) so a missed rebuild can't serve a false absence — or read the current value live.
 3. **Never answer with a bare absence from a snapshot surface.** A snapshot miss must return a *defer* signal, not a confident "not recorded," so the loop falls through to the live authority.
 
-### Class B — divergent date-resolution contracts across retrieval tools *(Q1)*
+### Class B (= D1) — divergent date-resolution contracts across retrieval tools *(Q1)* — ✅ **ELIMINATED (Milestone 1)**
 `get_entity` delegates natural-date resolution to WLJ (*"you will get the year wrong"*); `get_history` instructs the model to emit absolute ISO dates. Same concept, two contracts — and the one that pushes grounding onto the model fails.
 
 **Eliminate the class:** make **WLJ the single date-resolution authority for every retrieval tool.** `get_history` should accept the natural expression (`on_date`/`period` = "July 4", "yesterday", "last Tuesday") and resolve it via the existing shared resolver `truth/periods.py :: resolve_date_expression` (most-recent-past), exactly as `get_entity` does. Deprecate model-supplied `start`/`end` for single-date questions (keep them only for explicit ranges, and resolve/clamp those in WLJ too).
@@ -154,12 +164,14 @@ The `ToolCallLog` ledger already records every turn, but **has no operator read 
 
 Ordered by trust impact × leverage. Each item eliminates a class or unblocks certification; none add a bespoke capability or a WLJ reasoning path.
 
-**Track 1 — Retrieval Certification (the spine; everything else rides it)**
-1.1 **Kill Class A** — make `get_foundational_health_facts` a projection of `get_history`/live providers (retire overlapping metric-on-a-day keys; auto-derive the rest). Finishes the migration the file already started.
-1.2 **Kill Class B** — `get_history` accepts natural dates; WLJ resolves the year via `resolve_date_expression`; deprecate model-supplied single-date ISO.
-1.3 **Add the single-authority contract gate** (Framework gate #2) to the CoS Domain Certification Standard; wire it into `test_truth_retrieval_slice`-style CI.
-1.4 **Point Owner-2 at ModelInterface** (already the production runtime) and record a per-domain Deep-run pass rate. Re-run the six-question slice in **production** (warm SAE) to separate the BP env-confound from the real gap.
-1.5 **BP live authority** — add `blood_pressure` as a live `get_history` metric (systolic/diastolic/pulse series) so BP has a non-snapshot path; then current-BP has a live fallback (Class A/C for vitals).
+**Track 1 — Retrieval Certification (the spine; everything else rides it).** Executed as four strictly sequential milestones — one class per milestone, each proven at runtime before the next begins.
+
+- **Milestone 1 — Natural Date Authority (D1). ✅ COMPLETE (runtime-verified).** `get_history` accepts the natural expression; the ONE shared resolver (`truth/periods.py`) resolves it against the user's **local** today; explicit ISO preserved for existing callers; unparseable phrases rejected honestly. Tool schema now instructs the model to pass the user's words (the `period` enum, which structurally *blocked* natural phrases, was removed). Runtime: model sends `period:"July 4"` → **"On July 4, your weight was 178 lb."**
+- **Milestone 2 — Eliminate supported-metric shadow authorities (D2).** Build a precise key inventory across `get_foundational_health_facts` / `get_domain_state` / `get_history` / other health surfaces, classify each key (delegates · legitimately summary-specific · shadow · unsupported by any live authority · broken/falsely-absent), then retire or thin-project every duplicate onto its canonical authority. Kills the protein false-zero class — **without** patching `protein_today` or adding `protein_yesterday` as another curated key.
+- **Milestone 3 — Blood-pressure authority investigation (D3).** *Prove before coding:* where the latest BP record lives, which builder feeds the BP page, whether a canonical deterministic BP query authority already exists, why `get_history` reports BP unsupported, and which surface should own current / latest / history / date-specific BP. Then expose the **existing** authority through the systematic surface — never a second BP calculator, snapshot authority, or facts-specific implementation.
+- **Milestone 4 — Single-authority certification gate.** Permanent deterministic contract audit over representative metric × time combinations (weight × natural date · protein × today · protein × yesterday · BP × latest · BP × specific date where supported), asserting exactly one canonical authority per class, delegation from convenience tools, no conflicting snapshot value, honest and *distinguishable* unsupported states (no data · unsupported metric · stale snapshot · provider failure), page agreement, and honest source/freshness/confidence metadata.
+
+**Then:** point Owner-2 at ModelInterface and record a per-domain Deep-run pass rate; re-run the six-question slice in **production** (warm SAE) to separate the BP env-confound from the real gap.
 
 **Track 2 — Duplicate-Authority Elimination** *(Class C/D cleanup after Track 1)*
 2.1 Per-metric single-source audit: one shared builder feeds page summary + snapshot + tool.

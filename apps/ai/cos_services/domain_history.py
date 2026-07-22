@@ -92,6 +92,33 @@ def _parse_date(value):
         return None
 
 
+def _user_today(user):
+    """The user's LOCAL today — every date phrase resolves against this, never UTC."""
+    from apps.core.utils import get_user_today
+    return get_user_today(user)
+
+
+def _resolve_phrase_period(user, phrase):
+    """Resolve a natural date/period PHRASE to an inclusive (start, end) via the ONE
+    shared temporal authority. Returns None when unparseable (caller rejects honestly).
+    Never implements date math here — `apps.core.truth.periods` owns it."""
+    try:
+        from apps.core.truth.periods import resolve_date_expression
+        p = resolve_date_expression(phrase, _user_today(user))
+    except Exception:
+        logger.warning("domain_history: date resolution failed for %r", phrase,
+                       exc_info=True)
+        return None
+    return (p.start, p.end) if p is not None else None
+
+
+def _resolve_phrase_date(user, phrase):
+    """A single concrete date from a natural phrase (start/end args). None if
+    unparseable — the caller then reports honestly rather than guessing."""
+    resolved = _resolve_phrase_period(user, phrase)
+    return resolved[0] if resolved else None
+
+
 def history_capability_index():
     """{domain: (history metrics...)} for every registered domain that answers at
     least one metric as history. Small (metric NAMES only) — this is the capability
@@ -194,8 +221,37 @@ def get_domain_history(user, domain, metric, *, period="last_7_days",
             supported_metrics=sorted(supported),
         )
 
-    # --- period: a specific date / custom range vs a named window ---
+    # --- NATURAL DATE AUTHORITY: WLJ resolves the calendar date, never the model ---
+    # The model passes the expression the USER said ("July 4", "yesterday", "last
+    # Monday", "two weeks ago"); the ONE shared temporal authority
+    # (`apps.core.truth.periods`) resolves it against the user's local today. This is
+    # the same contract get_entity already honors — previously this surface required
+    # the model to compute an ISO date, and it fabricated the YEAR (prod: "July 4"
+    # → 2023-07-04 → false "no data"). Explicit ISO input from existing callers is
+    # untouched; an unparseable phrase is rejected honestly, never guessed.
     sd, ed = _parse_date(start), _parse_date(end)
+    if start and sd is None:
+        sd = _resolve_phrase_date(user, start)
+    if end and ed is None:
+        ed = _resolve_phrase_date(user, end)
+
+    from apps.core.truth.periods import NAMED_PERIODS as _NAMED
+    if period_norm not in set(_NAMED) and period_norm != "custom" and not (sd or ed):
+        resolved = _resolve_phrase_period(user, period_norm)
+        if resolved is not None:
+            sd, ed = resolved
+        else:
+            from apps.core.truth.periods import NAMED_PERIODS
+            _emit(uid, domain_norm, metric_norm, "unsupported", period=period_norm)
+            return _envelope(
+                domain_norm, metric_norm, "unsupported",
+                reason=(f"Unresolvable period '{period_norm}'. Pass the natural date "
+                        f"expression the user said (e.g. 'July 4', 'yesterday', "
+                        f"'last Monday', 'two weeks ago') or a named window."),
+                valid_periods=list(NAMED_PERIODS) + ["custom"],
+            )
+
+    # --- period: a specific date / custom range vs a named window ---
     if sd or ed or period_norm == "custom":
         if sd and not ed:
             ed = sd

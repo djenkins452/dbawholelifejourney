@@ -604,6 +604,9 @@ def truth_tools():
                 "average / trend / how has X changed' questions, e.g. 'what did I weigh on "
                 "July 4th', 'my steps last week', 'average sleep last month', 'HOW MANY "
                 "workouts did I complete last week', 'how has my workout frequency changed'. "
+                "DATES: pass the NATURAL expression the user said as `period` ('July 4', "
+                "'yesterday', 'last Monday', 'two weeks ago'); WLJ resolves it against the "
+                "user's today. Do NOT compute the calendar date yourself. "
                 "It does NOT return the contents of an individual record — no exercise "
                 "names, sets, reps, or weights. For the detailed contents of a specific "
                 "record (e.g. which exercises were in a workout), use get_entity. The "
@@ -617,16 +620,24 @@ def truth_tools():
                                            "one advertised in the capability index (e.g. "
                                            "'weight', 'steps', 'sleep', 'workouts' = number "
                                            "of sessions, NOT their exercise contents).")},
-                "period": {"type": "string", "enum": list(_NAMED_PERIODS) + ["custom"],
-                           "description": ("Named window, or 'custom' with start/end. A "
-                                           "specific date (e.g. 'July 4th') → set "
-                                           "start=end=that date.")},
+                "period": {"type": "string",
+                           "description": (
+                               "A named window (" + "|".join(_NAMED_PERIODS) + "), OR "
+                               "the NATURAL date expression the user said — 'July 4', "
+                               "'yesterday', 'last Monday', 'two weeks ago', "
+                               "'July 4, 2025'. WLJ resolves it deterministically "
+                               "against the user's today (a year-less date means the "
+                               "most recent past occurrence). Do NOT compute the "
+                               "calendar date yourself (you will get the year wrong).")},
                 "start": {"type": "string",
-                          "description": "ISO date 'YYYY-MM-DD' — required for a custom "
-                                         "range or a single specific date."},
+                          "description": ("Optional explicit range start — a natural "
+                                          "expression or ISO 'YYYY-MM-DD'. Only needed "
+                                          "for a range; a single date belongs in "
+                                          "'period'.")},
                 "end": {"type": "string",
-                        "description": "ISO date 'YYYY-MM-DD' — omit for a single date "
-                                       "(defaults to start)."},
+                        "description": ("Optional explicit range end — a natural "
+                                        "expression or ISO 'YYYY-MM-DD'. Omit for a "
+                                        "single date (defaults to start).")},
             }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_entity",

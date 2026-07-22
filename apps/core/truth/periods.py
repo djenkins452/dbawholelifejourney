@@ -149,6 +149,47 @@ def _parse_explicit_date(phrase, today):
     return None
 
 
+_NUMBER_WORDS = {
+    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12,
+}
+
+_OFFSET_UNITS = {"day": 1, "week": 7}
+
+
+def _parse_relative_offset(phrase, today):
+    """A concrete date for 'N days/weeks/months/years ago' ('two weeks ago',
+    '3 days ago', 'a year ago'). Resolves to the single DAY that far back — the
+    literal reading; it never widens into a range it cannot justify."""
+    m = re.match(r"^(\d+|[a-z]+)\s+(day|week|month|year)s?\s+ago$", phrase)
+    if not m:
+        return None
+    qty_raw = m.group(1)
+    qty = int(qty_raw) if qty_raw.isdigit() else _NUMBER_WORDS.get(qty_raw)
+    if not qty:
+        return None
+    unit = m.group(2)
+    if unit in _OFFSET_UNITS:
+        return today - timedelta(days=qty * _OFFSET_UNITS[unit])
+    if unit == "month":
+        total = (today.year * 12 + today.month - 1) - qty
+        y, mo = divmod(total, 12)
+        # clamp the day into the target month (e.g. Mar 31 → Feb 28)
+        mo += 1
+        for day in range(today.day, 0, -1):
+            try:
+                return date(y, mo, day)
+            except ValueError:
+                continue
+        return None
+    # year
+    try:
+        return today.replace(year=today.year - qty)
+    except ValueError:                      # Feb 29 → Feb 28
+        return today.replace(year=today.year - qty, day=28)
+
+
 def resolve_date_expression(phrase, today):
     """Resolve a natural date PHRASE to a concrete `Period` (single day → start==end),
     or None if unparseable. The ONE shared conversational date resolver — every truth
@@ -176,6 +217,9 @@ def resolve_date_expression(phrase, today):
         d = _resolve_weekday(today, _WEEKDAYS[m.group(2)], m.group(1))
         return Period(p, d, d, p)
     d = _parse_explicit_date(p, today)
+    if d:
+        return Period(p, d, d, p)
+    d = _parse_relative_offset(p, today)
     if d:
         return Period(p, d, d, p)
     return None

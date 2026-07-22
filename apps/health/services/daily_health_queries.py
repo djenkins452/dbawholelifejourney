@@ -62,6 +62,30 @@ class DailyHealthQueries:
     # ----- Weight (sparse — most recent ON OR BEFORE the date; 'as_of') -----
     @classmethod
     def weight_on(cls, user, target_date):
+        """EXACT-DATE weight: a reading recorded ON `target_date`, else no data.
+
+        This method used to filter `recorded_at__date__lte=target_date` — a silent
+        CARRY-FORWARD that returned an older reading under `for_date: <target_date>`,
+        contradicting the history authority's honest empty for the same question
+        (`docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md`, 2026-07-22). Carry-forward is
+        still available, but only under its own name: `weight_latest_on_or_before`.
+        """
+        from apps.health.models import WeightEntry
+        e = (WeightEntry.objects.filter(user=user, recorded_at__date=target_date)
+             .order_by("-recorded_at").first())
+        if not e:
+            return _no_data("weight", target_date)
+        as_of = e.recorded_at.date()
+        return {"status": "ok", "value": float(e.value), "unit": e.unit,
+                "for_date": target_date.isoformat(), "as_of": as_of.isoformat(),
+                "exact": True}
+
+    @classmethod
+    def weight_latest_on_or_before(cls, user, target_date):
+        """CARRY-FORWARD weight: the most recent reading at or before `target_date`,
+        returned WITH the date it was actually recorded (`as_of`) and `exact=False`
+        whenever that is not the requested day. Never use this to answer "what did I
+        weigh on <date>" — that is `weight_on`."""
         from apps.health.models import WeightEntry
         e = (WeightEntry.objects.filter(user=user, recorded_at__date__lte=target_date)
              .order_by("-recorded_at").first())

@@ -57,10 +57,19 @@ class DailyHealthQueriesContractTests(TestCase):
         self.assertEqual(s["value"], 7.2)              # the real night, not a 7d avg
         self.assertEqual(s["for_date"], self.yest.isoformat())
 
-    def test_weight_on_is_as_of_most_recent(self):
-        w = Q.weight_on(self.user, self.today)
+    def test_weight_on_is_exact_date_only(self):
+        """CONTRACT CHANGE (2026-07-22): `weight_on` is EXACT-DATE. It used to filter
+        `recorded_at__date__lte` and return a 3-day-old reading under
+        `for_date: today` — a silent carry-forward that contradicted the history
+        authority's honest empty for the same question
+        (docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md)."""
+        self.assertEqual(Q.weight_on(self.user, self.today)["status"], "no_data")
+
+    def test_weight_carry_forward_lives_under_its_own_name(self):
+        w = Q.weight_latest_on_or_before(self.user, self.today)
         self.assertEqual(w["value"], 285.0)
         self.assertFalse(w["exact"])                   # logged 3 days ago → as-of, not exact
+        self.assertEqual(w["as_of"], (self.today - timedelta(days=3)).isoformat())
 
 
 class FoundationalDayFactRoutingTests(TestCase):
@@ -83,7 +92,10 @@ class FoundationalDayFactRoutingTests(TestCase):
         self.assertEqual(facts["steps_yesterday"]["value"], 8123)
         self.assertEqual(facts["steps_today"]["value"], 4200)
         self.assertEqual(facts["sleep_last_night"]["value"], 7.2)
-        self.assertEqual(facts["steps_yesterday"]["source"], "DailyHealthQueries")
+        # Date-scoped facts now DELEGATE to the one date-scoped metric authority
+        # (single-authority contract) instead of holding a second row read.
+        self.assertEqual(facts["steps_yesterday"]["source"],
+                         "get_domain_history:health.steps")
 
     def test_format_states_the_specific_day(self):
         facts = get_foundational_health_facts(self.user, ["steps_yesterday", "sleep_last_night"])
@@ -95,5 +107,7 @@ class FoundationalDayFactRoutingTests(TestCase):
     def test_no_data_answers_honestly_not_an_average(self):
         empty = User.objects.create_user(email="empty2@test.com", password="x")
         f = get_foundational_health_facts(empty, ["steps_yesterday"])["steps_yesterday"]
-        self.assertEqual(f["status"], "unknown")
+        # Honest absence — "not_recorded" is the date-scoped authority's name for the
+        # same condition the older "unknown" expressed. Still never an average.
+        self.assertEqual(f["status"], "not_recorded")
         self.assertIn("yesterday", format_fact_sentence("steps_yesterday", f).lower())

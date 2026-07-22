@@ -100,6 +100,31 @@ Consistency: one authority per domain ✓ · WLJ owns truth, model reasons ✓ �
 
 ---
 
+## 6b. RESOLUTION (2026-07-22) — the shadow-authority class is closed for date-scoped metrics
+
+The §6 **alternative** was implemented (keep the convenience tool; make its keys delegate),
+driven by a second instance of this exact class:
+`docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md` — "weight yesterday" answered `280.4` then
+`281.5` in one conversation.
+
+* `apps/ai/cos_services/metric_date.py` is now the ONE date-scoped metric authority, with
+  **`exact_date` and `latest_on_or_before` as separately-named semantics**. Carry-forward
+  can no longer wear an exact-date key — the sharper form of the §6 decision, and the part
+  this investigation had not yet identified.
+* `get_foundational_health_facts` day keys (`steps_today`, `steps_yesterday`,
+  `weight_yesterday`, `glucose_yesterday`, `calories_yesterday`) and `current_weight` are
+  now pure projections of that authority. `current_weight` no longer reads SAE at all.
+* The §6 **certification gate** exists: `apps/ai/tests/test_metric_date_authority.py`
+  enumerates the registered date-scoped keys generically and asserts the curated surface and
+  `get_history` return the same status/value — and that no key answers from a second producer.
+
+**Status of this investigation's class: CLOSED for date-scoped metrics.** Residual §8.2
+(`protein_today` / SAE-derived nutrition scalars) is NOT yet dissolved — `protein_today` and
+`calories_today` still read the SAE snapshot via `_FACT_MAP`; only the date-scoped keys were
+converted. Fold the remaining SAE-backed scalars into the next slice.
+
+---
+
 ## 7. Sequencing decision (why this session did NOT implement)
 
 Implementation responsibility belongs to the **CoS-platform / Truth Retrieval Certification** track (the current PRIMARY FOCUS). This investigation deliberately stops at the architectural decision to avoid creating overlapping implementation work. The remaining work is to **evaluate the broader Truth Retrieval Architecture during platform implementation** — treat `get_foundational_health_facts` as one instance of the shadow-authority class, not a one-off patch — rather than continuing isolated investigation here.

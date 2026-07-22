@@ -25,6 +25,7 @@ writes — all writes go through the action interface → execute_intent → UAI
 
 import json
 import logging
+import uuid
 
 from apps.ai.cos_services import audit as _audit
 from apps.ai.cos_services import (
@@ -365,14 +366,61 @@ class ModelInterfaceService:
             ago = subj.get("turns_ago")
             when = (" (introduced this turn)" if ago in (0, None)
                     else f" (introduced {ago} turn(s) ago)")
-            parts.append(
-                f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"for a "
-                "leak?\", \"is that dangerous?\", \"tell me more\", \"what about this part\", "
-                "\"it/that/this\") refers to THIS unless the user clearly changes topic or "
-                "explicitly asks about the page/screen. To see or re-check it, retrieve it with "
-                f"get_entity (domain='artifacts' for an uploaded file). Do NOT let an unrelated "
-                "page's Current Context replace this active subject.")
+            # A METRIC subject must be re-retrieved from its own authority for the new
+            # date — a follow-up that only shifts the date ("Yesterday's?", "and last
+            # week?") is the SAME subject, and must never be answered from the number
+            # already on screen (that is how one turn's value became another date's
+            # answer, 2026-07-22).
+            if kind == "metric" and subj.get("domain") and subj.get("metric"):
+                d, m = subj["domain"], subj["metric"]
+                parts.append(
+                    f"ACTIVE SUBJECT: the metric \"{m}\" (domain '{d}'){when}. A short "
+                    f"follow-up that only changes the DATE or PERIOD (\"Yesterday's?\", "
+                    f"\"and last week?\", \"what about Monday?\") is still about THIS "
+                    f"metric — do NOT switch domain and do NOT ask which metric they "
+                    f"mean. RETRIEVE it again for the new date with "
+                    f"get_history(domain='{d}', metric='{m}', period=<the date "
+                    f"expression the user said>). NEVER reuse the number from an "
+                    f"earlier turn as the answer for a different date. Do NOT let an "
+                    f"unrelated page's Current Context replace this active subject.")
+            else:
+                parts.append(
+                    f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"for a "
+                    "leak?\", \"is that dangerous?\", \"tell me more\", \"what about this part\", "
+                    "\"it/that/this\") refers to THIS unless the user clearly changes topic or "
+                    "explicitly asks about the page/screen. To see or re-check it, retrieve it "
+                    "with get_entity (domain='artifacts' for an uploaded file). Do NOT let an "
+                    "unrelated page's Current Context replace this active subject.")
         return "\n".join(parts)
+
+    @staticmethod
+    def _grounding_lead() -> str:
+        """Raise the salience of the two ANSWER rules that govern every factual turn.
+
+        They are already in the standing CONSTITUTION, but the constitution sits at the
+        HEAD of a ~60k-char prompt and these rules were measurably not surviving that
+        distance (2026-07-22: asked "why two different numbers?" over a visible
+        transcript, the model asked WHICH numbers, twice out of two). Same inline-salience
+        pattern as _focus_lead/_profile_lead/_conversation_state_lead: one source, restated
+        near the user's turn. GENERAL and unconditional — no contradiction detector, no
+        per-question rule, nothing about any particular metric.
+        """
+        return (
+            "\n\n=== ANSWERING WITH NUMBERS (applies to every turn) ===\n"
+            "1. GROUND IT: state a value about this user only when a tool returned it for "
+            "the SCOPE you are answering. A number retrieved for one date is evidence for "
+            "THAT date only — when the date or period changes, retrieve again. Never reuse "
+            "an earlier turn's number for a new scope, and never infer one.\n"
+            "2. READ THE ENVELOPE: `semantics: exact_date` = recorded on the date asked "
+            "about. `latest_on_or_before`/`latest_observation` = most recent reading — if "
+            "`exact` is false, say when it was actually recorded. `status: not_recorded` "
+            "means it was not recorded that day; say so plainly. That is a complete answer.\n"
+            "3. OWN A CONTRADICTION: the transcript above is visible to you. If the user "
+            "says your answers disagree — or you are about to contradict yourself — do NOT "
+            "ask them which numbers they mean. Re-read the transcript yourself, quote both "
+            "values and the scope each belonged to, retrieve the authoritative value, and "
+            "say which is correct and why the earlier one was wrong."
+        )
 
     @staticmethod
     def _attachment_lead(standing_context: dict) -> str:
@@ -430,8 +478,76 @@ class ModelInterfaceService:
             + self._profile_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
             + json.dumps(standing_context, ensure_ascii=False)
+            # AFTER the structured context, so the answer rules are the last thing read
+            # before the user's turn (the same placement RESPONSE_COMPLETION_REMINDER uses).
+            + self._grounding_lead()
             + "\n\n" + RESPONSE_COMPLETION_REMINDER
         )
+
+    # Truth tools whose successful result deterministically establishes what the
+    # conversation is now ABOUT. Anchoring only get_entity left every factual answer
+    # delivered by another surface unanchored — proven 2026-07-22: after a weight answer
+    # from get_foundational_health_facts, the elliptical follow-up "Yesterday's?" carried
+    # no subject and drifted to the Journal domain (0/4 probes stayed on weight).
+    _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_analysis",
+                              "get_foundational_health_facts")
+
+    @classmethod
+    def _subject_from_truth_result(cls, name, args, result):
+        """Deterministically derive the ACTIVE SUBJECT from ANY successful truth retrieval
+        (a concrete signal, never language). Returns a compact reference
+        {kind, ref, label, domain?, metric?} or None — references only, never prose,
+        never a summary, never inferred intent."""
+        if name not in cls._SUBJECT_BEARING_TOOLS or not isinstance(result, dict):
+            return None
+        if name == "get_history":
+            return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
+        if name == "get_analysis":
+            return cls._subject_from_metric(args.get("domain"), args.get("subject"), result,
+                                            kind="analysis")
+        if name == "get_foundational_health_facts":
+            return cls._subject_from_health_facts(result)
+        return cls._subject_from_entity_result(name, args, result)
+
+    @staticmethod
+    def _subject_from_metric(domain, metric, result, *, kind="metric"):
+        """A metric/subject retrieval anchors the conversation to THAT metric, so a
+        follow-up that only shifts the DATE ("Yesterday's?", "and last week?") stays on it."""
+        try:
+            if (result or {}).get("status") in ("insufficient_evidence", "error", None):
+                return None
+            domain = (domain or "").strip().lower()
+            metric = (metric or "").strip().lower()
+            if not domain or not metric:
+                return None
+            return {"kind": kind, "ref": f"{domain}.{metric}", "label": metric,
+                    "domain": domain, "metric": metric}
+        except Exception:
+            return None
+
+    @staticmethod
+    def _subject_from_health_facts(result):
+        """Anchor from a curated health-fact answer. The facts now carry their own
+        `domain`/`metric` (they delegate to the one date-scoped authority), so the subject
+        is read from the RETURNED TRUTH rather than guessed from the requested key."""
+        try:
+            # The canonical truth envelope carries its payload under `value`
+            # (`truth.envelope.make_envelope`); accept a bare payload too.
+            facts = (result or {}).get("value")
+            if not isinstance(facts, dict):
+                facts = (result or {}).get("data")
+            if not isinstance(facts, dict):
+                facts = result if isinstance(result, dict) else {}
+            for key, fact in facts.items():
+                if not isinstance(fact, dict):
+                    continue
+                domain, metric = fact.get("domain"), fact.get("metric")
+                if domain and metric:
+                    return {"kind": "metric", "ref": f"{domain}.{metric}",
+                            "label": metric, "domain": domain, "metric": metric}
+            return None
+        except Exception:
+            return None
 
     @staticmethod
     def _subject_from_entity_result(name, args, result):
@@ -469,7 +585,7 @@ class ModelInterfaceService:
 
     # -- tool dispatch --------------------------------------------------------
     def _make_dispatch(self, *, turn_id, surface, tools_called, observer=None,
-                       turn_capture=None):
+                       turn_capture=None, conversation_id=""):
         user = self.user
 
         def _do(name, args):
@@ -480,8 +596,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"freshness": out.get("freshness"),
-                                   "confidence": out.get("confidence")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "search_history":
@@ -492,7 +608,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"freshness": out.get("freshness")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "get_user_truth":
@@ -501,7 +618,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"section": args.get("section")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "get_foundational_health_facts":
@@ -510,7 +628,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"keys": args.get("keys")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "get_history":
@@ -527,9 +646,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"domain": args.get("domain"),
-                                   "metric": args.get("metric"),
-                                   "period": args.get("period")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "get_analysis":
@@ -544,10 +662,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"domain": args.get("domain"),
-                                   "subject": args.get("subject"),
-                                   "holds_data": raw.get("holds_data"),
-                                   "evidence": raw.get("evidence")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
             if name == "get_entity":
@@ -582,9 +698,8 @@ class ModelInterfaceService:
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
-                    result_digest={"domain": args.get("domain"),
-                                   "entity_type": args.get("entity_type"),
-                                   "name": args.get("name")},
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
 
@@ -611,7 +726,7 @@ class ModelInterfaceService:
             result = _do(name, args)
             # Capture the retrieved entity as a candidate ACTIVE SUBJECT (last retrieval wins).
             if turn_capture is not None:
-                subj = self._subject_from_entity_result(name, args, result)
+                subj = self._subject_from_truth_result(name, args, result)
                 if subj is not None:
                     turn_capture["subject"] = subj
             if observer is not None:  # observability only (validation harness); no-op in prod
@@ -623,11 +738,24 @@ class ModelInterfaceService:
 
         return dispatch
 
+    @staticmethod
+    def _new_turn_id(conversation, *, request_id=""):
+        """A UNIQUE id for this turn. An explicit `request_id` (validation harness,
+        streaming task) wins; otherwise a fresh one is minted. It is deliberately NOT
+        derived from the conversation — that is what collapsed every turn of a
+        conversation into one audit id (2026-07-22)."""
+        return request_id or f"turn-{uuid.uuid4().hex[:24]}"
+
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
                  request_id="", observer=None, conversation_history=None,
                  writes_enabled=None, images=None, attachments=None) -> dict:
-        turn_id = request_id or (f"conv-{getattr(conversation, 'id', '')}")
+        # AUDIT IDENTITY: the turn id must be UNIQUE PER TURN. It previously defaulted to
+        # f"conv-{id}", and the production gateway calls generate() without a request_id —
+        # so every turn in a conversation shared one id and no incident could be replayed
+        # turn by turn (proven 2026-07-22). The conversation is carried separately.
+        conversation_id = str(getattr(conversation, "id", "") or "")
+        turn_id = self._new_turn_id(conversation, request_id=request_id)
         tools_called = []
         if writes_enabled is None:
             writes_enabled = self._writes_enabled()
@@ -641,6 +769,7 @@ class ModelInterfaceService:
         dispatch = self._make_dispatch(
             turn_id=turn_id, surface=surface, tools_called=tools_called,
             observer=observer, turn_capture=turn_capture,
+            conversation_id=conversation_id,
         )
 
         answer = self.ai._call_api_with_tools(
@@ -664,6 +793,7 @@ class ModelInterfaceService:
 
         _audit.record_tool_call(
             self.user, kind="response", turn_id=turn_id, surface=surface,
+            conversation_id=conversation_id,
             result_status="ok" if answer else "empty",
             result_digest={"answer_len": len(answer),
                            "tools_called": list(tools_called)},

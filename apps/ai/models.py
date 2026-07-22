@@ -2152,7 +2152,14 @@ class ToolCallLog(models.Model):
         on_delete=models.CASCADE,
         related_name='tool_call_logs',
     )
+    # UNIQUE PER TURN. Previously this defaulted to f"conv-{conversation.id}", so every
+    # turn in a conversation shared one id and per-turn forensics was impossible (proven
+    # 2026-07-22). The conversation is now identified by its own field below.
     turn_id = models.CharField(max_length=64, db_index=True, blank=True, default='')
+    # The conversation this turn belongs to, kept SEPARATE from the turn identity so a
+    # whole conversation can still be replayed in order.
+    conversation_id = models.CharField(max_length=64, db_index=True, blank=True,
+                                       default='')
     surface = models.CharField(max_length=32, blank=True, default='')
     kind = models.CharField(max_length=16, choices=KIND_CHOICES)
     tool_name = models.CharField(max_length=64, blank=True, default='')
@@ -2167,6 +2174,7 @@ class ToolCallLog(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['user', 'turn_id']),
+            models.Index(fields=['user', 'conversation_id']),
             models.Index(fields=['created_at']),
         ]
 

@@ -1,7 +1,7 @@
 # WLJ Truth Retrieval Certification — Program & Runtime Evidence
 
-**Status:** Investigation + program design COMPLETE · fixes scoped, not yet implemented
-**Date:** 2026-07-21
+**Status:** Investigation + program design COMPLETE · **Milestone 1 (D1) and Milestone 2 (D2) IMPLEMENTED** · Milestone 3 (D3 — blood pressure) open
+**Date:** 2026-07-21 (updated 2026-07-22 — D2 eliminated for date-scoped + current metrics)
 **Type:** Runtime-trace investigation (real `CoSGateway.respond` → `model_interface` → real gpt-4o) + program design
 **Governs:** the standard used before any domain is declared *"Chief of Staff Complete."*
 **Does NOT re-open architecture.** WLJ owns deterministic truth; the model owns reasoning; Current Context is authoritative; one deterministic authority per truth. This program *certifies* that established architecture — it changes none of it.
@@ -14,12 +14,12 @@
 
 Six representative questions were run through the **real production path** (`CoSGateway.respond(surface="chat")` → `ModelInterfaceRuntime` → gpt-4o, owner flag on), reading back the `ToolCallLog` ledger per turn, then cross-checked against the deterministic providers directly (no OpenAI).
 
-**3 / 6 correct, 3 / 6 failed.** All three share the broader principle of **retrieval-contract fragmentation**, but they are **three DISTINCT implementation defects** and must not be conflated:
+**3 / 6 correct, 3 / 6 failed** at investigation time. **Now 5 / 6** — D1 fixed by Milestone 1 (`f7cad624`), D2 fixed by the Single Date-Scoped Metric Authority milestone (2026-07-22, `docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md`). **D3 (blood pressure) remains open.** All three share the broader principle of **retrieval-contract fragmentation**, but they are **three DISTINCT implementation defects** and must not be conflated:
 
 | Defect class | Meaning | Instance | Fix |
 |---|---|---|---|
 | **D1 — Date-contract drift** | Two retrieval tools disagree about *who* resolves a date; the one that delegates to the model gets a fabricated year | weight × "July 4" | **Milestone 1 — DONE** |
-| **D2 — Shadow / parallel authority** | A curated snapshot surface answers a question a canonical **live** authority already owns, and wins | protein × yesterday | Milestone 2 |
+| **D2 — Shadow / parallel authority** | A curated snapshot surface answers a question a canonical **live** authority already owns, and wins | protein × yesterday; weight × yesterday | **Milestone 2 — DONE for date-scoped + current metrics (2026-07-22)**; non-date-scoped SAE keys + `get_domain_state` remain |
 | **D3 — Missing systematic exposure** | **No** canonical live retrieval authority exists for the metric at all; snapshot surfaces are the only path | blood pressure | Milestone 3 |
 
 > **D2 ≠ D3.** Delegating `get_foundational_health_facts` to `get_history` eliminates the protein shadow class — but it **cannot** fix blood pressure, because `get_history("health", "blood_pressure")` is `unsupported`: there is nothing to delegate *to*. Creating or selecting a BP authority is separate work and must not be hidden inside the foundational-facts cleanup.
@@ -27,7 +27,7 @@ Six representative questions were run through the **real production path** (`CoS
 | # | Question | Result | Failing condition | Class |
 |---|----------|--------|-------------------|-------|
 | 1 | What did I weigh on July 4? | ✅ **FIXED** | `get_history` told the model to compute the ISO date; it produced **2023**-07-04 → empty | D1 |
-| 2 | How much protein did I eat yesterday? | ❌ | `get_foundational_health_facts` (SAE snapshot) **shadowed** `get_history` (live) → false 0 g | D2 |
+| 2 | How much protein did I eat yesterday? | ✅ **FIXED** | `get_foundational_health_facts` (SAE snapshot) **shadowed** `get_history` (live) → false 0 g. `protein_today`/`protein`-class keys now delegate to the one date-scoped authority | D2 |
 | 3 | When was the last time I had pizza? | ✅ | `get_entity(nutrition, meal, contains=pizza)` — correct | — |
 | 4 | Did I do calf raises during my last workout? | ✅ | `get_entity(health, workout, period=yesterday)` — correct | — |
 | 5 | What is my current blood pressure? | ❌ | Snapshot-only surfaces missed it AND `get_history(blood_pressure)` = `unsupported`: **no canonical live BP authority exists to delegate to** | D3 |
@@ -98,7 +98,16 @@ Runtime ledger evidence lives in `scratchpad/runtime_trace.json` (this session).
 
 **Do not patch missing fields.** Every item below is an *architectural* duplication; the fix removes an authority, it never adds a key.
 
-### Class A (= D2) — the SAE-snapshot "facts" surface shadows the live systematic authority *(Q2, latent Q6)*
+### Class A (= D2) — the SAE-snapshot "facts" surface shadows the live systematic authority *(Q2, latent Q6)* — ✅ **ELIMINATED for date-scoped + current metrics (2026-07-22)**
+
+> **Resolved by the Single Date-Scoped Metric Authority milestone** (`docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md` §10), driven by a second live instance of this class ("weight yesterday" answered 280.4 then 281.5 in one conversation).
+> Option **(b)** was implemented: `get_foundational_health_facts` is now a **projection, not an authority**. `steps_today`, `steps_yesterday`, `weight_yesterday`, `glucose_yesterday`, `calories_today`, `calories_yesterday`, `protein_today` delegate to `metric_date.metric_on_date`; `current_weight` delegates to `metric_date.latest_observation_on_or_before`; both delegate onward to the systematic authority behind `get_history`. Their duplicate `_FACT_MAP` SAE specs were **deleted**, so no second definition remains to drift.
+> Priority-2 ("guarantee current-fact freshness or read live") is satisfied **by delegation** — `current_weight` no longer touches the snapshot, and the answer carries `observed_on` + `age_days` + `freshness`, so a stale value can no longer present as current. Priority-3 ("never answer with a bare absence") is satisfied by the **exact-date/carry-forward split**: an exact-date miss returns `status="not_recorded"` from the SAME authority `get_history` would have used, so there is nothing left to fall through TO.
+> **Sharper than the original decision:** the census framed this as "one authority." The weight incident proved that is insufficient — one authority with **two unnamed semantics** still contradicts itself. Carry-forward must be a *separately named contract* (`latest_on_or_before`), never a silent fallback inside an exact-date key.
+> **Certification gate exists:** `apps/ai/tests/test_metric_date_authority.py` (generic — enumerates the registered date-scoped keys).
+> **Remaining in Class A:** the non-date-scoped SAE-backed keys (`last_glucose_reading`, `average_glucose_yesterday`, `sleep_*`, `steps_recent`, `last_blood_pressure_reading`, `weight_30_day_change`) and `get_domain_state`. Not yet converted.
+
+**Original analysis (retained):**
 
 > **Scope correction:** blood pressure (Q5) is **NOT** in this class. Class A is defined by the existence of a canonical **live** authority that the snapshot surface shadows. BP has no such authority (`get_history` = `unsupported`), so it is **D3 — missing systematic exposure**, handled separately in Milestone 3. Fixing Class A will not fix BP.
 `get_foundational_health_facts` and `get_domain_state` both project the **SAE snapshot** (`get_module_state(..., allow_rebuild=False)`); `get_history` reads **live**. For a *"current / on-a-day metric"* question the model can reach any of the three, and the snapshot surfaces:

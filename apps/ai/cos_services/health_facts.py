@@ -22,13 +22,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 # fact key -> {module, value field, optional metadata fields, optional note}.
+# NOTE: keys answered by the date-scoped/carry-forward authorities are NOT listed
+# here — `current_weight`, `calories_today`, `protein_today` and the `*_yesterday`
+# keys were removed from this map when they were delegated (2026-07-22). A key must
+# have exactly ONE producer; leaving a stale SAE spec behind is how the two drift.
 # Field names verified against live SAE state (health/medicine/nutrition modules).
 _FACT_MAP = {
-    "current_weight": {
-        "module": "health", "value": "weight_current",
-        "unit": "weight_unit", "trend": "weight_trend",
-        "recorded_at": "last_weight_entry",
-    },
     "weight_30_day_change": {
         # SAE health state has no 30-day delta scalar -> resolves to unknown.
         "module": "health", "value": "weight_change_30d",
@@ -43,11 +42,10 @@ _FACT_MAP = {
         "unit": "latest_glucose_unit", "recorded_at": "last_glucose_entry",
         "note": "7-day average; SAE has no yesterday-specific glucose average.",
     },
-    "sleep_last_night": {
-        "module": "health", "value": "sleep_avg_hours_7d",
-        "unit": "hours", "trend": "sleep_trend", "recorded_at": "last_sleep_entry",
-        "note": "7-day average hours; SAE has no last-night-specific value.",
-    },
+    # (`sleep_last_night` is answered by CurrentHealth.latest_sleep — see
+    # _SLEEP_FACT_KEYS. Its old 7-day-average spec was UNREACHABLE dead config and was
+    # removed with the other duplicates; `average_sleep_7d` below still serves that
+    # genuinely different question.)
     "average_sleep_7d": {
         "module": "health", "value": "sleep_avg_hours_7d",
         "unit": "hours", "trend": "sleep_trend",
@@ -58,14 +56,6 @@ _FACT_MAP = {
     "current_medications": {
         "module": "medicine", "value": "active_medications",
         "count": "medication_count",
-    },
-    "calories_today": {
-        "module": "nutrition", "value": "daily_calories",
-        "unit": "kcal", "target": "calorie_target",
-    },
-    "protein_today": {
-        "module": "nutrition", "value": "daily_protein_g",
-        "unit": "g", "target": "protein_target",
     },
     "last_blood_pressure_reading": {
         "module": "health", "value": "bp_systolic",
@@ -87,27 +77,110 @@ _FACT_MAP = {
     },
 }
 
-# Batch 1 — PER-DAY deterministic facts. These bypass the SAE 7-day-average path
-# and read the specific day straight from the canonical models via DailyHealthQueries
-# ("retrieve, never derive"). The classifier (foundational_facts._refine_to_day)
-# routes "yesterday/today/last night" questions here.
-_DAY_FACT_KEYS = {"steps_today", "steps_yesterday", "sleep_last_night",
-                  "calories_yesterday", "weight_yesterday", "glucose_yesterday"}
+# Batch 1 — PER-DAY deterministic facts. The classifier
+# (foundational_facts._refine_to_day) routes "yesterday/today/last night" questions here.
+#
+# SINGLE DATE-SCOPED AUTHORITY (2026-07-22 — WLJ_WEIGHT_YESTERDAY_INVESTIGATION):
+# these keys are CONVENIENCE NAMES for "metric X on calendar date D". They no longer
+# retrieve anything themselves — each DELEGATES to the one date-scoped authority
+# (`metric_date.metric_on_date`), which in turn delegates to the systematic history
+# authority behind `get_history`. This surface previously read
+# DailyHealthQueries.weight_on(), whose `recorded_at__date__lte` CARRIED FORWARD an
+# older observation and returned it under `for_date: <yesterday>` — contradicting
+# get_history's exact-date empty for the identical question. Curated keys must never
+# hold a second implementation of a deterministic question.
+#
+# key -> (domain, history metric, days back from the user's local today)
+_DATE_SCOPED_FACTS = {
+    "steps_today":        ("health", "steps", 0),
+    "steps_yesterday":    ("health", "steps", 1),
+    "weight_yesterday":   ("health", "weight", 1),
+    "glucose_yesterday":  ("health", "glucose", 1),
+    "calories_today":     ("nutrition", "calories", 0),
+    "calories_yesterday": ("nutrition", "calories", 1),
+    "protein_today":      ("nutrition", "protein", 0),
+}
 
-SUPPORTED_FACTS = sorted(set(_FACT_MAP.keys()) | _DAY_FACT_KEYS)
+# Goal/target scalars that ACCOMPANY a delegated value. The target is a stored
+# preference, not an observation — it is attached alongside the fact (clearly a
+# different kind of thing) rather than being re-derived or allowed to keep the whole
+# key on the snapshot path. key -> (SAE module, target field).
+_FACT_TARGETS = {
+    "calories_today": ("nutrition", "calorie_target"),
+    "protein_today": ("nutrition", "protein_target"),
+}
+
+# RESIDUAL (deliberate, logged): `sleep_last_night` names a relative NIGHT, not a
+# calendar date, and its canonical accessor (`CurrentHealth` → `latest_sleep`) returns
+# the most recent sleep record regardless of date. Whether "last night" maps to
+# yesterday's or today's `SleepEntry.sleep_date` (night-of vs wake date) is a separate
+# truth question that needs its own runtime proof — changing it blind would silently
+# alter every sleep answer. It keeps its existing authority for now and is routed
+# through the SAME envelope so its semantics are disclosed, not implied.
+_SLEEP_FACT_KEYS = {"sleep_last_night"}
+
+_DAY_FACT_KEYS = set(_DATE_SCOPED_FACTS) | _SLEEP_FACT_KEYS
+
+# Current/latest keys whose honest meaning is "the most recent observation" — a
+# CARRY-FORWARD contract. They delegate to the explicitly-named carry-forward
+# authority so the real observation date and age travel WITH the value. Previously
+# `current_weight` read the SAE snapshot, which `get_user_state()` rebuilds only when
+# the row is missing — a populated-but-stale snapshot stayed authoritative forever and
+# carried no freshness envelope at all (prod: a 105-day-old value reported as "your
+# current weight").
+_LATEST_OBSERVATION_FACTS = {
+    "current_weight": ("health", "weight"),
+}
+
+SUPPORTED_FACTS = sorted(set(_FACT_MAP.keys()) | _DAY_FACT_KEYS
+                         | set(_LATEST_OBSERVATION_FACTS))
 
 _META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic",
                 "for_date", "as_of", "exact")
 
 
 def _day_fact(user, key):
-    """Per-day fact → flat dict, retrieved through the canonical Health DOMAIN TRUTH
-    interface (`get_domain_truth(user, "health").current(key)`). Beth is a consumer of
-    the one per-domain interface — it does not reach into individual capabilities."""
-    from apps.core.truth.domain import get_domain_truth
-    if key not in _DAY_FACT_KEYS:
+    """Per-day fact → flat dict from the ONE date-scoped metric authority.
+
+    This key is a NAME for "metric X on calendar date D"; `metric_date` is the only
+    producer of that answer. When the requested day holds no observation the result is
+    an honest `status="not_recorded"` — never a neighbouring day's value wearing this
+    date's label.
+    """
+    from apps.ai.cos_services import metric_date as _md
+    spec = _DATE_SCOPED_FACTS.get(key)
+    if spec is None:
+        if key in _SLEEP_FACT_KEYS:
+            return _sleep_fact(user, key)
         return {"status": "unsupported_fact", "supported": sorted(_DAY_FACT_KEYS)}
-    return get_domain_truth(user, "health").current(key).to_fact_dict()
+    from datetime import timedelta
+    domain, metric, days_back = spec
+    today = _md.user_today(user)
+    return _md.metric_on_date(user, domain, metric, today - timedelta(days=days_back),
+                              today=today)
+
+
+def _sleep_fact(user, key):
+    """`sleep_last_night` — kept on its existing canonical accessor (see the
+    `_SLEEP_FACT_KEYS` residual note) but with its semantics DISCLOSED, so no consumer
+    can mistake a latest-record read for an exact-date one."""
+    from apps.core.truth.domain import get_domain_truth
+    fact = get_domain_truth(user, "health").current(key).to_fact_dict()
+    if isinstance(fact, dict):
+        fact.setdefault("semantics", "latest_observation")
+        fact.setdefault("authority", "CurrentHealth.latest_sleep")
+    return fact
+
+
+def _latest_observation_fact(user, key):
+    """A "current/latest" fact → the explicitly-named CARRY-FORWARD authority, so the
+    value always travels with the date it was actually observed and its age. A stale
+    value can still be returned — it simply can no longer pretend to be today's."""
+    from apps.ai.cos_services import metric_date as _md
+    domain, metric = _LATEST_OBSERVATION_FACTS[key]
+    today = _md.user_today(user)
+    return _md.latest_observation_on_or_before(user, domain, metric, today,
+                                               today=today)
 
 
 # Medication facts answered by the canonical Medicine Domain Truth (read live, never SAE).
@@ -207,10 +280,21 @@ def get_foundational_health_facts(user, keys=None):
         if key in _MEDICINE_DOMAIN_KEYS:
             out[key] = _jsonsafe(_medicine_fact(user, key))
             continue
-        # Per-day deterministic facts route to DailyHealthQueries (specific day),
-        # NOT the SAE 7-day-average path.
+        # Per-day deterministic facts route to the ONE date-scoped metric authority
+        # (exact-date semantics), NOT the SAE snapshot and NOT a second row read.
         if key in _DAY_FACT_KEYS:
-            out[key] = _jsonsafe(_day_fact(user, key))
+            fact = _day_fact(user, key)
+            tspec = _FACT_TARGETS.get(key)
+            if tspec and isinstance(fact, dict):
+                tval = _state(tspec[0]).get(tspec[1])
+                if tval not in (None, ""):
+                    fact["target"] = tval
+            out[key] = _jsonsafe(fact)
+            continue
+        # "Current/latest" facts route to the explicitly-named carry-forward authority,
+        # which discloses the real observation date + age instead of implying "now".
+        if key in _LATEST_OBSERVATION_FACTS:
+            out[key] = _jsonsafe(_latest_observation_fact(user, key))
             continue
         # PRIOR-READING TRUTH: the immediately-prior glucose reading — DISTINCT and
         # EARLIER than the current one. Canonical Layer 1 accessor, never the SAE
@@ -310,10 +394,16 @@ def get_foundational_health_facts(user, keys=None):
     # CALORIE questions want a TOTAL: "no food logged" = 0 calories (a real, numeric
     # answer), never "unknown" (which would leave the reply without a value and fail a
     # calorie value-gate). Meal questions are a separate intent and are unaffected.
+    # ("not_recorded" is the date-scoped authority's honest absence — the same
+    # condition the older "unknown"/"no_data" statuses expressed. The derived nature of
+    # the zero stays DISCLOSED rather than implied.)
     for ck in ("calories_today", "calories_yesterday"):
         cur = out.get(ck)
-        if isinstance(cur, dict) and cur.get("status") in ("unknown", "no_data"):
+        if isinstance(cur, dict) and cur.get("status") in ("unknown", "no_data",
+                                                           "not_recorded"):
             out[ck] = {"value": 0, "unit": "kcal", "source": "nutrition",
-                       "freshness": "current"}
+                       "freshness": "current", "semantics": "derived_zero",
+                       "requested_date": cur.get("requested_date"),
+                       "reason": "No food logged for that day — 0 kcal consumed."}
 
     return _jsonsafe(out)

@@ -62,6 +62,9 @@ TTL_SECONDS = 1800          # whole-state INACTIVITY fallback (30 min)
 MAX_SUBJECT_TURNS = 12      # generous turn BACKSTOP for an unreinforced, never-superseded subject
 _MAX_ARTIFACTS = 6          # bounded active-artifact list
 SCHEMA_VERSION = 1
+# Deterministic pointer fields a retrieved subject may carry beyond {kind, ref, label}.
+# Strictly an allow-list: references the next turn can RE-RETRIEVE with, never content.
+_SUBJECT_REF_FIELDS = ("domain", "metric")
 
 
 def _now(now=None):
@@ -139,6 +142,7 @@ def read(conversation, *, now=None) -> dict | None:
         src_turn = subj.get("source_turn") or 0
         subj = dict(subj)
         subj["turns_ago"] = max(0, cur_turn - src_turn)
+        # (domain/metric pointers ride along untouched — see _SUBJECT_REF_FIELDS.)
         if subj["turns_ago"] <= MAX_SUBJECT_TURNS:
             out["active_subject"] = subj
     return out if (out.get("active_subject") or out.get("active_artifacts")) else None
@@ -202,6 +206,13 @@ def record_turn(conversation, *, attachments=None, retrieved_subject=None,
                        "ref": retrieved_subject.get("ref"),
                        "label": retrieved_subject.get("label") or "the item you asked about",
                        "source_turn": turn, "first_ts": _iso(now)}
+            # Compact deterministic POINTERS only (domain/metric), so a follow-up that
+            # merely shifts the DATE ("Yesterday's?") can be re-retrieved from the same
+            # authority. Never prose, never a summary, never inferred intent.
+            for field in _SUBJECT_REF_FIELDS:
+                val = retrieved_subject.get(field)
+                if val:
+                    subject[field] = val
         # else: keep the prior subject unchanged (it ages via source_turn).
 
         state = {

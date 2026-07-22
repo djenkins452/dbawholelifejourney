@@ -191,7 +191,9 @@ class TruthToolTests(TestCase):
                                       tool_name="get_domain_state")
         self.assertEqual(row.kind, "truth")
         self.assertEqual(row.result_status, "ok")
-        self.assertIn("freshness", row.result_digest)   # truth-envelope metadata
+        # The digest now records the truth ACTUALLY RETURNED (status/value/provenance)
+        # under `evidence`, not just the request — see audit.truth_digest.
+        self.assertIn("freshness", row.result_digest["evidence"])
 
     def test_search_history_is_audited_truth(self):
         self._generate_with_tool(

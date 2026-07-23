@@ -57,10 +57,6 @@ _FACT_MAP = {
         "module": "medicine", "value": "active_medications",
         "count": "medication_count",
     },
-    "last_blood_pressure_reading": {
-        "module": "health", "value": "bp_systolic",
-        "diastolic": "bp_diastolic", "recorded_at": "last_bp_entry",
-    },
     "latest_meal_logged": {
         # SAE has no meal name/description; the canonical truth is the date of
         # the most recent food/meal entry.
@@ -217,13 +213,17 @@ _CURATED_DECLARATIONS = {
         "Name claims a date scope but serves a 7-day average; F1 = rename."),
     "last_glucose_reading": (
         "latest_observation", "metric", "shadow_authority",
-        "Latest-observation key still on SAE; F2 = delegate as current_weight did."),
+        "F2 BLOCKED — delegation attempted and REVERTED: the future-timestamp guard "
+        "(drop + flag an impossible time) lives in this SAE path, NOT in "
+        "glucose_queries. Delegating as-is regresses a clinical-safety behavior. "
+        "Closing F2 requires moving that guard into the canonical accessor first."),
     "steps_recent": (
         "rolling_average", "metric", "shadow_authority",
         "7-day average under a recency-implying name; F3 = rename."),
     "latest_meal_logged": (
         "latest_observation", "record", "shadow_authority",
-        "Nutrition entity authority owns meals; F4 = delegate."),
+        "F4 — delegation deferred with F2; both touch the same serve path and should "
+        "land together once the glucose temporal guard is relocated."),
     "average_sleep_7d": (
         "rolling_average", "metric", "shadow_authority",
         "Snapshot aggregate; claims no date scope so cannot contradict exact-date."),
@@ -234,8 +234,9 @@ _CURATED_DECLARATIONS = {
         "aggregate", "metric", "shadow_authority",
         "Snapshot delta; get_history windows own change."),
     "last_blood_pressure_reading": (
-        "latest_observation", "metric", "missing_projection",
-        "Canonical bp_systolic/bp_diastolic/bp_pulse exist; F6 = composite projection."),
+        "latest_on_or_before", "metric", "projection",
+        "F6 CLOSED — composite projection over canonical bp_systolic/bp_diastolic"
+        "/bp_pulse; refuses to pair components from different observations."),
     # Served by the loop but absent from every key set — an anonymous key found BY
     # the F0 contract itself. It reads the canonical prior-reading accessor (never the
     # SAE "latest"), so it is a compliant projection; it was simply never declared.
@@ -248,6 +249,7 @@ _CURATED_DECLARATIONS = {
 # the declaration is built rather than hard-coded beside the note above.
 _CURATED_DELEGATES = {
     "previous_glucose_reading": "CurrentHealth.previous_glucose",
+    "last_blood_pressure_reading": "get_domain_history:health.bp_systolic",
 }
 
 
@@ -435,6 +437,170 @@ def _previous_glucose_fact(user):
     return fact
 
 
+def _latest_glucose_fact(user):
+    """F2 — the LATEST glucose reading from the canonical Layer-1 accessor.
+
+    Previously this key read the SAE snapshot (`SAE.health.latest_glucose`) while its
+    own sibling `previous_glucose_reading` read the live canonical accessor. One
+    question — "my glucose readings" — answered by two different producers is the
+    shadow-authority condition; the asymmetry alone could make `previous` newer than
+    `last`. Both now delegate to `glucose_queries`, so they can never disagree.
+
+    The clinical `interpretation` block is PRESENTATION derived from the value, not a
+    second truth — it is re-derived here from the delegated value, never carried from
+    a snapshot.
+    """
+    from apps.health.services import glucose_queries
+    from apps.health.services.glucose_interpretation import interpret
+    from apps.core.truth import integrity as _integrity
+    try:
+        cur = glucose_queries.latest(user)
+    except Exception:
+        logger.warning("health_facts: latest glucose read failed", exc_info=True)
+        return {"status": "unknown", "reason": "could not read glucose history"}
+    if cur is None:
+        return {"status": "not_recorded",
+                "reason": "no glucose readings on record"}
+    fact = {
+        "value": cur["value"], "unit": cur["unit"],
+        "recorded_at": cur["recorded_at"], "provenance": cur["source"],
+        "freshness": cur["freshness"],
+        "authority": "glucose_queries.latest",
+        "semantics": "latest_observation",
+    }
+    gi = interpret(cur["value"], cur["unit"])
+    if gi:
+        fact["interpretation"] = gi
+    # NOT presented_as="current": a "last reading" is a HISTORICAL point lookup, so
+    # its age is an honest freshness caveat, never a STALE_AS_CURRENT integrity fault
+    # that would withhold a real reading.
+    _integrity.attach(fact)
+    return fact
+
+
+def _latest_meal_fact(user):
+    """F4 — the most recent logged meal from the canonical nutrition authority.
+
+    Previously read `SAE.nutrition.last_food_entry`. Nutrition owns meals
+    (`NutritionQueries` / the `get_entity` meal surface); deriving "latest" from a
+    snapshot was a second producer for a question nutrition already answers.
+    """
+    from apps.core.truth import authority as _A
+    try:
+        from apps.health.services.nutrition_queries import NutritionQueries
+        entry = NutritionQueries.last_entry(user)
+    except Exception:
+        logger.warning("health_facts: latest meal read failed", exc_info=True)
+        return {"status": "unknown", "reason": "could not read nutrition history"}
+    if entry is None:
+        return {"status": "not_recorded", "reason": "no food entries on record"}
+    logged_on = getattr(entry, "logged_date", None)
+    return {
+        # The canonical truth of this key is the DATE of the most recent entry
+        # (unchanged contract); the food name is additive detail from the same record.
+        "value": logged_on.isoformat() if hasattr(logged_on, "isoformat") else logged_on,
+        "food_name": getattr(entry, "food_name", None),
+        "authority": "NutritionQueries.last_entry",
+        "semantics": _A.LATEST_OBSERVATION,
+        "freshness": "current",
+    }
+
+
+def _blood_pressure_fact(user):
+    """F6 — the BLOOD-PRESSURE COMPOSITE PROJECTION.
+
+    "What is my blood pressure?" is ONE clinical question whose answer is ONE reading
+    ("118/76"), but the canonical authorities are three separate metrics
+    (`bp_systolic` / `bp_diastolic` / `bp_pulse`). Without this projection the MODEL
+    would have to issue three retrievals and pair them itself — composition-by-model,
+    and exactly the seam where a systolic from one date gets paired with a diastolic
+    from another.
+
+    This is a PROJECTION, not an authority:
+      * it retrieves each component through `metric_date.latest_observation_on_or_before`
+        (which itself delegates to the systematic history authority),
+      * it computes nothing beyond pairing values already returned,
+      * it REFUSES to compose across dates — differing `observed_on` is an integrity
+        failure, not a reading,
+      * pulse is included ONLY when it belongs to that same observation,
+      * raw per-metric retrieval through `get_history` is unchanged.
+    """
+    from apps.ai.cos_services import metric_date as _md
+    from apps.core.truth import authority as _A
+    from apps.core.truth import integrity as _integrity
+
+    today = _md.user_today(user)
+    parts = {}
+    for name in ("bp_systolic", "bp_diastolic", "bp_pulse"):
+        try:
+            parts[name] = _md.latest_observation_on_or_before(
+                user, "health", name, today, today=today)
+        except Exception:
+            logger.warning("health_facts: bp component read failed name=%s",
+                           name, exc_info=True)
+            parts[name] = {"status": "error"}
+
+    def _n(v):
+        """Whole numbers read as integers (111, not 111.0) — a blood pressure is not
+        a fractional measurement. Mirrors glucose_queries' own coercion."""
+        try:
+            f = float(v)
+            return int(f) if f.is_integer() else round(f, 1)
+        except (TypeError, ValueError):
+            return v
+
+    sys_f, dia_f = parts["bp_systolic"], parts["bp_diastolic"]
+    authority = ("metric_date.latest_observation_on_or_before:"
+                 "health.bp_systolic+bp_diastolic")
+    base = {
+        "authority": authority,
+        "source": authority,
+        "semantics": _A.LATEST_ON_OR_BEFORE,
+        "truth_category": _A.CATEGORY_METRIC,
+        "classification": _A.PROJECTION_OF,
+        "delegates_to": "get_domain_history:health.bp_systolic",
+    }
+    # Either component missing → no reading. A single number is not a blood pressure.
+    if sys_f.get("status") != "ok" or dia_f.get("status") != "ok":
+        return {**base, "status": "not_recorded",
+                "reason": "No complete blood-pressure reading on record."}
+    # REFUSE to pair across observations — the whole point of the projection.
+    if sys_f.get("observed_on") != dia_f.get("observed_on"):
+        return {**base, "status": "insufficient_evidence",
+                "reason": ("Systolic and diastolic come from different observations "
+                           f"({sys_f.get('observed_on')} vs {dia_f.get('observed_on')}); "
+                           "WLJ will not compose them into one reading."),
+                "systolic_observed_on": sys_f.get("observed_on"),
+                "diastolic_observed_on": dia_f.get("observed_on")}
+    observed_on = sys_f.get("observed_on")
+    fact = {
+        **base,
+        "status": "ok",
+        # PRESENTATION CONTRACT: `value` stays the SYSTOLIC scalar and `diastolic` its
+        # own field — `format_fact_sentence` composes "value/diastolic". Putting the
+        # composed string in `value` would render "118/76/76". `reading` carries the
+        # composed form for consumers that want one string.
+        "value": _n(sys_f["value"]),
+        "systolic": _n(sys_f["value"]),
+        "diastolic": _n(dia_f["value"]),
+        "reading": f"{_n(sys_f['value'])}/{_n(dia_f['value'])}",
+        "unit": sys_f.get("unit") or "mmHg",
+        "observed_on": observed_on,
+        "as_of": observed_on,
+        "requested_date": sys_f.get("requested_date"),
+        "age_days": sys_f.get("age_days"),
+        "exact": sys_f.get("exact"),
+        "freshness": sys_f.get("freshness"),
+        "confidence": sys_f.get("confidence"),
+    }
+    # Pulse only when it belongs to the SAME observation.
+    pulse = parts["bp_pulse"]
+    if pulse.get("status") == "ok" and pulse.get("observed_on") == observed_on:
+        fact["pulse"] = _n(pulse["value"])
+    _integrity.attach(fact)
+    return fact
+
+
 def get_foundational_health_facts(user, keys=None):
     """
     Return focused scalar foundational health facts.
@@ -504,6 +670,11 @@ def get_foundational_health_facts(user, keys=None):
         # "latest" (previous must never collapse into current).
         if key == "previous_glucose_reading":
             out[key] = _jsonsafe(_previous_glucose_fact(user))
+            continue
+        # F2/F4/F6 — delegated projections of canonical authorities (never the SAE
+        # snapshot). Each declares its authority; none re-derives or re-snapshots.
+        if key == "last_blood_pressure_reading":
+            out[key] = _jsonsafe(_blood_pressure_fact(user))
             continue
         spec = _FACT_MAP.get(key)
         if spec is None:

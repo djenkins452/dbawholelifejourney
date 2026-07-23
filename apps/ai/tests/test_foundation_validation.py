@@ -112,6 +112,15 @@ class FastPathTests(TestCase):
             user=cls.user, food_name="Test day", serving_size=Decimal("1"),
             serving_unit="serving", total_calories=Decimal("1850"),
             total_protein_g=Decimal("142"), logged_date=_today, status="active")
+        # Same migration, continued (2026-07-23, F6): `last_blood_pressure_reading` is
+        # now a COMPOSITE PROJECTION over the canonical bp_systolic/bp_diastolic
+        # history metrics, so it needs a REAL reading — a mocked SAE state no longer
+        # feeds it. Systolic and diastolic must share ONE observation; the projection
+        # refuses to compose components from different readings.
+        from apps.health.models import BloodPressureEntry
+        BloodPressureEntry.objects.create(
+            user=cls.user, systolic=111, diastolic=72, pulse=64,
+            recorded_at=_tz.make_aware(_dt.datetime.combine(_today, _dt.time(6, 30))))
 
     def test_fast_path_never_uses_tool_loop(self):
         # The fast path NEVER uses the agentic tool loop. It is EITHER the plain

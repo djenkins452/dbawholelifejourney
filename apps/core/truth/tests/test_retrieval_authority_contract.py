@@ -124,13 +124,12 @@ class FoundationalHealthFactsContractTests(SimpleTestCase):
     # Tracked in docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md (F1-F6).
     KNOWN_DEFECTS = {
         "average_glucose_yesterday": A.SHADOW_AUTHORITY,   # F1 rename
-        "last_glucose_reading": A.SHADOW_AUTHORITY,        # F2 delegate
+        "last_glucose_reading": A.SHADOW_AUTHORITY,        # F2 blocked (temporal guard)
+        "latest_meal_logged": A.SHADOW_AUTHORITY,          # F4 deferred with F2
         "steps_recent": A.SHADOW_AUTHORITY,                # F3 rename
-        "latest_meal_logged": A.SHADOW_AUTHORITY,          # F4 delegate
         "average_sleep_7d": A.SHADOW_AUTHORITY,            # F5
         "sleep_trend": A.SHADOW_AUTHORITY,                 # F5
         "weight_30_day_change": A.SHADOW_AUTHORITY,        # F5
-        "last_blood_pressure_reading": A.MISSING_PROJECTION,  # F6 composite projection
     }
 
     def test_no_new_shadow_or_missing_authority_is_introduced(self):

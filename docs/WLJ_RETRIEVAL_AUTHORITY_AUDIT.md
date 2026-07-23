@@ -70,7 +70,7 @@ Question → Tool Selected → Retrieval Surface → Canonical Authority → Tru
 | **current weight** | `get_foundational_health_facts(current_weight)` | A6 | *(none designated)* | **SAE snapshot** `health.weight_current` | ❌ **Shadow** — envelope-less, not date-scoped; reported a 105-day-old value as current |
 | **weight on July 4** | `get_history(period="July 4")` | A1 | `get_history` | `WeightEntry` via `HealthDomainTruth.history` | ✅ **Correct** (fixed in M1 `f7cad624`) |
 | **protein yesterday** | `get_foundational_health_facts(protein_today)` | A6 | *should be* `get_history` | SAE `nutrition.daily_protein_g` | ❌ **Shadow** — false 0 g; live authority holds 75 g |
-| **latest blood pressure** | `get_foundational_health_facts(last_blood_pressure_reading)` | A6 | **none exists** | SAE `health.bp_systolic` | ❌ **Missing Authority** — `get_history(blood_pressure)` = `unsupported` |
+| **latest blood pressure** | `get_foundational_health_facts(last_blood_pressure_reading)` | A6 | **`get_history(bp_systolic/diastolic/pulse)`** *(corrected)* | SAE `health.bp_systolic` | ❌ **Missing Projection** — authority exists and works; the curated key does not delegate (see §3.5 correction) |
 | **last pizza** | `get_entity(nutrition, meal, contains=pizza)` | A2 | `get_entity` | `NutritionQueries` → `FoodEntry` | ✅ **Correct** |
 | **calf raises** | `get_entity(health, workout, period=yesterday)` | A2 | `get_entity` | `WorkoutQueries.describe` → `WorkoutSession/Exercise/Set` | ✅ **Correct** |
 | **current mission** | `get_user_truth(section=goals)` | A4 | `personal_truth` | `LifeGoal(is_primary_mission)` | ✅ **Correct** (latent dup: `top_goal` in A6) |
@@ -104,7 +104,7 @@ Every exposed value classified as **exactly one** of the five conditions.
 - *(Each requires a one-line capability-index check to confirm; listed as candidates, not asserted.)*
 
 ### 3.5 Missing Authority (no canonical deterministic owner at all)
-- **Blood pressure** — **PROVEN**. `get_history("health","blood_pressure")` → `unsupported`; `get_domain_state` → `bp_reading: null` (snapshot-only); `get_foundational` → `unknown`. **Nothing to delegate to.** → Milestone 3.
+- ~~**Blood pressure**~~ — **❌ CORRECTED 2026-07-23 (this entry was WRONG).** BP is **Missing Projection**, not Missing Authority. This audit probed the metric name `blood_pressure` (which does not exist) and read a **truncated** `supported_metrics` list. The real metrics are **`bp_systolic` / `bp_diastolic` / `bp_pulse`**, all registered health history metrics that return `ready` with units, and both `metric_on_date` and `latest_observation_on_or_before` resolve them. A canonical authority **does** exist; only the projection is missing (`last_blood_pressure_reading` still reads the SAE snapshot). See `WLJ_RETRIEVAL_AUTHORITY_VERIFICATION.md` §5. **Lesson: a metric-name miss is not an absent authority — always enumerate `supported_metrics` in full before classifying.**
 - **Arbitrary windowed counts** ("how many X this week") — no surface owns this generally.
 - **Cross-domain comparison** — no comparison authority.
 

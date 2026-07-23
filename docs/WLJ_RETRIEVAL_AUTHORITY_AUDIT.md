@@ -9,6 +9,21 @@
 
 ---
 
+## 0. THE GOVERNING RULE (permanent architecture, added 2026-07-23)
+
+> ### **"A retrieval surface is not considered certified until every served value explicitly declares its authority and semantics."**
+
+**Authority metadata is part of the retrieval contract**, not documentation about it. Every served retrieval key declares `authority`, `semantics`, `truth_category`, and `classification`; a projection additionally names the canonical authority it defers to (`delegates_to`), so "projection" can never be an unbacked claim.
+
+- **Platform capability:** `apps/core/truth/authority.py` (vocabulary · `AuthorityDeclaration` · validators). It is not a retrieval surface, owns no truth, and performs no reasoning.
+- **Enforced by:** `apps/core/truth/tests/test_retrieval_authority_contract.py` — a build gate, not a review. It fails automatically when a served key is anonymous, a vocabulary term is invented, a projection names no canonical authority, or **a new shadow / missing-projection is introduced (the ratchet)**.
+- **Why:** classification previously required reading source code. A classifier could not distinguish `current_medications` (a compliant projection over live `MedicineQueries`) from `average_glucose_yesterday` (a shadow over `SAE.health.glucose_avg_7d`) — both presented as `authority: absent`. The certification probe itself mis-classified `current_medications`, proving the ambiguity was real.
+- **Declarations are honest.** A key still backed by its own snapshot is declared `shadow_authority`. Declaring a shadow *as* a shadow is the point: it converts an invisible architectural violation into a mechanically countable one, and closing it becomes a visible diff against the pinned defect set.
+
+**Any new retrieval surface adopts this contract in the same change that introduces it.**
+
+---
+
 ## 1. Deliverable 1 — Complete Retrieval Surface Inventory
 
 Every surface that produces or exposes deterministic truth to the model. Three tiers: surfaces the model **calls**, surfaces **injected** into every turn without a tool call, and the **producer** layer beneath both.

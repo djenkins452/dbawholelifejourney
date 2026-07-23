@@ -199,6 +199,115 @@ def supported_facts():
     return sorted(set(_FACT_MAP) | day_fact_keys() | set(_LATEST_OBSERVATION_FACTS))
 
 
+# ---------------------------------------------------------------------------
+# RETRIEVAL AUTHORITY METADATA CONTRACT (platform F0).
+# Every key this surface serves declares its authority + semantics, so ownership is
+# MECHANICALLY classifiable and never requires reading this file. Declarations are
+# honest: a key still backed by its own snapshot is declared `shadow_authority`, which
+# is what makes the remaining residuals countable instead of invisible.
+# ---------------------------------------------------------------------------
+
+# Curated keys that still read the SAE snapshot directly. Declared truthfully so the
+# contract test can pin them; each is closed by delegating or renaming (see
+# docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md F1-F6).
+_CURATED_DECLARATIONS = {
+    # (semantics, truth_category, classification, note)
+    "average_glucose_yesterday": (
+        "rolling_average", "metric", "shadow_authority",
+        "Name claims a date scope but serves a 7-day average; F1 = rename."),
+    "last_glucose_reading": (
+        "latest_observation", "metric", "shadow_authority",
+        "Latest-observation key still on SAE; F2 = delegate as current_weight did."),
+    "steps_recent": (
+        "rolling_average", "metric", "shadow_authority",
+        "7-day average under a recency-implying name; F3 = rename."),
+    "latest_meal_logged": (
+        "latest_observation", "record", "shadow_authority",
+        "Nutrition entity authority owns meals; F4 = delegate."),
+    "average_sleep_7d": (
+        "rolling_average", "metric", "shadow_authority",
+        "Snapshot aggregate; claims no date scope so cannot contradict exact-date."),
+    "sleep_trend": (
+        "rolling_average", "metric", "shadow_authority",
+        "Snapshot-derived trend; same class as average_sleep_7d."),
+    "weight_30_day_change": (
+        "aggregate", "metric", "shadow_authority",
+        "Snapshot delta; get_history windows own change."),
+    "last_blood_pressure_reading": (
+        "latest_observation", "metric", "missing_projection",
+        "Canonical bp_systolic/bp_diastolic/bp_pulse exist; F6 = composite projection."),
+    # Served by the loop but absent from every key set — an anonymous key found BY
+    # the F0 contract itself. It reads the canonical prior-reading accessor (never the
+    # SAE "latest"), so it is a compliant projection; it was simply never declared.
+    "previous_glucose_reading": (
+        "latest_observation", "metric", "projection",
+        "Canonical prior-reading accessor; declared by F0 (was undeclared)."),
+}
+
+# Keys whose declaration must name a delegation target (projections), resolved when
+# the declaration is built rather than hard-coded beside the note above.
+_CURATED_DELEGATES = {
+    "previous_glucose_reading": "CurrentHealth.previous_glucose",
+}
+
+
+def authority_declarations():
+    """{key: AuthorityDeclaration} for EVERY key this surface can serve.
+
+    Derived day keys and delegating keys are declared programmatically from the same
+    index that produces them, so a declaration can never drift from what is served.
+    """
+    from apps.core.truth import authority as A
+    out = {}
+    # Derived <metric>_today / <metric>_yesterday — projections of the one
+    # date-scoped authority, which is itself a projection of get_history.
+    for key, (domain, metric, _days) in (_date_scoped_index() or {}).items():
+        out[key] = A.AuthorityDeclaration(
+            authority=f"metric_date.metric_on_date:{domain}.{metric}",
+            semantics=A.EXACT_DATE, truth_category=A.CATEGORY_METRIC,
+            classification=A.PROJECTION_OF,
+            delegates_to=f"get_domain_history:{domain}.{metric}")
+    # "Current/latest" carry-forward keys.
+    for key, (domain, metric) in _LATEST_OBSERVATION_FACTS.items():
+        out[key] = A.AuthorityDeclaration(
+            authority=f"metric_date.latest_observation_on_or_before:{domain}.{metric}",
+            semantics=A.LATEST_ON_OR_BEFORE, truth_category=A.CATEGORY_METRIC,
+            classification=A.PROJECTION_OF,
+            delegates_to=f"get_domain_history:{domain}.{metric}")
+    # Sleep — a disclosed residual on its own canonical accessor (not a shadow: it
+    # delegates to CurrentHealth and discloses its semantics).
+    for key in _SLEEP_FACT_KEYS:
+        out[key] = A.AuthorityDeclaration(
+            authority="CurrentHealth.latest_sleep", semantics=A.LATEST_OBSERVATION,
+            truth_category=A.CATEGORY_METRIC, classification=A.PROJECTION_OF,
+            delegates_to="CurrentHealth.latest_sleep",
+            note="Night-of vs wake-date is a separate truth question; semantics disclosed.")
+    # Medicine — reads LIVE from the canonical Medicine Domain Truth, never SAE.
+    for key in _MEDICINE_DOMAIN_KEYS:
+        out[key] = A.AuthorityDeclaration(
+            authority="MedicineQueries", semantics=A.CURRENT,
+            truth_category=A.CATEGORY_INVENTORY, classification=A.PROJECTION_OF,
+            delegates_to="MedicineQueries")
+    # Curated snapshot-backed keys — declared honestly (mostly defects).
+    for key, (sem, cat, cls, note) in _CURATED_DECLARATIONS.items():
+        spec = _FACT_MAP.get(key) or {}
+        module, field = spec.get("module"), spec.get("value")
+        delegates = _CURATED_DELEGATES.get(key, "")
+        out[key] = A.AuthorityDeclaration(
+            authority=(delegates or (f"SAE.{module}.{field}" if module and field
+                                     else f"health_facts.{key}")),
+            semantics=sem, truth_category=cat, classification=cls,
+            delegates_to=delegates, note=note)
+    return out
+
+
+def served_keys():
+    """Every key `get_foundational_health_facts` can actually RETURN — including keys
+    handled only inside the serve loop (e.g. `previous_glucose_reading`). This is the
+    set the F0 contract test validates declarations against."""
+    return set(supported_facts()) | set(_MEDICINE_DOMAIN_KEYS) | set(_CURATED_DECLARATIONS)
+
+
 def model_facing_facts():
     """The keys ADVERTISED to the conversational model — deliberately WITHOUT the
     date-scoped `<metric>_today`/`<metric>_yesterday` keys.
@@ -499,5 +608,20 @@ def get_foundational_health_facts(user, keys=None):
                        "freshness": "current", "semantics": "derived_zero",
                        "requested_date": cur.get("requested_date"),
                        "reason": "No food logged for that day — 0 kcal consumed."}
+
+    # RETRIEVAL AUTHORITY METADATA CONTRACT (platform F0): every served value carries
+    # its declared authority + semantics, so ownership is mechanically classifiable
+    # and never requires reading this file. `stamp` never overwrites what the
+    # canonical producer already supplied — a delegated fact keeps its own, more
+    # specific, authority.
+    try:
+        from apps.core.truth import authority as _authority
+        _decls = authority_declarations()
+        for _k, _f in out.items():
+            _d = _decls.get(_k)
+            if _d is not None:
+                _authority.stamp(_f, _d)
+    except Exception:  # pragma: no cover - metadata must never break truth delivery
+        logger.warning("health_facts: authority stamping skipped", exc_info=True)
 
     return _jsonsafe(out)

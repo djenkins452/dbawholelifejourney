@@ -4,9 +4,15 @@
 **Certifies:** HEAD `5b4bd722` against `docs/WLJ_RETRIEVAL_AUTHORITY_AUDIT.md` (the acceptance criteria)
 **Method:** mechanical classification pass over **every** key the retrieval surface can serve, plus cross-checks against the canonical authority. Runtime, not inspection.
 
-## VERDICT: ⚠️ **NOT YET COMPLETE** — one structural blocker + 7 residual findings
+## VERDICT (updated 2026-07-23): ✅ **PLATFORM CERTIFIED — F0 CLOSED**
 
-The retrieval *architecture* is certified. The retrieval *surface* is not yet **mechanically** certifiable, because 9 keys do not declare their authority. That is the blocker, and it is small.
+> **F0 is closed.** The Retrieval Authority Metadata Contract (`apps/core/truth/authority.py`) is implemented and enforced by `apps/core/truth/tests/test_retrieval_authority_contract.py`. Runtime-verified: **127 served keys, 127 declared, ZERO architecturally anonymous.**
+>
+> **Retrieval Authority Certification is now MECHANICAL.** No future certification requires reading source code to determine ownership.
+>
+> **All remaining findings (F1–F6) are now ordinary implementation work, not architecture** — each is a declared, pinned defect with a known delegation or rename. See §8.
+
+*Original verdict (superseded, kept for history):* ⚠️ NOT YET COMPLETE — one structural blocker + 7 residual findings. The retrieval *architecture* was certified; the retrieval *surface* was not mechanically certifiable, because 9 keys did not declare their authority.
 
 ---
 
@@ -110,3 +116,47 @@ A concurrent session is actively editing `domain_state.py`, `state_builder.py`, 
 ---
 
 *Mechanical certification pass run against HEAD `5b4bd722`; probe was throwaway and not committed. No production code modified by this certification.*
+
+---
+
+## 8. Post-F0 reassessment (2026-07-23) — is any remaining work ARCHITECTURAL?
+
+**No. Every remaining finding is ordinary implementation work.**
+
+F0 changed the nature of the remaining list. Before, a residual was an *unknown* — ownership had to be established by reading code. Now every one is a **declared, pinned defect** with a named authority, a named semantics, and a known closing move already proven on a sibling key.
+
+| Finding | Declared as | Remaining work | Architectural? |
+|---|---|---|---|
+| **F1** `average_glucose_yesterday` | `SAE.health.glucose_avg_7d` · `rolling_average` · shadow | Rename → `average_glucose_7d` (honest name; the question is genuinely different) | ❌ implementation |
+| **F2** `last_glucose_reading` | `SAE.health.latest_glucose` · `latest_observation` · shadow | Add to `_LATEST_OBSERVATION_FACTS` — the one-line delegation proven for `current_weight`. Preserve the clinical `interpretation` block (presentation, not truth) | ❌ implementation |
+| **F3** `steps_recent` | `SAE.health.steps_avg_7d` · `rolling_average` · shadow | Rename → `steps_avg_7d` | ❌ implementation |
+| **F4** `latest_meal_logged` | `SAE.nutrition.last_food_entry` · `latest_observation` · shadow | Delegate to the nutrition entity authority | ❌ implementation |
+| **F5** `average_sleep_7d`, `sleep_trend`, `weight_30_day_change` | `SAE.health.*` · `rolling_average`/`aggregate` · shadow | Delegate to `get_history` windows. **Lowest risk — they claim no date scope, so they cannot contradict an exact-date answer** | ❌ implementation |
+| **F6** `last_blood_pressure_reading` | `SAE.health.bp_systolic` · `latest_observation` · **missing_projection** | Composite projection over the canonical `bp_systolic`/`bp_diastolic`/`bp_pulse` (§5). A **product** decision on an existing authority | ❌ implementation (+ product) |
+| **F7** `get_domain_state` freshness | — (separate surface) | Concurrent session's work; verify, don't duplicate | ❌ implementation |
+| **F8** `top_goal`, `search_history` | — (other surfaces) | Latent; unproven in production | ❌ implementation |
+
+**Two findings from the F0 work itself, both already closed:**
+- **`previous_glucose_reading` was an anonymous served key** — served by the loop but absent from every key set. Found *by* the contract, now declared as a compliant projection over the canonical prior-reading accessor.
+- **`_today` is not a reliable classifier.** `medication_execution_today` / `supplement_execution_today` are Medicine *inventory* keys, not date-scoped metrics. The contract test caught this on its first run when it used a name heuristic; it now selects by **declared authority**. This is the F0 thesis validated in miniature: names mislead, declarations do not.
+
+### Certification status
+
+| Property | Status |
+|---|---|
+| Date-scoped parallel-authority class | ✅ eliminated |
+| Incomplete-key-set class | ✅ eliminated (derived key set) |
+| Date-contract drift | ✅ eliminated (WLJ resolves dates) |
+| Production forensics | ✅ per-turn id + values + authority |
+| **Ownership mechanically classifiable** | ✅ **F0 — 127/127 declared** |
+| Remaining shadows | 7 keys, **pinned and countable** |
+| Missing projections | 1 (BP), **pinned** |
+| Missing authorities | **none in health** |
+
+**Retrieval Platform Certification: COMPLETE at the platform level.** The remaining findings are tracked, enforced against regression, and closable independently — they do not block domain work, because the ratchet prevents them from growing.
+
+### Permanent regression tests protecting this architecture
+`test_retrieval_authority_contract` (**F0 gate + ratchet**) · `test_metric_date_authority` · `test_truth_subject_anchoring` · `test_domain_history_natural_dates` · `test_domain_history` · `test_health_facts` · `test_foundation_validation` · `test_truth_surface_contract` · `test_daily_health_queries` · `test_request_path_safety_contract` · `test_constitution_contract`.
+
+### Next initiative
+**Chief of Staff Domain Certification.** The retrieval platform is now stable infrastructure: a new domain becomes CoS-accessible by registering a `DomainTruth` provider and **adopting the authority contract in the same change**. Domain work builds on this foundation rather than revisiting retrieval architecture.

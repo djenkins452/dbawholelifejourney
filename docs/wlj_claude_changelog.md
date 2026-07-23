@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-23 (fix(truth-retrieval): Nutrition snapshot delegates + is day-stamped — close the last Nutrition parallel-truth condition)
 # ================================================================# WLJ Change History
 
+## 2026-07-23 — docs(ops): Operations truth-path divergence investigation — TWO operational authorities proven (no fix implemented)
+
+**Investigation only — no corrective code, no scoring change, no Operations redesign, OPS-14 not started.** Traced the full Operations truth pipeline after Clara reported "recovered" (green 100%) while the Ops Wall simultaneously showed Operational Health 51 · DEGRADED · Medium impact · 5 active incidents.
+
+- **Verdict: neither surface was stale or wrong — they read DIFFERENT authorities.** Proven: (a) **`SystemIntegritySnapshot`** (SAME cycle, 60s; bands DEGRADED 40‑69) drives the Wall, the Executive Summary, and the CoS ops dot — score 51 → DEGRADED, self-consistent; (b) **`COASHealthSnapshot`** (`core.check_system_health`, **300s**; `THRESHOLD_HEALTHY = 80`) drives `OperationalAlert` → **Clara's degraded/recovered messages**. A COAS subsystem ≥80 fires "recovered" while Integrity is 51 with 5 `OpsAnomaly` rows still active. Both true of their own authority.
+- **Compounding root cause (browser-verified in the DOM):** the green **"100%" badge beside Clara is the CoS *alignment* badge** — `class="cos-alignment-badge align-good"`, `href="/assistant/cos/settings/"`, **`title="Status — Click for details"`** — i.e. a *plan-alignment* metric, **15-minute cached**, that **fails open to a hardcoded `alignment_score: 100`** (`context_processors.py:297‑301`). It is **not Operations truth**; a green badge titled "Status" is read as system health at 2 AM. A third "Status"-looking affordance (CoS panel Status tab badge) is the pending-interventions count.
+- **Duplicate authorities found:** (1) two operational scores; (2) two independent incident lifecycles (`OpsAnomaly` vs `OperationalAlert` — COAS resolution never resolves `OpsAnomaly`); (3) non-Operations surfaces named "Status". The only consumer bypassing the executive is **Clara's operational notifications**; the Wall, ops dot, and banner all derive correctly from the executive.
+- **Divergence budget:** Wall ≈80s, ops dot ≈120s, Clara's messages ≈5 min **plus unbounded semantic divergence** (different bands), alignment badge **15 min or permanently green on error**. The divergence is semantic, not latency.
+- **Recommended correction (NOT implemented, needs approval):** notifications derive from `executive`; demote COAS to an input (one score); unify the incident lifecycle; retitle the alignment badge and make it fail to *unknown* rather than a reassuring 100 (same principle as the ratified UNKNOWN policy).
+- **Files:** `docs/WLJ_OPERATIONS_TRUTH_PATH_INVESTIGATION.md` (new). **No code changed** → no migration, no regression surface. Concurrent sessions have uncommitted work; committed ONLY my files by explicit path.
+
 ## 2026-07-23 — fix(truth-retrieval): Nutrition snapshot delegates + is day-stamped — close the last Nutrition parallel-truth condition
 
 **Class A closed for Nutrition `get_domain_state`.** Investigation: `docs/WLJ_NUTRITION_STATE_INVESTIGATION.md`.

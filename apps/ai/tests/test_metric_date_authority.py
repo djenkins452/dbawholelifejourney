@@ -108,6 +108,53 @@ class CuratedSurfaceDelegationTests(TestCase):
         cls.today = get_user_today(cls.user)
         cls.yest = cls.today - timedelta(days=1)
 
+    def test_day_key_coverage_is_symmetric_for_every_metric(self):
+        """THE nutrition defect (2026-07-22): the hand-listed key set had
+        `calories_yesterday` but no `protein_yesterday`, so a "protein yesterday"
+        question made the model substitute `protein_today` and report the WRONG DAY.
+        Keys are now derived from the capability index — every metric must be
+        answerable for BOTH days, or the substitution failure becomes possible again.
+        """
+        from apps.ai.cos_services.domain_history import history_capability_index
+        from apps.ai.cos_services.health_facts import day_fact_keys
+        serveable = day_fact_keys()
+        missing = []
+        for domain, metrics in (history_capability_index() or {}).items():
+            for metric in metrics:
+                for suffix in ("_today", "_yesterday"):
+                    if f"{metric}{suffix}" not in serveable:
+                        missing.append(f"{domain}.{metric}{suffix}")
+        self.assertEqual(missing, [], f"asymmetric/missing day keys: {missing}")
+
+    def test_nutrition_macros_all_answerable_for_yesterday(self):
+        """The specific regression: every macro shown on the Nutrition page."""
+        from apps.ai.cos_services.health_facts import day_fact_keys
+        serveable = day_fact_keys()
+        for metric in ("calories", "protein", "carbs", "fat", "fiber", "sugar"):
+            self.assertIn(f"{metric}_yesterday", serveable)
+            self.assertIn(f"{metric}_today", serveable)
+
+    def test_model_is_not_offered_a_second_door_for_a_date_question(self):
+        """`get_history` owns "metric X on date D". The curated enum must not also
+        advertise date-scoped keys — offering both is what let the model pick a
+        curated key and, when the exact pair was missing, answer the wrong day."""
+        from apps.ai.cos_services.health_facts import model_facing_facts
+        advertised = model_facing_facts()
+        offenders = [k for k in advertised
+                     if k.endswith("_today") or k.endswith("_yesterday")]
+        # `average_glucose_yesterday` is a 7-day average, not a date-scoped lookup.
+        offenders = [k for k in offenders if not k.startswith("average_")]
+        self.assertEqual(offenders, [],
+                         f"date-scoped keys still advertised to the model: {offenders}")
+
+    def test_derived_day_keys_are_still_serveable_for_legacy_callers(self):
+        """Removed from the ENUM, not from the surface — the legacy deterministic
+        classifier names keys directly and must keep resolving."""
+        from apps.ai.cos_services.health_facts import supported_facts
+        for key in ("protein_yesterday", "carbs_yesterday", "weight_yesterday",
+                    "calories_today", "steps_today"):
+            self.assertIn(key, supported_facts())
+
     def test_every_date_scoped_key_agrees_with_the_history_authority(self):
         """Generic: identical inputs → identical value from both surfaces."""
         _weight(self.user, self.yest, 281.5)
@@ -118,8 +165,11 @@ class CuratedSurfaceDelegationTests(TestCase):
             user=self.user, value=118, unit="mg/dL",
             recorded_at=timezone.make_aware(datetime.combine(self.yest, time(9, 0))))
 
-        facts = get_foundational_health_facts(self.user, keys=list(_DATE_SCOPED_FACTS))
-        for key, (domain, metric, days_back) in _DATE_SCOPED_FACTS.items():
+        probe = {k: v for k, v in _DATE_SCOPED_FACTS.items()
+                 if v[1] in ("weight", "steps", "glucose", "calories", "protein",
+                             "carbs", "fat", "fiber", "sugar")}
+        facts = get_foundational_health_facts(self.user, keys=list(probe))
+        for key, (domain, metric, days_back) in probe.items():
             on_date = self.today - timedelta(days=days_back)
             hist = get_domain_history(self.user, domain, metric, period="custom",
                                       start=on_date, end=on_date)
@@ -140,8 +190,10 @@ class CuratedSurfaceDelegationTests(TestCase):
                 self.assertNotIn("value", fact, msg=key)
 
     def test_every_date_scoped_key_declares_exact_date_semantics(self):
-        facts = get_foundational_health_facts(self.user, keys=list(_DATE_SCOPED_FACTS))
-        for key in _DATE_SCOPED_FACTS:
+        probe = [k for k, v in _DATE_SCOPED_FACTS.items()
+                 if v[1] in ("weight", "steps", "calories", "protein", "carbs")]
+        facts = get_foundational_health_facts(self.user, keys=probe)
+        for key in probe:
             fact = facts[key]
             # calories carries a deliberate derived-zero contract; it declares that.
             self.assertIn(fact.get("semantics"), (md.EXACT_DATE, "derived_zero"),
@@ -177,7 +229,9 @@ class CuratedSurfaceDelegationTests(TestCase):
 
     def test_no_curated_key_answers_a_date_question_from_a_second_producer(self):
         """Registry gate: every date-scoped/latest key must resolve through metric_date."""
-        for key in set(_DATE_SCOPED_FACTS) | set(_LATEST_OBSERVATION_FACTS):
+        probe = {k for k, v in _DATE_SCOPED_FACTS.items()
+                 if v[1] in ("weight", "protein", "carbs")}
+        for key in probe | set(_LATEST_OBSERVATION_FACTS):
             facts = get_foundational_health_facts(self.user, keys=[key])
             fact = facts[key]
             if fact.get("semantics") == "derived_zero":
@@ -185,6 +239,30 @@ class CuratedSurfaceDelegationTests(TestCase):
             self.assertTrue(
                 str(fact.get("authority", "")).startswith("get_domain_history:"),
                 msg=f"{key} did not delegate to the canonical authority: {fact}")
+
+
+class LegacyDayRefinementTests(TestCase):
+    """The legacy deterministic classifier had the SAME asymmetry hand-coded: it
+    refined `calories_today` → `calories_yesterday` but had no protein branch, so
+    "protein yesterday" stayed on `protein_today` and answered the wrong day. The
+    refinement is now generic over the derived key set."""
+
+    def test_yesterday_refines_any_metric_not_just_calories(self):
+        from apps.ai.chatgpt_cos.foundational_facts import _refine_to_day
+        for key, expected in (("protein_today", "protein_yesterday"),
+                              ("calories_today", "calories_yesterday"),
+                              ("carbs_today", "carbs_yesterday")):
+            self.assertEqual(_refine_to_day(key, "how much protein yesterday"), expected)
+
+    def test_today_questions_are_unchanged(self):
+        from apps.ai.chatgpt_cos.foundational_facts import _refine_to_day
+        self.assertEqual(_refine_to_day("protein_today", "how much protein today"),
+                         "protein_today")
+
+    def test_unknown_metric_key_is_left_alone(self):
+        from apps.ai.chatgpt_cos.foundational_facts import _refine_to_day
+        self.assertEqual(_refine_to_day("not_a_metric_today", "something yesterday"),
+                         "not_a_metric_today")
 
 
 class DailyHealthQueriesExactDateTests(TestCase):

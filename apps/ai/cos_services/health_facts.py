@@ -90,16 +90,70 @@ _FACT_MAP = {
 # get_history's exact-date empty for the identical question. Curated keys must never
 # hold a second implementation of a deterministic question.
 #
-# key -> (domain, history metric, days back from the user's local today)
-_DATE_SCOPED_FACTS = {
-    "steps_today":        ("health", "steps", 0),
-    "steps_yesterday":    ("health", "steps", 1),
-    "weight_yesterday":   ("health", "weight", 1),
-    "glucose_yesterday":  ("health", "glucose", 1),
-    "calories_today":     ("nutrition", "calories", 0),
-    "calories_yesterday": ("nutrition", "calories", 1),
-    "protein_today":      ("nutrition", "protein", 0),
-}
+# DERIVED, NEVER HAND-LISTED (2026-07-22 — WLJ_NUTRITION_PROTEIN_INVESTIGATION):
+# the day keys used to be a hand-maintained dict, and its INCOMPLETENESS was itself a
+# defect. `calories_yesterday` existed but `protein_yesterday` did not, so a "protein
+# yesterday" question made the model substitute the nearest key it was offered —
+# `protein_today` — which correctly returned "not recorded for TODAY" and was reported
+# as YESTERDAY's answer, while the page showed 79 g (runtime-proven 2/2). Measured
+# across the capability index: 3 of 5 curated metrics were asymmetric.
+#
+# The key set is now DERIVED from the systematic capability index, so `<metric>_today`
+# and `<metric>_yesterday` exist for EVERY metric that the one date-scoped authority
+# can answer, symmetrically, by construction. A metric can never again be offered for
+# one date but not the other.
+_DAY_SUFFIXES = {"_today": 0, "_yesterday": 1}
+
+
+def _date_scoped_index():
+    """{key: (domain, metric, days_back)} for every metric × {today, yesterday} the
+    systematic history authority advertises. Computed from `history_capability_index()`
+    — one source, so this can never drift from what is actually answerable."""
+    from apps.ai.cos_services.domain_history import history_capability_index
+    out = {}
+    for domain, metrics in (history_capability_index() or {}).items():
+        for metric in metrics:
+            for suffix, days in _DAY_SUFFIXES.items():
+                key = f"{metric}{suffix}"
+                # First domain to claim a metric name wins; a genuine collision would
+                # be ambiguous for the caller, so it is never silently reassigned.
+                out.setdefault(key, (domain, metric, days))
+    return out
+
+
+class _DateScopedFacts(dict):
+    """Lazy view of `_date_scoped_index()` — the capability index needs the Django app
+    registry, which is not ready at import time. Behaves as the mapping it replaced."""
+
+    def _resolved(self):
+        return _date_scoped_index()
+
+    def get(self, key, default=None):
+        return self._resolved().get(key, default)
+
+    def __getitem__(self, key):
+        return self._resolved()[key]
+
+    def __contains__(self, key):
+        return key in self._resolved()
+
+    def __iter__(self):
+        return iter(self._resolved())
+
+    def __len__(self):
+        return len(self._resolved())
+
+    def keys(self):
+        return self._resolved().keys()
+
+    def items(self):
+        return self._resolved().items()
+
+    def values(self):
+        return self._resolved().values()
+
+
+_DATE_SCOPED_FACTS = _DateScopedFacts()
 
 # Goal/target scalars that ACCOMPANY a delegated value. The target is a stored
 # preference, not an observation — it is attached alongside the fact (clearly a
@@ -119,7 +173,14 @@ _FACT_TARGETS = {
 # through the SAME envelope so its semantics are disclosed, not implied.
 _SLEEP_FACT_KEYS = {"sleep_last_night"}
 
-_DAY_FACT_KEYS = set(_DATE_SCOPED_FACTS) | _SLEEP_FACT_KEYS
+def _is_day_fact_key(key):
+    """True for any derived `<metric>_today` / `<metric>_yesterday` key, or sleep."""
+    return key in _SLEEP_FACT_KEYS or key in _DATE_SCOPED_FACTS
+
+
+def day_fact_keys():
+    """Every date-scoped key this surface can SERVE (derived; complete by construction)."""
+    return set(_DATE_SCOPED_FACTS) | _SLEEP_FACT_KEYS
 
 # Current/latest keys whose honest meaning is "the most recent observation" — a
 # CARRY-FORWARD contract. They delegate to the explicitly-named carry-forward
@@ -132,8 +193,36 @@ _LATEST_OBSERVATION_FACTS = {
     "current_weight": ("health", "weight"),
 }
 
-SUPPORTED_FACTS = sorted(set(_FACT_MAP.keys()) | _DAY_FACT_KEYS
-                         | set(_LATEST_OBSERVATION_FACTS))
+def supported_facts():
+    """Every key this surface can SERVE — including all derived day keys. Used by
+    internal/legacy callers that name a key directly."""
+    return sorted(set(_FACT_MAP) | day_fact_keys() | set(_LATEST_OBSERVATION_FACTS))
+
+
+def model_facing_facts():
+    """The keys ADVERTISED to the conversational model — deliberately WITHOUT the
+    date-scoped `<metric>_today`/`<metric>_yesterday` keys.
+
+    "Metric X on calendar date D" has ONE door: `get_history`, which answers every
+    metric for every date and takes the natural date expression. Advertising a second,
+    curated door for the same question is what produced the defect — the model picks
+    the curated key, and if the exact (metric, date) pair is missing from the list it
+    substitutes the nearest one and answers falsely. Removing the keys from the enum
+    removes the choice; nothing is lost, because `get_history` answers strictly more.
+
+    `sleep_last_night` and the `current_*`/latest keys REMAIN: they are not
+    date-scoped questions (see `_SLEEP_FACT_KEYS` / `_LATEST_OBSERVATION_FACTS`).
+    """
+    return sorted(set(_FACT_MAP) | _SLEEP_FACT_KEYS | set(_LATEST_OBSERVATION_FACTS))
+
+
+# Back-compat module attribute; resolved LAZILY (the capability index needs the Django
+# app registry, which is not ready at import time). Still the full SERVEABLE set —
+# legacy callers name keys directly and must keep resolving.
+def __getattr__(name):
+    if name == "SUPPORTED_FACTS":
+        return supported_facts()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 _META_FIELDS = ("unit", "trend", "recorded_at", "count", "target", "diastolic",
                 "for_date", "as_of", "exact")
@@ -152,7 +241,7 @@ def _day_fact(user, key):
     if spec is None:
         if key in _SLEEP_FACT_KEYS:
             return _sleep_fact(user, key)
-        return {"status": "unsupported_fact", "supported": sorted(_DAY_FACT_KEYS)}
+        return {"status": "unsupported_fact", "supported": sorted(day_fact_keys())}
     from datetime import timedelta
     domain, metric, days_back = spec
     today = _md.user_today(user)
@@ -243,7 +332,7 @@ def get_foundational_health_facts(user, keys=None):
 
     Args:
         user: Django User instance.
-        keys: list of fact keys (subset of SUPPORTED_FACTS). None/empty -> all.
+        keys: list of fact keys (subset of supported_facts()). None/empty -> all.
 
     Returns:
         dict { key: {value, source, [unit/trend/recorded_at/count/target/note]}
@@ -254,9 +343,14 @@ def get_foundational_health_facts(user, keys=None):
     from apps.ai.cos_services.serialization import jsonsafe as _jsonsafe
     from apps.core.ai_state.state_engine import get_module_state
 
-    requested = [k for k in (keys or SUPPORTED_FACTS)]
+    # A bare call (no keys) returns the SMALL foundational set — never the full
+    # serveable set, which now includes ~100 derived `<metric>_today/_yesterday` keys
+    # and would produce a ~48KB payload for a tool whose entire purpose is a tiny one.
+    # Date-scoped keys are still served when named explicitly.
+    _all = supported_facts()
+    requested = [k for k in (keys or model_facing_facts())]
     if not requested:
-        requested = list(SUPPORTED_FACTS)
+        requested = list(model_facing_facts())
 
     _module_cache = {}
 
@@ -282,7 +376,7 @@ def get_foundational_health_facts(user, keys=None):
             continue
         # Per-day deterministic facts route to the ONE date-scoped metric authority
         # (exact-date semantics), NOT the SAE snapshot and NOT a second row read.
-        if key in _DAY_FACT_KEYS:
+        if _is_day_fact_key(key):
             fact = _day_fact(user, key)
             tspec = _FACT_TARGETS.get(key)
             if tspec and isinstance(fact, dict):
@@ -305,7 +399,7 @@ def get_foundational_health_facts(user, keys=None):
         spec = _FACT_MAP.get(key)
         if spec is None:
             out[key] = {"status": "unsupported_fact",
-                        "supported": SUPPORTED_FACTS}
+                        "supported": _all}
             continue
 
         st = _state(spec["module"])

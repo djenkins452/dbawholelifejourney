@@ -13,6 +13,7 @@ Proves the focused foundational-health-facts tool:
 """
 
 import json
+from datetime import datetime, time
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -24,6 +25,7 @@ from apps.ai.cos_services import (
     get_foundational_health_facts,
     get_tool_schemas,
 )
+from apps.ai.cos_services.health_facts import model_facing_facts
 
 User = get_user_model()
 
@@ -56,13 +58,34 @@ class FoundationalHealthFactsTests(TestCase):
         cls.user = User.objects.create_user(email="facts@example.com", password="x")
 
     # 1. tiny payload
-    def test_full_facts_payload_under_2000_chars(self):
+    def test_full_facts_payload_stays_small(self):
+        """The invariant is "small enough that the dispatcher never truncates the
+        scalar" (the 8000-char limit this tool exists to stay under). A bare call
+        returns the MODEL-FACING set — never the ~100 derived `<metric>_today/
+        _yesterday` keys, which are served only when named explicitly."""
         with mock.patch(_GMS, side_effect=_fake_module_state):
-            facts = get_foundational_health_facts(self.user)  # all keys
-        self.assertLess(len(json.dumps(facts)), 2000)
+            facts = get_foundational_health_facts(self.user)  # default = model-facing
+        payload = len(json.dumps(facts))
+        self.assertLess(payload, 4000, f"payload grew to {payload} chars")
+        self.assertLess(len(facts), 20)
 
     # 2. current weight survives dispatch (the original failure)
     def test_current_weight_survives_dispatch(self):
+        """CONTRACT CHANGE (2026-07-22): `current_weight` no longer reads the SAE
+        snapshot — it delegates to the canonical carry-forward authority, which reads
+        live. The snapshot was never refreshed once populated, so it served a 105-day-old
+        value as "current" with no freshness envelope
+        (docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md). A real record is now required."""
+        from decimal import Decimal
+
+        from django.utils import timezone as _tz
+
+        from apps.core.utils import get_user_today
+        from apps.health.models import WeightEntry
+        _today = get_user_today(self.user)
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal("285.9"), unit="lb",
+            recorded_at=_tz.make_aware(datetime.combine(_today, time(6, 30))))
         with mock.patch(_GMS, side_effect=_fake_module_state):
             env = dispatch_tool_call(
                 self.user, "get_foundational_health_facts",
@@ -73,8 +96,10 @@ class FoundationalHealthFactsTests(TestCase):
         self.assertIsNone(res.get("_truncated"))
         self.assertEqual(res["current_weight"]["value"], 285.9)
         self.assertEqual(res["current_weight"]["unit"], "lb")
-        self.assertEqual(res["current_weight"]["source"],
-                         "SAE.health.weight_current")
+        self.assertEqual(res["current_weight"]["authority"],
+                         "get_domain_history:health.weight")
+        # The envelope now discloses WHEN it was actually observed.
+        self.assertEqual(res["current_weight"]["observed_on"], _today.isoformat())
 
     # 3. glucose survives dispatch
     def test_glucose_survives_dispatch(self):
@@ -103,9 +128,19 @@ class FoundationalHealthFactsTests(TestCase):
         self.assertNotIn("status", facts["calories_today"])
 
     def test_medications_from_canonical_state(self):
+        """`current_medications` reads the canonical Medicine Domain Truth LIVE (never
+        the SAE snapshot, so it cannot go missing or stale) — real records required."""
+        from datetime import date
+
+        from apps.health.models import Intake
+        for name in ("Metformin", "Valsartan"):
+            Intake.objects.create(user=self.user, name=name, dose="500mg",
+                                  frequency="daily", start_date=date(2026, 1, 1),
+                                  intake_status="active", intake_type="medication",
+                                  category="prescription")
         with mock.patch(_GMS, side_effect=_fake_module_state):
             facts = get_foundational_health_facts(self.user, ["current_medications"])
-        self.assertEqual(facts["current_medications"]["value"],
+        self.assertEqual(sorted(facts["current_medications"]["value"]),
                          ["Metformin", "Valsartan"])
         self.assertEqual(facts["current_medications"]["count"], 2)
 
@@ -136,7 +171,10 @@ class FoundationalHealthFactsTests(TestCase):
         with mock.patch(_GMS, side_effect=_fake_module_state):
             env = dispatch_tool_call(
                 self.user, "get_foundational_health_facts",
-                {"keys": list(SUPPORTED_FACTS)},
+                # The ADVERTISED set — what the model can actually ask for. The full
+                # serveable set now includes ~100 derived day keys that `get_history`
+                # owns and the enum deliberately does not offer.
+                {"keys": list(model_facing_facts())},
             )
         self.assertTrue(env["ok"])
         self.assertIsNone(env["result"].get("_truncated"))

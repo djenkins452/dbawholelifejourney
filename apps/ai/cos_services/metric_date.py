@@ -91,10 +91,12 @@ def _fact(*, domain, metric, semantics, status, requested_date, today,
         has_data=has_data, requested_date=requested_date,
         data_date=observed_on, today=today,
     )
+    # Kept deliberately lean: this envelope is repeated once per requested fact inside a
+    # tool payload, so anything the model cannot act on is pure token cost.
+    # `schema_version` and `lookback_days` are internal bookkeeping and are NOT emitted.
     out = {
         "status": status,
         "semantics": semantics,
-        "schema_version": METRIC_DATE_SCHEMA_VERSION,
         "domain": domain,
         "metric": metric,
         "requested_date": _iso(requested_date),
@@ -243,12 +245,11 @@ def latest_observation_on_or_before(user, domain, metric, on_date, *, today=None
             return _fact(
                 domain=domain, metric=metric, semantics=LATEST_ON_OR_BEFORE,
                 status="ok", requested_date=on_date, today=today, value=value,
-                unit=unit, observed_on=observed, lookback_days=lookback_days,
+                unit=unit, observed_on=observed,
             )
     return _fact(
         domain=domain, metric=metric, semantics=LATEST_ON_OR_BEFORE,
         status="not_recorded", requested_date=on_date, today=today, unit=unit,
         reason=(f"No {metric} observation on or before {_iso(on_date)} "
                 f"within {lookback_days} days."),
-        lookback_days=lookback_days,
     )

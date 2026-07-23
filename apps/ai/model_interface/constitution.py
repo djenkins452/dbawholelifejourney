@@ -490,9 +490,13 @@ def _valid_domains():
 
 
 def _valid_health_keys():
+    """The keys ADVERTISED to the model — deliberately excludes the date-scoped
+    `<metric>_today`/`<metric>_yesterday` keys, which `get_history` owns. Offering both
+    doors is what let the model pick an incomplete curated key and answer falsely
+    (2026-07-22, `docs/WLJ_NUTRITION_PROTEIN_INVESTIGATION.md`)."""
     try:
-        from apps.ai.cos_services.health_facts import SUPPORTED_FACTS
-        return sorted(SUPPORTED_FACTS)
+        from apps.ai.cos_services.health_facts import model_facing_facts
+        return model_facing_facts()
     except Exception:
         return []
 
@@ -773,9 +777,16 @@ def truth_tools():
         {"type": "function", "function": {
             "name": "get_foundational_health_facts",
             "description": (
-                "Get foundational, canonical health facts (medications, weight, sleep "
-                "trend, glucose, steps, etc.). Returns truth-envelope data. Use ONLY keys "
-                "from the enum."
+                "Get foundational, canonical health facts that are NOT tied to a "
+                "calendar date — current medications, the most recent recorded weight, "
+                "sleep trend, last blood-pressure reading, 7-day averages. Returns "
+                "truth-envelope data. Use ONLY keys from the enum.\n"
+                "DO NOT use this for a metric ON A DAY. 'What was my protein "
+                "yesterday?', 'calories on July 21', 'steps today', 'my weight "
+                "yesterday' → use get_history(domain, metric, period=<the date "
+                "expression the user said>), which answers EVERY metric for EVERY "
+                "date. Never substitute a different date's key because the one you "
+                "want isn't listed here — that reports the wrong day's answer."
             ),
             "parameters": {"type": "object", "properties": {
                 "keys": {"type": "array", "items": key_item,

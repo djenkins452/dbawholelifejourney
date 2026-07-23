@@ -13,6 +13,7 @@ Success criteria: no _call_api_with_tools, no tools, no tool_choice, no legacy
 Beth, exact fact returned (never empty).
 """
 
+import datetime as _dt
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -93,6 +94,24 @@ class FastPathTests(TestCase):
                               frequency="daily", start_date=date(2026, 1, 1),
                               intake_status="active", intake_type="medication",
                               category="prescription")
+        # Same migration, continued (2026-07-22): `current_weight` and the per-day macro
+        # facts now read the canonical date-scoped authority (live from the models)
+        # instead of the SAE snapshot, so they need REAL records — a mocked SAE state no
+        # longer feeds them. See docs/WLJ_WEIGHT_YESTERDAY_INVESTIGATION.md.
+        from decimal import Decimal
+
+        from django.utils import timezone as _tz
+
+        from apps.core.utils import get_user_today
+        from apps.health.models import FoodEntry, WeightEntry
+        _today = get_user_today(cls.user)
+        WeightEntry.objects.create(
+            user=cls.user, value=Decimal("298.3"), unit="lb",
+            recorded_at=_tz.make_aware(_dt.datetime.combine(_today, _dt.time(6, 30))))
+        FoodEntry.objects.create(
+            user=cls.user, food_name="Test day", serving_size=Decimal("1"),
+            serving_unit="serving", total_calories=Decimal("1850"),
+            total_protein_g=Decimal("142"), logged_date=_today, status="active")
 
     def test_fast_path_never_uses_tool_loop(self):
         # The fast path NEVER uses the agentic tool loop. It is EITHER the plain

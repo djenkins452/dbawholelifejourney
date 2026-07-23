@@ -542,8 +542,21 @@ def _refine_to_day(key, text):
     is_yesterday = "yesterday" in text
     if key == "steps_recent":
         return "steps_yesterday" if is_yesterday else "steps_today"
-    if key == "calories_today" and is_yesterday:
-        return "calories_yesterday"
+    # GENERIC day refinement. This used to be hand-coded per metric — `calories_today`
+    # had a yesterday branch and protein did not, so "protein yesterday" stayed on
+    # `protein_today` and answered the WRONG DAY (2026-07-22,
+    # `docs/WLJ_NUTRITION_PROTEIN_INVESTIGATION.md`). Now any `<metric>_today` key
+    # refines to `<metric>_yesterday` whenever the day keys exist for that metric —
+    # they are derived from the capability index, so coverage is symmetric.
+    if is_yesterday and key.endswith("_today"):
+        candidate = key[: -len("_today")] + "_yesterday"
+        try:
+            from apps.ai.cos_services.health_facts import day_fact_keys
+            if candidate in day_fact_keys():
+                return candidate
+        except Exception:
+            logger.warning("foundational_facts: day-key refinement skipped for %r",
+                           key, exc_info=True)
     if key == "sleep_last_night" and any(
             w in text for w in ("average", "this week", "past week", "7 day", "7-day",
                                 "weekly", "lately", "typically")):

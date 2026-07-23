@@ -73,18 +73,26 @@ A snapshot may **cache** canonical truth. It may never **calculate** it.
 
 ## Coverage
 
+**31 of 31 actual calendar-day claims are stamped and certified.**
+
 | | Before | After |
 |---|---|---|
-| Calendar-day claims in cached state | 34 | 34 |
-| **Day-stamped** | 7 (nutrition only) | **31** |
-| Undated | 27 | **3** |
+| Actual calendar-day claims | 31 | 31 |
+| **Day-stamped + certified** | 7 (nutrition only) | **31 — complete** |
+| Undated | 24 | **0** |
+
+(The audit's raw field scan returns 34 name matches. Three are `fasting.current_fast_active`
+and its companions — **instantaneous state**, not day-scoped claims — so they are excluded
+from the class by definition, not left undone. See below.)
 
 Registered: `nutrition`, `tasks`, `calendar`, `fitness`, `medicine`, `routine`,
 `life_events`, `health`.
 
-**Remaining 3 (deliberate):** `fasting.current_fast_active` is an *instantaneous state*
-("is a fast running right now"), not a day-scoped total — stamping it would misrepresent
-it as a day claim. The other two are its companions in the same builder.
+**Excluded by definition (not residual):** `fasting.current_fast_active` and its two
+companions describe an *instantaneous state* — "is a fast running right now" — not a
+quantity scoped to a calendar day. They carry no day claim to stamp; stamping them would
+assert a day-scope they do not have. They are Category A/D (system instant / observed
+time), outside this class.
 
 ## Certification — `apps/core/tests/test_calendar_bound_truth.py` (24 gates)
 
@@ -122,13 +130,15 @@ from the user's calendar.
 
 ## Remaining risks
 
-1. **~35 truth-layer files still call a server/UTC date** (`timezone.now().date()`,
-   `date.today()`) — mostly `apps/health/services/*` analytics (cycle statistics,
-   correlation, trend, protein service) and `meals/services`. None are the day-claim
-   projections certified here, but each is a latent instance of shape #2. Ranked next.
-   One was fixed in passing: `build_task_state` computed **overdue** from the server
-   date, which could flag a task overdue a day early for a non-UTC user.
-2. **`fasting`** deliberately unstamped (instantaneous state, see above).
+1. **Truth-layer server/UTC date use — now AUDITED AND CLASSIFIED** in
+   `docs/WLJ_TEMPORAL_USE_AUDIT.md`: 212 sites → A 79 (system instant, correct as-is) ·
+   **B 60 + C 42 = 102 requiring the user-local authority** · D 4 · E 27. The first
+   slice (the canonical Task day authority + history-search rolling windows) is
+   implemented and certified there; ranks 1–6 of the residual backlog are listed with a
+   recommended next slice. One defect was fixed in passing here:
+   `build_task_state` computed **overdue** from the server date.
+2. **`fasting`** — excluded by definition (instantaneous state, see above); NOT a
+   residual and not pending work.
 3. **Legacy/ops call sites** (billing, observability, governance) legitimately use
    server time and are out of scope — they make no user-calendar claim.
 4. Pre-existing and untouched: `test_empty_health_state`, `test_nutrition_entity_truth`,

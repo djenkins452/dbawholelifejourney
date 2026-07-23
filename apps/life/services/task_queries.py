@@ -35,6 +35,21 @@ from apps.life.models import Task
 logger = logging.getLogger(__name__)
 
 
+def _user_today(user):
+    """The USER's local calendar day, via the one canonical authority.
+
+    USER-LOCAL (2026-07-23): these day queries defaulted to `timezone.localdate()` —
+    the SERVER date (settings.TIME_ZONE = UTC) — while their docstrings claimed "user
+    timezone". Runtime-proven at 8 PM Pacific (03:00 UTC the next day):
+    `due_today(user)` returned TOMORROW's task and `overdue(user)` flagged TODAY's task
+    as overdue. Real consumers relied on that default, including the CoS executive
+    context (`executive_interpretation`) and `situation_computer`. "Due today" and
+    "overdue" are judgements about the USER's calendar, never the server's.
+    """
+    from apps.core.truth.calendar_day import today as _cal_today
+    return _cal_today(user)
+
+
 class TaskQueries:
     """Canonical, deterministic task queries. No instance state — all classmethods."""
 
@@ -50,8 +65,7 @@ class TaskQueries:
     def overdue(cls, user, as_of=None):
         """Pending tasks whose due_date is strictly before `as_of` (default: today)."""
         if as_of is None:
-            from django.utils import timezone
-            as_of = timezone.localdate()
+            as_of = _user_today(user)
         return cls.pending(user).filter(
             due_date__isnull=False,
             due_date__lt=as_of,
@@ -122,16 +136,14 @@ class TaskQueries:
     def due_today(cls, user, as_of=None):
         """Pending tasks due today (user timezone)."""
         if as_of is None:
-            from django.utils import timezone
-            as_of = timezone.localdate()
+            as_of = _user_today(user)
         return cls.pending(user).filter(due_date=as_of)
 
     @classmethod
     def due_tomorrow(cls, user, as_of=None):
         """Pending tasks due tomorrow (user timezone)."""
         if as_of is None:
-            from django.utils import timezone
-            as_of = timezone.localdate()
+            as_of = _user_today(user)
         from datetime import timedelta
         return cls.pending(user).filter(due_date=as_of + timedelta(days=1))
 
@@ -139,8 +151,7 @@ class TaskQueries:
     def due_future(cls, user, as_of=None):
         """Pending tasks due after tomorrow (user timezone)."""
         if as_of is None:
-            from django.utils import timezone
-            as_of = timezone.localdate()
+            as_of = _user_today(user)
         from datetime import timedelta
         return cls.pending(user).filter(
             due_date__isnull=False,

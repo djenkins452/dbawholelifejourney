@@ -78,7 +78,21 @@ _TIMEFRAME_DAYS = {
 }
 
 
-def _today():
+def _today(user=None):
+    """The end-anchor for a rolling history window.
+
+    USER-LOCAL (2026-07-23): this returned `timezone.now().date()` — the UTC date — so a
+    CoS history search near the user's evening anchored "last 7 days" to a window that
+    had already rolled into tomorrow for them (Category C: a rolling period defined in
+    CALENDAR days must use the user's calendar). Falls back to the server date only when
+    no user is available, which is never the case on the search path.
+    """
+    if user is not None:
+        try:
+            from apps.core.truth.calendar_day import today as _cal_today
+            return _cal_today(user)
+        except Exception:
+            logger.warning("history_search: user-local today failed", exc_info=True)
     try:
         from django.utils import timezone
         return timezone.now().date()
@@ -86,7 +100,7 @@ def _today():
         return date.today()
 
 
-def _parse_timeframe(timeframe):
+def _parse_timeframe(timeframe, user=None):
     """Return (start_date, end_date) or None. Deterministic, lenient.
 
     Accepts: None; "<N>d" (e.g. '7d','90d'); a named window
@@ -96,7 +110,7 @@ def _parse_timeframe(timeframe):
     if not timeframe:
         return None
     tf = str(timeframe).strip().lower()
-    end = _today()
+    end = _today(user)
     # explicit range
     if ":" in tf:
         try:
@@ -177,7 +191,7 @@ def search_history(user, query, *, domain=None, timeframe=None):
     dom = (domain or "all").strip().lower()
     q = (query or "").strip()
     keywords = [t for t in q.split() if t]
-    date_range = _parse_timeframe(timeframe)
+    date_range = _parse_timeframe(timeframe, user)
 
     # --- unknown domain ---
     if dom not in SUPPORTED_HISTORY_DOMAINS:

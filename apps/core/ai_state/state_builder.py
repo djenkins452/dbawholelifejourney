@@ -2234,21 +2234,27 @@ def build_nutrition_state(user):
     # state ("hasn't logged yet") and downstream consumers (CoS,
     # compliance, insight rules) need the keys to exist rather than
     # silently receive None.
-    today_entries = NutritionQueries.entries_on_date(user, today)
-    today_count = today_entries.count()
-    totals = today_entries.aggregate(
-        calories=Sum("total_calories"),
-        protein=Sum("total_protein_g"),
-        carbs=Sum("total_carbohydrates_g"),
-        fat=Sum("total_fat_g"),
-        fiber=Sum("total_fiber_g"),
-    )
+    # ONE PRODUCER (2026-07-23 — docs/WLJ_NUTRITION_STATE_INVESTIGATION.md): the daily
+    # totals come from the canonical `NutritionQueries.get_daily_totals` — the SAME
+    # producer behind the Nutrition page, the Current Context summary, `get_history`
+    # and `metric_date`. This builder used to run its OWN `.aggregate(Sum(...))` over
+    # the same rows: a second calculation of one deterministic question (and it silently
+    # omitted sugar). A snapshot may CACHE canonical truth; it must never compute it.
+    today_count = NutritionQueries.entries_on_date(user, today).count()
+    totals = NutritionQueries.get_daily_totals(user, today)
     state["daily_calories"] = round(float(totals["calories"] or 0), 1)
-    state["daily_protein_g"] = round(float(totals["protein"] or 0), 1)
-    state["daily_carbs_g"] = round(float(totals["carbs"] or 0), 1)
-    state["daily_fat_g"] = round(float(totals["fat"] or 0), 1)
-    state["daily_fiber_g"] = round(float(totals["fiber"] or 0), 1)
+    state["daily_protein_g"] = round(float(totals["protein_g"] or 0), 1)
+    state["daily_carbs_g"] = round(float(totals["carbs_g"] or 0), 1)
+    state["daily_fat_g"] = round(float(totals["fat_g"] or 0), 1)
+    state["daily_fiber_g"] = round(float(totals["fiber_g"] or 0), 1)
+    state["daily_sugar_g"] = round(float(totals["sugar_g"] or 0), 1)
     state["food_entries_today"] = today_count
+    # THE DATE THESE TOTALS DESCRIBE. Without it, `daily_*` is an undated claim about
+    # "today" that silently becomes yesterday's answer once the clock rolls over — the
+    # snapshot said 79 g "today" while the canonical authority said not_recorded
+    # (runtime-proven). Readers compare this to the user's local today; the freshness
+    # guard uses it to detect date rollover, which no raw-write check can see.
+    state["daily_totals_date"] = today.isoformat()
 
     # ── Active nutrition goals ───────────────────────────────────
     active_goals = (
@@ -2312,7 +2318,20 @@ def build_nutrition_state(user):
     # aggregation when DailyNutritionSummary is empty. Danny's DNS
     # table was empty despite 57 FoodEntry rows in the last 7 days,
     # so rolling averages were never populated and CoS received None.
+    # CONTRACT (explicit so it can never be mistaken for the daily value, nor for
+    # `get_history(...).average`): mean over DAYS THAT HAVE DATA in the 7 days BEFORE
+    # today — today is deliberately EXCLUDED (a partial day would drag the average
+    # down). `get_history` averages its own window and INCLUDES today. Same-sounding
+    # numbers, different denominators — both are correct for their stated contract.
     cutoff_7d = today - timedelta(days=7)
+    state["rolling_7d_basis"] = {
+        "window_start": cutoff_7d.isoformat(),
+        "window_end_exclusive": today.isoformat(),
+        "denominator": "days_with_data",
+        "excludes_today": True,
+        "note": ("Mean per day-with-data over the 7 days BEFORE today. NOT today's "
+                 "value, and NOT the same denominator as get_history's average."),
+    }
     summaries_7d = DailyNutritionSummary.objects.filter(
         user=user, summary_date__gte=cutoff_7d, summary_date__lt=today
     )

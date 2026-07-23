@@ -207,4 +207,45 @@ def get_domain_state(user, domain, *, allow_build=False):
         domain_norm, "ready", module=module_key, source=source,
         state=safe_state,
         _meta={"source": source, "field_count": field_count},
+        **_day_freshness(user, module_key, safe_state),
     )
+
+
+def _day_freshness(user, module_key, state):
+    """Disclose whether a DAY-BOUND snapshot still describes the user's today.
+
+    A snapshot is allowed to be stale; it is NOT allowed to present a past day's
+    numbers as today's without saying so. The freshness guard normally repairs this
+    before the read, so `current` is the usual answer — but if a repair failed or was
+    skipped, the model must be able to see that rather than trust `daily_*` blindly.
+    Facts only; the model decides what to do with them.
+    """
+    try:
+        from apps.core.ai_state.state_freshness import day_bound_field
+        field = day_bound_field(module_key)
+        if not field or not isinstance(state, dict):
+            return {}
+        from apps.core.utils import get_user_today
+        today = get_user_today(user).isoformat()
+        stamped = state.get(field)
+        if not stamped:
+            return {"day_freshness": "unknown", "state_date": None,
+                    "user_local_date": today,
+                    "day_freshness_reason": (
+                        f"This snapshot does not record which day its day-bound "
+                        f"fields describe; treat '{field.replace('_date', '')}' "
+                        f"values as unverified for today.")}
+        if str(stamped) == today:
+            return {"day_freshness": "current", "state_date": str(stamped),
+                    "user_local_date": today}
+        return {"day_freshness": "stale", "state_date": str(stamped),
+                "user_local_date": today,
+                "day_freshness_reason": (
+                    f"The day-bound fields (daily_*) describe {stamped}, NOT the "
+                    f"user's today ({today}). Do not report them as today's values — "
+                    f"retrieve the day you mean with get_history.")}
+    except Exception:  # pragma: no cover - disclosure must never break the read
+        logger.warning("domain_state: day-freshness disclosure failed user=%s "
+                       "module=%s", getattr(user, "id", "?"), module_key,
+                       exc_info=True)
+        return {}

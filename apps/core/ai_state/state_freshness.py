@@ -74,6 +74,44 @@ _MANUAL_MODULE_SOURCES = {
 }
 
 
+# DATE-BOUND modules: their snapshot describes a specific user-local CALENDAR DAY, so
+# they go stale when the DAY changes even though no raw row was written. A raw-write
+# check structurally cannot see that (there is no write to detect), so overnight the
+# snapshot kept reporting yesterday's totals under `daily_*` — the snapshot said 79 g
+# "today" while the canonical authority said not_recorded (runtime-proven 2026-07-23,
+# docs/WLJ_NUTRITION_STATE_INVESTIGATION.md).
+# module -> the state field holding the ISO date those day-bound fields describe.
+_DATE_BOUND_MODULES = {
+    "nutrition": "daily_totals_date",
+}
+
+
+def day_bound_field(module):
+    """The state field holding the ISO date a module's day-bound fields describe,
+    or None when the module has none. Read by disclosure layers so there is ONE
+    registry of which modules are day-bound."""
+    return _DATE_BOUND_MODULES.get(module)
+
+
+def _date_rolled_over(user, module, state_field):
+    """True when the module's day-bound fields describe a DIFFERENT user-local day
+    than today. One cheap dict read — no query, no aggregation. Never raises."""
+    try:
+        from apps.core.ai_state.state_engine import get_module_state
+        from apps.core.utils import get_user_today
+        stamped = (get_module_state(user, module, allow_rebuild=False) or {}).get(
+            state_field)
+        if not stamped:
+            # Never stamped (pre-upgrade snapshot) → treat as rolled over ONCE so the
+            # next read re-stamps it, rather than trusting an undated day claim.
+            return True
+        return str(stamped) != get_user_today(user).isoformat()
+    except Exception:
+        logger.warning("FRESHNESS user=%s module=%s — date check failed",
+                       getattr(user, "id", "?"), module, exc_info=True)
+        return False
+
+
 def _resolve_model(dotted_path):
     """Import a model from its dotted path lazily (avoids app-load cycles)."""
     module_path, _, cls_name = dotted_path.rpartition(".")
@@ -106,6 +144,21 @@ def ensure_fresh(user, modules):
     eligible = [m for m in modules if m in _MANUAL_MODULE_SOURCES]
     if not eligible:
         return refreshed
+
+    # DATE ROLLOVER first — it needs no snapshot timestamp comparison and is the one
+    # staleness a raw-write check cannot detect. Same bounded single-module rebuild.
+    for module in list(eligible):
+        field = _DATE_BOUND_MODULES.get(module)
+        if field and _date_rolled_over(user, module, field):
+            try:
+                from apps.core.ai_state.state_updater import update_user_state
+                update_user_state(user, module)
+                refreshed.add(module)
+                eligible.remove(module)      # already rebuilt; skip the write check
+            except Exception:
+                logger.warning("FRESHNESS user=%s module=%s — date-rollover repair "
+                               "failed", getattr(user, "id", "?"), module,
+                               exc_info=True)
 
     # One cheap row read. If the user has no snapshot yet, the downstream
     # get_user_state() will build it fresh anyway — nothing to repair here.

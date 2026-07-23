@@ -185,10 +185,11 @@ def stamp(fact, decl):
     """
     if not isinstance(fact, dict) or not isinstance(decl, AuthorityDeclaration):
         return fact
+    # WIRE vs REGISTRY: the served fact carries only what a consumer needs to judge
+    # the value — its `authority` and `semantics` (exactly what the contract requires).
+    # `truth_category`, `classification` and `delegates_to` are ARCHITECTURAL metadata
+    # for certification; they live in the declaration registry and are read by the
+    # contract test, not shipped in every payload (that cost is paid ~100x per call).
     fact.setdefault("authority", decl.authority)
     fact.setdefault("semantics", decl.semantics)
-    fact.setdefault("truth_category", decl.truth_category)
-    fact.setdefault("classification", decl.classification)
-    if decl.delegates_to:
-        fact.setdefault("delegates_to", decl.delegates_to)
     return fact

@@ -13,7 +13,7 @@ Proves the focused foundational-health-facts tool:
 """
 
 import json
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -103,6 +103,14 @@ class FoundationalHealthFactsTests(TestCase):
 
     # 3. glucose survives dispatch
     def test_glucose_survives_dispatch(self):
+        # F2 (2026-07-23): `last_glucose_reading` delegates to glucose_queries.latest
+        # (temporal safety owned by truth/integrity), so it needs a REAL reading.
+        from decimal import Decimal
+        from django.utils import timezone as _tz
+        from apps.health.models import GlucoseEntry
+        GlucoseEntry.objects.create(
+            user=self.user, value=Decimal("110"), unit="mg/dL",
+            recorded_at=_tz.now() - timedelta(minutes=15))
         with mock.patch(_GMS, side_effect=_fake_module_state):
             env = dispatch_tool_call(
                 self.user, "get_foundational_health_facts",

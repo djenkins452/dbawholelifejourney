@@ -33,10 +33,6 @@ _FACT_MAP = {
         "module": "health", "value": "weight_change_30d",
         "unit": "weight_unit",
     },
-    "last_glucose_reading": {
-        "module": "health", "value": "latest_glucose",
-        "unit": "latest_glucose_unit", "recorded_at": "last_glucose_entry",
-    },
     "average_glucose_yesterday": {
         "module": "health", "value": "glucose_avg_7d",
         "unit": "latest_glucose_unit", "recorded_at": "last_glucose_entry",
@@ -56,11 +52,6 @@ _FACT_MAP = {
     "current_medications": {
         "module": "medicine", "value": "active_medications",
         "count": "medication_count",
-    },
-    "latest_meal_logged": {
-        # SAE has no meal name/description; the canonical truth is the date of
-        # the most recent food/meal entry.
-        "module": "nutrition", "value": "last_food_entry",
     },
     "steps_recent": {
         # Law 4 fix: "how many steps" previously had NO foundational fact, so it
@@ -189,10 +180,21 @@ _LATEST_OBSERVATION_FACTS = {
     "current_weight": ("health", "weight"),
 }
 
+# Curated keys that DELEGATE to a canonical authority. They have no `_FACT_MAP` spec
+# (their SAE specs were deleted on delegation) but they are still first-class served
+# AND model-facing keys — dropping them from the advertised enum would make them
+# unreachable, which is how a delegation silently becomes a removal.
+_DELEGATED_CURATED_KEYS = {
+    "last_glucose_reading", "previous_glucose_reading", "latest_meal_logged",
+    "last_blood_pressure_reading",
+}
+
+
 def supported_facts():
     """Every key this surface can SERVE — including all derived day keys. Used by
     internal/legacy callers that name a key directly."""
-    return sorted(set(_FACT_MAP) | day_fact_keys() | set(_LATEST_OBSERVATION_FACTS))
+    return sorted(set(_FACT_MAP) | day_fact_keys() | set(_LATEST_OBSERVATION_FACTS)
+                  | _DELEGATED_CURATED_KEYS)
 
 
 # ---------------------------------------------------------------------------
@@ -212,18 +214,17 @@ _CURATED_DECLARATIONS = {
         "rolling_average", "metric", "shadow_authority",
         "Name claims a date scope but serves a 7-day average; F1 = rename."),
     "last_glucose_reading": (
-        "latest_observation", "metric", "shadow_authority",
-        "F2 BLOCKED — delegation attempted and REVERTED: the future-timestamp guard "
-        "(drop + flag an impossible time) lives in this SAE path, NOT in "
-        "glucose_queries. Delegating as-is regresses a clinical-safety behavior. "
-        "Closing F2 requires moving that guard into the canonical accessor first."),
+        "latest_observation", "metric", "projection",
+        "F2 CLOSED — delegates to glucose_queries.latest, the SAME canonical accessor "
+        "previous_glucose_reading uses, so the two can never disagree. Temporal safety "
+        "is owned by the PLATFORM layer (truth/integrity.attach), which flags a future "
+        "recorded_at and drops the impossible timestamp — proven on live rows."),
     "steps_recent": (
         "rolling_average", "metric", "shadow_authority",
         "7-day average under a recency-implying name; F3 = rename."),
     "latest_meal_logged": (
-        "latest_observation", "record", "shadow_authority",
-        "F4 — delegation deferred with F2; both touch the same serve path and should "
-        "land together once the glucose temporal guard is relocated."),
+        "latest_observation", "record", "projection",
+        "F4 CLOSED — delegates to NutritionQueries.last_entry (nutrition owns meals)."),
     "average_sleep_7d": (
         "rolling_average", "metric", "shadow_authority",
         "Snapshot aggregate; claims no date scope so cannot contradict exact-date."),
@@ -249,6 +250,8 @@ _CURATED_DECLARATIONS = {
 # the declaration is built rather than hard-coded beside the note above.
 _CURATED_DELEGATES = {
     "previous_glucose_reading": "CurrentHealth.previous_glucose",
+    "last_glucose_reading": "glucose_queries.latest",
+    "latest_meal_logged": "NutritionQueries.last_entry",
     "last_blood_pressure_reading": "get_domain_history:health.bp_systolic",
 }
 
@@ -307,7 +310,8 @@ def served_keys():
     """Every key `get_foundational_health_facts` can actually RETURN — including keys
     handled only inside the serve loop (e.g. `previous_glucose_reading`). This is the
     set the F0 contract test validates declarations against."""
-    return set(supported_facts()) | set(_MEDICINE_DOMAIN_KEYS) | set(_CURATED_DECLARATIONS)
+    return (set(supported_facts()) | set(_MEDICINE_DOMAIN_KEYS)
+            | set(_CURATED_DECLARATIONS) | _DELEGATED_CURATED_KEYS)
 
 
 def model_facing_facts():
@@ -324,7 +328,8 @@ def model_facing_facts():
     `sleep_last_night` and the `current_*`/latest keys REMAIN: they are not
     date-scoped questions (see `_SLEEP_FACT_KEYS` / `_LATEST_OBSERVATION_FACTS`).
     """
-    return sorted(set(_FACT_MAP) | _SLEEP_FACT_KEYS | set(_LATEST_OBSERVATION_FACTS))
+    return sorted(set(_FACT_MAP) | _SLEEP_FACT_KEYS | set(_LATEST_OBSERVATION_FACTS)
+                  | _DELEGATED_CURATED_KEYS)
 
 
 # Back-compat module attribute; resolved LAZILY (the capability index needs the Django
@@ -556,9 +561,6 @@ def _blood_pressure_fact(user):
         "authority": authority,
         "source": authority,
         "semantics": _A.LATEST_ON_OR_BEFORE,
-        "truth_category": _A.CATEGORY_METRIC,
-        "classification": _A.PROJECTION_OF,
-        "delegates_to": "get_domain_history:health.bp_systolic",
     }
     # Either component missing → no reading. A single number is not a blood pressure.
     if sys_f.get("status") != "ok" or dia_f.get("status") != "ok":
@@ -673,6 +675,12 @@ def get_foundational_health_facts(user, keys=None):
             continue
         # F2/F4/F6 — delegated projections of canonical authorities (never the SAE
         # snapshot). Each declares its authority; none re-derives or re-snapshots.
+        if key == "last_glucose_reading":
+            out[key] = _jsonsafe(_latest_glucose_fact(user))
+            continue
+        if key == "latest_meal_logged":
+            out[key] = _jsonsafe(_latest_meal_fact(user))
+            continue
         if key == "last_blood_pressure_reading":
             out[key] = _jsonsafe(_blood_pressure_fact(user))
             continue

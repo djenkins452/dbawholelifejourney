@@ -58,7 +58,9 @@ PROMPTS = [
     ("How much protein have I consumed today?",   "protein_today",        "142"),
     ("What's my average sleep this week?",        "average_sleep_7d",     "6.7"),
     ("What was my last blood pressure reading?",   "last_blood_pressure_reading", "111/72"),
-    ("What was the last meal I logged?",           "latest_meal_logged",   "2026-04-07"),
+    # latest_meal_logged now delegates to NutritionQueries.last_entry, so the answer
+    # is the REAL latest entry date (seeded at today) — resolved at runtime below.
+    ("What was the last meal I logged?",           "latest_meal_logged",   None),
 ]
 
 
@@ -117,10 +119,23 @@ class FastPathTests(TestCase):
         # history metrics, so it needs a REAL reading — a mocked SAE state no longer
         # feeds it. Systolic and diastolic must share ONE observation; the projection
         # refuses to compose components from different readings.
-        from apps.health.models import BloodPressureEntry
+        # Same migration, continued (2026-07-23, F2): `last_glucose_reading` now
+        # delegates to glucose_queries.latest, so it needs a REAL reading.
+        from apps.health.models import BloodPressureEntry, GlucoseEntry
+        GlucoseEntry.objects.create(
+            user=cls.user, value=Decimal("133"), unit="mg/dL",
+            recorded_at=_tz.now() - _dt.timedelta(minutes=20))
         BloodPressureEntry.objects.create(
             user=cls.user, systolic=111, diastolic=72, pulse=64,
             recorded_at=_tz.make_aware(_dt.datetime.combine(_today, _dt.time(6, 30))))
+
+    def _needle(self, key, needle):
+        """Delegated keys answer from REAL records, so their expected value is
+        resolved at runtime rather than pinned to a mocked snapshot value."""
+        if needle is None and key == "latest_meal_logged":
+            from apps.core.utils import get_user_today
+            return get_user_today(self.user).isoformat()
+        return needle
 
     def test_fast_path_never_uses_tool_loop(self):
         # The fast path NEVER uses the agentic tool loop. It is EITHER the plain
@@ -128,6 +143,7 @@ class FastPathTests(TestCase):
         # the deterministic sentence (LLM bypassed so the value answer can't diverge
         # from a follow-up that reads the same struct).
         for prompt, key, needle in PROMPTS:
+            needle = self._needle(key, needle)
             with self.subTest(prompt=prompt), \
                  mock.patch(_GMS, side_effect=_fake_module_state), \
                  mock.patch(_CALL_API, return_value="Phrased answer."), \
@@ -147,6 +163,7 @@ class FastPathTests(TestCase):
 
     def test_deterministic_fallback_when_call_api_returns_none(self):
         for prompt, key, needle in PROMPTS:
+            needle = self._needle(key, needle)
             with self.subTest(prompt=prompt), \
                  mock.patch(_GMS, side_effect=_fake_module_state), \
                  mock.patch(_CALL_API, return_value=None):

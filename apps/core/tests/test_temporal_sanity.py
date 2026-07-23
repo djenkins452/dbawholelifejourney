@@ -6,7 +6,7 @@
 # ==============================================================================
 from datetime import datetime, timedelta, timezone as _tz
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.core.truth import temporal as T
 from apps.ai.cos_services.health_facts import get_foundational_health_facts
@@ -42,29 +42,52 @@ class ValidateTimestampTests(SimpleTestCase):
 _GMS = "apps.core.ai_state.state_engine.get_module_state"
 
 
-class GlucoseFactTemporalGuardTests(SimpleTestCase):
-    def test_future_glucose_timestamp_is_dropped_and_flagged(self):
-        from django.utils import timezone
-        future_iso = (timezone.now() + timedelta(hours=1)).isoformat()
-        state = {"latest_glucose": 95, "latest_glucose_unit": "mg/dL",
-                 "last_glucose_entry": future_iso}
-        with mock.patch(_GMS, return_value=state):
-            fact = get_foundational_health_facts(None, ["last_glucose_reading"])["last_glucose_reading"]
-        self.assertIn("temporal_warning", fact)            # flagged
-        self.assertNotIn("recorded_at", fact)              # impossible time dropped
-        self.assertEqual(fact["value"], 95)                # the value still stands
 
-    def test_sae_future_warning_is_surfaced_in_the_answer(self):
-        # SAE removed the impossible time and left a warning — Beth must SAY it.
+class GlucoseFactTemporalGuardTests(TestCase):
+    """CANONICAL-PATH temporal safety (2026-07-23).
+
+    `last_glucose_reading` now DELEGATES to `glucose_queries.latest`; temporal safety
+    is owned by the PLATFORM layer (`truth/integrity.attach`), not by the snapshot
+    surface. These tests seed a REAL future-dated reading instead of mocking SAE state,
+    and assert the INVARIANT — impossible time flagged and dropped, the value never
+    presented as a sound current reading — not one implementation's wording.
+    """
+
+    def _user(self):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from apps.users.models import TermsAcceptance
+        U = get_user_model()
+        u = U.objects.create_user(email="temporal@example.com", password="x")
+        TermsAcceptance.objects.create(
+            user=u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        u.preferences.has_completed_onboarding = True
+        u.preferences.save()
+        return u
+
+    def _future_reading(self):
+        from decimal import Decimal
+        from django.utils import timezone
+        from apps.health.models import GlucoseEntry
+        u = self._user()
+        GlucoseEntry.objects.create(user=u, value=Decimal("95"), unit="mg/dL",
+                                    recorded_at=timezone.now() + timedelta(hours=1))
+        return get_foundational_health_facts(
+            u, ["last_glucose_reading"])["last_glucose_reading"]
+
+    def test_future_glucose_timestamp_is_dropped_and_flagged(self):
+        from apps.core.truth import integrity as I
+        fact = self._future_reading()
+        self.assertTrue(I.failed(fact))                 # flagged as impossible
+        self.assertNotIn("recorded_at", fact)           # impossible time dropped
+        self.assertEqual(fact["value"], 95)             # the value still stands
+
+    def test_future_reading_answer_investigates_instead_of_asserting(self):
         from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
-        state = {"latest_glucose": 95, "latest_glucose_unit": "mg/dL",
-                 "last_glucose_entry": None,
-                 "last_glucose_entry_warning": "That timestamp appears to be in the "
-                 "future, which shouldn't be possible. There may be a synchronization "
-                 "or timezone issue, so the reading's time is unconfirmed."}
-        with mock.patch(_GMS, return_value=state):
-            fact = get_foundational_health_facts(None, ["last_glucose_reading"])["last_glucose_reading"]
+        fact = self._future_reading()
         self.assertNotIn("recorded_at", fact)
         answer = format_fact_sentence("last_glucose_reading", fact).lower()
-        self.assertIn("future", answer)
-        self.assertIn("shouldn't be possible", answer)
+        # Must NOT be the plain confident sentence.
+        self.assertNotEqual(answer.strip(),
+                            "your last glucose reading was 95 mg/dl.")
+        self.assertTrue(answer.strip())

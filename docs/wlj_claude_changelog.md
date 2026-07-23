@@ -54781,3 +54781,29 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verdict: NOT COMPLETE.** The **framework** is certified; **individual surfaces are not all compliant**. Remaining: relocate the glucose temporal guard → land F2+F4; F1/F3 renames; F5 aggregates; F7 contract adoption; and bind the remaining foundational surfaces (personal truth, standing context, page summaries, briefings, decision/execution truth). The ratchet holds the line meanwhile — no new anonymous key or new shadow can be introduced.
 
 **Files:** `apps/ai/cos_services/health_facts.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `apps/ai/tests/test_foundation_validation.py`, `docs/WLJ_RETRIEVAL_AUTHORITY_CLOSURE.md` (new), `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-23 — Canonical Safety Migration: F2/F4 CLOSED; the "lost guard" was a false alarm (corrected)
+
+**Why:** Final platform-quality pass before closing Retrieval Authority Certification. Rule: a canonical authority must own validation, temporal integrity, safety, provenance, confidence and freshness; projections may only expose already-safe truth.
+
+**Headline finding — safety was ALREADY platform-owned.** The snapshot path never owned the guard; it merely *surfaced* a warning SAE had precomputed. `apps/core/truth/temporal.py` (future detection, 5-min tolerance) and `apps/core/truth/integrity.py` (`validate_evidence`/`attach`: impossible verdict, investigation wording, future-predecessor, stale-as-current) are the owners, and `integrity` validates a live `recorded_at` **directly**, independent of SAE.
+
+**CORRECTION to the previous session (recorded honestly):** the prior pass concluded that delegating `last_glucose_reading` "regresses a clinical-safety behavior." **That was wrong.** The failing tests mocked SAE state with `user=None`, so they exercised the snapshot *surfacing* path, not the guard. Proven on a **real future-dated `GlucoseEntry`** through the canonical path: `integrity.attach` flags `future_timestamp` (severity `impossible`), attaches the investigation, **drops the impossible `recorded_at`**, and preserves the value — identical to the SAE behavior. **No guard needed relocating.**
+
+**What:**
+- **F2 CLOSED** — `last_glucose_reading` delegates to `glucose_queries.latest`, the SAME canonical accessor `previous_glucose_reading` already used, so the two can never disagree. Clinical `interpretation` is re-derived from the delegated value (presentation, not truth).
+- **F4 CLOSED** — `latest_meal_logged` delegates to `NutritionQueries.last_entry`.
+- Dead `_FACT_MAP` specs deleted for both; declarations updated to `projection`; ratchet pins removed (**8 → 5 defects**).
+- **The reusable helper the brief anticipated already exists** (`integrity.attach`). No new authority, no duplicated safety logic. The generalizable rule recorded instead: *every projection must pass its assembled fact through `integrity.attach` before returning it* — verified for `metric_date._fact`, `_previous_glucose_fact`, `_latest_glucose_fact`, `_blood_pressure_fact`.
+- **Production regression caught and fixed during the pass:** deleting a key's `_FACT_MAP` spec also removed it from `model_facing_facts()`, silently **un-advertising** it to the model — a delegation quietly becoming a removal. `_DELEGATED_CURATED_KEYS` now keeps delegated keys both served and advertised.
+- **Wire vs registry split:** `stamp()` puts only `authority` + `semantics` on the wire (what a consumer needs to judge a value); `truth_category`/`classification`/`delegates_to` stay in the declaration registry for certification. Caught by a payload-size test (4042 > 4000 chars) — the metadata contract must not tax every call ~100×.
+- **Safety tests migrated, not deleted:** `test_temporal_sanity` and `test_evidence_integrity` now seed a **real future-dated reading** and assert the invariant (flagged · timestamp dropped · never presented as sound) rather than one implementation's wording.
+- **`docs/WLJ_CANONICAL_SAFETY_MIGRATION.md` (new)** — canonical safety inventory, what moved, remaining snapshot-owned behaviors, per-key verification that no migrated retrieval regressed safety, and the Health closure recommendation.
+
+**Verification:** **112 scoped tests green** (health facts · foundation validation · evidence integrity · temporal sanity · authority contract · glucose aliases · conversation memory · prior-reading · active subject · metric-date authority · trust capabilities · comparison semantics) and **71 gate tests green** (request-path safety · constitution · natural dates · truth surface · calendar-bound truth · daily health queries). `check` clean; `makemigrations --check` → no changes.
+
+**Health Retrieval Certification: NOT yet closable, but zero remaining findings are safety or architectural.** Open: F1/F3 renames (blast radius measured into the second runtime), F5 aggregates, F7 contract adoption for `get_domain_state`.
+
+**Files:** `apps/ai/cos_services/health_facts.py`, `apps/core/truth/authority.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `apps/ai/tests/test_health_facts.py`, `apps/ai/tests/test_foundation_validation.py`, `apps/core/tests/test_temporal_sanity.py`, `apps/core/tests/test_evidence_integrity.py`, `docs/WLJ_CANONICAL_SAFETY_MIGRATION.md` (new), `docs/wlj_claude_changelog.md`.

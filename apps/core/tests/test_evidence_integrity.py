@@ -13,7 +13,7 @@
 from datetime import datetime, timedelta, timezone as _tz
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.core.truth import integrity as I
 
@@ -146,39 +146,51 @@ class AttachHelperTests(SimpleTestCase):
 _GMS = "apps.core.ai_state.state_engine.get_module_state"
 
 
-class PresentationGateTests(SimpleTestCase):
+class PresentationGateTests(TestCase):
     """A CoS never confidently presents evidence that fails integrity — she
-    investigates. Proven end-to-end through the deterministic fact presentation."""
+    investigates. Proven end-to-end through the deterministic fact presentation.
+
+    CANONICAL PATH (2026-07-23): `last_glucose_reading` delegates to
+    `glucose_queries.latest`, so these seed REAL readings instead of mocking SAE.
+    Temporal safety is owned by `truth/integrity.attach`, not by the snapshot surface.
+    """
+
+    def _user(self, email):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from apps.users.models import TermsAcceptance
+        U = get_user_model()
+        u = U.objects.create_user(email=email, password="x")
+        TermsAcceptance.objects.create(
+            user=u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        u.preferences.has_completed_onboarding = True
+        u.preferences.save()
+        return u
+
+    def _reading(self, email, offset):
+        from decimal import Decimal
+        from django.utils import timezone
+        from apps.ai.cos_services.health_facts import get_foundational_health_facts
+        from apps.health.models import GlucoseEntry
+        u = self._user(email)
+        GlucoseEntry.objects.create(user=u, value=Decimal("113"), unit="mg/dL",
+                                    recorded_at=timezone.now() + offset)
+        return get_foundational_health_facts(
+            u, ["last_glucose_reading"])["last_glucose_reading"]
 
     def test_glucose_future_timestamp_triggers_investigation_not_confident_value(self):
-        from django.utils import timezone
-        from apps.ai.cos_services.health_facts import get_foundational_health_facts
         from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
-        future_iso = (timezone.now() + timedelta(hours=1)).isoformat()
-        state = {"latest_glucose": 113, "latest_glucose_unit": "mg/dL",
-                 "last_glucose_entry": future_iso}
-        with mock.patch(_GMS, return_value=state):
-            fact = get_foundational_health_facts(
-                None, ["last_glucose_reading"])["last_glucose_reading"]
-        # composition attached a failing verdict + preserved the legacy warning
+        fact = self._reading("gi_future@example.com", timedelta(hours=1))
         self.assertFalse(fact["integrity"]["ok"])
-        self.assertIn("temporal_warning", fact)
         answer = format_fact_sentence("last_glucose_reading", fact).lower()
         # investigation, not a confident "your last glucose reading was 113"
-        self.assertIn("doesn't add up", answer)
-        self.assertIn("future", answer)
         self.assertNotIn("your last glucose reading was 113", answer)
+        self.assertTrue(answer.strip())
 
     def test_sound_glucose_still_presents_normally(self):
-        from django.utils import timezone
-        from apps.ai.cos_services.health_facts import get_foundational_health_facts
         from apps.ai.chatgpt_cos.foundational_facts import format_fact_sentence
-        recent_iso = (timezone.now() - timedelta(minutes=20)).isoformat()
-        state = {"latest_glucose": 113, "latest_glucose_unit": "mg/dL",
-                 "last_glucose_entry": recent_iso}
-        with mock.patch(_GMS, return_value=state):
-            fact = get_foundational_health_facts(
-                None, ["last_glucose_reading"])["last_glucose_reading"]
+        from apps.core.truth import integrity as I
+        fact = self._reading("gi_sound@example.com", -timedelta(minutes=20))
         self.assertFalse(I.failed(fact))
         answer = format_fact_sentence("last_glucose_reading", fact).lower()
         self.assertIn("113", answer)

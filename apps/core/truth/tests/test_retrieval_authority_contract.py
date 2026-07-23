@@ -124,8 +124,6 @@ class FoundationalHealthFactsContractTests(SimpleTestCase):
     # Tracked in docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md (F1-F6).
     KNOWN_DEFECTS = {
         "average_glucose_yesterday": A.SHADOW_AUTHORITY,   # F1 rename
-        "last_glucose_reading": A.SHADOW_AUTHORITY,        # F2 blocked (temporal guard)
-        "latest_meal_logged": A.SHADOW_AUTHORITY,          # F4 deferred with F2
         "steps_recent": A.SHADOW_AUTHORITY,                # F3 rename
         "average_sleep_7d": A.SHADOW_AUTHORITY,            # F5
         "sleep_trend": A.SHADOW_AUTHORITY,                 # F5

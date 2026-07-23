@@ -81,9 +81,39 @@ _MANUAL_MODULE_SOURCES = {
 # "today" while the canonical authority said not_recorded (runtime-proven 2026-07-23,
 # docs/WLJ_NUTRITION_STATE_INVESTIGATION.md).
 # module -> the state field holding the ISO date those day-bound fields describe.
+#
+# THE REGISTRY IS THE CONTRACT (2026-07-23): a module that projects ANY calendar-day
+# claim (`*_today`, `daily_*`, `today_*`) must appear here with the field that records
+# WHICH user-local day it built. `test_calendar_bound_truth.py` fails CI when a
+# calendar-day claim appears in a module that is not registered, so the class cannot
+# silently return. Repair is the module's own bounded builder — never a full rebuild.
 _DATE_BOUND_MODULES = {
     "nutrition": "daily_totals_date",
+    "tasks": "day_state_date",
+    "calendar": "day_state_date",
+    "fitness": "day_state_date",
+    "medicine": "day_state_date",
+    "routine": "day_state_date",
+    "life_events": "day_state_date",
+    "health": "day_state_date",
 }
+
+
+# Builders certified LIGHT enough to rebuild synchronously on the request path (bounded,
+# single-module, ~10-15 queries). Anything else refreshes in the background and the
+# reader discloses the value as stale — a heavy inline rebuild is never acceptable.
+_LIGHT_INLINE_REBUILD = {"nutrition", "journal", "faith", "tasks", "calendar"}
+
+
+def _enqueue_refresh(user, module):
+    """Fire-and-forget background refresh through the established safe path."""
+    try:
+        from apps.core.celery_utils import safe_enqueue
+        from apps.core.ai_state.tasks import deferred_sae_refresh
+        safe_enqueue(deferred_sae_refresh, user.id, [module])
+    except Exception:
+        logger.warning("FRESHNESS user=%s module=%s — refresh enqueue skipped",
+                       getattr(user, "id", "?"), module, exc_info=True)
 
 
 def day_bound_field(module):
@@ -141,24 +171,37 @@ def ensure_fresh(user, modules):
     """
     refreshed: set[str] = set()
 
-    eligible = [m for m in modules if m in _MANUAL_MODULE_SOURCES]
-    if not eligible:
-        return refreshed
-
     # DATE ROLLOVER first — it needs no snapshot timestamp comparison and is the one
-    # staleness a raw-write check cannot detect. Same bounded single-module rebuild.
-    for module in list(eligible):
-        field = _DATE_BOUND_MODULES.get(module)
-        if field and _date_rolled_over(user, module, field):
+    # staleness a raw-write check cannot detect (midnight writes nothing). Eligibility
+    # is INDEPENDENT of _MANUAL_MODULE_SOURCES: a module can be calendar-bound without
+    # being manual-entry (e.g. calendar events).
+    # There is nothing to REPAIR when no snapshot exists at all — the first
+    # get_user_state() builds it fresh (and stamped). Repairing here would turn a
+    # cold-start read into an extra rebuild.
+    has_snapshot = UserState.objects.filter(user=user).exists()
+    for module in ([m for m in modules if m in _DATE_BOUND_MODULES]
+                   if has_snapshot else []):
+        if not _date_rolled_over(user, module, _DATE_BOUND_MODULES[module]):
+            continue
+        if module in _LIGHT_INLINE_REBUILD:
             try:
                 from apps.core.ai_state.state_updater import update_user_state
                 update_user_state(user, module)
                 refreshed.add(module)
-                eligible.remove(module)      # already rebuilt; skip the write check
             except Exception:
                 logger.warning("FRESHNESS user=%s module=%s — date-rollover repair "
                                "failed", getattr(user, "id", "?"), module,
                                exc_info=True)
+        else:
+            # REQUEST-PATH SAFETY: a builder not certified light is NEVER rebuilt
+            # inline. Refresh goes through the established fire-and-forget path and
+            # the reader discloses the value as stale in the meantime.
+            _enqueue_refresh(user, module)
+
+    eligible = [m for m in modules
+                if m in _MANUAL_MODULE_SOURCES and m not in refreshed]
+    if not eligible:
+        return refreshed
 
     # One cheap row read. If the user has no snapshot yet, the downstream
     # get_user_state() will build it fresh anyway — nothing to repair here.

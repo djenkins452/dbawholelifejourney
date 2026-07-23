@@ -222,28 +222,21 @@ def _day_freshness(user, module_key, state):
     """
     try:
         from apps.core.ai_state.state_freshness import day_bound_field
+        from apps.core.truth import calendar_day
         field = day_bound_field(module_key)
         if not field or not isinstance(state, dict):
             return {}
-        from apps.core.utils import get_user_today
-        today = get_user_today(user).isoformat()
-        stamped = state.get(field)
-        if not stamped:
-            return {"day_freshness": "unknown", "state_date": None,
-                    "user_local_date": today,
-                    "day_freshness_reason": (
-                        f"This snapshot does not record which day its day-bound "
-                        f"fields describe; treat '{field.replace('_date', '')}' "
-                        f"values as unverified for today.")}
-        if str(stamped) == today:
-            return {"day_freshness": "current", "state_date": str(stamped),
-                    "user_local_date": today}
-        return {"day_freshness": "stale", "state_date": str(stamped),
-                "user_local_date": today,
-                "day_freshness_reason": (
-                    f"The day-bound fields (daily_*) describe {stamped}, NOT the "
-                    f"user's today ({today}). Do not report them as today's values — "
-                    f"retrieve the day you mean with get_history.")}
+        # ONE evaluator for calendar-bound freshness, shared with every other reader —
+        # so "is this still today's?" is answered identically platform-wide, in the
+        # USER's timezone.
+        verdict = calendar_day.day_freshness(user, state.get(field))
+        out = {"day_freshness": verdict["day_freshness"],
+               "state_date": verdict["represented_day"],
+               "user_local_date": verdict["user_local_date"],
+               "timezone": verdict["timezone"]}
+        if verdict.get("reason"):
+            out["day_freshness_reason"] = verdict["reason"]
+        return out
     except Exception:  # pragma: no cover - disclosure must never break the read
         logger.warning("domain_state: day-freshness disclosure failed user=%s "
                        "module=%s", getattr(user, "id", "?"), module_key,

@@ -810,6 +810,13 @@ def build_health_state(user):
         else:
             today_pct = 0
         state["water_today_pct"] = today_pct
+        # CALENDAR-BOUND TRUTH CONTRACT: `water_today_*` is a day claim, so the
+        # health snapshot records which user-local day it describes. (health is
+        # deliberately NOT in _LIGHT_INLINE_REBUILD — its builder is the heavy
+        # ~69-query path, so a rolled-over day refreshes in the BACKGROUND and the
+        # reader discloses it as stale meanwhile.)
+        from apps.core.truth.calendar_day import today as _cal_today
+        state["day_state_date"] = _cal_today(user).isoformat()
         state["water_goal_met"] = today_oz >= water_goal
 
         # Time-aware "behind goal" flag — was previously computed in
@@ -2622,6 +2629,11 @@ def build_fitness_state(user):
         state["today_training_load"] = round(today_load, 2)
         state["today_classification"] = classify_daily_activity(today_minutes, today_max_intensity)
         state["today_workout_minutes"] = today_minutes
+        # CALENDAR-BOUND TRUTH CONTRACT (2026-07-23): record WHICH user-local day
+        # the `today_*` fields above describe, so rollover is detectable — a
+        # calendar day advances with no write to trigger the write-based check.
+        from apps.core.truth.calendar_day import today as _cal_today
+        state['day_state_date'] = _cal_today(user).isoformat()
     except Exception:
         pass
 
@@ -3320,6 +3332,10 @@ def build_life_events_state(user):
     state["today_events"] = [
         e for e in approaching if e["days_until"] == 0
     ]
+    # CALENDAR-BOUND TRUTH CONTRACT: `today_events` is a day claim ("days_until == 0"),
+    # so it must record WHICH user-local day it was computed for.
+    from apps.core.truth.calendar_day import today as _cal_today
+    state["day_state_date"] = _cal_today(user).isoformat()
 
     return state
 
@@ -3518,8 +3534,12 @@ def build_task_state(user):
                 nn_skip_streaks.append({'task': task.title, 'streak': eff})
         state['nn_skip_streaks'] = nn_skip_streaks
 
-        # Overdue NN tasks (use canonical TaskQueries)
-        today = now.date() if hasattr(now, 'date') else now
+        # Overdue NN tasks (use canonical TaskQueries).
+        # USER-LOCAL (2026-07-23): this used `get_current_time().date()` — the SERVER
+        # date — so near midnight a non-UTC user's task could read overdue a day early
+        # or late. "Overdue" is a judgement about the USER's calendar.
+        from apps.core.utils import get_user_today as _get_user_today
+        today = _get_user_today(user)
         overdue_nn = TaskQueries.overdue(user, today).filter(
             commitment_level='foundational',
         ).count()
@@ -3701,6 +3721,13 @@ def build_task_state(user):
 
         # Legacy key (title list) — maintained for backward compat
         state['tasks_due_today'] = [t.title for t in today_remaining][:10]
+        # CALENDAR-BOUND TRUTH CONTRACT: record WHICH user-local day every `*_today`
+        # field above describes. Without it these are undated claims that silently
+        # become yesterday's answers after midnight (the class proven in
+        # docs/WLJ_NUTRITION_STATE_INVESTIGATION.md). Read by
+        # state_freshness._DATE_BOUND_MODULES to detect rollover, which no raw-write
+        # check can see.
+        state['day_state_date'] = user_today.isoformat()
 
         # ── TOMORROW / FUTURE / NO DATE ──
         state['due_tomorrow_tasks'] = [
@@ -3945,6 +3972,11 @@ def build_medicine_state(user):
 
         state['expected_today'] = expected_today
         state['schedule_status_today'] = schedule_status
+        # CALENDAR-BOUND TRUTH CONTRACT (2026-07-23): record WHICH user-local day
+        # the `today_*` fields above describe, so rollover is detectable — a
+        # calendar day advances with no write to trigger the write-based check.
+        from apps.core.truth.calendar_day import today as _cal_today
+        state['day_state_date'] = _cal_today(user).isoformat()
 
         # 7-day MEDICATION adherence rate (reuse existing utility).
         #
@@ -4415,6 +4447,10 @@ def build_calendar_state(user):
                 next_event = entry
 
         state['today_events'] = serialized
+        # CALENDAR-BOUND TRUTH CONTRACT: the day these `today_*` fields describe, in the
+        # user's own timezone (`user_now` above is user-local). Enables rollover
+        # detection — a calendar snapshot goes wrong at midnight with no write at all.
+        state['day_state_date'] = user_now.date().isoformat()
         state['current_event'] = current_event
         state['next_event'] = next_event
         state['overdue_events'] = overdue_events
@@ -4521,6 +4557,11 @@ def build_routine_state(user):
         completion status, and next pending item.
     """
     state = {}
+    # CALENDAR-BOUND TRUTH CONTRACT: stamped FIRST and unconditionally — this builder
+    # early-returns when the user has no routines, and an unstamped day-claim state is
+    # exactly what the contract forbids.
+    from apps.core.truth.calendar_day import today as _cal_today
+    state['day_state_date'] = _cal_today(user).isoformat()
 
     try:
         from apps.life.services._routine_internal import get_todays_routine_items

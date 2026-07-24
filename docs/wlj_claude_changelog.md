@@ -6,6 +6,16 @@
 # Last Updated: 2026-07-23 (fix(truth): User-Local Temporal Semantics — classify 212 sites, migrate the Task day authority, add the CI guard)
 # ================================================================# WLJ Change History
 
+## 2026-07-24 — docs(ops): production timeline reconstruction for the 2026-07-23 Operations truth divergence (read-only evidence)
+
+**Read-only evidence milestone — no code changed, no production data modified, no correction implemented, OPS-14 not started.** Reconstructs the 2026-07-23 incident to the limit of persisted evidence and produces the acceptance-test spec for the future authority consolidation. `docs/WLJ_OPERATIONS_INCIDENT_TIMELINE_2026-07-23.md` (new).
+
+- **Evidence-availability matrix (code-proven).** `SystemIntegritySnapshot` (per-cycle rows, no pruning found), `OpsAnomaly`, `OperationalAlert`, and `AssistantMessage` (Clara's messages) are **retained → reconstructable**. **Two definitive gaps:** `COASHealthSnapshot` is `update_or_create(pk=1)` — a **single overwritten row, no history** (degraded/recovered scores gone); the alignment "100%" badge is **cache-only** (value gone, only its fail-open-to-100 code behavior provable).
+- **Sharpened root cause.** Post my 2026-07-18 `daaefd91` change, the DEGRADED path injects no chat message; the "recovered" message is the **COAS recovery injection** — `_build_recovery_message()` = *"WLJ automatically recovered… Everything is operating normally again"* — an **unconditional whole-platform claim fired from a COAS subsystem crossing ≥80**, with **no** consultation of executive/integrity/`OpsAnomaly`, while integrity was still 51/DEGRADED with 5 active incidents. Nothing was stale; the failure is semantic + misleading UI (alignment badge titled "Status", green 100%).
+- **Deliverables in the doc:** exact SELECT-only read queries per surviving authority (parameterized by the incident window), the mechanism-derived consolidated timeline skeleton (row-level cells marked PENDING read / permanently unavailable), the §9 root-cause answers, an **8-assertion acceptance-test spec** (A2/A7 encode the exact failure: no platform-recovery notification while executive ≠ HEALTHY; notifications cite the executive authority), and the future audit-logging the gaps require.
+- **One blocked step surfaced, not actioned:** the actual surviving rows need a production read path; **no existing `X-Claude-API-Key` endpoint exposes these Ops models**, and this milestone forbids code changes — so the row pull awaits an explicit decision (temporary read-only diagnostic vs. operator-run queries).
+- **Files:** `docs/WLJ_OPERATIONS_INCIDENT_TIMELINE_2026-07-23.md` (new). No code → no migration, no regression surface. Concurrent sessions have uncommitted work; committed ONLY my files by explicit path.
+
 ## 2026-07-23 — fix(truth): User-Local Temporal Semantics — classify 212 sites, migrate the Task day authority, add the CI guard
 
 **Second temporal milestone.** Classifies the truth layer by MEANING, then migrates the single highest-risk slice. Audit: `docs/WLJ_TEMPORAL_USE_AUDIT.md`.

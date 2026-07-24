@@ -72,6 +72,13 @@ def _fact(key, value, *, module, source, unit=None, updated_at=None,
         "value": value,
         "module": module,
         "source": source,
+        # RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption): every Personal
+        # Truth fact is a compliant PROJECTION of a module-owned authority — it stores
+        # no truth of its own (see the module contract). `authority` is the owning
+        # module's source; `semantics` is `current` (the durable current value of an
+        # explicitly-stored fact). Declared per-fact because keys are user-dynamic.
+        "authority": source,
+        "semantics": "current",
         "provenance": _PROVENANCE_EXPLICIT,
         "updated_at": updated_at.isoformat() if hasattr(updated_at, "isoformat")
         else updated_at,

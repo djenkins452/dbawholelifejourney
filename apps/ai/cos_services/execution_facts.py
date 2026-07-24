@@ -19,16 +19,59 @@ EXECUTION_FACT_KEYS = {"journal_today", "workout_today", "workout_yesterday",
                        "meals_yesterday", "meds_today", "last_journal"}
 
 
+# RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption, Phase 1).
+# Every served execution fact declares its canonical authority + semantics, so this
+# surface is mechanically certifiable exactly like get_foundational_health_facts. Each
+# key already reads a canonical query authority (JournalQueries / WorkoutQueries /
+# MedicineQueries / NutritionQueries / calendar SAE state) — these are compliant
+# projections, declared as such. key -> (authority, semantics, truth_category).
+_DECLARATIONS = {
+    "journal_today":      ("JournalQueries.has_entry_on", "current", "status"),
+    "workout_today":      ("WorkoutQueries.is_completed_on", "current", "status"),
+    "workout_yesterday":  ("WorkoutQueries.is_completed_on", "current", "status"),
+    "appointments_today": ("calendar_state", "current", "status"),
+    "next_appointment":   ("calendar_state", "current", "status"),
+    "meals_today":        ("NutritionQueries.entries_on_date", "current", "status"),
+    "meals_yesterday":    ("NutritionQueries.entries_on_date", "current", "status"),
+    "meds_today":         ("MedicineQueries.today_execution", "current", "status"),
+    "last_journal":       ("SAE.journal.last_entry", "latest_observation", "status"),
+}
+
+
+def authority_declarations():
+    """{key: AuthorityDeclaration} for every execution fact this surface serves.
+    All are compliant projections of a canonical query authority."""
+    from apps.core.truth import authority as A
+    return {
+        key: A.AuthorityDeclaration(
+            authority=auth, semantics=sem, truth_category=cat,
+            classification=A.PROJECTION_OF, delegates_to=auth)
+        for key, (auth, sem, cat) in _DECLARATIONS.items()
+    }
+
+
+def served_keys():
+    return set(EXECUTION_FACT_KEYS)
+
+
 def get_foundational_execution_facts(user, keys):
     """Return {key: {value, source} | {status: unknown/unsupported_fact}}."""
+    from apps.core.truth import authority as _authority
+    decls = authority_declarations()
     out = {}
     for key in keys:
         try:
-            out[key] = _resolve(user, key)
+            fact = _resolve(user, key)
         except Exception:
             logger.warning("execution_facts: resolve failed key=%s user=%s",
                            key, getattr(user, "id", None), exc_info=True)
-            out[key] = {"status": "unknown", "reason": "retrieval failed"}
+            fact = {"status": "unknown", "reason": "retrieval failed"}
+        # Platform contract: stamp authority + semantics (never overwrites what the
+        # canonical producer already supplied).
+        decl = decls.get(key)
+        if decl is not None:
+            _authority.stamp(fact, decl)
+        out[key] = fact
     return out
 
 

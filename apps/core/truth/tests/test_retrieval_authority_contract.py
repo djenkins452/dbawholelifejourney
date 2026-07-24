@@ -70,6 +70,47 @@ class AuthorityVocabularyTests(SimpleTestCase):
         self.assertIn((d.authority, d.semantics), dupes)
 
 
+# ---------------------------------------------------------------------------
+# ADOPTED SURFACE REGISTRY (platform adoption, Phase 1).
+# Every keyed retrieval surface that has adopted the metadata contract lists itself
+# here by (label, module). A surface adopts by exposing `authority_declarations()`
+# and `served_keys()`. Adding a surface here binds it to the SAME mechanical gate —
+# no per-surface test authoring. Composed-envelope surfaces (get_domain_state,
+# standing_context, executive briefings, decision authority) carry provenance at the
+# ENVELOPE level and are verified separately (see WLJ_PLATFORM_ADOPTION_ROLLOUT.md).
+_ADOPTED_SURFACES = [
+    ("get_foundational_health_facts", "apps.ai.cos_services.health_facts"),
+    ("get_foundational_execution_facts", "apps.ai.cos_services.execution_facts"),
+]
+
+
+def _load_surface(module_path):
+    import importlib
+    mod = importlib.import_module(module_path)
+    return mod.authority_declarations(), mod.served_keys()
+
+
+class AdoptedSurfacesContractTests(SimpleTestCase):
+    """Every ADOPTED keyed surface passes the contract mechanically — no surface may
+    serve an anonymous value, and every projection names its canonical authority."""
+
+    def test_every_adopted_surface_is_fully_declared(self):
+        for label, module_path in _ADOPTED_SURFACES:
+            with self.subTest(surface=label):
+                declarations, served = _load_surface(module_path)
+                errs = A.validate_surface(declarations, served_keys=served)
+                self.assertEqual(errs, [], f"{label} contract violations:\n"
+                                           + "\n".join(errs))
+
+    def test_every_adopted_projection_names_its_authority(self):
+        for label, module_path in _ADOPTED_SURFACES:
+            declarations, _ = _load_surface(module_path)
+            for key, decl in declarations.items():
+                if decl.classification == A.PROJECTION_OF:
+                    self.assertTrue(decl.delegates_to,
+                                    f"{label}:{key} projection names no authority")
+
+
 class FoundationalHealthFactsContractTests(SimpleTestCase):
     """The first surface bound to the contract. Every served key must be declared."""
 

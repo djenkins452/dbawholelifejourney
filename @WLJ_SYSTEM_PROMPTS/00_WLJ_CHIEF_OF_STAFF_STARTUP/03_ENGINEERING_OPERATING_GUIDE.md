@@ -161,6 +161,7 @@ Never `except Exception: pass` on a critical path. Separate `ImportError` (optio
 - New intent → run `apps.ai.tests.test_intent_registration` (the 5-point registration gate) before deploying.
 - Architecture-touching change → run the constitutional contract suite (`docs/WLJ_ACCEPTANCE_BASELINE.md §4`).
 - Always `python3 manage.py makemigrations --check --dry-run` when a session touches model files.
+- **Test the INVARIANT, not the implementation (REQUIRED when replacing an implementation).** When you migrate a key/surface from one producer to another (e.g. an SAE snapshot → a canonical accessor), do **not** carry over tests that assert the *old* implementation's mechanics. Rewrite each test to seed **real data** and assert the deterministic **invariant** (the behavior the product guarantees), then let it run against the **canonical runtime**. A test that `mock`s the retired implementation (e.g. patches `get_module_state` with a fake SAE dict) proves nothing about the replacement — **its failure is evidence of implementation coupling, not a product regression.** Precedent (2026-07-23): a mocked-SAE `test_temporal_sanity` case made a glucose delegation look like it dropped the future-timestamp guard; seeding a real future-dated row proved the platform layer (`truth/integrity.attach`) already owned the guard, and the delegation was correct. **Always verify behavior against the canonical runtime with real data before concluding functionality was lost.**
 
 ## 11. Deployment discipline
 

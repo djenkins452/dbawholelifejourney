@@ -105,6 +105,14 @@ def _envelope(domain, status, **extra):
         "domain": domain,
         "schema_version": DOMAIN_STATE_SCHEMA_VERSION,
         "generated_at": timezone.now().isoformat(),
+        # RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption): this surface serves
+        # ONE composed module summary per call, so it declares its authority + semantics
+        # at the ENVELOPE root (not per-scalar). It is a PROJECTION of the SAE snapshot
+        # for `domain` — a store, never a truth authority — so `authority` names that
+        # snapshot and `semantics` is `projection`. SAE freshness/staleness is disclosed
+        # by the day-freshness fields already merged in by the caller.
+        "authority": f"SAE.{domain}",
+        "semantics": "projection",
     }
     base.update(extra)
     return base

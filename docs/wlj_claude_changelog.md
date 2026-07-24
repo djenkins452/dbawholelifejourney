@@ -54817,3 +54817,23 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Health Retrieval Certification: NOT yet closable, but zero remaining findings are safety or architectural.** Open: F1/F3 renames (blast radius measured into the second runtime), F5 aggregates, F7 contract adoption for `get_domain_state`.
 
 **Files:** `apps/ai/cos_services/health_facts.py`, `apps/core/truth/authority.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `apps/ai/tests/test_health_facts.py`, `apps/ai/tests/test_foundation_validation.py`, `apps/core/tests/test_temporal_sanity.py`, `apps/core/tests/test_evidence_integrity.py`, `docs/WLJ_CANONICAL_SAFETY_MIGRATION.md` (new), `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-23 — Platform Adoption Phase 1 (partial): 3 more surfaces adopt the metadata contract + generic multi-surface gate
+
+**Why:** Retrieval architecture is complete; the remaining work is adopting the certified metadata contract across every retrieval surface. No new architecture — surfaces simply consume the platform.
+
+**What:**
+- **`get_foundational_execution_facts` ADOPTED** (keyed, 9 keys) — added `authority_declarations()` + `served_keys()`; every served fact is stamped `authority` + `semantics` (all compliant projections of `JournalQueries`/`WorkoutQueries`/`MedicineQueries`/`NutritionQueries`/calendar state). Runtime-verified: `journal_today` → `authority=JournalQueries.has_entry_on, semantics=current`; `last_journal` → `latest_observation`.
+- **`personal_truth` / `get_user_truth` ADOPTED** (dynamic-key) — the single `_fact()` factory now emits `authority` (the owning module source) + `semantics=current` on every fact. Appropriate for a user-dynamic key set: the declaration lives at the factory, not a static registry. Already provenance-bearing, so this only names the two contract fields.
+- **`get_domain_state` ADOPTED** (composed envelope) — declares `authority=SAE.<domain>` + `semantics=projection` at the envelope root (it serves one composed module summary per call, not per-scalar). Honest: SAE is a store, not an authority; freshness/staleness already disclosed by the day-freshness fields (`49d9e0d1`).
+- **Generic multi-surface gate** — `AdoptedSurfacesContractTests` iterates `_ADOPTED_SURFACES` and applies the SAME contract validation to every registered keyed surface. A new surface certifies by adding one registry line + exposing `authority_declarations()`/`served_keys()` — no per-surface test authoring. health_facts + execution_facts registered.
+- **Engineering Operating Guide §10** — recorded the permanent rule: *test the INVARIANT, not the implementation.* When replacing an implementation, rewrite tests to seed real data and assert the deterministic invariant against the canonical runtime; a test that mocks the retired implementation proves implementation coupling, not a product regression (precedent: the 2026-07-23 mocked-SAE glucose false alarm).
+- **`docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md` (new)** — the rollout matrix (Surface → Authority → Semantics → Projection → Certified), certifying 4 surfaces and listing the bounded remaining work.
+
+**Verification:** 88 scoped tests green (domain_state, personal_truth, execution_facts, authority contract incl. the new generic gate, truth surface, request-path safety, constitution). `check` clean. Runtime-proven that execution facts now carry authority + semantics.
+
+**Status — Platform Adoption NOT complete (honest):** 4 of ~9 surfaces certified. Remaining: envelope-root declarations for `standing_context` / `decision_authority` / executive briefings / `execution_state` and per-provider page summaries (same touch proven on `get_domain_state`); and Phase 2 Health renames (`average_glucose_yesterday`→`average_glucose_7d`, `steps_recent`→`steps_avg_7d`) which span BOTH runtimes (health_facts + legacy `chatgpt_cos` classifier/memory/object — 5 files) and must also delegate to `get_history` windowed averages to become compliant. **The Retrieval Platform initiative stays OPEN until the tail lands.** No architecture remains; all remaining work is uniform implementation.
+
+**Files:** `apps/ai/cos_services/execution_facts.py`, `apps/ai/cos_services/personal_truth.py`, `apps/ai/cos_services/domain_state.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/03_ENGINEERING_OPERATING_GUIDE.md`, `docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md` (new), `docs/wlj_claude_changelog.md`.

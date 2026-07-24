@@ -2241,6 +2241,7 @@ any in-flight stream survive a focus-mode toggle untouched.
 
         var OPS_TOOLTIPS = {
             healthy: 'WLJ is operating normally.',
+            recovering: 'WLJ is recovering — confirming stability before clearing the alert.',
             degraded: 'WLJ is operating with reduced reliability. Background processing may delay reminders and AI insights.',
             critical: 'WLJ requires attention. Some platform capabilities may be temporarily unavailable.'
         };
@@ -2286,13 +2287,19 @@ any in-flight stream survive a focus-mode toggle untouched.
                 banner.dataset.state = 'healthy';
             }, 12000);
         }
+        function isActiveState(s) {
+            return s === 'degraded' || s === 'critical' || s === 'recovering';
+        }
         function apply(data) {
             var state = (data && data.state) || 'healthy';
             setHeaderStatus(state === 'recovered' ? 'healthy' : state);
-            if (state === 'degraded' || state === 'critical') {
+            if (isActiveState(state)) {
                 renderActive(data);
             } else {
-                if (lastState === 'degraded' || lastState === 'critical') {
+                // Transition to healthy: fire the recovered cue ONLY on the
+                // confirmed transition (including from 'recovering'), so an
+                // oscillating score never flashes premature recoveries.
+                if (isActiveState(lastState)) {
                     renderRecovered();
                 } else if (banner.dataset.state !== 'recovered') {
                     banner.hidden = true;

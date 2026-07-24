@@ -295,9 +295,12 @@ def theme_context(request):
                             'alignment_score': _score,
                         }
                 except Exception:
+                    # Fail to UNKNOWN, never a reassuring 100 (a health-looking
+                    # indicator must never fabricate certainty — ratified UNKNOWN
+                    # policy). None renders as "—". Ops Stability fix 2026-07-24.
                     context['command_brief'] = {
                         'active': True,
-                        'alignment_score': 100,
+                        'alignment_score': None,
                     }
             # User's "today" in their timezone (for date comparisons in templates)
             from apps.core.utils import get_user_today

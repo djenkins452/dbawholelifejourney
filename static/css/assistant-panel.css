@@ -1166,6 +1166,21 @@ body.has-desktop-nav .desktop-main-area {
     color: #dc2626;
 }
 
+/* Unknown/unavailable — never a reassuring green; neutral grey "—". */
+.cos-alignment-badge.align-unknown {
+    background: color-mix(in srgb, #6b7280 12%, transparent);
+    color: #6b7280;
+}
+
+/* The explicit "Alignment" label makes this unmistakably a plan-alignment
+   metric, never Operations/system status. */
+.cos-alignment-label {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    opacity: 0.9;
+}
+.cos-alignment-value { font-variant-numeric: tabular-nums; }
+
 /* Mobile responsive */
 @media (max-width: 480px) {
     .cos-arrival-metrics {
@@ -2575,6 +2590,10 @@ body.has-desktop-nav .desktop-main-area {
     transition: background 0.2s;
 }
 .ap-ops-link[data-ops-status="healthy"] .ap-ops-dot { background: #27ae60; }
+.ap-ops-link[data-ops-status="recovering"] .ap-ops-dot {
+    background: #f5a623;             /* amber — recovery is unconfirmed (NOT green) */
+    animation: ap-ops-pulse-soft 2.6s ease-in-out infinite;
+}
 .ap-ops-link[data-ops-status="degraded"] .ap-ops-dot {
     background: #f5a623;             /* yellow — subtle pulse */
     animation: ap-ops-pulse-soft 2.6s ease-in-out infinite;
@@ -2603,6 +2622,7 @@ body.has-desktop-nav .desktop-main-area {
     font-size: 13px;
 }
 .ap-ops-banner[data-state="degraded"] { border-left-color: #f5a623; }
+.ap-ops-banner[data-state="recovering"] { border-left-color: #f5a623; }  /* amber — confirming, not yet green */
 .ap-ops-banner[data-state="critical"] { border-left-color: var(--color-danger, #e74c3c); }
 .ap-ops-banner[data-state="recovered"] { border-left-color: #27ae60; }
 .ap-ops-banner-head {

@@ -70,6 +70,24 @@ def _critical_state():
     }
 
 
+def _recovering_state():
+    # Transitional: the platform looks healthy but the executive authority is
+    # confirming stability (recovery hysteresis) before clearing the alert. NOT
+    # green — so no premature "recovered" while stability is unconfirmed.
+    return {
+        "state": "recovering",
+        "emoji": "🟡",
+        "title": "Operations Update",
+        "lines": [
+            "WLJ is recovering from a temporary operational issue.",
+            "Your information is safe.",
+            "Confirming full stability before clearing this alert.",
+        ],
+        "action_label": "Open Operations Wall",
+        "action_url": OPS_WALL_URL,
+    }
+
+
 def _healthy_state():
     # No banner. The UI consumes state == "healthy" to hide/clear the banner and
     # (on a non-healthy → healthy transition) show the transient recovered cue.
@@ -102,6 +120,8 @@ def get_customer_operations_status():
             state = _critical_state()
         elif overall == "DEGRADED":
             state = _degraded_state()
+        elif overall == "RECOVERING":
+            state = _recovering_state()
         else:
             state = _healthy_state()
 

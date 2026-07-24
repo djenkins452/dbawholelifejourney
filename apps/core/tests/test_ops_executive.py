@@ -37,6 +37,7 @@ def _healthy_sections():
 class HealthyPathTests(TestCase):
     def setUp(self):
         cache.delete(ex._KPI_HISTORY_KEY)
+        cache.delete(ex._RECOVERY_STATE_KEY)  # reset recovery hysteresis per test
 
     def test_all_healthy(self):
         out = ex.build_executive_summary(_healthy_sections())
@@ -51,6 +52,7 @@ class HealthyPathTests(TestCase):
 class DegradedUpstreamTests(TestCase):
     def setUp(self):
         cache.delete(ex._KPI_HISTORY_KEY)
+        cache.delete(ex._RECOVERY_STATE_KEY)  # reset recovery hysteresis per test
 
     def test_upstream_outage_is_critical_high_impact(self):
         s = _healthy_sections()
@@ -73,6 +75,7 @@ class DegradedUpstreamTests(TestCase):
 class ScoreExplanationTests(TestCase):
     def setUp(self):
         cache.delete(ex._KPI_HISTORY_KEY)
+        cache.delete(ex._RECOVERY_STATE_KEY)  # reset recovery hysteresis per test
 
     def test_deductions_from_components_and_anomalies(self):
         s = _healthy_sections()
@@ -106,6 +109,7 @@ class ScoreExplanationTests(TestCase):
 class RecommendationTests(TestCase):
     def setUp(self):
         cache.delete(ex._KPI_HISTORY_KEY)
+        cache.delete(ex._RECOVERY_STATE_KEY)  # reset recovery hysteresis per test
 
     def test_highest_priority_incident_chosen(self):
         now = timezone.now()
@@ -159,6 +163,7 @@ class RecommendationTests(TestCase):
 class TrendTests(TestCase):
     def setUp(self):
         cache.delete(ex._KPI_HISTORY_KEY)
+        cache.delete(ex._RECOVERY_STATE_KEY)  # reset recovery hysteresis per test
 
     def test_score_trend_declining(self):
         # Feed a descending score history across cycles.

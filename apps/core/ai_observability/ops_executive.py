@@ -581,6 +581,8 @@ def _plain_summary(overall, subsystems, impact_level, impact_phrases):
     lines = []
     if overall == "HEALTHY":
         lines.append("WLJ is operational.")
+    elif overall == RECOVERING:
+        lines.append("WLJ is recovering — confirming stability before clearing the alert.")
     elif overall == "DEGRADED":
         lines.append("WLJ is operational with degraded subsystems.")
     else:
@@ -653,6 +655,87 @@ def _operational_narrative(overall, subsystems, sections, trends, incidents, now
 
 
 # =========================================================================
+# RECOVERY STABILIZATION (deterministic hysteresis) — Ops Stability milestone
+# =========================================================================
+# The raw ``_overall_status`` is a pure snapshot of the current score band, so a
+# score oscillating across the DEGRADED/NOMINAL boundary (the proven 2026-07-23
+# incident: 50→51→76.5→67→76.5→69.5→98) flipped HEALTHY↔DEGRADED every cycle and
+# fired a premature "recovered". Stabilization does NOT hide truth and does NOT
+# change scoring — it only governs the *executive status transition*:
+#   * Degradation is IMMEDIATE (never dampen a real problem going worse).
+#   * Recovery to HEALTHY requires (a) the raw status HEALTHY-eligible for
+#     ``RECOVERY_STABLE_CYCLES`` consecutive SAME cycles AND (b) no *significant*
+#     (P1/P2) active incident. Until both hold, the status is ``RECOVERING`` —
+#     a distinct, honest, transitional state (not HEALTHY, not "still degraded").
+# The recovered cue / notifications fire only on the confirmed RECOVERING→HEALTHY.
+
+RECOVERING = "RECOVERING"
+RECOVERY_STABLE_CYCLES = 3               # ~3 min at the 60s SAME cadence
+_SIGNIFICANT_SEVERITIES = {"P1", "P2"}   # active incidents that block recovery
+_RECOVERY_STATE_KEY = "wlj:ops:exec_recovery_state"
+_RECOVERY_STATE_TTL = 60 * 60 * 2        # 2h — self-heals if the cycle stalls
+
+
+def _significant_active(incidents):
+    return any(i.get("severity") in _SIGNIFICANT_SEVERITIES for i in (incidents or []))
+
+
+def stabilize_status(prev, raw, incidents):
+    """Pure hysteresis (deterministic, cache-free — testable in isolation).
+
+    Args:
+        prev: prior state dict {"status", "healthy_cycles"} or None.
+        raw: the raw ``_overall_status`` for this cycle.
+        incidents: enriched incident list (each has "severity").
+    Returns:
+        (stabilized_status, new_state_dict, recovery_meta_dict)
+    """
+    prev_status = (prev or {}).get("status")
+    healthy_cycles = int((prev or {}).get("healthy_cycles", 0) or 0)
+    blocked = _significant_active(incidents)
+
+    if raw != "HEALTHY":
+        # Immediate on the way down — timeliness for real degradations.
+        state = {"status": raw, "healthy_cycles": 0}
+        return raw, state, {"raw_status": raw, "healthy_cycles": 0,
+                            "needed_cycles": RECOVERY_STABLE_CYCLES,
+                            "blocked_by_incidents": blocked}
+
+    # raw is HEALTHY-eligible this cycle.
+    if prev_status in (None, "HEALTHY"):
+        state = {"status": "HEALTHY", "healthy_cycles": healthy_cycles + 1}
+        return "HEALTHY", state, {"raw_status": raw,
+                                  "healthy_cycles": healthy_cycles + 1,
+                                  "needed_cycles": RECOVERY_STABLE_CYCLES,
+                                  "blocked_by_incidents": False}
+
+    # We were non-healthy and raw just went healthy → require sustained stability.
+    healthy_cycles += 1
+    stable = healthy_cycles >= RECOVERY_STABLE_CYCLES and not blocked
+    status = "HEALTHY" if stable else RECOVERING
+    state = {"status": status, "healthy_cycles": healthy_cycles}
+    return status, state, {"raw_status": raw, "healthy_cycles": healthy_cycles,
+                           "needed_cycles": RECOVERY_STABLE_CYCLES,
+                           "blocked_by_incidents": blocked}
+
+
+def _apply_recovery_hysteresis(raw, incidents):
+    """Cache-backed wrapper around ``stabilize_status`` (background-cycle only).
+
+    Fails OPEN to the raw status if the cache is unavailable — stabilization is
+    a smoothing layer, never a source of a false status.
+    """
+    try:
+        prev = cache.get(_RECOVERY_STATE_KEY)
+        status, state, meta = stabilize_status(prev, raw, incidents)
+        cache.set(_RECOVERY_STATE_KEY, state, timeout=_RECOVERY_STATE_TTL)
+        return status, meta
+    except Exception as e:
+        logger.debug("recovery hysteresis unavailable (%s) — using raw", e)
+        return raw, {"raw_status": raw, "stabilization": "unavailable"}
+
+
+# =========================================================================
 # PUBLIC — the one entry point (called at the END of the SAME cycle)
 # =========================================================================
 
@@ -700,7 +783,10 @@ def build_executive_summary(sections, now=None):
 
     # --- Subsystems + overall status (Phases 1/6) ---
     subsystems = _subsystem_states(sections, incidents)
-    overall = _overall_status(integrity, sections, incidents)
+    overall_raw = _overall_status(integrity, sections, incidents)
+    # Recovery stabilization: immediate on the way down, stability-gated +
+    # incident-aware on the way up (adds the RECOVERING transitional state).
+    overall, recovery_meta = _apply_recovery_hysteresis(overall_raw, incidents)
 
     # --- Plain-English summary + narrative (Phases 1/7) ---
     summary_lines = _plain_summary(overall, subsystems, impact_level, impact_phrases)
@@ -728,6 +814,8 @@ def build_executive_summary(sections, now=None):
 
     return {
         "overall_status": overall,
+        "overall_status_raw": overall_raw,   # pre-hysteresis (transparency)
+        "recovery": recovery_meta,           # stability counters + block reason
         "customer_impact_level": impact_level,
         "customer_impact": _IMPACT_LABEL[impact_level],
         "customer_impact_phrases": impact_phrases,

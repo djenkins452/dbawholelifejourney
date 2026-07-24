@@ -87,7 +87,7 @@ class OpsIncidentDiagnosticAPIView(APIRateLimitMixin, View):
         coas_now = list(
             COASHealthSnapshot.objects.filter(pk=1).values(
                 "scheduler_score", "engine_score", "freshness_score",
-                "overall_score", "updated_at",
+                "overall_score", "computed_at",
             )
         )
 

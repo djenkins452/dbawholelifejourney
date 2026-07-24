@@ -6,6 +6,10 @@
 # Last Updated: 2026-07-23 (fix(truth): User-Local Temporal Semantics — classify 212 sites, migrate the Task day authority, add the CI guard)
 # ================================================================# WLJ Change History
 
+## 2026-07-24 — chore(ops): TEMPORARY read-only incident-investigation endpoint (2026-07-23 ops divergence) — introduce
+
+**Investigative instrument, not a product feature — removed in a follow-up commit the same session.** Read-only, SELECT-only, `X-Claude-API-Key`-gated endpoint (`api/claude/ops-incident-diag/`) that reconstructs the 2026-07-23 Operations timeline: pulls window-scoped, minimal-field, capped rows from `SystemIntegritySnapshot`, `OpsAnomaly`, `OperationalAlert`, and `operations_alert` `AssistantMessage` notifications (plus the single-row `COASHealthSnapshot` current value, clearly labelled non-historical). No writes/updates/deletes/migrations; no secrets; AssistantMessage restricted to the `operations_alert` system-notification type (no arbitrary user content). Files: `apps/admin_console/ops_incident_diagnostic.py` (temporary), `apps/admin_console/urls.py` (one temporary route). Removal + 404 verification in the paired cleanup commit.
+
 ## 2026-07-24 — docs(ops): production timeline reconstruction for the 2026-07-23 Operations truth divergence (read-only evidence)
 
 **Read-only evidence milestone — no code changed, no production data modified, no correction implemented, OPS-14 not started.** Reconstructs the 2026-07-23 incident to the limit of persisted evidence and produces the acceptance-test spec for the future authority consolidation. `docs/WLJ_OPERATIONS_INCIDENT_TIMELINE_2026-07-23.md` (new).

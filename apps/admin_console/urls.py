@@ -14,6 +14,7 @@ from django.urls import path
 
 from . import views
 from . import ai_views
+from . import ops_incident_diagnostic  # TEMPORARY incident investigation — remove after evidence collection
 from . import truth_validation_views as tv_views
 from apps.core.ai_observability import diagnostics_views as diag_views
 from apps.core.ai_observability import ops_views
@@ -233,6 +234,8 @@ urlpatterns = [
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),
     path("api/claude/restore-deleted-tasks/", views.RestoreDeletedTasksAPIView.as_view(), name="api_claude_restore_tasks"),
+    # TEMPORARY incident-investigation endpoint (2026-07-23 ops divergence) — remove after evidence collection.
+    path("api/claude/ops-incident-diag/", ops_incident_diagnostic.OpsIncidentDiagnosticAPIView.as_view(), name="api_claude_ops_incident_diag"),
 
     # Test Results Ingest API (local → production sync)
     path("api/test-results/ingest/", views.TestResultIngestAPIView.as_view(), name="api_test_results_ingest"),

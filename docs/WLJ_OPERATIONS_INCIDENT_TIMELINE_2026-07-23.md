@@ -1,10 +1,10 @@
 # Operations Truth Divergence — Production Timeline Reconstruction (2026-07-23)
 
-**Status:** Evidence milestone — read-only. **No code changed, no production data modified, no correction implemented, OPS-14 not started.**
-**Companion:** `docs/WLJ_OPERATIONS_TRUTH_PATH_INVESTIGATION.md` (proved the *mechanism*; this reconstructs the *incident* and specifies the acceptance test).
-**Incident:** morning of **2026-07-23**, user-local timezone **US Eastern** (dashboard location Maryville, TN; server `TIME_ZONE=UTC`, so technical evidence is UTC and the report converts to Eastern). Anchors: the CoS "degraded" notice, the CoS "recovered" notice + green 100% badge, and the Operations Wall screenshot showing **Operational Health 51 · DEGRADED · Medium · 5 active incidents**.
+**Status:** Evidence milestone — read-only. **PRODUCTION EVIDENCE COLLECTED 2026-07-24** via a temporary read-only diagnostic (introduced, queried, and **removed same session — 404 verified**). No production data modified, no correction implemented, OPS-14 not started.
+**Companion:** `docs/WLJ_OPERATIONS_TRUTH_PATH_INVESTIGATION.md` (proved the *mechanism*).
+**Incident (now pinpointed from rows):** **2026-07-23, 09:47–10:43 UTC (05:47–06:43 US Eastern)** — a recurring MISSED_RUN/SUPPRESSION burst. Server `TIME_ZONE=UTC`; report converts to Eastern (Maryville, TN).
 
-> **Headline:** Clara's "recovered" message was **factually correct for the COAS subsystem authority** but made an **unconditional platform-level claim** — *"WLJ automatically recovered from a temporary operational issue. Everything is operating normally again."* — while the executive/integrity authority was still **51 / DEGRADED** with 5 active `OpsAnomaly` incidents. Nothing was *stale*; two authorities disagreed by design, and the notification wording + the green alignment badge implied whole-platform health that the executive authority never asserted.
+> **⚠️ CORRECTION — the row-level evidence FALSIFIED my prior hypothesis.** The pre-read reconstruction assumed Clara's "recovered" came from the **COAS recovery message**. **It did not.** Over 5 days there were only **4 `OperationalAlert` rows — all `severity: warning`, all `last_notified_at: None`, and ZERO `operations_alert` notifications.** The COAS message-injection path requires `alert`/`critical`; it never triggered. **What the operator actually saw was ONE authority (integrity) *flapping*:** the integrity score oscillated across the DEGRADED↔NOMINAL boundary (70) — **50→51 DEGRADED (09:47) → 76.5 NOMINAL (09:54) → 67 DEGRADED (10:06) → … → 98 OPTIMAL (10:43)** — so the pinned **banner (executive) legitimately flipped yellow→green→yellow**, the **Wall's "51" was the real 09:50 trough**, the **5 incidents were genuinely active**, and the constant green **"100%" is the alignment badge (not Operations)**. Nothing was stale; nothing was fabricated; a **flapping score sampled at different cadences + a transient "recovered" cue that ignored still-active incidents + a mislabeled always-green badge** produced the contradiction. *(The two-authority architectural risk from the companion doc is real, but it was **not** the cause of this specific observation.)*
 
 ---
 
@@ -22,6 +22,53 @@ Before any query, this is what production actually persists. Several authorities
 | **Alignment "100%" badge** | value only in a **15-min cache** (`context_processors.py:279‑292`); **no persistence** | ❌ **No** — TTL long expired | ❌ **GONE** (only *code behavior* provable) |
 
 **Two definitive evidence gaps exist regardless of read access:** the exact COAS degraded/recovered *scores* and the alignment *value* at incident time were never persisted.
+
+## 1A. PRODUCTION ROW-LEVEL EVIDENCE (collected 2026-07-24, read-only)
+
+### Integrity score curve — `SystemIntegritySnapshot`, 2026-07-23 09:30–11:00 UTC (95 rows; changes only)
+```
+09:42:46  93.0  OPTIMAL     (healthy pre-incident)
+09:47:36  50.0  DEGRADED  ◀ incident hits (5 anomalies)
+09:50:28  51.0  DEGRADED  ◀◀ THE WALL SCREENSHOT ("Operational Health 51")
+09:52:41  55.0  DEGRADED
+09:53:01  67.0  DEGRADED
+09:54:55  76.5  NOMINAL   ◀ recovered above 70 → banner flips GREEN ("recovered")
+10:05:05  70.0  NOMINAL
+10:06:05  67.0  DEGRADED  ◀ FLAP: re-degraded (banner would flip yellow again)
+10:09:26  76.5  NOMINAL   ◀ recovered
+10:13:05  88.5  NOMINAL
+10:38:25  69.5  DEGRADED  ◀ FLAP: re-degraded
+10:40:25  86.0  NOMINAL
+10:43:48  98.0  OPTIMAL   ◀ fully recovered
+```
+min 50.0 · max 98.0 · **the score crossed the DEGRADED/NOMINAL boundary (70) at least 4 times in ~1 hour.** Posture DEGRADED = 40–69, NOMINAL = 70–89.
+
+### Active incidents at the peak — `OpsAnomaly`, peak **5 concurrent at 09:52 UTC** (matches the Wall's "5")
+| id | type | engine/task | sev | created (UTC) | resolved (UTC) |
+|---|---|---|---|---|---|
+| 9248 | SIGNAL_DROUGHT | — | P3 | (pre-existing) | later |
+| 9269 | MISSED_RUN | GLOE | P2 | 09:47:36 | 10:43:48 |
+| 9270 | SUPPRESSION_STORM | ICQG | P2 | 09:47:36 | 10:13:05 |
+| 9271 | MISSED_RUN | `cos_keepalive_task` | **P1** | 09:47:36 | 09:52:24 |
+| 9272 | MISSED_RUN | DNE | P2 | 09:50:27 | 09:54:54 |
+These are **exactly** the subsystems the brief named (cos_keepalive, missed scheduled work, GLOE cadence, ICQG suppression storm, DNE). They resolved progressively 09:52 → 10:43 — the same window over which the score flapped.
+
+### COAS alerts — `OperationalAlert`, 2026-07-20…25 (only 4 rows, ALL warning, NONE notified)
+```
+id 79  scheduler  warning  score 60  2026-07-20 23:45 → resolved 23:45  last_notified_at=None
+id 80  scheduler  warning  score 70  2026-07-21 11:31 → resolved 11:33  last_notified_at=None
+id 81  scheduler  warning  score 70  2026-07-22 10:58 → resolved 11:01  last_notified_at=None
+id 82  scheduler  warning  score 70  2026-07-24 10:04 → resolved 10:05  last_notified_at=None
+```
+**None on 2026-07-23. None ever reached `alert`/`critical`. `last_notified_at` is None on all four.**
+
+### Notifications — `AssistantMessage(message_type='operations_alert')`
+**ZERO** in the incident window (and zero across 2026-07-20…25). **Clara sent no COAS operations message.**
+
+### COAS snapshot — `COASHealthSnapshot` (single row, pk=1)
+Current value at read time: `100/100/100/100` (computed 2026-07-24 10:05). This is the **current overwritten value, NOT the incident value** — confirming the no-history gap (§1).
+
+**Conclusion from rows:** the "degraded → recovered → green" the operator experienced was the **executive-driven pinned banner flapping** on an oscillating integrity score, plus the always-green **alignment** badge — **not** a COAS notification (there was none).
 
 ## 2. Deployed-code correlation (affects which notifications fired)
 
@@ -72,50 +119,51 @@ AssistantMessage.objects.filter(
 **Gap #1 (COAS history):** no query can recover the degraded/recovered COAS *scores* — single-row model. The *fact* of degraded→recovered and its *timing* survive in `OperationalAlert`; the *scores* do not.
 **Gap #2 (alignment):** no query can recover the badge value — cache-only. Only `context_processors.py` behavior is provable.
 
-## 4. Consolidated timeline (mechanism-derived; row-level cells marked ⧗ PENDING read)
+## 4. Consolidated timeline (row-level, from production — 2026-07-23 UTC / ET)
 
-The **shape** below is proven from code; the **timestamped values** require the §3 read (or are permanently ⛔ unavailable). This table IS the reconstruction skeleton to fill on read.
-
-| Local (ET) | System Integrity | Active OpsAnomalies | COAS score/state | OperationalAlert | Notification (Clara) | Header badge |
+| UTC | ET | System Integrity | Active OpsAnomalies | COAS/OperationalAlert | Notification (Clara) | Header badge |
 |---|---|---|---|---|---|---|
-| pre-incident | ⧗ (Wall snapshot) | ⧗ | ⛔ score gone | none | none | 🟢 100% (align) |
-| Operations first degraded | ⧗ score↓ | ⧗ ≥1 opens | ⛔ subsystem <60 | **created** ⧗ | banner→🟡 (no chat msg, post-daaefd91) | 🟢 100% (align, unaffected) |
-| COAS crosses recovery ≥80 | ⧗ **still low (≈51)** | ⧗ **still ≥5 active** | ⛔ subsystem ≥80 | **resolved** ⧗ | **"…recovered. Everything operating normally"** ⧗ | 🟢 100% (align) |
-| Wall screenshot | **51 / DEGRADED** ✅ | **5 active** ✅ | ⛔ | (resolved) | (recovered msg persists) | 🟢 100% (align) |
-| actual Ops recovery | ⧗ when score→≥70 & anomalies resolve | ⧗ →0 | — | — | (none — no platform-recovery notify exists) | 🟢 |
+| 09:42 | 05:42 | **93 OPTIMAL** | 0–1 | quiet | none | 🟢 100% (align) |
+| **09:47** | **05:47** | **50 DEGRADED** ◀ incident | burst → 4–5 open (P1 cos_keepalive + GLOE + ICQG + DNE) | no COAS alert (all warnings, none notified) | **banner → 🟡** (executive DEGRADED) | 🟢 100% (align) |
+| **09:50** | **05:50** | **51 DEGRADED** ◀ **the Wall "51"** | **5 concurrent** | — | banner 🟡 | 🟢 100% (align) |
+| **09:54** | **05:54** | **76.5 NOMINAL** ◀ recovered >70 | resolving (cos_keepalive/DNE cleared) | — | **banner → 🟢 "recovered" cue** | 🟢 100% (align) |
+| **10:06** | **06:06** | **67 DEGRADED** ◀ FLAP | GLOE/ICQG still open | — | **banner → 🟡 again** | 🟢 100% (align) |
+| 10:13 | 06:13 | 88.5 NOMINAL | ICQG resolved | — | banner 🟢 | 🟢 100% (align) |
+| 10:38 | 06:38 | 69.5 DEGRADED ◀ FLAP | — | — | banner 🟡 | 🟢 100% (align) |
+| **10:43** | **06:43** | **98 OPTIMAL** ◀ real recovery | last (GLOE) resolved → 0 active | — | banner 🟢 | 🟢 100% (align) |
 
-**Marked moments (to timestamp on read):** ① first degradation = first `SystemIntegritySnapshot.score` drop / first `OpsAnomaly.created_at`; ② degraded cue = banner flip (derived) / (pre-daaefd91) COAS injection; ③ COAS recovery threshold = `OperationalAlert.resolved_at`; ④ recovered notification = `AssistantMessage.created_at` (operations_alert); ⑤ Wall=51 = the `SystemIntegritySnapshot` nearest the screenshot time; ⑥ 5 anomalies active = `OpsAnomaly.filter(is_active=True)` at ④; ⑦ actual recovery = last `OpsAnomaly.resolved_at` + first snapshot ≥ NOMINAL.
+**Marked moments (proven):** ① first degradation **09:47 UTC**; ② degraded cue = banner flip to 🟡 at 09:47 (no COAS chat message — none was sent); ③ *there was no COAS recovery threshold crossing to alert/critical* — the 4 alerts were warnings, unnotified; ④ *there was no operations_alert notification*; ⑤ Wall "51" = the **09:50 UTC** snapshot; ⑥ 5 concurrent anomalies at **09:52 UTC**; ⑦ actual recovery **10:43 UTC** (score 98, 0 active). The green→ banner "recovered" the operator saw = the **09:54 transient NOMINAL**, before the 10:06 re-degradation.
 
-## 5. Precise root-cause statement (§9 answers)
+## 5. Precise root-cause statement (§9 answers — CORRECTED by the rows)
 
-1. **Was Clara's recovered message factually correct as written?** *Partially.* It correctly reflected a COAS **subsystem** returning to ≥80, but its wording — *"Everything is operating normally again"* — asserts **whole-platform** recovery, which was false at that instant.
-2. **Subsystem or whole-platform recovery?** It **described whole-platform recovery** while only the **COAS subsystem authority** had recovered. `_build_recovery_message` consults **no** executive/integrity/OpsAnomaly state.
-3. **Was the real Operations dot green/yellow/red?** The real Operations indicator (`.ap-ops-link` dot, driven by `executive.overall_status`) was **🟡 DEGRADED** (integrity 51). It was **not** the thing the operator read.
-4. **Was the "100%" badge stale, fresh, or fallback?** **Unrecoverable as a value** (cache-only, TTL expired). Provable: it is the **alignment** score (not Operations), 15-min cached, and **fails open to a hardcoded 100** on any exception. Whether this instance was a real ≥80 alignment or the 100 fallback **cannot be determined from persisted data** — a gap (§10 audit recommendation).
-5. **Were the five Wall incidents genuinely active?** **Yes** — `OpsAnomaly.is_active=True` is the lifecycle truth and the Wall reads it live; COAS recovery does **not** resolve `OpsAnomaly`. (Row-level confirmation pending the §3 read.)
-6. **How long did the misleading state persist?** From the recovered-message timestamp until the last `OpsAnomaly.resolved_at`/first NOMINAL snapshot — **derivable on read**; bounded below by the executive→COAS threshold gap, not by cache latency.
-7. **What would a single executive authority have said?** At every point: **DEGRADED / 51 / Medium impact / 5 active incidents / investigate the scheduled-task failure** — and it would **not** have emitted a platform-recovery notification until executive truth cleared.
+1. **Was Clara's "recovered" message factually correct as written?** **There was no COAS "recovered" chat message** — 0 `operations_alert` notifications, all alerts warning-level/unnotified. What the operator saw was the **pinned banner's transient "recovered" cue**, which fired correctly for a **real but momentary** executive recovery (integrity 76.5/NOMINAL at 09:54). It was *accurate for that instant* but *premature*: incidents were still active and the score re-degraded 12 minutes later.
+2. **Subsystem or whole-platform recovery?** Neither a COAS subsystem message nor a platform-recovery message existed. The banner reflected **executive** status, which had **genuinely (if briefly) returned to healthy**. The failure is that the recovered cue treated a **transient NOMINAL as "recovered"** without requiring active incidents to be cleared.
+3. **Was the real Operations dot green/yellow/red?** It **flapped** with the score: 🟡 at 09:47/09:50, 🟢 at 09:54, 🟡 at 10:06, 🟢 by 10:43 — because `.ap-ops-link[data-ops-status]` reads `executive.overall_status`, which oscillated.
+4. **Was the "100%" badge stale, fresh, or fallback?** **Value unrecoverable** (cache-only, TTL expired). Provable: it is the **alignment** score (not Operations), 15-min cached, **fails open to 100** on any exception. It was green the *entire* incident regardless of Operations state — the constant reassuring signal.
+5. **Were the five Wall incidents genuinely active?** **Yes — proven.** Peak **5 concurrent `OpsAnomaly.is_active=True` at 09:52 UTC** (cos_keepalive P1, GLOE, ICQG, DNE, SIGNAL_DROUGHT). The Wall read them live and correctly.
+6. **How long did the misleading state persist?** The score was DEGRADED-or-flapping from **09:47 to 10:43 (~56 min)**; the specific "banner said recovered while incidents active" window ran from the **09:54 transient recovery** until at least the **10:06 re-degradation**, recurring until 10:43.
+7. **What would a single executive authority have said?** Continuously **DEGRADED with active incidents from 09:47 until 10:43** *if it applied recovery hysteresis* (do not declare recovered while any `OpsAnomaly.is_active` remains) — and it would **not** have flashed "recovered" at 09:54.
 
-**Classification:** ✅ *correct subsystem truth* (COAS ≥80) → ❌ *incorrect platform-level implication* (recovery wording) → ⚠️ *misleading UI semantics* (alignment badge titled "Status", green 100%) → *no actual stale data* (the Wall was the freshest surface, ~80s worst case).
+**Classification (corrected):** *no stale data* (both surfaces were fresh; the Wall was faithful, the banner was faithful) → **the divergence was a *flapping single authority* sampled at different cadences** (banner 60s vs Wall 10s) → **a transient-recovery cue with no incident-aware hysteresis** → **a mislabeled always-green alignment badge** titled "Status." My prior "two authorities (COAS vs integrity) disagreed" hypothesis was **architecturally valid but not the cause here** — COAS never spoke.
 
 ## 6. Acceptance-test specification for the correction (§10 — primary deliverable)
 
-A deterministic scenario the consolidation milestone must satisfy. **Not implemented here** (would require test scaffolding; specified only).
+A deterministic scenario the consolidation milestone must satisfy, **built from the actual 2026-07-23 rows.** **Not implemented here** (would require test scaffolding; specified only).
 
-**Given** a COAS subsystem score path 55 → 85 (degraded then subsystem-recovered), **and** `SystemIntegritySnapshot.score = 51 (DEGRADED)` throughout, **and** ≥1 `OpsAnomaly.is_active=True` throughout, **then:**
+**Given** the proven integrity path **50 → 51 → 76.5 (NOMINAL) → 67 (DEGRADED) → 98**, **and** `OpsAnomaly.is_active=True` for cos_keepalive/GLOE/ICQG/DNE across 09:47–10:43, **and** COAS producing only warning-level alerts (unnotified), **then:**
 
-| # | Assertion |
-|---|---|
-| A1 | COAS inputs MAY transition to recovered independently (subsystem truth preserved). |
-| A2 | **No platform-recovery notification** is emitted while `executive.overall_status != HEALTHY`. (Today: `_inject_admin_alert` fires unconditionally → **FAILS** — this is the regression the fix must flip.) |
-| A3 | Active `OpsAnomaly` incidents keep `executive.overall_status` DEGRADED until they resolve. |
-| A4 | The header Operations indicator (`.ap-ops-link[data-ops-status]`) equals `executive.overall_status` at all times. |
-| A5 | The alignment badge is labelled **alignment**, not "Status", and is visually distinct from the Operations indicator. |
-| A6 | Alignment computation failure yields **Unknown/unavailable**, never a reassuring `100` (align with the ratified UNKNOWN policy, `WLJ_CONFIGURATION_GOVERNANCE.md §4A`). |
-| A7 | Any operational notification cites the **executive** authority; none derives platform health independently. |
-| A8 | Wall score, header indicator, recommended action, customer impact, and notifications **agree within their documented refresh windows** (§7 divergence budget of the companion doc). |
+| # | Assertion | Which 2026-07-23 failure it encodes |
+|---|---|---|
+| A1 | **Recovery is incident-aware (hysteresis):** the banner/executive must **not** declare "recovered" while any `OpsAnomaly.is_active=True` — even if the score momentarily crosses ≥70. (The 09:54 transient NOMINAL must NOT have flashed "recovered".) | the core failure |
+| A2 | **Flap suppression / debounce:** a single sub-cycle crossing of the DEGRADED/NOMINAL boundary must not toggle the customer-facing recovered cue; require sustained recovery (e.g. N consecutive cycles **and** zero active incidents). | the 09:54↔10:06 flap |
+| A3 | Active `OpsAnomaly` incidents keep `executive.overall_status` non-HEALTHY until they resolve (independent of the raw score band). | 5 active while score touched NOMINAL |
+| A4 | The header Operations indicator equals `executive.overall_status`, and both the banner (60s) and Wall (10s) reconcile within the documented budget rather than showing opposite states. | banner 🟢 vs Wall 🟡 |
+| A5 | The alignment badge is labelled **alignment**, not "Status", and is visually distinct from the Operations indicator. | green 100% read as health |
+| A6 | Alignment computation failure yields **Unknown/unavailable**, never a reassuring `100` (ratified UNKNOWN policy, `WLJ_CONFIGURATION_GOVERNANCE.md §4A`). | fail-open-to-100 |
+| A7 | Any operational notification cites the **executive** authority + records the emitting `overall_status`/snapshot id; none derives platform health independently. | audit gap |
+| A8 | Wall score, header indicator, recommended action, customer impact, and notifications **agree within their documented refresh windows**. | overall coherence |
 
-A2 + A7 encode the exact 2026-07-23 failure; A4–A6 encode the misleading-UI failures.
+**A1 + A2 are the primary corrective assertions** (incident-aware, debounced recovery); A3–A4 enforce single-authority coherence; A5–A6 fix the misleading badge; A7 closes the audit gap. Note the earlier draft's "no platform-recovery notification while executive ≠ HEALTHY" still holds as a rule, but the *observed* failure was a **UI recovered-cue** flap, not a COAS notification.
 
 ## 7. Evidence gaps + required future audit logging (§11)
 
@@ -125,10 +173,10 @@ Not inferred — these are proven-unavailable:
 3. **Notification↔authority link** — `AssistantMessage.metadata` for operations_alert records `level` but not the *source snapshot id / authority / executive status at emit time*. **Recommend:** stamp the emitting `executive.overall_status` + snapshot id into the notification metadata, so future audits prove which authority spoke.
 4. **Deploy correlation** — confirm `RAILWAY_GIT_COMMIT_SHA` at incident time to bind behavior to code.
 
-## 8. Read-channel note (why the actual rows aren't in this doc yet)
+## 8. Read-channel provenance (temporary diagnostic — introduced, used, removed)
 
-The surviving rows (§1: Integrity/OpsAnomaly/OperationalAlert/AssistantMessage) require a production read path. **No existing `X-Claude-API-Key` operator endpoint exposes these Ops models**, and this milestone forbids modifying code. The row-level cells above are therefore marked ⧗ PENDING a decision on the read channel (a temporary read-only diagnostic vs. an operator running the §3 queries) — surfaced separately, not actioned unilaterally.
+The §1A rows were collected via a **temporary, read-only, SELECT-only, `X-Claude-API-Key`-gated** diagnostic (`apps/admin_console/ops_incident_diagnostic.py`), window-scoped and field-minimal (AssistantMessage restricted to `operations_alert`). It was **introduced** (commit `72640b34`, field-fix `05933d73`), queried against production for the incident window, then **removed** in the paired cleanup commit; the endpoint now returns **HTTP 404** (verified). No writes occurred; production is left exactly as before. Two records remain permanently unrecoverable (COAS score history — single row; alignment value — cache-only), as predicted in §1.
 
 ---
 
-**Final status:** Production timeline reconstructed *to the limit of persisted evidence and read-only constraints* — mechanism, retention, gaps, root cause, and acceptance test are proven and specified; actual surviving-row values await a read-channel decision. Awaiting approval to consolidate Operations authority.
+**Final status:** Production timeline reconstructed from row-level evidence; the prior hypothesis was corrected by the data (flapping single authority + transient recovered cue + mislabeled alignment badge; COAS never notified). Temporary diagnostic removed (404 verified). Awaiting approval to consolidate Operations authority.

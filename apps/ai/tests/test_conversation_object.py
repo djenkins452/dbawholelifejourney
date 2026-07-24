@@ -78,9 +78,13 @@ class ConversationObjectCompletenessTests(SimpleTestCase):
 
     def _valid_keys(self):
         if self._VALID_PROVIDER_KEYS is None:
-            from apps.ai.cos_services.health_facts import _DAY_FACT_KEYS, _FACT_MAP
+            # The COMPLETE served set (health facts — incl. delegated rolling averages,
+            # latest-observation, and derived day keys — plus execution facts). Reading
+            # `supported_facts()` keeps this in lockstep with what the surface serves, so
+            # a delegated-and-renamed key (e.g. average_sleep_7d) stays valid.
+            from apps.ai.cos_services.health_facts import supported_facts
             from apps.ai.cos_services.execution_facts import EXECUTION_FACT_KEYS
-            type(self)._VALID_PROVIDER_KEYS = (set(_FACT_MAP) | set(_DAY_FACT_KEYS)
+            type(self)._VALID_PROVIDER_KEYS = (set(supported_facts())
                                                | set(EXECUTION_FACT_KEYS))
         return self._VALID_PROVIDER_KEYS
 

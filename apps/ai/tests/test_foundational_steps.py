@@ -28,11 +28,12 @@ class StepsDeterministicFactTests(SimpleTestCase):
             self.assertNotEqual(classify_foundational_fact(q), "steps_recent", q)
 
     def test_steps_fact_is_supported_and_formats(self):
-        self.assertIn("steps_recent", SUPPORTED_FACTS)
+        self.assertIn("steps_avg_7d", SUPPORTED_FACTS)
+        self.assertNotIn("steps_recent", SUPPORTED_FACTS)  # renamed (honest window)
         # Deterministic value sentence — honest 7d average, no false day-precision.
-        s = format_fact_sentence("steps_recent", {"value": 8200})
+        s = format_fact_sentence("steps_avg_7d", {"value": 8200})
         self.assertIn("8200", s)
         self.assertIn("week", s.lower())
         # No-data → honest freshness (Law 1), never a fabricated number.
-        none = format_fact_sentence("steps_recent", {"status": "unknown"})
+        none = format_fact_sentence("steps_avg_7d", {"status": "unknown"})
         self.assertIn("don't have", none.lower())

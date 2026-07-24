@@ -221,11 +221,14 @@ class FoundationalHealthFactsContractTests(SimpleTestCase):
     # the build. Closing one is a deliberate deletion from this set.
     # Tracked in docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md (F1-F6).
     KNOWN_DEFECTS = {
-        "average_glucose_yesterday": A.SHADOW_AUTHORITY,   # F1 rename
-        "steps_recent": A.SHADOW_AUTHORITY,                # F3 rename
-        "average_sleep_7d": A.SHADOW_AUTHORITY,            # F5
-        "sleep_trend": A.SHADOW_AUTHORITY,                 # F5
-        "weight_30_day_change": A.SHADOW_AUTHORITY,        # F5
+        # Wave 3: the three rolling averages now DELEGATE to get_history (compliant
+        # projections); average_glucose_yesterday/steps_recent RENAMED to honest 7d
+        # names. weight_30_day_change and sleep_trend remain — reclassified
+        # MISSING_PROJECTION: get_history exposes series average/total but not a
+        # change/trend scalar, so the canonical projection is genuinely absent (not a
+        # duplicate authority). Closing them = teach get_history to own change/trend.
+        "sleep_trend": A.MISSING_PROJECTION,
+        "weight_30_day_change": A.MISSING_PROJECTION,
     }
 
     def test_no_new_shadow_or_missing_authority_is_introduced(self):

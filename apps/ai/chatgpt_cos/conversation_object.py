@@ -49,14 +49,14 @@ CONVERSATION_OBJECTS = {
     },
     # ---- Glucose (clinical) -------------------------------------------------
     "last_glucose_reading": {
-        "supporting": (("average", "health", "average_glucose_yesterday"),),
+        "supporting": (("average", "health", "average_glucose_7d"),),
         "follows": (WHEN, CONCERN, MEANING, CURRENT, COMPARISON, WHY),
     },
     "glucose_yesterday": {
         # The recent average is a TOPIC-level supporting fact — it must travel with the
         # glucose topic, not just the first reading, so a re-point to yesterday keeps it
         # available for "compared to my average".
-        "supporting": (("average", "health", "average_glucose_yesterday"),),
+        "supporting": (("average", "health", "average_glucose_7d"),),
         "follows": (WHEN, CONCERN, MEANING, CURRENT, COMPARISON, WHY),
     },
     # ---- Weight -------------------------------------------------------------

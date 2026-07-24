@@ -56,7 +56,9 @@ PROMPTS = [
     ("What medications am I currently taking?",   "current_medications",  "Metformin"),
     ("How many calories have I consumed today?",  "calories_today",       "1,850"),
     ("How much protein have I consumed today?",   "protein_today",        "142"),
-    ("What's my average sleep this week?",        "average_sleep_7d",     "6.7"),
+    # average_sleep_7d now delegates to get_history(last_7_days).average — a REAL
+    # window, resolved at runtime (see _needle), not the mocked SAE value.
+    ("What's my average sleep this week?",        "average_sleep_7d",     None),
     ("What was my last blood pressure reading?",   "last_blood_pressure_reading", "111/72"),
     # latest_meal_logged now delegates to NutritionQueries.last_entry, so the answer
     # is the REAL latest entry date (seeded at today) — resolved at runtime below.
@@ -125,6 +127,16 @@ class FastPathTests(TestCase):
         GlucoseEntry.objects.create(
             user=cls.user, value=Decimal("133"), unit="mg/dL",
             recorded_at=_tz.now() - _dt.timedelta(minutes=20))
+        # average_sleep_7d delegates to get_history(sleep, last_7_days) — seed a window.
+        from apps.health.models import SleepEntry
+        for _off in (1, 2, 3):
+            _night = _today - _dt.timedelta(days=_off)
+            SleepEntry.objects.create(
+                user=cls.user, sleep_date=_night,
+                bedtime=_tz.make_aware(_dt.datetime.combine(_night - _dt.timedelta(days=1), _dt.time(22, 30))),
+                wake_time=_tz.make_aware(_dt.datetime.combine(_night, _dt.time(6, 30))),
+                total_duration_minutes=480, asleep_duration_minutes=445,
+                sleep_efficiency=Decimal("92.7"), quality_rating="good")
         BloodPressureEntry.objects.create(
             user=cls.user, systolic=111, diastolic=72, pulse=64,
             recorded_at=_tz.make_aware(_dt.datetime.combine(_today, _dt.time(6, 30))))
@@ -135,6 +147,12 @@ class FastPathTests(TestCase):
         if needle is None and key == "latest_meal_logged":
             from apps.core.utils import get_user_today
             return get_user_today(self.user).isoformat()
+        if needle is None and key == "average_sleep_7d":
+            from apps.ai.cos_services.domain_history import get_domain_history
+            avg = get_domain_history(self.user, "health", "sleep",
+                                     period="last_7_days").get("average")
+            # the deterministic sentence humanizes the hours value; assert the integer part
+            return str(int(avg)) if avg is not None else ""
         return needle
 
     def test_fast_path_never_uses_tool_loop(self):

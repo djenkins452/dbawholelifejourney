@@ -42,7 +42,7 @@ _FACT_KEYWORDS = [
     ("protein_today",        ("protein",)),
     ("sleep_last_night",     ("sleep", "slept", "rest last night")),
     # "steps" (plural) only — never bare "step" (avoids matching "next step").
-    ("steps_recent",         ("steps", "step count", "how many steps")),
+    ("steps_avg_7d",         ("steps", "step count", "how many steps")),
     ("last_blood_pressure_reading", ("blood pressure", "blood-pressure", "bp")),
     ("latest_meal_logged",   ("meal", "meals", "did i eat", "last food")),
     # ----- GOALS domain facts (deterministic, canonical build_goal_state) -----
@@ -75,7 +75,7 @@ _UNKNOWN_SENTENCE = {
     "calories_today": "I don't have any calories logged for you today.",
     "protein_today": "I don't have any protein logged for you today.",
     "sleep_last_night": "I don't have last night's sleep recorded yet — it may not have synced.",
-    "steps_recent": "I don't have recent step data recorded for you — it may not have synced yet.",
+    "steps_avg_7d": "I don't have recent step data recorded for you — it may not have synced yet.",
     "next_appointment": "You have nothing else on your calendar today.",
     "last_journal": "I don't have any journal entries recorded for you yet.",
     "steps_today": "I don't have today's steps yet — they may not have synced.",
@@ -540,7 +540,7 @@ def _refine_to_day(key, text):
     never derive': "steps yesterday" -> steps_yesterday, "sleep last night" -> the
     actual last night. Bare "steps" defaults to today."""
     is_yesterday = "yesterday" in text
-    if key == "steps_recent":
+    if key == "steps_avg_7d":
         return "steps_yesterday" if is_yesterday else "steps_today"
     # GENERIC day refinement. This used to be hand-coded per metric — `calories_today`
     # had a yesterday branch and protein did not, so "protein yesterday" stayed on
@@ -763,7 +763,7 @@ def format_fact_sentence(key, fact):
         if fact.get("trend"):
             s += f", and your sleep trend is {fact['trend']}"
         return s + "."
-    if key == "average_glucose_yesterday":
+    if key == "average_glucose_7d":
         return f"Your recent average glucose is {value} {unit or 'mg/dL'}.".replace("  ", " ")
     if key == "glucose_yesterday":
         from apps.core.truth.present import humanize_number
@@ -822,9 +822,9 @@ def format_fact_sentence(key, fact):
     if key == "calories_yesterday":
         n = int(value) if isinstance(value, (int, float)) and float(value).is_integer() else value
         return f"Yesterday you logged {n} calories."
-    if key == "steps_recent":
-        # Legacy 7-day-average fallback (the classifier now routes to the per-day
-        # fact above); kept honest as an average, never a specific day.
+    if key == "steps_avg_7d":
+        # 7-day rolling average (delegated projection of get_history); honest window in
+        # the name — never a specific day.
         return f"You've been averaging about {value} steps a day over the past week."
     if key == "sleep_trend":
         return f"Your sleep trend is {value}."

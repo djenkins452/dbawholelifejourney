@@ -172,7 +172,7 @@ def compose_comparison(last, user=None, kind="prior"):
 
 
 # Facts whose VALUE is an aggregate/average, not a single point-in-time reading.
-_AVERAGE_FACT_KEYS = {"average_sleep_7d", "average_glucose_yesterday", "steps_recent"}
+_AVERAGE_FACT_KEYS = {"average_sleep_7d", "average_glucose_7d", "steps_avg_7d"}
 
 
 def compose_is_average(last, user=None):

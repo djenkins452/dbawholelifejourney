@@ -33,34 +33,16 @@ _FACT_MAP = {
         "module": "health", "value": "weight_change_30d",
         "unit": "weight_unit",
     },
-    "average_glucose_yesterday": {
-        "module": "health", "value": "glucose_avg_7d",
-        "unit": "latest_glucose_unit", "recorded_at": "last_glucose_entry",
-        "note": "7-day average; SAE has no yesterday-specific glucose average.",
-    },
     # (`sleep_last_night` is answered by CurrentHealth.latest_sleep — see
     # _SLEEP_FACT_KEYS. Its old 7-day-average spec was UNREACHABLE dead config and was
     # removed with the other duplicates; `average_sleep_7d` below still serves that
     # genuinely different question.)
-    "average_sleep_7d": {
-        "module": "health", "value": "sleep_avg_hours_7d",
-        "unit": "hours", "trend": "sleep_trend",
-    },
     "sleep_trend": {
         "module": "health", "value": "sleep_trend",
     },
     "current_medications": {
         "module": "medicine", "value": "active_medications",
         "count": "medication_count",
-    },
-    "steps_recent": {
-        # Law 4 fix: "how many steps" previously had NO foundational fact, so it
-        # fell into the LLM path (deterministic question → AI dependency). SAE has
-        # no per-day steps value, so — exactly like sleep_last_night — the canonical
-        # scalar is the 7-day average daily steps. Keeps steps on the deterministic
-        # fast path with honest freshness when there's no data (steps_status).
-        "module": "health", "value": "steps_avg_7d",
-        "note": "7-day average daily steps; SAE has no yesterday-specific value.",
     },
 }
 
@@ -194,7 +176,7 @@ def supported_facts():
     """Every key this surface can SERVE — including all derived day keys. Used by
     internal/legacy callers that name a key directly."""
     return sorted(set(_FACT_MAP) | day_fact_keys() | set(_LATEST_OBSERVATION_FACTS)
-                  | _DELEGATED_CURATED_KEYS)
+                  | set(_ROLLING_AVERAGE_FACTS) | _DELEGATED_CURATED_KEYS)
 
 
 # ---------------------------------------------------------------------------
@@ -210,30 +192,26 @@ def supported_facts():
 # docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md F1-F6).
 _CURATED_DECLARATIONS = {
     # (semantics, truth_category, classification, note)
-    "average_glucose_yesterday": (
-        "rolling_average", "metric", "shadow_authority",
-        "Name claims a date scope but serves a 7-day average; F1 = rename."),
+
     "last_glucose_reading": (
         "latest_observation", "metric", "projection",
         "F2 CLOSED — delegates to glucose_queries.latest, the SAME canonical accessor "
         "previous_glucose_reading uses, so the two can never disagree. Temporal safety "
         "is owned by the PLATFORM layer (truth/integrity.attach), which flags a future "
         "recorded_at and drops the impossible timestamp — proven on live rows."),
-    "steps_recent": (
-        "rolling_average", "metric", "shadow_authority",
-        "7-day average under a recency-implying name; F3 = rename."),
+
     "latest_meal_logged": (
         "latest_observation", "record", "projection",
         "F4 CLOSED — delegates to NutritionQueries.last_entry (nutrition owns meals)."),
-    "average_sleep_7d": (
-        "rolling_average", "metric", "shadow_authority",
-        "Snapshot aggregate; claims no date scope so cannot contradict exact-date."),
+
     "sleep_trend": (
-        "rolling_average", "metric", "shadow_authority",
-        "Snapshot-derived trend; same class as average_sleep_7d."),
+        "rolling_average", "metric", "missing_projection",
+        "get_history exposes series average/total but NOT a trend scalar, so the "
+        "canonical projection is absent; SAE fills in until get_history owns trend."),
     "weight_30_day_change": (
-        "aggregate", "metric", "shadow_authority",
-        "Snapshot delta; get_history windows own change."),
+        "aggregate", "metric", "missing_projection",
+        "get_history exposes the weight series but NOT a change scalar, so the "
+        "canonical projection is absent; SAE fills in until get_history owns change."),
     "last_blood_pressure_reading": (
         "latest_on_or_before", "metric", "projection",
         "F6 CLOSED — composite projection over canonical bp_systolic/bp_diastolic"
@@ -277,6 +255,13 @@ def authority_declarations():
         out[key] = A.AuthorityDeclaration(
             authority=f"metric_date.latest_observation_on_or_before:{domain}.{metric}",
             semantics=A.LATEST_ON_OR_BEFORE, truth_category=A.CATEGORY_METRIC,
+            classification=A.PROJECTION_OF,
+            delegates_to=f"get_domain_history:{domain}.{metric}")
+    # Rolling-average keys — compliant projections of the systematic history authority.
+    for key, (domain, metric) in _ROLLING_AVERAGE_FACTS.items():
+        out[key] = A.AuthorityDeclaration(
+            authority=f"get_domain_history:{domain}.{metric}",
+            semantics=A.ROLLING_AVERAGE, truth_category=A.CATEGORY_METRIC,
             classification=A.PROJECTION_OF,
             delegates_to=f"get_domain_history:{domain}.{metric}")
     # Sleep — a disclosed residual on its own canonical accessor (not a shadow: it
@@ -329,7 +314,7 @@ def model_facing_facts():
     date-scoped questions (see `_SLEEP_FACT_KEYS` / `_LATEST_OBSERVATION_FACTS`).
     """
     return sorted(set(_FACT_MAP) | _SLEEP_FACT_KEYS | set(_LATEST_OBSERVATION_FACTS)
-                  | _DELEGATED_CURATED_KEYS)
+                  | set(_ROLLING_AVERAGE_FACTS) | _DELEGATED_CURATED_KEYS)
 
 
 # Back-compat module attribute; resolved LAZILY (the capability index needs the Django
@@ -374,6 +359,48 @@ def _sleep_fact(user, key):
     if isinstance(fact, dict):
         fact.setdefault("semantics", "latest_observation")
         fact.setdefault("authority", "CurrentHealth.latest_sleep")
+    return fact
+
+
+# Wave 3 (2026-07-23) — ROLLING-AVERAGE facts. These answer "my recent average
+# <metric>" and DELEGATE to the systematic history authority's windowed average
+# (`get_history(..., last_7_days).average`) — never an independent SAE read. Renamed
+# from the misleadingly-scoped `average_glucose_yesterday` / `steps_recent` so the key
+# name states the window it actually serves. key -> (domain, metric).
+_ROLLING_AVERAGE_FACTS = {
+    "average_glucose_7d": ("health", "glucose"),
+    "steps_avg_7d":       ("health", "steps"),
+    "average_sleep_7d":   ("health", "sleep"),
+}
+
+
+def _rolling_average_fact(user, key):
+    """A 7-day rolling average → delegated projection of the systematic history
+    authority. Computes nothing here; reads `get_history(last_7_days).average`."""
+    from apps.ai.cos_services.domain_history import get_domain_history
+    domain, metric = _ROLLING_AVERAGE_FACTS[key]
+    raw = get_domain_history(user, domain, metric, period="last_7_days")
+    if (raw or {}).get("status") != "ready" or raw.get("average") is None:
+        return {"status": "unknown",
+                "reason": f"No {metric} readings in the last 7 days.",
+                "authority": f"get_domain_history:{domain}.{metric}",
+                "semantics": "rolling_average"}
+    fact = {
+        "value": raw.get("average"),
+        "unit": raw.get("unit"),
+        "authority": f"get_domain_history:{domain}.{metric}",
+        "semantics": "rolling_average",
+        "window": "last_7_days",
+        "freshness": raw.get("freshness") or "current",
+        "confidence": raw.get("confidence"),
+    }
+    # Clinical interpretation is PRESENTATION derived from the value (preserved from the
+    # former average_glucose key), re-derived here — never carried from a snapshot.
+    if metric == "glucose":
+        from apps.health.services.glucose_interpretation import interpret
+        gi = interpret(fact["value"], fact.get("unit") or "mg/dL")
+        if gi:
+            fact["interpretation"] = gi
     return fact
 
 
@@ -664,6 +691,9 @@ def get_foundational_health_facts(user, keys=None):
             continue
         # "Current/latest" facts route to the explicitly-named carry-forward authority,
         # which discloses the real observation date + age instead of implying "now".
+        if key in _ROLLING_AVERAGE_FACTS:
+            out[key] = _jsonsafe(_rolling_average_fact(user, key))
+            continue
         if key in _LATEST_OBSERVATION_FACTS:
             out[key] = _jsonsafe(_latest_observation_fact(user, key))
             continue
@@ -712,7 +742,7 @@ def get_foundational_health_facts(user, keys=None):
         # INTERPRETATION layer (clinical safety): glucose facts carry a deterministic
         # clinical verdict so narration can never invent reassurance over a dangerous
         # value (e.g. 43 mg/dL must never read as "good range").
-        if key in ("last_glucose_reading", "average_glucose_yesterday"):
+        if key == "last_glucose_reading":
             from apps.health.services.glucose_interpretation import interpret
             gi = interpret(val, fact.get("unit", "mg/dL"))
             if gi:

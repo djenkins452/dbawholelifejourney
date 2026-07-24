@@ -54901,3 +54901,20 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Recommended next milestone:** Chief of Staff Domain Certification — Health, per the RATIFIED CoS Domain Certification Standard (verify truth → expose → validate routing → prod-validate → close). Health first because it exercises the most-adopted surface end-to-end on real customer questions.
 
 **Files:** `docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md`, `docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-24 — Session Transition: Retrieval Platform initiative CLOSED; startup package folded up
+
+**Why:** Milestone-boundary close-out (`99_PREPARE_NEXT_CHAT.md`). The Retrieval Platform initiative is complete; fold durable knowledge into the permanent startup package, regenerate the bootloader, and advance the primary focus.
+
+**What (startup-package docs only — no code):**
+- **`01_READ_FIRST…ARCHITECTURE.md`** — §5 maturity gains a **Retrieval Platform = CERTIFIED, permanent infrastructure** entry; §6 gains the durable lesson: *the Retrieval Authority Metadata Contract makes certification mechanical (a build gate), one authority per truth and it is DECLARED, two adoption patterns (keyed / envelope-root) and no third, Missing Projection ≠ Missing Authority, safety lives in the canonical layer not the projection, and the platform is **consumed not redesigned** — a change requires runtime evidence of a platform defect.* The "protein yesterday" lesson's deferred implementation is marked done.
+- **`99_REFERENCE_INDEX.md`** — new consolidated **Retrieval Platform (certified — the doc set)** entry mapping AUDIT → CERTIFICATION → ADOPTION_ROLLOUT → CANONICAL_SAFETY_MIGRATION (+ records); `WLJ_TRUTH_RETRIEVAL_SELECTION_INVESTIGATION.md` reclassified **CLOSED — implementation shipped**.
+- **`00_NEXT_CHAT_STARTUP.md`** — regenerated and **shorter (75 → 61 lines)**: completed retrieval detail removed (folded into `01`); **PRIMARY FOCUS advanced to Chief of Staff Knowledge Certification — Health** (the reference domain: it exercises deterministic truth · retrieval · authority declarations · projections · execution · executive context · the metadata contract · runtime certification). Deferred roadmap (Truth consolidation Phase A, bidirectional Current Context → Reveal Target → adapters), parallel tracks, Meal Intelligence, and Waiting-on-Danny all **preserved**.
+- **Engineering Guide §10** — the "test the invariant, not the implementation" rule was already added earlier this session; verified present, no change.
+- **Workflow Improvement Review** — no new transition-workflow doctrine; the concurrency caveat (commit own hunks by explicit pathspec, preserve foreign live state) held throughout.
+
+**Verification:** all 9 referenced governing/record docs exist (no dangling index links); bootloader shorter; startup-package integrity reviewed (self-contained, one responsibility per doc). Committed by explicit pathspec — foreign concurrent work (operations banner / ops_executive / assistant_panel) left untouched.
+
+**Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE,99_REFERENCE_INDEX}.md`, `docs/wlj_claude_changelog.md`.

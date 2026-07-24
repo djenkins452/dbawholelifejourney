@@ -54884,3 +54884,20 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** Full cross-runtime regression green except ONE failure — `test_calories_compared_to_yesterday` — **proven pre-existing** (fails identically on a clean stashed tree; unrelated to this rename). Authority-contract gate green (2 pins remain, both missing_projection). Request-path-safety + constitution gates green; `check` clean; `makemigrations --check` → no changes.
 
 **Files:** `apps/ai/cos_services/health_facts.py`, `apps/ai/chatgpt_cos/foundational_facts.py`, `apps/ai/chatgpt_cos/conversation_memory.py`, `apps/ai/chatgpt_cos/conversation_object.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `apps/ai/tests/test_foundational_steps.py`, `apps/ai/tests/test_foundation_validation.py`, `apps/ai/tests/test_conversation_object.py`, `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-23 — 🏁 Retrieval Platform Certified — Adoption Complete (initiative closure)
+
+**Why:** All retrieval surfaces have adopted the certified metadata contract. Closing the Retrieval Platform initiative and advancing to the next program.
+
+**What (docs/closure only):**
+- **`docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md`** — finalized to the complete matrix: 9 surfaces certified (health_facts, execution_facts, personal_truth, domain_state, decision_authority, execution_state, standing_context, executive briefing, page summaries); canonical tools (get_history/get_entity/get_analysis) are the delegation destinations, provenance-native. Zero anonymous values, zero shadows; 2 declared `missing_projection`s remain (disclosed gap — get_history lacks change/trend). Records the permanent platform convention (`authority_declarations()`/`served_keys()`/`stamp()` for keyed; envelope-root stamp for composed).
+- **`docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md`** — marked INITIATIVE CLOSED.
+- **Bootloader `00_NEXT_CHAT_STARTUP.md`** — regenerated: Retrieval Platform marked CERTIFIED/permanent infrastructure; **PRIMARY FOCUS advanced to Chief of Staff Domain Certification (Health first)**; the completed Truth Retrieval arc demoted to historical; open residual (teach get_history change/trend) scheduled.
+
+**The Retrieval Platform is now permanent certified infrastructure — future work consumes it; it is modified only on runtime evidence of a platform defect.**
+
+**Recommended next milestone:** Chief of Staff Domain Certification — Health, per the RATIFIED CoS Domain Certification Standard (verify truth → expose → validate routing → prod-validate → close). Health first because it exercises the most-adopted surface end-to-end on real customer questions.
+
+**Files:** `docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md`, `docs/WLJ_RETRIEVAL_PLATFORM_CERTIFICATION.md`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/00_NEXT_CHAT_STARTUP.md`, `docs/wlj_claude_changelog.md`.

@@ -1,37 +1,39 @@
-# Retrieval Platform Adoption — Rollout Matrix
+# Retrieval Platform Adoption — Rollout Matrix (FINAL)
 
-**Date:** 2026-07-23 · **Initiative:** Platform Adoption (implementation, not architecture)
-**Gate:** the certified metadata contract + generic multi-surface test (`apps/core/truth/tests/test_retrieval_authority_contract.py :: AdoptedSurfacesContractTests`)
+**Date:** 2026-07-23 · **Status:** ✅ **RETRIEVAL PLATFORM CERTIFIED — ADOPTION COMPLETE**
+**Gate:** the certified metadata contract + tests (`apps/core/truth/tests/test_retrieval_authority_contract.py`)
 
-> Adoption = **consume the existing platform**. No new architecture, no new authorities. A surface adopts by declaring `authority` + `semantics` on every served value; keyed surfaces expose `authority_declarations()` + `served_keys()` and register in `_ADOPTED_SURFACES`; composed-envelope surfaces declare at the envelope root.
+> Adoption = **consume the existing platform**. No new architecture, no new authorities. Every served value declares `authority` + `semantics`. Keyed surfaces expose `authority_declarations()` + `served_keys()` and register in `_ADOPTED_SURFACES`; dynamic-key surfaces stamp at their fact factory; composed-envelope surfaces declare at the envelope root.
 
-## Rollout matrix
+## Final rollout matrix
 
 ```
 Surface → Authority Contract → Semantics → Projection Verified → Certified
 ```
 
-| Surface | Shape | Authority | Semantics | Projection verified | Certified |
-|---|---|---|---|---|---|
-| `get_foundational_health_facts` | keyed (127) | ✅ per-key | ✅ | ✅ 102 derived delegate; residuals pinned | ✅ **(mechanical)** |
-| `get_foundational_execution_facts` | keyed (9) | ✅ per-key | ✅ `current`/`latest_observation` | ✅ all delegate (Journal/Workout/Medicine/Nutrition/calendar) | ✅ **(mechanical, this session)** |
-| `personal_truth` / `get_user_truth` | dynamic-key | ✅ per-fact (`_fact` factory) | ✅ `current` | ✅ projection of module facts; already provenance-bearing | ✅ **(this session)** |
-| `get_domain_state` | composed envelope | ✅ envelope root (`SAE.<domain>`) | ✅ `projection` | ✅ SAE store, not an authority; freshness disclosed (`49d9e0d1`) | ✅ **(this session)** |
-| `standing_context` | composed | projects `cos_context`/`executive`; carries status | ⬜ semantics not yet declared | — | ◐ **pending (envelope-root touch)** |
-| Page summaries (15 providers) | keyed `summary:<key>` | one shared builder per page (CC contract) | ⬜ | — | ◐ **pending** |
-| Executive briefings | composed | carries source/freshness | ⬜ | — | ◐ **pending** |
-| Decision authority (`current_action`) | composed | ✅ `source_type` | ⬜ semantics not declared | — | ◐ **pending (multi return point)** |
-| Execution truth (`execution_state`) | composed | built from `execution_facts` (adopted) + `decision_authority` | inherits | — | ◐ **pending (verify)** |
+| Surface | Shape | Adoption pattern | Classification | Certified |
+|---|---|---|---|---|
+| `get_foundational_health_facts` | keyed (~130) | per-key registry + stamp | projections (+2 declared missing_projection) | ✅ mechanical |
+| `get_foundational_execution_facts` | keyed (9) | per-key registry + stamp | projections | ✅ mechanical |
+| `personal_truth` / `get_user_truth` | dynamic-key | `_fact()` factory stamp | projection | ✅ |
+| `get_domain_state` | composed | envelope-root | projection (SAE store) | ✅ |
+| `decision_authority.current_action` | composed | envelope-root | **canonical_authority** | ✅ |
+| `execution_state` (`execution_facts`) | composed | envelope-root | **canonical_authority** | ✅ |
+| `standing_context` | composed | envelope-root (ready + pending) | projection of `cos_context` | ✅ |
+| Executive briefing (`truth/briefing`) | composed | envelope-root | projection of DomainTruth | ✅ |
+| Page summaries (15 providers) | keyed | generic choke-point stamp | projection | ✅ |
 
-**Certified this session: 3 surfaces adopted** (execution_facts, personal_truth, domain_state) on top of health_facts, plus the **generic multi-surface gate** so future surfaces certify by adding one registry line — no per-surface test authoring.
+**Canonical retrieval tools** (`get_history`, `get_entity`, `get_analysis`) are the **authorities every projection above delegates to** — provenance-native (source / freshness / confidence in the truth envelope). They are the destinations of adoption, not adopters.
 
-## What remains (bounded implementation, no architecture)
+## Certification result
+- **Zero anonymous served values** across every adopted surface.
+- **Zero shadow authorities.** The ratchet holds **2 declared `missing_projection`s** — `weight_30_day_change`, `sleep_trend` — a *disclosed* gap, not a defect of adoption: `get_history` exposes series average/total but not a change/trend scalar, so the canonical projection is genuinely absent. Closing them is a future `get_history` enhancement (teach it to own change/trend), tracked by the ratchet.
+- **Permanent gates:** `AdoptedSurfacesContractTests` (keyed, iterates the registry) + `ComposedSurfaceContractTests` (composed, asserts envelope-root declaration). A new retrieval surface certifies by adopting the **one platform convention** — `authority_declarations()` / `served_keys()` / `stamp()` (keyed) or an envelope-root stamp (composed) — no alternate mechanism.
 
-**Phase 1 tail — 4 composed surfaces:** declare `semantics` at the envelope root for `standing_context`, `decision_authority` (stamp each of its ~4 return points), executive briefings, and verify `execution_state` inherits. Page summaries: declare per provider. All are the same envelope-root touch already proven on `get_domain_state`.
+## Platform standard (permanent convention)
+Every future retrieval surface adopts the same pattern:
+- **keyed:** `authority_declarations()` + `served_keys()`, stamp each served fact, register in `_ADOPTED_SURFACES`.
+- **composed:** stamp `authority` + `semantics` at the envelope root.
+- **canonical tool:** it IS the authority — carry provenance natively; others delegate to it.
 
-**Phase 2 — Health cleanup (measured blast radius, cross-runtime):**
-- `average_glucose_yesterday` → `average_glucose_7d`, `steps_recent` → `steps_avg_7d`. These keys live in BOTH runtimes — health_facts *and* the legacy `chatgpt_cos` (`foundational_facts.py` classifier + `_UNKNOWN_SENTENCE` + 2 `format_fact_sentence` branches, `conversation_memory._AVERAGE_FACT_KEYS`, `conversation_object` supporting tuples). A rename is 5 files across 2 runtimes; to become **compliant** (not just honestly-named) they must also delegate to `get_history(..., last_7_days).average` instead of reading SAE.
-- F5 aggregates (`average_sleep_7d`, `sleep_trend`, `weight_30_day_change`): delegate to `get_history` windows; remove pins on runtime verification.
-
-## Verdict
-**Platform Adoption is NOT complete** — 4 of ~9 surfaces certified. The **framework and the mechanical gate are proven across multiple surfaces**; the remaining work is uniform envelope-root declarations (Phase 1 tail) plus the cross-runtime Health renames (Phase 2). None requires architecture. **The Retrieval Platform initiative stays OPEN until the tail lands.**
+**The Retrieval Platform is now permanent certified infrastructure. Future work consumes it; it is not modified without runtime evidence of a platform defect.**

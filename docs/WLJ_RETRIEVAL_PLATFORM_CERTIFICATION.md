@@ -4,6 +4,12 @@
 **Certifies:** HEAD `5b4bd722` against `docs/WLJ_RETRIEVAL_AUTHORITY_AUDIT.md` (the acceptance criteria)
 **Method:** mechanical classification pass over **every** key the retrieval surface can serve, plus cross-checks against the canonical authority. Runtime, not inspection.
 
+## 🏁 INITIATIVE CLOSED (2026-07-23): ✅ **RETRIEVAL PLATFORM CERTIFIED — ADOPTION COMPLETE**
+
+> The full arc is done: F0 metadata contract + ratchet, Canonical Safety Migration, and Platform Adoption Waves 1–3. **Every retrieval surface declares `authority` + `semantics`, mechanically certified; zero anonymous values, zero shadows.** Two declared `missing_projection`s remain (`weight_30_day_change`, `sleep_trend`) — a disclosed gap awaiting a `get_history` change/trend enhancement, held by the ratchet. Final surface matrix: `WLJ_PLATFORM_ADOPTION_ROLLOUT.md`. The platform is now permanent certified infrastructure; future work consumes it. **Next initiative: Chief of Staff Domain Certification (Health first).**
+
+---
+
 ## VERDICT (updated 2026-07-23): ✅ **PLATFORM CERTIFIED — F0 CLOSED**
 
 > **F0 is closed.** The Retrieval Authority Metadata Contract (`apps/core/truth/authority.py`) is implemented and enforced by `apps/core/truth/tests/test_retrieval_authority_contract.py`. Runtime-verified: **127 served keys, 127 declared, ZERO architecturally anonymous.**

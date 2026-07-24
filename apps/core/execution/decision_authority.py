@@ -61,17 +61,28 @@ def current_action(user, now=None, state=None) -> dict:
         if state is None:
             from apps.core.execution.execution_state import build_execution_state
             state = build_execution_state(user, now=now)
-        return get_next_action(state)
+        return _stamp(get_next_action(state))
     except Exception:  # pragma: no cover - defensive; consumers must never re-decide
         logger.warning("decision_authority: current_action failed user=%s",
                        getattr(user, "id", None), exc_info=True)
-        return {
+        return _stamp({
             "mode": "execution",
             "primary_action": None,
             "reason": "empty",
             "follow_on": None,
             "message": "Nothing pending right now.",
-        }
+        })
+
+
+# RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption, Wave 2). Decision Authority
+# is a CANONICAL authority — the single deterministic producer of "what to do now"
+# (a second selector is CI-rejected), so it declares `canonical_authority`, not a
+# projection. One composed decision per call → declared at the envelope root.
+def _stamp(decision):
+    from apps.core.truth import authority as A
+    return A.stamp(decision, A.AuthorityDeclaration(
+        authority="decision_authority.current_action", semantics=A.CURRENT,
+        truth_category=A.CATEGORY_SUMMARY, classification=A.CANONICAL_AUTHORITY))
 
 
 def _facts(action) -> dict:
@@ -104,7 +115,7 @@ def execution_facts(user, now=None, state=None) -> dict:
             {"title": (i.get("title") or ""), "time": i.get("scheduled_time")}
             for i in (state.get("completed_today") or [])
         ]
-        return {
+        return _stamp_execution({
             "active_block": (state.get("active_block") or {}).get("name"),
             "timing": state.get("timing"),
             # The deterministic day execution phase — the ONE fact every surface reads
@@ -115,11 +126,20 @@ def execution_facts(user, now=None, state=None) -> dict:
             "coming_up": [_facts(a) for a in (state.get("next_actions") or [])],
             "later": [_facts(a) for a in (state.get("upcoming_actions") or [])],
             "completed": completed,
-        }
+        })
     except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
         logger.warning("execution_facts failed user=%s",
                        getattr(user, "id", None), exc_info=True)
-        return {"status": "pending"}
+        return _stamp_execution({"status": "pending"})
+
+
+def _stamp_execution(facts):
+    # Execution State is CANONICAL — the single producer is `build_execution_state`
+    # (reused, never re-queried), so it declares `canonical_authority` at the root.
+    from apps.core.truth import authority as A
+    return A.stamp(facts, A.AuthorityDeclaration(
+        authority="build_execution_state", semantics=A.CURRENT,
+        truth_category=A.CATEGORY_SUMMARY, classification=A.CANONICAL_AUTHORITY))
 
 
 def current_action_directive(user, now=None, state=None) -> str:

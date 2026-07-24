@@ -124,7 +124,7 @@ class ExecutiveBriefing:
         return "Anything you'd like to dig into?"
 
     def to_dict(self):
-        return {
+        out = {
             "headline": _item_dict(self.headline()) if self.items else None,
             "acute": [_item_dict(i) for i in self.acute()],
             "attention": [_item_dict(i) for i in self.attention()],
@@ -132,6 +132,15 @@ class ExecutiveBriefing:
             "stale": [_item_dict(i) for i in self.stale()],
             "domains_contributing": self.domains_contributing(),
         }
+        # RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption, Wave 2): the
+        # briefing PROJECTS each registered domain's canonical truth (every item already
+        # carries its own freshness/confidence/as_of from its domain authority). Declared
+        # at the root as a projection of the domain-truth registry; owns no truth itself.
+        from apps.core.truth import authority as A
+        return A.stamp(out, A.AuthorityDeclaration(
+            authority="executive_briefing", semantics="projection",
+            truth_category=A.CATEGORY_SUMMARY, classification=A.PROJECTION_OF,
+            delegates_to="DomainTruth.current"))
 
 
 def _item_dict(i):

@@ -131,6 +131,20 @@ def _resolve_page_summary(user, ref_str):
         return None
     summ.setdefault("ref", f"{_SUMMARY_PREFIX}{key}")
     summ.setdefault("kind", "page summary")
+    # RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption, Wave 2): every page
+    # summary is a PROJECTION of its page's ONE shared deterministic builder (the
+    # Current Context contract mandates the same source feeds page + provider), so it
+    # is stamped generically HERE — the single choke point every provider passes
+    # through — as a projection of that registered provider. No per-provider edits.
+    try:
+        from apps.core.truth import authority as _A
+        _A.stamp(summ, _A.AuthorityDeclaration(
+            authority=f"page_summary:{key}", semantics="projection",
+            truth_category=_A.CATEGORY_SUMMARY, classification=_A.PROJECTION_OF,
+            delegates_to=f"page_summary_provider:{key}"))
+    except Exception:  # pragma: no cover - metadata must never break the summary
+        logger.warning("current_context: page-summary stamp skipped key=%s", key,
+                       exc_info=True)
     return summ
 
 

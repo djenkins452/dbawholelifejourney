@@ -21,7 +21,7 @@ a build gate. It fails automatically when:
 Closing a known defect is a DELIBERATE edit to `KNOWN_DEFECTS` below — which is the
 point: the remaining residuals are now countable, and progress is visible in a diff.
 """
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.core.truth import authority as A
 
@@ -109,6 +109,63 @@ class AdoptedSurfacesContractTests(SimpleTestCase):
                 if decl.classification == A.PROJECTION_OF:
                     self.assertTrue(decl.delegates_to,
                                     f"{label}:{key} projection names no authority")
+
+
+class ComposedSurfaceContractTests(TestCase):
+    """Composed-envelope surfaces serve ONE composed object per call, so they declare
+    `authority` + `semantics` at the envelope ROOT (not per-scalar). This verifies the
+    Wave-2 adoptions carry both fields with a contract-valid semantics value."""
+
+    def _user(self):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from apps.users.models import TermsAcceptance
+        U = get_user_model()
+        u = U.objects.create_user(email="composed@example.com", password="x")
+        TermsAcceptance.objects.create(
+            user=u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        u.preferences.has_completed_onboarding = True
+        u.preferences.save()
+        return u
+
+    def _assert_declared(self, envelope, label):
+        self.assertIsInstance(envelope, dict, label)
+        self.assertTrue(envelope.get("authority"), f"{label}: no authority at root")
+        self.assertIn(envelope.get("semantics"), A.SEMANTICS,
+                      f"{label}: semantics {envelope.get('semantics')!r} not in vocabulary")
+
+    def test_domain_state_declares_at_root(self):
+        from apps.ai.cos_services.domain_state import get_domain_state
+        self._assert_declared(get_domain_state(self._user(), "health"), "domain_state")
+
+    def test_decision_authority_declares_at_root(self):
+        from apps.core.execution.decision_authority import current_action, execution_facts
+        u = self._user()
+        self._assert_declared(current_action(u), "decision_authority.current_action")
+        self._assert_declared(execution_facts(u), "execution_state")
+
+    def test_executive_briefing_declares_at_root(self):
+        from apps.core.truth.briefing import build_executive_briefing
+        self._assert_declared(build_executive_briefing(self._user()).to_dict(),
+                              "executive_briefing")
+
+    def test_standing_context_declares_at_root(self):
+        # No warm cache in test → the pending shell, which is also declared.
+        from apps.ai.cos_services.standing_context import get_standing_context
+        self._assert_declared(get_standing_context(self._user()), "standing_context")
+
+    def test_page_summary_declares_via_choke_point(self):
+        # Every page summary is stamped at the ONE resolution choke point. Register a
+        # throwaway provider and resolve it through the real path.
+        from apps.core import current_context as cc
+        cc.register_page_summary("_cert_probe")(
+            lambda user, params: {"title": "T", "content": "C"})
+        try:
+            summ = cc._resolve_page_summary(self._user(), "summary:_cert_probe")
+        finally:
+            cc._PAGE_SUMMARY_PROVIDERS.pop("_cert_probe", None)
+        self._assert_declared(summ, "page_summary")
+        self.assertEqual(summ["semantics"], "projection")
 
 
 class FoundationalHealthFactsContractTests(SimpleTestCase):

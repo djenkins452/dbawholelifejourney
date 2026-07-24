@@ -54850,3 +54850,21 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Status — Platform Adoption NOT complete (honest):** 4 of ~9 surfaces certified. Remaining: envelope-root declarations for `standing_context` / `decision_authority` / executive briefings / `execution_state` and per-provider page summaries (same touch proven on `get_domain_state`); and Phase 2 Health renames (`average_glucose_yesterday`→`average_glucose_7d`, `steps_recent`→`steps_avg_7d`) which span BOTH runtimes (health_facts + legacy `chatgpt_cos` classifier/memory/object — 5 files) and must also delegate to `get_history` windowed averages to become compliant. **The Retrieval Platform initiative stays OPEN until the tail lands.** No architecture remains; all remaining work is uniform implementation.
 
 **Files:** `apps/ai/cos_services/execution_facts.py`, `apps/ai/cos_services/personal_truth.py`, `apps/ai/cos_services/domain_state.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/03_ENGINEERING_OPERATING_GUIDE.md`, `docs/WLJ_PLATFORM_ADOPTION_ROLLOUT.md` (new), `docs/wlj_claude_changelog.md`.
+
+---
+
+## 2026-07-23 — Platform Adoption Wave 2: composed retrieval surfaces adopt the metadata contract
+
+**Why:** Uniform platform rollout — adopt the certified Retrieval Authority Metadata Contract across the remaining composed retrieval surfaces using the proven `get_domain_state` envelope-root pattern. No new architecture, no new authorities.
+
+**What (each declares `authority` + `semantics` at the envelope root; existing truth ownership / provenance / freshness preserved):**
+- **Decision Authority** (`decision_authority.current_action`) — declared **`canonical_authority`** (`authority=decision_authority.current_action`, `semantics=current`): it is the single deterministic producer of "what to do now" (a second selector is CI-rejected), so it OWNS its truth, not a projection. Stamped on both the normal and the defensive-empty return.
+- **Execution State** (`decision_authority.execution_facts` ← `build_execution_state`) — declared **`canonical_authority`** (`authority=build_execution_state`): the single execution producer, reused never re-queried.
+- **Standing Context** — declared **`projection`** of `cos_context` (`authority=cos_context`, `semantics=projection`) on both the ready package and the pending shell; Law-9 state-first, owns no truth.
+- **Executive Briefing** (`truth/briefing.py :: to_dict`) — declared **`projection`** of the domain-truth registry (`delegates_to=DomainTruth.current`); every item already carries its own freshness/confidence/as_of.
+- **Page Summaries** — stamped **generically at the ONE resolution choke point** (`current_context._resolve_page_summary`) as a `projection` of each page's registered provider, so all 15 providers adopt with **no per-provider edits** (Current Context contract already mandates one shared builder per page).
+- **Permanent verification** — `ComposedSurfaceContractTests` asserts every composed surface carries `authority` + a contract-valid `semantics` at the root (domain_state, decision_authority, execution_state, executive_briefing, standing_context, page-summary choke point). The keyed generic gate (`AdoptedSurfacesContractTests`) is unchanged.
+
+**Verification:** 20 authority-contract tests green (incl. the 6 new composed-surface assertions); 128 impacted tests green across standing-context / decision-authority-contract / executive-briefing-engine / decision-contract / execution-phase / execution-facts / request-path-safety / constitution. One pre-existing failure (`test_executive_briefing.TestHandleDayStart.test_second_call_is_noop`) was **proven pre-existing** — it fails identically on a clean tree (stash-verified) and lives in the unrelated `apps/ai/executive_briefing.py` day-start narrator, not the `apps/core/truth/briefing.py` I changed. `check` clean.
+
+**Files:** `apps/core/execution/decision_authority.py`, `apps/ai/cos_services/standing_context.py`, `apps/core/truth/briefing.py`, `apps/core/current_context.py`, `apps/core/truth/tests/test_retrieval_authority_contract.py`, `docs/wlj_claude_changelog.md`.

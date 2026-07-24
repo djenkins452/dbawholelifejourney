@@ -106,6 +106,12 @@ def _project_standing(user, context, *, source, build_ms, page_context):
         "status": "ready",
         "schema_version": STANDING_CONTEXT_SCHEMA_VERSION,
         "generated_at": timezone.now().isoformat(),
+        # RETRIEVAL AUTHORITY METADATA CONTRACT (platform adoption, Wave 2): this surface
+        # PROJECTS the pre-warmed `cos_context` / `executive` composition (Law 9 —
+        # state-first, never live-compute). Declared at the envelope root as a projection
+        # of that composition; it owns no truth and re-aggregates nothing.
+        "authority": "cos_context",
+        "semantics": "projection",
         "personalization": _personalization(user, context),
         # current_screen is the ONLY client-supplied field (PARTIAL — in-app only).
         "current_screen": page_context if page_context else None,
@@ -170,6 +176,9 @@ def _pending_shell(user, page_context, *, reason="cache_miss"):
         "status": "pending",
         "schema_version": STANDING_CONTEXT_SCHEMA_VERSION,
         "generated_at": timezone.now().isoformat(),
+        # Same contract on the pending shell — an unbuilt projection is still declared.
+        "authority": "cos_context",
+        "semantics": "projection",
         "personalization": _personalization(user, None),
         "current_screen": page_context if page_context else None,
         "reason": reason,

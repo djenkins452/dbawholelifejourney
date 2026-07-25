@@ -3,8 +3,19 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-25 (docs(startup): Executive Truth constitutional ownership review series + Session Transition — ownership SETTLED, folded up; no code)
+# Last Updated: 2026-07-25 (docs(startup): Operations Recovery Stabilization + Configuration Governance — Session Transition, durable lessons folded to 03 §4a/§7a; no code)
 # ================================================================# WLJ Change History
+
+## 2026-07-25 — docs(startup): Operations track Session Transition — Configuration Governance + Recovery Stabilization folded up (no code)
+
+**Docs-only package fold-up for the Operations track (Configuration Governance → Operations Wall UX → 2026-07-23 truth investigation → Recovery Stabilization). Zero production code changed** — all code + investigation docs shipped earlier this session (`43e3c128`→`f871a511`); this close-out folds the durable knowledge into the permanent startup package and refreshes the shared bootloader's Operations state.
+
+- **Durable engineering knowledge folded (permanent, no duplication):**
+  - **`03 §4a` (new)** — *An architectural explanation is a hypothesis; prove or falsify it against production evidence before acting.* Extends `§4` (runtime cause) to structural causes. Records the two falsified hypotheses this session ("two authorities messaging"; "a COAS recovery message fired") that row-level rows disproved (0 `operations_alert` notifications) — the real cause was a single integrity authority flapping + a mislabeled badge. A latent risk named by a falsified hypothesis can still be real, but is not automatically the incident's cause.
+  - **`03 §7a` (new)** — *A derived operator-facing status must stay honest under a noisy signal.* The Recovery Stabilization pattern as a reusable rule set: asymmetric hysteresis (immediate down, stability-gated up) · incident-aware recovery · honest `RECOVERING` transitional state (not internal score bands) · one stabilized status feeding every surface (fails open to raw) · **label a truth by what it IS** (alignment ≠ Operations) · **fail to UNKNOWN, never to a reassuring value** (the ratified UNKNOWN policy, `WLJ_CONFIGURATION_GOVERNANCE.md §4A`).
+- **Reference Index (`99 §B`):** added `WLJ_CONFIGURATION_GOVERNANCE.md` (Governing — OPS-13 deployed report-only, architecture RATIFIED, OPS-14…17 approval-gated + the milestone map) and the two investigation records (`WLJ_OPERATIONS_TRUTH_PATH_INVESTIGATION.md` + `WLJ_OPERATIONS_INCIDENT_TIMELINE_2026-07-23.md`) as the closed evidence trail.
+- **Bootloader (`00`):** header extended with the Operations close-out note; new **WLJ Operations — Configuration Governance & Recovery** parallel track (foundation COMPLETE; **NEXT = OPS-14 Configuration Visibility**, approval-gated, not started; two-authority consolidation deferred until evidence warrants); Recovery Stabilization added to **Waiting on Danny** with a specific production-validation script; stale "Operations Phase II → OPS-8a" deferral clarified as distinct from the Config Governance track. Executive Truth header + all other parallel tracks / deferred roadmap / Waiting-on-Danny **preserved** (concurrent session `5c66e469` regenerated them same-day).
+- **No Constitution / Architecture / Danny-Preferences change** (nothing constitutional or preference-level established). **No workflow-doc change** — the `99 §7` concurrency caveat already covered the two-same-day-closes case cleanly. **No release note** (internal; no user-visible change). **No production code, tests, or migrations touched.** Committed by explicit pathspec (concurrent sessions have uncommitted foreign work: `.gitignore`, `apps/core/truth/domain.py`, Renpho docs, Danny_Story — untouched).
 
 ## 2026-07-25 — docs(startup): Executive Truth constitutional ownership review series + Session Transition (no code)
 

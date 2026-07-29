@@ -161,6 +161,27 @@ def build_glucose_page_summary(user) -> dict:
             more = "" if len(lows) <= len(shown) else f", +{len(lows) - len(shown)} more"
             lines.append(f"Low readings (below 70) in the last 24h: {listed}{more}.")
 
+    # 3b) EXPLICIT OVERNIGHT segment (local 12 AM–6 AM) from the SAME producer — so
+    #     "what happened overnight" is answerable verbatim from Current Context, never a
+    #     retrieval. A named window the user asks about should be labeled on the page.
+    ov_win = resolve_window("overnight", now)
+    ov = glucose_reading_window(user, ov_win) if ov_win else {"present": False}
+    if ov.get("present"):
+        seg = (f"Overnight (12 AM–6 AM): {ov['count']} readings — "
+               f"low {_g(ov['minimum'])}, average {_g(ov['average'])} mg/dL")
+        ov_below = ov.get("below_low")
+        if ov_below:
+            seg += f", {ov_below} below 70"
+            if ov.get("urgent_low_count"):
+                seg += f" ({ov['urgent_low_count']} below 54 — severe)"
+            ov_lows = ov.get("low_excursions") or []
+            if ov_lows:
+                listed = ", ".join(f"{_g(r['value'])} at {_t(r['at'])}" for r in ov_lows[:8])
+                seg += f". Overnight lows: {listed}"
+        elif ov_below == 0:
+            seg += ", none below 70"
+        lines.append(seg + ".")
+
     # 4) Multi-day aggregates the page also renders (7/30/90-day averages, TIR, A1C).
     summ = build_glucose_summary(user)
     if summ:

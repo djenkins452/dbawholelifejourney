@@ -82,6 +82,27 @@ class GlucoseCurrentContextTests(TestCase):
         self.assertIn("Glucose", focus["content"])
         self.assertIn("41", focus["content"])   # the low is IN the executive envelope
 
+    # -- "what happened overnight" is answerable VERBATIM from Current Context --
+    def test_overnight_segment_present_so_no_retrieval_needed(self):
+        """The page summary carries an explicit local 12 AM–6 AM segment, so
+        'what happened overnight' is answered from Current Context (precedence #1),
+        never a get_readings retrieval. Data is placed inside the overnight window."""
+        u = self._mk_user("overnight-gcc@example.com")
+        from apps.core.utils import get_user_now
+        now = get_user_now(u)
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        vals = [88, 80, 72, 68, 65, 61, 58, 55, 50, 49, 48, 41]
+        start = midnight + timedelta(hours=2)     # 2:00 AM onward — in 00:00–06:00
+        for i, v in enumerate(vals):
+            GlucoseEntry.objects.create(
+                user=u, value=Decimal(str(v)), unit="mg/dL", context="cgm",
+                source="dexcom", recorded_at=start + timedelta(minutes=5 * i))
+        content = resolve_current_context(u, ref=GLUCOSE_REF)["content"]
+        self.assertIn("Overnight (12 AM–6 AM)", content)
+        self.assertIn("below 70", content)
+        self.assertIn("severe", content)          # 41/48/49/50 < 54
+        self.assertIn("41", content)              # the extreme low, with its time
+
     # -- strictly user-scoped (ownership boundary) -----------------------------
     def test_summary_is_user_scoped(self):
         other = self._mk_user("other-gcc@example.com")

@@ -6,6 +6,17 @@
 # Last Updated: 2026-07-29 (feat(truth): intra-day reading-window truth — CoS reads individual overnight CGM readings + Glucose page Current-Context aware; new get_readings tool + windows/reading_window platform primitives)
 # ================================================================# WLJ Change History
 
+## 2026-07-29 — feat(truth): Glucose Current Context — explicit overnight segment so on-page questions answer WITHOUT retrieval (precedence verification follow-up)
+
+**Current Context precedence verification + one CC-sufficiency improvement.** Confirmed the CoS already answers on-page glucose questions from Current Context first (the constitutional precedence: `current_screen.focus` is source #1, a truth tool is #4 reached "ONLY when 1–3 genuinely cannot answer — history, a trend, or a DIFFERENT item than the one on screen"; `_focus_lead()` inlines the page content under "ON SCREEN RIGHT NOW … answer from THIS and do NOT retrieve"; the `get_readings` tool description defers to CC when on the metric's page). Whether the model calls a tool is a Layer-2 REASONING decision WLJ instructs but does not (and must not) hard-block — so the WLJ-correct lever is making CC *sufficient*, not building a retrieval gate.
+
+- **`build_glucose_page_summary`** now emits an EXPLICIT local **"Overnight (12 AM–6 AM)"** segment (count, low, average, below-70, below-54 severe, and the individual overnight lows with times) sourced from the SAME `glucose_reading_window` producer (`resolve_window("overnight")`). So "what happened overnight?" is answerable **verbatim** from Current Context — no `get_readings` retrieval — matching the exact words the user asks. "Look at this page" and "are these lows concerning?" were already covered by the 24h block + lows list; "are my lows getting worse?" correctly REMAINS a retrieval case (a multi-night trend is not on the page).
+- No change to precedence/tool wiring — the pattern was already correct; this only enriches the deterministic CC content.
+
+**Verification:** live probe (overnight lows in 00:00–06:00 → explicit "Overnight (12 AM–6 AM): … 4 below 54 — severe. Overnight lows: 41 at 3:00 AM…" line). New test `test_overnight_segment_present_so_no_retrieval_needed`; 81 tests pass (glucose CC + readings + windows + reading_window + `test_glucose_snapshot` + `test_glucose_dashboard_canonical`). Request-path-safe (one extra window-bounded indexed query). No migrations.
+
+**Files:** `apps/health/services/glucose_readings.py`, `apps/health/tests/test_glucose_current_context.py`.
+
 ## 2026-07-29 — feat(truth): Intra-day reading-window truth — CoS can see individual overnight CGM readings + Glucose page is Current-Context aware
 
 **Root cause (proven by runtime trace, top-down Truth→Current-Context):** the Chief of Staff answered "evaluate my low glucose / my extreme overnight lows" with DAILY AVERAGES and then falsely claimed "individual readings … were not recorded in WLJ," and answered "look at this page" with "no specific focus." Two Layer-1 (Truth accessibility) defects, both = *the individual timestamped CGM reading series exists in `GlucoseEntry` but is exposed nowhere the CoS can reach it*:

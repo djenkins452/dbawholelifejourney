@@ -1188,6 +1188,9 @@ class Command(BaseCommand):
         # the weighted bodyweight-exercise volume fix + "Add weight" relabel
         self._reset_fitness_added_weight_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for intra-day glucose readings (PK 287)
+        self._reset_glucose_readings_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2625,6 +2628,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset fitness Add weight fixtures FAILED: {e}'))
+
+    def _reset_glucose_readings_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 287) for intra-day glucose reading
+        truth: the Chief of Staff can now read individual CGM readings inside any time
+        window ("my lows overnight", "the last 12 hours") and the Glucose page is now
+        Current-Context aware ("look at this page").
+        """
+        reset_tracker_name = 'reset_glucose_readings_2026_07_29'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for glucose readings')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for intra-day glucose readings (Jul 2026)',
+                'command', 'One-time reset to reload PK 287 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset glucose readings fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

@@ -55,6 +55,12 @@ from apps.ai.cos_services.domain_analysis import (
     analysis_capable_domains,
     get_domain_analysis,
 )
+from apps.ai.cos_services.domain_readings import (
+    DOMAIN_READINGS_SCHEMA_VERSION,
+    get_domain_readings,
+    readings_capability_index,
+    readings_capable_domains,
+)
 from apps.ai.cos_services.personal_truth import (
     PERSONAL_TRUTH_SCHEMA_VERSION,
     build_personal_truth,
@@ -112,6 +118,11 @@ __all__ = [
     "history_capability_index",
     "history_capable_domains",
     "DOMAIN_HISTORY_SCHEMA_VERSION",
+    # Pillar 1 — readings branch (Truth Resolution Layer, DomainTruth.readings; intra-day)
+    "get_domain_readings",
+    "readings_capability_index",
+    "readings_capable_domains",
+    "DOMAIN_READINGS_SCHEMA_VERSION",
     # Pillar 1 — entity branch (Truth Resolution Layer, DomainTruth.describe)
     "get_domain_entity",
     "entity_capability_index",

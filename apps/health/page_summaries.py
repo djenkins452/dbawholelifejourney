@@ -163,6 +163,18 @@ def nutrition_page_summary(user, params):
             "content": "Nutrition overview\n" + "\n".join(lines)}
 
 
+@register_page_summary("health.glucose")
+def glucose_page_summary(user, params):
+    """The Glucose dashboard. Deterministic facts only — reads the ONE producer
+    (build_glucose_page_summary → glucose_reading_window), the SAME intra-day reading
+    truth the page renders, so the assistant answers 'look at this page' and 'my lows
+    overnight' WITHOUT retrieval and can never contradict the screen. WLJ exposes the
+    readings/numbers; the model decides what they mean (no verdicts)."""
+    from apps.health.services.glucose_readings import build_glucose_page_summary
+
+    return build_glucose_page_summary(user)
+
+
 @register_page_summary("health.body_intelligence")
 def body_intelligence_page_summary(user, params):
     """The Body Intelligence dashboard. Deterministic facts only — the SAME composition

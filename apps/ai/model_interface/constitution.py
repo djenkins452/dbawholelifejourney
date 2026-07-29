@@ -531,6 +531,17 @@ def _valid_truth_entity_domains():
         return []
 
 
+def _valid_truth_reading_domains():
+    """Domains that answer at least one metric as an intra-day READING WINDOW
+    (DomainTruth.readings) — the enum for the get_readings tool. Catalog-driven, so a
+    domain that later registers reading_metrics participates automatically."""
+    try:
+        from apps.ai.cos_services.domain_readings import readings_capable_domains
+        return readings_capable_domains()
+    except Exception:
+        return []
+
+
 def _valid_truth_analysis_domains():
     """Domains that compose at least one analyzable SUBJECT (DomainTruth.analysis_subjects)
     — the enum for the get_analysis tool. Catalog-driven, so a domain that later declares
@@ -559,6 +570,7 @@ def truth_tools():
     truth_hist_domains = _valid_truth_history_domains()
     truth_entity_domains = _valid_truth_entity_domains()
     truth_analysis_domains = _valid_truth_analysis_domains()
+    truth_reading_domains = _valid_truth_reading_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
     if domains:
@@ -583,6 +595,11 @@ def truth_tools():
                               "description": "The domain to analyze a subject in."}
     if truth_analysis_domains:
         analysis_domain_schema["enum"] = truth_analysis_domains
+    reading_domain_schema = {"type": "string",
+                             "description": "The domain to read individual intra-day "
+                                            "readings for."}
+    if truth_reading_domains:
+        reading_domain_schema["enum"] = truth_reading_domains
 
     return [
         {"type": "function", "function": {
@@ -669,6 +686,52 @@ def truth_tools():
                         "description": ("Optional explicit range end — a natural "
                                         "expression or ISO 'YYYY-MM-DD'. Omit for a "
                                         "single date (defaults to start).")},
+            }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_readings",
+            "description": (
+                "Get deterministic INDIVIDUAL, TIMESTAMPED readings inside an INTRA-DAY "
+                "window for a HIGH-FREQUENCY metric (e.g. glucose from a CGM sampling every "
+                "few minutes), plus window statistics — min, max, average, time-in-range, "
+                "how many readings were below/above range, and the individual low/high "
+                "EXCURSIONS with their exact times. This is the ONLY tool that returns "
+                "individual sub-day readings; get_history returns per-DAY averages (it "
+                "cannot answer 'my lows overnight') and get_domain_state returns only the "
+                "single latest value. Use get_readings for: 'what were my lows overnight', "
+                "'show my glucose for the last 12 hours', 'did I spend much time below 70 "
+                "last night', 'my readings between midnight and 6 AM', 'how low did I go'. "
+                "WINDOW: pass the NATURAL expression the user said as `window` — 'overnight', "
+                "'last night', 'past 12 hours', 'since midnight', 'this morning', "
+                "'yesterday'; WLJ resolves it against the user's local clock. Do NOT compute "
+                "timestamps yourself. For an explicit range ('between 1 AM and 6 AM') pass "
+                "ISO `start`/`end` datetimes. The answerable (domain, metric) pairs are in "
+                "Current Context's capability index (`capabilities.truth_readings`); do not "
+                "guess a metric. NOTE: if the user is viewing the metric's page, the "
+                "readings are usually ALREADY in your Current Context — answer from there "
+                "first; use this tool to fetch a different window or when not on the page."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": reading_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The high-frequency metric — must be one "
+                                           "advertised in the capability index "
+                                           "(`capabilities.truth_readings`, e.g. "
+                                           "'glucose').")},
+                "window": {"type": "string",
+                           "description": (
+                               "The NATURAL intra-day window the user said — 'overnight', "
+                               "'last night', 'past 12 hours', 'since midnight', 'this "
+                               "morning', 'yesterday'. WLJ resolves it against the user's "
+                               "local now. Do NOT compute timestamps yourself.")},
+                "start": {"type": "string",
+                          "description": ("Optional explicit range start — ISO "
+                                          "'YYYY-MM-DDTHH:MM'. Use with `end` for 'between "
+                                          "two timestamps'; takes precedence over "
+                                          "`window`.")},
+                "end": {"type": "string",
+                        "description": ("Optional explicit range end — ISO "
+                                        "'YYYY-MM-DDTHH:MM'. Defaults to now when only "
+                                        "start is given.")},
             }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_entity",

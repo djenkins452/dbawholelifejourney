@@ -25,6 +25,11 @@ class HealthDomainTruth(DomainTruth):
     history_metrics = (("steps", "sleep", "weight", "workouts",
                         "glucose", "bp_systolic", "bp_diastolic", "bp_pulse")
                        + _BODY_METRICS)
+    # Intra-day reading windows (individual timestamped samples + excursions over an
+    # arbitrary datetime Window) — the shape for HIGH-FREQUENCY streams. Glucose (CGM)
+    # is the first adopter; heart rate / SpO2 / blood pressure add a spec + one line
+    # here as their models gain sub-day accessors. See readings() below.
+    reading_metrics = ("glucose",)
     entity_types = ("workout", "sleep", "body_measurement",
                     "steps", "glucose", "blood_pressure", "weight")
 
@@ -50,8 +55,25 @@ class HealthDomainTruth(DomainTruth):
         "bp_pulse": HealthHistory.bp_pulse,
     }
 
+    _READINGS = {
+        # metric -> callable(user, window) -> ReadingSeries dict
+        "glucose": "apps.health.services.glucose_readings.glucose_reading_window",
+    }
+
     def current(self, metric):
         return CurrentHealth.get(self.user, metric)
+
+    def readings(self, metric, window):
+        """Intra-day reading window for a high-frequency metric. Delegates to the
+        domain's single reading-window producer (no new retrieval logic here)."""
+        target = self._READINGS.get(metric)
+        if target is None:
+            raise KeyError(f"health readings unsupported: {metric!r} "
+                           f"(have {self.reading_metrics})")
+        from importlib import import_module
+        mod_path, fn_name = target.rsplit(".", 1)
+        fn = getattr(import_module(mod_path), fn_name)
+        return fn(self.user, window)
 
     def history(self, metric, period="last_7_days", **kwargs):
         if metric in _BODY_METRICS:

@@ -6740,13 +6740,22 @@ class DexcomDisconnectView(LoginRequiredMixin, View):
         return redirect("health:glucose_dashboard")
 
 
-class GlucoseDashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class GlucoseDashboardView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin,
+                           TemplateView):
     """
     Glucose tracking dashboard with Dexcom integration.
+
+    Declares Current Context via PageSummaryMixin (`summary:health.glucose`) so the
+    Chief of Staff can answer "look at this page" and the overnight-lows questions
+    directly from the SAME deterministic reading truth the page renders — no retrieval.
+    The provider (apps/health/page_summaries.py :: glucose_page_summary) resolves to
+    build_glucose_page_summary → glucose_reading_window, the one intra-day producer.
     """
 
     template_name = "health/glucose/dashboard.html"
     help_context_id = "GLUCOSE_DASHBOARD"
+    page_summary_key = "health.glucose"
+    page_summary_title = "Glucose"
 
     # Valid time periods in days (0 = today only)
     VALID_PERIODS = [0, 7, 30, 60, 90]

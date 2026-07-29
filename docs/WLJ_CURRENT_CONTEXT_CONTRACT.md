@@ -30,7 +30,7 @@ When building or changing ANY page, ask **"what is the user looking at here, det
 | Health Home | `health.home` | ✅ 2026-07-21 (SAE `health` snapshot) |
 | Finance Dashboard | `finance.dashboard` | ✅ 2026-07-21 (SAE `finance` snapshot) |
 | Meals Home | `meals.dashboard` | ✅ 2026-07-21 (SAE `meals` snapshot) |
-| Glucose | `health.glucose` | ☐ |
+| Glucose | `health.glucose` | ☑ (2026-07-29 — `PageSummaryMixin` on `GlucoseDashboardView`; provider `health.glucose` → `build_glucose_page_summary` → `glucose_reading_window`, the intra-day reading producer. Exposes latest reading + last-24h window stats + the individual low excursions with times, so "look at this page" and "my lows overnight" answer without retrieval.) |
 | Calendar Overview | `calendar.overview` | ☐ |
 | Goals Dashboard | `purpose.goals` | ☐ |
 | Task Dashboard | `life.tasks` | ☐ |

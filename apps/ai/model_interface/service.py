@@ -35,6 +35,7 @@ from apps.ai.cos_services import (
     get_domain_analysis,
     get_domain_entity,
     get_domain_history,
+    get_domain_readings,
     get_domain_state,
     get_foundational_health_facts,
     get_user_truth,
@@ -489,8 +490,8 @@ class ModelInterfaceService:
     # delivered by another surface unanchored — proven 2026-07-22: after a weight answer
     # from get_foundational_health_facts, the elliptical follow-up "Yesterday's?" carried
     # no subject and drifted to the Journal domain (0/4 probes stayed on weight).
-    _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_analysis",
-                              "get_foundational_health_facts")
+    _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_readings",
+                              "get_analysis", "get_foundational_health_facts")
 
     @classmethod
     def _subject_from_truth_result(cls, name, args, result):
@@ -501,6 +502,8 @@ class ModelInterfaceService:
         if name not in cls._SUBJECT_BEARING_TOOLS or not isinstance(result, dict):
             return None
         if name == "get_history":
+            return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
+        if name == "get_readings":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name == "get_analysis":
             return cls._subject_from_metric(args.get("domain"), args.get("subject"), result,
@@ -641,6 +644,24 @@ class ModelInterfaceService:
                 out = _wrap_truth(
                     raw,
                     source=f"history:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_readings":
+                raw = get_domain_readings(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    window=args.get("window", ""),
+                    start=args.get("start"), end=args.get("end"),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"readings:{args.get('domain', '')}."
                            f"{args.get('metric', '')}",
                 )
                 _audit.record_tool_call(

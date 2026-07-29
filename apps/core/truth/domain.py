@@ -81,6 +81,7 @@ class DomainTruth:
     domain = None
     current_metrics = ()          # introspection: metrics current() supports
     history_metrics = ()          # introspection: metrics history() supports
+    reading_metrics = ()          # introspection: metrics readings() supports (intra-day)
 
     def __init__(self, user):
         self.user = user
@@ -90,6 +91,21 @@ class DomainTruth:
 
     def history(self, metric, period="last_7_days", **kwargs):
         raise NotImplementedError
+
+    # READING-WINDOW CAPABILITY (intra-day / high-frequency truth) -------------
+    # The datetime-window companion to history(). history() answers "the per-DAY trend
+    # over a Period"; readings() answers "the individual SAMPLES inside a datetime
+    # Window, plus window statistics and excursions" — the shape a person asks about a
+    # CGM/heart-rate/SpO2 stream ("my lows overnight", "readings for the past 12 hours").
+    # A domain opts in by declaring `reading_metrics` and returning a
+    # ReadingSeries.to_dict() (see apps.core.truth.reading_window). Glucose is the
+    # reference adopter. Default: the domain exposes no reading metrics.
+    def readings(self, metric, window):
+        """Return a ReadingSeries dict (apps.core.truth.reading_window) for `metric`
+        over `window` (apps.core.truth.windows.Window). Raise KeyError for an
+        unsupported metric."""
+        raise NotImplementedError(
+            f"{self.domain} domain truth exposes no readings()")
 
     def state(self):
         from apps.core.ai_state.state_engine import get_module_state
@@ -173,5 +189,6 @@ class DomainTruth:
     def supports(self):
         return {"current": tuple(self.current_metrics),
                 "history": tuple(self.history_metrics),
+                "readings": tuple(self.reading_metrics),
                 "entities": tuple(self.entity_types),
                 "analysis": tuple(self.analysis_subjects)}

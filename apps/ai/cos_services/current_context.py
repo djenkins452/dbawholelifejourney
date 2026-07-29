@@ -98,6 +98,7 @@ def _capabilities() -> dict:
     advertises, per domain, which metrics are answerable as HISTORY via the
     get_history tool, so the model never guesses a (domain, metric) pair."""
     domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
+    truth_readings = {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
@@ -107,6 +108,11 @@ def _capabilities() -> dict:
                 d: sorted(s.get("history", ()))
                 for d, s in cat.items()
                 if isinstance(s, dict) and s.get("history")
+            }
+            truth_readings = {
+                d: sorted(s.get("readings", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("readings")
             }
             truth_entities = {
                 d: sorted(s.get("entities", ()))
@@ -120,6 +126,7 @@ def _capabilities() -> dict:
             }
     except Exception:  # pragma: no cover - defensive
         domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
+        truth_readings = {}
     # Plain-language capability semantics — so the model routes by MEANING, not by a
     # domain NAME (e.g. an EATEN meal is `nutrition`, a planned/recipe meal is `meals`).
     # Advertised-only: a domain the model can actually call. One authoritative source
@@ -127,7 +134,8 @@ def _capabilities() -> dict:
     domain_semantics = {}
     try:
         from apps.core.truth.semantics import domain_semantics as _sem
-        advertised = set(truth_history) | set(truth_entities) | set(truth_analysis)
+        advertised = (set(truth_history) | set(truth_readings)
+                      | set(truth_entities) | set(truth_analysis))
         all_sem = _sem()
         domain_semantics = {}
         for d in sorted(advertised):
@@ -149,6 +157,10 @@ def _capabilities() -> dict:
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
+        # Intra-day individual readings + window stats for high-frequency metrics
+        # (glucose CGM, …) — the get_readings tool. Distinct from truth_history, which
+        # is per-DAY aggregates only.
+        "truth_readings": truth_readings,
         "truth_entities": truth_entities,
         "truth_analysis": truth_analysis,
         # What each domain/entity MEANS (purpose, per-entity descriptions, boundary
@@ -158,7 +170,14 @@ def _capabilities() -> dict:
         # equivalent (e.g. health 'workouts' aggregate vs 'workout' record detail).
         "surface_roles": {
             "truth_history": ("AGGREGATE truth over a period — counts, totals, averages, "
-                              "trends. NOT the contents of any individual record."),
+                              "trends. Per-DAY granularity; NOT individual sub-day readings "
+                              "and NOT the contents of any individual record."),
+            "truth_readings": ("INDIVIDUAL timestamped readings inside an intra-day window "
+                               "for a high-frequency metric (e.g. glucose CGM) + window "
+                               "stats (min/max/average, time-in-range, below/above counts) "
+                               "and the individual low/high excursions. The ONLY surface "
+                               "that answers 'my lows overnight' / 'readings for the last "
+                               "12 hours'. Use get_readings."),
             "truth_entities": ("DETAIL of an individual record — its identity, contents, "
                                "and child records (e.g. a workout's exercises, sets, reps, "
                                "weights)."),
@@ -169,8 +188,12 @@ def _capabilities() -> dict:
                                "doing' questions so you never under-gather."),
         },
         "note": ("For 'how many / how much / average / trend' use get_history (metric "
-                 "names in truth_history). For 'what / which / did I / the contents of a "
-                 "specific record' use get_entity (record types in truth_entities). For "
+                 "names in truth_history). For INDIVIDUAL intra-day readings and lows "
+                 "('my lows overnight', 'readings for the last 12 hours', 'time below 70 "
+                 "last night') use get_readings (metrics in truth_readings) — NOT "
+                 "get_history, which only averages by day. For 'what / which / did I / the "
+                 "contents of a specific record' use get_entity (record types in "
+                 "truth_entities). For "
                  "'analyze / how am I doing / how am I trending / evaluate / interpret' a "
                  "subject, use get_analysis (subjects in truth_analysis) — it composes the "
                  "whole investigation in ONE call and returns holds_data, so you never "

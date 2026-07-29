@@ -4566,5 +4566,21 @@
       "created_at": "2026-07-20T16:00:00Z",
       "updated_at": "2026-07-20T16:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 287,
+    "fields": {
+      "title": "Your Chief of Staff can now see your overnight glucose — reading by reading",
+      "description": "Ask about your low blood-sugar overnight and you'll get the real numbers, not a daily average. Your Chief of Staff can now read your individual glucose readings inside any time window — \"what were my lows overnight,\" \"show my glucose for the last 12 hours,\" \"did I spend much time below 70 last night\" — and answer with the actual readings and their exact times, including how many dipped below range and how low they went. And when you're on the Glucose page and say \"look at this page,\" it now sees exactly what you're looking at, so it can weigh in without you re-explaining. The readings, the lows, and the times all come straight from your own data — deterministic, never estimated.",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-07-29",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/health/physical/glucose/",
+      "created_at": "2026-07-29T12:00:00Z",
+      "updated_at": "2026-07-29T12:00:00Z"
+    }
   }
 ]

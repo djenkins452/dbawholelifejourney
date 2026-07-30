@@ -61,6 +61,18 @@ from apps.ai.cos_services.domain_readings import (
     readings_capability_index,
     readings_capable_domains,
 )
+from apps.ai.cos_services.domain_comparison import (
+    DOMAIN_COMPARISON_SCHEMA_VERSION,
+    comparison_capability_index,
+    comparison_capable_domains,
+    get_domain_comparison,
+)
+from apps.ai.cos_services.domain_adherence import (
+    DOMAIN_ADHERENCE_SCHEMA_VERSION,
+    adherence_capability_index,
+    adherence_capable_domains,
+    get_domain_adherence,
+)
 from apps.ai.cos_services.personal_truth import (
     PERSONAL_TRUTH_SCHEMA_VERSION,
     build_personal_truth,
@@ -123,6 +135,16 @@ __all__ = [
     "readings_capability_index",
     "readings_capable_domains",
     "DOMAIN_READINGS_SCHEMA_VERSION",
+    # Pillar 1 — comparison branch (period A vs period B; reuses history)
+    "get_domain_comparison",
+    "comparison_capability_index",
+    "comparison_capable_domains",
+    "DOMAIN_COMPARISON_SCHEMA_VERSION",
+    # Pillar 1 — adherence branch (actual vs target; reuses history + target registry)
+    "get_domain_adherence",
+    "adherence_capability_index",
+    "adherence_capable_domains",
+    "DOMAIN_ADHERENCE_SCHEMA_VERSION",
     # Pillar 1 — entity branch (Truth Resolution Layer, DomainTruth.describe)
     "get_domain_entity",
     "entity_capability_index",

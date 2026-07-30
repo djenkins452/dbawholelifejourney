@@ -715,10 +715,22 @@ class NutritionDomainTruth(DomainTruth):
         "eating_habits":   {"history_metric": "calories", "entity_type": "meal"},
         "diet":            {"history_metric": "calories", "entity_type": "meal"},
         "macros":          {"history_metric": "calories", "entity_type": "meal"},
+        # The natural phrasings the model reaches for when the user says "macronutrient
+        # intake" / "my macros" — all map to the SAME macro composition. Aliases are
+        # declaration-only and free; they stop a real user phrase from routing to an
+        # undeclared subject → unsupported (the observed "couldn't retrieve a detailed
+        # analysis of macronutrient intake" miss).
+        "macronutrients":  {"history_metric": "calories", "entity_type": "meal"},
+        "macronutrient":   {"history_metric": "calories", "entity_type": "meal"},
+        "macronutrient_intake": {"history_metric": "calories", "entity_type": "meal"},
+        "macro":           {"history_metric": "calories", "entity_type": "meal"},
         "calories":        {"history_metric": "calories", "entity_type": "meal"},
         "protein":         {"history_metric": "protein",  "entity_type": "meal"},
         "carbs":           {"history_metric": "carbs",     "entity_type": "meal"},
+        "carbohydrates":   {"history_metric": "carbs",     "entity_type": "meal"},
         "fat":             {"history_metric": "fat",       "entity_type": "meal"},
+        "fiber":           {"history_metric": "fiber",     "entity_type": "meal"},
+        "sugar":           {"history_metric": "sugar",     "entity_type": "meal"},
         "meals":           {"history_metric": "calories",  "entity_type": "meal"},
     }
 

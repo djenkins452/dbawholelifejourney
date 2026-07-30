@@ -1191,6 +1191,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for intra-day glucose readings (PK 287)
         self._reset_glucose_readings_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Health Knowledge Certification (PK 288)
+        self._reset_health_certification_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2659,6 +2662,36 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset glucose readings fixtures FAILED: {e}'))
+
+    def _reset_health_certification_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 288) for Health Knowledge
+        Certification: the CoS can now answer target-adherence ("are my carbs in line?")
+        and period comparison ("this week vs last week") questions across health metrics.
+        """
+        reset_tracker_name = 'reset_health_certification_2026_07_29'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for health certification')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Health Knowledge Certification (Jul 2026)',
+                'command', 'One-time reset to reload PK 288 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset health certification fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

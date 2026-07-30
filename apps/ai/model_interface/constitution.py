@@ -542,6 +542,27 @@ def _valid_truth_reading_domains():
         return []
 
 
+def _valid_truth_comparison_domains():
+    """Domains comparable period-vs-period (get_comparison) — identical to the history
+    domains (anything with a per-day series can be compared). Catalog-driven."""
+    try:
+        from apps.ai.cos_services.domain_comparison import comparison_capable_domains
+        return comparison_capable_domains()
+    except Exception:
+        return []
+
+
+def _valid_truth_adherence_domains():
+    """Domains with at least one metric that has a registered TARGET (get_adherence).
+    Registry-driven, so a metric that later registers a target participates
+    automatically."""
+    try:
+        from apps.ai.cos_services.domain_adherence import adherence_capable_domains
+        return adherence_capable_domains()
+    except Exception:
+        return []
+
+
 def _valid_truth_analysis_domains():
     """Domains that compose at least one analyzable SUBJECT (DomainTruth.analysis_subjects)
     — the enum for the get_analysis tool. Catalog-driven, so a domain that later declares
@@ -571,6 +592,8 @@ def truth_tools():
     truth_entity_domains = _valid_truth_entity_domains()
     truth_analysis_domains = _valid_truth_analysis_domains()
     truth_reading_domains = _valid_truth_reading_domains()
+    truth_comparison_domains = _valid_truth_comparison_domains()
+    truth_adherence_domains = _valid_truth_adherence_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
     if domains:
@@ -600,6 +623,16 @@ def truth_tools():
                                             "readings for."}
     if truth_reading_domains:
         reading_domain_schema["enum"] = truth_reading_domains
+    comparison_domain_schema = {"type": "string",
+                                "description": "The domain to compare a metric across "
+                                               "two periods."}
+    if truth_comparison_domains:
+        comparison_domain_schema["enum"] = truth_comparison_domains
+    adherence_domain_schema = {"type": "string",
+                               "description": "The domain whose metric has a target to "
+                                              "measure adherence against."}
+    if truth_adherence_domains:
+        adherence_domain_schema["enum"] = truth_adherence_domains
 
     return [
         {"type": "function", "function": {
@@ -732,6 +765,62 @@ def truth_tools():
                         "description": ("Optional explicit range end — ISO "
                                         "'YYYY-MM-DDTHH:MM'. Defaults to now when only "
                                         "start is given.")},
+            }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_comparison",
+            "description": (
+                "COMPARE one metric between TWO periods — the deterministic delta, percent "
+                "change, and direction (rising/falling/flat). Use for 'yesterday vs today', "
+                "'this week vs last week', 'this month vs last month', 'am I doing more/less "
+                "X than before'. WLJ resolves BOTH periods against the user's today and "
+                "computes the change; do NOT fetch two get_history calls and subtract them "
+                "yourself. Direction is arithmetic, NOT a good/bad verdict — you interpret "
+                "whether the change is desirable for this metric. period_a is the BASELINE/"
+                "earlier window; period_b is the FOCUS/recent window; the change is period_b "
+                "relative to period_a. Answerable (domain, metric) pairs are those in "
+                "`capabilities.truth_history` (any per-day metric can be compared)."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": comparison_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The metric to compare — one advertised in "
+                                           "`capabilities.truth_history` (e.g. 'weight', "
+                                           "'steps', 'carbs', 'glucose').")},
+                "period_a": {"type": "string",
+                             "description": ("The BASELINE/earlier period — a natural date "
+                                             "expression ('last week', 'last month', "
+                                             "'yesterday', 'June'). WLJ resolves it.")},
+                "period_b": {"type": "string",
+                             "description": ("The FOCUS/recent period ('this week', 'this "
+                                             "month', 'today'). WLJ resolves it. The "
+                                             "change is period_b relative to period_a.")},
+            }, "required": ["domain", "metric", "period_a", "period_b"]}}},
+        {"type": "function", "function": {
+            "name": "get_adherence",
+            "description": (
+                "Measure a metric against the user's own TARGET — 'am I in line with / on "
+                "track for / hitting / over / under my <goal>?'. Answers the target half of "
+                "questions like 'do I need more carbs or are they in line?', 'am I getting "
+                "enough protein?', 'am I over my sugar limit?', 'am I hitting my step goal?'. "
+                "Returns the target, the average daily actual over the period, the SIGNED "
+                "variance, percent of target, per-day met/over/under counts, and whether the "
+                "target is a 'target' (reach) or a 'limit' (stay under). WLJ supplies these "
+                "facts; YOU decide 'in line' vs 'need more' (do not compute the target math "
+                "yourself, and do not treat a missing target as zero). Answerable (domain, "
+                "metric) pairs are in `capabilities.truth_adherence`; a metric with no target "
+                "returns no_target (say the target isn't set — never invent one)."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": adherence_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The metric with a target — one advertised in "
+                                           "`capabilities.truth_adherence` (e.g. 'carbs', "
+                                           "'protein', 'calories', 'steps').")},
+                "period": {"type": "string",
+                           "description": ("The window to average the actual over — a named "
+                                           "window or natural date expression ('today', "
+                                           "'this_week', 'last_7_days'). Defaults to "
+                                           "last_7_days.")},
             }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_entity",

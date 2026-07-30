@@ -154,6 +154,13 @@ def _capabilities() -> dict:
             domain_semantics[d] = entry
     except Exception:  # pragma: no cover - defensive
         domain_semantics = {}
+    # Metrics with a registered TARGET — answerable via get_adherence (actual vs target).
+    truth_adherence = {}
+    try:
+        from apps.core.truth.targets import target_capability_index
+        truth_adherence = {d: list(m) for d, m in target_capability_index().items()}
+    except Exception:  # pragma: no cover - defensive
+        truth_adherence = {}
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
@@ -161,6 +168,10 @@ def _capabilities() -> dict:
         # (glucose CGM, …) — the get_readings tool. Distinct from truth_history, which
         # is per-DAY aggregates only.
         "truth_readings": truth_readings,
+        # Any truth_history metric is also comparable period-vs-period (get_comparison).
+        "truth_comparison": truth_history,
+        # Metrics with a stored target — actual-vs-target adherence (get_adherence).
+        "truth_adherence": truth_adherence,
         "truth_entities": truth_entities,
         "truth_analysis": truth_analysis,
         # What each domain/entity MEANS (purpose, per-entity descriptions, boundary
@@ -178,6 +189,16 @@ def _capabilities() -> dict:
                                "and the individual low/high excursions. The ONLY surface "
                                "that answers 'my lows overnight' / 'readings for the last "
                                "12 hours'. Use get_readings."),
+            "truth_comparison": ("ONE metric across TWO periods with the deterministic "
+                                 "delta/percent/direction between them — 'this week vs last "
+                                 "week', 'yesterday vs today', 'month vs month'. Use "
+                                 "get_comparison; do not subtract two get_history calls "
+                                 "yourself."),
+            "truth_adherence": ("A metric measured against the user's stored TARGET/limit — "
+                                "average daily actual, signed variance, percent of target, "
+                                "days met/over/under. Answers 'am I in line with / hitting / "
+                                "over my <goal>' (e.g. carbs vs carb target). Use "
+                                "get_adherence; a metric with no target returns no_target."),
             "truth_entities": ("DETAIL of an individual record — its identity, contents, "
                                "and child records (e.g. a workout's exercises, sets, reps, "
                                "weights)."),
@@ -201,8 +222,10 @@ def _capabilities() -> dict:
                  "record type can share a domain — e.g. health 'workouts' (aggregate "
                  "session count) vs 'workout' (one workout's exercise detail) — these are "
                  "DIFFERENT surfaces; pick by whether the question is a count/trend, a "
-                 "record's contents, or a full analysis. Call a truth tool for anything "
-                 "not in this baseline."),
+                 "record's contents, or a full analysis. For 'X vs Y period' use "
+                 "get_comparison (truth_comparison); for 'am I in line with my target/goal' "
+                 "use get_adherence (truth_adherence) — never treat a blank target as zero. "
+                 "Call a truth tool for anything not in this baseline."),
     }
 
 

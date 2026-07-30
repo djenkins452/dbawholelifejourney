@@ -32,7 +32,9 @@ from apps.ai.cos_services import (
     action_interface,
     get_ai_relationship,
     get_current_context_baseline,
+    get_domain_adherence,
     get_domain_analysis,
+    get_domain_comparison,
     get_domain_entity,
     get_domain_history,
     get_domain_readings,
@@ -491,7 +493,8 @@ class ModelInterfaceService:
     # from get_foundational_health_facts, the elliptical follow-up "Yesterday's?" carried
     # no subject and drifted to the Journal domain (0/4 probes stayed on weight).
     _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_readings",
-                              "get_analysis", "get_foundational_health_facts")
+                              "get_comparison", "get_adherence", "get_analysis",
+                              "get_foundational_health_facts")
 
     @classmethod
     def _subject_from_truth_result(cls, name, args, result):
@@ -504,6 +507,8 @@ class ModelInterfaceService:
         if name == "get_history":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name == "get_readings":
+            return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
+        if name in ("get_comparison", "get_adherence"):
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name == "get_analysis":
             return cls._subject_from_metric(args.get("domain"), args.get("subject"), result,
@@ -662,6 +667,41 @@ class ModelInterfaceService:
                 out = _wrap_truth(
                     raw,
                     source=f"readings:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_comparison":
+                raw = get_domain_comparison(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    period_a=args.get("period_a", ""),
+                    period_b=args.get("period_b", ""),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"comparison:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_adherence":
+                raw = get_domain_adherence(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    period=args.get("period", "last_7_days"),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"adherence:{args.get('domain', '')}."
                            f"{args.get('metric', '')}",
                 )
                 _audit.record_tool_call(

@@ -42,6 +42,19 @@ class HealthDomainTruth(DomainTruth):
         "sleep":    {"history_metric": "sleep"},
         "steps":    {"history_metric": "steps"},
         "glucose":  {"history_metric": "glucose"},
+        # Blood pressure was history+entity but analysis-blind — the analytical question
+        # ("how's my blood pressure trending / is it improving") had no evidence bundle.
+        # Compose over the systolic series (the headline) + the BP record detail; the
+        # model narrates systolic/diastolic together from the records.
+        "blood_pressure": {"history_metric": "bp_systolic", "entity_type": "blood_pressure"},
+        "bp":             {"history_metric": "bp_systolic", "entity_type": "blood_pressure"},
+        # Body composition — waist is the headline anthropometric trend; body_measurement
+        # records carry the rest. Closes the analysis-blind gap for "how's my body
+        # composition trending".
+        "body_composition": {"history_metric": "waist", "entity_type": "body_measurement"},
+        "waist":            {"history_metric": "waist", "entity_type": "body_measurement"},
+        "body_fat":         {"history_metric": "body_fat_pct",
+                             "entity_type": "body_measurement"},
     }
 
     _HISTORY = {

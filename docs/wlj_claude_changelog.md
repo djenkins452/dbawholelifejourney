@@ -3,8 +3,34 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-29 (feat(truth): intra-day reading-window truth — CoS reads individual overnight CGM readings + Glucose page Current-Context aware; new get_readings tool + windows/reading_window platform primitives)
+# Last Updated: 2026-07-29 (feat(truth): Health Knowledge Certification — reusable Trend/Comparison/Adherence platform capabilities + nutrition macro-adherence fix; certification matrix)
 # ================================================================# WLJ Change History
+
+## 2026-07-29 — feat(truth): Health Knowledge Certification — reusable Trend / Comparison / Adherence platform capabilities + nutrition macro-adherence fix
+
+**Milestone.** A CoS asked "do I need more carbs or are they in line?" got "I couldn't retrieve a detailed analysis of your macronutrient intake" — the SAME class as the earlier Glucose failure. Rather than fix Nutrition alone, this certifies the Health domain against the Glucose gold standard (9 dimensions) and builds the missing capabilities as ONE reusable platform surface each (never per-domain). Full audit + matrix + phased backlog: `docs/WLJ_HEALTH_KNOWLEDGE_CERTIFICATION.md`.
+
+**Root cause (nutrition):** macro data + subjects existed, but (a) "macronutrient intake" was not a registered analysis-subject key (routing miss → `unsupported`), and (b) NO deterministic surface joined actual intake to the stored target, so the "are they in line?" half had no evidence (adherence math lived only in the today-only, page-scoped `build_nutrition_summary`).
+
+**Reusable platform capabilities built (catalog/registry-driven; advertised in the capability index):**
+- **Trend** — `HistorySeries.change()` (first/last, delta, pct, least-squares slope, arithmetic direction rising/falling/flat — a FACT, never "improving/worsening"). Additive `"change"` key on `to_dict()`, so it flows through `get_history` AND every `get_analysis` window with zero per-domain code. This is the canonical change/trend authority the retrieval ratchet flagged missing (`weight_30_day_change`/`sleep_trend`).
+- **Comparison** — `get_comparison(domain, metric, period_a, period_b)` (`apps/ai/cos_services/domain_comparison.py`): composes two `get_domain_history` reads → cross-period delta/pct/direction for the average AND total. Answers "this week vs last week", "month vs month". Applies to EVERY history metric.
+- **Adherence** — `get_adherence(domain, metric, period)` (`apps/ai/cos_services/domain_adherence.py`) + a reusable **target registry** (`apps/core/truth/targets.py`): composes actual (history) vs the user's stored target → target/actual/signed-variance/%-of-target/days met-over-under, and whether the target is a `target` (reach) or `limit` (stay under). WLJ supplies facts; the model renders "in line". `no_target` is honest (never treated as zero).
+
+**Truth exposure closed (cheap, existing patterns):**
+- Nutrition targets registered (`apps/health/services/health_targets.py`): calories/protein/carbs/fat/fiber (targets) + sugar/sodium (limits); plus steps goal. `get_adherence("nutrition","carbs")` now answers the reported question.
+- Nutrition analysis-subject aliases: `macronutrients`, `macronutrient_intake`, `macronutrient`, `macro`, `carbohydrates`, `fiber`, `sugar`.
+- Analysis-blind gaps closed: `blood_pressure`/`bp` and `body_composition`/`waist`/`body_fat` are now analysis subjects (compose the systolic/waist series + BP/body-measurement records).
+
+**Wiring:** both new tools registered in `truth_tools()`, dispatched in `service.py`, anchored as subject-bearing, and advertised via `capabilities.truth_comparison` + `capabilities.truth_adherence` + surface_roles + routing note. Target providers register at app-ready (`HealthConfig.ready`).
+
+**Phased (deferred = phased, with triggers, in the matrix doc):** Phase 2a blind-page Current Context (steps/sleep/BP/HR/water/fitness); Phase 2b new-truth surfaces for heart rate/water/SpO2/temperature (models exist, no DomainTruth surfaces) incl. reading series for HR/SpO2; Phase 3 water/weight goal adherence.
+
+**Constitutional check:** conforms to `WLJ_LLM_TRUTH_ACTION_CONTRACT` — improve TRUTH accessibility with composed, envelope-wrapped, audited surfaces; no reasoning built in WLJ (direction/variance are facts; the model interprets). No Constitutional Article touched.
+
+**Verification:** new tests `apps/core/truth/tests/test_trend.py` (8), `apps/ai/tests/test_health_certification_capabilities.py` (carb-adherence regression, sugar-limit, steps goal, week-over-week comparison, trend wiring, tool + capability advertisement, BP/body-comp analysable — 15). Fixed a flaky prior-milestone test (`test_glucose_current_context::test_overnight_segment…` now pins `now`). 105/106 + suites pass across trend/comparison/adherence + affected existing (`test_domain_history`, `test_domain_analysis`, `test_domain_readings`, `test_truth_surface_contract`, `test_retrieval_authority_contract`, `test_request_path_safety_contract`, `test_intent_registration`, `test_nutrition`, `test_health_home_summary`, `test_capability_semantics`). One pre-existing unrelated failure (`test_domain_truth::test_day_fact_goes_through_domain_truth`, steps day-fact source label) reproduced on the clean tree — not introduced here. `check` clean; no migrations; request-path-safe (composition over existing indexed reads).
+
+**Files:** NEW `apps/core/truth/targets.py`, `apps/health/services/health_targets.py`, `apps/ai/cos_services/domain_comparison.py`, `apps/ai/cos_services/domain_adherence.py`, `apps/core/truth/tests/test_trend.py`, `apps/ai/tests/test_health_certification_capabilities.py`, `docs/WLJ_HEALTH_KNOWLEDGE_CERTIFICATION.md`. MODIFIED `apps/core/truth/history.py`, `apps/core/truth/domain_rollout.py`, `apps/health/services/health_domain_truth.py`, `apps/health/apps.py`, `apps/ai/cos_services/__init__.py`, `apps/ai/cos_services/current_context.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`, `apps/health/tests/test_glucose_current_context.py`, `apps/core/fixtures/release_notes.json` (PK 288), `apps/core/management/commands/load_initial_data.py`.
 
 ## 2026-07-29 — feat(truth): Glucose Current Context — explicit overnight segment so on-page questions answer WITHOUT retrieval (precedence verification follow-up)
 

@@ -27,3 +27,6 @@ class HealthConfig(AppConfig):
 
         # Current Context — register Health overview page-summary providers (Weight, …).
         import apps.health.page_summaries  # noqa: F401
+
+        # Target registry — register adherence target providers (nutrition macros, steps).
+        import apps.health.services.health_targets  # noqa: F401

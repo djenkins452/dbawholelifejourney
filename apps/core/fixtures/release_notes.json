@@ -4614,5 +4614,21 @@
       "created_at": "2026-07-29T14:00:00Z",
       "updated_at": "2026-07-29T14:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 290,
+    "fields": {
+      "title": "Ask whether something is happening more often — and when",
+      "description": "Your Chief of Staff can now tell you whether an event in your health data is becoming more or less frequent over time — with real counts, not impressions. Ask \"are my overnight lows getting more frequent?\" and it counts the lows on each night across the period and reports the direction — rising, falling, or steady — the rate, and the nights that stood out. It also knows the time-of-day pattern, so \"what time of night do my lows usually happen?\" and \"are severe lows increasing?\" get straight, factual answers, and you can compare one month to another. It starts with glucose lows and highs and is built to extend to other recurring events over time. Every number comes from your own logs — it never counts a night it has no reading for as \"zero.\"",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-07-30",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/health/",
+      "created_at": "2026-07-30T12:00:00Z",
+      "updated_at": "2026-07-30T12:00:00Z"
+    }
   }
 ]

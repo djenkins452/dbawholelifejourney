@@ -30,6 +30,7 @@ mean (never a "your control is poor" verdict here). Deterministic; request-path-
 from django.utils import timezone
 from django.utils.dateformat import format as _dj_date
 
+from apps.core.truth.event_frequency import build_event_frequency_series
 from apps.core.truth.reading_window import ReadingWindowSpec, build_reading_series
 from apps.core.truth.windows import Window, resolve_window
 
@@ -77,6 +78,41 @@ def glucose_reading_window(user, window: Window) -> dict:
     )
     return build_reading_series(GLUCOSE_READING_SPEC, window, rows,
                                 with_by_hour=True).to_dict()
+
+
+def glucose_event_frequency(user, event, windows, *, period_label="") -> dict:
+    """THE single producer of glucose EVENT-FREQUENCY truth — the deterministic answer
+    to "are my overnight lows getting more frequent". Counts `event` (low / urgent_low /
+    high / …) for each recurring window in `windows` and returns an EventFrequencySeries
+    dict (per-window counts + frequency trend + time-of-day clustering).
+
+    Reuse-only: ONE window-bounded query over the outer [first, last] span (the SAME
+    `(user, recorded_at)` index the reading window uses); the platform builder buckets
+    per window and counts via the reading-window stats engine — no new retrieval, no new
+    counter, no glucose-specific analytics. Empty `windows` → an empty series."""
+    from apps.health.models import GlucoseEntry
+
+    if not windows:
+        return {"present": False, "event": event, "series": []}
+
+    span_start = min(w.start for w in windows)
+    span_end = max(w.end for w in windows)
+    rows = list(
+        GlucoseEntry.objects.filter(
+            user=user,
+            recorded_at__gte=span_start,
+            recorded_at__lte=span_end,
+        )
+        .only("value", "unit", "recorded_at")
+        .order_by("recorded_at")
+    )
+    series = build_event_frequency_series(GLUCOSE_READING_SPEC, event, windows, rows,
+                                          period_label=period_label)
+    if series is None:
+        # The spec lacks the threshold this event needs — honest, never a fabricated zero.
+        return {"present": False, "event": event, "series": [],
+                "reason": f"glucose has no threshold for event '{event}'."}
+    return series.to_dict()
 
 
 # ── Current Context page summary (the Glucose page's deterministic truth) ──────

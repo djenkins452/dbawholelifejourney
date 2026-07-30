@@ -33,6 +33,11 @@ class HealthDomainTruth(DomainTruth):
     # now adopt the same platform producer. See readings() below.
     reading_metrics = ("glucose", "heart_rate", "blood_pressure", "spo2",
                        "body_temperature")
+    # Event-frequency metrics (how often a named event — a low, a high — happens across
+    # recurring windows: "are my overnight lows getting more frequent"). Glucose is the
+    # first adopter (CGM lows/highs); the other reading metrics adopt the same platform
+    # producer as their episode thresholds are declared. See event_frequency() below.
+    event_frequency_metrics = ("glucose",)
     entity_types = ("workout", "sleep", "body_measurement",
                     "steps", "glucose", "blood_pressure", "weight",
                     "heart_rate", "water", "spo2", "body_temperature")
@@ -91,6 +96,11 @@ class HealthDomainTruth(DomainTruth):
         "body_temperature": HealthHistory.body_temperature,
     }
 
+    _EVENT_FREQUENCY = {
+        # metric -> dotted path to callable(user, event, windows) -> EventFrequencySeries dict
+        "glucose": "apps.health.services.glucose_readings.glucose_event_frequency",
+    }
+
     _READINGS = {
         # metric -> dotted path to callable(user, window) -> ReadingSeries dict
         "glucose": "apps.health.services.glucose_readings.glucose_reading_window",
@@ -114,6 +124,19 @@ class HealthDomainTruth(DomainTruth):
         mod_path, fn_name = target.rsplit(".", 1)
         fn = getattr(import_module(mod_path), fn_name)
         return fn(self.user, window)
+
+    def event_frequency(self, metric, event, windows):
+        """Event-frequency series for a metric ("are my lows getting more frequent").
+        Delegates to the domain's single event-frequency producer (no new retrieval
+        logic here); the caller resolves the recurring windows."""
+        target = self._EVENT_FREQUENCY.get(metric)
+        if target is None:
+            raise KeyError(f"health event_frequency unsupported: {metric!r} "
+                           f"(have {self.event_frequency_metrics})")
+        from importlib import import_module
+        mod_path, fn_name = target.rsplit(".", 1)
+        fn = getattr(import_module(mod_path), fn_name)
+        return fn(self.user, event, windows)
 
     def history(self, metric, period="last_7_days", **kwargs):
         if metric in _BODY_METRICS:

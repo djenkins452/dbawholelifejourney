@@ -99,6 +99,7 @@ def _capabilities() -> dict:
     get_history tool, so the model never guesses a (domain, metric) pair."""
     domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
     truth_readings = {}
+    truth_event_frequency = {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
@@ -114,6 +115,11 @@ def _capabilities() -> dict:
                 for d, s in cat.items()
                 if isinstance(s, dict) and s.get("readings")
             }
+            truth_event_frequency = {
+                d: sorted(s.get("event_frequency", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("event_frequency")
+            }
             truth_entities = {
                 d: sorted(s.get("entities", ()))
                 for d, s in cat.items()
@@ -127,6 +133,7 @@ def _capabilities() -> dict:
     except Exception:  # pragma: no cover - defensive
         domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
         truth_readings = {}
+        truth_event_frequency = {}
     # Plain-language capability semantics — so the model routes by MEANING, not by a
     # domain NAME (e.g. an EATEN meal is `nutrition`, a planned/recipe meal is `meals`).
     # Advertised-only: a domain the model can actually call. One authoritative source
@@ -135,6 +142,7 @@ def _capabilities() -> dict:
     try:
         from apps.core.truth.semantics import domain_semantics as _sem
         advertised = (set(truth_history) | set(truth_readings)
+                      | set(truth_event_frequency)
                       | set(truth_entities) | set(truth_analysis))
         all_sem = _sem()
         domain_semantics = {}
@@ -168,6 +176,11 @@ def _capabilities() -> dict:
         # (glucose CGM, …) — the get_readings tool. Distinct from truth_history, which
         # is per-DAY aggregates only.
         "truth_readings": truth_readings,
+        # How OFTEN a named event (a low, a high) happens across recurring windows, over
+        # time — the get_event_frequency tool. Answers 'are my overnight lows getting
+        # more frequent'; distinct from truth_readings (ONE window) and truth_comparison
+        # (averages, not event counts).
+        "truth_event_frequency": truth_event_frequency,
         # Any truth_history metric is also comparable period-vs-period (get_comparison).
         "truth_comparison": truth_history,
         # Metrics with a stored target — actual-vs-target adherence (get_adherence).
@@ -189,6 +202,16 @@ def _capabilities() -> dict:
                                "and the individual low/high excursions. The ONLY surface "
                                "that answers 'my lows overnight' / 'readings for the last "
                                "12 hours'. Use get_readings."),
+            "truth_event_frequency": ("How OFTEN a named EVENT (a low, a high, an "
+                                      "episode) happens across RECURRING windows over "
+                                      "time — one event count per night/day, plus the "
+                                      "frequency trend (rising/falling/flat), event "
+                                      "rate, and the hour-of-day/weekday clustering of "
+                                      "the events. The ONLY surface that answers 'are my "
+                                      "overnight lows getting MORE FREQUENT', 'are severe "
+                                      "lows increasing', 'what time do my lows cluster'. "
+                                      "Use get_event_frequency; compare two periods by "
+                                      "calling it for each."),
             "truth_comparison": ("ONE metric across TWO periods with the deterministic "
                                  "delta/percent/direction between them — 'this week vs last "
                                  "week', 'yesterday vs today', 'month vs month'. Use "

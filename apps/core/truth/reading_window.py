@@ -142,6 +142,46 @@ def _by_hour(pairs):
     return {"hours": dist, "peak_hour": peak, "lowest_hour": trough}
 
 
+# ── Event selectors (Event Frequency capability reuses THESE thresholds) ──────
+# The named EVENTS a reading window can count, each mapped to (a) the count attribute on
+# a ReadingSeries and (b) a value predicate — both derived from the SAME spec thresholds
+# build_reading_series uses. So the Event Frequency capability counts events without
+# re-deriving any threshold: one source of "what is a low / a high / in range".
+EVENTS = ("low", "urgent_low", "high", "urgent_high", "in_range")
+
+_EVENT_COUNT_ATTR = {
+    "low": "below_low",
+    "urgent_low": "urgent_low_count",
+    "high": "above_high",
+    "urgent_high": "urgent_high_count",
+    "in_range": "in_range",
+}
+
+
+def event_count_attr(event):
+    """The `ReadingSeries` attribute holding the count for `event`, or None."""
+    return _EVENT_COUNT_ATTR.get((event or "").strip().lower())
+
+
+def event_predicate(spec: ReadingWindowSpec, event):
+    """A value→bool predicate for `event`, using the SAME thresholds as
+    build_reading_series. Returns None when the spec lacks the threshold that event
+    needs (e.g. 'urgent_low' with no urgent_low set) — so the caller reports honestly
+    rather than fabricating a zero. Deterministic; the ONE definition of each event."""
+    e = (event or "").strip().lower()
+    if e == "low" and spec.low is not None:
+        return lambda v: v < spec.low
+    if e == "urgent_low" and spec.urgent_low is not None:
+        return lambda v: v < spec.urgent_low
+    if e == "high" and spec.high is not None:
+        return lambda v: v > spec.high
+    if e == "urgent_high" and spec.urgent_high is not None:
+        return lambda v: v > spec.urgent_high
+    if e == "in_range" and spec.low is not None and spec.high is not None:
+        return lambda v: spec.low <= v <= spec.high
+    return None
+
+
 def build_reading_series(spec: ReadingWindowSpec, window: Window, rows: Sequence[Any],
                          *, sample_cap: int = _SAMPLE_CAP,
                          excursion_cap: int = _EXCURSION_CAP,

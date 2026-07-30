@@ -67,6 +67,12 @@ from apps.ai.cos_services.domain_comparison import (
     comparison_capable_domains,
     get_domain_comparison,
 )
+from apps.ai.cos_services.domain_event_frequency import (
+    DOMAIN_EVENT_FREQUENCY_SCHEMA_VERSION,
+    event_frequency_capability_index,
+    event_frequency_capable_domains,
+    get_domain_event_frequency,
+)
 from apps.ai.cos_services.domain_adherence import (
     DOMAIN_ADHERENCE_SCHEMA_VERSION,
     adherence_capability_index,
@@ -140,6 +146,12 @@ __all__ = [
     "comparison_capability_index",
     "comparison_capable_domains",
     "DOMAIN_COMPARISON_SCHEMA_VERSION",
+    # Pillar 1 — event-frequency branch (event counts across recurring windows; reuses
+    # the reading-window stats engine + the Trend primitive)
+    "get_domain_event_frequency",
+    "event_frequency_capability_index",
+    "event_frequency_capable_domains",
+    "DOMAIN_EVENT_FREQUENCY_SCHEMA_VERSION",
     # Pillar 1 — adherence branch (actual vs target; reuses history + target registry)
     "get_domain_adherence",
     "adherence_capability_index",

@@ -36,6 +36,7 @@ from apps.ai.cos_services import (
     get_domain_analysis,
     get_domain_comparison,
     get_domain_entity,
+    get_domain_event_frequency,
     get_domain_history,
     get_domain_readings,
     get_domain_state,
@@ -493,8 +494,8 @@ class ModelInterfaceService:
     # from get_foundational_health_facts, the elliptical follow-up "Yesterday's?" carried
     # no subject and drifted to the Journal domain (0/4 probes stayed on weight).
     _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_readings",
-                              "get_comparison", "get_adherence", "get_analysis",
-                              "get_foundational_health_facts")
+                              "get_event_frequency", "get_comparison", "get_adherence",
+                              "get_analysis", "get_foundational_health_facts")
 
     @classmethod
     def _subject_from_truth_result(cls, name, args, result):
@@ -507,6 +508,8 @@ class ModelInterfaceService:
         if name == "get_history":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name == "get_readings":
+            return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
+        if name == "get_event_frequency":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name in ("get_comparison", "get_adherence"):
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
@@ -668,6 +671,25 @@ class ModelInterfaceService:
                     raw,
                     source=f"readings:{args.get('domain', '')}."
                            f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_event_frequency":
+                raw = get_domain_event_frequency(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    event=args.get("event", "low"),
+                    window=args.get("window", "night"),
+                    period=args.get("period", "last_month"),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"event_frequency:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}.{args.get('event', 'low')}",
                 )
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,

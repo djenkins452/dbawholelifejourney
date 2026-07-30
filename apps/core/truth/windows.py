@@ -177,6 +177,73 @@ def resolve_window(phrase, now):
     return None
 
 
+# ── Recurring daily WINDOW KINDS (Event Frequency capability) ─────────────────
+# Each kind is a local-hour [start, end) band. Single-sourced HERE so "night"/"day"
+# mean the same thing everywhere a per-day window series is built — 'night' is the
+# SAME 00:00–06:00 nocturnal band `resolve_window("overnight")` uses. A KIND is the
+# recurring shape ("each night"); a Window is one concrete occurrence of it.
+WINDOW_KINDS = {
+    "night":     (_OVERNIGHT_START_HOUR, _OVERNIGHT_END_HOUR),  # 00:00–06:00
+    "morning":   (6, 12),
+    "afternoon": (12, 18),
+    "evening":   (18, 24),
+    "day":       (6, 24),    # waking hours — the complement of night
+    "full_day":  (0, 24),    # the whole calendar day
+}
+
+# The most daily windows one Event Frequency series will span — ~a quarter of days.
+# A request beyond this is clamped (start pulled forward) and flagged, never silently
+# truncated — the same clamp-and-tell ethos as MAX_WINDOW_HOURS.
+MAX_EVENT_WINDOWS = 92
+
+
+def daily_windows(kind, start_date, end_date, now):
+    """A list of same-KIND intra-day `Window`s, one per calendar day across the
+    inclusive [start_date, end_date] range — the deterministic day-by-day scoping the
+    Event Frequency capability counts events over. 'night' → each day's 00:00–06:00,
+    'day' → each day's 06:00–24:00, etc.
+
+    `now` is the user's aware LOCAL now; windows are clamped to it (a window whose start
+    is in the future is dropped; the current partial window ends at `now`). The range is
+    clamped to the most recent MAX_EVENT_WINDOWS days (the returned windows carry
+    `clamped=True` on the earliest one when that happens). Returns [] for an unknown
+    kind or an empty/backwards range. The ONE place a per-day window series is scoped —
+    no domain re-derives daypart bounds. Never raises.
+    """
+    bounds = WINDOW_KINDS.get((kind or "").strip().lower())
+    if bounds is None or start_date is None or end_date is None:
+        return []
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
+    start_hour, end_hour = bounds
+    label = (kind or "").strip().lower()
+
+    # Enumerate days, most-recent-first, so a clamp keeps the RECENT windows.
+    days = []
+    d = end_date
+    while d >= start_date and len(days) < MAX_EVENT_WINDOWS:
+        days.append(d)
+        d -= timedelta(days=1)
+    clamped = d >= start_date            # ran into the cap before covering the range
+    days.reverse()                       # back to ascending
+
+    windows = []
+    for i, day in enumerate(days):
+        w_start = now.replace(year=day.year, month=day.month, day=day.day,
+                              hour=0, minute=0, second=0, microsecond=0) \
+            + timedelta(hours=start_hour)
+        w_end = now.replace(year=day.year, month=day.month, day=day.day,
+                            hour=0, minute=0, second=0, microsecond=0) \
+            + timedelta(hours=end_hour)
+        if w_start >= now:               # window hasn't started yet — skip future
+            continue
+        if w_end > now:                  # current partial window — up to now
+            w_end = now
+        windows.append(Window(label, w_start, w_end, f"{label} of {day.isoformat()}",
+                              clamped=(clamped and i == 0)))
+    return windows
+
+
 def window_from_period(period, now):
     """Widen a whole-day `Period` (from `periods.py`) into a `Window` spanning local
     midnight of `period.start` to end-of-day of `period.end` — clamped to `now` when

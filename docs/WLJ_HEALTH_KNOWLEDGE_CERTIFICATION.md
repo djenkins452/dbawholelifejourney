@@ -14,7 +14,7 @@ Certification is no longer produced by architectural reasoning; it is a **perman
 - **Extend, don't reinvent:** future Health work = add a `Question` to the catalog. Certification becomes "can the CoS answer every question in the catalog?", never "can someone think of more questions?"
 - **Reusable framework:** the framework is domain-agnostic (Requirement = `(capability, domain, target)` checked against the wired registries). Finance / Faith / Relationships / Journal / Goals / Medical / Travel each add a catalog module and register in `question_catalog._DOMAIN_MODULES`. **Health is the reference catalog** — the first proven implementation; other domains adopt the same pattern with zero new framework code.
 
-**Current live status: 74 / 80 Health questions certified (92.5%).** The 6 gaps below each need a NEW platform capability or a page that does not exist — genuine future milestones, not oversights.
+**Current live status: 78 / 83 Health questions certified (94.0%).** The 5 gaps below each need a NEW platform capability or a page that does not exist — genuine future milestones, not oversights.
 
 ---
 
@@ -42,6 +42,7 @@ Per the mandate ("build ONE comparison capability, not nutrition/weight/glucose 
 | **Comparison** | `get_comparison(domain, metric, period_a, period_b)` (`domain_comparison.py`) | composes two `get_domain_history` reads | **every** history metric |
 | **Adherence** | `get_adherence(domain, metric, period)` (`domain_adherence.py`) + target registry (`core/truth/targets.py`) | composes history (actual) vs a registered target | any metric with a registered target |
 | **Reading series** | `get_readings` (prior Glucose milestone) | `reading_window` + `windows` | high-frequency metrics (glucose; HR/SpO2 phased) |
+| **Event frequency** | `get_event_frequency(domain, metric, event, window, period)` (`domain_event_frequency.py`) | counts each recurring window with `build_reading_series`, derives the trend from `HistorySeries.change()`, adds rate/by-hour/by-weekday/highest·lowest | any metric with a reading spec + event thresholds (glucose; vitals phased) |
 
 These are advertised in the capability index (`truth_comparison`, `truth_adherence`) so the
 model discovers them, and they are catalog/registry-driven — a metric participates the moment
@@ -56,7 +57,7 @@ it declares a history series or registers a target.
 | Domain | Representative customer questions | Verdict | Truth path |
 |---|---|---|---|
 | **Glucose** | overnight lows? time below 70? what time of night? last urgent low? | ✅ | `get_readings` (below_low, urgent, by_hour, low_excursions) |
-| | are overnight lows getting *more frequent*? | ◑ | two `get_readings` windows, model compares counts (no excursion-frequency series) |
+| | are overnight lows getting *more frequent*? are severe lows increasing? more lows this month than last? | ✅ | `get_event_frequency` (per-night counts + reused trend + event_rate + by_hour) |
 | **Nutrition** | enough carbs/protein/calories? over sugar limit? | ✅ | `get_adherence` (target/actual/variance) |
 | | which macros am I consistently missing? | ✅ | `get_adherence` per macro |
 | | which meals have the most carbs? | ◑ | `get_entity('meal')` detail, model ranks (no ranked-by-macro surface) |
@@ -88,23 +89,30 @@ it declares a history series or registers a target.
 - **Current Context (closed "Needs Current Context"):** page summaries for steps, sleep, heart rate, blood pressure, water via a reusable `_metric_page_summary` (reuses history+trend+adherence). Mixin added to the five blind views.
 - **Adherence targets:** water (64 oz app default). Steps already registered.
 
+## Shipped (milestone 3 — Event Frequency Analysis, Phase 3b)
+
+- **Event Frequency capability** (`apps/core/truth/event_frequency.py`) — the FOURTH numeric-truth shape: one deterministic event count per **recurring window** (each night/day/…) across a period, so "are my overnight lows getting *more frequent*" is answerable where readings (one window) and comparison (averages) could not. Reuse-only: the per-window count is `build_reading_series` (the reading-window stats engine), the event threshold is `event_predicate` (the reading-window thresholds), and the frequency **trend is `HistorySeries.change()`** — Trend simply consumes the series. Owns only the frequency analytics Trend does not: `total_events`, `average_events_per_window`, `event_rate`, `windows_with_event`, highest/lowest window, `by_hour` / `by_weekday` clustering of the events, and a moving average. Every rate/average/trend is over windows that **had data** — a night with no reading is UNKNOWN, never a fabricated "0 events".
+- **Window scoping** (`windows.py :: daily_windows`, `WINDOW_KINDS`) — one place that means `night` = 00:00–06:00 everywhere (the same bounds as `resolve_window("overnight")`).
+- **Model surface + tool** — `get_domain_event_frequency` (`domain_event_frequency.py`) + the `get_event_frequency` tool, advertised via `capabilities.truth_event_frequency`. Glucose is the first adopter (`glucose_event_frequency`, ONE bulk query, no parallel retrieval); vitals adopt the same producer as their episode thresholds land.
+- **Certified questions** (event_frequency capability): `lows_more_frequent`, `daytime_lows_frequency`, `severe_lows_increasing`, `lows_month_over_month`.
+
 ## Questions still impossible (and exactly why)
 
-1. **"Are my overnight lows becoming more frequent?"** — comparison compares history *averages/totals*, not reading-window *excursion counts* across windows. Needs an excursion-frequency series or a comparison mode over reading-window stats. (◑ today: model compares two `get_readings` windows.)
-2. **"When did my weight trend change?"** — no deterministic change-point detection. Trend gives one slope over the window, not the inflection date.
-3. **"How consistent is my sleep schedule?"** — no bedtime-variance/consistency metric (a variance/regularity platform capability).
-4. **"Is my recovery / HRV improving?"** — `SleepEntry.heart_rate_avg/min/max` + `respiratory_rate` exist but are not exposed as history metrics; no recovery composite.
-5. **"Which meals have the most carbs?"** — meal record detail exists (`get_entity('meal')`) but there is no ranked-by-macro surface; the model must rank the returned records.
-6. **"Did exercise change my HR baseline?"** — cross-domain correlation; answerable by the model reasoning over two deterministic reads, not a single surface.
+1. **"When did my weight trend change?"** — no deterministic change-point detection. Trend gives one slope over the window, not the inflection date.
+2. **"How consistent is my sleep schedule?"** — no bedtime-variance/consistency metric (a variance/regularity platform capability).
+3. **"Is my recovery / HRV improving?"** — `SleepEntry.heart_rate_avg/min/max` + `respiratory_rate` exist but are not exposed as history metrics; no recovery composite.
+4. **"Which meals have the most carbs?"** — meal record detail exists (`get_entity('meal')`) but there is no ranked-by-macro surface; the model must rank the returned records.
+5. **"Did exercise change my HR baseline?"** — cross-domain correlation; answerable by the model reasoning over two deterministic reads, not a single surface.
 
 ## Phased backlog (deferred = phased, with promotion triggers)
 
 - **Phase 2c — Remaining Current Context:** fitness, health-intelligence, blood-oxygen pages (no temperature page exists). **Trigger:** page touch or a "look at this page" miss.
 - **Phase 3a — Variance/consistency platform capability** → sleep schedule consistency, glucose variability (generalize the glucose-specific CV). **Trigger:** a consistency/variability question.
-- **Phase 3b — Excursion-frequency trend** (reusable comparison over reading-window stats) → "lows getting more frequent". **Trigger:** the glucose-frequency question recurs.
+- **Phase 3b — Event Frequency Analysis** — ✅ SHIPPED (see milestone 3 above). Reusable event-count-over-recurring-windows series; glucose first, vitals phased.
 - **Phase 3c — Recovery/HRV exposure** (SleepEntry cardiac fields → history) + change-point detection. **Trigger:** a recovery or "when did it change" question.
 
 ## Invariants (do not regress)
 - WLJ exposes **facts** (target, actual, variance, direction) — the model renders the verdict ("in line", "improving"). Trend direction is arithmetic, never "better/worse".
 - ONE producer per truth; comparison/adherence **compose** existing surfaces and add no parallel retrieval.
 - A missing target returns `no_target` (never treated as zero); an empty window returns `empty` (never "the metric is unavailable").
+- Event Frequency counts events only over windows that HAD DATA — a night with no reading is UNKNOWN, never a fabricated "0 events" (a run of no-data nights must never fake a downward trend).

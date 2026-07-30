@@ -1197,6 +1197,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Health Question Certification (PK 289)
         self._reset_health_question_cert_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Event Frequency Analysis (PK 290)
+        self._reset_event_frequency_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2725,6 +2728,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset health question cert fixtures FAILED: {e}'))
+
+    def _reset_event_frequency_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 290) for Event Frequency Analysis:
+        the CoS can now answer "are my overnight lows getting more frequent", "are severe
+        lows increasing", and "what time of night do my lows happen" from deterministic
+        event counts across recurring windows, with the reused frequency trend.
+        """
+        reset_tracker_name = 'reset_event_frequency_2026_07_30'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for event frequency')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Event Frequency Analysis (Jul 2026)',
+                'command', 'One-time reset to reload PK 290 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset event frequency fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

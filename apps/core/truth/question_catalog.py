@@ -22,6 +22,7 @@ the registry that proves it is wired for that (domain, target):
 
     history / trend / comparison  -> history_capability_index      (any per-day series)
     readings / by_hour            -> readings_capability_index      (intra-day stream)
+    event_frequency               -> event_frequency_capability_index (event-count series)
     adherence                     -> target registry                (a stored target)
     analysis                      -> analysis_capability_index       (an analysis subject)
     current                       -> truth_catalog[domain]["current"]
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 # certifier can consult. A requirement outside this set is a declared FUTURE capability.
 KNOWN_CAPABILITIES = frozenset({
     "current_context", "current", "history", "trend", "comparison",
-    "adherence", "analysis", "readings", "by_hour",
+    "adherence", "analysis", "readings", "by_hour", "event_frequency",
 })
 
 # The eight question CATEGORIES a domain is certified across (the dimensions).
@@ -111,6 +112,11 @@ def _index(name):
         if name == "readings":
             from apps.ai.cos_services.domain_readings import readings_capability_index
             return readings_capability_index()
+        if name == "event_frequency":
+            from apps.ai.cos_services.domain_event_frequency import (
+                event_frequency_capability_index,
+            )
+            return event_frequency_capability_index()
         if name == "adherence":
             from apps.core.truth.targets import target_capability_index
             return target_capability_index()

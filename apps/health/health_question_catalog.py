@@ -56,11 +56,26 @@ _q("health.glucose.readings_lows", "glucose", "readings",
 _q("health.glucose.time_of_night_lows", "glucose", "readings",
    ["what time of night do my lows usually occur"],
    [R("by_hour", "health", "glucose")])
+# Event Frequency Analysis (Phase 3b) — how OFTEN an event happens across recurring
+# windows, over time. The reusable platform capability that counts each night/day and
+# derives the frequency trend (reusing the reading-window stats engine + the Trend
+# primitive). Certifies the whole "are my <events> getting more frequent / more severe /
+# clustered / more than last month" family from ONE capability.
 _q("health.glucose.lows_more_frequent", "glucose", "trend",
-   ["are my overnight lows getting more frequent", "is this becoming more frequent"],
-   [R("excursion_frequency", "health", "glucose")],
-   note="GAP: comparison works on averages/totals, not on excursion COUNTS across "
-        "windows. Needs an excursion-frequency series (Phase 3b).")
+   ["are my overnight lows getting more frequent", "is this becoming more frequent",
+    "are my overnight lows increasing"],
+   [R("event_frequency", "health", "glucose")])
+_q("health.glucose.daytime_lows_frequency", "glucose", "trend",
+   ["are my daytime lows becoming more frequent"],
+   [R("event_frequency", "health", "glucose")])
+_q("health.glucose.severe_lows_increasing", "glucose", "trend",
+   ["are severe lows increasing", "am I having more dangerous events",
+    "are my urgent lows increasing"],
+   [R("event_frequency", "health", "glucose")])
+_q("health.glucose.lows_month_over_month", "glucose", "comparison",
+   ["did I have more lows this month than last month",
+    "did I have fewer dangerous events this quarter"],
+   [R("event_frequency", "health", "glucose")])
 
 # ── NUTRITION (domain 'nutrition') ───────────────────────────────────────────
 _q("nutrition.current_context", "nutrition", "current_context",

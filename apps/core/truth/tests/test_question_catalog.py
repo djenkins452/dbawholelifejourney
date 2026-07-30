@@ -21,7 +21,7 @@ from apps.core.truth.question_catalog import (
 # capability or a page that does not exist. Locked so regressions/closures are surfaced.
 EXPECTED_HEALTH_GAPS = {
     "health.body_temperature.current_context",   # no temperature overview page (Phase 2c)
-    "health.glucose.lows_more_frequent",         # excursion-frequency capability (Phase 3b)
+    # health.glucose.lows_more_frequent — CLOSED (Phase 3b: Event Frequency Analysis).
     "health.heart_rate.recovery",                # HRV/recovery exposure (Phase 3c)
     "health.sleep.consistency",                  # variance/consistency capability (Phase 3a)
     "health.weight.trend_change_point",          # change-point capability (Phase 3c)

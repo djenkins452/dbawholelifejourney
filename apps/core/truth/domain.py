@@ -34,6 +34,7 @@ _KNOWN_PROVIDER_MODULES = (
     "apps.purpose.services.habit_domain_truth",       # Habits Canonical Truth
     "apps.notes.notes_domain_truth",                  # Notes Canonical Truth
     "apps.capture.services.capture_domain_truth",     # Capture Canonical Truth
+    "apps.capture.services.artifact_domain_truth",     # Uploaded Artifacts as Truth (retrieval)
     "apps.brain_training.services.brain_training_domain_truth",  # Brain Training Canonical Truth
     "apps.core.truth.domain_rollout",   # journal, calendar, tasks, faith, relationships
 )
@@ -82,6 +83,7 @@ class DomainTruth:
     current_metrics = ()          # introspection: metrics current() supports
     history_metrics = ()          # introspection: metrics history() supports
     reading_metrics = ()          # introspection: metrics readings() supports (intra-day)
+    event_frequency_metrics = ()  # introspection: metrics event_frequency() supports
 
     def __init__(self, user):
         self.user = user
@@ -106,6 +108,21 @@ class DomainTruth:
         unsupported metric."""
         raise NotImplementedError(
             f"{self.domain} domain truth exposes no readings()")
+
+    # EVENT-FREQUENCY CAPABILITY (how often an event happens over time) --------
+    # The SERIES companion to readings(). readings() answers "what were my lows THIS
+    # night"; event_frequency() answers "are my lows becoming MORE FREQUENT" — one event
+    # count per recurring window (each night/day/…), plus the frequency trend + time-of-
+    # day clustering (see apps.core.truth.event_frequency). A domain opts in by declaring
+    # `event_frequency_metrics` and returning an EventFrequencySeries.to_dict(). The
+    # caller (Model Interface) resolves the recurring `windows`; the domain owns ONE bulk
+    # query; the platform owns the counts (build_reading_series) and the trend (Trend).
+    def event_frequency(self, metric, event, windows):
+        """Return an EventFrequencySeries dict (apps.core.truth.event_frequency) counting
+        `event` (e.g. 'low') for `metric` across the recurring `windows`
+        (apps.core.truth.windows.Window list). Raise KeyError for an unsupported metric."""
+        raise NotImplementedError(
+            f"{self.domain} domain truth exposes no event_frequency()")
 
     def state(self):
         from apps.core.ai_state.state_engine import get_module_state
@@ -190,5 +207,6 @@ class DomainTruth:
         return {"current": tuple(self.current_metrics),
                 "history": tuple(self.history_metrics),
                 "readings": tuple(self.reading_metrics),
+                "event_frequency": tuple(self.event_frequency_metrics),
                 "entities": tuple(self.entity_types),
                 "analysis": tuple(self.analysis_subjects)}

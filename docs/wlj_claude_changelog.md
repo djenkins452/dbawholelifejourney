@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-29 (feat(truth): Question Catalog — data-driven self-verifying certification artifact + framework; Health = reference catalog, 74/80 certified)
+# Last Updated: 2026-07-30 (docs(startup): Session Transition — Health Question Certification folded to 01 §5/§6 + 03 §3i; bootloader → Excursion Frequency Trend next; no code)
 # ================================================================# WLJ Change History
+
+## 2026-07-30 — docs(startup): Session Transition — Health Question Certification folded up as the governing certification model; bootloader points next session at Excursion Frequency Trend (no code)
+
+**Session-transition close-out for the Health Question Certification arc (Glucose CC fix → Truth-Exposure pattern → Reading Series → Trend/Comparison/Adherence → Domain→Question Certification → data-driven Question Catalog → self-verifying certification). Zero production code changed** — all code shipped earlier this session (`caec460a`→`1e4fe3d9`); this folds the durable architectural lessons into the permanent startup package and regenerates the bootloader.
+
+- **Durable knowledge folded (permanent, no duplication):**
+  - **`01 §5` (maturity, new bullet)** — Health Question Certification is the governing model; the reusable question-truth spine (Reading Series · Trend · Comparison · Adherence · hour-of-day distribution) + the data-driven Question Catalog are COMPLETE; Health at 74/80 (92.5%).
+  - **`01 §6` (new lesson)** — *Certify QUESTIONS, not domains — and make certification a data-driven artifact that verifies itself against live truth.* The three durable rules: the unit of certification is the customer's question; build ONE reusable platform capability, never per-domain logic; certification is COMPUTED from live registries, never asserted (add a `Question`, close its first-failing-layer).
+  - **`03 §3i` (new engineering discipline)** — the Question Catalog is the standard (extend it, don't re-derive it; `certify_questions` + the ratchet test); and the reusable-capability discipline (a metric that declares current+history inherits trend/comparison/analysis; `nutrition_comparison`/`weight_comparison` is the anti-pattern).
+- **Reference Index (`99 §B`):** added `docs/WLJ_HEALTH_KNOWLEDGE_CERTIFICATION.md` (Governing — the Health certification model + the Question Catalog standard).
+- **Bootloader (`00`):** header + PRIMARY FOCUS rewritten — Health QUESTION Certification is the governing model; the reusable spine is permanent infrastructure (consume, don't redesign); **NEXT MILESTONE = PRIORITY 1 Excursion Frequency Trend** with enough architectural context to begin immediately (the gap it closes = event-FREQUENCY questions, not average glucose; how it builds on Reading Series = cross-window trend of excursion counts; why reusable = any event-based metric — glucose lows/highs, BP excursions, future arrhythmia/med-misses; why P1 = highest-stakes health-safety class + lowest new-architecture cost). Priority roadmap P2 Sleep Consistency → P3 Change-Point → P4 HRV/Recovery → P5 Ranked-Entity, each named to its catalog gap + first-failing-layer; **Temperature Current Context explicitly DEFERRED** (implement only when Temperature becomes an active workspace). Superseded verbose 2026-07-25 header trimmed (pointer preserved); all parallel tracks (Operations, Meal, Journal, Travel) + deferred roadmap + Waiting-on-Danny + concurrency **preserved**.
+- **No Constitution / Danny-Preferences change** (certification doctrine is architecture/engineering, folded to `01`/`03`; nothing constitutional or collaboration-level established). **No workflow-doc change** — nothing new about the transition workflow itself; the `98` concurrency caveat covered this multi-track close cleanly. **No release note** (internal; the user-visible capability shipped under PKs 287–289 earlier this session). **No production code, tests, or migrations touched.** Committed by explicit pathspec (concurrent foreign uncommitted work — `.gitignore`, `apps/core/truth/domain.py`, Renpho/Danny_Story docs — left untouched).
 
 ## 2026-07-29 — feat(truth): Question Catalog — data-driven, self-verifying certification as a permanent platform artifact (Health = reference)
 

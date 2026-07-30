@@ -5,6 +5,17 @@
 
 Glucose is the gold-standard reference. This milestone closed the "Needs New Truth" and "Needs Current Context" rows for heart rate, water, SpO2, temperature, blood pressure, steps, and sleep — via the reusable spine (a metric with current+history inherits trend/comparison/analysis; a reading series adds intra-day + time-of-day; a registered target adds adherence).
 
+## THE CERTIFICATION IS DATA-DRIVEN — the Question Catalog is the standard
+
+Certification is no longer produced by architectural reasoning; it is a **permanent, machine-checked artifact**. Each domain declares its real customer questions in a **Question Catalog** (`apps/health/health_question_catalog.py` for Health); each question declares the deterministic truth it REQUIRES; and the reusable framework (`apps/core/truth/question_catalog.py`) **computes** `certified` by checking those requirements against the LIVE capability registries. A question auto-certifies the day its required surface ships.
+
+- **Run it:** `python manage.py certify_questions health` (add `--gaps` for only the failures).
+- **Enforced:** `apps/core/truth/tests/test_question_catalog.py` ratchets the certified set — if a certified question regresses (a surface broke) or a gap closes, the test fails until the catalog lock is reviewed.
+- **Extend, don't reinvent:** future Health work = add a `Question` to the catalog. Certification becomes "can the CoS answer every question in the catalog?", never "can someone think of more questions?"
+- **Reusable framework:** the framework is domain-agnostic (Requirement = `(capability, domain, target)` checked against the wired registries). Finance / Faith / Relationships / Journal / Goals / Medical / Travel each add a catalog module and register in `question_catalog._DOMAIN_MODULES`. **Health is the reference catalog** — the first proven implementation; other domains adopt the same pattern with zero new framework code.
+
+**Current live status: 74 / 80 Health questions certified (92.5%).** The 6 gaps below each need a NEW platform capability or a page that does not exist — genuine future milestones, not oversights.
+
 ---
 
 ## The 9 certification dimensions

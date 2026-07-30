@@ -96,6 +96,13 @@ def register_page_summary(key):
     return _decorator
 
 
+def registered_page_summaries():
+    """The set of registered page-summary keys (e.g. {"health.weight", …}). Read-only
+    view of the registry — used by the Question Catalog certifier to verify a page
+    declares Current Context."""
+    return frozenset(_PAGE_SUMMARY_PROVIDERS)
+
+
 def _parse_summary_params(param_str):
     """Parse the optional ';k=v;k=v' tail of a summary ref into a flat dict (values are
     strings). Deterministic view state only (e.g. a selected chart point) — never truth."""

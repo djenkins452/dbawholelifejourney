@@ -243,6 +243,18 @@ def sleep_page_summary(user, params):
                                 history_metric="sleep")
 
 
+@register_page_summary("health.blood_oxygen")
+def blood_oxygen_page_summary(user, params):
+    return _metric_page_summary(user, title="Blood Oxygen", kind="blood oxygen overview",
+                                history_metric="spo2")
+
+
+@register_page_summary("health.fitness")
+def fitness_page_summary(user, params):
+    return _metric_page_summary(user, title="Fitness", kind="fitness overview",
+                                history_metric="workouts")
+
+
 @register_page_summary("health.glucose")
 def glucose_page_summary(user, params):
     """The Glucose dashboard. Deterministic facts only — reads the ONE producer

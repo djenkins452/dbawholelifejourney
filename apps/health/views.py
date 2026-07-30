@@ -1577,7 +1577,9 @@ class QuickLogView(LoginRequiredMixin, TemplateView):
 # =============================================================================
 
 
-class FitnessHomeView(HelpContextMixin, LoginRequiredMixin, TemplateView):
+class FitnessHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, TemplateView):
+    page_summary_key = "health.fitness"
+    page_summary_title = "Fitness"
     """
     Fitness module home - overview of workouts and progress.
     """
@@ -6097,7 +6099,9 @@ class BloodPressureDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 # =============================================================================
 
 
-class BloodOxygenListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class BloodOxygenListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.blood_oxygen"
+    page_summary_title = "Blood Oxygen"
     """
     List blood oxygen (SpO2) entries.
     """

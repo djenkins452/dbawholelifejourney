@@ -3,8 +3,26 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-29 (feat(truth): Health QUESTION Certification — new-truth vitals HR/water/SpO2/temp + hour-of-day distribution + blind-page Current Context; certify by question)
+# Last Updated: 2026-07-29 (feat(truth): Question Catalog — data-driven self-verifying certification artifact + framework; Health = reference catalog, 74/80 certified)
 # ================================================================# WLJ Change History
+
+## 2026-07-29 — feat(truth): Question Catalog — data-driven, self-verifying certification as a permanent platform artifact (Health = reference)
+
+**Turned certification from an architect's report into a permanent, machine-checked artifact.** Certification is now COMPUTED, not asserted: a catalog declares the real customer questions; each declares the deterministic truth it REQUIRES; a reusable framework checks those requirements against the LIVE capability registries.
+
+- **Reusable framework** `apps/core/truth/question_catalog.py`: `Question` (id, domain, topic, category, NL examples, requirements, note) + `Requirement(capability, domain, target)`. The certifier maps each capability to the registry that proves it wired — history/trend/comparison→history index, readings/by_hour→readings index, adherence→target registry, analysis→analysis index, current→truth_catalog, current_context→page-summary registry. A requirement naming a capability outside `KNOWN_CAPABILITIES` (e.g. `change_point`, `consistency`) is a declared FUTURE capability → the question reports uncertified with that exact first-failing-layer, and auto-certifies when the capability ships. Domain-agnostic — Finance/Faith/Relationships/Journal/Goals/Medical/Travel add a catalog module + one entry in `_DOMAIN_MODULES`; **Health is the reference catalog**.
+- **Health Question Catalog** `apps/health/health_question_catalog.py`: 80 questions across 12 topics (glucose, nutrition, weight, sleep, heart rate, blood pressure, body composition, steps, SpO2, temperature, water, workouts) and all 8 categories (current context / current / history / trend / comparison / adherence / analysis / readings), each with the exact truth it needs and NL examples straight from the customer's mouth.
+- **Operator artifact:** `python manage.py certify_questions [domain] [--gaps]` renders the live matrix.
+- **Enforced standard:** `apps/core/truth/tests/test_question_catalog.py` ratchets the certified set (a regressed surface or a closed gap fails the test until the lock is reviewed). Certification := "can the CoS answer every question in the catalog?"
+- **Closed 2 more blind pages** to raise certification: `health.blood_oxygen` + `health.fitness` page summaries (reuse `_metric_page_summary`) + `PageSummaryMixin` on BloodOxygenListView/FitnessHomeView; added `registered_page_summaries()` accessor.
+
+**Live status: 74/80 Health questions certified (92.5%).** The 6 gaps each need a NEW platform capability or a page that doesn't exist — declared in the catalog with computed first-failing-layers and phased: temperature overview page (2c); excursion-frequency trend (3b); HRV/recovery exposure (3c); sleep-consistency variance (3a); weight change-point (3c); ranked-by-macro meals (3+). Building those 5 algorithmic capabilities + 1 new page are discrete future milestones — deliberately NOT rushed into this change.
+
+**Constitutional check:** the framework certifies TRUTH AVAILABILITY (facts), never answer quality; no reasoning in WLJ; read-only computation over registries. No Constitutional Article touched.
+
+**Verification:** `test_question_catalog.py` (framework well-formedness, gap-reason validity, ≥90% certified ratchet, locked-gap-set equality) + re-ran question-certification/capabilities/home-summary/glucose-CC/truth-surface/**retrieval-authority**/request-path suites — 68+ pass, no regressions. `manage.py certify_questions health` = 74/80. check clean; no migrations. Pre-existing unrelated `test_domain_truth` failure persists (not introduced here).
+
+**Files:** NEW `apps/core/truth/question_catalog.py`, `apps/health/health_question_catalog.py`, `apps/core/management/commands/certify_questions.py`, `apps/core/truth/tests/test_question_catalog.py`. MODIFIED `apps/core/current_context.py` (registered_page_summaries), `apps/health/page_summaries.py` (+2 providers), `apps/health/views.py` (+2 mixins), `docs/WLJ_HEALTH_KNOWLEDGE_CERTIFICATION.md`.
 
 ## 2026-07-29 — feat(truth): Health QUESTION Certification — close new-truth vitals (HR/water/SpO2/temp) + blind-page Current Context; certify by question, not domain
 

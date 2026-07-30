@@ -72,6 +72,16 @@ def _sodium(user):
     return _macro_target(user, "daily_sodium_limit_mg", "mg", kind="limit")
 
 
+# ── Water (domain "health") ────────────────────────────────────────────────
+@register_target("health", "water")
+def _water(user):
+    """Daily hydration target in oz. Uses the app's canonical default (64 oz) that
+    WaterEntry.get_daily_goal_progress already applies — NOT an invented number; it is
+    the established product default the water page renders against."""
+    return Target(value=64.0, unit="oz", kind="target", basis="daily",
+                  source="WaterEntry.get_daily_goal_progress(default)")
+
+
 # ── Steps (domain "health") ────────────────────────────────────────────────
 @register_target("health", "steps")
 def _steps(user):

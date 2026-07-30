@@ -1076,7 +1076,9 @@ class FastingDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 
 # Heart Rate Views
 
-class HeartRateListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class HeartRateListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.heart_rate"
+    page_summary_title = "Heart Rate"
     """
     List heart rate entries.
     """
@@ -1179,7 +1181,9 @@ class HeartRateDeleteView(LoginRequiredMixin, UndoDeleteMixin, View):
 # =============================================================================
 
 
-class StepsListView(LoginRequiredMixin, ListView):
+class StepsListView(PageSummaryMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.steps"
+    page_summary_title = "Steps"
     """
     List steps entries.
     """
@@ -1322,7 +1326,9 @@ class BulkDeleteStepsView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class WaterListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class WaterListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.water"
+    page_summary_title = "Water"
     """
     List water/hydration entries.
     """
@@ -5980,7 +5986,9 @@ class SaveMealAsTemplateAPIView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class BloodPressureListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class BloodPressureListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.blood_pressure"
+    page_summary_title = "Blood Pressure"
     """
     List blood pressure entries.
     """
@@ -7244,7 +7252,9 @@ class BulkDeleteFastingView(LoginRequiredMixin, View):
 # =============================================================================
 
 
-class SleepListView(HelpContextMixin, LoginRequiredMixin, ListView):
+class SleepListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, ListView):
+    page_summary_key = "health.sleep"
+    page_summary_title = "Sleep"
     """
     List sleep entries with stats and trends.
     """

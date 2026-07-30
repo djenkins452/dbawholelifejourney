@@ -70,7 +70,8 @@ DOMAIN_SEMANTICS = {
     # ── Health & body ────────────────────────────────────────────────────────
     "health": {
         "purpose": ("Body vitals and fitness measured over time: weight, sleep, "
-                    "steps, glucose, blood pressure, body measurements, and workouts."),
+                    "steps, glucose, blood pressure, heart rate, blood oxygen (SpO2), "
+                    "body temperature, water, body measurements, and workouts."),
         "entities": {
             "workout": "A completed workout with its exercises, sets, reps, and weights.",
             "sleep": "A night's sleep record.",
@@ -79,9 +80,14 @@ DOMAIN_SEMANTICS = {
             "glucose": "A glucose reading.",
             "blood_pressure": "A blood-pressure reading.",
             "weight": "A weight reading.",
+            "heart_rate": "A heart-rate reading (bpm), with context (resting/active).",
+            "water": "A hydration/water-intake entry.",
+            "spo2": "A blood-oxygen (SpO2 %) reading.",
+            "body_temperature": "A body-temperature reading.",
         },
         "cues": ["how's my weight", "did I work out", "my blood pressure",
-                 "how did I sleep", "steps today"],
+                 "how did I sleep", "steps today", "resting heart rate",
+                 "am I drinking enough water", "my oxygen level"],
     },
     "medicine": {
         "purpose": ("Medications, supplements, OTC and wellness products the person "

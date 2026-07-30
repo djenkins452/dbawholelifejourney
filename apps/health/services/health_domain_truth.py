@@ -23,15 +23,19 @@ class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
     history_metrics = (("steps", "sleep", "weight", "workouts",
-                        "glucose", "bp_systolic", "bp_diastolic", "bp_pulse")
+                        "glucose", "bp_systolic", "bp_diastolic", "bp_pulse",
+                        "heart_rate", "resting_heart_rate", "water", "spo2",
+                        "body_temperature")
                        + _BODY_METRICS)
-    # Intra-day reading windows (individual timestamped samples + excursions over an
-    # arbitrary datetime Window) — the shape for HIGH-FREQUENCY streams. Glucose (CGM)
-    # is the first adopter; heart rate / SpO2 / blood pressure add a spec + one line
-    # here as their models gain sub-day accessors. See readings() below.
-    reading_metrics = ("glucose",)
+    # Intra-day reading windows (individual timestamped samples + excursions + hour-of-day
+    # distribution over an arbitrary datetime Window) — the shape for HIGH-FREQUENCY
+    # streams. Glucose (CGM) was first; heart rate / blood pressure / SpO2 / temperature
+    # now adopt the same platform producer. See readings() below.
+    reading_metrics = ("glucose", "heart_rate", "blood_pressure", "spo2",
+                       "body_temperature")
     entity_types = ("workout", "sleep", "body_measurement",
-                    "steps", "glucose", "blood_pressure", "weight")
+                    "steps", "glucose", "blood_pressure", "weight",
+                    "heart_rate", "water", "spo2", "body_temperature")
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
     # surfaces into one evidence bundle (see DomainTruth.analysis_subjects). Subjects
@@ -55,6 +59,20 @@ class HealthDomainTruth(DomainTruth):
         "waist":            {"history_metric": "waist", "entity_type": "body_measurement"},
         "body_fat":         {"history_metric": "body_fat_pct",
                              "entity_type": "body_measurement"},
+        # Vitals — models existed but were analysis-blind (and history-blind). Each
+        # composes its new per-day series + record detail.
+        "heart_rate":       {"history_metric": "resting_heart_rate",
+                             "entity_type": "heart_rate"},
+        "resting_heart_rate": {"history_metric": "resting_heart_rate",
+                               "entity_type": "heart_rate"},
+        "water":            {"history_metric": "water", "entity_type": "water"},
+        "hydration":        {"history_metric": "water", "entity_type": "water"},
+        "spo2":             {"history_metric": "spo2", "entity_type": "spo2"},
+        "blood_oxygen":     {"history_metric": "spo2", "entity_type": "spo2"},
+        "body_temperature": {"history_metric": "body_temperature",
+                             "entity_type": "body_temperature"},
+        "temperature":      {"history_metric": "body_temperature",
+                             "entity_type": "body_temperature"},
     }
 
     _HISTORY = {
@@ -66,11 +84,20 @@ class HealthDomainTruth(DomainTruth):
         "bp_systolic": HealthHistory.bp_systolic,
         "bp_diastolic": HealthHistory.bp_diastolic,
         "bp_pulse": HealthHistory.bp_pulse,
+        "heart_rate": HealthHistory.heart_rate,
+        "resting_heart_rate": HealthHistory.resting_heart_rate,
+        "water": HealthHistory.water,
+        "spo2": HealthHistory.spo2,
+        "body_temperature": HealthHistory.body_temperature,
     }
 
     _READINGS = {
-        # metric -> callable(user, window) -> ReadingSeries dict
+        # metric -> dotted path to callable(user, window) -> ReadingSeries dict
         "glucose": "apps.health.services.glucose_readings.glucose_reading_window",
+        "heart_rate": "apps.health.services.vitals_readings.heart_rate_reading_window",
+        "blood_pressure": "apps.health.services.vitals_readings.blood_pressure_reading_window",
+        "spo2": "apps.health.services.vitals_readings.spo2_reading_window",
+        "body_temperature": "apps.health.services.vitals_readings.body_temperature_reading_window",
     }
 
     def current(self, metric):
@@ -109,11 +136,14 @@ class HealthDomainTruth(DomainTruth):
         if entity_type == "body_measurement":
             from apps.health.services.body_measurement_queries import BodyMeasurementQueries
             return BodyMeasurementQueries.describe(self.user)
-        if entity_type in ("steps", "glucose", "blood_pressure", "weight"):
+        if entity_type in ("steps", "glucose", "blood_pressure", "weight",
+                            "heart_rate", "water", "spo2", "body_temperature"):
             from apps.health.services import health_entities as HE
             return {"steps": HE.StepsEntities, "glucose": HE.GlucoseEntities,
                     "blood_pressure": HE.BloodPressureEntities,
-                    "weight": HE.WeightEntities}[entity_type].describe(self.user)
+                    "weight": HE.WeightEntities, "heart_rate": HE.HeartRateEntities,
+                    "water": HE.WaterEntities, "spo2": HE.SpO2Entities,
+                    "body_temperature": HE.TemperatureEntities}[entity_type].describe(self.user)
         if entity_type not in (None, "workout"):
             raise KeyError(f"health domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")

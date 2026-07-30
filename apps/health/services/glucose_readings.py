@@ -75,7 +75,8 @@ def glucose_reading_window(user, window: Window) -> dict:
         .only("value", "unit", "recorded_at")
         .order_by("recorded_at")
     )
-    return build_reading_series(GLUCOSE_READING_SPEC, window, rows).to_dict()
+    return build_reading_series(GLUCOSE_READING_SPEC, window, rows,
+                                with_by_hour=True).to_dict()
 
 
 # ── Current Context page summary (the Glucose page's deterministic truth) ──────

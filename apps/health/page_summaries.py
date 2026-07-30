@@ -163,6 +163,86 @@ def nutrition_page_summary(user, params):
             "content": "Nutrition overview\n" + "\n".join(lines)}
 
 
+def _g2(v):
+    return f"{v:g}" if isinstance(v, (int, float)) else str(v)
+
+
+def _metric_page_summary(user, *, title, kind, history_metric,
+                         target_metric=None, window="last_7_days"):
+    """Reusable Current Context for a simple health metric overview page — composes the
+    SAME deterministic truth the CoS retrieves (history + trend, and adherence when a
+    target exists), so 'look at this page' answers without retrieval and can never
+    contradict the screen. Facts only; the model interprets. Request-path-safe (a couple
+    of indexed grouped reads)."""
+    from apps.core.truth.domain import get_domain_truth
+    truth = get_domain_truth(user, "health")
+    try:
+        d = truth.history(history_metric, window).to_dict()
+    except Exception:
+        d = {"present": False}
+    if not d.get("present"):
+        return {"title": title, "kind": kind,
+                "content": f"{title} — no data logged in the last week."}
+    unit = d.get("unit") or ""
+    pts = d.get("points") or []
+    latest = pts[-1] if pts else None
+    lines = []
+    if latest:
+        lines.append(f"Most recent: {_g2(latest['value'])} {unit} (on {latest['date']}).")
+    lines.append(f"Last 7 days: average {_g2(d['average'])} {unit} "
+                 f"over {d['count']} day{'s' if d['count'] != 1 else ''}.")
+    ch = d.get("change")
+    if ch and ch.get("direction"):
+        seg = f"Trend: {ch['direction']}"
+        if ch.get("delta") is not None:
+            seg += f" ({'+' if ch['delta'] > 0 else ''}{_g2(ch['delta'])} {unit} across the window)"
+        lines.append(seg + ".")
+    if target_metric:
+        try:
+            from apps.ai.cos_services.domain_adherence import get_domain_adherence
+            a = get_domain_adherence(user, "health", target_metric, period=window)
+            if a.get("status") == "ready":
+                tgt = a["target"]
+                lines.append(
+                    f"Target {_g2(tgt['value'])} {tgt['unit']}: averaging "
+                    f"{_g2(a['actual']['avg_daily'])} ({a['variance']['pct_of_target']}% "
+                    f"of target).")
+        except Exception:
+            pass
+    return {"title": title, "kind": kind, "content": f"{title}\n" + "\n".join(lines)}
+
+
+@register_page_summary("health.steps")
+def steps_page_summary(user, params):
+    return _metric_page_summary(user, title="Steps", kind="steps overview",
+                                history_metric="steps", target_metric="steps")
+
+
+@register_page_summary("health.heart_rate")
+def heart_rate_page_summary(user, params):
+    return _metric_page_summary(user, title="Heart Rate", kind="heart rate overview",
+                                history_metric="resting_heart_rate")
+
+
+@register_page_summary("health.water")
+def water_page_summary(user, params):
+    return _metric_page_summary(user, title="Water", kind="hydration overview",
+                                history_metric="water", target_metric="water")
+
+
+@register_page_summary("health.blood_pressure")
+def blood_pressure_page_summary(user, params):
+    return _metric_page_summary(user, title="Blood Pressure",
+                                kind="blood pressure overview",
+                                history_metric="bp_systolic")
+
+
+@register_page_summary("health.sleep")
+def sleep_page_summary(user, params):
+    return _metric_page_summary(user, title="Sleep", kind="sleep overview",
+                                history_metric="sleep")
+
+
 @register_page_summary("health.glucose")
 def glucose_page_summary(user, params):
     """The Glucose dashboard. Deterministic facts only — reads the ONE producer

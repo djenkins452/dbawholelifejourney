@@ -3,8 +3,32 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-07-29 (feat(truth): Health Knowledge Certification — reusable Trend/Comparison/Adherence platform capabilities + nutrition macro-adherence fix; certification matrix)
+# Last Updated: 2026-07-29 (feat(truth): Health QUESTION Certification — new-truth vitals HR/water/SpO2/temp + hour-of-day distribution + blind-page Current Context; certify by question)
 # ================================================================# WLJ Change History
+
+## 2026-07-29 — feat(truth): Health QUESTION Certification — close new-truth vitals (HR/water/SpO2/temp) + blind-page Current Context; certify by question, not domain
+
+**Reframed the milestone from certifying DOMAINS to certifying QUESTIONS** (the customer asks "has my resting HR improved?", never "is Heart Rate certified?"). Milestone 1 built the reusable platform (Trend/Comparison/Adherence) but the matrix's own "Needs New Truth / Needs Current Context" rows proved the domain wasn't answerable. This closes them via the reusable spine (a metric with current+history inherits trend/comparison/analysis; a reading series adds intra-day + time-of-day; a target adds adherence).
+
+**New deterministic truth (closed "Needs New Truth" — models existed, ZERO surfaces):**
+- **Per-day history** (`HealthHistory`): `heart_rate`, `resting_heart_rate`, `water` (daily oz total), `spo2`, `body_temperature` (°F-normalized) → each inherits trend/comparison/analysis for free.
+- **Intra-day reading series** (`apps/health/services/vitals_readings.py`): heart_rate, blood_pressure (systolic headline), spo2, body_temperature — reuse the platform `build_reading_series`; registered in `HealthDomainTruth.reading_metrics`/`_READINGS`.
+- **Hour-of-day distribution** (`reading_window.by_hour`, reusable + additive): peak/lowest hour + per-hour count/avg/min/max. Answers "what time of day is my BP highest" and "what time of night do my lows occur" (glucose producer now requests it too).
+- **Entity detail** (`health_entities`): `HeartRateEntities`, `WaterEntities`, `SpO2Entities`, `TemperatureEntities`; wired into `HealthDomainTruth.describe` + `entity_types`.
+- **Analysis subjects** for heart_rate/resting_heart_rate/water/spo2/body_temperature (+ semantics entity descriptions).
+- **Adherence target:** water = 64 oz (the app's existing `WaterEntry.get_daily_goal_progress` default; not invented).
+
+**Closed "Needs Current Context" (blind pages):** reusable `_metric_page_summary` (reuses history+trend+adherence) + `@register_page_summary` for `health.steps`/`health.sleep`/`health.heart_rate`/`health.blood_pressure`/`health.water`; `PageSummaryMixin` added to the five blind `ListView`s. Current Context now declared on 10 health pages.
+
+**Now answerable** (was not): resting-HR trend/improvement; "am I drinking enough water" (adherence); SpO2/temperature trend + dips/fevers; "what time of day is BP highest" (by_hour peak); "how often is BP above range" (readings above_high); glucose "what time of night do lows occur"; body-composition muscle/fat trends; and "look at this page" on all five previously-blind pages.
+
+**Still impossible (documented precisely in the matrix, phased):** excursion-frequency trend ("lows getting more frequent"), change-point ("when did my trend change"), sleep-schedule consistency (bedtime variance), recovery/HRV exposure, ranked "which meals have most carbs", cross-domain correlation. Phases 2c/3a/3b/3c with triggers.
+
+**Constitutional check:** all additions are TRUTH exposure (history/readings/entity/analysis/adherence) composed over existing models; facts only, model interprets; no reasoning built in WLJ; no invented targets (water 64 oz is the pre-existing app default). No Constitutional Article touched.
+
+**Verification:** new tests `apps/ai/tests/test_health_question_certification.py` (18 — HR trend, water adherence 75% of 64 oz, SpO2/temp history+analysis, BP time-of-day peak_hour=18, all 5 blind pages resolve CC) + reading-window by_hour. **125+ tests pass** across new + affected existing (trend/comparison/adherence, domain_history/analysis/readings, glucose CC, health_home_summary, truth_surface_contract, **retrieval_authority_contract**, request_path_safety_contract, intent_registration). `check` clean; no migrations; request-path-safe (indexed grouped reads; page summaries do ≤2 light reads). Pre-existing unrelated `test_domain_truth::test_day_fact_goes_through_domain_truth` failure persists (not introduced here).
+
+**Files:** NEW `apps/health/services/vitals_readings.py`, `apps/ai/tests/test_health_question_certification.py`. MODIFIED `apps/core/truth/reading_window.py` (by_hour), `apps/health/services/health_history.py` (5 series), `apps/health/services/health_entities.py` (4 entities), `apps/health/services/health_domain_truth.py` (history/readings/analysis/entity wiring), `apps/health/services/health_targets.py` (water), `apps/health/services/glucose_readings.py` (by_hour), `apps/health/page_summaries.py` (5 providers + helper), `apps/health/views.py` (5 PageSummaryMixin), `apps/core/truth/semantics.py`, `docs/WLJ_HEALTH_KNOWLEDGE_CERTIFICATION.md`, `apps/core/fixtures/release_notes.json` (PK 289), `apps/core/management/commands/load_initial_data.py`.
 
 ## 2026-07-29 — feat(truth): Health Knowledge Certification — reusable Trend / Comparison / Adherence platform capabilities + nutrition macro-adherence fix
 

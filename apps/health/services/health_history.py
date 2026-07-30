@@ -113,6 +113,87 @@ class HealthHistory:
         return cls._bp_series(user, "pulse", "bp_pulse", period, today, start, end)
 
     @classmethod
+    def heart_rate(cls, user, period="last_month", *, today=None, start=None, end=None):
+        """Per-day AVERAGE heart rate (bpm) over HeartRateEntry.recorded_at — "how has my
+        resting heart rate trended". Closes the HR truth gap (model existed, no series)."""
+        from apps.health.models import HeartRateEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (HeartRateEntry.objects.filter(
+                    user=user, recorded_at__date__range=(p.start, p.end))
+                .values("recorded_at__date").annotate(v=Avg("bpm"))
+                .order_by("recorded_at__date"))
+        return series_from_rows(
+            "health", "heart_rate", p,
+            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="bpm")
+
+    @classmethod
+    def resting_heart_rate(cls, user, period="last_month", *, today=None,
+                           start=None, end=None):
+        """Per-day average RESTING heart rate (context='resting') — the clinically
+        meaningful baseline trend, isolated from active/workout readings."""
+        from apps.health.models import HeartRateEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (HeartRateEntry.objects.filter(
+                    user=user, context="resting",
+                    recorded_at__date__range=(p.start, p.end))
+                .values("recorded_at__date").annotate(v=Avg("bpm"))
+                .order_by("recorded_at__date"))
+        return series_from_rows(
+            "health", "resting_heart_rate", p,
+            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="bpm")
+
+    @classmethod
+    def water(cls, user, period="last_7_days", *, today=None, start=None, end=None):
+        """Per-day TOTAL hydration in oz over WaterEntry.logged_date. Uses raw amount_oz
+        (not the beverage coefficient) summed per day — "am I drinking enough water"."""
+        from collections import defaultdict
+        from apps.health.models import WaterEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        by_day = defaultdict(float)
+        for e in (WaterEntry.objects.filter(
+                    user=user, logged_date__range=(p.start, p.end))
+                  .only("amount", "unit", "logged_date")):
+            by_day[e.logged_date] += e.amount_oz
+        rows = [{"date": d, "value": round(v, 1)} for d, v in sorted(by_day.items())]
+        return series_from_rows("health", "water", p, rows, unit="oz")
+
+    @classmethod
+    def spo2(cls, user, period="last_month", *, today=None, start=None, end=None):
+        """Per-day AVERAGE blood-oxygen saturation (%) over BloodOxygenEntry."""
+        from apps.health.models import BloodOxygenEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (BloodOxygenEntry.objects.filter(
+                    user=user, recorded_at__date__range=(p.start, p.end))
+                .values("recorded_at__date").annotate(v=Avg("spo2"))
+                .order_by("recorded_at__date"))
+        return series_from_rows(
+            "health", "spo2", p,
+            [{"date": r["recorded_at__date"], "value": round(float(r["v"]), 1)}
+             for r in rows],
+            unit="%")
+
+    @classmethod
+    def body_temperature(cls, user, period="last_month", *, today=None,
+                         start=None, end=None):
+        """Per-day AVERAGE body temperature in °F over BodyTemperatureEntry. Normalizes
+        mixed C/F rows via temperature_fahrenheit BEFORE averaging (never blindly mixed)."""
+        from collections import defaultdict
+        from apps.health.models import BodyTemperatureEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        by_day = defaultdict(list)
+        for e in (BodyTemperatureEntry.objects.filter(
+                    user=user, recorded_at__date__range=(p.start, p.end))
+                  .only("temperature", "unit", "recorded_at")):
+            by_day[e.recorded_at.date()].append(e.temperature_fahrenheit)
+        rows = [{"date": d, "value": round(sum(v) / len(v), 1)}
+                for d, v in sorted(by_day.items())]
+        return series_from_rows("health", "body_temperature", p, rows, unit="°F")
+
+    @classmethod
     def body_measurement(cls, user, metric, period="last_month", *,
                          today=None, start=None, end=None):
         """Per-day AVERAGE of a single body-composition metric (waist, body_fat_pct,

@@ -1,12 +1,9 @@
 # WLJ Health Knowledge Certification
 
 **Status:** Living document. Established 2026-07-29.
-**Governing question (NOT "what tables exist?"):** *If Danny asked any reasonable question about this health domain, is the deterministic truth already available to the Chief of Staff?*
+**We certify QUESTIONS, not domains.** The customer never asks "is Heart Rate certified?" — they ask "has my resting heart rate improved?" A metric is certified when the reasonable customer questions about it are answerable from deterministic truth. The dimensions below are the *means*; the **Question Certification matrix** is the *measure*.
 
-Glucose is the **gold-standard reference implementation**. Every other health domain is
-certified against the same dimensions. This milestone certified the domains that reusable
-platform capabilities + cheap truth-exposure could reach, and **phased** the domains that
-require new per-metric truth producers (with explicit promotion triggers).
+Glucose is the gold-standard reference. This milestone closed the "Needs New Truth" and "Needs Current Context" rows for heart rate, water, SpO2, temperature, blood pressure, steps, and sleep — via the reusable spine (a metric with current+history inherits trend/comparison/analysis; a reading series adds intra-day + time-of-day; a registered target adds adherence).
 
 ---
 
@@ -41,43 +38,60 @@ it declares a history series or registers a target.
 
 ---
 
-## Certification matrix (post-milestone)
+## Question Certification matrix
 
-Legend: ✅ present · ➖ n/a · ⬜ gap (phased). Trend/Comparison are ✅ for every history metric by construction.
+✅ = answerable from deterministic truth now · ◑ = answerable but requires the model to reason over multiple deterministic reads (no single-call surface) · ⬜ = not yet answerable (see "Still impossible").
 
-| Domain | Current Ctx | Current | History | Series | Trend | Compare | Analysis | Adherence | Status |
-|---|---|---|---|---|---|---|---|---|---|
-| **Glucose** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ➖ | **Certified** (gold standard) |
-| **Weight** | ✅ | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ⬜(goal) | **Certified** |
-| **Nutrition (macros)** | ✅ | via state | ✅ (6 macros) | ➖ | ✅ | ✅ | ✅ (+aliases) | ✅ (new) | **Certified** |
-| **Body composition** | ✅ (Body Intelligence) | ⬜ | ✅ (25 metrics) | ➖ | ✅ | ✅ | ✅ (new) | ➖ | **Certified** |
-| **Steps** | ⬜ blind page | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ✅ (new) | **Needs Current Context** |
-| **Sleep** | ⬜ blind page | ✅ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | **Needs Current Context** |
-| **Workouts** | ⬜ blind page | ➖ | ✅ | ➖ | ✅ | ✅ | ✅ | ➖ | **Needs Current Context** |
-| **Blood pressure** | ⬜ blind page | ⬜ | ✅ (sys/dia/pulse) | ⬜(phase) | ✅ | ✅ | ✅ (new) | ➖ | **Needs Current Context + Current** |
-| **Heart rate** | ⬜ blind page | ⬜ | ⬜ | ⬜ | — | — | ⬜ | ➖ | **Needs New Truth** |
-| **Water** | ⬜ blind page | ⬜ | ⬜ | ➖ | — | — | ⬜ | ⬜(goal) | **Needs New Truth** |
-| **SpO2 (blood oxygen)** | ⬜ blind page | ⬜ | ⬜ | ⬜ | — | — | ⬜ | ➖ | **Needs New Truth** |
-| **Body temperature** | ⬜ (no page) | ⬜ | ⬜ | ➖ | — | — | ⬜ | ➖ | **Needs New Truth** |
+| Domain | Representative customer questions | Verdict | Truth path |
+|---|---|---|---|
+| **Glucose** | overnight lows? time below 70? what time of night? last urgent low? | ✅ | `get_readings` (below_low, urgent, by_hour, low_excursions) |
+| | are overnight lows getting *more frequent*? | ◑ | two `get_readings` windows, model compares counts (no excursion-frequency series) |
+| **Nutrition** | enough carbs/protein/calories? over sugar limit? | ✅ | `get_adherence` (target/actual/variance) |
+| | which macros am I consistently missing? | ✅ | `get_adherence` per macro |
+| | which meals have the most carbs? | ◑ | `get_entity('meal')` detail, model ranks (no ranked-by-macro surface) |
+| **Weight** | losing too quickly? loss accelerating? vs last month? | ✅ | `get_history` change/slope · `get_comparison` |
+| | when did my trend change? | ⬜ | no change-point capability |
+| **Sleep** | sleeping enough? improved? worst nights? | ✅ | `get_history` (avg, trend, per-day points) |
+| | how consistent is my schedule? | ⬜ | no bedtime-variance/consistency metric |
+| **Heart rate** | resting HR improved? trend? | ✅ | `get_history('resting_heart_rate')` + trend |
+| | intra-day HR? recovery improving? | ◑/⬜ | readings ✅; HRV/recovery metric ⬜ (fields on SleepEntry unexposed) |
+| **Blood pressure** | improving? time of day highest? how often above range? | ✅ | `get_analysis`/trend · `get_readings` by_hour + above_high |
+| **Body composition** | gaining muscle? losing fat? body-fat trend? | ✅ | `get_history('lean_mass'/'body_fat_pct')` + trend |
+| **Steps** | hitting my goal? trend? vs last week? | ✅ | `get_adherence` · `get_history` · `get_comparison` |
+| **SpO2** | trend? any dips? current? | ✅ | `get_history('spo2')` · `get_readings` |
+| **Body temperature** | trend? any fever readings? | ✅ | `get_history('body_temperature')` · `get_readings` (urgent_high 100.4) |
+| **Workouts** | how many? what did I do? trend? | ✅ | `get_history('workouts')` · `get_entity('workout')` · `get_analysis` |
 
-Certification statuses used: **Certified · Needs Current Context · Needs Retrieval · Needs Truth Exposure · Needs New Truth · Needs Platform Capability**.
+**Current Context (answer "look at this page" without retrieval):** now declared on home, weight, nutrition, glucose, body-intelligence, **steps, sleep, heart rate, blood pressure, water** (10 pages). Remaining blind: fitness, health-intelligence, blood-oxygen, temperature (no dedicated page) — Phase 2c.
 
 ---
 
-## Shipped this milestone
+## Shipped (milestone 1 — platform)
 
-- **Platform:** Trend (`HistorySeries.change`), Comparison (`get_comparison`), Adherence (`get_adherence` + `core/truth/targets.py` registry). All catalog/registry-driven and advertised in the capability index.
-- **Nutrition (the reported failure — "do I need more carbs or are they in line?"):**
-  - Adherence targets registered for calories/protein/carbs/fat/fiber (targets) + sugar/sodium (limits); `get_adherence("nutrition","carbs")` now returns target/actual/signed-variance/%.
-  - Analysis-subject aliases added: `macronutrients`, `macronutrient_intake`, `macronutrient`, `macro`, `carbohydrates`, `fiber`, `sugar` (the "macronutrient intake" routing miss).
-- **Analysis-blind gaps closed:** `blood_pressure`/`bp` and `body_composition`/`waist`/`body_fat` are now analysis subjects.
-- **Steps:** step-goal adherence registered.
+- Trend (`HistorySeries.change`), Comparison (`get_comparison`), Adherence (`get_adherence` + `core/truth/targets.py`). Nutrition macro-adherence + aliases; BP/body-comp analysis subjects.
+
+## Shipped (milestone 2 — question closure)
+
+- **New-truth metric surfaces (closed "Needs New Truth"):** heart rate, resting heart rate, water, SpO2, body temperature now have per-day **history** (`HealthHistory.*`) → inherit trend/comparison/analysis; **entity** detail (`health_entities`); and — for the high-frequency vitals — an intra-day **reading series** (`vitals_readings.py`: heart_rate, blood_pressure, spo2, body_temperature) with the new **hour-of-day distribution**.
+- **Hour-of-day distribution** (`reading_window.by_hour`, reusable): peak/lowest hour + per-hour count/avg/min/max — answers "what time of day is X highest" / "what time of night do my lows occur" (glucose enables it too).
+- **Current Context (closed "Needs Current Context"):** page summaries for steps, sleep, heart rate, blood pressure, water via a reusable `_metric_page_summary` (reuses history+trend+adherence). Mixin added to the five blind views.
+- **Adherence targets:** water (64 oz app default). Steps already registered.
+
+## Questions still impossible (and exactly why)
+
+1. **"Are my overnight lows becoming more frequent?"** — comparison compares history *averages/totals*, not reading-window *excursion counts* across windows. Needs an excursion-frequency series or a comparison mode over reading-window stats. (◑ today: model compares two `get_readings` windows.)
+2. **"When did my weight trend change?"** — no deterministic change-point detection. Trend gives one slope over the window, not the inflection date.
+3. **"How consistent is my sleep schedule?"** — no bedtime-variance/consistency metric (a variance/regularity platform capability).
+4. **"Is my recovery / HRV improving?"** — `SleepEntry.heart_rate_avg/min/max` + `respiratory_rate` exist but are not exposed as history metrics; no recovery composite.
+5. **"Which meals have the most carbs?"** — meal record detail exists (`get_entity('meal')`) but there is no ranked-by-macro surface; the model must rank the returned records.
+6. **"Did exercise change my HR baseline?"** — cross-domain correlation; answerable by the model reasoning over two deterministic reads, not a single surface.
 
 ## Phased backlog (deferred = phased, with promotion triggers)
 
-- **Phase 2a — Blind-page Current Context** (steps, sleep, blood pressure, heart rate, water, fitness): add `PageSummaryMixin` + a `@register_page_summary` provider that reuses each page's existing summary builder (mirror `health.glucose`/`health.weight`). **Trigger:** the next time one of these pages is touched, or a reported "look at this page" miss.
-- **Phase 2b — New-truth metric surfaces** (heart rate, water, SpO2, temperature): models exist but expose no DomainTruth surfaces. Add `current` + `history` providers (mirror `HealthHistory.glucose`/`steps`), an analysis subject, and — for HR/SpO2 — a `reading_metrics` intra-day series (mirror `glucose_reading_window`). **Trigger:** the user asks about any of these, or a wearable begins syncing them at volume.
-- **Phase 3 — Adherence targets:** water goal, weight goal. **Trigger:** confirm the canonical storage location for each goal, then register a provider.
+- **Phase 2c — Remaining Current Context:** fitness, health-intelligence, blood-oxygen pages (no temperature page exists). **Trigger:** page touch or a "look at this page" miss.
+- **Phase 3a — Variance/consistency platform capability** → sleep schedule consistency, glucose variability (generalize the glucose-specific CV). **Trigger:** a consistency/variability question.
+- **Phase 3b — Excursion-frequency trend** (reusable comparison over reading-window stats) → "lows getting more frequent". **Trigger:** the glucose-frequency question recurs.
+- **Phase 3c — Recovery/HRV exposure** (SleepEntry cardiac fields → history) + change-point detection. **Trigger:** a recovery or "when did it change" question.
 
 ## Invariants (do not regress)
 - WLJ exposes **facts** (target, actual, variance, direction) — the model renders the verdict ("in line", "improving"). Trend direction is arithmetic, never "better/worse".

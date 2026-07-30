@@ -4598,5 +4598,21 @@
       "created_at": "2026-07-29T13:00:00Z",
       "updated_at": "2026-07-29T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 289,
+    "fields": {
+      "title": "Ask about your heart rate, hydration, blood pressure, and more — with real answers",
+      "description": "Your Chief of Staff can now answer everyday questions across more of your health data. Ask \"has my resting heart rate improved?\", \"am I drinking enough water?\", \"what time of day is my blood pressure highest?\", \"how's my SpO2 trending?\" — and you'll get the actual trend, the target comparison, or the time-of-day pattern from your own logs. Heart rate, water, blood oxygen, and body temperature now have full history, trends, and comparisons; blood pressure and glucose can tell you what time of day readings run high or low. And the Steps, Sleep, Heart Rate, Blood Pressure, and Water pages are now \"look at this page\" aware, so you can ask about what's on screen without re-explaining. Every answer is deterministic — straight from your data, never estimated.",
+      "entry_type": "new_feature",
+      "version": "",
+      "release_date": "2026-07-29",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/health/",
+      "created_at": "2026-07-29T14:00:00Z",
+      "updated_at": "2026-07-29T14:00:00Z"
+    }
   }
 ]

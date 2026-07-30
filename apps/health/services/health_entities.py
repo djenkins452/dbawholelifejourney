@@ -83,6 +83,80 @@ class BloodPressureEntities:
         return out
 
 
+class HeartRateEntities:
+    @staticmethod
+    def describe(user):
+        from apps.health.models import HeartRateEntry
+        out = []
+        for e in _recent(HeartRateEntry, user, "recorded_at"):
+            out.append(CompleteEntity(
+                kind="heart_rate", identity=f"Heart rate — {e.recorded_at.isoformat()}",
+                definition={"recorded_at": e.recorded_at.isoformat(),
+                            "context": e.context or None, "source": e.source or None},
+                status="logged",
+                performance={"bpm": e.bpm},
+                extensions={"notes": e.notes} if e.notes else {},
+                freshness=CURRENT))
+        return out
+
+
+class WaterEntities:
+    @staticmethod
+    def describe(user):
+        from apps.health.models import WaterEntry
+        out = []
+        for e in _recent(WaterEntry, user, "logged_date"):
+            out.append(CompleteEntity(
+                kind="water", identity=f"Water — {e.logged_date.isoformat()}",
+                definition={"date": e.logged_date.isoformat(),
+                            "drink_type": getattr(e, "drink_type", None),
+                            "source": getattr(e, "source", None)},
+                status="logged",
+                performance={"amount": _f(e.amount), "unit": e.unit,
+                             "amount_oz": e.amount_oz},
+                extensions={"notes": e.notes} if getattr(e, "notes", "") else {},
+                freshness=CURRENT))
+        return out
+
+
+class SpO2Entities:
+    @staticmethod
+    def describe(user):
+        from apps.health.models import BloodOxygenEntry
+        out = []
+        for e in _recent(BloodOxygenEntry, user, "recorded_at"):
+            out.append(CompleteEntity(
+                kind="spo2", identity=f"SpO2 — {e.recorded_at.isoformat()}",
+                definition={"recorded_at": e.recorded_at.isoformat(),
+                            "context": e.context or None,
+                            "measurement_method": e.measurement_method or None,
+                            "source": e.source or None},
+                status="logged",
+                performance={"spo2": e.spo2, "pulse": e.pulse},
+                extensions={"notes": e.notes} if e.notes else {},
+                freshness=CURRENT))
+        return out
+
+
+class TemperatureEntities:
+    @staticmethod
+    def describe(user):
+        from apps.health.models import BodyTemperatureEntry
+        out = []
+        for e in _recent(BodyTemperatureEntry, user, "recorded_at"):
+            out.append(CompleteEntity(
+                kind="body_temperature",
+                identity=f"Temperature — {e.recorded_at.isoformat()}",
+                definition={"recorded_at": e.recorded_at.isoformat(),
+                            "context": e.context or None, "source": e.source or None},
+                status="logged",
+                performance={"temperature": _f(e.temperature), "unit": e.unit,
+                             "temperature_f": e.temperature_fahrenheit},
+                extensions={"notes": e.notes} if e.notes else {},
+                freshness=CURRENT))
+        return out
+
+
 class WeightEntities:
     @staticmethod
     def describe(user):

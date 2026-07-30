@@ -79,6 +79,7 @@ class ReadingSeries:
     samples: Sequence[Reading]
     samples_truncated: bool
     thresholds: dict
+    by_hour: Optional[dict] = None      # hour-of-day distribution (see build_reading_series)
 
     def present(self):
         return self.count > 0
@@ -115,18 +116,43 @@ class ReadingSeries:
             # signals more rows exist than are shown — the stats above still cover ALL rows.
             "samples": [{"at": r.at, "value": r.value} for r in self.samples],
             "samples_truncated": self.samples_truncated,
+            # Hour-of-day distribution — the deterministic answer to "what TIME of day is X
+            # highest/lowest" / "what time of night do my lows occur". None unless requested.
+            "by_hour": self.by_hour,
         }
+
+
+def _by_hour(pairs):
+    """Hour-of-day (local 0–23) distribution over (aware datetime, value) pairs:
+    {hour: {count, avg, min, max}} + the peak/lowest hour by average. Deterministic
+    answer to 'what time of day is X highest/lowest'. Hour is read from each
+    timestamp's own offset (the caller passes local-aware datetimes)."""
+    buckets = {}
+    for t, v in pairs:
+        h = t.hour
+        buckets.setdefault(h, []).append(v)
+    dist = {}
+    for h, vals in buckets.items():
+        dist[h] = {"count": len(vals), "avg": round(sum(vals) / len(vals), 1),
+                   "min": round(min(vals), 1), "max": round(max(vals), 1)}
+    if not dist:
+        return None
+    peak = max(dist, key=lambda h: dist[h]["avg"])
+    trough = min(dist, key=lambda h: dist[h]["avg"])
+    return {"hours": dist, "peak_hour": peak, "lowest_hour": trough}
 
 
 def build_reading_series(spec: ReadingWindowSpec, window: Window, rows: Sequence[Any],
                          *, sample_cap: int = _SAMPLE_CAP,
-                         excursion_cap: int = _EXCURSION_CAP) -> ReadingSeries:
+                         excursion_cap: int = _EXCURSION_CAP,
+                         with_by_hour: bool = False) -> ReadingSeries:
     """Compose a `ReadingSeries` from `rows` (any iterable of records) already scoped to
     `window` by the caller's query. Pure: no I/O, no DB access — the domain owns the
     query; the platform owns the statistics. Rows are read in ASCENDING time.
 
     Statistics are computed over EVERY row (bounded because a Window is intra-day and
-    clamped by MAX_WINDOW_HOURS). Only the serialized `samples` list is capped."""
+    clamped by MAX_WINDOW_HOURS). Only the serialized `samples` list is capped.
+    `with_by_hour` adds the hour-of-day distribution (time-of-day questions)."""
     vg, tg = spec.value_getter, spec.time_getter
     pairs = []
     for r in rows:
@@ -147,7 +173,7 @@ def build_reading_series(spec: ReadingWindowSpec, window: Window, rows: Sequence
         return ReadingSeries(
             spec.domain, spec.metric, window, spec.unit, 0,
             None, None, None, None, None,
-            None, None, None, None, None, [], [], False, thresholds)
+            None, None, None, None, None, [], [], False, thresholds, None)
 
     values = [v for _, v in pairs]
     count = len(values)
@@ -192,4 +218,5 @@ def build_reading_series(spec: ReadingWindowSpec, window: Window, rows: Sequence
         spec.domain, spec.metric, window, spec.unit, count,
         minimum, maximum, average, first, last,
         in_range, below_low, above_high, urgent_low_count, urgent_high_count,
-        low_excursions, samples, truncated, thresholds)
+        low_excursions, samples, truncated, thresholds,
+        _by_hour(pairs) if with_by_hour else None)

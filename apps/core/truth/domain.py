@@ -218,15 +218,24 @@ class DomainTruth:
 
     def supports(self):
         subjects = tuple(self.analysis_subjects)
-        # A multi-subject domain also advertises the whole-domain roll-up "overall"
-        # (composed, not a real registration). Prepended so it reads first in the
-        # capability index. Single-subject domains gain nothing ("overall" == that one
-        # subject), so we don't advertise it there.
-        if len(subjects) >= 2 and WHOLE_DOMAIN_SUBJECT not in subjects:
-            subjects = (WHOLE_DOMAIN_SUBJECT,) + subjects
+        analysis = subjects
+        # WHOLE-DOMAIN EXECUTIVE ASSESSMENT coverage is a PROPERTY OF COMPOSED TRUTH, not of
+        # manual registration. A domain earns "overall" (the composed state+trends bundle the
+        # model reasons an executive assessment from — see
+        # apps/ai/cos_services/domain_analysis.py :: _domain_overview) the moment WLJ composes
+        # >= 2 assessment facets for it: >= 2 analyzable subjects, OR >= 2 history metrics
+        # (trend facets), OR >= 2 current metrics (state facets). This removes the
+        # registration-drift class where a domain with real truth still answered "unsupported"
+        # for a broad question, and it means a maturing domain lights up automatically as it
+        # composes truth — no separate registration step, never Health-special.
+        if WHOLE_DOMAIN_SUBJECT not in subjects and (
+                len(subjects) >= 2
+                or len(self.history_metrics) >= 2
+                or len(self.current_metrics) >= 2):
+            analysis = (WHOLE_DOMAIN_SUBJECT,) + subjects
         return {"current": tuple(self.current_metrics),
                 "history": tuple(self.history_metrics),
                 "readings": tuple(self.reading_metrics),
                 "event_frequency": tuple(self.event_frequency_metrics),
                 "entities": tuple(self.entity_types),
-                "analysis": subjects}
+                "analysis": analysis}

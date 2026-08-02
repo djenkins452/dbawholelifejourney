@@ -194,26 +194,80 @@ def _overview_subject(h):
             "change": h.get("change")}
 
 
-def _domain_overview(user, domain, subjects, t0, uid, period=None):
-    """Compose EVERY analyzable subject of `domain` into ONE whole-domain evidence bundle —
-    the "overall" roll-up (the whole-domain analogue of a single-subject analysis) — over
-    the WINDOW THE USER ASKED FOR.
+def _overview_trend_subjects(truth):
+    """The TREND facets the assessment bundle composes: the domain's declared
+    `analysis_subjects` (when it has >= 2), else a fallback derived from its composed
+    `history_metrics` (each metric is a facet) when it has >= 2 — so a domain's trend
+    coverage tracks its COMPOSED history truth, with no separate registration. Fewer than 2
+    either way → no trend facets (the bundle may still stand on current STATE)."""
+    subs = dict(getattr(truth, "analysis_subjects", {}) or {})
+    if len(subs) >= 2:
+        return subs
+    hist = tuple(getattr(truth, "history_metrics", ()) or ())
+    if len(hist) >= 2:
+        return {m: {"history_metric": m} for m in hist}
+    return {}
 
-    Pure COMPOSITION: reuses each subject's existing history surface; adds NO retrieval
-    logic. The window is resolved ONCE and every metric is read against that identical
-    (start, end) as a custom range, so the roll-up can never mix horizons — a "last week"
-    summary is composed only from last-week data. Aliases are deduped by history_metric so
-    a metric is composed once. Carries the SAME deterministic `holds_data` verdict as a
-    single-subject analysis — so the reasoner can never truthfully say 'insufficient' while
-    WLJ still holds truth for any subject in the window.
+
+def _overview_state(user, domain):
+    """Current STATE facets — 'where things stand NOW' — via the ONE canonical composed-state
+    read (get_domain_state: a single cached SAE snapshot). REUSE, not re-derivation; adds no
+    retrieval logic. Returns a clean facts dict (internal `_`-prefixed keys stripped), or {}
+    when there is no warm state. This is the half of the assessment that answers 'what is my
+    position' (net worth, spending, overdue count…), complementing the trend half ('what is
+    changing')."""
+    try:
+        from apps.ai.cos_services.domain_state import get_domain_state
+        env = get_domain_state(user, domain)
+    except Exception:
+        logger.warning("domain_overview: state read failed domain=%s", domain, exc_info=True)
+        return {}
+    if not isinstance(env, dict) or env.get("status") != "ready":
+        return {}
+    st = env.get("state")
+    if not isinstance(st, dict):
+        return {}
+    return {k: v for k, v in st.items() if not str(k).startswith("_")}
+
+
+def _assessment_capable(truth):
+    """A domain earns a whole-domain executive assessment when WLJ composes >= 2 assessment
+    facets for it — >= 2 TREND facets (analysis_subjects / history_metrics) OR >= 2 current
+    STATE metrics. Coverage is a property of composed truth; there is no per-domain
+    registration and no Health special-case. Mirrors the `overall` advertisement in
+    apps.core.truth.domain.DomainTruth.supports()."""
+    if len(_overview_trend_subjects(truth)) >= 2:
+        return True
+    return len(tuple(getattr(truth, "current_metrics", ()) or ())) >= 2
+
+
+def _domain_overview(user, domain, truth, t0, uid, period=None):
+    """Compose ONE whole-domain executive-assessment evidence bundle — the deterministic
+    material a Chief of Staff reviews before answering "how are my <domain>?". It is NOT a
+    verdict (WLJ never says "healthy"/"slipping"); it is the composed TRUTH the model forms
+    the verdict from. Two complementary halves, composed from EXISTING surfaces only (no new
+    retrieval, no reasoning):
+
+      • STATE   — where things stand now (`get_domain_state`, one cached read).
+      • TRENDS  — what is changing, per facet, over the ONE window the user asked for
+                  (`get_domain_history` with the within-window `change`: improved vs got
+                  worse). The window is resolved ONCE and every facet reads that identical
+                  (start, end), so the bundle can never mix horizons.
+
+    `holds_data` is true when WLJ holds EITHER a current state OR any trend for the window —
+    the reasoner must then reason over it, never say "insufficient". Only a genuine absence
+    of both is `empty`. A facet `present:false` is HONEST missing-data-for-the-window, never
+    a decline.
     """
     window, requested_unresolved = _resolve_overview_window(user, period)
     start_iso, end_iso = window.start.isoformat(), window.end.isoformat()
 
+    # --- TRENDS (what is changing) -------------------------------------------------------
+    trend_subjects = _overview_trend_subjects(truth)
     seen_metrics = set()
     composed = {}
     present_count = 0
-    for name, mapping in subjects.items():
+    for name, mapping in trend_subjects.items():
         mapping = mapping or {}
         metric = mapping.get("history_metric") or name
         if metric in seen_metrics:          # dedup aliases (bp/blood_pressure → one metric)
@@ -233,34 +287,42 @@ def _domain_overview(user, domain, subjects, t0, uid, period=None):
         entry["metric"] = metric
         composed[name] = entry
 
+    # --- STATE (where things stand now) --------------------------------------------------
+    state = _overview_state(user, domain)
+
+    signals = present_count + (1 if state else 0)
     ms = (time.monotonic() - t0) * 1000
-    logger.info("DOMAIN_OVERVIEW served user=%s domain=%s window=%s(%s..%s) subjects=%s "
-                "present=%s ms=%.1f", uid, domain, window.name, start_iso, end_iso,
-                len(composed), present_count, ms)
+    logger.info("DOMAIN_OVERVIEW served user=%s domain=%s window=%s(%s..%s) trends=%s "
+                "present=%s state=%s ms=%.1f", uid, domain, window.name, start_iso, end_iso,
+                len(composed), present_count, bool(state), ms)
 
     window_meta = {"name": window.name, "label": window.label,
                    "start": start_iso, "end": end_iso, "days": window.days(),
                    "requested_period": period,
                    "requested_period_unresolved": requested_unresolved}
 
-    if present_count == 0:
-        # The ONLY honest "insufficient": WLJ genuinely holds no data for ANY subject in
-        # the requested window (NOT a negative finding — an absence for this horizon).
+    if signals == 0:
+        # The ONLY honest "insufficient": WLJ holds NEITHER a current state NOR any trend.
         return _envelope(
             domain, WHOLE_DOMAIN_SUBJECT, "empty",
             holds_data=False, evidence="absent", window=window_meta,
-            reason=(f"WLJ holds no {domain} data for this user in {window.label}. This is "
-                    f"a genuine absence for that window — say so plainly; it is NOT a "
-                    f"decline. Data may exist in a wider window."),
-            subjects=composed, subjects_covered=sorted(composed),
+            reason=(f"WLJ holds no {domain} state or trend for this user in {window.label}. "
+                    f"This is a genuine absence — say so plainly; it is NOT a decline."),
+            state=state or None, subjects=composed, subjects_covered=sorted(composed),
         )
 
-    evidence = "rich" if present_count >= _RICH_THRESHOLD else "thin"
+    evidence = "rich" if signals >= _RICH_THRESHOLD else "thin"
     return _envelope(
         domain, WHOLE_DOMAIN_SUBJECT, "ready",
         holds_data=True, evidence=evidence, window=window_meta,
+        # STATE = where things stand now; `subjects` (trends) = what is changing. The model
+        # forms ONE overall assessment from BOTH, then names the biggest positive, the
+        # biggest concern, and the single highest-leverage action (evidence supports the
+        # conclusion — it is not the conclusion).
+        state=state or None,
         subjects=composed, subjects_covered=sorted(composed),
         subjects_with_data=present_count,
+        has_state=bool(state),
     )
 
 
@@ -333,13 +395,14 @@ def get_domain_analysis(user, domain, subject, period=None):
 
     subjects = dict(getattr(truth, "analysis_subjects", {}) or {})
     if subject_norm not in subjects:
-        # WHOLE-DOMAIN OVERVIEW: a request for the whole domain ("overall", "overall
-        # health", "summarize my finances") composes EVERY subject into one roll-up,
-        # instead of dead-ending in `unsupported`. Only for multi-subject domains — where
-        # a single-subject domain's "overall" IS that one subject. This is the surface the
-        # capability index advertises as the synthetic "overall" subject.
-        if len(subjects) >= 2 and _is_overview_subject(subject_norm, domain_norm):
-            return _domain_overview(user, domain_norm, subjects, t0, uid, period=period)
+        # WHOLE-DOMAIN EXECUTIVE ASSESSMENT: a request for the whole domain ("overall",
+        # "overall health", "summarize my finances") composes the domain's STATE + TRENDS
+        # into one bundle the model reasons an assessment from, instead of dead-ending in
+        # `unsupported`. Available whenever WLJ composes >= 2 assessment facets for the
+        # domain (>= 2 trend facets OR >= 2 current-state metrics) — coverage tracks
+        # composed truth, never a per-domain registration.
+        if _is_overview_subject(subject_norm, domain_norm) and _assessment_capable(truth):
+            return _domain_overview(user, domain_norm, truth, t0, uid, period=period)
         return _envelope(
             domain_norm, subject_norm, "unsupported",
             reason=f"'{subject_norm}' is not an analyzable subject for '{domain_norm}'.",

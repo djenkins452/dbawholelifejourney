@@ -1209,6 +1209,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Executive Assessment Mode (PK 293)
         self._reset_executive_assessment_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Executive Assessment platform (PK 294)
+        self._reset_executive_assessment_platform_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2866,6 +2869,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset executive assessment fixtures FAILED: {e}'))
+
+    def _reset_executive_assessment_platform_fixtures(self, DataLoadConfig, force=False,
+                                                      verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 294) for the Executive Assessment platform:
+        whole-domain executive assessment is now a reusable platform behavior whose coverage
+        tracks composed truth (state + trends), so every area of life — finances,
+        relationships, medication, and more — answers a broad question, not just health.
+        """
+        reset_tracker_name = 'reset_executive_assessment_platform_2026_08_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for exec-assessment platform')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Executive Assessment platform (Aug 2026)',
+                'command', 'One-time reset to reload PK 294 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset executive assessment platform fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

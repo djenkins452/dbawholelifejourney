@@ -4678,5 +4678,21 @@
       "created_at": "2026-08-02T12:05:00Z",
       "updated_at": "2026-08-02T12:05:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 294,
+    "fields": {
+      "title": "One Chief of Staff for every part of your life",
+      "description": "Broad, big-picture questions now get a real executive assessment in every area — not just health. Ask \"how are my finances?\", \"how are my relationships?\", \"how's my medication?\", or \"how was my week?\" and your Chief of Staff reviews where things stand and what's changing, then leads with the one thing that matters most, names what's going well and what's slipping, and points to the single highest-leverage next step — the same way it already does for health. Finances are the new showcase: it looks at your current position alongside your spending and income trends over time, so \"how are my finances?\" gets a genuine read on your financial health, not a wall of numbers. Areas we don't yet track deeply will say so honestly rather than guess, and specific questions (\"what's my balance?\") still get a fast, exact answer.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-02",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-02T12:10:00Z",
+      "updated_at": "2026-08-02T12:10:00Z"
+    }
   }
 ]

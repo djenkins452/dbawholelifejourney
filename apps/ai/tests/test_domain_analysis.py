@@ -236,3 +236,53 @@ class OverviewWindowFidelityTests(TestCase):
         self.assertEqual(a["status"], "ready")                 # NOT unsupported / error
         self.assertEqual(a["window"]["name"], "last_7_days")
         self.assertTrue(a["window"]["requested_period_unresolved"])
+
+
+class PlatformAssessmentTests(TestCase):
+    """The reusable platform: a whole-domain assessment composes STATE (where things stand)
+    + TRENDS (what's changing). Coverage tracks composed truth, so a domain with >=2 current
+    metrics but no history still gets an assessment from its state — no per-domain
+    registration, never Health-special."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="platform@test.com", password="x")
+
+    def test_state_lights_up_a_domain_with_no_trend_data(self):
+        # Health has trend facets but NO history data seeded here; a composed STATE alone
+        # must still yield a ready assessment (holds_data via state, not trends).
+        from unittest.mock import patch
+        fake_state = {"weight_current": 282.0, "sleep_avg_hours_7d": 6.5}
+        with patch("apps.ai.cos_services.domain_analysis._overview_state",
+                   return_value=fake_state):
+            a = get_domain_analysis(self.user, "health", "overall")
+        self.assertEqual(a["status"], "ready")
+        self.assertTrue(a["holds_data"])
+        self.assertTrue(a["has_state"])
+        self.assertEqual(a["state"]["weight_current"], 282.0)
+
+    def test_finance_is_assessment_capable_via_current_state(self):
+        # Finance has 0 history + 0 analysis subjects but 2 current metrics → it now composes
+        # a whole-domain assessment (from state), and NEVER returns 'unsupported' for the
+        # broad question. This is the class the customer felt ("how are my finances" broke).
+        from unittest.mock import patch
+        with patch("apps.ai.cos_services.domain_analysis._overview_state",
+                   return_value={"net_worth": 120000, "month_spending": 4200}):
+            a = get_domain_analysis(self.user, "finance", "overall")
+        self.assertEqual(a["status"], "ready")
+        self.assertTrue(a["holds_data"])
+        self.assertEqual(a["state"]["net_worth"], 120000)
+
+    def test_finance_advertised_overall_in_capability_index(self):
+        # The model can DISCOVER that finance answers a whole-domain assessment.
+        idx = analysis_capability_index()
+        self.assertIn("overall", idx.get("finance", ()))
+
+    def test_no_state_and_no_trend_is_honest_empty_not_unsupported(self):
+        # Capable domain, but genuinely no state and no trend data → honest empty (a genuine
+        # absence), never 'unsupported' and never a fabricated verdict.
+        from unittest.mock import patch
+        with patch("apps.ai.cos_services.domain_analysis._overview_state", return_value={}):
+            a = get_domain_analysis(self.user, "finance", "overall")
+        self.assertEqual(a["status"], "empty")
+        self.assertFalse(a["holds_data"])
+        self.assertEqual(a["evidence"], "absent")

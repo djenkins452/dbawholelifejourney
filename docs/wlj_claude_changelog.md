@@ -3,8 +3,21 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(ui): Weight trend-range AJAX no longer leaves the global progress bar stuck — JS-driven flow owns the start→done lifecycle)
+# Last Updated: 2026-08-02 (feat(truth): Executive Assessment platform — whole-domain assessment = STATE + TRENDS, coverage tracks composed truth; every domain lights up; Finance is the reference)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — feat(truth): Executive Assessment platform — one Chief of Staff across every domain (reusable, coverage tracks truth; Finance = reference)
+
+**Milestone: make executive assessment a consistent PLATFORM behavior, not a per-domain or Health-specific one.** Investigation confirmed (runtime-traced) the Model Interface has NO classifier/planner by design (`service.py:22`); the cross-domain "how am I doing" is already prepared by `deterministic_understanding`. The felt inconsistency ("six different systems") was NOT a recognition problem — it was **uneven whole-domain TRUTH coverage**: `get_analysis(domain,'overall')` returned `unsupported` for finance/relationships/medicine/etc. because `analysis_subjects` registration was manual and had drifted. Recommendation adopted: **do NOT add a classifier** (would violate the MI design for marginal gain); make coverage a **property of composed truth** via the existing reusable mechanism. (Domain coverage matrix + roadmap in the session transcript.)
+
+- **Reusable platform (built FIRST, per direction).** A whole-domain executive assessment now composes TWO complementary halves from EXISTING surfaces only — no new authority, no reasoning, no special-case:
+  - **STATE** ("where things stand") — `apps/ai/cos_services/domain_analysis.py :: _overview_state` reuses `get_domain_state` (one cached SAE read).
+  - **TRENDS** ("what's changing") — per-facet history over the ONE requested window with the within-window `change`; facets come from declared `analysis_subjects`, or (auto-fallback) the domain's composed `history_metrics` when none are registered.
+  - **Coverage tracks composed truth:** `DomainTruth.supports()` advertises `overall` — and `_assessment_capable()` gates it — whenever WLJ composes ≥2 assessment facets (≥2 analysis subjects OR ≥2 history metrics OR ≥2 current metrics). No per-domain registration; a maturing domain lights up automatically. `holds_data` is true on EITHER a state or a trend; a facet not-present is honest missing-data, never a decline; only a genuine absence of both is `empty`.
+  - **Immediately lights up every domain with sufficient truth:** finance, relationships, medicine, tasks, calendar, medical, brain_training, legacy… all now answer "how are my X" with a state-based (and, where composed, trend-based) assessment instead of `unsupported`.
+- **Finance = the reference implementation** (conclusion-first: WLJ supplies multi-signal truth; the model forms the verdict). New `apps/finance/services/finance_history.py :: FinanceHistory` composes MONTHLY cash-flow trends — `spending`, `income`, `net_cashflow` — from `Transaction` rows in ONE grouped query (positive=income / negative=expense; opening-balance + transfers excluded; **empty≠zero**). Registered on `FinanceDomainTruth.history_metrics` → finance composes STATE (net worth, month spending) + TRENDS. Category/budget-adherence facets are the documented next deepening.
+- **Constitution** reinforced (small, accurate): the `overall` bundle carries `state` + `subjects` (trends); form ONE assessment from both; state-only still supports an assessment; not-present = missing, not a decline. WLJ owns truth; the model owns the verdict — conforms to `WLJ_LLM_TRUTH_ACTION_CONTRACT`; no Constitutional change.
+- **Files:** `apps/core/truth/domain.py`, `apps/ai/cos_services/domain_analysis.py`, `apps/ai/model_interface/constitution.py`, `apps/finance/services/{finance_history.py (new), finance_domain_truth.py}`; tests `apps/ai/tests/test_domain_analysis.py` (+`PlatformAssessmentTests`), `apps/core/truth/tests/test_analytical_intent_discovery.py` (coverage-rule), `apps/finance/tests/test_finance_history.py` (new). Release note PK 294 + loader reset. `check` clean; **no migrations**. **AWAITING USER VALIDATION in prod (`wlj-worker`).**
 
 ## 2026-08-02 — fix(ui): Trend-range AJAX no longer leaves the global progress bar spinning
 

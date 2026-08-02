@@ -958,7 +958,11 @@ def truth_tools():
                 "'what have I been grateful for', 'what positive changes / patterns / "
                 "concerns', 'reflect on my journal', 'advice based on my journal'. Those are "
                 "analytical SYNTHESIS over deterministic evidence, NOT keyword search — use "
-                "get_analysis, not search_history. The answerable (domain, subject) pairs "
+                "get_analysis, not search_history. For a WHOLE-DOMAIN summary — 'overall "
+                "health', 'how am I doing across my health', 'summarize my finances' — pass "
+                "subject 'overall': it composes EVERY analyzable subject in the domain into "
+                "one recent roll-up (no need to call each subject yourself). The answerable "
+                "(domain, subject) pairs — including 'overall' for multi-subject domains — "
                 "are in Current Context's capability index (`capabilities.truth_analysis`, "
                 "and per domain as `capabilities.domain_semantics[domain].analyzes`); do "
                 "not guess a domain or subject, and never invent a domain (there is no "
@@ -970,7 +974,8 @@ def truth_tools():
                             "description": ("The subject to analyze — must be one "
                                             "advertised for the domain in the capability "
                                             "index (e.g. 'workouts', 'weight', 'sleep', "
-                                            "'steps').")},
+                                            "'steps'), or 'overall' for a whole-domain "
+                                            "roll-up of every subject.")},
             }, "required": ["domain", "subject"]}}},
         {"type": "function", "function": {
             "name": "get_user_truth",

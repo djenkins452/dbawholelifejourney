@@ -11,7 +11,7 @@ from django.test import SimpleTestCase
 
 from apps.ai.cos_services.current_context import _capabilities
 from apps.ai.model_interface.constitution import all_tools
-from apps.core.truth.domain import get_domain_truth
+from apps.core.truth.domain import WHOLE_DOMAIN_SUBJECT, get_domain_truth
 
 
 def _tool_desc(name):
@@ -33,11 +33,15 @@ class AnalyticalIntentDiscoveryTests(SimpleTestCase):
         self.assertIn("analyzes", self.sem["journal"])
         self.assertTrue(self.sem["journal"]["analyzes"])
 
-    # 2 — analytical coverage cannot silently drift from the registered analysis_subjects
+    # 2 — analytical coverage cannot silently drift from the registered analysis_subjects.
+    # The ONLY subject advertised beyond the raw registration is the synthetic whole-domain
+    # roll-up "overall" (added by DomainTruth.supports() for every multi-subject domain and
+    # served by get_analysis(domain, 'overall')) — so the advertised set is EXACTLY the
+    # registered subjects plus that one generic token, never anything else.
     def test_analyzes_cannot_drift_from_registered_subjects(self):
-        # DERIVED from the catalog == the DomainTruth's declared analysis_subjects.
-        registered = sorted(get_domain_truth(None, "journal").analysis_subjects.keys())
-        self.assertEqual(sorted(self.sem["journal"]["analyzes"]), registered)
+        registered = set(get_domain_truth(None, "journal").analysis_subjects.keys())
+        expected = registered | {WHOLE_DOMAIN_SUBJECT}   # journal is multi-subject
+        self.assertEqual(set(self.sem["journal"]["analyzes"]), expected)
         self.assertEqual(sorted(self.sem["journal"]["analyzes"]),
                          sorted(self.ta.get("journal", [])))
 
@@ -79,3 +83,17 @@ class AnalyticalIntentDiscoveryTests(SimpleTestCase):
             self.assertEqual(sorted(self.sem[d].get("analyzes", [])),
                              sorted(self.ta.get(d, [])),
                              f"{d} analyzes drifted from truth_analysis")
+
+    # 9 — whole-domain 'overall' is advertised for EVERY multi-subject domain (so the model
+    # can ask for a whole-domain summary) and NEVER for a single-subject one (where it would
+    # be redundant). This is the capability that answers "overall health this week".
+    def test_overall_advertised_iff_multi_subject(self):
+        for d, subjects in self.ta.items():
+            others = [s for s in subjects if s != WHOLE_DOMAIN_SUBJECT]
+            if len(others) >= 2:
+                self.assertIn(WHOLE_DOMAIN_SUBJECT, subjects,
+                              f"{d} is multi-subject but does not advertise 'overall'")
+            else:
+                self.assertNotIn(WHOLE_DOMAIN_SUBJECT, subjects,
+                                 f"{d} is single-subject but advertises 'overall'")
+        self.assertIn(WHOLE_DOMAIN_SUBJECT, self.ta.get("health", []))

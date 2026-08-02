@@ -122,3 +122,57 @@ class AnalysisHonestStateTests(TestCase):
     def test_unknown_domain_is_unsupported_domain(self):
         a = get_domain_analysis(self.user, "atlantis", "workouts")
         self.assertEqual(a["status"], "unsupported_domain")
+
+
+class WholeDomainOverviewTests(TestCase):
+    """The production defect: 'overall health' → get_analysis(health, 'overall') returned
+    `unsupported`. A whole-domain request must compose EVERY subject, never dead-end."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="overview@test.com", password="x")
+
+    def _seed_weight(self):
+        from django.utils import timezone
+        from apps.health.models import WeightEntry
+        now = timezone.now()
+        for d in (1, 4, 8):
+            WeightEntry.objects.create(user=self.user, value=Decimal("282.0"),
+                                       unit="lb", recorded_at=now - timedelta(days=d))
+
+    def test_overall_is_advertised_for_multi_subject_health(self):
+        # Discoverability: the capability index the model reads must list 'overall'.
+        idx = analysis_capability_index()
+        self.assertIn("overall", idx["health"])
+
+    def test_overall_composes_every_subject_never_unsupported(self):
+        self._seed_weight()
+        _seed_workouts(self.user, days=[1, 3, 6])
+        a = get_domain_analysis(self.user, "health", "overall")
+        self.assertEqual(a["status"], "ready")           # NOT "unsupported"
+        self.assertTrue(a["holds_data"])
+        # The roll-up carried the subjects that have data.
+        self.assertTrue(a["subjects"]["weight"]["present"])
+        self.assertTrue(a["subjects"]["workouts"]["present"])
+        self.assertGreaterEqual(a["subjects_with_data"], 2)
+
+    def test_natural_phrasing_overall_health_routes_to_overview(self):
+        # The EXACT subject the model passed in production.
+        self._seed_weight()
+        a = get_domain_analysis(self.user, "health", "overall health")
+        self.assertEqual(a["status"], "ready")
+        self.assertEqual(a["subject"], "overall")
+        self.assertTrue(a["holds_data"])
+
+    def test_aliases_are_deduped_by_metric(self):
+        # blood_pressure/bp share one metric → composed once, not twice.
+        self._seed_weight()
+        a = get_domain_analysis(self.user, "health", "overall")
+        covered = a["subjects_covered"]
+        self.assertNotIn("bp", covered)                  # the alias is dropped
+        self.assertIn("blood_pressure", covered)         # the canonical name is kept
+
+    def test_genuine_absence_across_all_subjects_is_empty(self):
+        a = get_domain_analysis(self.user, "health", "overall")
+        self.assertEqual(a["status"], "empty")
+        self.assertFalse(a["holds_data"])
+        self.assertEqual(a["evidence"], "absent")

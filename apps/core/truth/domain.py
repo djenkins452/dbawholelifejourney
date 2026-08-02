@@ -21,6 +21,19 @@ from importlib import import_module
 
 _log = logging.getLogger(__name__)
 
+# The synthetic WHOLE-DOMAIN analysis subject. Any domain that declares >= 2 analyzable
+# subjects ALSO supports "overall" — the composed roll-up of every subject (the
+# whole-domain analogue of a single-subject analysis; see
+# apps/ai/cos_services/domain_analysis.py :: _domain_overview). It is advertised HERE,
+# in the one catalog source `supports()` builds, so the capability index the model reads
+# ("what can I analyze") stays aligned BY CONSTRUCTION with what get_analysis accepts — it
+# can never silently drift from a domain's declared `analysis_subjects`. This closes the
+# class where "analyze/summarize my WHOLE <domain>" (e.g. "overall health this week") had
+# no analyzable subject and returned `unsupported`, even though the per-subject truth all
+# existed. NOT a per-domain registration — it appears automatically for every multi-subject
+# domain, and never for single-subject ones (where "overall" == the one subject).
+WHOLE_DOMAIN_SUBJECT = "overall"
+
 # Domain provider modules that self-register on import (lazy-loaded on first miss).
 _KNOWN_PROVIDER_MODULES = (
     "apps.health.services.health_domain_truth",
@@ -204,9 +217,16 @@ class DomainTruth:
     analysis_subjects = {}        # introspection: subjects the Analysis surface can compose
 
     def supports(self):
+        subjects = tuple(self.analysis_subjects)
+        # A multi-subject domain also advertises the whole-domain roll-up "overall"
+        # (composed, not a real registration). Prepended so it reads first in the
+        # capability index. Single-subject domains gain nothing ("overall" == that one
+        # subject), so we don't advertise it there.
+        if len(subjects) >= 2 and WHOLE_DOMAIN_SUBJECT not in subjects:
+            subjects = (WHOLE_DOMAIN_SUBJECT,) + subjects
         return {"current": tuple(self.current_metrics),
                 "history": tuple(self.history_metrics),
                 "readings": tuple(self.reading_metrics),
                 "event_frequency": tuple(self.event_frequency_metrics),
                 "entities": tuple(self.entity_types),
-                "analysis": tuple(self.analysis_subjects)}
+                "analysis": subjects}

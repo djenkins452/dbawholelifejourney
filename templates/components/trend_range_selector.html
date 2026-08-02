@@ -1,0 +1,23 @@
+{% comment %}
+Reusable TREND-RANGE selector — the shared "how far back am I looking?" control for
+every trend/metric page (Weight is the first consumer). Domain-agnostic: it only knows
+range keys/labels, never the metric.
+
+Usage:
+  {% include "components/trend_range_selector.html" with options=range_options endpoint=request.path %}
+
+Params:
+  options   — list of {key, label, suffix, active} (from trend_range_options()).
+  endpoint  — URL the client fetches "?range=<key>&fmt=json" from for the AJAX update.
+
+Behaviour is wired by static/js/trend_range.js, which binds to [data-trend-range].
+Anchor hrefs keep it fully functional without JS (progressive enhancement / full reload).
+{% endcomment %}
+<div class="trend-range" role="group" aria-label="Time range" data-trend-range data-trend-endpoint="{{ endpoint }}">
+    {% for opt in options %}
+        <a href="?range={{ opt.key }}"
+           class="trend-range__btn{% if opt.active %} is-active{% endif %}"
+           data-trend-option="{{ opt.key }}"
+           {% if opt.active %}aria-current="true"{% endif %}>{{ opt.label }}</a>
+    {% endfor %}
+</div>

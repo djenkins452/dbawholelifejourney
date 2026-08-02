@@ -805,12 +805,126 @@ class WeightListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Lis
     page_summary_key = "health.weight"
     page_summary_title = "Weight"
 
+    # Preference key for the shared trend-range persistence store.
+    trend_page_key = "health.weight"
+
     def get_queryset(self):
         return WeightEntry.objects.filter(user=self.request.user)
 
+    def get(self, request, *args, **kwargs):
+        # ONE endpoint, two transports: `?fmt=json` returns the identical payload the
+        # HTML render is built from, so the AJAX range switch can never drift from the
+        # server-rendered page (there is exactly one payload builder).
+        if request.GET.get("fmt") == "json":
+            _range_key, payload = self._resolve_range_payload(request)
+            from django.http import JsonResponse
+            return JsonResponse(payload)
+        return super().get(request, *args, **kwargs)
+
+    def _resolve_range_payload(self, request):
+        """Resolve the selected range (query param → saved preference → default),
+        persist an explicit choice, and format the ONE display payload the HTML and
+        JSON responses share. Business facts come from build_weight_range_summary;
+        this method only decides how they are presented (labels, subtitle strings,
+        chart arrays) — it never re-derives a number."""
+        from apps.core.trend_range import (
+            get_saved_range,
+            parse_range_param,
+            save_range,
+            trend_range_options,
+        )
+        from apps.health.services.weight_summary import build_weight_range_summary
+
+        user = request.user
+        saved = get_saved_range(user, self.trend_page_key)
+        range_key = parse_range_param(request, saved)
+        if request.GET.get("range"):
+            range_key = save_range(user, self.trend_page_key, range_key)
+
+        facts = build_weight_range_summary(user, range_key=range_key)
+        payload = self._format_payload(facts, range_key, trend_range_options(range_key))
+        return range_key, payload
+
+    @staticmethod
+    def _format_payload(facts, range_key, options):
+        """Facts → display payload. Single formatting site for both HTML and JSON."""
+        def _fmt_date(dt):
+            return dt.strftime("%b %-d, %Y") if dt else ""
+
+        def _tone(change):
+            if change is None:
+                return None
+            return "success" if change < 0 else ("warning" if change > 0 else None)
+
+        is_all = range_key == "all"
+        suffix = facts.get("range_suffix", "") if facts else ""
+
+        # Stat labels reflect the selected range so the number is never ambiguous.
+        labels = {
+            "latest": "Latest",
+            "low": "Lowest Ever" if is_all else f"Low ({suffix})",
+            "high": "Highest Ever" if is_all else f"High ({suffix})",
+            "avg": "Lifetime Average" if is_all else f"Avg ({suffix})",
+            "change": "Total Change" if is_all else f"Total Change ({suffix})",
+        }
+
+        def _stat(key, value, tone=None):
+            display = f"{value} lb" if value is not None else "—"
+            if key == "change" and value is not None:
+                display = f"{'+' if value > 0 else ''}{value} lb"
+            return {"key": key, "label": labels[key], "value": value,
+                    "display": display, "tone": tone}
+
+        if not facts:
+            return {
+                "range": {"key": range_key, "suffix": suffix, "label": ""},
+                "options": options, "has_data": False, "has_range_data": False,
+                "stats": [], "subtitle": {"range_line": "", "change_line": "", "tone": None},
+                "chart": {"labels": [], "data": []},
+                "empty_note": "No weight entries logged yet.",
+                "total_count": 0,
+            }
+
+        change = facts.get("total_change_lb")
+        stats = [
+            _stat("latest", facts.get("current_lb")),
+            _stat("low", facts.get("low_lb")),
+            _stat("high", facts.get("high_lb")),
+            _stat("avg", facts.get("avg_lb")),
+            _stat("change", change, tone=_tone(change)),
+        ]
+
+        # Subtitle: first-visible → last-visible within the range (the exact span the
+        # graph draws), with the change over that same span.
+        if facts.get("has_range_data"):
+            range_line = f"{_fmt_date(facts['first_at'])} → {_fmt_date(facts['last_at'])}"
+            if change is not None:
+                change_line = (f"{facts['first_lb']} lb → {facts['last_lb']} lb "
+                               f"({'+' if change > 0 else ''}{change} lb)")
+            else:
+                change_line = f"{facts['last_lb']} lb"
+            empty_note = ""
+        else:
+            range_line = ""
+            change_line = ""
+            empty_note = "No weigh-ins in this range yet."
+
+        cp = facts.get("chart_points", [])
+        return {
+            "range": {"key": range_key, "suffix": suffix, "label": facts.get("range_label", "")},
+            "options": options,
+            "has_data": True,
+            "has_range_data": facts.get("has_range_data", False),
+            "stats": stats,
+            "subtitle": {"range_line": range_line, "change_line": change_line,
+                         "tone": _tone(change)},
+            "chart": {"labels": [p["label"] for p in cp], "data": [p["value"] for p in cp]},
+            "empty_note": empty_note,
+            "total_count": facts.get("total_count", 0),
+        }
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        entries = self.get_queryset()
 
         # HealthKit historical reimport — the latest request's status/counts for the UI.
         try:
@@ -819,36 +933,11 @@ class WeightListView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Lis
         except Exception:
             context["reimport_latest"] = None
 
-        if entries.exists():
-            # ONE deterministic summary drives both the page stats AND the assistant's
-            # Current Context (no re-derivation → the assistant can't contradict the screen).
-            from apps.health.services.weight_summary import build_weight_summary
-            facts = build_weight_summary(self.request.user)
-
-            context["latest"] = entries.first()
-            context["total_count"] = facts["count"]
-            context["min_weight"] = facts["low_30d_lb"]
-            context["max_weight"] = facts["high_30d_lb"]
-            context["avg_weight"] = facts["avg_30d_lb"]
-
-            if facts["total_change_lb"] is not None:
-                context["weight_change"] = facts["total_change_lb"]
-                context["first_entry"] = entries.last()  # oldest (ordered by -recorded_at)
-                context["first_weight"] = facts["first_lb"]
-                context["latest_weight_lb"] = facts["current_lb"]
-
-            # Chart data - all entries for the graph (up to 100 for performance)
-            chart_entries = list(entries[:100])
-            chart_entries.reverse()  # Show oldest to newest for chart
-            chart_data = []
-            for entry in chart_entries:
-                chart_data.append({
-                    "date": entry.recorded_at.strftime("%b %d, %Y"),
-                    "weight": float(entry.value_in_lb),
-                    "recorded_at": entry.recorded_at.isoformat(),
-                })
-            context["chart_data"] = chart_data
-
+        range_key, payload = self._resolve_range_payload(self.request)
+        context["range_key"] = range_key
+        context["range_options"] = payload["options"]
+        context["wp"] = payload                       # the ONE payload the template renders
+        context["total_count"] = payload["total_count"]
         return context
 
 

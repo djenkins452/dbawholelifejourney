@@ -45,62 +45,36 @@
     </details>
 
     {% if entries %}
-        <!-- Stats Summary -->
-        <div class="stats-bar mb-6">
-            {% if latest %}
-                <div class="stat-item">
-                    <span class="stat-label">Latest</span>
-                    <span class="stat-value">{{ latest.value }} {{ latest.unit }}</span>
-                </div>
-            {% endif %}
-            {% if min_weight %}
-                <div class="stat-item">
-                    <span class="stat-label">Low (30d)</span>
-                    <span class="stat-value">{{ min_weight|floatformat:1 }} lb</span>
-                </div>
-            {% endif %}
-            {% if max_weight %}
-                <div class="stat-item">
-                    <span class="stat-label">High (30d)</span>
-                    <span class="stat-value">{{ max_weight|floatformat:1 }} lb</span>
-                </div>
-            {% endif %}
-            {% if avg_weight %}
-                <div class="stat-item">
-                    <span class="stat-label">Avg (30d)</span>
-                    <span class="stat-value">{{ avg_weight }} lb</span>
-                </div>
-            {% endif %}
-            {% if weight_change is not None %}
-                <div class="stat-item stat-item-highlight">
-                    <span class="stat-label">Total Change</span>
-                    <span class="stat-value {% if weight_change < 0 %}text-success{% elif weight_change > 0 %}text-warning{% endif %}">
-                        {% if weight_change > 0 %}+{% endif %}{{ weight_change }} lb
-                    </span>
-                </div>
-            {% endif %}
-        </div>
+        <!-- Everything below is driven by ONE selected time range (server-authoritative). -->
+        <section data-trend-scope>
+            <!-- Time range selector (shared, reusable component) -->
+            {% include "components/trend_range_selector.html" with options=range_options endpoint=request.path %}
 
-        <!-- Weight Progress Chart -->
-        {% if chart_data %}
+            <!-- Stats Summary — labels + values reflect the selected range -->
+            <div class="stats-bar mb-6">
+                {% for s in wp.stats %}
+                    <div class="stat-item{% if s.key == 'change' %} stat-item-highlight{% endif %}" data-trend-stat="{{ s.key }}">
+                        <span class="stat-label" data-trend-stat-label>{{ s.label }}</span>
+                        <span class="stat-value{% if s.tone %} tone-{{ s.tone }}{% endif %}" data-trend-stat-value>{{ s.display }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <!-- Weight Progress Chart -->
             <div class="weight-chart-container mb-6">
                 <div class="chart-header">
                     <h2 class="chart-title">Weight Progress</h2>
-                    {% if weight_change is not None %}
-                        <div class="weight-journey-summary">
-                            <span class="journey-label">{{ first_entry.recorded_at|date:"M j, Y" }} to {{ latest.recorded_at|date:"M j, Y" }}:</span>
-                            <span class="journey-value {% if weight_change < 0 %}text-success{% elif weight_change > 0 %}text-warning{% endif %}">
-                                {{ first_weight }} lb → {{ latest_weight_lb }} lb
-                                ({% if weight_change > 0 %}+{% endif %}{{ weight_change }} lb)
-                            </span>
-                        </div>
-                    {% endif %}
+                    <div class="weight-journey-summary" data-trend-subtitle>
+                        <span class="journey-label" data-trend-subtitle-range>{{ wp.subtitle.range_line }}</span>
+                        <span class="journey-value{% if wp.subtitle.tone %} tone-{{ wp.subtitle.tone }}{% endif %}" data-trend-subtitle-change>{{ wp.subtitle.change_line }}</span>
+                    </div>
                 </div>
+                <p class="chart-empty" data-trend-empty{% if wp.has_range_data %} hidden{% endif %}>{{ wp.empty_note }}</p>
                 <div class="chart-wrapper">
                     <canvas id="weightChart"></canvas>
                 </div>
             </div>
-        {% endif %}
+        </section>
 
         <!-- Entry List -->
         <div class="entry-table"
@@ -188,6 +162,51 @@
 }
 .applehealth-reimport__body p { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.5; }
 .applehealth-reimport__status { color: var(--color-text-muted); font-size: 0.85rem; }
+/* --- Trend-range selector (shared component; styles live here until a 2nd consumer
+   adopts it, then they move to a shared stylesheet) --------------------------------- */
+.trend-range {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    margin-bottom: var(--space-5);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+.trend-range__btn {
+    appearance: none;
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    padding: 0.4rem 0.9rem;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: calc(var(--radius-lg) - 3px);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.trend-range__btn:hover { color: var(--color-text); background: var(--color-background); }
+.trend-range__btn.is-active {
+    background: var(--color-accent);
+    color: #fff;
+}
+.trend-range.is-loading { opacity: 0.7; pointer-events: none; }
+
+.chart-empty {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin: 0 0 var(--space-3);
+}
+
+/* Tone colours shared by stats + subtitle (JS toggles tone-success / tone-warning). */
+.tone-success { color: var(--color-success, #10b981); }
+.tone-warning { color: var(--color-warning, #f59e0b); }
+
 .stats-bar {
     display: flex;
     flex-wrap: wrap;
@@ -196,6 +215,11 @@
     background: var(--color-surface);
     border-radius: var(--radius-lg);
 }
+
+/* Smooth value + subtitle transitions for the AJAX range switch. */
+.stat-item .stat-value { transition: color 0.2s ease; }
+.weight-journey-summary { transition: opacity 0.18s ease; }
+.weight-journey-summary.is-swapping { opacity: 0; }
 
 .stat-item {
     display: flex;
@@ -378,27 +402,22 @@
 }
 </style>
 
-{% if chart_data %}
+{% if wp.has_data %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-{{ chart_data|json_script:"chart-data" }}
+<script src="{% static 'js/trend_range.js' %}"></script>
+{{ wp.chart|json_script:"weight-chart-initial" }}
 <script nonce="{{ csp_nonce }}">
 document.addEventListener('DOMContentLoaded', function() {
     const ctx = document.getElementById('weightChart').getContext('2d');
-    const chartData = JSON.parse(document.getElementById('chart-data').textContent);
+    const initial = JSON.parse(document.getElementById('weight-chart-initial').textContent);
 
-    // Calculate weight change for annotation
-    const firstWeight = chartData.length > 0 ? chartData[0].weight : 0;
-    const lastWeight = chartData.length > 0 ? chartData[chartData.length - 1].weight : 0;
-    const weightChange = (lastWeight - firstWeight).toFixed(1);
-    const changeText = weightChange > 0 ? '+' + weightChange : weightChange;
-
-    new Chart(ctx, {
+    const chart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: chartData.map(d => d.date),
+            labels: initial.labels,
             datasets: [{
                 label: 'Weight (lb)',
-                data: chartData.map(d => d.weight),
+                data: initial.data,
                 borderColor: 'rgb(99, 102, 241)',
                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
                 fill: true,
@@ -462,6 +481,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
+
+    // The reusable trend-range client dispatches this after it fetches the server's
+    // authoritative payload — we only push the new dataset into the chart and let
+    // Chart.js animate the transition natively.
+    const scope = document.querySelector('[data-trend-scope]');
+    if (scope) {
+        scope.addEventListener('trendrange:updated', function(e) {
+            const p = e.detail;
+            chart.data.labels = p.chart.labels;
+            chart.data.datasets[0].data = p.chart.data;
+            chart.update();
+        });
+    }
 });
 </script>
 {% endif %}

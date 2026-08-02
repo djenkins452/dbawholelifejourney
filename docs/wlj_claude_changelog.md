@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(truth): Whole-Domain Overview — "overall health" summary now composes every subject instead of returning unsupported)
+# Last Updated: 2026-08-02 (feat(health): Weight page Trend-Range selector — ONE selected window drives graph + every stat + subtitle + Current Context; first reusable trend-range component)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — feat(health): Weight Trend-Range selector — one selected window drives the ENTIRE page
+
+**Truth/consistency fix, not a cosmetic one.** The Weight page said it showed the full journey while THREE independent windows fought underneath it: Low/High/Avg used a rolling **30 days**, Total Change + the journey subtitle used **all-time**, and the graph plotted the **latest 100 entries** (~3 months) — and the assistant's Current Context narrated the all-time span. Four consumers, four windows: the page could say "2 years" while the graph showed 3 months. We eliminated the CLASS by making a single selected range the one authoritative window every consumer reads.
+
+- **One dataset → every consumer.** A new range-aware facts builder computes the filtered series ONCE (over the canonical Layer-1 accessor) and derives low/high/average, total-change (first-visible → last-visible), the subtitle endpoints, and the chart points ALL from that same list. The graph, the stats, the subtitle, and the assistant's Current Context can no longer disagree — they are the same numbers.
+- **One authority, two transports (no dual render path).** `WeightListView` builds ONE display payload; a normal GET renders the template from it, and `?range=<key>&fmt=json` returns the identical payload as JSON. The browser computes nothing — it only presents (count-up stat animations, subtitle fade, native Chart.js dataset morph). Verified in-browser: switching to 6 Months relabels to `Low (6M)`/`Avg (6M)`/`Total Change (6M)`, morphs the chart, and lands Total Change on the same value the subtitle shows.
+- **Range-scoped labels** so a number is never ambiguous: `Latest` (true current, range-independent) + `Low/High/Avg/Total Change` suffixed per range (`(6M)`, `(1Y)`), and All Time reads `Lowest Ever` / `Highest Ever` / `Lifetime Average`.
+- **Persisted** per user in `UserPreferences.dashboard_config['trend_range']['health.weight']` — reopening the page defaults to the last-selected range (verified across a full reload).
+- **Built as the FIRST reusable trend-range component**, not a weight one-off (Glucose/BP/HR/Sleep/… are next). New `apps/core/trend_range.py` (canonical range options, calendar-accurate start-date resolution, param parsing, per-page preference persistence), shared `templates/components/trend_range_selector.html`, and generic `static/js/trend_range.js` (fetch → animate stats/subtitle → dispatch `trendrange:updated` for the page's chart). A page becomes a consumer by parsing the range, computing its own facts, and rendering the selector — no re-invention of range plumbing. Business logic (facts) stays in `weight_summary.py`; presentation stays in the view.
+- **Files:** `apps/core/trend_range.py` (new), `apps/health/services/weight_summary.py` (`build_weight_range_summary`), `apps/health/views.py` (`WeightListView` HTML/JSON single payload + persistence), `apps/health/page_summaries.py` (Current Context mirrors the selected range), `templates/health/weight_list.html`, `templates/components/trend_range_selector.html` (new), `static/js/trend_range.js` (new); release note PK 292 + loader reset. Tests: `apps/health/tests/test_weight_trend_range.py` (new — per-range dataset identity, HTML==JSON payload, labels, persistence, Current-Context mirror, empty/sparse) + updated `test_weight_current_context.py`. `check` clean, `collectstatic` 0 errors, **no migrations**. 24 weight tests + 46 consumer/safety tests green. Browser-verified end-to-end. **AWAITING USER VALIDATION in prod.**
+
 
 ## 2026-08-02 — fix(truth): Whole-Domain Overview — "overall health, last week, give me a summary" no longer returns "not supported"
 

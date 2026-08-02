@@ -14,7 +14,6 @@ from django.utils import timezone
 from django.utils.dateformat import format as _dj_date
 
 from apps.core.current_context import register_page_summary
-from apps.health.services.weight_summary import build_weight_summary
 
 
 def _d(dt):
@@ -75,30 +74,56 @@ def health_home_summary(user, params):
 @register_page_summary("health.weight")
 def weight_page_summary(user, params):
     """The Weight overview page. Deterministic facts only — WLJ exposes the numbers; the
-    model decides what they mean (no verdicts, no 'on track')."""
-    facts = build_weight_summary(user, point_date=(params or {}).get("point"))
+    model decides what they mean (no verdicts, no 'on track').
+
+    Mirrors the SELECTED time range the user is actually looking at: the same range the
+    page persisted (or an explicit `range` param) feeds the SAME range summary the page
+    renders, so the assistant can never say '2 years' while the graph shows 6 months."""
+    from apps.core.trend_range import get_saved_range, normalize_range
+    from apps.health.services import weight_queries
+    from apps.health.services.weight_summary import build_weight_range_summary
+
+    params = params or {}
+    range_key = normalize_range(params.get("range"),
+                                default=get_saved_range(user, "health.weight"))
+    facts = build_weight_range_summary(user, range_key=range_key)
     if not facts:
         return {"title": "Weight", "kind": "weight overview",
                 "content": "Weight overview — no weight entries logged yet."}
 
-    lines = [f"Current weight: {facts['current_lb']} lb (as of {_d(facts['current_at'])})"]
-    if facts.get("avg_30d_lb") is not None:
+    label = facts["range_label"]
+    lines = [
+        f"Selected range: {label}",
+        f"Current weight: {facts['current_lb']} lb (as of {_d(facts['current_at'])})",
+    ]
+    if facts.get("has_range_data") and facts.get("avg_lb") is not None:
         lines.append(
-            f"Last {facts['window_days']} days — average {facts['avg_30d_lb']} lb, "
-            f"low {facts['low_30d_lb']} lb, high {facts['high_30d_lb']} lb "
-            f"({facts['window_count']} entries)"
+            f"{label} — average {facts['avg_lb']} lb, "
+            f"low {facts['low_lb']} lb, high {facts['high_lb']} lb "
+            f"({facts['count']} weigh-in{'s' if facts['count'] != 1 else ''})"
         )
-    if facts.get("total_change_lb") is not None:
-        tc = facts["total_change_lb"]
         lines.append(
-            f"Total change (all recorded): {facts['first_lb']} lb on {_d(facts['first_at'])} "
-            f"→ {facts['current_lb']} lb on {_d(facts['current_at'])} "
-            f"= {'+' if tc > 0 else ''}{tc} lb"
+            f"Range shown: {_d(facts['first_at'])} – {_d(facts['last_at'])} "
+            f"({facts['first_lb']} lb → {facts['last_lb']} lb)"
         )
-    lines.append(f"Entries logged: {facts['count']}")
-    lines.append(f"Chart date range shown: {_d(facts['first_at'])} – {_d(facts['current_at'])}")
-    if facts.get("point_lb") is not None:
-        lines.append(f"Selected point: {facts['point_lb']} lb on {_d(facts['point_at'])}")
+        if facts.get("total_change_lb") is not None:
+            tc = facts["total_change_lb"]
+            lines.append(f"Total change over {label}: {'+' if tc > 0 else ''}{tc} lb")
+    else:
+        lines.append(f"No weigh-ins recorded in the selected range ({label}).")
+    lines.append(f"Entries logged (all time): {facts['total_count']}")
+
+    # Optional selected chart point — a deterministic lookup of that calendar day.
+    point = params.get("point")
+    if point:
+        from datetime import date as _date
+        try:
+            pd = _date.fromisoformat(point)
+        except (TypeError, ValueError):
+            pd = None
+        rec = weight_queries.on_date(user, pd) if pd else None
+        if rec is not None:
+            lines.append(f"Selected point: {rec['value_lb']} lb on {_d(rec['recorded_at'])}")
 
     return {"title": "Weight", "kind": "weight overview",
             "content": "Weight overview\n" + "\n".join(lines)}

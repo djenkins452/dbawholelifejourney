@@ -1203,6 +1203,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Whole-Domain Overview (PK 291)
         self._reset_whole_domain_overview_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Weight Trend-Range selector (PK 292)
+        self._reset_weight_trend_range_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2794,6 +2797,39 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset whole-domain overview fixtures FAILED: {e}'))
+
+    def _reset_weight_trend_range_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 292) for the Weight Trend-Range
+        selector: the Weight page now lets you pick a time range (All Time / 2Y / 1Y /
+        6M / 3M) and drives the graph, every stat, and the date summary from that ONE
+        selected window, updating instantly with a smooth animated transition and
+        remembering your choice.
+        """
+        reset_tracker_name = 'reset_weight_trend_range_2026_08_02'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for weight trend-range')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Weight Trend-Range selector (Aug 2026)',
+                'command', 'One-time reset to reload PK 292 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset weight trend-range fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

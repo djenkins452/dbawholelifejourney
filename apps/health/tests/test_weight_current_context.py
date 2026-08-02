@@ -20,7 +20,6 @@ from apps.core.current_context import (
     resolve_current_context,
 )
 from apps.health.models import WeightEntry
-from apps.health.services.weight_summary import build_weight_summary
 
 User = get_user_model()
 
@@ -65,7 +64,7 @@ class WeightCurrentContextTests(TestCase):
         self.assertEqual(summ["title"], "Weight")
         self.assertEqual(summ["kind"], "weight overview")
         content = summ["content"]
-        for token in ("Current weight", "Last 30 days", "average", "low", "high",
+        for token in ("Selected range", "Current weight", "average", "low", "high",
                       "Total change", "Entries logged"):
             self.assertIn(token, content)
 
@@ -81,15 +80,18 @@ class WeightCurrentContextTests(TestCase):
 
     # -- one source of truth: the page stats == the assistant's summary ------
     def test_page_stats_and_summary_share_one_source(self):
-        facts = build_weight_summary(self.user)
+        from apps.health.services.weight_summary import build_weight_range_summary
+        facts = build_weight_range_summary(self.user, range_key="all")
         resp = self.client.get(WEIGHT_URL)
-        ctx = resp.context
-        # The page renders the SAME deterministic numbers the summary narrates.
-        self.assertEqual(ctx["avg_weight"], facts["avg_30d_lb"])
-        self.assertEqual(ctx["min_weight"], facts["low_30d_lb"])
-        self.assertEqual(ctx["max_weight"], facts["high_30d_lb"])
-        self.assertEqual(ctx["weight_change"], facts["total_change_lb"])
-        self.assertIn(f"average {facts['avg_30d_lb']} lb",
+        wp = resp.context["wp"]
+        # The page payload renders the SAME deterministic numbers, keyed by stat.
+        by_key = {s["key"]: s["value"] for s in wp["stats"]}
+        self.assertEqual(by_key["low"], facts["low_lb"])
+        self.assertEqual(by_key["high"], facts["high_lb"])
+        self.assertEqual(by_key["avg"], facts["avg_lb"])
+        self.assertEqual(by_key["change"], facts["total_change_lb"])
+        # …and the assistant narrates that identical average (default range = All Time).
+        self.assertIn(f"average {facts['avg_lb']} lb",
                       resolve_current_context(self.user, ref=WEIGHT_REF)["content"])
 
     # -- the provider is strictly user-scoped (ownership boundary) -----------

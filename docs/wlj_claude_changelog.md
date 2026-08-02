@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (feat(health): Weight page Trend-Range selector — ONE selected window drives graph + every stat + subtitle + Current Context; first reusable trend-range component)
+# Last Updated: 2026-08-02 (refactor(health): Trend-range preference is now per-workspace — dashboard_config['trend_ranges'] map keyed by page; no page overwrites another)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — refactor(health): Trend-range preference is now per-WORKSPACE (independent per page)
+
+Follow-up to the Weight Trend-Range selector: made the persisted range self-evidently per-page so future trend pages (Glucose, BP, Sleep, …) never overwrite each other's preferred view. (Persistence was already keyed per page — a map, not a scalar — but the singular key name *read* like one global value, so this removes the ambiguity.)
+
+- `apps/core/trend_range.py` — store renamed `dashboard_config['trend_range']` → **`dashboard_config['trend_ranges']`**, an explicit MAP keyed by page: `{"health.weight": "6m", "health.glucose": "3m", "health.sleep": "1y"}`. `save_range` mutates ONLY the calling page's key; every other workspace's entry is left untouched.
+- No behavior change for Weight (same helper API `get_saved_range`/`save_range(user, page_key, key)`); the reusable Trend-Range capability, single-payload / one-dataset / thin-client architecture all unchanged.
+- Test: `test_persistence_is_per_workspace_independent` (weight/glucose/sleep persist independently; changing one leaves others intact; an untouched page falls back to its own default; store shape asserted). 25 trend tests green; `check` clean; no migrations. **AWAITING USER VALIDATION in prod.**
+
 
 ## 2026-08-02 — feat(health): Weight Trend-Range selector — one selected window drives the ENTIRE page
 

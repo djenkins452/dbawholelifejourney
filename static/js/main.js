@@ -371,6 +371,13 @@ document.addEventListener('DOMContentLoaded', function() {
     document.body.addEventListener('htmx:afterRequest', function() {
         hideProgress();
     });
+
+    // Public API for JS-driven (AJAX) flows that preventDefault navigation — e.g. the
+    // trend-range selector. Such flows MUST pair start()/done() themselves (and mark
+    // their trigger with data-no-progress so the generic click handler above doesn't
+    // also start the bar), otherwise the bar starts on the click but never stops
+    // because no full page load fires. done() is safe to call more than once.
+    window.WLJProgress = { start: showProgress, done: hideProgress };
 })();
 
 // ==========================================================================

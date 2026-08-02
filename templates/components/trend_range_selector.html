@@ -18,6 +18,7 @@ Anchor hrefs keep it fully functional without JS (progressive enhancement / full
         <a href="?range={{ opt.key }}"
            class="trend-range__btn{% if opt.active %} is-active{% endif %}"
            data-trend-option="{{ opt.key }}"
+           data-no-progress
            {% if opt.active %}aria-current="true"{% endif %}>{{ opt.label }}</a>
     {% endfor %}
 </div>

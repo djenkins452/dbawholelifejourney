@@ -3,8 +3,19 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (feat(cos): Executive Assessment Mode — broad "how am I doing" questions answered like a Chief of Staff, not a dashboard; prompt-only, all domains)
+# Last Updated: 2026-08-02 (fix(ui): Weight trend-range AJAX no longer leaves the global progress bar stuck — JS-driven flow owns the start→done lifecycle)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(ui): Trend-range AJAX no longer leaves the global progress bar spinning
+
+**Regression from the Weight Trend-Range selector.** The global gold page-progress bar (`static/js/main.js`) starts on any `a[href]` click and only stops on a full page `load` / `pageshow` / HTMX `afterRequest`. The trend-range selector uses `<a href="?range=…">` anchors but `preventDefault()`s them to do an AJAX swap — so the bar STARTED on the click and never stopped (no navigation, no HTMX event ever fired). It animated forever after every range change. A genuine request-lifecycle bug, not a cosmetic one.
+
+- **Root cause fixed at the lifecycle, not hidden:** the JS-driven flow now OWNS the progress bar start→done, and is excluded from the generic navigation trigger so it is never double-started.
+- **`static/js/main.js`** — expose `window.WLJProgress = { start, done }` from the progress IIFE so JS-driven (preventDefault) flows can pair start/done. `done()` is idempotent.
+- **`templates/components/trend_range_selector.html`** — selector anchors carry `data-no-progress` (an existing exclusion the generic click handler already honors), so only the AJAX flow controls the bar → never started twice.
+- **`static/js/trend_range.js`** — `select()` calls `WLJProgress.start()` on request begin and `done()` in `.finally()`, guarded so the bar is always stopped on **success, HTTP/parse failure (before the fallback full-navigation), and rapid re-selection**. A monotonic request token means only the LATEST switch finishes the bar, so fast clicking can never leave it stuck. Also hardened the stat count-up: `requestAnimationFrame` is paused while a tab is backgrounded, which would freeze a number mid-tween — now it snaps to the exact final value when `document.hidden`, and a per-element animation token cancels superseded tweens so an older one can't overwrite a newer value.
+- **`templates/base.html`** — bumped `main.js?v=3 → ?v=4` so returning browsers actually fetch the updated file (it's cached immutably by version).
+- **Verified in-browser:** range switch shows the bar immediately, stats count up, chart morphs, and the bar cleanly finishes to idle (`page-progress` returns to base class); rapid 6M→3M switching still ends idle on the last range; all stat values settle to the correct range (Total Change matches the subtitle) with zero console errors. `check` clean, `collectstatic` 0 errors, no migrations. **AWAITING USER VALIDATION in prod.**
 
 ## 2026-08-02 — feat(cos): Executive Assessment Mode — broad questions answered like a Chief of Staff, not a dashboard
 

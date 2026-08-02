@@ -38,13 +38,24 @@
         return { prefix: m[1], value: parseFloat(m[2]), suffix: m[3], decimals: decimals };
     }
 
+    var animSeq = 0;
     function countUp(el, toDisplay) {
         var target = parseDisplay(toDisplay);
         if (!target) { el.textContent = toDisplay; return; }     // e.g. "—"
+        // Supersede any in-flight animation on THIS element so an older tween can never
+        // finish late and overwrite a newer value.
+        var my = ++animSeq;
+        el._trAnim = my;
+        // requestAnimationFrame is PAUSED while the tab/page is hidden — starting a tween
+        // then would freeze the number at a stale value. When hidden, snap to the final
+        // value immediately; the display is always correct, animation is just skipped.
+        if (document.hidden) { el.textContent = toDisplay; return; }
         var from = parseDisplay(el.textContent);
         var start = from ? from.value : target.value;
         var t0 = null;
         function frame(ts) {
+            if (el._trAnim !== my) return;                       // superseded — stop
+            if (document.hidden) { el.textContent = toDisplay; return; }  // hidden mid-tween
             if (t0 === null) t0 = ts;
             var p = Math.min(1, (ts - t0) / ANIM_MS);
             var cur = start + (target.value - start) * ease(p);
@@ -112,17 +123,31 @@
         }));
     }
 
+    // Monotonic request token — only the LATEST range switch owns the progress bar, so
+    // rapid re-selection can never leave it stuck "loading" (an earlier request settling
+    // after a newer one started must not finish the bar out from under the newer one).
+    var seq = 0;
+    var navigating = false;
+
+    function progressStart() { if (window.WLJProgress) window.WLJProgress.start(); }
+    function progressDone() { if (window.WLJProgress) window.WLJProgress.done(); }
+
     function select(root, key) {
         var endpoint = root.getAttribute("data-trend-endpoint") || window.location.pathname;
         var url = endpoint + (endpoint.indexOf("?") >= 0 ? "&" : "?") +
             "range=" + encodeURIComponent(key) + "&fmt=json";
+        var mySeq = ++seq;
         root.classList.add("is-loading");
+        // The selector anchors carry data-no-progress, so the global click handler does
+        // NOT start the bar — this AJAX flow owns the whole start→done lifecycle itself.
+        progressStart();
         fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
             .then(function (r) {
                 if (!r.ok) throw new Error("HTTP " + r.status);
                 return r.json();
             })
             .then(function (payload) {
+                if (mySeq !== seq) return;          // superseded by a newer switch — ignore
                 render(root, payload);
                 // Keep the URL shareable/refresh-safe (server also persists the choice).
                 try {
@@ -132,11 +157,20 @@
                 } catch (e) { /* history unavailable — non-fatal */ }
             })
             .catch(function () {
-                // Network/parse failure → fall back to a full navigation (still correct).
+                if (mySeq !== seq) return;           // a newer switch is in charge
+                // Network/parse failure → fall back to a full navigation (its own page
+                // load drives the bar); mark so `finally` doesn't finish it prematurely.
+                navigating = true;
                 window.location.href = endpoint +
                     (endpoint.indexOf("?") >= 0 ? "&" : "?") + "range=" + encodeURIComponent(key);
             })
-            .finally(function () { root.classList.remove("is-loading"); });
+            .finally(function () {
+                // Only the latest request clears state and finishes the bar — and never
+                // when we're handing off to a full navigation.
+                if (mySeq !== seq) return;
+                root.classList.remove("is-loading");
+                if (!navigating) progressDone();
+            });
     }
 
     function bind(root) {

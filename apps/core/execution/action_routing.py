@@ -23,7 +23,7 @@ Capability derivation is METADATA-FIRST (rename-safe), title-LAST:
                                 home → open_life.
 
 Renames are safe for anything carrying metadata: "Bible Reading" → "Morning
-Scripture" still routes to the reading workflow via activity_type='bible'.
+Scripture" still routes to the Faith workspace via activity_type='bible'.
 
 REGRESSION THIS FIXES (2026-07-05): rhythm items hardcoded detail_url to the
 Routines page, so "Journal" and "Log Nutrition" navigated to /life/routines/
@@ -83,7 +83,7 @@ CAP_OPEN_HEALTH = "open_health"
 _CAPABILITY_URL: dict[str, tuple[str, str]] = {
     CAP_LOG_NUTRITION:        ("health:nutrition_home",         "/health/physical/nutrition/"),
     CAP_CREATE_JOURNAL_ENTRY: ("journal:entry_create",          "/journal/new/"),
-    CAP_OPEN_BIBLE_READING:   ("faith:reading_plans",           "/faith/reading-plans/"),
+    CAP_OPEN_BIBLE_READING:   ("faith:home",                    "/faith/"),
     CAP_OPEN_PRAYER:          ("faith:prayer_list",             "/faith/prayers/"),
     CAP_OPEN_FAITH:           ("faith:home",                    "/faith/"),
     CAP_LOG_MEASUREMENTS:     ("health:body_composition_create", "/health/physical/body-composition/log/"),

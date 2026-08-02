@@ -55,10 +55,11 @@ class ActionRoutingTests(TestCase):
         self.assertEqual(resolve_action_destination(item),
                          "/health/physical/fitness/workout/new/")
 
-    def test_bible_routine_routes_to_bible_reading(self):
+    def test_bible_routine_routes_to_faith_workspace(self):
+        # Bible Reading opens the Faith workspace — the user goes there to read.
         sched = self._routine_schedule("Morning Scripture", activity_type="bible")
         item = {"source_type": "routine_item", "source_id": sched.pk, "title": "Morning Scripture"}
-        self.assertEqual(resolve_action_destination(item), "/faith/reading-plans/")
+        self.assertEqual(resolve_action_destination(item), "/faith/")
 
     def test_journal_routine_routes_to_new_entry(self):
         sched = self._routine_schedule("Evening Pages", activity_type="journal")
@@ -114,14 +115,14 @@ class ActionRoutingTests(TestCase):
 
     # ── rename safety (the headline guarantee) ──
     def test_rename_safe_routing(self):
-        """A renamed Bible routine still routes to the reading workflow because
+        """A renamed Bible routine still routes to the Faith workspace because
         resolution keys on activity_type, NOT the title."""
         sched = self._routine_schedule(
             "Completely Unrelated Title", activity_type="bible"
         )
         item = {"source_type": "routine_item", "source_id": sched.pk,
                 "title": "Completely Unrelated Title"}
-        self.assertEqual(resolve_action_destination(item), "/faith/reading-plans/")
+        self.assertEqual(resolve_action_destination(item), "/faith/")
 
     # ── ACCEPTANCE: routine items route to their WORKFLOW, never Routines ──
     def test_acceptance_routine_workflows(self):
@@ -132,7 +133,7 @@ class ActionRoutingTests(TestCase):
         cases = [
             ("Log Nutrition", None,      "/health/physical/nutrition/"),
             ("Journal", "journal",       "/journal/new/"),
-            ("Bible Reading", "bible",   "/faith/reading-plans/"),
+            ("Bible Reading", "bible",   "/faith/"),
             ("Prayer Time", "faith",     "/faith/prayers/"),
             ("Measurements", None,       "/health/physical/body-composition/log/"),
             ("Log Workout", None,        "/health/physical/fitness/workout/new/"),

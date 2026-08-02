@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(cos): Executive assessment now instructs the model HOW TO THINK before writing — rank by significance/surprise + connect across facets — not just the output form)
+# Last Updated: 2026-08-02 (feat(nav): Bible Reading task opens the Faith workspace (/faith/) via the existing capability resolver — one URL-map change, no template edits)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — feat(nav): Bible Reading task opens the Faith workspace (/faith/)
+
+**Objective:** Clicking a "Bible Reading" task on the Dashboard (Today's/Morning Rhythm, recommendations, overdue items) should feel like opening the Faith workspace to read — landing on `/faith/`, not the reading-plans sub-page.
+
+- **Mechanism (reused, not re-invented):** Every rhythm/recommendation/focus item already carries a resolved `detail_url` from the single capability resolver `apps/core/execution/action_routing.py` (`resolve_action_destination` → `derive_capability` → `_CAPABILITY_URL`). Bible Reading resolves to `CAP_OPEN_BIBLE_READING` via `RoutineSchedule.activity_type='bible'` (rename-safe) or the title keyword bridge. The template (`templates/dashboard_v3/sections/rhythm.html`) already renders `item.detail_url` as a native `<a href>`, so Back-button and mobile behavior are inherited; the `○/✓` completion toggle is a separate `hx-post` control and is untouched.
+- **Change (one line of behavior):** `_CAPABILITY_URL[CAP_OPEN_BIBLE_READING]` remapped `("faith:reading_plans", "/faith/reading-plans/")` → `("faith:home", "/faith/")`. No template edits; no change to how the task is created, completed, or evaluated. All Bible Reading task surfaces route through this one map, so no per-template special-casing.
+- **Scope boundary:** The separate findings/signals affordance (`apps/core/action_router.py` `_SUBJECT_FALLBACK` bible→reading-plans) is a different surface ("Open Bible reading" from an insight) and was intentionally left unchanged.
+- **Files:** `apps/core/execution/action_routing.py` (map + docstring); `apps/core/execution/tests/test_action_routing.py` (3 assertions updated to `/faith/`).
+- **Verification:** `apps.core.execution.tests.test_action_routing` 17/17 pass; live shell resolution confirms activity=`bible`, keyword-only, and `capability_to_url` all return `/faith/`; `manage.py check` clean.
 
 ## 2026-08-02 — fix(cos): executive assessment reasoning-FLOW — think (significance + cross-facet) before writing (Blocker #2, round 2)
 

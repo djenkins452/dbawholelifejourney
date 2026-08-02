@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (refactor(health): Trend-range preference is now per-workspace — dashboard_config['trend_ranges'] map keyed by page; no page overwrites another)
+# Last Updated: 2026-08-02 (feat(cos): Executive Assessment Mode — broad "how am I doing" questions answered like a Chief of Staff, not a dashboard; prompt-only, all domains)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — feat(cos): Executive Assessment Mode — broad questions answered like a Chief of Staff, not a dashboard
+
+**Product problem, not a bug.** After the whole-domain-overview fix, the CoS correctly RETRIEVES the truth for a broad question ("how has my health been", "how was my week", "how are my relationships") — then just reports the metrics. Technically correct; not what a Chief of Staff does. A CoS reviews the facts, decides what matters, and answers from that understanding — the facts SUPPORT the answer, they are not the answer.
+
+- **Runtime trace (proven, not guessed):** Danny is on the `ModelInterfaceRuntime`; its system prompt is `service.py :: _system_prompt` = `CONSTITUTION` + context + `RESPONSE_COMPLETION_REMINDER` (constitution.py). The CONSTITUTION already distinguishes RETRIEVE vs REASON and has a deep competing-hypotheses workup for "why" questions — but had **no answer-STRUCTURE for broad whole-picture questions**, so given a flat per-subject evidence bundle the model enumerated it. The legacy router's deterministic executive modes (`deterministic_router._cos_mode_for`) are a DIFFERENT runtime and were deliberately NOT wired in (that is WLJ-side reasoning; the model owns interpretation).
+- **Fix layer = the conversational instruction, exactly where the task scoped it** (NOT WLJ; no new truth authority, no canned templates, no Health special-case): added an `EXECUTIVE ASSESSMENT — BROAD 'HOW AM I DOING' QUESTIONS` section to `CONSTITUTION` + a high-salience restatement in `RESPONSE_COMPLETION_REMINDER`. It instructs: review the evidence and decide what MATTERS (signal vs noise; `deterministic_understanding` for cross-domain, `get_analysis(<domain>,'overall')` for one domain) → OPEN with the executive read (the single most important takeaway, not a list) → name the meaningful improvement and the meaningful decline BY SIGNIFICANCE → give the ONE highest-leverage focus → supporting evidence LAST and only where it explains the conclusion → missing data is "not recorded", never a decline. Explicitly ONE behavior across health/relationships/journal-moods/faith/goals/finance; a broad assessment does NOT trigger the full competing-hypotheses workup (that stays for "why"/specific-cause). **Mode 1 (specific/factual "what/how many/list") is untouched** — still terse and precise.
+- **Two modes, no special wording required:** the model recognizes broad UNDERSTANDING questions vs specific DATA questions from the existing RETRIEVE-vs-REASON split + the new examples.
+- **Prompt-only** — no tool added/removed (`truth_tools()` unchanged), no retrieval surface touched, WLJ still owns truth. Conforms to `WLJ_LLM_TRUTH_ACTION_CONTRACT`; no Constitutional change.
+- **Files:** `apps/ai/model_interface/constitution.py`; tests `apps/ai/tests/test_executive_assessment_mode.py` (new — section present, executive structure specified, examples named, platform-not-Health, missing≠decline, Mode-1 preserved, reaches assembled prompt) + corrected a pre-existing stale tool-set assertion in `test_intent_retrieve_reason.py` (`truth_tools()` grew to 11). Release note PK 293 + loader reset. `check` clean; **no migrations**. **AWAITING USER VALIDATION in prod (`wlj-worker`).**
 
 ## 2026-08-02 — refactor(health): Trend-range preference is now per-WORKSPACE (independent per page)
 

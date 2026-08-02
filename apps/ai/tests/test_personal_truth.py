@@ -264,6 +264,7 @@ class ProtectedBehaviorsUnregressedTests(TestCase):
         from apps.ai.model_interface.constitution import truth_tools
         names = {t["function"]["name"] for t in truth_tools()}
         self.assertEqual(names, {
-            "get_domain_state", "search_history", "get_history", "get_entity",
+            "get_domain_state", "search_history", "get_history", "get_readings",
+            "get_event_frequency", "get_comparison", "get_adherence", "get_entity",
             "get_analysis", "get_user_truth", "get_foundational_health_facts",
         })

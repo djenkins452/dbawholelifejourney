@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(truth): "total weight lost" trust failure — all_time bundle now carries ONE coherent lifetime change so a total is never stitched from a window baseline + the all-time date)
+# Last Updated: 2026-08-02 (fix(cos): Executive assessment tells ONE synthesized narrative, not a filled-in template that renders as sections/lists — report→conversation)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(cos): broad assessments answer as ONE narrative, not a report with sections (Production Blocker #2)
+
+**Production trust failure (conversational, not truth).** The CoS still organized broad-question answers by category — leading with a takeaway, then an "improving" list, a "declining" list, a focus, evidence — i.e. a well-written dashboard, not one synthesized executive judgment. "Six independent observations" instead of one coherent story.
+
+- **First failing layer = conversational / response-construction.** The `EXECUTIVE ASSESSMENT` section added earlier was itself a 5-step TEMPLATE (`REVIEW → OPEN → name IMPROVING/DECLINING → focus → evidence`); followed literally it PRODUCES sections, and "name what's improving and what's declining" all but forces two lists. The instruction meant to stop dashboards was causing a tidier one. Not a truth or reasoning defect — the evidence bundle (state + trends) is already good.
+- **Fix (conversational prompting only; no new data, no new truth, no new tool):** `apps/ai/model_interface/constitution.py` — reframed the section from a template-to-fill into ONE synthesized narrative: GATHER silently (decide what matters), then ANSWER as a single coherent story in flowing PROSE (often 3–5 sentences) — lead the first sentence with the one thing that matters most, tell the through-line (how the pieces relate, what's improving/slipping, the single highest-leverage action), weaving in only the few numbers that make the point. Explicitly bans sections, an improving/declining list, a bullet-per-metric, headed groups, or a facet walk; the review→prioritize→conclude order is private THINKING, the OUTPUT is prose. Same principles, narrative form. `RESPONSE_COMPLETION_REMINDER` restatement updated to match.
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_executive_assessment_mode.py` (contract updated: asserts one-narrative/anti-template phrasing + regression-guards that the old list-inducing phrases are gone). `check` clean; **no migrations**.
+- **Blocker #2 stays OPEN** — closes only when a broad question, re-run, reads like advice from a trusted Chief of Staff rather than a well-written dashboard (acceptance = the conversation, not the deploy).
 
 ## 2026-08-02 — fix(truth): coherent lifetime CHANGE in the analysis all_time bundle (kills the "total lost" false-pairing)
 

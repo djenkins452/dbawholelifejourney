@@ -25,16 +25,24 @@ class ExecutiveAssessmentContractTests(TestCase):
         self.assertIn("executive assessment", low)
         # The core inversion: facts SUPPORT the answer, they are not the answer.
         self.assertIn("they are not the answer", low)
-        self.assertIn("not like a dashboard", low)
-        self.assertIn("never open by walking through the metrics", low)
+        self.assertIn("not a report with sections", low)
+        self.assertIn("one synthesized narrative", low)
 
-    def test_executive_structure_is_specified(self):
+    def test_answer_is_one_narrative_not_a_template(self):
+        # The whole point of the fix: tell ONE coherent story, not fill in a template that
+        # renders as sections / an improving list / a declining list / a metric walk.
         low = CONSTITUTION.lower()
-        self.assertIn("open with your executive read", low)         # takeaway first
-        self.assertIn("meaningfully improving", low)                # improvements
-        self.assertIn("meaningfully declining", low)                # declines
-        self.assertIn("highest-leverage focus", low)                # the ONE action
-        self.assertIn("put supporting evidence last", low)          # evidence last
+        self.assertIn("one synthesized narrative", low)            # a single coherent story
+        self.assertIn("lead with your executive read", low)        # judgment first
+        self.assertIn("flowing prose", low)                        # prose, not sections
+        self.assertIn("one prioritized judgment in connected prose", low)
+        # explicitly bans the dashboard shapes
+        self.assertIn("do not produce sections", low)
+        self.assertIn("a bullet per metric", low)
+        self.assertIn("walk through each facet", low)
+        # and the old list-inducing phrasing is GONE (regression guard)
+        self.assertNotIn("meaningfully improving", low)
+        self.assertNotIn("put supporting evidence last", low)
 
     def test_broad_assessment_examples_named(self):
         low = CONSTITUTION.lower()
@@ -45,14 +53,14 @@ class ExecutiveAssessmentContractTests(TestCase):
     def test_platform_behavior_not_health_specific(self):
         low = CONSTITUTION.lower()
         # Explicitly one behavior across domains — never a Health special-case.
-        self.assertIn("never a per-domain template and never health-specific", low)
+        self.assertIn("never per-domain, never health-specific", low)
         for domain in ("health", "relationships", "journal/moods", "faith", "goals",
                        "finance"):
             self.assertIn(domain, low)
 
     def test_missing_data_is_not_a_decline(self):
         low = CONSTITUTION.lower()
-        self.assertIn("distinguish missing data from a negative finding", low)
+        self.assertIn("missing data, never a decline", low)
 
     def test_broad_assessment_does_not_force_the_full_why_investigation(self):
         # A broad "how am I doing" leads with the prioritized read; the deep
@@ -69,15 +77,16 @@ class ExecutiveAssessmentContractTests(TestCase):
     def test_reminder_carries_broad_assessment_restatement(self):
         low = RESPONSE_COMPLETION_REMINDER.lower()
         self.assertIn("like a chief of staff, not a dashboard", low)
-        self.assertIn("single most important takeaway", low)
-        self.assertIn("never a metric-by-metric readout", low)
+        self.assertIn("one synthesized narrative", low)
+        self.assertIn("never sections", low)
+        self.assertIn("metric-by-metric readout", low)
 
     def test_directive_reaches_the_assembled_system_prompt(self):
         user = get_user_model().objects.create_user(email="exec@test.com", password="x")
         svc = ModelInterfaceService(user, ai_service=object())
         low = svc._system_prompt({"current_context": {}}).lower()
         self.assertIn("executive assessment", low)
-        self.assertIn("open with your executive read", low)
+        self.assertIn("one synthesized narrative", low)
         # …and the high-salience tail restatement is there too.
         self.assertIn("like a chief of staff, not a dashboard", low)
 

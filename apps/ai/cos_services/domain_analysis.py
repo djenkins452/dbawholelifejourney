@@ -336,12 +336,17 @@ def _envelope(domain, subject, status, **extra):
         "generated_at": timezone.now().isoformat(),
         "granularity": "analysis",
         "scope": ("The COMPLETE deterministic evidence WLJ holds for analyzing this "
-                  "subject — trends across trailing windows, all-time span and count, "
-                  "and recent record detail — composed in ONE retrieval. This IS the "
-                  "investigation; reason over it. `holds_data` is WLJ's deterministic "
-                  "verdict on whether relevant truth exists: when it is true you have "
-                  "the evidence and must not say 'insufficient'; only `status: empty` "
-                  "(holds_data false) is a genuine absence of WLJ truth."),
+                  "subject — trends across trailing windows, the all-time span with its "
+                  "coherent lifetime CHANGE (`all_time.change` + `all_time.start`/`.end`, "
+                  "each a reading WITH its own date), and recent record detail — composed "
+                  "in ONE retrieval. For a TOTAL question ('how much have I lost/gained "
+                  "since I started') use `all_time.change` (first→last value + delta) and "
+                  "`all_time.start`/`.end`; NEVER pair a trailing window's value with the "
+                  "all-time start date. This IS the investigation; reason over it. "
+                  "`holds_data` is WLJ's deterministic verdict on whether relevant truth "
+                  "exists: when it is true you have the evidence and must not say "
+                  "'insufficient'; only `status: empty` (holds_data false) is a genuine "
+                  "absence of WLJ truth."),
     }
     base.update(extra)
     return base
@@ -421,15 +426,34 @@ def get_domain_analysis(user, domain, subject, period=None):
             history[w] = _compact_history(
                 get_domain_history(user, domain_norm, metric, period=w))
 
-        # 2. All-time span + total (reuse History, one wide custom range).
-        at = _compact_history(get_domain_history(
+        # 2. All-time span + LIFETIME CHANGE (reuse History, one wide custom range).
+        # The lifetime change is composed as ONE coherent fact: the earliest reading
+        # (date WITH its value) → the latest reading (date WITH its value) → the
+        # deterministic delta/direction (the series' own `change`). A "how much have I
+        # lost/gained in TOTAL" question is therefore answered from a SINGLE source, so it
+        # can never be assembled by pairing a trailing window's baseline (e.g. this_year's
+        # 309.4) with the all-time start date (Aug 2 2024) — the false-pairing class that
+        # produced "you went from 309.4 lb since August 2, 2024".
+        at_raw = get_domain_history(
             user, domain_norm, metric, period="custom",
-            start=_EARLIEST, end=_today_iso(user)))
+            start=_EARLIEST, end=_today_iso(user))
+        at = _compact_history(at_raw)
         total = at.get("total") or 0
-        all_time = {"present": at.get("present", False), "total": total,
-                    "count": at.get("count"), "unit": at.get("unit"),
-                    "span": {"start": at.get("first_point"),
-                             "end": at.get("last_point")}}
+        at_points = at_raw.get("points") or []
+        all_time = {
+            "present": at.get("present", False), "total": total,
+            "count": at.get("count"), "unit": at.get("unit"),
+            "span": {"start": at.get("first_point"), "end": at.get("last_point")},
+            # Coherent endpoints — the earliest/latest reading WITH its own date, never a
+            # date from one source and a value from another.
+            "start": ({"date": at_points[0].get("date"),
+                       "value": at_points[0].get("value")} if at_points else None),
+            "end": ({"date": at_points[-1].get("date"),
+                     "value": at_points[-1].get("value")} if at_points else None),
+            # THE total-change fact: first→last value, delta, and direction (rising/falling)
+            # across the whole record. Use THIS for "total lost/gained since I started".
+            "change": at_raw.get("change"),
+        }
 
         # 3. Record-level detail (reuse the Entity surface) when the subject has one.
         records = None

@@ -96,6 +96,33 @@ class AnalysisGuaranteeTests(TestCase):
         self.assertFalse(a["holds_data"])
         self.assertEqual(a["evidence"], "absent")
 
+    def test_all_time_carries_coherent_lifetime_change(self):
+        # The production trust failure: "how much have I lost total" was answered by pairing
+        # a trailing window's baseline (309.4) with the all-time start date (Aug 2 2024).
+        # all_time must now carry ONE coherent lifetime change: earliest reading WITH its
+        # date -> latest reading WITH its date -> delta/direction, from a SINGLE source.
+        from django.utils import timezone
+        from apps.health.models import WeightEntry
+        now = timezone.now()
+        WeightEntry.objects.create(user=self.user, value=Decimal("339.0"), unit="lb",
+                                   recorded_at=now - timedelta(days=400))   # the true start
+        WeightEntry.objects.create(user=self.user, value=Decimal("309.4"), unit="lb",
+                                   recorded_at=now - timedelta(days=60))    # a mid point
+        WeightEntry.objects.create(user=self.user, value=Decimal("282.9"), unit="lb",
+                                   recorded_at=now - timedelta(days=1))     # latest
+        a = get_domain_analysis(self.user, "health", "weight")
+        at = a["all_time"]
+        # endpoints are the EARLIEST and LATEST readings, each with its own date + value
+        self.assertAlmostEqual(float(at["start"]["value"]), 339.0, places=1)
+        self.assertAlmostEqual(float(at["end"]["value"]), 282.9, places=1)
+        self.assertNotEqual(at["start"]["date"], at["end"]["date"])
+        # the coherent total-change fact: 339 -> 282.9 (a loss), NOT 309.4 -> 282.9
+        ch = at["change"]
+        self.assertAlmostEqual(float(ch["first"]), 339.0, places=1)
+        self.assertAlmostEqual(float(ch["last"]), 282.9, places=1)
+        self.assertEqual(ch["direction"], "falling")
+        self.assertAlmostEqual(float(ch["delta"]), -56.1, places=1)
+
     def test_subject_without_entity_still_composes_history(self):
         # A history-only subject (weight) has no records but still analyzes.
         from django.utils import timezone

@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (feat(truth): Executive Assessment platform — whole-domain assessment = STATE + TRENDS, coverage tracks composed truth; every domain lights up; Finance is the reference)
+# Last Updated: 2026-08-02 (fix(truth): "total weight lost" trust failure — all_time bundle now carries ONE coherent lifetime change so a total is never stitched from a window baseline + the all-time date)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(truth): coherent lifetime CHANGE in the analysis all_time bundle (kills the "total lost" false-pairing)
+
+**Production trust failure (real transcript, runtime-proven).** Asked "how much weight have I lost total?", the CoS said "26.5 lb since the beginning of your data on August 2, 2024, from 309.4 to 282.9" — then, when challenged, admitted 309.4 was actually a **January 3, 2026** number, silently switched the loss to 56.1 lb, and finally asked the user to clarify what went wrong. High trust impact: confidently wrong about a number the user cares about, self-contradictory, and wouldn't own it.
+
+- **Runtime trace (proven):** ToolCallLog shows the turn called `get_analysis(health, weight)`. Its `all_time` bundle exposed the lifetime SPAN dates (start 2024-08-02) + a meaningless `total` (41365.5 = sum of all weigh-ins) + count — but **NOT the earliest weight value and NOT any lifetime change**. The only change-like numbers were in the trailing-window sub-bundles, where `this_year` starts 2026-01-03 at **309.4**. Asked for a TOTAL, the model had a start DATE with no start VALUE, so it paired this-year's baseline (309.4) with the all-time start date (Aug 2 2024) — a claim assembled from two independent sub-facts that matches no real record.
+- **First failing layer = TRUTH composition** (not prompt, not reasoning): WLJ never handed the model a coherent "total change since your first record" fact. This is the same false-pairing CLASS WLJ already eliminated once ("6:15 AM tonight").
+- **Fix (minimal, first-failing-layer, generic — not weight-specific):** `apps/ai/cos_services/domain_analysis.py` — the `all_time` bundle now carries `all_time.change` (the series' own `change()`: first→last VALUE, delta, direction) plus `all_time.start`/`all_time.end`, each an endpoint reading WITH its own date. A "total lost/gained since I started" question is answered from ONE source; a window value can never be pinned to the all-time date. Envelope `scope` updated to point TOTAL questions at `all_time.change`. Reuses existing `HistorySeries.change()`; no new authority, no reasoning in WLJ.
+- **Files:** `apps/ai/cos_services/domain_analysis.py`; test `apps/ai/tests/test_domain_analysis.py` (`test_all_time_carries_coherent_lifetime_change` — 339→282.9, not 309.4→282.9). `check` clean; **no migrations**. **AWAITING re-run of the identical conversation in prod.**
 
 ## 2026-08-02 — feat(truth): Executive Assessment platform — one Chief of Staff across every domain (reusable, coverage tracks truth; Finance = reference)
 

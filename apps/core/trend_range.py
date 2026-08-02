@@ -95,33 +95,42 @@ def parse_range_param(request, default):
     return normalize_range((request.GET.get("range") or "").strip(), default=default)
 
 
+# Per-WORKSPACE persistence. The store is a MAP keyed by page (workspace) so every
+# trend page remembers its OWN preferred range independently — Weight can sit on 6M while
+# Glucose sits on 3M and Sleep on 1Y; no page ever overwrites another's choice.
+#   dashboard_config["trend_ranges"] = {"health.weight": "6m", "health.glucose": "3m", …}
+_STORE_KEY = "trend_ranges"
+
+
 def get_saved_range(user, page_key, default=DEFAULT_TREND_RANGE):
-    """The user's last-selected range for `page_key` (e.g. 'health.weight'), or
-    `default`. Stored under UserPreferences.dashboard_config['trend_range'][page_key] —
-    the same JSON store other per-page view preferences use. Read-only; never raises."""
+    """The user's last-selected range for THIS `page_key` (e.g. 'health.weight'), or
+    `default`. Read from the per-workspace map under
+    UserPreferences.dashboard_config['trend_ranges'] — the same JSON store other per-page
+    view preferences use. Strictly scoped to `page_key`; never raises."""
     try:
         prefs = user.preferences
     except Exception:
         return normalize_range(default)
-    store = (prefs.dashboard_config or {}).get("trend_range") or {}
+    store = (prefs.dashboard_config or {}).get(_STORE_KEY) or {}
     return normalize_range(store.get(page_key), default=default)
 
 
 def save_range(user, page_key, key):
-    """Persist `key` as the user's last-selected range for `page_key`. No-op when the
-    value is unchanged (avoids a needless write on the read path). Returns the stored
-    (normalized) key. Safe on the request path — one small JSON-field row update."""
+    """Persist `key` as the user's last-selected range for THIS `page_key` only, in the
+    per-workspace map. Other pages' entries are left untouched. No-op when the value is
+    unchanged (avoids a needless write on the read path). Returns the stored (normalized)
+    key. Safe on the request path — one small JSON-field row update."""
     key = normalize_range(key)
     try:
         prefs = user.preferences
     except Exception:
         return key
     cfg = dict(prefs.dashboard_config or {})
-    store = dict(cfg.get("trend_range") or {})
+    store = dict(cfg.get(_STORE_KEY) or {})
     if store.get(page_key) == key:
         return key                                   # unchanged → skip the write
-    store[page_key] = key
-    cfg["trend_range"] = store
+    store[page_key] = key                            # only THIS workspace's key changes
+    cfg[_STORE_KEY] = store
     prefs.dashboard_config = cfg
     prefs.save(update_fields=["dashboard_config"])
     return key

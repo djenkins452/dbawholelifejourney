@@ -68,6 +68,27 @@ class TrendRangeCoreTests(TestCase):
         # Invalid persists as the safe default.
         self.assertEqual(trend_range.save_range(user, "health.weight", "nope"), "all")
 
+    def test_persistence_is_per_workspace_independent(self):
+        # Each trend page remembers its OWN range; one never overwrites another.
+        user = _mk_user("perworkspace@example.com")
+        trend_range.save_range(user, "health.weight", "6m")
+        trend_range.save_range(user, "health.glucose", "3m")
+        trend_range.save_range(user, "health.sleep", "1y")
+        self.assertEqual(trend_range.get_saved_range(user, "health.weight"), "6m")
+        self.assertEqual(trend_range.get_saved_range(user, "health.glucose"), "3m")
+        self.assertEqual(trend_range.get_saved_range(user, "health.sleep"), "1y")
+        # Changing one workspace leaves the others untouched.
+        trend_range.save_range(user, "health.weight", "2y")
+        self.assertEqual(trend_range.get_saved_range(user, "health.weight"), "2y")
+        self.assertEqual(trend_range.get_saved_range(user, "health.glucose"), "3m")
+        self.assertEqual(trend_range.get_saved_range(user, "health.sleep"), "1y")
+        # An untouched workspace still falls back to its own default.
+        self.assertEqual(trend_range.get_saved_range(user, "health.bp"), "all")
+        # Stored under the per-workspace MAP, keyed by page.
+        store = User.objects.get(pk=user.pk).preferences.dashboard_config["trend_ranges"]
+        self.assertEqual(store, {"health.weight": "2y", "health.glucose": "3m",
+                                 "health.sleep": "1y"})
+
 
 # ---------------------------------------------------------------------------
 # The dataset invariant: stats + chart come from the identical filtered series

@@ -44,6 +44,19 @@ class ExecutiveAssessmentContractTests(TestCase):
         self.assertNotIn("meaningfully improving", low)
         self.assertNotIn("put supporting evidence last", low)
 
+    def test_reasoning_flow_thinks_before_writing(self):
+        # Blocker #2 root cause: the model was told what to OUTPUT but not how to THINK, so it
+        # mirrored the category-keyed evidence. The fix is a private reasoning procedure:
+        # rank by significance/surprise, connect ACROSS facets, decide meaning, then write.
+        low = CONSTITUTION.lower()
+        self.assertIn("think before you write", low)
+        self.assertIn("significance and surprise", low)
+        self.assertIn("relationships across facets", low)
+        self.assertIn("body recomposition", low)                    # the cross-facet archetype
+        # the facet keys are lookup, NOT the answer's structure
+        self.assertIn("not the structure of", low)
+        self.assertIn("do not walk them one by one", low)
+
     def test_broad_assessment_examples_named(self):
         low = CONSTITUTION.lower()
         for phrase in ("how am i doing", "how was my week", "how are my relationships",

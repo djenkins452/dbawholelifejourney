@@ -3,8 +3,18 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(cos): Executive assessment tells ONE synthesized narrative, not a filled-in template that renders as sections/lists — report→conversation)
+# Last Updated: 2026-08-02 (fix(cos): Executive assessment now instructs the model HOW TO THINK before writing — rank by significance/surprise + connect across facets — not just the output form)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(cos): executive assessment reasoning-FLOW — think (significance + cross-facet) before writing (Blocker #2, round 2)
+
+**The narrative rewrite (804da9ac) changed the OUTPUT but not the THINKING.** Re-run of "how has my health journey been in the last 30 days?" still read as a report: a paragraph per category (weight/activity/nutrition/BP/sleep) then an overall line. The bullets moved; the reasoning was unchanged (retrieve → summarize each category → conclude). It missed the actual story — weight UP while body-fat DOWN 3% and lean mass UP ~9 lb = body recomposition (the scale is misleading) — treating it as one bullet among five.
+
+- **Trace / first failing conversational layer:** `get_analysis(<domain>,'overall')` hands the model category-keyed evidence (`state` + `subjects` keyed by facet), and the running model (gpt-4o) mirrors that structure. The `EXECUTIVE ASSESSMENT` instruction specified what to OUTPUT (a narrative) but not how to THINK first — no step to rank by significance/surprise or to look for relationships ACROSS facets. Category-by-category structure structurally HIDES cross-facet stories (each facet arrives as its own key), so the model never connects them. Not a truth or output-format defect — a reasoning-flow gap.
+- **Boundary held:** did NOT build a significance ranker or a recomposition detector into WLJ (that is the model's reasoning; building it in WLJ is the retired approach). Fix stays in how the model is instructed to think.
+- **Fix (reasoning-flow, not presentation):** `apps/ai/model_interface/constitution.py` — inserted a PRIVATE "THINK before you write" procedure between gather and write: the facet keys are for LOOKUP, NOT the answer's structure (do not walk them); (1) pick the 2–3 observations that matter most by SIGNIFICANCE and SURPRISE, never equal-weighting every facet; (2) actively look for RELATIONSHIPS ACROSS facets — the real story is usually something no single metric shows (recomposition archetype; spending↑ while income↓ = one cash-flow story); (3) decide what they MEAN; (4) choose the single highest-priority advice — only then write. Same deterministic evidence; the model does the reasoning.
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_executive_assessment_mode.py` (`test_reasoning_flow_thinks_before_writing`). `check` clean; **no migrations**.
+- **Blocker #2 stays OPEN** — closes only when the identical conversation, re-run, reads like someone already analyzed the health data and told the user what actually matters ("exactly what I needed to hear"), not "a good summary."
 
 ## 2026-08-02 — fix(cos): broad assessments answer as ONE narrative, not a report with sections (Production Blocker #2)
 

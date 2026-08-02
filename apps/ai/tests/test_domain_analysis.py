@@ -176,3 +176,63 @@ class WholeDomainOverviewTests(TestCase):
         self.assertEqual(a["status"], "empty")
         self.assertFalse(a["holds_data"])
         self.assertEqual(a["evidence"], "absent")
+
+
+class OverviewWindowFidelityTests(TestCase):
+    """The requested window is HONORED exactly — every subject is composed against the SAME
+    resolved window and nothing outside it. Prevents out-of-window (e.g. this-month) data
+    from influencing a "last week" summary."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(email="window@test.com", password="x")
+
+    def _weight(self, days_ago, value):
+        from django.utils import timezone
+        from apps.health.models import WeightEntry
+        WeightEntry.objects.create(
+            user=self.user, value=Decimal(str(value)), unit="lb",
+            recorded_at=timezone.now() - timedelta(days=days_ago))
+
+    def test_out_of_window_data_is_excluded(self):
+        # Two readings inside the last 7 days, one 20 days ago (this month, NOT last week).
+        self._weight(1, 281)
+        self._weight(3, 282)
+        self._weight(20, 300)                       # OUTSIDE a 7-day window
+        a = get_domain_analysis(self.user, "health", "overall", period="last_7_days")
+        w = a["subjects"]["weight"]
+        self.assertTrue(w["present"])
+        self.assertEqual(w["count"], 2)             # the day-20 reading must NOT be counted
+        self.assertEqual(a["window"]["days"], 7)
+        self.assertLess(a["window"]["start"], a["window"]["end"])   # window disclosed
+
+    def test_natural_language_window_resolved_by_shared_authority(self):
+        # "past 7 days" must resolve to the same 7-day window (alias in periods.py).
+        self._weight(2, 281)
+        self._weight(20, 300)
+        a = get_domain_analysis(self.user, "health", "overall", period="past 7 days")
+        self.assertEqual(a["subjects"]["weight"]["count"], 1)   # only the in-window reading
+        self.assertEqual(a["window"]["name"], "last_7_days")
+        self.assertEqual(a["window"]["days"], 7)
+
+    def test_default_window_is_last_7_days_when_none_requested(self):
+        self._weight(2, 281)
+        a = get_domain_analysis(self.user, "health", "overall")
+        self.assertEqual(a["window"]["name"], "last_7_days")
+        self.assertEqual(a["window"]["days"], 7)
+        self.assertIsNone(a["window"]["requested_period"])
+
+    def test_change_carries_within_window_direction(self):
+        # What improved / got worse: the deterministic within-window trend.
+        self._weight(6, 286)                        # earlier in the window
+        self._weight(1, 281)                        # later — weight fell
+        a = get_domain_analysis(self.user, "health", "overall", period="last_7_days")
+        change = a["subjects"]["weight"]["change"]
+        self.assertIsNotNone(change)
+        self.assertEqual(change["direction"], "falling")
+
+    def test_unresolvable_period_falls_back_never_dead_ends(self):
+        self._weight(2, 281)
+        a = get_domain_analysis(self.user, "health", "overall", period="qwerty")
+        self.assertEqual(a["status"], "ready")                 # NOT unsupported / error
+        self.assertEqual(a["window"]["name"], "last_7_days")
+        self.assertTrue(a["window"]["requested_period_unresolved"])

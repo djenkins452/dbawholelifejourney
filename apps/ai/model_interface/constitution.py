@@ -976,6 +976,14 @@ def truth_tools():
                                             "index (e.g. 'workouts', 'weight', 'sleep', "
                                             "'steps'), or 'overall' for a whole-domain "
                                             "roll-up of every subject.")},
+                "period": {"type": "string",
+                           "description": ("For an 'overall' whole-domain summary: the time "
+                                           "window the user asked for, in THEIR words — "
+                                           "'last week', 'the past 7 days', 'this week', "
+                                           "'this month'. WLJ composes every subject against "
+                                           "exactly that window and nothing outside it. Omit "
+                                           "for a default recent (last-7-days) window. "
+                                           "Ignored for a single-subject analysis.")},
             }, "required": ["domain", "subject"]}}},
         {"type": "function", "function": {
             "name": "get_user_truth",

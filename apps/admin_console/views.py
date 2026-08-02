@@ -3614,6 +3614,102 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
 # Claude Code API - Ready Tasks Endpoint
 # ==============================================================================
 
+class TruthProbeAPIView(APIRateLimitMixin, View):
+    """Operator TRUTH PROBE (read-only, API-key-guarded) — the sanctioned way to verify, from
+    the LIVE deployed build, exactly what deterministic truth the CoS composes for a user,
+    plus which commit each service is running. It runs the real truth tool (`get_analysis`
+    via `get_domain_analysis`) and returns the envelope; it NEVER runs the model or mutates.
+
+    Answers, without a browser session:
+      * Is the whole-domain overview `ready` (not `unsupported`) on real data?
+      * Is the REQUESTED window honored (composed `window`, per-subject counts)?
+      * What evidence would the model receive (subjects + within-window change)?
+      * Which commit is WEB running, and (via the worker-stamped cache) the WORKER?
+
+    GET /admin-console/api/claude/truth-probe/?email=&domain=health&subject=overall&period=
+    Auth: X-Claude-API-Key. Read-only; request-path-safe (one bounded truth read).
+    """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 300
+    rate_limit_key_prefix = 'admin_api_truth_probe'
+
+    def get(self, request):
+        import os
+
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from django.core.cache import cache
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        email = (request.GET.get('email') or '').strip()
+        domain = (request.GET.get('domain') or 'health').strip()
+        subject = (request.GET.get('subject') or 'overall').strip()
+        period = request.GET.get('period')  # None → default recent window
+        if not email:
+            return JsonResponse({'error': 'email query param required'}, status=400)
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return JsonResponse({'error': f'no user with email {email!r}'}, status=404)
+
+        # --- build identity: WEB (this process) + WORKER (stamped by the worker) ---
+        web_commit = (os.environ.get('RAILWAY_GIT_COMMIT_SHA')
+                      or os.environ.get('SOURCE_VERSION')
+                      or os.environ.get('GIT_COMMIT') or 'development')[:12]
+        try:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.core.tasks import WORKER_BUILD_CACHE_KEY, report_worker_build
+            safe_enqueue(report_worker_build)  # non-blocking; refreshes on each probe
+            worker_build = cache.get(WORKER_BUILD_CACHE_KEY)
+        except Exception as exc:  # never let telemetry break the probe
+            worker_build = {'error': repr(exc)}
+
+        # --- deterministic truth read (the tool the CoS actually calls) ---
+        try:
+            from apps.ai.cos_services.domain_analysis import get_domain_analysis
+            envelope = get_domain_analysis(user, domain, subject, period=period)
+        except Exception as exc:
+            return JsonResponse({'error': f'analysis failed: {exc!r}',
+                                 'web_commit': web_commit}, status=500)
+
+        # --- recent get_analysis ToolCallLog rows for this user (forensics) ---
+        recent_calls = []
+        try:
+            from apps.ai.models import ToolCallLog
+            for row in (ToolCallLog.objects
+                        .filter(user=user, tool_name='get_analysis')
+                        .order_by('-created_at')[:5]):
+                recent_calls.append({
+                    'created_at': row.created_at.isoformat(),
+                    'args': row.args, 'result_status': row.result_status,
+                    'turn_id': row.turn_id,
+                })
+        except Exception as exc:
+            recent_calls = [{'error': repr(exc)}]
+
+        return JsonResponse({
+            'web_commit': web_commit,
+            'worker_build': worker_build,
+            'probe': {'email': user.email, 'domain': domain, 'subject': subject,
+                      'period': period},
+            'envelope': envelope,
+            'recent_get_analysis_calls': recent_calls,
+        }, json_dumps_params={'default': str})
+
+
 class ReadyTasksAPIView(APIRateLimitMixin, View):
     """
     API endpoint for Claude Code to fetch tasks with 'ready' status.

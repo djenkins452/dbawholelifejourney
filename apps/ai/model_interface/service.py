@@ -736,6 +736,7 @@ class ModelInterfaceService:
             if name == "get_analysis":
                 raw = get_domain_analysis(
                     user, args.get("domain", ""), args.get("subject", ""),
+                    period=args.get("period"),
                 )
                 out = _wrap_truth(
                     raw,

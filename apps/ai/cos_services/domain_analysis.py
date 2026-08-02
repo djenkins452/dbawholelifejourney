@@ -73,10 +73,11 @@ _EARLIEST = "2000-01-01"  # all-time span lower bound for the wide custom range
 _OVERVIEW_ALIASES = frozenset({
     "overall", "overview", "summary", "everything", "all", "general", "whole", "holistic",
 })
-# Two windows keep the roll-up bounded (2 history reads per distinct metric) while still
-# surfacing slower-cadence metrics (a monthly weight) that a 7-day-only window would read
-# falsely empty. Recent + this-month is the natural "how am I doing lately" pair.
-_OVERVIEW_WINDOWS = ("last_7_days", "this_month")
+# The overview honors the WINDOW THE USER ASKED FOR — every subject is composed against the
+# SAME resolved window and NOTHING outside it (so "overall health for the last week" can
+# never be influenced by this-month data). When no window is stated the roll-up defaults to
+# a single recent horizon: "how am I doing lately" == the last 7 days.
+_OVERVIEW_DEFAULT_PERIOD = "last_7_days"
 
 
 def analysis_capability_index():
@@ -154,27 +155,61 @@ def _is_overview_subject(subject_norm, domain_norm):
     return False
 
 
-def _overview_window(h):
-    """Compact per-window projection for the roll-up — present + headline aggregates only
-    (NO raw points), so a whole-domain bundle stays composed, not a data dump."""
+def _resolve_overview_window(user, period):
+    """Resolve the roll-up's window ONCE via the ONE shared temporal authority so EVERY
+    subject is composed against the exact SAME (start, end) — never a per-metric or
+    per-window range. Returns (Period, requested_unresolved: bool). A stated-but-
+    unparseable period never dead-ends the summary: it falls back to the default recent
+    window and flags it so the model can say which window it actually answered."""
+    from apps.core.truth.periods import resolve_date_expression
+    try:
+        from apps.core.utils import get_user_today
+        today = get_user_today(user) or date.today()
+    except Exception:
+        today = date.today()
+    if period:
+        p = resolve_date_expression(period, today)
+        if p is not None:
+            return p, False
+        logger.warning("domain_overview: unresolvable period %r → default %s",
+                       period, _OVERVIEW_DEFAULT_PERIOD)
+    return resolve_date_expression(_OVERVIEW_DEFAULT_PERIOD, today), bool(period)
+
+
+def _overview_subject(h):
+    """Compact per-subject projection for the roll-up over the ONE requested window —
+    present/absent + headline aggregates + the deterministic within-window CHANGE
+    (direction / delta / pct: what improved vs got worse). NO raw points — the model
+    reasons over the summary, not a data dump. `present:false` is HONEST missing data for
+    the window (distinct from a negative reading), which the model must not read as a
+    decline."""
     if h.get("status") != "ready":
+        # Distinguish genuine no-data-in-window ("empty") from an actual read error.
         return {"present": False, "status": h.get("status")}
-    pts = h.get("points") or []
     return {"present": True, "unit": h.get("unit"), "total": h.get("total"),
             "average": h.get("average"), "count": h.get("count"),
-            "last_point": (pts[-1].get("date") if pts else None)}
+            # First-class deterministic trend within the window (None with < 2 points) —
+            # carries first/last VALUES + direction: the exact truth behind "what improved
+            # and what got worse". The window itself is at the envelope root (`window`).
+            "change": h.get("change")}
 
 
-def _domain_overview(user, domain, subjects, t0, uid):
+def _domain_overview(user, domain, subjects, t0, uid, period=None):
     """Compose EVERY analyzable subject of `domain` into ONE whole-domain evidence bundle —
-    the "overall" roll-up (the whole-domain analogue of a single-subject analysis).
+    the "overall" roll-up (the whole-domain analogue of a single-subject analysis) — over
+    the WINDOW THE USER ASKED FOR.
 
-    Pure COMPOSITION: reuses each subject's existing history surface across a bounded window
-    pair; adds NO retrieval logic. Aliases are deduped by history_metric so a metric is
-    composed once. Carries the SAME deterministic `holds_data` verdict as a single-subject
-    analysis — so the reasoner can never truthfully say 'insufficient' while WLJ still holds
-    truth for any subject in the domain.
+    Pure COMPOSITION: reuses each subject's existing history surface; adds NO retrieval
+    logic. The window is resolved ONCE and every metric is read against that identical
+    (start, end) as a custom range, so the roll-up can never mix horizons — a "last week"
+    summary is composed only from last-week data. Aliases are deduped by history_metric so
+    a metric is composed once. Carries the SAME deterministic `holds_data` verdict as a
+    single-subject analysis — so the reasoner can never truthfully say 'insufficient' while
+    WLJ still holds truth for any subject in the window.
     """
+    window, requested_unresolved = _resolve_overview_window(user, period)
+    start_iso, end_iso = window.start.isoformat(), window.end.isoformat()
+
     seen_metrics = set()
     composed = {}
     present_count = 0
@@ -184,39 +219,46 @@ def _domain_overview(user, domain, subjects, t0, uid):
         if metric in seen_metrics:          # dedup aliases (bp/blood_pressure → one metric)
             continue
         seen_metrics.add(metric)
-        windows = {}
-        present = False
-        for w in _OVERVIEW_WINDOWS:
-            try:
-                ch = _overview_window(get_domain_history(user, domain, metric, period=w))
-            except Exception:
-                logger.warning("domain_overview: history failed user=%s domain=%s "
-                               "metric=%s window=%s", uid, domain, metric, w, exc_info=True)
-                ch = {"present": False, "status": "error"}
-            windows[w] = ch
-            present = present or ch.get("present", False)
-        if present:
+        try:
+            # ONE window for every metric — custom range from the single resolved Period.
+            entry = _overview_subject(get_domain_history(
+                user, domain, metric, period="custom", start=start_iso, end=end_iso))
+        except Exception:
+            logger.warning("domain_overview: history failed user=%s domain=%s metric=%s "
+                           "window=%s..%s", uid, domain, metric, start_iso, end_iso,
+                           exc_info=True)
+            entry = {"present": False, "status": "error"}
+        if entry.get("present"):
             present_count += 1
-        composed[name] = {"metric": metric, "present": present, "windows": windows}
+        entry["metric"] = metric
+        composed[name] = entry
 
     ms = (time.monotonic() - t0) * 1000
-    logger.info("DOMAIN_OVERVIEW served user=%s domain=%s subjects=%s present=%s ms=%.1f",
-                uid, domain, len(composed), present_count, ms)
+    logger.info("DOMAIN_OVERVIEW served user=%s domain=%s window=%s(%s..%s) subjects=%s "
+                "present=%s ms=%.1f", uid, domain, window.name, start_iso, end_iso,
+                len(composed), present_count, ms)
+
+    window_meta = {"name": window.name, "label": window.label,
+                   "start": start_iso, "end": end_iso, "days": window.days(),
+                   "requested_period": period,
+                   "requested_period_unresolved": requested_unresolved}
 
     if present_count == 0:
-        # The ONLY honest "insufficient": WLJ genuinely holds no data for ANY subject.
+        # The ONLY honest "insufficient": WLJ genuinely holds no data for ANY subject in
+        # the requested window (NOT a negative finding — an absence for this horizon).
         return _envelope(
             domain, WHOLE_DOMAIN_SUBJECT, "empty",
-            holds_data=False, evidence="absent",
-            reason=(f"WLJ holds no {domain} data for this user across any subject in the "
-                    f"recent windows. This is a genuine absence — say so plainly."),
+            holds_data=False, evidence="absent", window=window_meta,
+            reason=(f"WLJ holds no {domain} data for this user in {window.label}. This is "
+                    f"a genuine absence for that window — say so plainly; it is NOT a "
+                    f"decline. Data may exist in a wider window."),
             subjects=composed, subjects_covered=sorted(composed),
         )
 
     evidence = "rich" if present_count >= _RICH_THRESHOLD else "thin"
     return _envelope(
         domain, WHOLE_DOMAIN_SUBJECT, "ready",
-        holds_data=True, evidence=evidence,
+        holds_data=True, evidence=evidence, window=window_meta,
         subjects=composed, subjects_covered=sorted(composed),
         subjects_with_data=present_count,
     )
@@ -243,11 +285,16 @@ def _envelope(domain, subject, status, **extra):
     return base
 
 
-def get_domain_analysis(user, domain, subject):
+def get_domain_analysis(user, domain, subject, period=None):
     """
     Return the COMPOSED analysis evidence bundle for `domain`.`subject` — the whole
     deterministic investigation in one call. Delegates to the domain's existing
     history()/describe() surfaces; adds no retrieval logic.
+
+    `period` (natural expression the user said — "last week", "past 7 days", "this month")
+    applies to the whole-domain `overall` roll-up ONLY: it composes every subject against
+    that ONE resolved window and nothing outside it. Ignored for a single-subject analysis,
+    which intentionally investigates across standard trailing windows.
 
     Returns a JSON-safe envelope. `status` ∈:
         "ready"              — WLJ holds relevant truth; the bundle carries it
@@ -292,7 +339,7 @@ def get_domain_analysis(user, domain, subject):
         # a single-subject domain's "overall" IS that one subject. This is the surface the
         # capability index advertises as the synthetic "overall" subject.
         if len(subjects) >= 2 and _is_overview_subject(subject_norm, domain_norm):
-            return _domain_overview(user, domain_norm, subjects, t0, uid)
+            return _domain_overview(user, domain_norm, subjects, t0, uid, period=period)
         return _envelope(
             domain_norm, subject_norm, "unsupported",
             reason=f"'{subject_norm}' is not an analyzable subject for '{domain_norm}'.",

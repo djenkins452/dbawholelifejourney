@@ -31,12 +31,36 @@ Copyright:
 """
 
 import logging
+import os
 import time
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 
 logger = logging.getLogger("celery.tasks")
+
+# Cache key where the WORKER stamps the commit it was built from (see
+# report_worker_build). The CoS/chat pipeline runs in the worker service, whose commit
+# `/_health/` (web-only) cannot report — an operator must be able to confirm the worker
+# redeployed before validating any CoS change.
+WORKER_BUILD_CACHE_KEY = "wlj:ops:worker_build"
+
+
+@shared_task(name="apps.core.tasks.report_worker_build", ignore_result=True)
+def report_worker_build():
+    """Stamp the WORKER process's running commit SHA + timestamp into the shared cache so an
+    operator can confirm the worker redeployed (the web `/_health/` reports only the web
+    process). Deterministic, side-effect-free beyond one cache write; safe to enqueue from
+    the request path via safe_enqueue."""
+    from django.core.cache import cache
+    from django.utils import timezone
+    sha = (os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+           or os.environ.get("SOURCE_VERSION")
+           or os.environ.get("GIT_COMMIT") or "development")
+    payload = {"commit": sha[:12], "stamped_at": timezone.now().isoformat()}
+    cache.set(WORKER_BUILD_CACHE_KEY, payload, timeout=3600)
+    logger.info("report_worker_build: worker commit=%s", payload["commit"])
+    return payload
 
 
 @shared_task(

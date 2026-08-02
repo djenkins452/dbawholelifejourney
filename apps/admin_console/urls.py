@@ -229,6 +229,7 @@ urlpatterns = [
     path("user-guide/<slug:section_key>/<slug:slug>/", views.UserGuideArticleView.as_view(), name="user_guide_article"),
 
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
+    path("api/claude/truth-probe/", views.TruthProbeAPIView.as_view(), name="api_claude_truth_probe"),
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),
     path("api/claude/process-emails/", views.ProcessEmailsAPIView.as_view(), name="api_claude_process_emails"),

@@ -290,11 +290,28 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
     # --- STATE (where things stand now) --------------------------------------------------
     state = _overview_state(user, domain)
 
-    signals = present_count + (1 if state else 0)
+    # HEALTH (proving-ground for the concept principle): the flat 115-key state MIXES facts
+    # with WLJ's OWN reasoning — a per-category scorecard, a written narrative + advice, a
+    # named verdict ("RECOMPOSITION"), status judgments. Handed a scorecard, the model
+    # returns a report. So for health, replace it with the deterministic FACTS organized by
+    # concept (body composition, glucose, cardiovascular, sleep & recovery, activity,
+    # hydration, respiratory), reasoning stripped. WLJ organizes perception; the model does
+    # all prioritization, meaning, and advice. Net REMOVAL of WLJ reasoning — not addition.
+    concepts = None
+    if domain == "health" and isinstance(state, dict) and state:
+        try:
+            from apps.health.services.health_concept_view import build_health_concept_view
+            concepts = build_health_concept_view(state).get("concepts") or None
+        except Exception:
+            logger.warning("domain_overview: health concept view failed", exc_info=True)
+
+    has_state = bool(concepts) if domain == "health" else bool(state)
+    signals = present_count + (1 if has_state else 0)
     ms = (time.monotonic() - t0) * 1000
     logger.info("DOMAIN_OVERVIEW served user=%s domain=%s window=%s(%s..%s) trends=%s "
-                "present=%s state=%s ms=%.1f", uid, domain, window.name, start_iso, end_iso,
-                len(composed), present_count, bool(state), ms)
+                "present=%s state=%s concepts=%s ms=%.1f", uid, domain, window.name,
+                start_iso, end_iso, len(composed), present_count, bool(state),
+                len(concepts) if concepts else 0, ms)
 
     window_meta = {"name": window.name, "label": window.label,
                    "start": start_iso, "end": end_iso, "days": window.days(),
@@ -312,6 +329,26 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
         )
 
     evidence = "rich" if signals >= _RICH_THRESHOLD else "thin"
+
+    # HEALTH: the model receives ONE concept-organized set of deterministic facts. No flat
+    # state dump, no per-category scorecard, no verdict, no advice — it decides what matters,
+    # what it means, and what to do, from the organized facts.
+    if domain == "health" and concepts:
+        return _envelope(
+            domain, WHOLE_DOMAIN_SUBJECT, "ready",
+            holds_data=True, evidence=evidence, window=window_meta,
+            # `concepts` = the deterministic facts organized the way a health expert perceives
+            # them (members carry value + measured change), WLJ's own scorecard/verdict/
+            # narrative/advice REMOVED. `subjects` = the per-facet windowed trends (also facts)
+            # for the requested window. No flat 115-key state, no reasoning. The model does all
+            # prioritization, meaning, and advice.
+            concepts=concepts,
+            subjects=composed, subjects_covered=sorted(composed),
+            subjects_with_data=present_count,
+            note=("Deterministic facts only. WLJ has made NO judgment here — no ranking, no "
+                  "verdict, no status, no advice."),
+        )
+
     return _envelope(
         domain, WHOLE_DOMAIN_SUBJECT, "ready",
         holds_data=True, evidence=evidence, window=window_meta,

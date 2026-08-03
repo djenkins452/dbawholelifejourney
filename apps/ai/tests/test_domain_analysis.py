@@ -241,6 +241,14 @@ class OverviewWindowFidelityTests(TestCase):
         self.assertEqual(a["window"]["name"], "last_7_days")
         self.assertEqual(a["window"]["days"], 7)
 
+    def test_last_n_days_resolves_to_a_trailing_window(self):
+        # "last 30 days" (the acceptance-test phrasing) must resolve to a 30-day trailing
+        # window, not fall back to 7 days.
+        self._weight(2, 281)
+        a = get_domain_analysis(self.user, "health", "overall", period="last 30 days")
+        self.assertEqual(a["window"]["days"], 30)
+        self.assertFalse(a["window"]["requested_period_unresolved"])
+
     def test_default_window_is_last_7_days_when_none_requested(self):
         self._weight(2, 281)
         a = get_domain_analysis(self.user, "health", "overall")
@@ -274,9 +282,10 @@ class PlatformAssessmentTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="platform@test.com", password="x")
 
-    def test_state_lights_up_a_domain_with_no_trend_data(self):
-        # Health has trend facets but NO history data seeded here; a composed STATE alone
-        # must still yield a ready assessment (holds_data via state, not trends).
+    def test_health_state_is_delivered_as_concepts_not_a_flat_dump(self):
+        # Health is the concept proving-ground: its whole-domain assessment delivers
+        # deterministic facts ORGANIZED BY CONCEPT (weight under body composition), with NO
+        # flat 115-key state dump. The state's facts light up the assessment via concepts.
         from unittest.mock import patch
         fake_state = {"weight_current": 282.0, "sleep_avg_hours_7d": 6.5}
         with patch("apps.ai.cos_services.domain_analysis._overview_state",
@@ -284,8 +293,11 @@ class PlatformAssessmentTests(TestCase):
             a = get_domain_analysis(self.user, "health", "overall")
         self.assertEqual(a["status"], "ready")
         self.assertTrue(a["holds_data"])
-        self.assertTrue(a["has_state"])
-        self.assertEqual(a["state"]["weight_current"], 282.0)
+        self.assertNotIn("state", a)                       # no flat state dump for health
+        self.assertIn("concepts", a)
+        # weight arrives grouped under body composition, not as a loose key
+        self.assertEqual(a["concepts"]["body_composition"]["members"]["weight"]["value"], 282.0)
+        self.assertIn("sleep_recovery", a["concepts"])
 
     def test_finance_is_assessment_capable_via_current_state(self):
         # Finance has 0 history + 0 analysis subjects but 2 current metrics → it now composes

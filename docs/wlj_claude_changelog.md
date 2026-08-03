@@ -3,8 +3,19 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (feat(nav): Bible Reading task opens the Faith workspace (/faith/) via the existing capability resolver — one URL-map change, no template edits)
+# Last Updated: 2026-08-02 (fix(truth): Health executive package = deterministic facts organized by concept, WLJ's own scorecard/verdict/narrative/advice REMOVED — the model judges, WLJ organizes)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(truth): health executive package — concept-organized FACTS, WLJ reasoning removed (Blocker #2, root cause)
+
+**The breakthrough after multiple failed prompt edits: the evidence package was WLJ's finished reasoning, dumped flat.** Runtime inspection of `get_analysis(health,'overall')` showed the model was handed 115 co-equal state keys that MIX raw facts with WLJ's own conclusions — a per-category scorecard (`health_score_drivers.domains = {sleep, glucose, workout, activity, nutrition, weight_trend}` + `primary_risk` + `immediate_focus`), a written narrative + recommendation (`physical_decision.narrative` / `recommended_action: "Add 30-40g protein…"`), a named verdict (`fat_loss_phase: "RECOMPOSITION"`), status judgments (`*_status`), ranked `largest_improvement`, "improving" annotations. **Handed a scorecard and a pre-written report, the model produced a report — no prompt could ever beat that.** Those are exactly the five things that must stay the model's: what matters, what it means, the story, the advice, the conclusions.
+
+- **First failing layer = evidence-delivery shape** (the enduring principle we pressure-tested): *WLJ should expose deterministic truth organized the way an expert perceives it, leaving prioritization, meaning, causality, synthesis, and advice ENTIRELY to the model — and shrink its shaping as models improve.* The fix is a net REMOVAL of WLJ reasoning, keeping us aligned with "as models improve, WLJ gets simpler."
+- **`apps/health/services/health_concept_view.py` (new):** `build_health_concept_view(state)` — selects ONLY deterministic facts (value + measured change) and groups them into the concepts a health expert perceives (body composition, glucose, cardiovascular, sleep & recovery, activity, hydration, respiratory). Body composition carries weight + fat mass + lean mass together so the recomposition RELATIONSHIP is perceptible (the components arrive as one object, not scattered across 115 keys). It computes nothing and decides nothing; scorecard/verdict/status/narrative/advice are excluded entirely.
+- **`apps/ai/cos_services/domain_analysis.py`:** for the HEALTH overview only, the envelope now carries `concepts` (+ the windowed `subjects` trends, also facts) and DROPS the flat 115-key `state` dump. A brief factual `note` states WLJ made no judgment. Other domains unchanged (this is a scoped proof, per direction — generalize only if it earns it).
+- **`apps/core/truth/periods.py`:** the shared resolver now understands trailing "last/past N days|weeks|months" (e.g. "last 30 days" → the 30-day window) so the acceptance-test window is honored instead of silently falling back to 7 days.
+- **Scope discipline:** health-only; no reasoning added to WLJ (reasoning REMOVED); no platform generalization. Tests: `apps/health/tests/test_health_concept_view.py` (facts grouped, recomposition components as one object, **WLJ reasoning provably excluded**), `apps/ai/tests/test_domain_analysis.py` (health delivered as concepts not a flat dump; "last 30 days" window). `check` clean; **no migrations**.
+- **Blocker #2 stays OPEN** — the acceptance test is the conversation. It closes only when *"How has my health journey been in the last 30 days?"*, re-run, reads like advice from an exceptional Chief of Staff who already reviewed the situation — "exactly what I needed to hear." If it works, the principle earns generalization; if not, we stop and diagnose the next failing layer.
 
 ## 2026-08-02 — feat(nav): Bible Reading task opens the Faith workspace (/faith/)
 

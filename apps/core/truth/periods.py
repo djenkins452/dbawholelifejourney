@@ -207,6 +207,16 @@ def resolve_date_expression(phrase, today):
         return resolve_period(p, today)
     if p in _PERIOD_ALIASES:
         return resolve_period(_PERIOD_ALIASES[p], today)
+    # Trailing "last/past N days|weeks|months" → the inclusive window ending today (e.g.
+    # 'last 30 days' = today-29 … today). Owned here so every surface resolves it identically.
+    m = re.match(r"^(?:last|past)\s+(\d{1,4})\s+(day|week|month)s?$", p)
+    if m:
+        qty = int(m.group(1))
+        unit = m.group(2)
+        if qty >= 1:
+            days = qty * {"day": 1, "week": 7, "month": 30}[unit]
+            start = today - timedelta(days=days - 1)
+            return Period(p, start, today, f"the last {qty} {unit}{'s' if qty != 1 else ''}")
     try:                                              # ISO 'YYYY-MM-DD'
         d = datetime.strptime(p[:10], "%Y-%m-%d").date()
         return Period(p, d, d, p)

@@ -46,6 +46,44 @@ logger = logging.getLogger("celery.tasks")
 WORKER_BUILD_CACHE_KEY = "wlj:ops:worker_build"
 
 
+@shared_task(name="apps.core.tasks.run_cos_acceptance_turn", ignore_result=True)
+def run_cos_acceptance_turn(user_email, message, result_key):
+    """Run ONE Chief-of-Staff turn through the REAL production pipeline for a user, in an
+    ISOLATED throwaway conversation, and cache the actual model response + the tools it
+    called. This is the acceptance-test harness: it lets the engineering owner run a
+    production conversation verbatim, judge it, fix the first failing layer, and re-run —
+    without waiting on the customer to hand-test each cycle. Read-mostly (the turn is not
+    marked active, so it never touches the user's live chat); side effects are only whatever
+    the model itself decides to do (broad assessment questions are read-only)."""
+    from django.contrib.auth import get_user_model
+    from django.core.cache import cache
+    from django.utils import timezone
+    out = {"status": "error", "stamped_at": timezone.now().isoformat()}
+    try:
+        user = get_user_model().objects.get(email__iexact=user_email)
+        from apps.ai.cos_gateway import SURFACE_CHAT, CoSGateway
+        from apps.ai.models import AssistantConversation, ToolCallLog
+        conv = AssistantConversation.objects.create(
+            user=user, is_active=False,
+            title=("[acceptance-test] " + (message or ""))[:120])
+        resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=message,
+                                  conversation=conv, stream=False)
+        answer = getattr(resp, "text", "") or ""
+        tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
+                  "status": r.result_status}
+                 for r in ToolCallLog.objects.filter(conversation_id=conv.id)
+                 .order_by("created_at")]
+        out = {"status": "ready", "answer": answer, "tool_calls": tools,
+               "conversation_id": conv.id, "stamped_at": timezone.now().isoformat()}
+    except Exception as e:  # never crash the worker; surface the error to the operator
+        logger.warning("run_cos_acceptance_turn failed: %s", e, exc_info=True)
+        out = {"status": "error", "error": repr(e),
+               "stamped_at": timezone.now().isoformat()}
+    from django.core.cache import cache as _cache
+    _cache.set(result_key, out, timeout=1800)
+    return out
+
+
 @shared_task(name="apps.core.tasks.report_worker_build", ignore_result=True)
 def report_worker_build():
     """Stamp the WORKER process's running commit SHA + timestamp into the shared cache so an

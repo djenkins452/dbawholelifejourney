@@ -3,8 +3,16 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(truth): Health executive package = deterministic facts organized by concept, WLJ's own scorecard/verdict/narrative/advice REMOVED — the model judges, WLJ organizes)
+# Last Updated: 2026-08-02 (feat(ops): CoS acceptance-test runner — run one production conversation verbatim through the live pipeline to own a trust-blocker end to end)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — feat(ops): CoS acceptance-test runner — own a conversation blocker end to end
+
+**Production Readiness mode needs the engineering owner to run the acceptance test, not wait for the customer to hand-test each cycle.** Added a minimal, API-key-guarded operator harness that runs ONE Chief-of-Staff turn through the REAL production pipeline for a user and returns the actual model response + the tools it called — so a trust-blocker conversation can be run verbatim, judged, fixed at the first failing layer, and re-run, autonomously.
+
+- **`apps/core/tasks.py :: run_cos_acceptance_turn`** — a worker task that creates an ISOLATED throwaway conversation (`is_active=False`, `[acceptance-test]` title — never touches the user's live chat), runs `CoSGateway.respond(surface=chat, stream=False)` (the same pipeline the app uses), and caches `{answer, tool_calls, conversation_id}`.
+- **`apps/admin_console/views.py :: CoSAcceptanceRunAPIView`** + `GET /admin-console/api/claude/cos-run/?email=&message=` (enqueue → `run_id`) and `?run_id=<id>` (poll). Request-path-safe: the view only ENQUEUES to the worker and reads a cached result; it never calls the model inline (passes `test_request_path_safety_contract`).
+- Diagnostic tooling, not a product feature; read-mostly (broad assessment questions are read-only). **Files:** `apps/core/tasks.py`, `apps/admin_console/{views.py, urls.py}`. `check` clean; **no migrations**.
 
 ## 2026-08-02 — fix(truth): health executive package — concept-organized FACTS, WLJ reasoning removed (Blocker #2, root cause)
 

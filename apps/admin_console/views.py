@@ -3710,6 +3710,71 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         }, json_dumps_params={'default': str})
 
 
+class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
+    """Operator ACCEPTANCE-TEST runner (API-key-guarded). Runs ONE Chief-of-Staff turn
+    through the REAL production pipeline for a user (worker-side, isolated throwaway
+    conversation) and returns the ACTUAL model response + the tools it called — so the
+    engineering owner can run a production conversation verbatim, judge it, and iterate a
+    fix to a PASS without hand-testing each cycle.
+
+    Request-path-safe: the view only ENQUEUES the turn to the worker (where the CoS/LLM
+    runs) and reads a cached result; it never calls the model inline.
+
+    GET /admin-console/api/claude/cos-run/?email=&message=   → enqueue, returns {run_id}
+    GET /admin-console/api/claude/cos-run/?run_id=<id>        → poll the cached result
+    Auth: X-Claude-API-Key.
+    """
+
+    rate_limit_requests_per_minute = 20
+    rate_limit_requests_per_hour = 200
+    rate_limit_key_prefix = 'admin_api_cos_run'
+
+    def get(self, request):
+        import uuid
+
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from django.core.cache import cache
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        run_id = request.GET.get('run_id')
+        if run_id:
+            data = cache.get(run_id)
+            return JsonResponse(data or {'status': 'pending', 'run_id': run_id},
+                                json_dumps_params={'default': str})
+
+        email = (request.GET.get('email') or '').strip()
+        message = (request.GET.get('message') or '').strip()
+        if not (email and message):
+            return JsonResponse({'error': 'email and message query params required'},
+                                status=400)
+        # Confirm the user exists before enqueuing (fail fast, clear error).
+        try:
+            get_user_model().objects.get(email__iexact=email)
+        except get_user_model().DoesNotExist:
+            return JsonResponse({'error': f'no user with email {email!r}'}, status=404)
+
+        rk = 'wlj:acc:' + uuid.uuid4().hex
+        try:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.core.tasks import run_cos_acceptance_turn
+            enqueued = safe_enqueue(run_cos_acceptance_turn, email, message, rk)
+        except Exception as exc:
+            return JsonResponse({'error': f'enqueue failed: {exc!r}'}, status=500)
+        return JsonResponse({'run_id': rk, 'enqueued': bool(enqueued),
+                             'poll': f'?run_id={rk}'})
+
+
 class ReadyTasksAPIView(APIRateLimitMixin, View):
     """
     API endpoint for Claude Code to fetch tasks with 'ready' status.

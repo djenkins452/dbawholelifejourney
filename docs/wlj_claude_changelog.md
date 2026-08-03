@@ -3,8 +3,20 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(cos): establish a DOMINANT chief-of-staff identity at the very top of the environment — one variable; constraints preserved, now subordinate)
+# Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(cos): consider all, present the vital few — the success-criteria fix
+
+**Root cause (proven): a success-criteria contradiction.** The environment's loudest, most-repeated, highest-stakes doctrine — anti-"insufficient data" / `holds_data` / "never under-gather" / "reason over the COMPLETE bundle," restated on every analysis result and reinforced by coverage-accounting fields (`subjects_covered`, `subjects_with_data`) — defines the cardinal failure as *leaving available truth unused*. It mandates completeness of USE but nowhere licenses selectivity of PRESENTATION, and never distinguishes *"consider everything"* from *"present everything."* So the model covers every concept: omitting one reads as the "insufficient/under-gather trust failure" it's drilled hardest to avoid. This outranked the identity and formatting changes because it's higher-stakes and stamped on every turn.
+
+- **The fix (make the two acts explicit and sequential; do NOT weaken reason-over-all):** at the three sites where the completeness mandate is loudest —
+  - `constitution.py` INVESTIGATE doctrine: new `CONSIDER ALL, PRESENT THE VITAL FEW` clause — reasoning over all truth and presenting all truth are DIFFERENT acts; you MUST consider every fact (the anti-"insufficient" rule "stands, unchanged and mandatory"), then decide what matters and SAY ONLY THAT; omitting a fact from your answer is the JUDGMENT you're paid for, NEVER the insufficient failure; the only failure is leaving truth UNCONSIDERED, never leaving considered truth UNSAID; a whole-domain bundle / `subjects_covered` is evidence to CONSIDER, not a checklist to recite.
+  - `constitution.py` `RESPONSE_COMPLETION_REMINDER`: compressed high-salience restatement.
+  - `domain_analysis.py` envelope `scope` (stamped on every result): "the COMPLETE evidence to CONSIDER — NOT a checklist to recite; reason over all, present only the one or two things that best answer the user; `subjects_covered` is what was considered, never what you must say."
+- **Grounding preserved:** the requirement to reason over all deterministic truth and never fabricate is explicitly retained; only the false equivalence "consider all = present all" is removed. This is the permission the model needed to be a Chief of Staff instead of a reporter.
+- **Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/cos_services/domain_analysis.py`; test `apps/ai/tests/test_executive_assessment_mode.py`. `check` clean; **no migrations**.
+- **Blocker #2 stays OPEN** — closes only if the re-run of "How has my health journey been in the last 30 days?" finally leads with what matters and lets the rest go unsaid.
 
 ## 2026-08-02 — fix(cos): dominant identity at the top of the environment (the identity experiment)
 

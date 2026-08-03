@@ -379,9 +379,12 @@ def _envelope(domain, subject, status, **extra):
                   "in ONE retrieval. For a TOTAL question ('how much have I lost/gained "
                   "since I started') use `all_time.change` (first→last value + delta) and "
                   "`all_time.start`/`.end`; NEVER pair a trailing window's value with the "
-                  "all-time start date. This IS the investigation; reason over it. "
-                  "`holds_data` is WLJ's deterministic verdict on whether relevant truth "
-                  "exists: when it is true you have the evidence and must not say "
+                  "all-time start date. This is the COMPLETE evidence to CONSIDER — it is "
+                  "NOT a checklist to recite: reason over ALL of it, then PRESENT ONLY the "
+                  "one or two things that best answer the user and let the rest go unsaid "
+                  "(`subjects_covered`/`subjects` is what was CONSIDERED, never what you must "
+                  "say). `holds_data` is WLJ's deterministic verdict on whether relevant "
+                  "truth exists: when it is true you have the evidence and must not say "
                   "'insufficient'; only `status: empty` (holds_data false) is a genuine "
                   "absence of WLJ truth."),
     }

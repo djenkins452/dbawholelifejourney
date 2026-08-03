@@ -20,6 +20,20 @@ from apps.ai.model_interface.service import ModelInterfaceService
 
 
 class ExecutiveAssessmentContractTests(TestCase):
+    def test_consider_all_but_present_the_vital_few(self):
+        # The success-criteria fix: reasoning over ALL truth (mandatory) is separated from
+        # PRESENTING all truth (a reporter's reflex). Omitting a considered fact is judgment,
+        # never the 'insufficient' failure — while the reason-over-all mandate is preserved.
+        low = CONSTITUTION.lower()
+        self.assertIn("consider all, present the vital few", low)
+        self.assertIn("say only that", low)
+        self.assertIn("not a checklist to recite", low)
+        self.assertIn("leaving considered truth", low)          # unsaid ≠ failure
+        # reason-over-all is explicitly PRESERVED, not weakened
+        self.assertIn("that requirement stands, unchanged and mandatory", low)
+        # and the reminder carries the compressed version
+        self.assertIn("presenting all of it is not", RESPONSE_COMPLETION_REMINDER.lower())
+
     def test_dominant_identity_is_established_first(self):
         # The identity must be the FIRST thing the model reads and must subordinate every
         # other rule to it — so the model's self-concept is "chief of staff", not

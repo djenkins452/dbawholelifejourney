@@ -20,6 +20,19 @@ from apps.ai.model_interface.service import ModelInterfaceService
 
 
 class ExecutiveAssessmentContractTests(TestCase):
+    def test_dominant_identity_is_established_first(self):
+        # The identity must be the FIRST thing the model reads and must subordinate every
+        # other rule to it — so the model's self-concept is "chief of staff", not
+        # "mistake-avoider". (Everything below is preserved; nothing removed.)
+        low = CONSTITUTION.lower()
+        head = low[:1400]
+        self.assertIn("who you are", head)
+        self.assertIn("you are the user's chief of staff", head)
+        self.assertIn("guardrails on your judgment", head)
+        self.assertIn("primary job is not to avoid mistakes", head)
+        # and it comes BEFORE the truth/grounding rules
+        self.assertLess(low.index("who you are"), low.index("truth:"))
+
     def test_broad_assessment_section_present(self):
         low = CONSTITUTION.lower()
         self.assertIn("executive assessment", low)

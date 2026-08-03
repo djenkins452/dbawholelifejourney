@@ -3,8 +3,17 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (feat(ops): CoS acceptance-test runner — run one production conversation verbatim through the live pipeline to own a trust-blocker end to end)
+# Last Updated: 2026-08-02 (fix(cos): establish a DOMINANT chief-of-staff identity at the very top of the environment — one variable; constraints preserved, now subordinate)
 # ================================================================# WLJ Change History
+
+## 2026-08-02 — fix(cos): dominant identity at the top of the environment (the identity experiment)
+
+**Root-cause investigation (across many iterations) converged on IDENTITY, not prompts/evidence/health.** A full map of the ~60k-char environment the model receives showed it establishes the model's identity exactly ONCE — "you are the user's personal assistant" (a support role) — then subordinates it to ~25 constraint sections + 5 defect-recounting leads + a completion reminder. "Chief of Staff" never appears as an identity, only as a simile for a behavior/format. With no dominant identity asserted, the model defaults to the identity its constraints imply — *"my primary job is to avoid mistakes"* — and a mistake-avoider REPORTS (safe, thorough, faithful) rather than JUDGES. The controlling variable is which identity sits atop the hierarchy; right now nothing does.
+
+- **The one change (nothing else):** `apps/ai/model_interface/constitution.py` — prepended a `WHO YOU ARE — YOUR IDENTITY` block at the very START of the environment: *you are the user's Chief of Staff, who has already reviewed their whole life and tells them the one thing that matters and to do; everything else in this document (truth, grounding, safety, medical policy, formatting, structured context) is GUARDRAILS on your judgment, never the job itself; your primary job is NOT to avoid mistakes.* Every safety rail, grounding rule, and constraint is **preserved and unchanged** — nothing removed, nothing simplified, nothing redesigned. The constraints are now framed as subordinate to the identity.
+- **Experiment, not a redesign:** one variable, to test whether identity is the true first failing layer. Re-run the identical acceptance conversation and judge only the conversation.
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_executive_assessment_mode.py` (identity established first + subordinates the rules). `check` clean; **no migrations**.
+- **Blocker #2 stays OPEN** — closes only if "How has my health journey been in the last 30 days?", re-run, now reads like an exceptional Chief of Staff.
 
 ## 2026-08-02 — feat(ops): CoS acceptance-test runner — own a conversation blocker end to end
 

@@ -6,6 +6,12 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — chore(ops): rollback of CoS write-path certification test data (data migration)
+
+**Context:** certifying the CoS write path (create/read/delete) against production per the "certify every customer-facing workflow" directive, I created two clearly-labeled sentinel Tasks via the real `create_task` action (`ZZZ-COS-WRITE-CERT`, `ZZZ-CONFIRM-TEST`). The **delete confirmation loop (Blocker #13)** prevented the CoS from removing `ZZZ-CONFIRM-TEST` (a natural/explicit "yes" never resolved the confirmation), so it persisted. Test plan was create→verify→delete→verify; the delete leg failed on #13, so the primary CoS-based rollback was incomplete.
+
+**Rollback (deterministic, sanctioned prod-code path):** `apps/life/migrations/0060_cleanup_cos_writepath_test_tasks.py` — a `RunPython` data migration that hard-deletes ONLY Tasks whose title contains the sentinels, scoped to the test user. Idempotent; the titles are unique test markers. `makemigrations --check` clean (no model changes). Net customer-facing data change from the entire write-path test: **zero** (all test artifacts removed).
+
 ## 2026-08-06 — fix(cos): Blocker #12 (reasoning follow-up on a metric) — "why does it keep getting worse?" stays on the active metric
 
 **Observable defect (surfaced once #10/#11 fixed the earlier turns):** after "how did I sleep last night?" (5.8h) → "what about the night before?" (7.3h), the follow-up **"Why does it keep getting worse?"** returned *"Are there specific areas of your life… you're referring to?"* — the CoS lost the sleep subject on a reasoning/pronoun follow-up, even though "it" unambiguously meant sleep (5.8 < 7.3 is the decline asked about).

@@ -6,6 +6,21 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #10 (follow-up continuity) — "how did I sleep last night?" anchors the subject so a date-shift follow-up stays on sleep
+
+**Observable defect (probe of follow-up continuity):**
+- "How did I sleep last night?" → *"You slept for 5.8 hours last night."* (`get_foundational_health_facts(sleep_last_night)`)
+- "What about the night before?" → *"Could you clarify what you're asking about… a specific event, health metric, or task?"* — LOST the subject.
+- "Why does it keep getting worse?" → *"I need to know which specific area you're referring to…"* — compounded.
+A date-shift follow-up on the same subject (sleep) made the CoS ask the user to re-establish context — the exact continuity class the conversation-state layer exists to prevent.
+
+**First failing layer (Truth — the fact didn't carry its subject pointers):** the active subject is anchored by `ModelInterfaceService._subject_from_health_facts`, which reads `domain`/`metric` off the returned fact. `sleep_last_night` (the deliberate RESIDUAL that delegates to `CurrentHealth.latest_sleep`) emitted `value`/`unit`/`semantics`/`authority` but **not** `domain`/`metric`, so anchoring silently never fired for sleep and the follow-up had no subject to re-retrieve. The 7-day rolling-average facts (`average_sleep_7d`, `average_glucose_7d`, `steps_avg_7d`) had the same structural gap.
+
+**Fix (`apps/ai/cos_services/health_facts.py`):** `_sleep_fact` now sets `domain="health"`, `metric="sleep"`; `_rolling_average_fact` now emits `domain`/`metric` (it already held the tuple). With the subject anchored to `health.sleep`, the conversation-state lead instructs the model to re-retrieve for the new date via `get_history(health, sleep, period=<the night before>)` — the follow-up stays on sleep. Confirmed via a shell trace that the emitted fact now carries the pointers.
+
+- **Files:** `apps/ai/cos_services/health_facts.py`; tests `apps/ai/tests/test_truth_subject_anchoring.py` (sleep answer anchors `health.sleep`; the sleep fact emits `domain`/`metric`). `check` clean; **no migrations**.
+- **Blocker #10 stays OPEN until re-run:** closes only when "how did I sleep last night?" → "what about the night before?" stays on sleep and retrieves it, instead of asking the user to re-establish the subject.
+
 ## 2026-08-06 — fix(cos): Blocker #9 (day briefing) — "walk me through my day" gives a COMPLETE day, never declares the day done while the priority is unaddressed
 
 **Observable defect (probe of un-exercised conversations):** "Walk me through my day." → *"Today, you had one scheduled event which you've already completed… There are no upcoming events… you've already completed your planned tasks for today."* (tools: `get_domain_state(calendar)` only). It consulted the CALENDAR alone, declared the day finished, and omitted the standing priority the CoS states everywhere else (Prayer Time). A day walkthrough that says "you're done" while the CoS's own #1 action is unaddressed is a self-contradiction — a trust-breaker.

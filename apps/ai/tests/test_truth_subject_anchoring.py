@@ -46,6 +46,42 @@ class SubjectAnchoringTests(TestCase):
         self.assertEqual(subj["domain"], "health")
         self.assertEqual(subj["metric"], "weight")
 
+    def test_sleep_last_night_answer_anchors_sleep(self):
+        # Blocker #10: "how did I sleep last night?" must anchor health.sleep so a date-shift
+        # follow-up ("what about the night before?") stays on sleep instead of asking the user
+        # to re-establish the subject. Requires the sleep fact to carry domain/metric.
+        from apps.ai.model_interface.service import _wrap_truth
+        result = _wrap_truth({"sleep_last_night": {
+            "status": "ok", "value": 5.8, "domain": "health", "metric": "sleep"}},
+            source="health_facts")
+        subj = MIS._subject_from_truth_result(
+            "get_foundational_health_facts", {"keys": ["sleep_last_night"]}, result)
+        self.assertIsNotNone(subj)
+        self.assertEqual(subj["domain"], "health")
+        self.assertEqual(subj["metric"], "sleep")
+
+    def test_sleep_fact_carries_domain_and_metric(self):
+        # The producer side of Blocker #10: get_foundational_health_facts must EMIT domain/metric
+        # on the sleep fact (it delegates to CurrentHealth.latest_sleep, which previously omitted
+        # them — so anchoring silently never fired for sleep).
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.health.models import SleepEntry
+        from apps.core.utils import get_user_today
+        from apps.ai.cos_services.health_facts import get_foundational_health_facts
+        SleepEntry.objects.create(
+            user=self.user, sleep_date=get_user_today(self.user),
+            total_duration_minutes=348, quality_score=80,
+            bedtime=timezone.now() - timedelta(hours=8), wake_time=timezone.now())
+        res = get_foundational_health_facts(self.user, ["sleep_last_night"])
+        # returns the facts dict keyed by fact name (unwrapped); tolerate an enveloped shape too
+        fact = res.get("sleep_last_night") if isinstance(res, dict) else None
+        if not isinstance(fact, dict) and isinstance(res, dict):
+            fact = (res.get("value") or {}).get("sleep_last_night")
+        self.assertIsInstance(fact, dict)
+        self.assertEqual(fact.get("domain"), "health")
+        self.assertEqual(fact.get("metric"), "sleep")
+
     def test_history_answer_anchors_the_metric_subject(self):
         subj = MIS._subject_from_truth_result(
             "get_history", {"domain": "health", "metric": "weight"}, {"status": "ok"})

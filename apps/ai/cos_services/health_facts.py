@@ -359,6 +359,13 @@ def _sleep_fact(user, key):
     if isinstance(fact, dict):
         fact.setdefault("semantics", "latest_observation")
         fact.setdefault("authority", "CurrentHealth.latest_sleep")
+        # Carry domain/metric so answering "how did I sleep last night?" ANCHORS the
+        # conversation subject to health.sleep — otherwise a date-shift follow-up ("what
+        # about the night before?") loses the subject and the CoS asks the user to
+        # re-establish context (Blocker #10). The follow-up is then re-retrievable via
+        # get_history(health, sleep, period=<the new date>).
+        fact.setdefault("domain", "health")
+        fact.setdefault("metric", "sleep")
     return fact
 
 
@@ -388,6 +395,8 @@ def _rolling_average_fact(user, key):
     fact = {
         "value": raw.get("average"),
         "unit": raw.get("unit"),
+        # Anchor date-shift follow-ups to this metric (Blocker #10) — same reason as _sleep_fact.
+        "domain": domain, "metric": metric,
         "authority": f"get_domain_history:{domain}.{metric}",
         "semantics": "rolling_average",
         "window": "last_7_days",

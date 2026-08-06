@@ -62,7 +62,16 @@ _HISTORY_LIMIT = 12
 def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT):
     """Load prior turns for `conversation` as [{role, content}] for the model, reusing
     the existing AssistantMessage store (Blocker 2 — conversation continuity). Returns
-    the most recent `limit` user/assistant text messages, chronologically. Never raises.
+    the most recent `limit` user/assistant messages, chronologically. Never raises.
+
+    The model's loaded history MUST equal the conversation the user actually saw in the
+    chat thread. Every user/assistant AssistantMessage is displayed to the user — including
+    the CoS's own PROACTIVE turns (end-of-day/mid-day check-ins are `message_type='nudge'`,
+    briefings are `'state_assessment'`, etc.). Filtering to `message_type='text'` silently
+    dropped exactly those proactive turns, so a conversation the CoS itself initiated came
+    back with no memory of it (Blocker 3 — continuity loss). We therefore load ALL
+    user/assistant turns regardless of `message_type`; only `role` (system excluded) and
+    non-empty content bound the set. `role='system'` messages are excluded by the filter.
 
     Call this BEFORE persisting the current user message so the current turn is not
     duplicated into the history.
@@ -74,7 +83,6 @@ def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT):
         rows = list(
             AssistantMessage.objects.filter(
                 conversation=conversation, role__in=("user", "assistant"),
-                message_type="text",
             ).order_by("-created_at").values("role", "content")[:limit]
         )
     except Exception:  # pragma: no cover - defensive

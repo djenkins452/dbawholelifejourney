@@ -357,6 +357,34 @@ class RuntimeIOTests(TestCase):
         # the current turn ("new question") must NOT be in the passed history
         self.assertNotIn("new question", [h["content"] for h in hist])
 
+    def test_proactive_checkin_stays_in_history(self):
+        # Blocker 3: the CoS INITIATES the conversation with an end-of-day check-in
+        # (persisted as a proactive `nudge`, shown to the user in chat). When the user
+        # replies, the model MUST still see that opening turn — otherwise the CoS behaves
+        # as though the conversation it just started never happened. The history the model
+        # receives must equal the conversation the user saw, regardless of message_type.
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.models import AssistantConversation, AssistantMessage
+        conv = AssistantConversation.get_or_create_active(self.user)
+        AssistantMessage.objects.create(
+            conversation=conv, role="assistant",
+            content="It's the end of the day. Focus on completing the high-priority "
+                    "action that's due.",
+            message_type="nudge", is_proactive=True)
+        seen = {}
+        def _capture(self_svc, conversation, message, **kw):
+            seen["history"] = kw.get("conversation_history")
+            return {"answer": "ok", "tools_called": []}
+        with mock.patch.object(ModelInterfaceService, "generate", new=_capture):
+            ModelInterfaceRuntime().respond(user=self.user, surface="chat",
+                                            conversation=conv,
+                                            message="What's left for me to do?",
+                                            stream=False)
+        hist = seen["history"]
+        self.assertEqual(len(hist), 1)
+        self.assertEqual(hist[0]["role"], "assistant")
+        self.assertIn("high-priority action", hist[0]["content"])
+
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
     def test_streaming_parity_writes_terminal_answer_to_bus(self):
         from apps.ai import chat_stream_bus as bus

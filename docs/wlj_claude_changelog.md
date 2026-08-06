@@ -15,8 +15,8 @@
 **Fix (`apps/ai/model_interface/service.py::_executive_lead`):** added a DAY-BRIEFING clause — for "walk me through my day" / "what's my day look like" / "how's my day" / "my schedule today" / "plan my day", give a COMPLETE day picture: lead with the single most important thing, then cover today's tasks (done AND still due) together with calendar events (`get_domain_state` for BOTH); do NOT answer from the calendar alone; NEVER tell the user the day is finished while the priority is unaddressed.
 
 - **Files:** `apps/ai/model_interface/service.py`; test `apps/ai/tests/test_model_interface_runtime.py` (lead carries the day-briefing clause: tasks+calendar, not calendar-alone, no false "finished"). `check` clean; **no migrations**.
-- **Noted for a follow-up blocker (same turn, different layer — Truth):** the calendar state exposed a raw internal metric that surfaced as *"schedule density… at 3.1"*. Will trace/fix separately if it persists on re-run.
-- **Blocker #9 stays OPEN until re-run:** closes only when "walk me through my day" leads with the priority and covers tasks + calendar, without declaring the day done.
+- **Re-run (deployed worker):** "walk me through my day" now calls `get_domain_state` for BOTH tasks and calendar, LEADS with the priority ("Pray and Reflect… your primary priority"), and distinguishes "tasks completed" from "focus now on prayer" instead of falsely declaring the day finished; a same-conversation "what's the most important thing right now?" agrees (no self-contradiction). The engineering defects are resolved; customer judgment of the conversation is Danny's.
+- **Latent item (did NOT recur — reproduce-don't-speculate, so not yet fixed):** the calendar state carries a raw `schedule_density` metric that surfaced ONCE as *"schedule density… at 3.1"*. Across two re-runs it did not reappear. If it recurs it becomes the next blocker (Truth-layer: don't hand the model a raw internal score to narrate).
 
 ## 2026-08-06 — feat(cos): intent-and-domain-natural assessment horizons — the CoS answers over the period a reasonable person means (no fixed default)
 

@@ -6,6 +6,21 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #13A (generic advice before personal truth) — improvement-intent triggers investigate-first
+
+**Observable failure (production acceptance conversation, reproduced verbatim):**
+- "I really need to start planning my nutrition better." → generic advice (meal structure, protein focus…), tools: **NONE** (`[('response','','ok')]`).
+- "Why didn't you go look at my nutrition log…?" → `get_analysis(nutrition)` → excellent personal analysis (protein 153 vs 180, cal 1900 vs 1800, fat 107.5 vs 80).
+
+**Proof this is retrieval-path SELECTION, not missing truth/permissions/capability:** Turn 2 shows `get_analysis(nutrition)` works and the same tools were available on Turn 1. The CoS HAD the capability and chose generic advice.
+
+**First failing layer (traced, not guessed):** the constitution's `EVIDENCE-BASED RECOMMENDATIONS` doctrine gates investigate-first on "a problem, a slip, a risk, or 'what should I do'" — its trigger scope does NOT include an open-ended personal-improvement INTENT statement ("I need to plan my nutrition better"). The model-interface path has no deterministic classifier (the model decides from the constitution), so this trigger IS where the wrong selection is made. With the nutrition targets already salient in `_profile_lead`, the model produced target-conforming generic advice instead of retrieving the log.
+
+**Fix (minimal — extend ONLY that trigger, not a new principle-mechanism):** `apps/ai/model_interface/constitution.py` — the trigger now also fires when the user states they need/want to improve, plan, fix, start, get better at, or get control of an area WLJ tracks; and it asks the operative question — "do I already know enough about this user, from deterministic WLJ truth, to answer specifically? If yes, RETRIEVE that truth FIRST" — with generic advice explicitly the fallback only when WLJ lacks the personal truth. Naturally general because the doctrine is general; no new deterministic mechanism was built (the broad cross-domain "principle" is deferred per Danny).
+
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_model_interface_runtime.py` (trigger scope names the improvement-intent class + "retrieve that truth first"). 37 investigate/evidence doctrine tests + 10 standing-context tests pass; `check` clean; **no migrations**.
+- **Blocker #13A stays OPEN until re-run:** closes only when "I really need to start planning my nutrition better" retrieves the actual nutrition history BEFORE advising. **13B (the CoS never explains its own behavior) is a separate blocker — not merged; its own trace/fix/test/re-run.**
+
 ## 2026-08-06 — chore(ops): rollback of CoS write-path certification test data (data migration)
 
 **Context:** certifying the CoS write path (create/read/delete) against production per the "certify every customer-facing workflow" directive, I created two clearly-labeled sentinel Tasks via the real `create_task` action (`ZZZ-COS-WRITE-CERT`, `ZZZ-CONFIRM-TEST`). The **delete confirmation loop (Blocker #13)** prevented the CoS from removing `ZZZ-CONFIRM-TEST` (a natural/explicit "yes" never resolved the confirmation), so it persisted. Test plan was create→verify→delete→verify; the delete leg failed on #13, so the primary CoS-based rollback was incomplete.

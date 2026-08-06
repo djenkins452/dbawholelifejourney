@@ -125,6 +125,17 @@ class StandingContextTests(TestCase):
         chat_prompt = mi._system_prompt({**mi.build_standing_context(), **envelope})
         self.assertIn("Work on WLJ", chat_prompt)      # the chat can NAME it (no "I can't see")
 
+    def test_investigate_trigger_covers_improvement_intent(self):
+        # Blocker #13A: an open-ended personal-improvement INTENT ("I need to plan my nutrition
+        # better") must trigger investigate-first, not generic advice — when WLJ already holds
+        # that area's truth. The trigger scope must name this class, not only problem/slip/'what
+        # should I do'.
+        c = CONSTITUTION.lower()
+        self.assertIn("i need to plan my nutrition better", c)     # the exact class example
+        self.assertIn("get control of", c)                          # improvement-intent verbs
+        self.assertIn("never answered with generic advice first", c)
+        self.assertIn("retrieve that truth first", c)
+
     def test_constitution_carries_the_fabrication_rule(self):
         mi = ModelInterfaceService(self.user)
         sp = mi._system_prompt(mi.build_standing_context())

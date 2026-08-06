@@ -77,6 +77,26 @@ class StandingContextTests(TestCase):
         self.assertIn("clock", ctx["current_context"])                       # current ctx
         self.assertIn("answerable_domains", ctx["current_context"]["capabilities"])
 
+    def test_executive_lead_surfaces_current_action_for_checkin(self):
+        # Blocker #3 (turn "check in"): WLJ's deterministic executive read (current_action) must
+        # be raised to a salient lead so a bare check-in/status request is answered by LEADING
+        # with it — not by asking the user what they want to check in on. Same one-source pattern
+        # as the other leads: it reflects current_action, invents nothing.
+        mi = ModelInterfaceService(self.user)
+        ctx = {"current_action": {
+            "reason": "foundational; prioritized now",
+            "message": "Work on WLJ",
+            "primary_action": {"title": "Work on WLJ"}}}
+        lead = mi._executive_lead(ctx)
+        self.assertIn("Work on WLJ", lead)
+        self.assertIn("check in", lead.lower())
+        self.assertIn("do not ask", lead.lower())
+        # and it is wired into the system prompt
+        sp = mi._system_prompt({**mi.build_standing_context(), **ctx})
+        self.assertIn("WHAT MATTERS RIGHT NOW", sp)
+        # no current action → no lead (WLJ never invents one)
+        self.assertEqual(mi._executive_lead({"current_action": {}}), "")
+
     def test_constitution_carries_the_fabrication_rule(self):
         mi = ModelInterfaceService(self.user)
         sp = mi._system_prompt(mi.build_standing_context())

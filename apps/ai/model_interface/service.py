@@ -478,6 +478,48 @@ class ModelInterfaceService:
             "document itself and determines the dates."
         )
 
+    @staticmethod
+    def _executive_lead(standing_context: dict) -> str:
+        """Raise the salience of WLJ's deterministic EXECUTIVE READ — the single "what to do
+        now" (`current_action`, from decision_authority) — so a check-in / status request is
+        answered by LEADING with it, not by asking the user what they want to check in on.
+
+        The facts already reach the model as `current_action` in the structured context; buried
+        in a ~60k-char JSON the model overlooked them and, right after sending a proactive
+        end-of-day check-in, replied "what would you like to check in on?" (Blocker #3, prod).
+        Same inline-salience pattern as the other leads: ONE source (`current_action` — the SAME
+        truth the proactive check-in is authored from), named + up front, with what to DO. The
+        model still decides what it MEANS; WLJ only surfaces the fact. Empty when there is no
+        current action (WLJ never invents one). Never raises."""
+        try:
+            ca = standing_context.get("current_action") or {}
+        except Exception:
+            return ""
+        if not isinstance(ca, dict):
+            return ""
+        primary = ca.get("primary_action") if isinstance(ca.get("primary_action"), dict) else {}
+        label = (primary.get("title") or primary.get("label")
+                 or primary.get("name") or "").strip()
+        message = (ca.get("message") or "").strip()
+        reason = (ca.get("reason") or "").strip()
+        headline = label or message
+        if not headline:
+            return ""
+        body = f"The single most important thing for this user right now: {headline}."
+        if reason:
+            body += f" (Why it leads: {reason}.)"
+        return (
+            "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read — LEAD with "
+            "this on any check-in / status request) ===\n"
+            f"{body}\n"
+            "When the user asks for a check-in or where they stand — \"check in\", \"status\", "
+            "\"where do things stand\", \"what's left\", \"what should I do\", \"brief me\", or a "
+            "short reply continuing a check-in you just sent — you ALREADY KNOW the answer: lead "
+            "with the item above and give ONE clear next action. Do NOT ask them what they want "
+            "to check in on — that re-establishes context you already have. This is the SAME "
+            "executive truth carried in `current_action` below."
+        )
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
@@ -486,6 +528,7 @@ class ModelInterfaceService:
             CONSTITUTION
             + self._attachment_lead(standing_context)
             + self._conversation_state_lead(standing_context)
+            + self._executive_lead(standing_context)
             + self._focus_lead(standing_context)
             + self._profile_lead(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"

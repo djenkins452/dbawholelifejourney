@@ -230,6 +230,21 @@ def _overview_state(user, domain):
     return {k: v for k, v in st.items() if not str(k).startswith("_")}
 
 
+def _state_is_present(state):
+    """A composed STATE counts as a real assessment signal ONLY when it carries actual
+    position facts. An empty state, an explicit 'disabled' marker (finance returns
+    {'enabled': False} when the user has no finance set up), or a state carrying only that flag
+    is NOT a signal. Without this, a disabled/empty state was truthy (`bool({'enabled': False})`
+    is True) and the overview reported `holds_data=True` over ZERO data — telling the model it
+    had evidence it did not have (Blocker #8, a fabrication trap the holds_data contract exists
+    to prevent). Applies to every non-health domain."""
+    if not isinstance(state, dict) or not state:
+        return False
+    if state.get("enabled") is False:
+        return False
+    return any(k != "enabled" for k in state)
+
+
 def _assessment_capable(truth):
     """A domain earns a whole-domain executive assessment when WLJ composes >= 2 assessment
     facets for it — >= 2 TREND facets (analysis_subjects / history_metrics) OR >= 2 current
@@ -305,7 +320,7 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
         except Exception:
             logger.warning("domain_overview: health concept view failed", exc_info=True)
 
-    has_state = bool(concepts) if domain == "health" else bool(state)
+    has_state = bool(concepts) if domain == "health" else _state_is_present(state)
     signals = present_count + (1 if has_state else 0)
     ms = (time.monotonic() - t0) * 1000
     logger.info("DOMAIN_OVERVIEW served user=%s domain=%s window=%s(%s..%s) trends=%s "
@@ -359,7 +374,7 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
         state=state or None,
         subjects=composed, subjects_covered=sorted(composed),
         subjects_with_data=present_count,
-        has_state=bool(state),
+        has_state=has_state,
     )
 
 

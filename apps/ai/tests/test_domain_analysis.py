@@ -39,6 +39,24 @@ def _seed_workouts(user, days):
                                    weight=Decimal("135"), reps=12)
 
 
+class StatePresenceTests(TestCase):
+    """Blocker #8: a disabled/empty STATE must NOT be counted as an assessment signal —
+    otherwise the overview reports holds_data=True over zero data (a fabrication trap)."""
+
+    def test_disabled_or_empty_state_is_not_a_signal(self):
+        from apps.ai.cos_services.domain_analysis import _state_is_present
+        self.assertFalse(_state_is_present(None))
+        self.assertFalse(_state_is_present({}))
+        self.assertFalse(_state_is_present({"enabled": False}))       # finance-not-set-up marker
+        self.assertFalse(_state_is_present({"enabled": True}))        # flag only, no facts
+
+    def test_state_with_real_facts_is_a_signal(self):
+        from apps.ai.cos_services.domain_analysis import _state_is_present
+        self.assertTrue(_state_is_present({"net_worth": 0}))          # 0 is a real value
+        self.assertTrue(_state_is_present({"enabled": True, "net_worth": 1200}))
+        self.assertTrue(_state_is_present({"overdue_count": 3}))
+
+
 class AnalysisCapabilityTests(TestCase):
     def test_health_advertises_analyzable_subjects(self):
         idx = analysis_capability_index()

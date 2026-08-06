@@ -6,6 +6,18 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #8 (holds_data contract) — a disabled/empty domain STATE is no longer miscounted as evidence
+
+**Found by probing the real truth envelope (operator truth-probe), not the conversation:** `get_domain_analysis(finance, overall)` returned `status: "ready", holds_data: true` while `subjects_with_data: 0` and every subject `present: false`. The envelope's own scope text tells the model *"when holds_data is true you have the evidence and must not say 'insufficient'"* — so WLJ was asserting it held finance evidence it did not have. A fabrication trap (the model happened to answer honestly this time; a different phrasing could have produced "your finances look stable" over zero data).
+
+**First failing layer — Truth composition (`_domain_overview`):** `has_state = bool(state)` counted finance's disabled-marker state `{"enabled": False}` as a real signal — a non-empty dict is truthy — so `signals = 1`, skipping the honest `status: empty` branch and reporting `holds_data: true`. This is a CLASS bug: any domain returning a disabled/empty-marker state would falsely report it holds data.
+
+**Fix:** new `_state_is_present(state)` — a STATE is a signal only when it carries actual position facts; empty, `{"enabled": False}`, or a flag-only state is NOT. Used for `has_state` (both the signal count and the emitted `has_state` field). Now finance-not-set-up composes to `status: empty, holds_data: false` with the honest "genuine absence — say so plainly" reason, and the model can never be told it holds finance evidence it lacks.
+
+- **Files:** `apps/ai/cos_services/domain_analysis.py`; tests `apps/ai/tests/test_domain_analysis.py::StatePresenceTests` (disabled/empty/flag-only state → not a signal; real facts incl. value 0 → signal). `check` clean; **no migrations**.
+- **Note (left for you — a product decision, not a defect):** the finance overview defaults to a 7-day window (`requested_period_unresolved` on an unrecognized period). Whether "how am I doing with my finances?" should default to a longer window (e.g. monthly) is a product call — flagging, not changing.
+- **Blocker #8 stays OPEN until re-run:** closes only when the finance overall envelope reports `holds_data: false` for a user with no finance data and the conversation reads as an honest, confident absence.
+
 ## 2026-08-06 — fix(cos): Blocker #7 (completeness) — "what's left" enumerates the remaining list; the CoS never asks the user to name their own tasks
 
 **Observable defect (found by probing adjacent conversations, own it as a blocker):**

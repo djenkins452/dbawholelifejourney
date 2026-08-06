@@ -6,6 +6,17 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #12 (reasoning follow-up on a metric) — "why does it keep getting worse?" stays on the active metric
+
+**Observable defect (surfaced once #10/#11 fixed the earlier turns):** after "how did I sleep last night?" (5.8h) → "what about the night before?" (7.3h), the follow-up **"Why does it keep getting worse?"** returned *"Are there specific areas of your life… you're referring to?"* — the CoS lost the sleep subject on a reasoning/pronoun follow-up, even though "it" unambiguously meant sleep (5.8 < 7.3 is the decline asked about).
+
+**First failing layer (the metric-subject conversation-state lead):** `_conversation_state_lead` carries the active subject across turns, but its METRIC branch only instructed **date-shift** re-retrieval ("Yesterday's?", "and last week?"). The NON-metric branch already covered "it/that/this" / "is that dangerous?" / "tell me more" — the metric branch did not, so a "why is it getting worse?" follow-up on a metric had no anchor and the model asked which area.
+
+**Fix (`apps/ai/model_interface/service.py::_conversation_state_lead`):** extended the metric branch — a follow-up that asks WHY, whether it's good/bad/normal, what's causing it, or uses "it/that/this" is ALSO about THIS metric; reason about it from its recent values/trend (retrieve more history if needed); do NOT ask which area or metric. Parallels the non-metric branch's pronoun handling.
+
+- **Files:** `apps/ai/model_interface/service.py`; test `apps/ai/tests/test_truth_subject_anchoring.py` (metric lead carries reasoning/pronoun follow-ups, not just date-shifts). `check` clean; **no migrations**.
+- **Blocker #12 stays OPEN until re-run:** closes only when "why does it keep getting worse?" after a sleep exchange reasons about sleep instead of asking which area.
+
 ## 2026-08-06 — fix(health): Nutrition quantity double-apply — eliminate the calorie-multiplication defect CLASS (add/edit/copy), one canonical formula, corrective data migration
 
 **Observable defect (proven, not inferred):** the Nutrition page showed *"Sausage Egg and Cheese McMuffin, quantity 2.00× 1.00 sandwich, 1920 cal"* — 4× a ~480-cal serving instead of 2×. Quantity was being applied TWICE.

@@ -134,6 +134,18 @@ class SubjectAnchoringTests(TestCase):
         self.assertIn("get_history(domain='health', metric='weight'", lead)
         self.assertIn("NEVER reuse the number from an earlier turn", lead)
 
+    def test_metric_subject_lead_carries_reasoning_and_pronoun_followups(self):
+        # Blocker #12: a "why is it getting worse?" / "it/that" follow-up on a METRIC subject
+        # is still about that metric — the lead must carry it, not just date-shifts, so the CoS
+        # reasons about the metric instead of asking "which area?".
+        lead = MIS._conversation_state_lead({"conversation_state": {"active_subject": {
+            "kind": "metric", "ref": "health.sleep", "label": "sleep",
+            "domain": "health", "metric": "sleep", "turns_ago": 0}}})
+        low = lead.lower()
+        self.assertIn("why does it keep getting worse", low)
+        self.assertIn("it/that/this", low)
+        self.assertIn("do not ask which", low)
+
 
 class GroundingAndSelfConsistencyContractTests(TestCase):
     """The grounding + self-consistency rules must be part of the STANDING constitution

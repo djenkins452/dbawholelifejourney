@@ -406,8 +406,15 @@ class ModelInterfaceService:
                     f"mean. RETRIEVE it again for the new date with "
                     f"get_history(domain='{d}', metric='{m}', period=<the date "
                     f"expression the user said>). NEVER reuse the number from an "
-                    f"earlier turn as the answer for a different date. Do NOT let an "
-                    f"unrelated page's Current Context replace this active subject.")
+                    f"earlier turn as the answer for a different date. "
+                    f"A follow-up that instead asks WHY, whether it is good/bad/normal, "
+                    f"what is causing it, or uses \"it/that/this\" (\"why does it keep "
+                    f"getting worse?\", \"is that bad?\", \"what's causing it?\") is ALSO "
+                    f"about THIS metric — reason about '{m}' from its recent values and "
+                    f"trend (retrieve more of its history if you need it); do NOT ask which "
+                    f"area or metric they mean. "
+                    f"Do NOT let an unrelated page's Current Context replace this active "
+                    f"subject.")
             else:
                 parts.append(
                     f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"for a "

@@ -94,6 +94,11 @@ class StandingContextTests(TestCase):
         # Blocker #6: whole-life questions also lead with the executive read (never "pick an area")
         self.assertIn("whole-life", lead.lower())
         self.assertIn("narrow", lead.lower())
+        # Blocker #7: "what's left" is a COMPLETENESS question — enumerate the rest, never answer
+        # with only the top item, and never ask the user to name their own tasks.
+        self.assertIn("what's left", lead.lower())
+        self.assertIn("enumerate", lead.lower())
+        self.assertIn("name their own tasks", lead.lower())
         # and it is wired into the system prompt
         sp = mi._system_prompt({**mi.build_standing_context(), **ctx})
         self.assertIn("WHAT MATTERS RIGHT NOW", sp)

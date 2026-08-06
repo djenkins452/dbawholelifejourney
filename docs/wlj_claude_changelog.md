@@ -6,6 +6,19 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #7 (completeness) — "what's left" enumerates the remaining list; the CoS never asks the user to name their own tasks
+
+**Observable defect (found by probing adjacent conversations, own it as a blocker):**
+- "What's left for me to do today?" → *"The single most important thing is your Prayer Time."* — only the top priority; never enumerated the remaining list, never queried tasks.
+- "Is that everything, or are there other things on my list?" → repeated Prayer Time, then *"If you have any other specific tasks you'd like me to check, let me know!"* — asked the CUSTOMER to name their own tasks. A Chief of Staff can see the list; this hands the job back and implies it cannot.
+
+**First failing layer (self-inflicted by the executive lead):** the `_executive_lead` added for Blockers #3/#6 listed *"what's left"* among its triggers and said *"lead with the item above and give ONE clear next action"* — so the model capped a **completeness/list** question at the single `current_action` and skipped enumerating via `get_domain_state`. Focus questions ("what should I do", "check in", "overall status") should lead with the one thing; **list questions ("what's left", "is that everything", "anything else") must enumerate.**
+
+**Fix (`apps/ai/model_interface/service.py::_executive_lead`):** removed "what's left" from the lead-with-one-action triggers; added a COMPLETENESS clause — for "what's left" / "what's on my list" / "is that everything" / "anything else" / "how many do I have left", lead with what matters most AND then RETRIEVE and ENUMERATE the rest (e.g. `get_domain_state`); never answer a list question with only the top item; and (new, explicit) NEVER ask the user to name their own tasks — you can see them.
+
+- **Files:** `apps/ai/model_interface/service.py`; test `apps/ai/tests/test_model_interface_runtime.py` (lead carries the completeness clause + the "never ask them to name their own tasks" guard). `check` clean; **no migrations**.
+- **Blocker #7 stays OPEN until re-run:** closes only when "what's left / is that everything" enumerates the remaining items and never asks the customer to supply their own task list.
+
 ## 2026-08-06 — fix(cos): Blocker #6 (whole-life assessment) — the CoS answers "assess my whole life" directly, never asks the user to narrow scope
 
 **Observable defect (own it as a blocker, not a nicety):** "Give me an overall assessment of my whole life right now." → *"Let's focus on specific areas… which one would you like me to analyze?"* A Chief of Staff answers the whole-life question; it never hands the scoping back to the customer.

@@ -99,6 +99,12 @@ class StandingContextTests(TestCase):
         self.assertIn("what's left", lead.lower())
         self.assertIn("enumerate", lead.lower())
         self.assertIn("name their own tasks", lead.lower())
+        # Blocker #9: a day-briefing ("walk me through my day") is a COMPLETE day picture — lead
+        # with the priority + cover tasks AND calendar; never declare the day done while the
+        # priority is unaddressed, never answer from the calendar alone.
+        self.assertIn("walk me through my day", lead.lower())
+        self.assertIn("calendar alone", lead.lower())
+        self.assertIn("finished", lead.lower())
         # and it is wired into the system prompt
         sp = mi._system_prompt({**mi.build_standing_context(), **ctx})
         self.assertIn("WHAT MATTERS RIGHT NOW", sp)

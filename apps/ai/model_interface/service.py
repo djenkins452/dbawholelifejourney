@@ -539,8 +539,15 @@ class ModelInterfaceService:
             "have left\" — that is a COMPLETENESS question: lead with what matters most AND then "
             "RETRIEVE and ENUMERATE the rest (e.g. get_domain_state for the relevant domain). "
             "Never answer a list/completeness question with only the top item, and never ask the "
-            "user to tell you their own tasks — you can see them. This is the SAME executive "
-            "truth carried in `current_action` below."
+            "user to tell you their own tasks — you can see them. "
+            "And if they ask you to WALK THROUGH or BRIEF their DAY — \"walk me through my day\", "
+            "\"what's my day look like\", \"how's my day\", \"my schedule today\", \"plan my "
+            "day\" — give a COMPLETE day picture: lead with the single most important thing "
+            "(above), then cover today's tasks (done AND still due) together with calendar events "
+            "(get_domain_state for BOTH tasks and calendar). Do NOT answer from the calendar "
+            "alone, and NEVER tell the user the day is finished or that nothing is left while the "
+            "item above is still unaddressed. This is the SAME executive truth carried in "
+            "`current_action` below."
         )
 
     def _system_prompt(self, standing_context: dict) -> str:

@@ -6,6 +6,18 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #9 (day briefing) — "walk me through my day" gives a COMPLETE day, never declares the day done while the priority is unaddressed
+
+**Observable defect (probe of un-exercised conversations):** "Walk me through my day." → *"Today, you had one scheduled event which you've already completed… There are no upcoming events… you've already completed your planned tasks for today."* (tools: `get_domain_state(calendar)` only). It consulted the CALENDAR alone, declared the day finished, and omitted the standing priority the CoS states everywhere else (Prayer Time). A day walkthrough that says "you're done" while the CoS's own #1 action is unaddressed is a self-contradiction — a trust-breaker.
+
+**First failing layer (executive-lead guidance):** "walk me through my day" was not among the executive-lead triggers, so the model got neither the "lead with `current_action`" nor the "enumerate" nudge and answered narrowly from the calendar. `current_action` was in context but not salient for this phrasing.
+
+**Fix (`apps/ai/model_interface/service.py::_executive_lead`):** added a DAY-BRIEFING clause — for "walk me through my day" / "what's my day look like" / "how's my day" / "my schedule today" / "plan my day", give a COMPLETE day picture: lead with the single most important thing, then cover today's tasks (done AND still due) together with calendar events (`get_domain_state` for BOTH); do NOT answer from the calendar alone; NEVER tell the user the day is finished while the priority is unaddressed.
+
+- **Files:** `apps/ai/model_interface/service.py`; test `apps/ai/tests/test_model_interface_runtime.py` (lead carries the day-briefing clause: tasks+calendar, not calendar-alone, no false "finished"). `check` clean; **no migrations**.
+- **Noted for a follow-up blocker (same turn, different layer — Truth):** the calendar state exposed a raw internal metric that surfaced as *"schedule density… at 3.1"*. Will trace/fix separately if it persists on re-run.
+- **Blocker #9 stays OPEN until re-run:** closes only when "walk me through my day" leads with the priority and covers tasks + calendar, without declaring the day done.
+
 ## 2026-08-06 — feat(cos): intent-and-domain-natural assessment horizons — the CoS answers over the period a reasonable person means (no fixed default)
 
 **Product principle (owned end-to-end, per Danny):** a Chief of Staff chooses the time horizon that matches the question and the domain — "the question a reasonable person believes they asked, not the question implied by an internal technical default." The whole-domain overview previously used a FIXED 7-day default whenever the user named no period, so "how am I doing with my finances / health?" only ever looked at the last week.

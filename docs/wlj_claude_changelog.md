@@ -6,6 +6,20 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #11 (relative-night dates) — "the night before" / "two nights ago" resolve, no more false "not available"
+
+**Observable defect (proven, not inferred):** after Blocker #10 anchored the sleep subject, "what about the night before?" correctly called `get_history(health, sleep, period="the night before")` — but the period was UNRESOLVABLE, so it returned insufficient_evidence and the CoS said *"the sleep data … isn't available … the period was unresolvable."* A same-conversation probe proved the data EXISTED: "How did I sleep on August 4?" → 7.35 h with full stage breakdown. So "the night before" / "two nights ago" / "the night before last" produced a FALSE "not available" (and leaked the internal word "unresolvable").
+
+**First failing layer (Truth — the shared temporal resolver):** `apps/core/truth/periods.py::resolve_date_expression` handled "N days/weeks ago", weekdays, explicit dates, named periods — but not relative-NIGHT phrases. WLJ owns conversational date resolution; these are natural things a person says.
+
+**Fix (`apps/core/truth/periods.py`):**
+- Added `"night"` as an offset unit (a night is a day for date math) so "N nights ago" resolves via the existing `_parse_relative_offset` (regex extended to `night`).
+- Added `_RELATIVE_NIGHT_OFFSETS` for the explicit phrases, each → a single day (start==end): "last night"/"the previous night" → today−1; "the night before", "night before last", "the night before last", "the day before yesterday" → today−2.
+- Wired into `resolve_date_expression` right after the alias check.
+
+- **Files:** `apps/core/truth/periods.py`; test `apps/ai/tests/test_domain_history_natural_dates.py::RelativeNightDateResolverTests` (nine relative-night/day phrases → correct single day). 20 tests across natural-dates + temporal-contract pass; `check` clean; **no migrations**.
+- **Blocker #11 stays OPEN until re-run:** closes only when "how did I sleep last night?" → "what about the night before?" returns the actual prior night's sleep (Aug 4) instead of "not available."
+
 ## 2026-08-06 — fix(cos): Blocker #10 (follow-up continuity) — "how did I sleep last night?" anchors the subject so a date-shift follow-up stays on sleep
 
 **Observable defect (probe of follow-up continuity):**

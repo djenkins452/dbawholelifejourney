@@ -156,3 +156,23 @@ class SharedResolverOffsetTests(TestCase):
 
     def test_unparseable_returns_none(self):
         self.assertIsNone(resolve_date_expression("whenever", self.today))
+
+
+class RelativeNightDateResolverTests(TestCase):
+    """Blocker #11: relative-night/day phrases must resolve, so a date-shift follow-up
+    ('what about the night before?') retrieves the right night instead of a false 'not
+    available' — the sleep data existed (Aug 4 = 7.35h); only the phrase was unresolvable."""
+
+    def test_relative_night_and_day_phrases_resolve_to_single_days(self):
+        base = date(2026, 8, 6)
+        cases = {
+            "last night": 1, "the previous night": 1,
+            "the night before": 2, "night before last": 2, "the night before last": 2,
+            "the day before yesterday": 2,
+            "two nights ago": 2, "2 nights ago": 2, "three nights ago": 3,
+        }
+        for phrase, back in cases.items():
+            p = resolve_date_expression(phrase, base)
+            self.assertIsNotNone(p, f"{phrase!r} should resolve, not dead-end")
+            self.assertEqual(p.start, base - timedelta(days=back), f"{phrase!r}")
+            self.assertEqual(p.start, p.end, f"{phrase!r} is a single night")

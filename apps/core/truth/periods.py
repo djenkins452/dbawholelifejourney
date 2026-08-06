@@ -155,14 +155,26 @@ _NUMBER_WORDS = {
     "twelve": 12,
 }
 
-_OFFSET_UNITS = {"day": 1, "week": 7}
+_OFFSET_UNITS = {"day": 1, "week": 7, "night": 1}  # a "night" is a day for date math
+
+# Single-night relative phrases → whole-day offset back from today. A "night" names one
+# calendar night, so each resolves to a single DAY (start==end). "last night" == the night
+# just passed (today-1); "the night before" (i.e. the night before last night) == today-2.
+# Without these, a natural date-shift follow-up ("what about the night before?") was
+# unresolvable and the CoS falsely said the data was unavailable while it existed.
+_RELATIVE_NIGHT_OFFSETS = {
+    "last night": 1, "the last night": 1, "previous night": 1, "the previous night": 1,
+    "night before": 2, "the night before": 2,
+    "night before last": 2, "the night before last": 2,
+    "day before yesterday": 2, "the day before yesterday": 2,
+}
 
 
 def _parse_relative_offset(phrase, today):
     """A concrete date for 'N days/weeks/months/years ago' ('two weeks ago',
     '3 days ago', 'a year ago'). Resolves to the single DAY that far back — the
     literal reading; it never widens into a range it cannot justify."""
-    m = re.match(r"^(\d+|[a-z]+)\s+(day|week|month|year)s?\s+ago$", phrase)
+    m = re.match(r"^(\d+|[a-z]+)\s+(day|week|month|year|night)s?\s+ago$", phrase)
     if not m:
         return None
     qty_raw = m.group(1)
@@ -207,6 +219,9 @@ def resolve_date_expression(phrase, today):
         return resolve_period(p, today)
     if p in _PERIOD_ALIASES:
         return resolve_period(_PERIOD_ALIASES[p], today)
+    if p in _RELATIVE_NIGHT_OFFSETS:                  # "the night before", "night before last"
+        d = today - timedelta(days=_RELATIVE_NIGHT_OFFSETS[p])
+        return Period(p, d, d, p)
     # Trailing "last/past N days|weeks|months" → the inclusive window ending today (e.g.
     # 'last 30 days' = today-29 … today). Owned here so every surface resolves it identically.
     m = re.match(r"^(?:last|past)\s+(\d{1,4})\s+(day|week|month)s?$", p)

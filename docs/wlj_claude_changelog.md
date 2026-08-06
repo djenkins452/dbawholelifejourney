@@ -6,6 +6,14 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — feat(ops): multi-turn CoS acceptance-conversation runner (re-run continuity/contradiction blockers verbatim)
+
+**Why:** the single-turn `run_cos_acceptance_turn` runner creates a fresh throwaway conversation per call, so it cannot reproduce a blocker whose whole nature is cross-turn — the CoS said something earlier (often a proactive check-in it INITIATED) and must stay faithful to it later. Re-running Blocker #3 headlessly needs the check-in present as a prior turn, then the user's reply, in the SAME conversation.
+
+- **`core.tasks.run_cos_acceptance_conversation(email, steps, result_key)`** — runs a scripted multi-turn conversation through the REAL pipeline in ONE isolated `is_active=False` conversation. Each step is either `{"seed": "<message_type>", "content": ...}` (a CoS-authored assistant turn inserted WITHOUT a model call — e.g. a proactive `nudge` check-in; allowed types in `_ACCEPTANCE_SEED_TYPES`) or `{"user": ...}` (a real user turn via `CoSGateway.respond`, capturing the model's answer + the tools it called for that turn). Returns the full transcript. Read-mostly; never crashes the worker.
+- **`CoSAcceptanceRunAPIView`** — new `?script=<url-encoded JSON list of steps>` param enqueues the multi-turn runner (`mode: conversation`); the existing single-turn `?message=` path is unchanged. Request-path-safe (view only enqueues; the LLM runs in the worker).
+- **Files:** `apps/core/tasks.py`, `apps/admin_console/views.py`. `check` clean; **no migrations**. Diagnostic tooling in service of the acceptance workflow — not a blocker fix.
+
 ## 2026-08-05 — fix(cos): Blocker #3 — proactive check-ins re-enter the model's conversation history (continuity loss eliminated)
 
 **Observable failure (acceptance conversation):** the CoS INITIATED an end-of-day check-in ("Focus on completing the high-priority action that's due"), then thirty seconds later behaved as though the conversation never happened — "check in" → *"Could you clarify what you'd like to check in on?"*. The CoS lost continuity on a conversation it started.

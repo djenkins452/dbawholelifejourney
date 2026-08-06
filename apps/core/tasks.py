@@ -84,6 +84,82 @@ def run_cos_acceptance_turn(user_email, message, result_key):
     return out
 
 
+# message_type values that are legitimate CoS-authored conversational turns which may be
+# SEEDED into an acceptance conversation (e.g. a proactive end-of-day check-in). These are
+# the assistant turns the user actually sees in chat; seeding one lets a multi-turn
+# acceptance test reproduce a conversation the CoS itself initiated. No model call.
+_ACCEPTANCE_SEED_TYPES = {"nudge", "state_assessment", "insight", "celebration", "text"}
+
+
+@shared_task(name="apps.core.tasks.run_cos_acceptance_conversation", ignore_result=True)
+def run_cos_acceptance_conversation(user_email, steps, result_key):
+    """Run a MULTI-TURN Chief-of-Staff acceptance conversation through the REAL production
+    pipeline, in ONE isolated throwaway conversation, and cache the actual model responses.
+
+    This is the multi-turn sibling of run_cos_acceptance_turn. A continuity/contradiction
+    blocker cannot be reproduced one isolated turn at a time — the whole point is that the
+    CoS said something on an earlier turn (often a proactive check-in it INITIATED) and must
+    stay faithful to it on a later turn. So this runner keeps a single persistent conversation
+    across the whole script.
+
+    `steps` is a list of dicts, executed in order in the SAME conversation:
+      - {"seed": "<message_type>", "content": "..."}  → insert a CoS-authored assistant turn
+        WITHOUT calling the model (e.g. the proactive end-of-day check-in). `message_type`
+        must be in _ACCEPTANCE_SEED_TYPES; is_proactive is set for non-'text' seeds.
+      - {"user": "..."}                                → run one real user turn through
+        CoSGateway.respond (surface=chat) and capture the model's answer + the tools it called.
+
+    The conversation is is_active=False (never touches the user's live chat). Read-mostly:
+    side effects are only whatever the model itself decides to do. Never crashes the worker.
+    """
+    from django.contrib.auth import get_user_model
+    from django.core.cache import cache
+    from django.utils import timezone
+    out = {"status": "error", "stamped_at": timezone.now().isoformat()}
+    try:
+        user = get_user_model().objects.get(email__iexact=user_email)
+        from apps.ai.cos_gateway import SURFACE_CHAT, CoSGateway
+        from apps.ai.models import AssistantConversation, AssistantMessage, ToolCallLog
+        conv = AssistantConversation.objects.create(
+            user=user, is_active=False, title="[acceptance-conversation]")
+        transcript = []
+        for step in (steps or []):
+            if not isinstance(step, dict):
+                continue
+            if "seed" in step:
+                mtype = step.get("seed") or "nudge"
+                if mtype not in _ACCEPTANCE_SEED_TYPES:
+                    mtype = "nudge"
+                content = step.get("content") or ""
+                AssistantMessage.objects.create(
+                    conversation=conv, role="assistant", content=content,
+                    message_type=mtype, is_proactive=(mtype != "text"))
+                transcript.append({"kind": "seed", "message_type": mtype,
+                                   "content": content})
+                continue
+            if "user" in step:
+                umsg = step.get("user") or ""
+                before = ToolCallLog.objects.filter(conversation_id=conv.id).count()
+                resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=umsg,
+                                          conversation=conv, stream=False)
+                answer = getattr(resp, "text", "") or ""
+                tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
+                          "status": r.result_status}
+                         for r in ToolCallLog.objects.filter(conversation_id=conv.id)
+                         .order_by("created_at")[before:]]
+                transcript.append({"kind": "turn", "user": umsg, "answer": answer,
+                                   "tool_calls": tools})
+        out = {"status": "ready", "transcript": transcript,
+               "conversation_id": conv.id, "stamped_at": timezone.now().isoformat()}
+    except Exception as e:  # never crash the worker; surface the error to the operator
+        logger.warning("run_cos_acceptance_conversation failed: %s", e, exc_info=True)
+        out = {"status": "error", "error": repr(e),
+               "stamped_at": timezone.now().isoformat()}
+    from django.core.cache import cache as _cache
+    _cache.set(result_key, out, timeout=1800)
+    return out
+
+
 @shared_task(name="apps.core.tasks.report_worker_build", ignore_result=True)
 def report_worker_build():
     """Stamp the WORKER process's running commit SHA + timestamp into the shared cache so an

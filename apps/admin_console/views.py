@@ -3754,17 +3754,43 @@ class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
                                 json_dumps_params={'default': str})
 
         email = (request.GET.get('email') or '').strip()
-        message = (request.GET.get('message') or '').strip()
-        if not (email and message):
-            return JsonResponse({'error': 'email and message query params required'},
-                                status=400)
         # Confirm the user exists before enqueuing (fail fast, clear error).
+        if not email:
+            return JsonResponse({'error': 'email query param required'}, status=400)
         try:
             get_user_model().objects.get(email__iexact=email)
         except get_user_model().DoesNotExist:
             return JsonResponse({'error': f'no user with email {email!r}'}, status=404)
 
         rk = 'wlj:acc:' + uuid.uuid4().hex
+
+        # MULTI-TURN acceptance conversation: ?script=<url-encoded JSON list of steps>.
+        # Each step is {"seed": "<message_type>", "content": "..."} (a CoS-authored turn
+        # inserted WITHOUT a model call, e.g. a proactive check-in) or {"user": "..."} (a
+        # real user turn through the live pipeline). Reproduces continuity/contradiction
+        # blockers that a single isolated turn cannot.
+        script_raw = request.GET.get('script')
+        if script_raw:
+            import json as _json
+            try:
+                steps = _json.loads(script_raw)
+                if not isinstance(steps, list):
+                    raise ValueError('script must be a JSON list of step objects')
+            except Exception as exc:
+                return JsonResponse({'error': f'invalid script JSON: {exc!r}'}, status=400)
+            try:
+                from apps.core.celery_utils import safe_enqueue
+                from apps.core.tasks import run_cos_acceptance_conversation
+                enqueued = safe_enqueue(run_cos_acceptance_conversation, email, steps, rk)
+            except Exception as exc:
+                return JsonResponse({'error': f'enqueue failed: {exc!r}'}, status=500)
+            return JsonResponse({'run_id': rk, 'enqueued': bool(enqueued),
+                                 'mode': 'conversation', 'poll': f'?run_id={rk}'})
+
+        message = (request.GET.get('message') or '').strip()
+        if not message:
+            return JsonResponse({'error': 'message or script query param required'},
+                                status=400)
         try:
             from apps.core.celery_utils import safe_enqueue
             from apps.core.tasks import run_cos_acceptance_turn

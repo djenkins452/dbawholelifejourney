@@ -6,7 +6,21 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
-## 2026-08-06 — docs(cos): v1.0 as-built architecture + rollback checkpoint (start of the CoS v2.0 intent-first milestone)
+## 2026-08-06 — feat(cos): CoS v2.0 — change the model's FIRST INTERNAL QUESTION to "what kind of help is this?"
+
+**The milestone change (model-side; NOT a new step/layer/classifier/intent object).** Danny's directive: the model's first internal question must shift from "What did they ask? / which domain?" to **"What kind of help is this person actually asking me for?"** — and, when WLJ already holds the personal truth, review what they've actually been doing BEFORE answering. WLJ does not classify or determine the ask; it only supplies the deterministic truth and context it already owns. The determination stays entirely the model's.
+
+**Production proof this was needed (battery of first-message conversations, tool calls captured):**
+- "I need to get my finances under control." → `get_analysis` first (grounded year-long finance picture) — already right (via Blocker #13A's improvement-intent trigger).
+- **"I need to improve my relationship with Haley."** → generic advice, NO retrieval, asked Danny which aspects to work on — WRONG (the capability exists; "how are my relationships?" retrieves Haley's interactions).
+- **"I have 50 pounds to go."** → generic "keep an eye on nutrition and exercise" — WRONG; ignored the commitment and his actual journey.
+
+**First failing layer:** #13A extended one DEEP doctrine (EVIDENCE-BASED RECOMMENDATIONS at constitution.py:372); it did not reach the relationship/commitment cases because the model's FIRST orientation — set at the very top of the identity — never asked "what kind of help + do I already know enough about this person to answer specifically?" The fix belongs where the first question is set: the identity, first-read, highest salience.
+
+**Fix (`apps/ai/model_interface/constitution.py`):** added a `HOW A CHIEF OF STAFF BEGINS — YOUR FIRST INTERNAL QUESTION` block immediately after the identity, before the WLJ-ownership split. It reframes the opening move (read the kind of help — inform/evaluate/investigate/advise/plan/encourage/hold-accountable/challenge/brainstorm/decide; the commitment vs arithmetic example; then ask "do I already know enough about THIS person to answer specifically? if yes, retrieve what they've been doing FIRST"). Generic advice/textbook tips/"what would you like to focus on?" are explicitly the FALLBACK, only when WLJ lacks the truth. Explicitly NOT a separate step or an output label; WLJ never classifies the ask. Generalizes #13A across every domain.
+
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_model_interface_runtime.py` (first-question framing present + placed before the ownership split). 61 tests pass across the doctrine suites (evidence-based, investigate-before-concluding, intent-retrieve-reason, principles-not-prescriptions, executive-assessment) — no regression; `check` clean; **no migrations**.
+- **Rollout:** per the established discipline — deploy, re-run the battery (relationship / 50-pounds / back-on-track / finance) and the prior acceptance conversations; each remaining shortfall is its own production blocker (runtime trace → first failing layer → fix → test → deploy → re-run). Stays OPEN until the re-run shows the first question is right across domains without regressing v1.0.
 
 Before the CoS v2.0 evolution (understand the help being requested BEFORE choosing what truth to gather), preserved the current system:
 - **Checkpoint / rollback point:** annotated git tag `cos-v1.0-checkpoint` at commit `4bacbcc3`, pushed to remote. Nothing from v1.0 is to be lost.

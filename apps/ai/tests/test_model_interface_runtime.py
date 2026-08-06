@@ -125,6 +125,21 @@ class StandingContextTests(TestCase):
         chat_prompt = mi._system_prompt({**mi.build_standing_context(), **envelope})
         self.assertIn("Work on WLJ", chat_prompt)      # the chat can NAME it (no "I can't see")
 
+    def test_first_internal_question_is_what_kind_of_help(self):
+        # CoS v2.0: the model's FIRST internal question is "what kind of help is this person
+        # asking me for?" (not "what did they ask / which domain"), and — when WLJ holds the
+        # truth — retrieve what they've actually been doing BEFORE answering. Model-side; WLJ
+        # never classifies the ask. Lives at the top of the identity (first-read salience).
+        c = CONSTITUTION.lower()
+        self.assertIn("your first internal question", c)
+        self.assertIn("what kind of help is this person actually asking me for", c)
+        self.assertIn("wlj never classifies the ask", c)
+        # generic advice is the fallback only when WLJ lacks the truth
+        self.assertIn("are the fallback", c)
+        # the identity question sits BEFORE the wlj-ownership split (first-read placement)
+        self.assertLess(c.index("your first internal question"),
+                        c.index("you are the user's personal assistant"))
+
     def test_investigate_trigger_covers_improvement_intent(self):
         # Blocker #13A: an open-ended personal-improvement INTENT ("I need to plan my nutrition
         # better") must trigger investigate-first, not generic advice — when WLJ already holds

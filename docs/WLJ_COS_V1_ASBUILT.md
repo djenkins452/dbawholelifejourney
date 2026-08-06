@@ -246,14 +246,20 @@ the flat state with a concept-organized fact view, WLJ verdicts stripped.
 
 ## 5. Reasoning flow (how the model decides — the v2.0 target)
 
-Today, per turn: (1) the model reads the Constitution + leads + structured JSON + history; (2) it
-**decides whether and what to retrieve** from the *domain implied by the question* and the retrieval
-precedence list; (3) it runs the bounded tool loop; (4) it narrates under the completion/formatting
-doctrine. Retrieval selection is governed almost entirely by **doctrine text the model interprets**
-(§3.1 #12/#15/#18) — there is **no deterministic intent/help-type classifier**. This is exactly why
-Blocker #13A was possible: an improvement-intent statement did not match the investigate-first
-trigger, so the model advised generically without retrieving. **v2.0 inserts an explicit
-"understand the help being requested → then choose truth" step before retrieval selection.**
+Per turn: (1) the model reads the Constitution + leads + structured JSON + history; (2) it
+**decides whether and what to retrieve**; (3) it runs the bounded tool loop; (4) it narrates under
+the completion/formatting doctrine. Retrieval selection is governed by **doctrine text the model
+interprets** (§3.1) — there is **no deterministic intent/help-type classifier**, by design (meaning
+belongs to the model, not WLJ).
+
+**v2.0 change (shipping, model-side only — not a new step/layer/classifier).** The model's **first
+internal question** was reframed at the top of the identity (`constitution.py`, the
+`HOW A CHIEF OF STAFF BEGINS — YOUR FIRST INTERNAL QUESTION` block): from *"what did they ask / which
+domain?"* to **"what kind of help is this person actually asking me for?"** — and, when WLJ already
+holds the truth, *review what they've actually been doing before answering*. WLJ still only supplies
+truth; it never classifies the ask. This generalizes Blocker #13A (which only extended one deep
+doctrine and missed the relationship/commitment cases). It is proving itself in production
+conversation-by-conversation via the standard blocker loop — not on paper.
 
 ---
 

@@ -6,6 +6,13 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — docs(cos): v1.0 as-built architecture + rollback checkpoint (start of the CoS v2.0 intent-first milestone)
+
+Before the CoS v2.0 evolution (understand the help being requested BEFORE choosing what truth to gather), preserved the current system:
+- **Checkpoint / rollback point:** annotated git tag `cos-v1.0-checkpoint` at commit `4bacbcc3`, pushed to remote. Nothing from v1.0 is to be lost.
+- **As-built document:** `docs/WLJ_COS_V1_ASBUILT.md` — the complete record of how the CoS works today, every subsystem anchored to file:line, mapped via 5 parallel read-only investigations (pipeline, prompt/environment, truth/retrieval, write/confirmation, executive/read/continuity). Covers conversation flow, retrieval/truth flow, prompt + environment construction, reasoning flow, write path, read path, executive assessments, current architecture, known strengths, and known weaknesses (incl. the primary "Q&A-not-yet-CoS" gap that motivates v2.0, plus the write-path #13 delete-confirmation loop with its now-confirmed root cause, and open Blocker #13B).
+- No code changed; documentation + tag only.
+
 ## 2026-08-06 — fix(cos): Blocker #13A (generic advice before personal truth) — improvement-intent triggers investigate-first
 
 **Observable failure (production acceptance conversation, reproduced verbatim):**

@@ -307,12 +307,39 @@ class OverviewWindowFidelityTests(TestCase):
         self.assertEqual(a["window"]["days"], 30)
         self.assertFalse(a["window"]["requested_period_unresolved"])
 
-    def test_default_window_is_last_7_days_when_none_requested(self):
+    def test_default_window_is_domain_natural_not_seven_days(self):
+        # A fixed 7-day default is not customer-natural (a week is too short to judge health).
+        # With NO period stated, health defaults to its natural 30-day horizon.
         self._weight(2, 281)
         a = get_domain_analysis(self.user, "health", "overall")
-        self.assertEqual(a["window"]["name"], "last_7_days")
-        self.assertEqual(a["window"]["days"], 7)
+        self.assertEqual(a["window"]["days"], 30)
         self.assertIsNone(a["window"]["requested_period"])
+        self.assertTrue(a["window"]["auto_selected"])
+        self.assertFalse(a["window"]["widened"])
+
+    def test_default_horizon_differs_by_domain(self):
+        from apps.ai.cos_services.domain_analysis import _DOMAIN_DEFAULT_DAYS
+        self.assertEqual(_DOMAIN_DEFAULT_DAYS["finance"], 30)      # ~ current month
+        self.assertEqual(_DOMAIN_DEFAULT_DAYS["relationships"], 90)  # seasonal, not weekly
+
+    def test_auto_widen_finds_most_recent_window_with_activity(self):
+        # Only reading is 60 days ago: the 30-day natural window is empty, so WLJ widens to the
+        # most recent horizon that holds data (90 days) rather than reporting "no data".
+        self._weight(60, 290)
+        a = get_domain_analysis(self.user, "health", "overall")
+        self.assertEqual(a["status"], "ready")
+        self.assertTrue(a["window"]["widened"])
+        self.assertEqual(a["window"]["days"], 90)
+        self.assertTrue(a["subjects"]["weight"]["present"])
+        self.assertIn("widened", a["window"]["state_the_period"].lower())
+
+    def test_explicit_period_is_never_widened(self):
+        # An explicit user period is honored EXACTLY — no smart default, no widen — even empty.
+        self._weight(60, 290)
+        a = get_domain_analysis(self.user, "health", "overall", period="last_7_days")
+        self.assertEqual(a["window"]["days"], 7)
+        self.assertFalse(a["window"]["widened"])
+        self.assertFalse(a["window"]["auto_selected"])
 
     def test_change_carries_within_window_direction(self):
         # What improved / got worse: the deterministic within-window trend.

@@ -45,7 +45,7 @@ Design rules honored (identical spine to domain_history / domain_entity):
 
 import logging
 import time
-from datetime import date
+from datetime import date, timedelta
 
 from apps.ai.cos_services.domain_entity import get_domain_entity
 from apps.ai.cos_services.domain_history import get_domain_history
@@ -75,9 +75,82 @@ _OVERVIEW_ALIASES = frozenset({
 })
 # The overview honors the WINDOW THE USER ASKED FOR — every subject is composed against the
 # SAME resolved window and NOTHING outside it (so "overall health for the last week" can
-# never be influenced by this-month data). When no window is stated the roll-up defaults to
-# a single recent horizon: "how am I doing lately" == the last 7 days.
-_OVERVIEW_DEFAULT_PERIOD = "last_7_days"
+# never be influenced by this-month data).
+_OVERVIEW_DEFAULT_PERIOD = "last_7_days"   # only for an EXPLICIT-but-unresolvable period
+
+# DOMAIN-NATURAL DEFAULT HORIZON — when the user names NO period, a Chief of Staff answers over
+# the horizon a reasonable person means by the question, not a fixed technical default. Money is
+# thought of monthly; relationships are seasonal; a single week is too short to judge almost
+# anything. Values are DAYS. The 7-day floor was an internal default, never a customer-natural
+# one. (Explicit user periods — "last week", "this year" — are always honored exactly; these
+# defaults apply ONLY when the user states no period.)
+_DOMAIN_DEFAULT_DAYS = {
+    "finance": 30,          # ~ the current month
+    "health": 30,
+    "relationships": 90,    # not meaningfully judged over a week
+    "medical": 90,
+    "goals": 30,
+    "faith": 30,
+    "habits": 30,
+    "nutrition": 14,
+    "journal": 30,
+    "legacy": 365,
+}
+_GENERAL_DEFAULT_DAYS = 30  # the natural floor for "how am I doing?" when the domain has no map
+
+# AUTO-WIDEN — if the natural window holds no trend activity, widen to the most recent horizon
+# that does (deterministic, most-recent-first, bounded). "Answer the question a reasonable
+# person believes they asked" — never report "no data" for a week when there is a month of it.
+_WIDEN_LADDER_DAYS = (90, 365, 3650)
+
+
+def _window_label(days):
+    if days >= 3650:
+        return "your full history"
+    if days >= 365 and days % 365 == 0:
+        y = days // 365
+        return f"the last {y} year" + ("s" if y > 1 else "")
+    return f"the last {days} days"
+
+
+def _window_of_days(days, today):
+    """A custom Period covering the trailing `days` ending today (inclusive)."""
+    from apps.core.truth.periods import Period
+    return Period(f"last_{days}_days", today - timedelta(days=days - 1), today,
+                  _window_label(days))
+
+
+def _user_today(user):
+    try:
+        from apps.core.utils import get_user_today
+        return get_user_today(user) or date.today()
+    except Exception:
+        return date.today()
+
+
+def _compose_trends(user, domain, trend_subjects, window, uid):
+    """Compose every trend facet against ONE window. Returns (composed, present_count)."""
+    start_iso, end_iso = window.start.isoformat(), window.end.isoformat()
+    seen_metrics, composed, present_count = set(), {}, 0
+    for name, mapping in trend_subjects.items():
+        mapping = mapping or {}
+        metric = mapping.get("history_metric") or name
+        if metric in seen_metrics:              # dedup aliases (bp/blood_pressure → one metric)
+            continue
+        seen_metrics.add(metric)
+        try:
+            entry = _overview_subject(get_domain_history(
+                user, domain, metric, period="custom", start=start_iso, end=end_iso))
+        except Exception:
+            logger.warning("domain_overview: history failed user=%s domain=%s metric=%s "
+                           "window=%s..%s", uid, domain, metric, start_iso, end_iso,
+                           exc_info=True)
+            entry = {"present": False, "status": "error"}
+        if entry.get("present"):
+            present_count += 1
+        entry["metric"] = metric
+        composed[name] = entry
+    return composed, present_count
 
 
 def analysis_capability_index():
@@ -274,33 +347,37 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
     of both is `empty`. A facet `present:false` is HONEST missing-data-for-the-window, never
     a decline.
     """
-    window, requested_unresolved = _resolve_overview_window(user, period)
-    start_iso, end_iso = window.start.isoformat(), window.end.isoformat()
-
-    # --- TRENDS (what is changing) -------------------------------------------------------
     trend_subjects = _overview_trend_subjects(truth)
-    seen_metrics = set()
-    composed = {}
-    present_count = 0
-    for name, mapping in trend_subjects.items():
-        mapping = mapping or {}
-        metric = mapping.get("history_metric") or name
-        if metric in seen_metrics:          # dedup aliases (bp/blood_pressure → one metric)
-            continue
-        seen_metrics.add(metric)
-        try:
-            # ONE window for every metric — custom range from the single resolved Period.
-            entry = _overview_subject(get_domain_history(
-                user, domain, metric, period="custom", start=start_iso, end=end_iso))
-        except Exception:
-            logger.warning("domain_overview: history failed user=%s domain=%s metric=%s "
-                           "window=%s..%s", uid, domain, metric, start_iso, end_iso,
-                           exc_info=True)
-            entry = {"present": False, "status": "error"}
-        if entry.get("present"):
-            present_count += 1
-        entry["metric"] = metric
-        composed[name] = entry
+
+    # --- WINDOW (the horizon a reasonable person means) ----------------------------------
+    # An EXPLICIT user period ("last week", "this year") is honored exactly — no smart default,
+    # no widen. When the user names NO period, use the DOMAIN-NATURAL default, then AUTO-WIDEN
+    # to the most recent horizon that actually holds trend activity, so "how am I doing?" is
+    # answered over the period the question implies — never a fixed 7-day technical default.
+    explicit = bool(period)
+    widened = False
+    if explicit:
+        window, requested_unresolved = _resolve_overview_window(user, period)
+        composed, present_count = _compose_trends(user, domain, trend_subjects, window, uid)
+    else:
+        requested_unresolved = False
+        today = _user_today(user)
+        default_days = _DOMAIN_DEFAULT_DAYS.get(domain, _GENERAL_DEFAULT_DAYS)
+        ladder = (default_days,) + tuple(d for d in _WIDEN_LADDER_DAYS if d > default_days)
+        window = _window_of_days(ladder[0], today)
+        composed, present_count = _compose_trends(user, domain, trend_subjects, window, uid)
+        # Widen only when the natural window is barren of trend activity AND there are facets
+        # to find — stop at the first wider window that holds data.
+        if trend_subjects:
+            for days in ladder[1:]:
+                if present_count > 0:
+                    break
+                cand = _window_of_days(days, today)
+                composed, present_count = _compose_trends(
+                    user, domain, trend_subjects, cand, uid)
+                window, widened = cand, True
+
+    start_iso, end_iso = window.start.isoformat(), window.end.isoformat()
 
     # --- STATE (where things stand now) --------------------------------------------------
     state = _overview_state(user, domain)
@@ -331,7 +408,14 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
     window_meta = {"name": window.name, "label": window.label,
                    "start": start_iso, "end": end_iso, "days": window.days(),
                    "requested_period": period,
-                   "requested_period_unresolved": requested_unresolved}
+                   "requested_period_unresolved": requested_unresolved,
+                   "auto_selected": (not explicit), "widened": widened,
+                   # The model MUST tell the user which period it assessed — always when WLJ
+                   # chose the horizon, and especially when it widened past the natural default.
+                   "state_the_period": (
+                       f"You assessed {window.label}. State this period to the user"
+                       + (" (you widened past the recent window because it had no activity)"
+                          if widened else "") + ".")}
 
     if signals == 0:
         # The ONLY honest "insufficient": WLJ holds NEITHER a current state NOR any trend.

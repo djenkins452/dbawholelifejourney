@@ -6,6 +6,19 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — feat(cos): intent-and-domain-natural assessment horizons — the CoS answers over the period a reasonable person means (no fixed default)
+
+**Product principle (owned end-to-end, per Danny):** a Chief of Staff chooses the time horizon that matches the question and the domain — "the question a reasonable person believes they asked, not the question implied by an internal technical default." The whole-domain overview previously used a FIXED 7-day default whenever the user named no period, so "how am I doing with my finances / health?" only ever looked at the last week.
+
+**Change (`apps/ai/cos_services/domain_analysis.py`, `_domain_overview`):**
+- **Domain-natural default** (`_DOMAIN_DEFAULT_DAYS`, days) when the user states NO period: finance 30 (~current month), health 30, relationships 90, medical 90, goals/faith/habits/journal 30, nutrition 14, legacy 365; general floor 30 (was 7). A week is too short to judge almost anything.
+- **Auto-widen** (`_WIDEN_LADDER_DAYS` = 90 → 365 → 3650): if the natural window holds no trend activity, WLJ widens to the most recent horizon that does — never "no data for the last week" when there's a month of it. Stops at the first window with data; a genuinely empty domain still resolves to honest `status: empty` (Blocker #8).
+- **Explicit periods are sacrosanct:** if the user says "last week" / "this year", the model passes it and WLJ honors it EXACTLY — no smart default, no widen.
+- **Always states the period:** `window.auto_selected` / `window.widened` + a `state_the_period` instruction ("You assessed the last 30 days. State this period…") so the CoS tells the user which horizon it used, especially after widening.
+- Refactored the trend composition into `_compose_trends(window)` so one window drives every facet identically (the single-horizon invariant is preserved across the widen retries).
+
+- **Files:** `apps/ai/cos_services/domain_analysis.py` (+ `timedelta` import); tests `apps/ai/tests/test_domain_analysis.py` (domain-natural default, per-domain horizons, auto-widen to the most recent window with data, explicit period never widened). 42 tests across analysis/executive/overview/health-cert pass; `check` clean; **no migrations**.
+
 ## 2026-08-06 — fix(cos): Blocker #8 (holds_data contract) — a disabled/empty domain STATE is no longer miscounted as evidence
 
 **Found by probing the real truth envelope (operator truth-probe), not the conversation:** `get_domain_analysis(finance, overall)` returned `status: "ready", holds_data: true` while `subjects_with_data: 0` and every subject `present: false`. The envelope's own scope text tells the model *"when holds_data is true you have the evidence and must not say 'insufficient'"* — so WLJ was asserting it held finance evidence it did not have. A fabrication trap (the model happened to answer honestly this time; a different phrasing could have produced "your finances look stable" over zero data).

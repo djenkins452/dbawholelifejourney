@@ -89,9 +89,12 @@
         <fieldset class="form-section">
             <legend class="form-section-title">Nutrition Facts</legend>
 
+            <p class="form-hint">Enter the nutrition for ONE serving. The total for your
+                servings is calculated automatically.</p>
+
             <div class="calories-field">
                 <div class="form-group">
-                    <label for="{{ form.total_calories.id_for_label }}">Calories *</label>
+                    <label for="{{ form.total_calories.id_for_label }}">Calories (per serving) *</label>
                     {{ form.total_calories }}
                     {% if form.total_calories.errors %}
                     <span class="form-error" role="alert">{{ form.total_calories.errors.0 }}</span>
@@ -131,6 +134,11 @@
                     </div>
                 </div>
             </details>
+
+            <!-- Live line-total preview (display only; never submitted). The nutrient inputs
+                 above stay per-serving; the server scales by quantity exactly once. -->
+            <p id="nutrition-total-preview" class="nutrition-total-preview" hidden
+               aria-live="polite"></p>
         </fieldset>
 
         <!-- Section 4: Context (optional) -->

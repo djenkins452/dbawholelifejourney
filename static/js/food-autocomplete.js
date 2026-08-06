@@ -321,38 +321,43 @@
     }
 
     /**
-     * Recalculate nutrition totals when quantity changes.
-     * Uses the per-serving snapshot stored when food was selected.
-     * This is a PREVIEW only — server recalculates on save.
+     * Show a live "total for N servings" PREVIEW when quantity changes.
+     *
+     * CRITICAL: the nutrient input fields (total_calories, …) hold PER-SERVING values
+     * and must NEVER be overwritten with a scaled total. The server treats the submitted
+     * value as per-serving and multiplies by quantity exactly once; writing the scaled
+     * total back into the field caused quantity to be applied twice (qty 2 → 4× calories).
+     * The line total is a read-only preview only. Computes from the CURRENT field values
+     * (so it works for manually-typed foods too, not just autocomplete selections).
      */
     function recalculateTotals(form) {
-        if (!perServingSnapshot) return;
+        const preview = document.getElementById('nutrition-total-preview');
+        if (!preview) return;
 
         const qtyField = form.querySelector('[name="quantity"]');
-        if (!qtyField) return;
+        const qty = parseFloat(qtyField && qtyField.value) || 1;
 
-        const qty = parseFloat(qtyField.value) || 1;
-
-        const fieldMap = {
-            'total_calories': 'calories',
-            'total_protein_g': 'protein_g',
-            'total_carbohydrates_g': 'carbohydrates_g',
-            'total_fat_g': 'fat_g',
-            'total_fiber_g': 'fiber_g',
-            'total_sugar_g': 'sugar_g',
-            'total_saturated_fat_g': 'saturated_fat_g',
+        const read = (name) => {
+            const el = form.querySelector(`[name="${name}"]`);
+            return el ? (parseFloat(el.value) || 0) : 0;
         };
+        const r1 = (n) => Math.round(n * 10) / 10;
+        const cal = read('total_calories') * qty;
+        const protein = read('total_protein_g') * qty;
+        const carbs = read('total_carbohydrates_g') * qty;
+        const fat = read('total_fat_g') * qty;
 
-        for (const [formField, snapshotKey] of Object.entries(fieldMap)) {
-            const field = form.querySelector(`[name="${formField}"]`);
-            const perServing = perServingSnapshot[snapshotKey] || 0;
-            if (field) {
-                const total = Math.round(perServing * qty * 100) / 100;
-                field.value = total;
-                field.classList.add('field-auto-filled');
-                setTimeout(() => field.classList.remove('field-auto-filled'), 1000);
-            }
+        // At exactly one serving the total equals the per-serving values already shown —
+        // no separate preview needed.
+        if (qty === 1 || (cal === 0 && protein === 0 && carbs === 0 && fat === 0)) {
+            preview.hidden = true;
+            preview.textContent = '';
+            return;
         }
+        preview.hidden = false;
+        preview.textContent =
+            `Total for ${qty} servings: ${Math.round(cal)} cal · ` +
+            `${r1(protein)}g protein · ${r1(carbs)}g carbs · ${r1(fat)}g fat`;
     }
 
     /**

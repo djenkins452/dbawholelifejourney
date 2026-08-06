@@ -1020,6 +1020,24 @@ class FoodEntryForm(forms.ModelForm):
             self.initial["quantity"] = 1
             self.initial["serving_size"] = 1
             self.initial["serving_unit"] = "serving"
+        elif self.instance.snapshot_nutrients:
+            # EDIT: the nutrient fields are PER-SERVING inputs, but the model's total_* fields
+            # hold the LINE total (per-serving × quantity). Binding those directly would show
+            # the line total in a per-serving field and re-multiply by quantity on save (the
+            # double-apply defect). Initialise the fields from the per-serving snapshot instead,
+            # so the field means per-serving on load AND save — quantity is applied exactly once.
+            snap = self.instance.snapshot_nutrients or {}
+            for form_field, snap_key in (
+                ("total_calories", "calories"),
+                ("total_protein_g", "protein_g"),
+                ("total_carbohydrates_g", "carbohydrates_g"),
+                ("total_fiber_g", "fiber_g"),
+                ("total_sugar_g", "sugar_g"),
+                ("total_fat_g", "fat_g"),
+                ("total_saturated_fat_g", "saturated_fat_g"),
+            ):
+                if snap.get(snap_key) is not None:
+                    self.initial[form_field] = snap[snap_key]
 
     def save(self, commit=True):
         """

@@ -6,6 +6,19 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — close(cos): Blocker #4 (unsupported claim) — check-in and chat cannot contradict; guarded, no new fix needed
+
+**Independent fresh trace (NOT assumed to share #3's cause):** #4's observable failure was a contradiction — the proactive check-in claims "focus on the high-priority action," then "What's left for me to do?" answered *"I can't see your to-do list."* Traced from scratch: `apps/ai/checkin_author.py::author_checkin` (line 83) builds the check-in from `ModelInterfaceService.build_standing_context()` — the SAME envelope the chat `generate()` uses. So #4 was never a two-sources problem; it was the chat model HAVING `current_action` but not using it (buried ~mid-JSON) and falling back to an "I can't see" answer. The contradiction can only arise when the check-in claims an action — i.e. when `current_action` is non-empty — which is exactly when the executive-read lead (added for #3's "check in" turn) now surfaces that same action saliently to the chat. Claim and answer read the one fact; they cannot disagree. Structural elimination, not a masked symptom.
+
+**Production reproduction (deployed worker, model-interface runtime) — sharpest probe:**
+- SEED check-in: "…focus on completing the one high-priority action that's due."
+- "What's left for me to do?" → *"The most important action for you right now is to focus on your Prayer Time. Prioritize this as your next step."*
+- "What is the high-priority action?" → *"The single most important thing for you right now is Prayer Time."*
+The check-in claims an action and the chat NAMES it (twice, including a direct probe). The "I can't see your to-do list" contradiction does not occur.
+
+- **No new code fix required** — #4's failing condition was removed by the continuity + executive-read leads (Blocker #3 work), verified here by an independent trace + live reproduction. Locked with a regression test: `apps/ai/tests/test_model_interface_runtime.py::StandingContextTests::test_checkin_and_chat_surface_the_same_current_action_no_contradiction` (the check-in author and the chat surface the SAME `current_action`). `check` clean; **no migrations**.
+- **Blocker #4 CLOSED** on the production reproduction above.
+
 ## 2026-08-06 — fix(cos): Blocker #3 (turn "check in") — executive-read salient lead so a check-in/status request leads with `current_action`
 
 **Observable failure (re-run of the acceptance conversation through the deployed worker, model-interface runtime):** after the continuity fix, turn 1 ("What's left for me to do?") is now answered correctly ("You have one task left: Work on WLJ… prioritized now"). But turn 2 — the bare command **"check in"**, sent right after the CoS's own end-of-day check-in — still returned *"I need a bit more information… Are you looking to check in on health, fitness, goals?"*: it asked Danny to re-establish context already visible in the thread.

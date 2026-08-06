@@ -97,6 +97,20 @@ class StandingContextTests(TestCase):
         # no current action → no lead (WLJ never invents one)
         self.assertEqual(mi._executive_lead({"current_action": {}}), "")
 
+    def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
+        # Blocker #4: the proactive check-in claims a high-priority action; the chat must be
+        # able to name the SAME one — they cannot contradict ("I can't see your to-do list")
+        # because BOTH the check-in author and the chat build from `current_action` in the ONE
+        # standing envelope. Guard: the same current_action appears in BOTH system prompts.
+        import apps.ai.checkin_author as ca
+        mi = ModelInterfaceService(self.user)
+        envelope = {"current_action": {"message": "Work on WLJ",
+                                       "primary_action": {"title": "Work on WLJ"}}}
+        checkin_prompt = ca._system_prompt(envelope, "end_of_day")
+        self.assertIn("Work on WLJ", checkin_prompt)   # the check-in can CLAIM it
+        chat_prompt = mi._system_prompt({**mi.build_standing_context(), **envelope})
+        self.assertIn("Work on WLJ", chat_prompt)      # the chat can NAME it (no "I can't see")
+
     def test_constitution_carries_the_fabrication_rule(self):
         mi = ModelInterfaceService(self.user)
         sp = mi._system_prompt(mi.build_standing_context())

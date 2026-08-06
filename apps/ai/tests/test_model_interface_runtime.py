@@ -90,7 +90,10 @@ class StandingContextTests(TestCase):
         lead = mi._executive_lead(ctx)
         self.assertIn("Work on WLJ", lead)
         self.assertIn("check in", lead.lower())
-        self.assertIn("do not ask", lead.lower())
+        self.assertIn("never ask", lead.lower())
+        # Blocker #6: whole-life questions also lead with the executive read (never "pick an area")
+        self.assertIn("whole-life", lead.lower())
+        self.assertIn("narrow", lead.lower())
         # and it is wired into the system prompt
         sp = mi._system_prompt({**mi.build_standing_context(), **ctx})
         self.assertIn("WHAT MATTERS RIGHT NOW", sp)

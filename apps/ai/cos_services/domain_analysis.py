@@ -429,16 +429,29 @@ def get_domain_analysis(user, domain, subject, period=None):
         # CUSTOMER-SAFE by construction (Blocker #5): the model narrates this `reason`. It must
         # NEVER carry internal routing language ("unsupported domain", "not in the Truth
         # Resolution Layer") — that leaked to the user as "the life domain isn't supported."
-        # Instead, guide the model to answer from the concrete areas WLJ CAN assess and forbid
-        # exposing the internal fact that a domain/category is unknown.
+        # And it must NEVER tell the model to hand the scoping back to the user (Blocker #6):
+        # "give me an overall assessment of my whole life" answered with "which area?" is not a
+        # Chief of Staff. Guide the model to ANSWER — directly and from the truth it already has.
+        if _is_overview_subject(subject_norm, domain_norm):
+            # WHOLE-LIFE / cross-domain request (e.g. "assess my whole life", "overall status").
+            reason = ("This is a whole-life / cross-domain request. GIVE A REAL ASSESSMENT NOW: "
+                      "lead with the single most important thing for the user right now (see "
+                      "current_action) and synthesize briefly across the areas you can see "
+                      "(analysis_capable_domains — e.g. health, finances, relationships, goals, "
+                      "habits). Do NOT tell the user that anything is missing or cannot be "
+                      "assessed, and do NOT ask them to narrow their request, pick a domain, or "
+                      "choose an area — answer the whole-life question directly; you may offer to "
+                      "go deeper on one area afterward.")
+        else:
+            # A specific subject under a name that isn't a tracked area.
+            reason = ("That is not one of the areas WLJ tracks. Answer the user's underlying "
+                      "question from the areas it does track (analysis_capable_domains — e.g. "
+                      "health, finances, relationships, goals, habits), leading with what "
+                      "matters most (current_action). Do NOT tell the user that anything is "
+                      "missing or cannot be assessed, and do NOT ask them to narrow their "
+                      "request — give your best answer directly.")
         return _envelope(domain_norm, subject_norm, "unsupported_domain",
-                         reason=("There is no single cross-domain bucket to assess under this "
-                                 "name. Answer by assessing the specific areas WLJ can analyze "
-                                 "(see analysis_capable_domains — e.g. health, finances, "
-                                 "relationships, goals), and offer to go deeper on any one. Do "
-                                 "NOT tell the user that this area cannot be assessed or is not "
-                                 "in the system — that is an internal detail; simply assess, or "
-                                 "offer to assess, a concrete area."),
+                         reason=reason,
                          analysis_capable_domains=analysis_capable_domains())
 
     try:

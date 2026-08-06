@@ -525,12 +525,15 @@ class ModelInterfaceService:
             "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read — LEAD with "
             "this on any check-in / status request) ===\n"
             f"{body}\n"
-            "When the user asks for a check-in or where they stand — \"check in\", \"status\", "
-            "\"where do things stand\", \"what's left\", \"what should I do\", \"brief me\", or a "
-            "short reply continuing a check-in you just sent — you ALREADY KNOW the answer: lead "
-            "with the item above and give ONE clear next action. Do NOT ask them what they want "
-            "to check in on — that re-establishes context you already have. This is the SAME "
-            "executive truth carried in `current_action` below."
+            "When the user asks for a check-in, where they stand, or a WHOLE-LIFE assessment — "
+            "\"check in\", \"status\", \"overall status\", \"where do things stand\", \"what's "
+            "left\", \"what should I do\", \"brief me\", \"how am I doing\", \"how am I doing "
+            "across everything\", \"give me an overall assessment of my life\", or a short reply "
+            "continuing a check-in you just sent — you ALREADY KNOW the answer: lead with the "
+            "item above and give ONE clear next action. NEVER ask them what to check in on, to "
+            "narrow the request, or to pick an area — that hands your job back to them and "
+            "re-establishes context you already have; a Chief of Staff answers directly. This is "
+            "the SAME executive truth carried in `current_action` below."
         )
 
     def _system_prompt(self, standing_context: dict) -> str:

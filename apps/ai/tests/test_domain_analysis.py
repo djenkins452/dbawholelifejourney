@@ -166,6 +166,20 @@ class AnalysisHonestStateTests(TestCase):
         self.assertIn("do not tell the user", reason)          # never expose it as unsupported
         self.assertIn("analysis_capable_domains", a)           # gives the model real areas
 
+    def test_whole_life_request_answers_directly_never_asks_to_narrow(self):
+        # Blocker #6: "give me an overall assessment of my whole life" (unknown domain 'life',
+        # overview subject) must guide the model to ANSWER — lead with the executive read — and
+        # must NEVER tell it to hand scoping back to the user ("which area would you like?").
+        a = get_domain_analysis(self.user, "life", "overall")
+        self.assertEqual(a["status"], "unsupported_domain")
+        reason = (a.get("reason") or "").lower()
+        self.assertIn("whole-life", reason)
+        self.assertIn("give a real assessment", reason)
+        self.assertIn("do not ask them to narrow", reason)
+        self.assertNotIn("offer to assess", reason)     # no defer-to-user language
+        for term in self._LEAK_TERMS:
+            self.assertNotIn(term, reason)
+
     def test_wrap_truth_never_re_emits_the_raw_status_token(self):
         # The model-interface wrap MUST preserve the customer-safe reason, not the bare
         # "unsupported_domain" token it used to hand the model to narrate.

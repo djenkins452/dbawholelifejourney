@@ -6,6 +6,19 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): Blocker #6 (whole-life assessment) — the CoS answers "assess my whole life" directly, never asks the user to narrow scope
+
+**Observable defect (own it as a blocker, not a nicety):** "Give me an overall assessment of my whole life right now." → *"Let's focus on specific areas… which one would you like me to analyze?"* A Chief of Staff answers the whole-life question; it never hands the scoping back to the customer.
+
+**First failing layer (the guidance I introduced for #5):** the model calls `get_analysis(domain="life", subject="overall")`; the customer-safe reason from Blocker #5 told it to *"offer to assess a concrete area,"* so it deferred to the user instead of leading with an executive read. The leak was fixed but the reason licensed the wrong behavior.
+
+**Fix (reuse existing truth; no new architecture):**
+- `apps/ai/cos_services/domain_analysis.py` — split the unknown-domain reason by intent via the existing `_is_overview_subject`. A **whole-life / overview** request now instructs: *give a real assessment now — lead with the single most important thing (`current_action`) and synthesize briefly across the areas you can see; do NOT ask them to narrow, pick a domain, or choose an area.* A specific-but-unknown domain gets "answer from the areas WLJ tracks, don't ask to narrow." Both stay customer-safe (Blocker #5 invariant preserved — no leak terms).
+- `apps/ai/model_interface/service.py::_executive_lead` — extended the trigger list to name whole-life phrasings ("how am I doing", "how am I doing across everything", "give me an overall assessment of my life", "overall status") and to forbid asking the user to narrow / pick an area, so BOTH paths (executive lead directly, or via the tool result) lead with the executive read.
+
+- **Files:** `apps/ai/cos_services/domain_analysis.py`, `apps/ai/model_interface/service.py`; tests `apps/ai/tests/test_domain_analysis.py` (whole-life request answers directly, never defers; #5 leak-safety preserved), `apps/ai/tests/test_model_interface_runtime.py` (lead covers whole-life + forbids narrowing). 47 tests across affected modules pass; `check` clean; **no migrations**.
+- **Blocker #6 stays OPEN until re-run:** closes only when "give me an overall assessment of my whole life" returns a real assessment led by what matters most — with no request to narrow scope.
+
 ## 2026-08-06 — fix(cos): Blocker #5 (overall status) — the truth boundary can no longer emit customer-facing "unsupported domain" language
 
 **Independent fresh trace + live reproduction (deployed worker, model-interface runtime):** "overall status" / "how am I doing across everything?" → the model calls `get_analysis(domain="life", subject="overall")`, which is not a registered analysis domain. Confirmed the leaky tool call STILL fires in production: `get_analysis(domain=life) → insufficient_evidence`. It only avoided surfacing this run because the executive-read lead (Blocker #3 work) handed the model `current_action` to lead with — i.e. the leak was MASKED by luck, not eliminated. With `current_action` empty, the same envelope would surface as "the life domain isn't supported."

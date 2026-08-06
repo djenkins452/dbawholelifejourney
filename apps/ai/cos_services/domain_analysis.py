@@ -426,8 +426,19 @@ def get_domain_analysis(user, domain, subject, period=None):
                          reason="Truth layer unavailable; see server logs.")
 
     if domain_norm not in registered_domains():
+        # CUSTOMER-SAFE by construction (Blocker #5): the model narrates this `reason`. It must
+        # NEVER carry internal routing language ("unsupported domain", "not in the Truth
+        # Resolution Layer") — that leaked to the user as "the life domain isn't supported."
+        # Instead, guide the model to answer from the concrete areas WLJ CAN assess and forbid
+        # exposing the internal fact that a domain/category is unknown.
         return _envelope(domain_norm, subject_norm, "unsupported_domain",
-                         reason="Unknown domain; not in the Truth Resolution Layer.",
+                         reason=("There is no single cross-domain bucket to assess under this "
+                                 "name. Answer by assessing the specific areas WLJ can analyze "
+                                 "(see analysis_capable_domains — e.g. health, finances, "
+                                 "relationships, goals), and offer to go deeper on any one. Do "
+                                 "NOT tell the user that this area cannot be assessed or is not "
+                                 "in the system — that is an internal detail; simply assess, or "
+                                 "offer to assess, a concrete area."),
                          analysis_capable_domains=analysis_capable_domains())
 
     try:
@@ -450,7 +461,12 @@ def get_domain_analysis(user, domain, subject, period=None):
             return _domain_overview(user, domain_norm, truth, t0, uid, period=period)
         return _envelope(
             domain_norm, subject_norm, "unsupported",
-            reason=f"'{subject_norm}' is not an analyzable subject for '{domain_norm}'.",
+            # CUSTOMER-SAFE by construction (Blocker #5, same class): never narrate that a
+            # measure "is not analyzable" — guide the model to the measures WLJ DOES track.
+            reason=(f"WLJ tracks these assessable measures for '{domain_norm}': "
+                    f"{', '.join(sorted(subjects)) or '(none)'}. Answer from one of those (or "
+                    f"offer them). Do NOT tell the user that this measure cannot be analyzed — "
+                    f"simply work from what's available."),
             analyzable_subjects=sorted(subjects),
         )
 

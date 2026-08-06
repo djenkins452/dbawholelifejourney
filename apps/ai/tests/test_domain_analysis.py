@@ -141,14 +141,40 @@ class AnalysisHonestStateTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="analysis2@test.com", password="x")
 
+    # Blocker #5: an unknown domain/subject must NEVER produce a `reason` that leaks internal
+    # routing language — the model narrates `reason` verbatim ("the life domain isn't
+    # supported"). The status token stays for WLJ's own routing; the customer-facing reason is
+    # sanitized + guides a graceful pivot.
+    _LEAK_TERMS = ("not in the truth resolution layer", "unsupported", "unknown domain",
+                   "not an analyzable subject")
+
     def test_unknown_subject_is_unsupported_not_a_guess(self):
         a = get_domain_analysis(self.user, "health", "quidditch")
         self.assertEqual(a["status"], "unsupported")
         self.assertIn("workouts", a["analyzable_subjects"])
+        reason = (a.get("reason") or "").lower()
+        for term in self._LEAK_TERMS:
+            self.assertNotIn(term, reason)
+        self.assertIn("do not tell the user", reason)
 
     def test_unknown_domain_is_unsupported_domain(self):
         a = get_domain_analysis(self.user, "atlantis", "workouts")
         self.assertEqual(a["status"], "unsupported_domain")
+        reason = (a.get("reason") or "").lower()
+        for term in self._LEAK_TERMS:
+            self.assertNotIn(term, reason)
+        self.assertIn("do not tell the user", reason)          # never expose it as unsupported
+        self.assertIn("analysis_capable_domains", a)           # gives the model real areas
+
+    def test_wrap_truth_never_re_emits_the_raw_status_token(self):
+        # The model-interface wrap MUST preserve the customer-safe reason, not the bare
+        # "unsupported_domain" token it used to hand the model to narrate.
+        from apps.ai.model_interface.service import _wrap_truth
+        raw = get_domain_analysis(self.user, "life", "overall")
+        env = _wrap_truth(raw, source="get_analysis")
+        self.assertEqual(env["status"], "insufficient_evidence")
+        self.assertNotEqual((env.get("reason") or "").strip().lower(), "unsupported_domain")
+        self.assertIn("do not tell the user", (env.get("reason") or "").lower())
 
 
 class WholeDomainOverviewTests(TestCase):

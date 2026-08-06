@@ -106,7 +106,20 @@ def _wrap_truth(result, source):
     if status in ("pending",):
         return _env.pending(source=source)
     if status in ("unsupported", "unsupported_domain", "no_state_source"):
-        return _env.insufficient_evidence(source=source, reason=str(status))
+        # Blocker #5: NEVER re-emit the raw status token as the model-facing reason — the model
+        # narrates it ("the life domain isn't supported"). Preserve the customer-safe guidance +
+        # assessable areas the truth surface already composed, so the model pivots gracefully and
+        # the internal routing outcome never reaches the user.
+        reason = detail = None
+        if isinstance(result, dict):
+            reason = result.get("reason")
+            detail = {k: result[k]
+                      for k in ("analysis_capable_domains", "analyzable_subjects")
+                      if result.get(k)} or None
+        return _env.insufficient_evidence(
+            source=source,
+            reason=reason or "No assessable data for this request; assess a concrete area.",
+            detail=detail)
     if status in ("error",):
         return _env.error(str(result), source=source)
     # ok / plain payload → present it with provenance.

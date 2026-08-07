@@ -17,6 +17,8 @@ COMPLETION RULES:
   These may also be satisfied by routine bridges (see execution_truth_engine).
 """
 
+from django.db.models import Q
+
 from apps.faith.models import PrayerRequest, UserReadingPlan, UserReadingProgress
 
 
@@ -39,12 +41,21 @@ class FaithQueries:
 
     @classmethod
     def reading_completed_on(cls, user, target_date):
-        """Reading progress entries completed on a specific date."""
+        """Reading progress satisfying a specific CALENDAR day.
+
+        Occurrence-scoped: keyed on ``reading_date`` (the day the reading
+        belongs to), NOT ``completed_at`` (when the click happened) — so a
+        reading read Aug 6 but checked off Aug 7 counts for Aug 6. Legacy rows
+        whose ``reading_date`` is null (pre-migration 0025) fall back to
+        ``completed_at``'s date so history never silently drops.
+        """
         active_plans = cls.active_reading_plans(user)
         return UserReadingProgress.objects.filter(
             user_plan__in=active_plans,
             is_completed=True,
-            completed_at__date=target_date,
+        ).filter(
+            Q(reading_date=target_date)
+            | Q(reading_date__isnull=True, completed_at__date=target_date)
         )
 
     @classmethod
@@ -61,20 +72,27 @@ class FaithQueries:
 
     @classmethod
     def reading_completion_dates(cls, user, limit=60):
-        """Distinct PLAN completion dates in reverse order.
+        """Distinct PLAN reading-occurrence dates in reverse order.
 
+        Occurrence-scoped on ``reading_date`` (the day each reading belongs to)
+        with a ``completed_at`` fallback for any un-backfilled legacy row, so
+        streaks and days-since reflect the day read — not the day clicked.
         Plan-only. For canonical faith history (days-since / streak) use
         ``bible_completion_dates`` instead — it also folds in the
         routine→faith bridge so it cannot diverge from execution truth.
         """
-        return list(
+        from django.db.models.functions import Coalesce, TruncDate
+
+        rows = (
             UserReadingProgress.objects.filter(
                 user_plan__user=user, is_completed=True,
-                completed_at__isnull=False,
-            ).values_list(
-                'completed_at__date', flat=True,
-            ).distinct().order_by('-completed_at__date')[:limit]
+            )
+            .annotate(occ_date=Coalesce('reading_date', TruncDate('completed_at')))
+            .filter(occ_date__isnull=False)
+            .values_list('occ_date', flat=True)
+            .distinct().order_by('-occ_date')
         )
+        return list(rows[:limit])
 
     @classmethod
     def _routine_bible_completed_on(cls, user, target_date):

@@ -209,6 +209,38 @@ class UserReadingProgressModelTest(ReadingPlanTestMixin, TestCase):
         progress.refresh_from_db()
         self.assertEqual(progress.notes, 'This is my reflection.')
 
+    def test_mark_complete_defaults_reading_date_to_today(self):
+        """Same-day check-off: reading_date defaults to the user's local today."""
+        from apps.core.utils import get_user_today
+        progress = self.user_plan.day_completions.first()
+
+        progress.mark_complete()
+
+        self.assertEqual(progress.reading_date, get_user_today(self.user))
+
+    def test_mark_complete_records_two_distinct_truths(self):
+        """A late check-off attributes to the day it belongs to (reading_date)
+        while completed_at stays 'now' — the two truths are never conflated."""
+        import datetime as _dt
+
+        from apps.core.utils import get_user_today
+        from apps.faith.services.faith_queries import FaithQueries
+
+        today = get_user_today(self.user)
+        occurrence = today - _dt.timedelta(days=1)  # read yesterday
+        progress = self.user_plan.day_completions.first()
+
+        progress.mark_complete(reading_date=occurrence)
+
+        # Occurrence truth: the reading belongs to yesterday.
+        self.assertEqual(progress.reading_date, occurrence)
+        # Audit truth: it was actually marked complete today.
+        self.assertEqual(progress.completed_at.date() if progress.completed_at
+                         else None, today)
+        # Canonical query attributes it to the day it belongs to, NOT today.
+        self.assertTrue(FaithQueries.has_reading_on(self.user, occurrence))
+        self.assertFalse(FaithQueries.has_reading_on(self.user, today))
+
 
 # =============================================================================
 # 2. VIEW TESTS - CRITICAL REGRESSION TEST FOR NOTES SAVING

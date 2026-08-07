@@ -1526,7 +1526,24 @@ class MarkDayCompleteView(LoginRequiredMixin, FaithRequiredMixin, View):
             progress.notes = notes
             progress.save(update_fields=["notes", "updated_at"])
 
-        progress.mark_complete()
+        # Optional occurrence date: the calendar day this reading satisfies.
+        # Lets a late check-off (e.g. from a past-day Daily Dashboard) attribute
+        # to the day it belongs to while completed_at stays "now". Future dates
+        # are ignored (mark_complete falls back to today).
+        reading_date = None
+        date_str = request.POST.get("date")
+        if date_str:
+            try:
+                import datetime as _dt
+
+                from apps.core.utils import get_user_today
+                parsed = _dt.date.fromisoformat(date_str)
+                if parsed <= get_user_today(request.user):
+                    reading_date = parsed
+            except (ValueError, TypeError):
+                reading_date = None
+
+        progress.mark_complete(reading_date=reading_date)
 
         # Fire intelligence chain
         from apps.core.ai_orchestrator.intelligence_hook import fire_intelligence

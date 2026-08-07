@@ -6,6 +6,18 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-07 — fix(faith): reading_date — model the day a reading BELONGS to, distinct from when it was marked complete
+
+**Context (foundational step for the Daily Dashboard / Dashboard(date) work):** `UserReadingProgress` stored only `completed_at` (when the user clicked complete) and `FaithQueries.has_reading_on` / `reading_completion_dates` read `completed_at__date` as if that were the day the reading belonged to. Those are two different truths. A reading read Aug 6 but checked off Aug 7 8:42 AM was attributed to Aug 7 — so a past-day check-off could never be credited to the day it satisfied, and streaks/history were keyed on click-time, not occurrence.
+
+**Fix (a Faith-domain correction, not a Dashboard feature — strengthens streaks, analytics, history, and CoS reasoning too):**
+- `UserReadingProgress.reading_date` (DateField, null=True, db_index) — the calendar day the scheduled reading satisfies (the occurrence). `completed_at` remains the audit instant. Occurrences belong to a day; completions happen at a point in time — never overload one field for both.
+- `mark_complete(reading_date=None)` records both truths; `reading_date` defaults to the user's local today (same-day check-off) and accepts an explicit past date for a late completion. Future dates are never accepted (callers clamp).
+- `FaithQueries.reading_completed_on` / `reading_completion_dates` are now occurrence-scoped on `reading_date`, with a `completed_at` fallback for any legacy row (guarded even though the migration backfills). `has_reading_on` / `is_bible_complete_on` / `bible_completion_dates` inherit the fix.
+- `MarkDayCompleteView` accepts an optional `date` POST param (the occurrence day) → `mark_complete(reading_date=…)`, ignoring future dates. Lets a late check-off from a past-day dashboard attribute correctly; the existing no-arg call path is unchanged.
+- **Migration `faith/0025_reading_date_occurrence`:** adds the field + backfills `reading_date = TruncDate(completed_at)` for every existing completed row, so `completed_at`-vs-`reading_date` reads stay identical for all historical data (no streak/history regression) and diverge only for genuine off-day completions (the new capability).
+- **Files:** `apps/faith/models.py`, `apps/faith/services/faith_queries.py`, `apps/faith/views.py`, `apps/faith/migrations/0025_reading_date_occurrence.py`; tests `apps/faith/tests/test_reading_plans.py` (+2: default-to-today; two-distinct-truths / attributes-to-occurrence-not-click-day). 47 reading-plan tests, faith routine-bridge, and completion-service tests pass; `makemigrations --check` clean.
+
 ## 2026-08-06 — feat(cos): Blocker #14 Layer 1 — Execution Review surface (the CoS can SEE a day's whole intended execution)
 
 **Observable defect (reproduced):** "I forgot to mark my items complete yesterday." → *"Let's get those TASKS marked… which tasks did you finish?"*; "check yesterday's items" → `get_domain_state(tasks)` + `get_domain_state(calendar)` only. "Items" was reduced to Tasks + calendar; medication, supplements, Prayer Time, Bible Reading, workout, journal, routines were never discovered.

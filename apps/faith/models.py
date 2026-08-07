@@ -730,9 +730,25 @@ class UserReadingProgress(UserOwnedModel):
         related_name="completions",
     )
 
-    # Completion tracking
+    # Completion tracking — TWO distinct truths, never conflated:
+    #   reading_date — the CALENDAR DAY this scheduled reading satisfies
+    #                  (the occurrence: "which day's reading was this?").
+    #   completed_at — the INSTANT the user marked it complete (the audit
+    #                  timestamp: "when did they click complete?").
+    # A reading read Aug 6 but checked off Aug 7 8:42 AM has
+    # reading_date=Aug 6, completed_at=Aug 7 08:42. Occurrences belong to a
+    # day; completions happen at a point in time (Faith-domain truth model,
+    # 2026-08-07). Null reading_date = legacy row (pre-migration 0025) or a
+    # not-yet-completed day.
     is_completed = models.BooleanField(default=False)
     completed_at = models.DateTimeField(null=True, blank=True)
+    reading_date = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Calendar day this reading satisfies (the occurrence). "
+                  "Distinct from completed_at (when it was marked done).",
+    )
 
     # User reflection/notes for this day
     notes = models.TextField(
@@ -750,11 +766,27 @@ class UserReadingProgress(UserOwnedModel):
         status = "Complete" if self.is_completed else "Pending"
         return f"{self.user_plan.template.title} Day {self.plan_day.day_number}: {status}"
 
-    def mark_complete(self):
-        """Mark this day as completed."""
+    def mark_complete(self, reading_date=None):
+        """Mark this day's reading as completed.
+
+        Records both truths (never overload one field for both):
+          * ``reading_date`` — the calendar day this scheduled reading
+            satisfies (the occurrence). Defaults to the user's local today
+            when checked off same-day; pass an explicit past date to attribute
+            a late completion to the day it belongs to (e.g. read Aug 6,
+            checked off Aug 7) while ``completed_at`` stays "now".
+          * ``completed_at`` — the instant the completion was recorded.
+
+        A future ``reading_date`` is never accepted here; callers clamp to
+        today, and None falls back to today.
+        """
+        from apps.core.utils import get_user_today
+
         self.is_completed = True
         self.completed_at = timezone.now()
-        self.save(update_fields=["is_completed", "completed_at", "updated_at"])
+        self.reading_date = reading_date or get_user_today(self.user)
+        self.save(update_fields=[
+            "is_completed", "completed_at", "reading_date", "updated_at"])
 
         # Update current day on parent plan
         plan = self.user_plan

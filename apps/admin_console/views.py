@@ -3801,6 +3801,59 @@ class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
                              'poll': f'?run_id={rk}'})
 
 
+class ExecSentinelCertAPIView(APIRateLimitMixin, View):
+    """Operator EXECUTION-COMPLETION CERTIFICATION harness (Blocker #14 Layer 2,
+    API-key-guarded, TEMPORARY). Seeds a deterministic THROWAWAY sentinel account with a
+    realistic yesterday across every execution kind, lets the real CoS conversation run
+    against it via the cos-run endpoint, and is torn down to net-zero — so Layer 2 is
+    certified on the LIVE worker WITHOUT touching Danny's real execution history.
+
+    Blast radius is bounded by construction: every action operates on ONE fixed sentinel
+    email (apps.core.execution._sentinel_cert.SENTINEL_EMAIL) and can never resolve or
+    delete any real user.
+
+    GET /admin-console/api/claude/exec-sentinel/?action=seed      → purge+seed, return review
+    GET /admin-console/api/claude/exec-sentinel/?action=review    → read-back (day+today+counts)
+    GET /admin-console/api/claude/exec-sentinel/?action=teardown  → hard-delete sentinel (net-zero)
+    Auth: X-Claude-API-Key.
+    """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 300
+    rate_limit_key_prefix = 'admin_api_exec_sentinel'
+
+    def get(self, request):
+        from django.conf import settings
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        action = (request.GET.get('action') or 'review').strip().lower()
+        from apps.core.execution import _sentinel_cert as sc
+        try:
+            if action == 'seed':
+                payload = sc.seed()
+            elif action == 'teardown':
+                payload = sc.teardown()
+            elif action == 'review':
+                payload = sc.read()
+            else:
+                return JsonResponse({'error': f'unknown action {action!r} '
+                                     '(seed|review|teardown)'}, status=400)
+        except Exception as exc:
+            return JsonResponse({'error': f'{action} failed: {exc!r}'}, status=500)
+        payload['action'] = action
+        return JsonResponse(payload, json_dumps_params={'default': str})
+
+
 class ReadyTasksAPIView(APIRateLimitMixin, View):
     """
     API endpoint for Claude Code to fetch tasks with 'ready' status.

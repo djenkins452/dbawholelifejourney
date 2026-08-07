@@ -6,6 +6,16 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-07 — test(cos): Blocker #14 Layer 2 — SENTINEL certification harness (certify on a throwaway account, net-zero)
+
+**Why (Danny's ratified pattern):** Layer 2 modifies historical execution truth. Production validation must NOT depend on Danny's real execution history until the workflow is already proven. Certify on a deterministic sentinel first (engineering certification) → then Danny validates on his own account (customer certification).
+
+**Harness (TEMPORARY operator infra; bounded blast radius — one fixed sentinel email, can never touch a real user):**
+- `apps/core/execution/_sentinel_cert.py` — `seed()` purges then seeds a realistic YESTERDAY across all nine execution kinds (2 tasks, Prayer Time, Bible Reading, 2 medications + 1 supplement, Journal expectation, Morning/Evening/Nightly routines), all INCOMPLETE so the certification conversation performs every write; `read()` returns the execution review for the seeded day AND today (proves no completion bleeds to today) + raw truth + underlying row counts (idempotency/no-duplication audit); `teardown()` hard-deletes the sentinel (cascade) → net data change ZERO. Writes-enabled on the model-interface runtime, onboarded + terms-accepted so the real CoS pipeline runs fully.
+- Operator endpoint `GET /admin-console/api/claude/exec-sentinel/?action=seed|review|teardown` (`ExecSentinelCertAPIView`, X-Claude-API-Key). Drives the conversation through the existing `cos-run` endpoint.
+- **Seeding grounded in the truth engine's actual read paths** — prayer/bible each under their OWN faith-word-named routine (the completion router matches routine items by ROUTINE name, while discovery reads schedule name); journal expectation via a `JOURNAL_NAMES` routine item; medication+supplement doses both counted in the one grouped "Medications" review item (`calculate_medicine_adherence` / `get_expected_dose_entries` default `intake_type=None` = all).
+- **Verified locally before deploy:** seed → review shows exactly 9 incomplete items; simulated completions → 8 recorded on YESTERDAY + journal honest `needs_info`; review updates to 8/9; idempotent re-run all `already_complete`; `intake_logs_today_leak=0` and today's review all-incomplete (no leak); teardown net-zero (`exists_after=False`). `check` + request-path-safety contract pass. Files: `apps/core/execution/_sentinel_cert.py`, `apps/admin_console/views.py`, `apps/admin_console/urls.py`. Removed in one commit once Layer 2 is customer-certified (temporary-infra rule).
+
 ## 2026-08-06 — feat(cos): Blocker #14 Layer 2 — Execution Completion router (record an item on the day it ACTUALLY happened) [code in 28bfb6fc]
 
 **Reproduced (Layer 2):** after discovering yesterday's items, "mark my Bible Reading done" → *"there isn't an incomplete TASK labeled 'Bible Reading'"* (no completion action for a faith item); "I took all my medications yesterday, mark those complete" → **"I've marked all your medications as complete"** with **zero action calls** — a fabricated success (`RESULTS-NOT-INTENTIONS` trust-breaker).

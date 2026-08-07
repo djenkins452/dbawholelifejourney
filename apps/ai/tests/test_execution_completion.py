@@ -52,9 +52,12 @@ class ExecutionCompletionTests(TestCase):
         # Reuse the single-source dose enumerator; verify a taken IntakeLog lands on the
         # ACTUAL day (scheduled_date == yesterday), never today.
         y = self._yesterday()
+        from datetime import time
         from apps.health.models import Intake, IntakeSchedule, IntakeLog
-        med = Intake.objects.create(user=self.user, name="ZZZ-Med", dose="1", is_active=True)
-        sched = IntakeSchedule.objects.create(intake=med, scheduled_time="08:00", is_active=True)
+        med = Intake.objects.create(user=self.user, name="ZZZ-Med", purpose="test",
+                                    intake_type="medication", start_date=y)
+        sched = IntakeSchedule.objects.create(intake=med, scheduled_time=time(8, 0),
+                                              time_of_day="morning")
         with mock.patch(
             "apps.health.medicine_utils.get_expected_dose_entries",
             return_value=[(med.id, sched.id, y)],

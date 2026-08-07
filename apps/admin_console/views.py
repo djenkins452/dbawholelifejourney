@@ -3845,9 +3845,11 @@ class ExecSentinelCertAPIView(APIRateLimitMixin, View):
                 payload = sc.teardown()
             elif action == 'review':
                 payload = sc.read()
+            elif action == 'transcript':
+                payload = sc.transcript()
             else:
                 return JsonResponse({'error': f'unknown action {action!r} '
-                                     '(seed|review|teardown)'}, status=400)
+                                     '(seed|review|transcript|teardown)'}, status=400)
         except Exception as exc:
             return JsonResponse({'error': f'{action} failed: {exc!r}'}, status=500)
         payload['action'] = action

@@ -176,6 +176,31 @@ def _counts(user, day):
     }
 
 
+# ── transcript (acceptance evidence, cache-independent) ────────────────────────
+def transcript():
+    """Reconstruct the sentinel's most recent CoS conversation directly from the
+    PERSISTED rows (AssistantMessage + ToolCallLog), so the acceptance evidence — did
+    the model CALL the completion tools, or FABRICATE success? — survives even if the
+    long cos-run task was killed before it could cache its result."""
+    user = _get_user()
+    if not user:
+        return {"error": "sentinel not seeded"}
+    from apps.ai.models import AssistantConversation, AssistantMessage, ToolCallLog
+    conv = (AssistantConversation.objects.filter(user=user)
+            .order_by("-created_at").first())
+    if not conv:
+        return {"error": "no conversation for sentinel"}
+    msgs = [{"role": m.role, "type": m.message_type,
+             "content": (m.content or "")[:1200]}
+            for m in AssistantMessage.objects.filter(conversation=conv).order_by("created_at")]
+    tools = [{"tool": t.tool_name, "kind": t.kind, "args": t.args,
+              "status": t.result_status}
+             for t in ToolCallLog.objects.filter(conversation_id=conv.id).order_by("created_at")]
+    return {"sentinel": SENTINEL_EMAIL, "conversation_id": conv.id,
+            "messages": msgs, "tool_calls": tools,
+            "tool_call_count": len(tools)}
+
+
 # ── teardown (net-zero) ────────────────────────────────────────────────────────
 def teardown():
     """Hard-delete the sentinel user and everything it cascades to. Scoped to the one

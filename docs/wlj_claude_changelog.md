@@ -6,6 +6,22 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — feat(cos): Blocker #14 Layer 1 — Execution Review surface (the CoS can SEE a day's whole intended execution)
+
+**Observable defect (reproduced):** "I forgot to mark my items complete yesterday." → *"Let's get those TASKS marked… which tasks did you finish?"*; "check yesterday's items" → `get_domain_state(tasks)` + `get_domain_state(calendar)` only. "Items" was reduced to Tasks + calendar; medication, supplements, Prayer Time, Bible Reading, workout, journal, routines were never discovered.
+
+**Investigation (5 questions answered):** a day's execution truth already exists — `execution_state.build_execution_state` (today) and `execution_truth_engine.get_execution_truth(user, date)` (any day) compose faith (prayer/bible), workout, journal, routines, tasks, and medications with expected+completed. Completion mechanisms exist per type but only `complete_task` is in the CoS write set (Layer 2). No unified review workflow exists (Layer 3). Occurrence-scoped completion via `TaskQueries.completed_due_on`.
+
+**First failing layer:** truth ACCESSIBILITY — the "everything intended for a day" truth existed but was NOT a CoS-reachable surface, so the model fell back to `get_domain_state(tasks)`. Per the standing rule, a narrow answer after investigating = a Layer-1 accessibility gap, fixed by exposing truth, never a prompt.
+
+**Fix (Layer 1 ONLY — a PROJECTION, owns zero truth; no recording, no workflow, no new truth domain):**
+- `apps/core/execution/execution_review.py::build_execution_review(user, target_date)` — a deterministic projection (like a dashboard) that composes the EXISTING truth (`get_execution_truth` + `TaskQueries`) into one list of the day's intended execution items (kind/title/completed/detail), deduping Prayer/Bible routines against the faith domain. Owns nothing.
+- `apps/ai/cos_services/execution_review.py::get_execution_review(user, day)` — CoS read-service; resolves the natural day phrase (defaults to yesterday); returns the review.
+- Exposed as a dedicated read tool `get_execution_review(day)` (`constitution.py`) + dispatched in `service.py` (wrapped in the truth envelope, audited). Its description: "'items' means the whole intended execution, NOT only tasks; ONE surface — don't fetch domains separately; never ask the user to name their items."
+
+- **Files:** `apps/core/execution/execution_review.py`, `apps/ai/cos_services/execution_review.py`, `apps/ai/model_interface/constitution.py`, `apps/ai/model_interface/service.py`; test `apps/ai/tests/test_execution_review.py` (tool registered; defaults to yesterday; projection composes prayer/bible/workout/journal/medications/routines — impossible to reduce to tasks). Request-path-safety contract passes; `check` clean; **no migrations**.
+- **Layer 1 acceptance (stays OPEN until re-run):** "check yesterday's items" calls `get_execution_review` and discovers everything intended — nothing more, nothing less. Layer 2 (record non-task completions) and Layer 3 (guided one-by-one workflow) are separate, later blockers — deliberately NOT built here.
+
 ## 2026-08-06 — fix(cos): CoS v2.0 iteration — a PERSON is retrievable truth; retrieve, don't assume-you-know or defer
 
 **Production proof (consistency test, 4 runs each):** after the first-question change, "I really need to start planning my nutrition better." retrieved `get_analysis` **4/4** (the earlier single generic sample was variance). But **"I need to improve my relationship with Haley." retrieved NONE 4/4** — consistently. The model said *"given what I know about your relationship…"* / *"let's start by considering what you know…"* and never called a truth tool.

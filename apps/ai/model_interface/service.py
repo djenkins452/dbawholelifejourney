@@ -731,6 +731,20 @@ class ModelInterfaceService:
                     result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
+            if name == "get_execution_review":
+                # Blocker #14: the ONE composed surface for a day's INTENDED execution
+                # (a projection over existing truth; owns nothing). So "yesterday's items"
+                # means the whole intended execution, never only tasks.
+                from apps.ai.cos_services.execution_review import get_execution_review
+                raw = get_execution_review(user, day=args.get("day"))
+                out = _wrap_truth(raw, source="execution_review")
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
             if name == "get_history":
                 raw = get_domain_history(
                     user, args.get("domain", ""), args.get("metric", ""),

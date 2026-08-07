@@ -1161,6 +1161,28 @@ def truth_tools():
                 "keys": {"type": "array", "items": key_item,
                          "description": "Specific fact keys to fetch (from the enum)."},
             }}}},
+        {"type": "function", "function": {
+            "name": "get_execution_review",
+            "description": (
+                "Get the deterministic EXECUTION REVIEW for a day — the ONE composed surface "
+                "answering 'what represented the user's INTENDED execution for this day?'. It "
+                "assembles EVERYTHING they meant to do that day across every area — tasks, "
+                "Prayer Time, Bible Reading, medications/supplements, workout, journal, and "
+                "scheduled routines — each with its completion state (complete / incomplete). "
+                "Retrieve THIS whenever the user talks about 'my items', reviewing or "
+                "reconciling a day, what they did or didn't get to, forgetting to mark things "
+                "complete, or 'yesterday's items': 'items' means their whole intended execution, "
+                "NOT only tasks. It is ONE surface — do NOT fetch tasks / faith / medication / "
+                "routines separately, and NEVER ask the user to name their items; this returns "
+                "the complete set (nothing more, nothing less). Read-only: it does not mark "
+                "anything complete."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "day": {"type": "string",
+                        "description": ("The day to review, in the user's words — 'yesterday', "
+                                        "'today', 'Monday', or a date. Omit to default to "
+                                        "yesterday (the usual reconciliation case).")},
+            }}}},
     ]
 
 

@@ -1225,10 +1225,43 @@ def _resolve_tool():
         }, "required": ["confirmation_id", "confirm"]}}}
 
 
+def _complete_execution_item_tool():
+    """Record that ONE execution item (from the execution review) was completed, on the date
+    it ACTUALLY happened. Reuses existing per-domain completion writes (one source of truth).
+    AUTO authority — the user's 'yes' IS the confirmation; completion is reversible."""
+    return {"type": "function", "function": {
+        "name": "complete_execution_item",
+        "description": (
+            "Record that ONE execution item was completed, ON THE DAY IT ACTUALLY HAPPENED "
+            "(you reconcile reality, not data-entry time — 'yes, I took my meds yesterday' "
+            "updates YESTERDAY). Use this after the user confirms they did an item from "
+            "get_execution_review ('yes I did my Bible reading', 'mark the workout done'). Pass "
+            "the item's `kind` and `title` EXACTLY as get_execution_review returned them, and the "
+            "`day` in the user's words. WLJ records it on THAT day via the existing per-domain "
+            "mechanism. It returns an HONEST result — `recorded` (done: say what was recorded), "
+            "`already_complete` (nothing to do), `needs_info` (e.g. a journal needs its actual "
+            "content — ask for it), or `unsupported` (no safe retroactive write for that item "
+            "yet — say so honestly, do NOT pretend). NEVER tell the user you recorded something "
+            "unless the result status is `recorded`."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "kind": {"type": "string",
+                     "description": ("The item kind from get_execution_review — e.g. 'task', "
+                                     "'medications', 'prayer', 'bible_reading', 'workout', "
+                                     "'journal', 'routine'.")},
+            "title": {"type": "string",
+                      "description": "The item title, exactly as get_execution_review returned it."},
+            "day": {"type": "string",
+                    "description": ("The day it happened, in the user's words — 'yesterday', a "
+                                    "date. Omit to default to yesterday.")},
+        }, "required": ["kind", "title"]}}}
+
+
 def action_tools():
     """Named deterministic action tools (curated write set) + the bound-confirmation
-    resolver. No generic request_action; no invented interface."""
-    return _named_action_tools() + [_resolve_tool()]
+    resolver + the execution-completion router. No generic request_action; no invented
+    interface."""
+    return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool()]
 
 
 def all_tools(writes_enabled=True):

@@ -903,6 +903,23 @@ class ModelInterfaceService:
                     confirm=bool(args.get("confirm", False)),
                     turn_id=turn_id, surface=surface,
                 )
+            if name == "complete_execution_item":
+                # Blocker #14 Layer 2: record an execution item complete on the ACTUAL day,
+                # reusing existing per-domain writes. AUTO (the user's 'yes' is the confirm;
+                # reversible). Honest result — never a false claim.
+                from apps.ai.cos_services.execution_completion import (
+                    complete_execution_item as _cei,
+                )
+                out = _cei(user, args.get("kind", ""), args.get("title", ""),
+                           day=args.get("day"))
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "message": (out.get("message") or "")[:200]},
+                )
+                return out
 
             return {"status": "error", "error": f"unknown tool '{name}'"}
 

@@ -6,6 +6,17 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — feat(cos): Blocker #14 Layer 2 — Execution Completion router (record an item on the day it ACTUALLY happened) [code in 28bfb6fc]
+
+**Reproduced (Layer 2):** after discovering yesterday's items, "mark my Bible Reading done" → *"there isn't an incomplete TASK labeled 'Bible Reading'"* (no completion action for a faith item); "I took all my medications yesterday, mark those complete" → **"I've marked all your medications as complete"** with **zero action calls** — a fabricated success (`RESULTS-NOT-INTENTIONS` trust-breaker).
+
+**First failing layer:** the CoS had no completion mechanism for non-task execution items — only `complete_task`. Governing principle (Danny): **WLJ records when something ACTUALLY happened, not when it was entered** — "I took my meds yesterday" updates YESTERDAY. Retroactive completion is core.
+
+**Fix — a deterministic completion ROUTER (owns zero completion logic; reuses existing per-domain writes; ONE source of truth, no duplicate path):** `apps/core/execution/execution_completion.py::complete_execution_item(user, kind, title, target_date)` records on the ACTUAL date — task via `Task.mark_complete()` (occurrence-scoped); routine/prayer/bible via `toggle_routine_completion(target_date, mode='scheduled')` (retroactive correction; guards against toggling an already-complete item off); workout via `WorkoutSession(date=target_date)`; medication/supplement via the single-source `get_expected_dose_entries` + `IntakeLog(scheduled_date=target_date)` with `taken_at` anchored to that day. HONEST by construction: `recorded` only on a real write, else `already_complete` / `needs_info` (journal needs its content) / `unsupported` — never a false success. CoS service `apps/ai/cos_services/execution_completion.py` (resolves the day, default yesterday); exposed as an AUTO write action `complete_execution_item` (the user's "yes" IS the confirmation; reversible) + dispatched/audited in `service.py`.
+
+- **Verification:** router behavior confirmed by REAL execution against the dev DB; `check` + request-path-safety pass. Unit tests written (`apps/ai/tests/test_execution_completion.py`) but could not run here — the shared Postgres test DB was migration-corrupted + locked by a concurrent session's faith migration (`0025`); task chip raised to rebuild it.
+- **Stays OPEN until prod re-run** (record-then-rollback to keep health data net-zero): meds recorded on YESTERDAY, bible via routine or honest, medication false-claim gone. Layer 3 (guided one-by-one workflow) is a separate later blocker.
+
 ## 2026-08-07 — fix(faith): reading_date — model the day a reading BELONGS to, distinct from when it was marked complete
 
 **Context (foundational step for the Daily Dashboard / Dashboard(date) work):** `UserReadingProgress` stored only `completed_at` (when the user clicked complete) and `FaithQueries.has_reading_on` / `reading_completion_dates` read `completed_at__date` as if that were the day the reading belonged to. Those are two different truths. A reading read Aug 6 but checked off Aug 7 8:42 AM was attributed to Aug 7 — so a past-day check-off could never be credited to the day it satisfied, and streaks/history were keyed on click-time, not occurrence.

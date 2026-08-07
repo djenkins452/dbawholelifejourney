@@ -6,6 +6,12 @@ standalone by SectionLiveView so a completion can refresh THIS region async
 (HTMX swap) instead of a full window.location.reload(). No optimistic data —
 same composer, same canonical state as the full page.
 {% endcomment %}
+{% if v3.is_today %}
+{% comment %}
+TODAY → the full executive cockpit. Gauges/Mission/Executive Summary/Focus/
+Accountability are LIVE cards (they represent "right now") and render only on
+today; they are never reconstructed for a past date.
+{% endcomment %}
 {# 1. Gauges — top scoreboard #}
 {% include "dashboard_v3/sections/gauges.html" with cockpit_domains=v3.cockpit_domains gauges=v3.gauges %}
 
@@ -23,3 +29,11 @@ same composer, same canonical state as the full page.
 
 {# 5. Today's rhythm — 2×2 compact tiles #}
 {% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
+{% else %}
+{% comment %}
+PAST DAY → the DATE-SCOPED Daily Review, reconstructed from deterministic truth
+for that day. No LIVE cards, no snapshots, no fabricated "as-of" insights — just
+what actually belonged to that calendar day.
+{% endcomment %}
+{% include "dashboard_v3/sections/daily_review.html" with review=v3.daily_review view_date=v3.view_date %}
+{% endif %}

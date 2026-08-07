@@ -14,11 +14,81 @@ together, so a cached stylesheet against new markup renders a broken dashboard
 {% endblock %}
 
 {% block content %}
+<style nonce="{{ csp_nonce }}">
+/* Date navigation bar (Dashboard(date)). Scoped here so it ships with the
+   markup and needs no change to the versioned dashboard_v3.css / collectstatic. */
+.v3-datenav{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;
+  margin:0 0 1rem;padding:.5rem .75rem;border-radius:12px;
+  background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.16);}
+.v3-datenav-past{background:rgba(99,102,241,.10);border-color:rgba(99,102,241,.28);}
+.v3-datenav-arrow{display:inline-flex;align-items:center;justify-content:center;
+  min-width:44px;min-height:44px;border-radius:10px;text-decoration:none;
+  font-size:1rem;color:inherit;background:rgba(127,127,127,.10);}
+.v3-datenav-arrow:hover{background:rgba(127,127,127,.20);}
+.v3-datenav-arrow-off{opacity:.35;cursor:default;}
+.v3-datenav-label{display:flex;flex-direction:column;line-height:1.15;
+  margin-right:auto;}
+.v3-datenav-eyebrow{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+  opacity:.6;}
+.v3-datenav-date{font-size:1.05rem;font-weight:600;}
+.v3-datenav-picker{min-height:44px;font-size:16px;border-radius:10px;
+  padding:0 .5rem;border:1px solid rgba(127,127,127,.28);background:transparent;
+  color:inherit;}
+.v3-datenav-goto{min-height:44px;display:inline-flex;align-items:center;
+  padding:0 .9rem;border-radius:10px;text-decoration:none;font-weight:600;
+  font-size:.9rem;color:#fff;background:#6366f1;}
+.v3-datenav-goto:hover{background:#4f46e5;}
+@media (max-width:480px){
+  .v3-datenav-picker{flex:1 1 auto;}
+  .v3-datenav-label{order:-1;flex:1 1 100%;}
+}
+
+/* Daily Review (past-day, DATE-SCOPED reconstruction). */
+.v3-review{display:flex;flex-direction:column;gap:1rem;}
+.v3-review-empty{padding:2rem 1rem;text-align:center;opacity:.75;}
+.v3-review-empty-title{font-size:1.05rem;font-weight:600;margin:0 0 .25rem;}
+.v3-review-empty-sub{font-size:.9rem;opacity:.7;margin:0;}
+.v3-review-score{display:flex;align-items:baseline;gap:.75rem;
+  padding:1rem 1.1rem;border-radius:14px;background:rgba(99,102,241,.10);
+  border:1px solid rgba(99,102,241,.24);}
+.v3-review-score-num{font-size:2.1rem;font-weight:700;line-height:1;}
+.v3-review-score-meta{font-size:.95rem;opacity:.75;}
+.v3-review-group{border:1px solid rgba(127,127,127,.16);border-radius:14px;
+  padding:.75rem 1rem;}
+.v3-review-h{display:flex;align-items:center;gap:.5rem;font-size:.8rem;
+  letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin:0 0 .5rem;}
+.v3-review-count{font-size:.75rem;background:rgba(127,127,127,.16);
+  border-radius:999px;padding:.05rem .5rem;}
+.v3-review-list{list-style:none;margin:0;padding:0;display:flex;
+  flex-direction:column;gap:.35rem;}
+.v3-review-item{display:flex;align-items:center;gap:.6rem;min-height:40px;
+  padding:.35rem .5rem;border-radius:10px;}
+.v3-review-item-open{background:rgba(127,127,127,.06);}
+.v3-review-box{display:inline-flex;width:1.4rem;justify-content:center;
+  font-size:1.05rem;opacity:.7;}
+.v3-review-box-done{color:#22c55e;opacity:1;}
+.v3-review-item-done .v3-review-title{opacity:.7;}
+.v3-review-title{font-weight:500;}
+.v3-review-detail{margin-left:auto;font-size:.82rem;opacity:.6;}
+.v3-review-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+  gap:.5rem;}
+.v3-metric{display:flex;flex-direction:column;gap:.15rem;padding:.6rem .75rem;
+  border-radius:12px;background:rgba(127,127,127,.07);
+  border:1px solid rgba(127,127,127,.14);}
+.v3-metric-k{font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;opacity:.6;}
+.v3-metric-v{font-size:.95rem;font-weight:600;}
+.v3-review-foot{font-size:.8rem;opacity:.55;margin:.25rem 0 0;}
+</style>
 <div class="v3-shell">
     <header class="v3-topbar">
         <div class="v3-topbar-greet">
             <h1 class="v3-greeting">{{ greeting }}</h1>
         </div>
+        {% comment %}
+          Weather is a LIVE card (represents "right now"). It is shown only on
+          today — a past day never fabricates a "current" condition.
+        {% endcomment %}
+        {% if is_today %}
         <div class="v3-topbar-meta">
             {% if weather_tile.available and weather_tile.data %}
                 <a href="{{ weather_tile.data.weather_url|default:'https://weather.com' }}"
@@ -37,7 +107,39 @@ together, so a cached stylesheet against new markup renders a broken dashboard
                 </a>
             {% endif %}
         </div>
+        {% endif %}
     </header>
+
+    {% comment %}
+      DATE NAVIGATION — Dashboard(date). Server-rendered anchor links (full page
+      loads), mirroring the Nutrition page: ◀ prev / weekday+date / next ▶ (next
+      disabled on today) / a date picker (max=today) / "Go to Today". The Daily
+      Review is retrospective, so there is no forward navigation past today.
+    {% endcomment %}
+    <nav class="v3-datenav {% if not is_today %}v3-datenav-past{% endif %}" aria-label="Date navigation">
+        <a class="v3-datenav-arrow" href="?date={{ prev_date|date:'Y-m-d' }}"
+           aria-label="Previous day" title="Previous day">◀</a>
+        <div class="v3-datenav-label">
+            {% if is_today %}
+                <span class="v3-datenav-eyebrow">Today</span>
+            {% else %}
+                <span class="v3-datenav-eyebrow">Daily Review</span>
+            {% endif %}
+            <span class="v3-datenav-date">{{ view_date|date:'l, F j' }}</span>
+        </div>
+        {% if is_today %}
+            <span class="v3-datenav-arrow v3-datenav-arrow-off" aria-hidden="true" title="No future days">▶</span>
+        {% else %}
+            <a class="v3-datenav-arrow" href="?date={{ next_date|date:'Y-m-d' }}"
+               aria-label="Next day" title="Next day">▶</a>
+        {% endif %}
+        <input type="date" class="v3-datenav-picker" id="v3-datenav-picker"
+               value="{{ view_date|date:'Y-m-d' }}" max="{{ user_today|date:'Y-m-d' }}"
+               aria-label="Jump to a date">
+        {% if not is_today %}
+            <a class="v3-datenav-goto" href="{% url 'dashboard_v2:home' %}">Go to Today</a>
+        {% endif %}
+    </nav>
 
     {% comment %}
       Dynamic region — refreshed IN PLACE (no full reload) after a completion.
@@ -53,9 +155,28 @@ together, so a cached stylesheet against new markup renders a broken dashboard
         {% include "dashboard_v3/sections/_live.html" with v3=v3 %}
     </div>
 
-    {# 6. Utilities — small inline row (own Phase-4 partial refresh path) #}
+    {% comment %}
+      6. Utilities — small inline row (own Phase-4 partial refresh path). Today
+      only: hydration logging is a "now" action; a past day's water is shown as a
+      fact in the Daily Review metrics instead.
+    {% endcomment %}
+    {% if is_today %}
     {% include "dashboard_v3/sections/utilities.html" with utilities=v3.utilities %}
+    {% endif %}
 </div>
+
+<script nonce="{{ csp_nonce }}">
+/* Date picker → navigate to the selected day (progressive enhancement; the
+   arrows and "Go to Today" work without JS). CSP-safe: addEventListener only. */
+(function () {
+    var picker = document.getElementById('v3-datenav-picker');
+    if (!picker) { return; }
+    picker.addEventListener('change', function () {
+        var v = picker.value;
+        if (v) { window.location.search = '?date=' + encodeURIComponent(v); }
+    });
+})();
+</script>
 
 <script nonce="{{ csp_nonce }}">
 (function() {

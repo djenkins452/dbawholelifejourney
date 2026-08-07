@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 295,
+    "fields": {
+      "title": "Your dashboard can now show any past day",
+      "description": "Your dashboard is no longer just a \"today\" screen — it can now show any calendar day. Use the ◀ / ▶ arrows, the date picker, or \"Go to Today\" at the top (just like the Nutrition page) to look back at a past day. A past day turns into a Daily Review: your completion score for that day, what was still outstanding, what you completed, and your daily metrics — all reconstructed from your real records for that date, never guessed. Today still shows your full command center. This makes it easy to look back and close out a day you forgot to check off. Being able to complete missed items straight from a past day is coming next.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-07",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/dashboard/",
+      "created_at": "2026-08-07T12:00:00Z",
+      "updated_at": "2026-08-07T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 273,
     "fields": {
       "title": "Weighted pull-ups and dips now count correctly",

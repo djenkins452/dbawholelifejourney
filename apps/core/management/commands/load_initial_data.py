@@ -1212,6 +1212,9 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for Executive Assessment platform (PK 294)
         self._reset_executive_assessment_platform_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes for Dashboard(date) / Daily Review (PK 295)
+        self._reset_dashboard_date_fixtures(DataLoadConfig, force, verbosity)
+
         # =====================================================================
         # SECOND PASS: Reload any fixtures that were reset by one-time methods
         # =====================================================================
@@ -2902,6 +2905,37 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset executive assessment platform fixtures FAILED: {e}'))
+
+    def _reset_dashboard_date_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes (PK 295) for Dashboard(date):
+        the dashboard can now show any past calendar day as a Daily Review, so the
+        fixture needs to reload with the new user-facing "What's New" entry.
+        """
+        reset_tracker_name = 'reset_dashboard_date_2026_08_07'
+
+        if not force and self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+            return
+
+        try:
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                config.reset()
+                if verbosity >= 1:
+                    self.stdout.write('  Reset release_notes loader for Dashboard(date)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for Dashboard(date) / Daily Review (Aug 2026)',
+                'command', 'One-time reset to reload PK 295 release note'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset dashboard-date fixtures FAILED: {e}'))
 
     def _reset_intent_evolution_release_note(self, DataLoadConfig, force=False, verbosity=1):
         """

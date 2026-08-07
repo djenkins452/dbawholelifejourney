@@ -1,0 +1,90 @@
+{% comment %}
+DATE-SCOPED Daily Review — the reconstruction of one past calendar day from
+deterministic truth (build_daily_review → build_execution_review + date-aware
+metrics). "What did this day look like?" Facts only; no verdicts, no snapshots.
+
+Visual Truth Contract: only genuinely completed items carry completion visuals
+(✓ / done styling). Outstanding items use a neutral open box — never a
+completion-resembling style.
+{% endcomment %}
+<section class="v3-review" aria-label="Daily review">
+{% if review.status == 'empty' and not review.metrics %}
+  <div class="v3-review-empty">
+    <p class="v3-review-empty-title">Nothing was scheduled for this day.</p>
+    <p class="v3-review-empty-sub">No commitments, and nothing logged.</p>
+  </div>
+{% else %}
+
+  {% if review.score is not None %}
+  <div class="v3-review-score">
+    <div class="v3-review-score-num">{{ review.score }}%</div>
+    <div class="v3-review-score-meta">
+      {{ review.completed_count }} of {{ review.intended }} complete
+    </div>
+  </div>
+  {% endif %}
+
+  {% if review.outstanding %}
+  <div class="v3-review-group">
+    <h3 class="v3-review-h">Outstanding <span class="v3-review-count">{{ review.outstanding|length }}</span></h3>
+    <ul class="v3-review-list">
+      {% for item in review.outstanding %}
+      <li class="v3-review-item v3-review-item-open">
+        <span class="v3-review-box" aria-hidden="true">☐</span>
+        <span class="v3-review-title">{{ item.title }}</span>
+        {% if item.detail %}<span class="v3-review-detail">{{ item.detail }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if review.completed %}
+  <div class="v3-review-group">
+    <h3 class="v3-review-h">Completed <span class="v3-review-count">{{ review.completed|length }}</span></h3>
+    <ul class="v3-review-list">
+      {% for item in review.completed %}
+      <li class="v3-review-item v3-review-item-done">
+        <span class="v3-review-box v3-review-box-done" aria-hidden="true">✓</span>
+        <span class="v3-review-title">{{ item.title }}</span>
+        {% if item.detail %}<span class="v3-review-detail">{{ item.detail }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% if review.metrics %}
+  <div class="v3-review-metrics">
+    {% if review.metrics.nutrition %}
+    <div class="v3-metric">
+      <span class="v3-metric-k">Nutrition</span>
+      <span class="v3-metric-v">{{ review.metrics.nutrition.calories }} cal · {{ review.metrics.nutrition.protein_g }}g protein</span>
+    </div>
+    {% endif %}
+    {% if review.metrics.water %}
+    <div class="v3-metric">
+      <span class="v3-metric-k">Water</span>
+      <span class="v3-metric-v">{{ review.metrics.water.total_oz }} oz{% if review.metrics.water.goal_met %} · goal met{% endif %}</span>
+    </div>
+    {% endif %}
+    {% if review.metrics.sleep %}
+    <div class="v3-metric">
+      <span class="v3-metric-k">Sleep</span>
+      <span class="v3-metric-v">{{ review.metrics.sleep.hours }} h{% if review.metrics.sleep.quality %} · {{ review.metrics.sleep.quality }}{% endif %}</span>
+    </div>
+    {% endif %}
+    {% if review.metrics.weight %}
+    <div class="v3-metric">
+      <span class="v3-metric-k">Weight</span>
+      <span class="v3-metric-v">{{ review.metrics.weight.value }} {{ review.metrics.weight.unit }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <p class="v3-review-foot">
+    Reviewing {{ view_date|date:'F j, Y' }} — reconstructed from your records for that day.
+  </p>
+{% endif %}
+</section>

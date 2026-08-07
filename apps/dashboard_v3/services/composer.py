@@ -56,11 +56,24 @@ DOMAIN_ICONS = {
 }
 
 
-def build_dashboard_v3_context(user) -> dict[str, Any]:
-    """Build the full dashboard_v3 page context.
+def build_dashboard_v3_context(user, view_date=None) -> dict[str, Any]:
+    """Build the dashboard_v3 page context for a given calendar day.
 
     Read-only. Safe on the request path. Returns a dict that the template
     consumes directly — no further compute happens in templates.
+
+    ONE Dashboard, parameterized by a date (NOT a Today dashboard + a Past
+    dashboard). ``view_date`` defaults to the user's today. Each card declares
+    its :class:`~apps.core.temporality.Temporality`; the renderer decides what
+    to do with it for the viewed date:
+
+      * TODAY  → the full executive cockpit (every card renders — unchanged).
+      * PAST   → only the DATE-SCOPED Daily Review is reconstructed from
+                 deterministic truth for that day. LIVE cards (executive
+                 summary, mission spotlight, goal cockpit, current
+                 priorities/risks) are NOT rebuilt for history — the template
+                 hides them (temporality contract). No snapshots, no fabricated
+                 "as-of" insights, no dashboard-owned truth.
 
     Phase 2 dedup: ``build_today_execution`` and
     ``GoalCockpitService.get_cockpit_data`` are deterministic for
@@ -71,6 +84,28 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
     ``cockpit_data`` kwargs. No cache, no hidden state — pure
     intra-request deduplication.
     """
+    from apps.core.utils import get_user_today
+
+    user_today = get_user_today(user)
+    if view_date is None:
+        view_date = user_today
+    is_today = (view_date == user_today)
+
+    if not is_today:
+        # PAST day → the DATE-SCOPED Daily Review only. LIVE cards are omitted;
+        # the template's is_today gate hides them (they have no historical form).
+        try:
+            from apps.dashboard_v3.services.daily_review import build_daily_review
+            daily_review = build_daily_review(user, view_date)
+        except Exception:
+            logger.warning("v3: daily_review build failed", exc_info=True)
+            daily_review = {}
+        return {
+            "is_today": False,
+            "view_date": view_date,
+            "daily_review": daily_review,
+        }
+
     # ── Phase 3: bootstrap SAE for brand-new users (one-shot). ──
     # Downstream gauge readers use allow_rebuild=False (Phase 3 read-
     # only contract). If state_data is entirely empty (a brand-new
@@ -146,6 +181,10 @@ def build_dashboard_v3_context(user) -> dict[str, Any]:
         # repeating it in the briefing.
         exec_summary["biggest_risk"] = None
 
+    # Today is the default date — the full cockpit. Declared so the template
+    # gates identically for today and past days (one render path, two card sets).
+    context["is_today"] = True
+    context["view_date"] = user_today
     return context
 
 

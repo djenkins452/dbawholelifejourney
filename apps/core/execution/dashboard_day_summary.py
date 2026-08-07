@@ -42,13 +42,50 @@ def _status_of(item):
     return (item.get("time_status") or item.get("status") or "").strip().lower()
 
 
-def build_dashboard_day_summary(user):
+def _historical_day_summary(user, target_date):
+    """Facts for a PAST day, from the day-scoped execution review (never raises).
+
+    Composes the SAME projection the Daily Review card uses, so the page and the
+    Current-Context provider agree for historical dates. Facts only.
+    """
+    try:
+        from apps.core.execution.execution_review import build_execution_review
+        review = build_execution_review(user, target_date) or {}
+        items = review.get("items") or []
+        total = len(items)
+        completed = sum(1 for i in items if i.get("completed"))
+        by_type = {}
+        for i in items:
+            k = i.get("kind") or "other"
+            by_type[k] = by_type.get(k, 0) + 1
+        tasks_completed = sum(
+            1 for i in items if i.get("kind") == "task" and i.get("completed"))
+        return {
+            "status": "ready" if items else "empty",
+            "total": total,
+            "completed": completed,
+            "remaining": max(0, total - completed),
+            "overdue": 0,       # a past day has no "now"-relative lateness
+            "upcoming": 0,
+            "tasks_completed_today": tasks_completed,
+            "by_type": by_type,
+            "next_item": None,  # no "next" on a completed calendar day
+        }
+    except Exception:
+        logger.warning("historical day summary failed user=%s date=%s",
+                       getattr(user, "id", None), target_date, exc_info=True)
+        return {"status": "pending", "total": 0, "completed": 0, "remaining": 0,
+                "overdue": 0, "upcoming": 0, "tasks_completed_today": 0,
+                "by_type": {}, "next_item": None}
+
+
+def build_dashboard_day_summary(user, target_date=None):
     """Return deterministic facts for the Dashboard workspace (facts only, never raises).
 
     Shape:
         {
           "status": "ready" | "pending",   # pending = SAE snapshot not warm yet
-          "total": int,                    # commitments surfaced for today
+          "total": int,                    # commitments surfaced for the day
           "completed": int,
           "remaining": int,
           "overdue": int,
@@ -57,8 +94,18 @@ def build_dashboard_day_summary(user):
           "by_type": {source_type: count, ...},
           "next_item": {"title": str, "time": str} | None,  # earliest not-done, timed
         }
+
+    ``target_date`` selects the day. ``None`` / today reads the request-path-safe
+    SAE snapshot (unchanged). A PAST day is reconstructed from the same day-scoped
+    truth the Daily Review uses (``build_execution_review``) so the page and the
+    ``dashboard.day`` Current-Context provider never disagree for any date. A past
+    day has no "now"-relative overdue/upcoming/next — those are 0/None by nature.
     """
     try:
+        from apps.core.utils import get_user_today
+        if target_date is not None and target_date != get_user_today(user):
+            return _historical_day_summary(user, target_date)
+
         from apps.core.ai_state.state_engine import get_module_state
 
         # Request-path-safe: read the SAE snapshot ONLY. Never rebuild here.

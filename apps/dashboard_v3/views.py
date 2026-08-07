@@ -63,13 +63,68 @@ class DashboardV3View(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Te
         with action_timing("dashboard_v3_get", self.request):
             return self._build_context(**kwargs)
 
+    def get_page_summary_params(self):
+        # Date-aware Current Context: a past day folds its date into the summary
+        # ref (summary:dashboard.day;date=YYYY-MM-DD) so the assistant answers
+        # "what did this day look like?" from the SAME day the page shows. Today
+        # needs no param — the provider defaults to today.
+        if getattr(self, "_is_today", True):
+            return {}
+        vd = getattr(self, "_view_date", None)
+        return {"date": vd.isoformat()} if vd else {}
+
     def _build_context(self, **kwargs):
+        import datetime as _dt
+
+        from apps.core.utils import get_user_today
+
+        user = self.request.user
+        user_today = get_user_today(user)
+
+        # ── Date seam: ONE Dashboard, parameterized by a date. Mirror the
+        #    Nutrition page — ?date=YYYY-MM-DD parsed inline, falling back to
+        #    today. The Daily Review is retrospective, so a future date is
+        #    clamped to today (no forward navigation past today). ──
+        view_date = user_today
+        date_str = self.request.GET.get("date")
+        if date_str:
+            try:
+                view_date = min(_dt.date.fromisoformat(date_str), user_today)
+            except (ValueError, TypeError):
+                view_date = user_today
+        is_today = (view_date == user_today)
+
+        # Stash for PageSummaryMixin (Current Context) — set BEFORE super().
+        self._view_date = view_date
+        self._is_today = is_today
+        self.page_summary_title = "Today" if is_today else (
+            view_date.strftime("%a, %b ") + str(view_date.day))
+
         ctx = super().get_context_data(**kwargs)
+
+        # ── Date-navigation context (server-rendered anchor links, like Nutrition). ──
+        ctx["view_date"] = view_date
+        ctx["is_today"] = is_today
+        ctx["user_today"] = user_today
+        ctx["prev_date"] = view_date - _dt.timedelta(days=1)
+        # Next is disabled on today (never navigate past today).
+        ctx["next_date"] = None if is_today else min(
+            view_date + _dt.timedelta(days=1), user_today)
 
         # ONE deterministic source feeds both this render and the dashboard.day page
         # summary provider (Current Context contract — never re-derive independently).
-        # Reads the SAE snapshot (request-path-safe), matching the provider exactly.
-        ctx["day_summary"] = build_dashboard_day_summary(self.request.user)
+        # Today reads the SAE snapshot (request-path-safe); a past day reconstructs
+        # from the same day-scoped review the Daily Review card uses.
+        ctx["day_summary"] = build_dashboard_day_summary(user, view_date)
+
+        if not is_today:
+            # PAST day → the DATE-SCOPED Daily Review only. None of the today-only
+            # side effects (wake-up completion, day-start init, weight resolver,
+            # execution-contract prefetch) run — they are "today" operations and
+            # must never fire from viewing history. LIVE cards are not rebuilt.
+            ctx["v3"] = build_dashboard_v3_context(user, view_date)
+            self._attach_greeting(ctx)
+            return ctx
 
         # VERIFIED AUTO-COMPLETION (Rule 1 — authenticated presence proves
         # wakefulness). Loading the dashboard IS authenticated activity.
@@ -163,8 +218,13 @@ class DashboardV3View(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Te
         except Exception:
             logger.debug("v3: load log skipped", exc_info=True)
 
-        # Greeting & time phase — small helpers reused from v2 so the
-        # surfaces feel coherent without inventing parallel logic.
+        self._attach_greeting(ctx)
+        return ctx
+
+    def _attach_greeting(self, ctx):
+        """Greeting & time phase — small helpers reused from v2 so the surfaces
+        feel coherent without inventing parallel logic. Shared by the today and
+        past-day paths."""
         try:
             from apps.dashboard_v2.services.dashboard_service import (
                 DashboardV2Service,
@@ -176,8 +236,6 @@ class DashboardV3View(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Te
             logger.debug("v3: greeting/time_phase fallback", exc_info=True)
             ctx["time_phase"] = "day"
             ctx["greeting"] = "Welcome back"
-
-        return ctx
 
 
 class UtilitiesSectionView(LoginRequiredMixin, View):
@@ -235,9 +293,22 @@ class SectionLiveView(LoginRequiredMixin, View):
         from apps.core.timing import action_timing
         from apps.dashboard_v3.services import build_dashboard_v3_context
 
+        # Preserve the viewed day across an HTMX refresh (Dashboard(date)).
+        import datetime as _dt
+
+        from apps.core.utils import get_user_today
+        user_today = get_user_today(request.user)
+        view_date = user_today
+        date_str = request.GET.get("date")
+        if date_str:
+            try:
+                view_date = min(_dt.date.fromisoformat(date_str), user_today)
+            except (ValueError, TypeError):
+                view_date = user_today
+
         with action_timing("dashboard_v3_section_live", request):
             try:
-                v3 = build_dashboard_v3_context(request.user)
+                v3 = build_dashboard_v3_context(request.user, view_date)
             except Exception:
                 logger.warning(
                     "section_live render failed for user=%s",

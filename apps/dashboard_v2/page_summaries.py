@@ -18,32 +18,66 @@ from apps.core.execution.dashboard_day_summary import build_dashboard_day_summar
 
 @register_page_summary("dashboard.day")
 def dashboard_day_summary(user, params):
-    """The Dashboard workspace — today's commitments as deterministic facts."""
-    facts = build_dashboard_day_summary(user)
+    """The Dashboard workspace — the viewed day's commitments as deterministic facts.
+
+    Date-aware: when the page is navigated to a past day (``summary:dashboard.day;
+    date=YYYY-MM-DD``) the provider reports THAT day, from the SAME
+    ``build_dashboard_day_summary`` source the page renders — so the assistant and
+    the page never disagree about "what did this day look like." Facts only.
+    """
+    import datetime as _dt
+
+    from apps.core.utils import get_user_today
+
+    params = params or {}
+    target_date = None
+    date_str = params.get("date")
+    if date_str:
+        try:
+            target_date = _dt.date.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            target_date = None
+
+    user_today = get_user_today(user)
+    is_today = target_date is None or target_date == user_today
+    day_label = "Today" if is_today else (
+        target_date.strftime("%a, %b ") + str(target_date.day))
+
+    facts = build_dashboard_day_summary(user, target_date)
 
     if facts.get("status") == "pending":
-        return {"title": "Today", "kind": "dashboard overview",
+        return {"title": day_label, "kind": "dashboard overview",
                 "content": "Today's plan — being prepared (up-to-date figures load momentarily)."}
 
     if not facts.get("total"):
-        return {"title": "Today", "kind": "dashboard overview",
-                "content": "Today — no commitments scheduled."}
+        empty = ("Today — no commitments scheduled." if is_today
+                 else f"{day_label} — nothing was scheduled that day.")
+        return {"title": day_label, "kind": "dashboard overview", "content": empty}
 
-    lines = [
-        f"Commitments today: {facts['total']}",
-        f"Completed: {facts['completed']}",
-        f"Remaining: {facts['remaining']}",
-        f"Overdue: {facts['overdue']}",
-        f"Still to come: {facts['upcoming']}",
-    ]
-    nxt = facts.get("next_item")
-    if nxt and nxt.get("title"):
-        when = f" at {nxt['time']}" if nxt.get("time") else ""
-        lines.append(f"Next scheduled: {nxt['title']}{when}")
+    if is_today:
+        lines = [
+            f"Commitments today: {facts['total']}",
+            f"Completed: {facts['completed']}",
+            f"Remaining: {facts['remaining']}",
+            f"Overdue: {facts['overdue']}",
+            f"Still to come: {facts['upcoming']}",
+        ]
+        nxt = facts.get("next_item")
+        if nxt and nxt.get("title"):
+            when = f" at {nxt['time']}" if nxt.get("time") else ""
+            lines.append(f"Next scheduled: {nxt['title']}{when}")
+    else:
+        # A past day: retrospective facts only — no "now"-relative overdue/next.
+        lines = [
+            f"Intended that day: {facts['total']}",
+            f"Completed: {facts['completed']}",
+            f"Outstanding: {facts['remaining']}",
+        ]
     by_type = facts.get("by_type") or {}
     if by_type:
         pretty = ", ".join(f"{k.replace('_', ' ')}: {v}" for k, v in sorted(by_type.items()))
         lines.append(f"By type — {pretty}")
 
-    return {"title": "Today", "kind": "dashboard overview",
-            "content": "Today's dashboard\n" + "\n".join(lines)}
+    heading = "Today's dashboard" if is_today else f"Daily review — {day_label}"
+    return {"title": day_label, "kind": "dashboard overview",
+            "content": heading + "\n" + "\n".join(lines)}

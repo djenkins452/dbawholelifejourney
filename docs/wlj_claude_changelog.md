@@ -6,6 +6,17 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-06 — fix(cos): CoS v2.0 iteration — a PERSON is retrievable truth; retrieve, don't assume-you-know or defer
+
+**Production proof (consistency test, 4 runs each):** after the first-question change, "I really need to start planning my nutrition better." retrieved `get_analysis` **4/4** (the earlier single generic sample was variance). But **"I need to improve my relationship with Haley." retrieved NONE 4/4** — consistently. The model said *"given what I know about your relationship…"* / *"let's start by considering what you know…"* and never called a truth tool.
+
+**First failing layer:** two precise gaps in the first-question block — (a) the model treated "do I know enough?" as a *vague sense* it knew the user, rather than "are the specifics in front of me because a tool returned them," so it did not recognize a **person** as retrievable truth; (b) it narrated the *intention* to look ("let's consider…") and handed the diagnosis back ("which aspect?", "should I analyze?") instead of acting. Nutrition retrieves because it is obviously data; a person is not recognized as data.
+
+**Fix (`apps/ai/model_interface/constitution.py`, strengthen the SAME block — no new mechanism):** "you 'know enough' ONLY when the specifics are IN FRONT OF YOU because a tool returned them — a vague sense is NOT knowing enough; a person is retrievable truth exactly like a metric ('improve my relationship with Haley' → go get what WLJ knows about Haley: recent contact, interactions, gaps); if WLJ holds it, your very NEXT move is to RETRIEVE — do NOT say 'let's consider what we know', do NOT ask which aspect, do NOT offer to analyze 'if they'd like' — narrating that you could look, or handing the diagnosis back, is the failure." General, not a relationship special-case.
+
+- **Files:** `apps/ai/model_interface/constitution.py`; test `apps/ai/tests/test_model_interface_runtime.py`. 55 doctrine tests pass, no regression; `check` clean; **no migrations**.
+- **Stays OPEN until re-run:** closes when "improve my relationship with Haley" retrieves Haley's relationship truth first (consistently), without over-retrieving on simple/general asks.
+
 ## 2026-08-06 — feat(cos): CoS v2.0 — change the model's FIRST INTERNAL QUESTION to "what kind of help is this?"
 
 **The milestone change (model-side; NOT a new step/layer/classifier/intent object).** Danny's directive: the model's first internal question must shift from "What did they ask? / which domain?" to **"What kind of help is this person actually asking me for?"** — and, when WLJ already holds the personal truth, review what they've actually been doing BEFORE answering. WLJ does not classify or determine the ask; it only supplies the deterministic truth and context it already owns. The determination stays entirely the model's.

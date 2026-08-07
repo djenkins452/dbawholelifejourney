@@ -136,6 +136,10 @@ class StandingContextTests(TestCase):
         self.assertIn("wlj never classifies the ask", c)
         # generic advice is the fallback only when WLJ lacks the truth
         self.assertIn("are the fallback", c)
+        # a person is retrievable truth; retrieve — don't assume you know, don't defer
+        self.assertIn("a person is retrievable truth", c)
+        self.assertIn("your very next move is to retrieve", c)
+        self.assertIn("do not say 'let's consider what we know", c)
         # the identity question sits BEFORE the wlj-ownership split (first-read placement)
         self.assertLess(c.index("your first internal question"),
                         c.index("you are the user's personal assistant"))

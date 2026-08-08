@@ -38,9 +38,10 @@ def _anchor_dt(target_date):
         return timezone.make_aware(naive)
 
 
-def complete_execution_item(user, kind, title, target_date):
+def complete_execution_item(user, kind, title, target_date, *, content=None):
     """Record completion of ONE execution item (identified by kind + title) on
-    `target_date`, reusing the existing per-domain write. Returns a structured,
+    `target_date`, reusing the existing per-domain write. `content` carries the actual
+    text for kinds that are content, not a checkbox (journal). Returns a structured,
     honest result. Never raises."""
     kind = (kind or "").strip().lower()
     try:
@@ -53,10 +54,7 @@ def complete_execution_item(user, kind, title, target_date):
         if kind == "workout":
             return _complete_workout(user, title, target_date)
         if kind == "journal":
-            # Journal is CONTENT, not a checkbox — it needs what was written.
-            return _result("needs_info", kind, title,
-                           message="A journal entry needs its actual content — ask the user "
-                                   "what they wrote/reflected on, then create it dated to that day.")
+            return _complete_journal(user, title, target_date, content)
         if kind in ("prayer", "bible_reading", "bible"):
             return _complete_faith_via_routine(user, kind, title, target_date)
         return _result("unsupported", kind, title,
@@ -65,6 +63,30 @@ def complete_execution_item(user, kind, title, target_date):
         logger.warning("execution_completion: %s '%s' failed", kind, title, exc_info=True)
         return _result("error", kind, title,
                        message="That completion could not be recorded; nothing was changed.")
+
+
+# --- Journal: reconcile by CREATING the entry dated to the day it happened -----------------
+def _complete_journal(user, title, target_date, content):
+    """Journal is CONTENT, not a checkbox. With no content yet, ask for it (needs_info).
+    Given the content, CREATE the journal entry dated to `target_date` via the canonical
+    journal write — which (single source of truth: has_entry_on) reconciles that day's
+    journal execution automatically. No second completion mechanism."""
+    from apps.journal.services.journal_queries import JournalQueries
+    text = (content or "").strip()
+    if not text:
+        if JournalQueries.has_entry_on(user, target_date):
+            return _result("already_complete", "journal", title or "Journal")
+        return _result("needs_info", "journal", title or "Journal",
+                       message="A journal entry is its actual content, not a checkbox. Ask the "
+                               "user what they wrote/reflected on for that day, then call this "
+                               "again with `content` set — WLJ will create the entry dated to "
+                               "that day, which marks the day's journal complete.")
+    from apps.journal.services.journal_writes import create_entry
+    entry = create_entry(user, body=text, entry_date=target_date)
+    return _result("recorded", "journal", title or "Journal",
+                   message=f"Created the journal entry for {target_date.isoformat()}; that day's "
+                           f"journal is now complete.",
+                   detail={"entry_id": entry.id, "entry_date": entry.entry_date.isoformat()})
 
 
 # --- Medication / supplement: record the day's doses as taken (reuse the enumerator) -----

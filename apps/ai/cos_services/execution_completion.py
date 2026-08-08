@@ -19,10 +19,11 @@ def _user_today(user):
         return _date.today()
 
 
-def complete_execution_item(user, kind, title, day=None) -> dict:
+def complete_execution_item(user, kind, title, day=None, content=None) -> dict:
     """Record completion of an execution item on the day it actually happened. `day` is a
-    natural phrase ('yesterday', a date); defaults to yesterday. Delegates to the core
-    router (reuse of existing writes). Never raises."""
+    natural phrase ('yesterday', a date); defaults to yesterday. `content` carries the text
+    for content kinds (journal). Delegates to the core router (reuse of existing writes).
+    Never raises."""
     today = _user_today(user)
     target = today - timedelta(days=1)  # default: yesterday (the reconciliation case)
     if day:
@@ -35,7 +36,7 @@ def complete_execution_item(user, kind, title, day=None) -> dict:
             logger.warning("execution_completion: date resolve failed for %r", day, exc_info=True)
     try:
         from apps.core.execution.execution_completion import complete_execution_item as _record
-        out = _record(user, kind, title, target)
+        out = _record(user, kind, title, target, content=content)
     except Exception:
         logger.warning("execution_completion: record failed", exc_info=True)
         return {"status": "error", "kind": kind, "title": title,

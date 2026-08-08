@@ -32,6 +32,23 @@ class ExecutionCompletionTests(TestCase):
         r = complete_execution_item(self.user, "journal", "Journal", self._yesterday())
         self.assertEqual(r["status"], "needs_info")
 
+    def test_journal_with_content_creates_entry_dated_to_that_day(self):
+        # The reconciliation workflow: given the content, WLJ creates the entry dated to
+        # the ACTUAL day (never today), which — single source of truth — completes that
+        # day's journal automatically. No second recording mechanism.
+        from apps.journal.models import JournalEntry
+        from apps.journal.services.journal_queries import JournalQueries
+        y = self._yesterday()
+        r = complete_execution_item(self.user, "journal", "Journal", y,
+                                    content="Grateful for the week; hopeful about next.")
+        self.assertEqual(r["status"], "recorded")
+        entry = JournalEntry.objects.get(user=self.user, id=r["detail"]["entry_id"])
+        self.assertEqual(entry.entry_date, y)                      # dated to that day, not today
+        self.assertTrue(JournalQueries.has_entry_on(self.user, y))  # reconciles that day
+        # idempotent: a bare re-check now sees the entry and reports already_complete
+        r2 = complete_execution_item(self.user, "journal", "Journal", y)
+        self.assertEqual(r2["status"], "already_complete")
+
     def test_unknown_or_undata_item_is_honest_never_false_recorded(self):
         for kind, title in [("medications", "Medications"), ("task", "Ghost task"),
                             ("prayer", "Prayer Time"), ("something", "X")]:

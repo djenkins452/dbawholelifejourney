@@ -2909,7 +2909,7 @@ class ActionHandler:
 
     def handle_create_journal_entry(self, body: str, title: str = None,
                                      mood: str = None, categories: list = None,
-                                     **kwargs) -> ActionResult:
+                                     entry_date=None, **kwargs) -> ActionResult:
         """
         Create a new journal entry.
 
@@ -2918,8 +2918,12 @@ class ActionHandler:
             title: Optional title (will auto-generate if not provided)
             mood: User's mood (great, good, okay, down, struggling)
             categories: List of category names
+            entry_date: The day the entry is ABOUT (ISO date). Defaults to today; a past
+                date records the entry retroactively (WLJ records when it actually
+                happened). Future dates clamp to today.
         """
         from apps.journal.models import JournalEntry, Category
+        from apps.journal.services.journal_writes import create_entry
 
         try:
             today = self._get_user_today()
@@ -2931,13 +2935,11 @@ class ActionHandler:
                 if not title:
                     title = f"Journal Entry - {today.strftime('%B %d')}"
 
-            entry = JournalEntry.objects.create(
-                user=self.user,
-                title=title,
-                body=body,
-                entry_date=today,
-                mood=mood or 'okay'
-            )
+            # ONE recording mechanism — the canonical journal writer (date-aware; the
+            # model save handles sanitize/plain-shadow/word-count; post_save fires
+            # journal intelligence). entry_date defaults to today, never the future.
+            entry = create_entry(self.user, body=body, entry_date=entry_date,
+                                 title=title, mood=mood or 'okay')
 
             _emit_domain_event("journal.entry.created", self.user, {
                 "entry_id": entry.id, "mood": mood or "okay",

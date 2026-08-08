@@ -1239,10 +1239,17 @@ def _complete_execution_item_tool():
             "the item's `kind` and `title` EXACTLY as get_execution_review returned them, and the "
             "`day` in the user's words. WLJ records it on THAT day via the existing per-domain "
             "mechanism. It returns an HONEST result — `recorded` (done: say what was recorded), "
-            "`already_complete` (nothing to do), `needs_info` (e.g. a journal needs its actual "
-            "content — ask for it), or `unsupported` (no safe retroactive write for that item "
-            "yet — say so honestly, do NOT pretend). NEVER tell the user you recorded something "
-            "unless the result status is `recorded`."
+            "`already_complete` (nothing to do), `needs_info` (the item needs more from you before "
+            "it can be recorded — do EXACTLY what the message says, then call again), or "
+            "`unsupported` (no safe retroactive write for that item yet — say so honestly, do NOT "
+            "pretend). A `needs_info` result is NOT a completion and `unsupported` is NOT a "
+            "completion: NEVER tell the user an item is done, marked, or complete unless the "
+            "result status is `recorded` or `already_complete`. "
+            "JOURNAL is content, not a checkbox: the FIRST call (no `content`) returns `needs_info` "
+            "— ask the user what they wrote/reflected on for that day; then call AGAIN with the "
+            "same kind/day and their words in `content`. WLJ creates the journal entry dated to "
+            "that day, which reconciles that day's journal in one step. Do this inline as part of "
+            "reconciling the day, then continue to the next item."
         ),
         "parameters": {"type": "object", "properties": {
             "kind": {"type": "string",
@@ -1254,6 +1261,11 @@ def _complete_execution_item_tool():
             "day": {"type": "string",
                     "description": ("The day it happened, in the user's words — 'yesterday', a "
                                     "date. Omit to default to yesterday.")},
+            "content": {"type": "string",
+                        "description": ("For a JOURNAL item: the actual text the user says they "
+                                        "wrote/reflected on that day. Omit on the first call (you "
+                                        "will get needs_info asking for it); provide it on the "
+                                        "follow-up call to record the entry dated to that day.")},
         }, "required": ["kind", "title"]}}}
 
 

@@ -911,7 +911,7 @@ class ModelInterfaceService:
                     complete_execution_item as _cei,
                 )
                 out = _cei(user, args.get("kind", ""), args.get("title", ""),
-                           day=args.get("day"))
+                           day=args.get("day"), content=args.get("content"))
                 _audit.record_tool_call(
                     user, kind="action", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),

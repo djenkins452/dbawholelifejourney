@@ -39,6 +39,14 @@ JOURNAL_INTENT_TOOLS = [
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "Categories for the entry (e.g., 'gratitude', 'reflection', 'goals', 'prayer')"
+                    },
+                    "entry_date": {
+                        "type": "string",
+                        "description": ("ISO date (YYYY-MM-DD) the entry is ABOUT — the day the "
+                                        "user actually journaled. Omit for a normal entry today; "
+                                        "set it to a PAST date when the user is recording a past "
+                                        "day (e.g. reconciling 'I journaled yesterday'). WLJ dates "
+                                        "the entry to that day; future dates clamp to today.")
                     }
                 },
                 "required": ["body"]

@@ -205,6 +205,29 @@ Both are prompt-level, in-Constitution (I.4/IV.2), and reduce/reposition scaffol
 
 ---
 
+## DEFINITIVE ROOT CAUSE (2026-08-12, proven) — the token governor deletes the conversation history
+
+**Both prompt-level corrections (v1 low-salience instruction; v2 high-salience lead + `_executive_lead` deference) FAILED certification.** Per the milestone's stop rule ("if certification still fails, prompt-level may be the wrong layer — STOP and investigate"), the next layer was traced — and the real defect was found. It is NOT a prompt problem and never was.
+
+**The conversation history is assembled correctly and then DELETED before it reaches the model**, by the token governor:
+
+- `AIService._call_api_with_tools` calls `govern_prompt(messages)` (`apps/ai/services.py:753`) on `[system, ...history..., user]`.
+- `govern_prompt` (`apps/ai/conversation/token_governor.py`) enforces `WLJ_TOKEN_BUDGET_MAX` (**12,000**, `WLJ_TOKEN_BUDGET_ENABLED=True`, `config/settings.py:1620`). Over budget, **Phase 1 removes conversation history oldest-first**; Phase 2 then truncates the system-prompt tail.
+- **Measured (local, commit `acc14d38`):** CONSTITUTION alone = **12,883 tokens** (already over the 12k budget); the full assembled system prompt = **74,635 chars ≈ 21,325 tokens** (production is larger — real `personal_truth`/`understanding`/`missions`/`execution_state`). Simulating a Turn-2 payload `[system, user1, assistant1, user2]` through `govern_prompt` returns **`['system', 'user']`** — `history survived? False`, `trimmed: ['conversation_history', 'system_prompt']`.
+
+**This explains every observation:**
+- **Bare pronouns deflect** ("Why?", "that") — the prior assistant answer they refer to was deleted; the model even says "a follow-up to something I mentioned earlier" but cannot see the content.
+- **Named follow-ups work** ("why do you think it's slowing?") — the named subject lets the model re-retrieve fresh via `get_analysis`, needing no history.
+- **Both prompt fixes failed and made it worse** — they enlarged the system prompt, increasing what the governor trims; the v2 lead literally instructs "refer to your prior answer" while the governor has removed that answer from context.
+
+**Why the earlier "history delivered in full" finding (§6) was wrong:** it verified `load_conversation_history` in isolation (which correctly returns the turns) but never traced the payload THROUGH `govern_prompt`. A passing isolated check is not proof of the runtime path — the exact discipline WLJ mandates.
+
+**Layer: context assembly / token budget (not prompt, not truth, not Conversation State).** The 12,000-token budget is a legacy value incompatible with the current ~21k-token model-interface system prompt and gpt-4o's 128k context window; it silently strips the conversation on every multi-turn turn.
+
+**Smallest fix shape (recommended, NOT implemented — new layer, real blast radius; reported per Step 9):** give the model-interface path a token budget sized to fit the system prompt PLUS a real conversation-history window (the model's context window is 128k; the 12k ceiling is the defect). Options to weigh with Danny: raise `WLJ_TOKEN_BUDGET_MAX` for the model-interface endpoint specifically; or make `govern_prompt` protect the most-recent N turns from Phase-1 trimming; or reduce the system-prompt size (the CONSTITUTION is 12.9k tokens by itself — a separate simplification lever). **Blast radius:** token budget affects prompt cost and latency for every model-interface turn — a deliberate, measured change, not a silent one. **The two prompt fixes are now suspect** — once history is actually delivered, the model may resolve pronouns natively without them (they may be revertible to reduce prompt size). Re-certify (A–F + contrast) after the budget fix to decide.
+
+---
+
 ## Appendix A — Runtime evidence log (reproducible)
 
 - **Path:** `run_cos_acceptance_conversation` (`apps/core/tasks.py:94`) → `CoSGateway.respond` per turn → `ModelInterfaceRuntime` → `ModelInterfaceService.generate` (history via `load_conversation_history`, `service.py:62`; tool loop `services.py:685`).

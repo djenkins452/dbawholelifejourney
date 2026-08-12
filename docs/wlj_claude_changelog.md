@@ -6,6 +6,16 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-12 — docs(cos): Conversation Continuity Runtime Investigation — the defect is suppressed pronoun binding, NOT Conversation State
+
+**Investigation only (no production behavior changed).** Proved the first failing layer for the multi-turn continuity defect and OVERTURNED the prior investigation's hypothesis. A 2×2 (broad/narrow × named/pronoun) through the real production runtime shows the controlling variable is **bare-pronoun vs named-subject, NOT broad-vs-narrow**: named follow-ups always work (incl. a 5-domain re-synthesis), bare pronouns always deflect ("Why?", "that", "is that getting worse?" → "please clarify"), in BOTH broad and narrow conversations.
+
+**Ruled out with runtime evidence:** missing history (structural repro: Turn 2 receives the FULL prior assistant answer, 366/366 chars), truncation/malformation (none), and `active_subject` (a seeded-history probe with NO active_subject still deflects; narrow "Why?" deflects even WITH a coherent active_subject). **Root cause = over-scaffolding (same class as Executive Over-Steer):** WLJ's ~40k-char CONSTITUTION conditions the model to identify-a-concrete-subject-then-retrieve, and NOTHING instructs it that an elliptical/pronoun follow-up continues its own prior turn — so a topic-less "Why?" has no subject to retrieve and the over-conditioned model asks the user to clarify (the one behavior the rest of the prompt suppresses). Conversation history already carries the referent; the model just isn't told to bind to it.
+
+**Smallest fix (recommended, NOT implemented):** ONE general prompt-level reference-resolution instruction restoring native pronoun binding — no Conversation State expansion, no new tool, no memory system (the prior "hold the assessment" proposal is refuted and fails the Expansion Test). Architecture gets SIMPLER. Secondary: fix `_conversation_state_lead`'s analysis-branch incoherent get_entity(artifacts) guidance (`service.py:419-426`); residual: `_executive_lead` still hijacks some follow-ups to current_action (§15, separate). Latency unaffected (prompt sentence). Constitutional: strengthens I.4/IV.2; no Review.
+
+**File:** `docs/WLJ_COS_CONVERSATION_CONTINUITY_INVESTIGATION.md` (new — 22-section deliverable + reproducible evidence log). Recommended next milestone: **Conversation Continuity Correction** (prompt-only), then the deferred truth-exposure gaps.
+
 ## 2026-08-12 — docs(cos): Truth Access Architecture Investigation — can the model reach WLJ's complete truth, efficiently, without WLJ predetermining what matters?
 
 **Investigation only (no production behavior changed).** Runtime-proven answer to the central question. Traced the tool loop (`apps/ai/services.py:685`), dumped the live capability map the model receives, measured latency across probe complexity, ran multi-turn continuity + proactive probes through the REAL production CoS (worker `f7c2da68`), and audited Projects/Finance/Relationships truth-vs-exposure at file level.

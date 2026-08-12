@@ -571,14 +571,35 @@ def get_domain_analysis(user, domain, subject, period=None):
         # composed truth, never a per-domain registration.
         if _is_overview_subject(subject_norm, domain_norm) and _assessment_capable(truth):
             return _domain_overview(user, domain_norm, truth, t0, uid, period=period)
+        # MODEL-DIRECTED RETRIEVAL PERSISTENCE (2026-08-12): an insufficient/absent ANALYSIS
+        # must never read as "no truth exists". When the analysis surface cannot answer, point
+        # the model to the domain's OTHER retrievable surfaces (its own registered entity/history
+        # capabilities) so it can DRILL rather than stop. This is the analysis surface reporting
+        # its own limits + the domain's alternatives — NOT a per-domain router and NOT a fallback
+        # CALL (WLJ never calls get_entity here; it only tells the model what else is retrievable,
+        # and the model decides). Generic: derived from the domain's registered capabilities.
+        et = tuple(getattr(truth, "entity_types", ()) or ())
+        hm = tuple(getattr(truth, "history_metrics", ()) or ())
+        alts = []
+        if et:
+            alts.append(f"its records with get_entity(domain='{domain_norm}') "
+                        f"(types: {', '.join(sorted(et))})")
+        if hm:
+            alts.append(f"its history with get_history(domain='{domain_norm}', "
+                        f"metric one of: {', '.join(sorted(hm))})")
+        drill = ((" This analysis surface does not cover it, but the domain's deterministic "
+                  "truth IS retrievable — inspect " + " or ".join(alts) + ", then reason from "
+                  "those records. Do NOT conclude the truth is unavailable from a thin analysis.")
+                 if alts else "")
         return _envelope(
             domain_norm, subject_norm, "unsupported",
             # CUSTOMER-SAFE by construction (Blocker #5, same class): never narrate that a
-            # measure "is not analyzable" — guide the model to the measures WLJ DOES track.
+            # measure "is not analyzable" — guide the model to what WLJ DOES track / expose.
             reason=(f"WLJ tracks these assessable measures for '{domain_norm}': "
-                    f"{', '.join(sorted(subjects)) or '(none)'}. Answer from one of those (or "
-                    f"offer them). Do NOT tell the user that this measure cannot be analyzed — "
-                    f"simply work from what's available."),
+                    f"{', '.join(sorted(subjects)) or '(none)'}."
+                    + drill +
+                    " Do NOT tell the user that this measure cannot be analyzed — simply work "
+                    "from what's available."),
             analyzable_subjects=sorted(subjects),
         )
 

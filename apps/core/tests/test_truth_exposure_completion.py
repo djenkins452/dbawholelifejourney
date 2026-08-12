@@ -138,3 +138,20 @@ class FinanceEntityExposureTests(TestCase):
     def test_finance_entity_advertised(self):
         from apps.ai.cos_services.domain_entity import entity_capable_domains
         self.assertIn("finance", entity_capable_domains())
+
+
+class AnalysisDrillPointerTests(TestCase):
+    """Model-Directed Retrieval Persistence (2026-08-12): an insufficient/unsupported
+    ANALYSIS must point the model to the domain's retrievable records (get_entity/get_history)
+    instead of dead-ending — so 'how are my projects going?' can drill into project/task truth."""
+
+    def test_unsupported_analysis_points_to_the_domains_records(self):
+        from apps.ai.cos_services import get_domain_analysis
+        u = User.objects.create_user(email="drill_owner@example.com", password="x")
+        r = get_domain_analysis(u, "projects", "overall")
+        self.assertEqual(r.get("status"), "unsupported")
+        reason = (r.get("reason") or "").lower()
+        # points at the retrievable surface (generic, from the domain's own entity_types)
+        self.assertIn("get_entity(domain='projects')", reason)
+        self.assertIn("do not conclude the truth is unavailable", reason)
+

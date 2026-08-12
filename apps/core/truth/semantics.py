@@ -131,9 +131,13 @@ DOMAIN_SEMANTICS = {
         "cues": ["my tasks", "what's due", "what did I finish"],
     },
     "projects": {
-        "purpose": "The person's projects and their status.",
-        "entities": {"project": "A project the person is working on."},
-        "cues": ["my projects"],
+        "purpose": "The person's projects and their status, each with its tasks and progress.",
+        "entities": {"project": ("A project the person is working on — its status, target date, "
+                                 "and progress, PLUS its individual TASKS (open/done, due dates, "
+                                 "priority). Use get_entity to see a project and its tasks; the "
+                                 "tasks are the canonical Task records scoped to the project.")},
+        "cues": ["my projects", "how are my projects going", "what's happening with",
+                 "what tasks are open on", "which project is stalled"],
     },
 
     # ── Time: calendar vs significant events ─────────────────────────────────
@@ -181,11 +185,14 @@ DOMAIN_SEMANTICS = {
 
     # ── People: relationships vs legacy ──────────────────────────────────────
     "relationships": {
-        "purpose": "People in the person's life and their interactions with them.",
+        "purpose": ("People in the person's life and their interactions with them, "
+                    "including contact frequency/history over time."),
         "entities": {"person": "A person the user knows, with interaction history."},
         "boundary": ("Living relationships and interactions. For preserved family "
                      "history / ancestry, use the 'legacy' domain."),
-        "cues": ["who did I talk to", "my relationships", "people I contact most"],
+        "cues": ["who did I talk to", "my relationships", "people I contact most",
+                 "have I been staying in touch", "who am I neglecting",
+                 "how has my contact changed"],
     },
     "legacy": {
         "purpose": "Preserved memories, people, and places — the person's life story / legacy.",
@@ -242,8 +249,16 @@ DOMAIN_SEMANTICS = {
         "cues": ["my brain training", "my game scores"],
     },
     "finance": {
-        "purpose": "The person's finances (accounts, transactions, budgets).",
-        "entities": {},
+        "purpose": ("The person's finances — accounts, transactions, spending/income "
+                    "trends, budgets."),
+        "entities": {
+            "transaction": ("A single financial transaction — its date, amount (income or "
+                            "expense), merchant/description, category, and account. Search by "
+                            "merchant with the `contains` filter; scope by period/on_date."),
+            "account": ("A financial account — its type, institution, current balance, and "
+                        "last-4 (no full numbers or credentials).")},
+        "cues": ["what did I spend", "my biggest expenses", "what was that charge",
+                 "transactions at", "what did I spend at", "my accounts", "my balances"],
     },
 }
 

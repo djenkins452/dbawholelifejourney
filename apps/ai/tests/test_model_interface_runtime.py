@@ -169,6 +169,13 @@ class StandingContextTests(TestCase):
         self.assertIn("how did you calculate it", gl)
         self.assertIn("reverse-engineered", gl)
         self.assertIn("your own earlier prose", gl)
+        # TRUTH TOOL SELECTION (2026-08-12): the INTENT taxonomy must carry an EXPLANATION /
+        # "show your work on MY data" type so "how are you calculating my X" RETRIEVES the
+        # user's records rather than describing the general method ("I would gather your data").
+        self.assertIn("explanation / show your work", c)
+        self.assertIn("your actual calculation over their records", c)
+        self.assertIn("i would gather your data", c)             # the failure signature it forbids
+        self.assertIn("value belonging to this user", c)         # the general-vs-personal trigger
 
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be

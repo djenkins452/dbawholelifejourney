@@ -160,6 +160,15 @@ class StandingContextTests(TestCase):
         self.assertIn("conflict signal", c)
         self.assertIn("do not silently adopt the user's number", c)
         self.assertIn("never invent a plausible reason", c)
+        # And the HIGH-SALIENCE grounding lead (fires after the JSON) must ALSO carry the
+        # framing-independent no-fabrication rule — a constitution-body rule alone was
+        # out-weighed and still fabricated on "how are you calculating…" (runtime-proven).
+        mi = ModelInterfaceService(self.user)
+        gl = mi._grounding_lead().lower()
+        self.assertIn("in every framing", gl)
+        self.assertIn("how did you calculate it", gl)
+        self.assertIn("reverse-engineered", gl)
+        self.assertIn("your own earlier prose", gl)
 
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be

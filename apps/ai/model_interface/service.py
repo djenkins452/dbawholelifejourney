@@ -363,6 +363,14 @@ class ModelInterfaceService:
             pend = standing_context.get("pending_confirmations") or []
             cs = standing_context.get("conversation_state") or {}
             subj = cs.get("active_subject") or {}
+            # An "overall" roll-up is a whole-domain / multi-domain assessment, NOT a single
+            # narrow subject — after a broad synthesis it is arbitrary (last-retrieval-wins), so
+            # asserting it as THE active subject mislabels the referent ("the analysis 'overall'").
+            # Drop it: the conversational reference rule (a backward-referring follow-up continues
+            # your prior answer) and the prior answer itself carry the real referent.
+            # (Conversation Continuity Correction, 2026-08-12.)
+            if (subj.get("metric") or subj.get("label") or "").strip().lower() == "overall":
+                subj = {}
             guided = cs.get("guided_review") or {}
         except Exception:
             return ""
@@ -417,12 +425,24 @@ class ModelInterfaceService:
                     f"Do NOT let an unrelated page's Current Context replace this active "
                     f"subject.")
             else:
+                # Kind-aware re-retrieval guidance. The old branch told the model to re-check ANY
+                # non-metric subject with get_entity(domain='artifacts') — correct only for an
+                # uploaded file, but incoherent for a get_analysis subject (an analysis is
+                # re-fetched with get_analysis). (Conversation Continuity Correction, 2026-08-12.)
+                if subj.get("artifact") or kind == "artifact":
+                    how = "To see it again, retrieve it with get_entity (domain='artifacts')."
+                elif kind == "analysis" and subj.get("domain"):
+                    how = (f"To go deeper, retrieve it again with get_analysis("
+                           f"domain='{subj['domain']}', subject='{subj.get('metric') or label}').")
+                elif subj.get("domain"):
+                    how = f"To re-check it, retrieve it with get_entity(domain='{subj['domain']}')."
+                else:
+                    how = "Reason about it from your prior answer; retrieve more only if you need it."
                 parts.append(
-                    f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"for a "
-                    "leak?\", \"is that dangerous?\", \"tell me more\", \"what about this part\", "
+                    f"ACTIVE SUBJECT: the {kind} \"{label}\"{when}. A short follow-up (\"why?\", "
+                    "\"tell me more\", \"what about this part\", \"is that getting worse?\", "
                     "\"it/that/this\") refers to THIS unless the user clearly changes topic or "
-                    "explicitly asks about the page/screen. To see or re-check it, retrieve it "
-                    "with get_entity (domain='artifacts' for an uploaded file). Do NOT let an "
+                    "explicitly asks about the page/screen. " + how + " Do NOT let an "
                     "unrelated page's Current Context replace this active subject.")
         if guided.get("current"):
             cur = guided.get("current") or {}

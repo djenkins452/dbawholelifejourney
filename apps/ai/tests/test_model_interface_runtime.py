@@ -119,6 +119,48 @@ class StandingContextTests(TestCase):
         # no current action → no lead (WLJ never invents one)
         self.assertEqual(mi._executive_lead({"current_action": {}}), "")
 
+    def test_conversation_reference_resolution_instruction_is_in_the_prompt(self):
+        # CONVERSATION CONTINUITY CORRECTION (2026-08-12): the assembled system prompt must
+        # instruct the model that a backward-referring follow-up ("why?", "that", "tell me
+        # more") continues its OWN prior answer and must not be answered with a request to
+        # clarify. This is the invariant that restores native pronoun/reference resolution
+        # (runtime-proven defect: bare "Why?" deflected to "please clarify").
+        mi = ModelInterfaceService(self.user)
+        sp = mi._system_prompt(mi.build_standing_context()).lower()
+        self.assertIn("backward-referring follow-up", sp)
+        self.assertIn("your own immediately preceding answer", sp)
+        self.assertIn("never ask the user what they are referring to", sp)
+        # and it must say the follow-up outranks current_action / active_subject (no hijack)
+        self.assertIn("outranks", sp)
+
+    def test_overall_rollup_is_not_anchored_as_a_narrow_active_subject(self):
+        # An "overall" roll-up (a whole-domain/multi-domain assessment) is arbitrary after a
+        # broad synthesis (last-retrieval-wins). It must NOT be asserted as THE active subject
+        # ("the analysis 'overall'"); the conversational reference rule carries the referent.
+        mi = ModelInterfaceService(self.user)
+        lead = mi._conversation_state_lead({"conversation_state": {"active_subject": {
+            "kind": "analysis", "ref": "goals.overall", "label": "overall",
+            "metric": "overall", "domain": "goals", "turns_ago": 1}}})
+        self.assertEqual(lead, "")  # nothing pending/guided + overall dropped → no lead
+
+    def test_analysis_subject_reretrieval_uses_get_analysis_not_artifacts(self):
+        # A specific get_analysis subject (weight) must be re-fetched with get_analysis — the
+        # old branch told the model to use get_entity(domain='artifacts'), which is incoherent
+        # for an analysis subject and was the secondary continuity bug.
+        mi = ModelInterfaceService(self.user)
+        lead = mi._conversation_state_lead({"conversation_state": {"active_subject": {
+            "kind": "analysis", "ref": "health.weight", "label": "weight",
+            "metric": "weight", "domain": "health", "turns_ago": 1}}})
+        self.assertIn("get_analysis(domain='health'", lead)
+        self.assertNotIn("get_entity (domain='artifacts')", lead)
+
+    def test_artifact_subject_still_uses_get_entity_artifacts(self):
+        # An uploaded artifact subject is still correctly re-perceived via get_entity(artifacts).
+        mi = ModelInterfaceService(self.user)
+        lead = mi._conversation_state_lead({"conversation_state": {"active_subject": {
+            "kind": "artifact", "ref": "art-123", "label": "scan.pdf", "turns_ago": 1}}})
+        self.assertIn("get_entity (domain='artifacts')", lead)
+
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be
         # able to name the SAME one — they cannot contradict ("I can't see your to-do list")

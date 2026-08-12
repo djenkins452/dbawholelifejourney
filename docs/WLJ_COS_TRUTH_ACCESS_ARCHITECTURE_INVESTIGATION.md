@@ -338,6 +338,20 @@ Deferred (report-only this milestone, do not bundle): the proactive/execution-ph
 
 ---
 
+## Refreshed Truth Accessibility Matrix (2026-08-12, after Truth Exposure Completion)
+
+The three proven gaps this investigation named are now **exposed through the existing Retrieval Platform** (commits `bddd6300` + `3879fd85`; governing doc addendum below). Owner-1 certified (6/6 deterministic) and Owner-2 certified (real runtime).
+
+| Domain | Was | Now | Owner-2 result |
+|---|---|---|---|
+| **Relationships** | entity + analysis snapshot only; no history/trend | `get_history/get_comparison('relationships','interactions')` over the canonical `RelationshipInteraction` dated series | ✓ model discovered + used `get_comparison(relationships,interactions)` for "how has my contact changed" |
+| **Projects** | `get_entity('project')` = task **counts** only | `get_entity('projects','project')` now returns the project's canonical **Task records** (`extensions.tasks`) — reference to the Tasks authority, not a duplicate | ✓ "what tasks are open on them?" → `get_entity('projects')` listed projects **with tasks** |
+| **Finance** | aggregates only; no record access | `get_entity('finance','transaction')` (period + merchant `contains`) + `get_entity('finance','account')` over canonical `Transaction`/`FinancialAccount`; hidden accounts excluded; no credentials/full-numbers | ✓ "what did I spend at Costco?" → `get_entity('finance',{contains:Costco},transaction)` returned real transactions ($130 / $153.61 / $120) |
+
+**Residual (NEXT — reported, NOT implemented this milestone, per Step 26):** for BROAD analytical questions the model reaches `get_analysis` first and does not always drill into the newly-exposed entity records when the analysis is thin — "how are my projects going?" → `get_analysis(projects)` returns *insufficient* (Projects is not analysis-capable), and "my biggest expenses this month" / "which transactions contributed most?" stay in `get_analysis` rather than `get_entity('finance','transaction')`. Classified: **(a)** Projects analysis-capability (missing — Projects has 1 current metric, below the ≥2 analysis threshold; making the projects overview compose its entities would let "how are my projects going" succeed); **(b)** a **ranked-entity** capability (missing — "the biggest N expenses" is not a single deterministic call today); **(c)** an analysis→entity drill-down behavior (the model's `get_analysis`-first instinct doesn't fall through to `get_entity` on a thin analysis). None is a defect in the shipped exposure (direct entity questions work); all three are follow-up capabilities. **First remaining meaningful limitation to a holistic view:** the analysis→entity drill-down for broad finance/project questions (the entity truth is now reachable and discoverable; the model does not yet consistently route a broad analytical question into it).
+
+---
+
 ## Appendix A — Runtime evidence log (reproducible)
 
 - **Path:** `CoSGateway.respond` → `ModelInterfaceRuntime` → `ModelInterfaceService.generate` → tool loop `AIService._call_api_with_tools` (`apps/ai/services.py:685`; model_interface budget `(7, 3500)` at `:89`; serial dispatch `:835`).

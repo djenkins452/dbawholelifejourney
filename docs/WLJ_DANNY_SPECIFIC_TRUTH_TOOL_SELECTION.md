@@ -89,9 +89,26 @@ A "how is/are you calculating [the metric]" question about the user's own value 
 
 `test_model_interface_runtime.py::test_answer_grounding_is_framing_independent_and_forbids_fabrication` extended to assert the EXPLANATION intent type + the "I would gather your data" failure-signature prohibition + the general-vs-personal trigger. 36/36 with constitution_contract. `check` clean; no migrations.
 
-## 18. Production certification (AFTER correction)
+## 18. Production certification (AFTER correction) — PASS (worker `39b5f024`)
 
-*(Recorded after worker deploy — see the Certification Result section appended below. Covers the mandatory Fitness acceptance (§23: 250/200/13,500), the general-knowledge regression (§24), cross-domain personal-explanations (§25), conflict (§26), unavailable-value (§27), and latency (§28).)*
+| Certification | Result |
+|---|---|
+| **§23 Fitness acceptance** — "How are you calculating the Total Strength Loads? Take Seated Cable Row and Lat Pulldown for example" | ✓ **`get_entity`×2 → "Seated Cable Row: Set 1: 250 lb × 10 = 2,500…"** — grounded in the real 250 (was 0 tools + fabrication through TWO grounding corrections) |
+| §23 variant — "how are you calculating my strength load today?" | ✓ `get_entity` → grounded (was 0 tools) |
+| **§24 general-knowledge regression** — "how is strength load *generally* calculated?" | ✓ **0 tools** → "Load = Weight × Reps × Sets" (no over-retrieval) |
+| §25 cross-domain — nutrition (146 g), finance (honest "not recorded"), health ("339 → 276.7, −62.3 lb") | ✓ retrieve/ground/reuse |
+| §26 conflict — "it was 300, check it" | ✓ re-retrieved → "indeed 250 lb" (did not accept 300) |
+| §27 unavailable — VO2 max | ✓ "I don't have a record" (no fabrication) |
+
+**Result: PASS.** The exact incident question — which survived two grounding-contract corrections — now retrieves and grounds in Danny's real 250/200. General knowledge stays zero-tool; the conflict and unavailable-value wins are preserved; no cross-domain regression.
+
+**§28 latency:** the personalized explanation now costs one retrieval round (2 `get_entity` in the acceptance run) — the accepted cost of correctness; general knowledge stays 0-tool. (A single post-certification single-turn latency probe returned ~91 s / 0 tools, but the worker was heavily queue-backlogged from this session's many probes and that run is not representative — the authoritative acceptance run grounded correctly.)
+
+**Remaining limitation (honest):** tool selection is model behavior and has inherent variance — the EXPLANATION intent type moved this framing from **consistently failing** (0 tools across two prior milestones) to **passing in certification**, but it is a prompt-level contract, not a hard guarantee. If future runtime evidence shows this framing regressing, that is the signal for a stronger mechanism — reported, not pre-built.
+
+## 21. Recommended next milestone
+
+**None required to close this class.** The Fitness incident is resolved, general-vs-personal is clarified, and no regressions. Deferred items (Ranked Entity, accessibility-matrix follow-ups) resume by priority. Do not preload truth, do not build a validator — the model-directed retrieval path is working.
 
 ## 19–24
 

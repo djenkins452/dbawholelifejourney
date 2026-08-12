@@ -140,6 +140,27 @@ class StandingContextTests(TestCase):
             "kind": "artifact", "ref": "art-123", "label": "scan.pdf", "turns_ago": 1}}})
         self.assertIn("get_entity (domain='artifacts')", lead)
 
+    def test_answer_grounding_is_framing_independent_and_forbids_fabrication(self):
+        # DANNY-SPECIFIC TRUTH GROUNDING CONTRACT (2026-08-12): the ANSWER GROUNDING rule must
+        # be framing-independent (a user-specific value is grounded the same way whether asked
+        # "what was it" or "how did you calculate it") and must forbid the fabrication modes the
+        # workout incident exposed — example-as-real-value, reverse-engineering to fit a total,
+        # and using the model's OWN prior prose as evidence. It must also PRESERVE reuse of
+        # already-grounded evidence and general knowledge (no over-retrieval).
+        from apps.ai.model_interface.constitution import CONSTITUTION
+        c = CONSTITUTION.lower()
+        self.assertIn("in every framing", c)                     # framing-independent
+        self.assertIn("how did you calculate it", c)             # explanation framing covered
+        self.assertIn("reverse-engineering", c)                  # the 498 mode
+        self.assertIn("your own earlier prose", c)               # own prose is not evidence
+        self.assertIn("wlj owns deterministic calculations", c)  # I.3 — don't recompute
+        self.assertIn("already-grounded evidence", c)            # reuse allowed (no over-retrieval)
+        self.assertIn("general knowledge", c)                    # general knowledge stays model-owned
+        # CONFLICT rule: a user challenge re-grounds, never auto-accepts, never invents a cause
+        self.assertIn("conflict signal", c)
+        self.assertIn("do not silently adopt the user's number", c)
+        self.assertIn("never invent a plausible reason", c)
+
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be
         # able to name the SAME one — they cannot contradict ("I can't see your to-do list")

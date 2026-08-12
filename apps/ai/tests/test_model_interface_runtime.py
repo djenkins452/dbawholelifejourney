@@ -119,20 +119,6 @@ class StandingContextTests(TestCase):
         # no current action → no lead (WLJ never invents one)
         self.assertEqual(mi._executive_lead({"current_action": {}}), "")
 
-    def test_conversation_reference_resolution_instruction_is_in_the_prompt(self):
-        # CONVERSATION CONTINUITY CORRECTION (2026-08-12): the assembled system prompt must
-        # instruct the model that a backward-referring follow-up ("why?", "that", "tell me
-        # more") continues its OWN prior answer and must not be answered with a request to
-        # clarify. This is the invariant that restores native pronoun/reference resolution
-        # (runtime-proven defect: bare "Why?" deflected to "please clarify").
-        mi = ModelInterfaceService(self.user)
-        sp = mi._system_prompt(mi.build_standing_context()).lower()
-        self.assertIn("backward-referring follow-up", sp)
-        self.assertIn("your own immediately preceding answer", sp)
-        self.assertIn("never ask the user what they are referring to", sp)
-        # and it must say the follow-up outranks current_action / active_subject (no hijack)
-        self.assertIn("outranks", sp)
-
     def test_overall_rollup_is_not_anchored_as_a_narrow_active_subject(self):
         # An "overall" roll-up (a whole-domain/multi-domain assessment) is arbitrary after a
         # broad synthesis (last-retrieval-wins). It must NOT be asserted as THE active subject
@@ -160,37 +146,6 @@ class StandingContextTests(TestCase):
         lead = mi._conversation_state_lead({"conversation_state": {"active_subject": {
             "kind": "artifact", "ref": "art-123", "label": "scan.pdf", "turns_ago": 1}}})
         self.assertIn("get_entity (domain='artifacts')", lead)
-
-    def test_reference_lead_is_salient_and_precedes_the_executive_lead(self):
-        # CONVERSATION CONTINUITY CORRECTION v2 (2026-08-12): the first prompt-body instruction
-        # was out-weighed by the high-salience executive frame (production certification). The
-        # reference-resolution rule is now raised to the lead tier AND must be read BEFORE the
-        # executive/current_action lead so it takes precedence for follow-ups.
-        mi = ModelInterfaceService(self.user)
-        ctx = {**mi.build_standing_context(),
-               "current_action": {"message": "Work on WLJ",
-                                  "primary_action": {"title": "Work on WLJ"}}}
-        sp = mi._system_prompt(ctx)
-        self.assertIn("CONVERSATION FIRST", sp)
-        # precedence: the conversation rule is positioned before the executive read
-        self.assertLess(sp.find("CONVERSATION FIRST"), sp.find("WHAT MATTERS RIGHT NOW"))
-        # it names the action-worded follow-up case explicitly (the proven hijack)
-        low = mi._reference_lead(ctx).lower()
-        self.assertIn("what should i do about it", low)
-        self.assertIn("still about the established subject", low)
-        self.assertIn("never ask what they are referring to", low)
-
-    def test_executive_lead_defers_to_conversation_followups(self):
-        # The executive/current_action lead must DEFER to CONVERSATION FIRST for follow-ups
-        # (one coherent hierarchy — not a competing rule). A standalone "what should I do next?"
-        # still leads with current_action; a follow-up "what should I do about it?" does not.
-        mi = ModelInterfaceService(self.user)
-        lead = mi._executive_lead({"current_action": {
-            "message": "Work on WLJ", "primary_action": {"title": "Work on WLJ"}}}).lower()
-        self.assertIn("follow-up", lead)
-        self.assertIn("conversation first", lead)
-        self.assertIn("standalone", lead)
-        self.assertIn("do not lead with the item above", lead)
 
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be

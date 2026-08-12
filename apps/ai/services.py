@@ -89,6 +89,18 @@ TOOL_LOOP_BUDGETS = {
     'model_interface': (7, 3500),
 }
 
+# INPUT-side token budget for the tool-loop prompt assembly (system + history + user),
+# passed to govern_prompt. The configured CoS/model-interface model is gpt-4o (128k
+# context window; config/settings.py COS_MODEL). The legacy default of 12,000 could not
+# fit the ~21k-token model-interface system prompt and was silently DELETING the whole
+# conversation history every turn (Conversation Continuity root cause, 2026-08-12). Sized
+# to hold the system prompt + the bounded 12-turn history window with wide margin, while
+# leaving ~64k of the 128k window for tool-round message growth (governance runs ONCE, at
+# assembly) + the final-answer allowance. Headroom, not a licence for unbounded growth —
+# history is already bounded by _HISTORY_LIMIT and protect_recent guarantees the immediate
+# turns survive regardless.
+TOOL_LOOP_GOVERN_BUDGET = 64000
+
 # Endpoints whose tool loop must NEVER return an empty final answer: an empty forced
 # final triggers ONE bounded, evidence-grounded synthesis retry, then the plain
 # fallback. Scoped deliberately — the ChatGPT-CoS path INTENTIONALLY surfaces an empty
@@ -747,10 +759,14 @@ class AIService:
         else:
             messages.append({"role": "user", "content": user_prompt})
 
-        # Reuse the same global token governor as _call_api.
+        # Token governor for the tool-loop assembly. The tool-loop prompt (system + history +
+        # user) is sized to the model's real context window, NOT the legacy 12k default — that
+        # default was smaller than the ~21k system prompt and silently deleted the conversation
+        # history every turn (Conversation Continuity root cause). An explicit budget wins over
+        # the setting; protect_recent guarantees the immediate turns are never trimmed.
         try:
             from apps.ai.conversation.token_governor import govern_prompt
-            messages, _ = govern_prompt(messages)
+            messages, _ = govern_prompt(messages, max_budget=TOOL_LOOP_GOVERN_BUDGET)
         except ImportError:
             pass
         except Exception as _gov_err:

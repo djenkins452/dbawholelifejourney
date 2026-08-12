@@ -45,15 +45,23 @@ class TokenReport:
 
 def govern_prompt(
     messages: List[Dict],
-    max_budget: int = 12000,
+    max_budget: int = None,
     ltrace=None,
+    protect_recent: int = 6,
 ) -> tuple:
     """
     Enforce a global token budget on the assembled prompt.
 
     Args:
         messages: Full OpenAI message list [system, ...history..., user]
-        max_budget: Maximum total prompt tokens allowed.
+        max_budget: Maximum total prompt tokens allowed. An EXPLICIT value WINS over the
+            WLJ_TOKEN_BUDGET_MAX setting (the model-interface tool loop sizes this to the
+            model's real context window — the legacy 12k default cannot fit the ~21k
+            model-interface system prompt and was silently deleting the conversation).
+            When None, falls back to the setting (legacy callers unchanged).
+        protect_recent: The most-recent conversation messages that are NEVER trimmed, so the
+            immediate conversational antecedent can never be destroyed (Conversation Continuity
+            root-cause fix, 2026-08-12). Phase 1 trims only OLDER history.
         ltrace: Optional LatencyTrace for recording governance decisions.
 
     Returns:
@@ -61,7 +69,9 @@ def govern_prompt(
     """
     from django.conf import settings
     enabled = getattr(settings, 'WLJ_TOKEN_BUDGET_ENABLED', False)
-    budget = getattr(settings, 'WLJ_TOKEN_BUDGET_MAX', max_budget)
+    # An explicit caller budget wins over the setting; else fall back to the setting/default.
+    budget = (max_budget if max_budget is not None
+              else getattr(settings, 'WLJ_TOKEN_BUDGET_MAX', 12000))
 
     report = TokenReport()
 
@@ -108,23 +118,31 @@ def govern_prompt(
         "TOKEN_GOVERNOR: over budget %d/%d, trimming", report.total, budget,
     )
 
-    # Phase 1: Trim conversation history (oldest first)
+    # Phase 1: Trim OLDER conversation history (oldest first) — but NEVER the most-recent
+    # `protect_recent` messages. Deleting the immediate antecedent is the exact condition that
+    # broke multi-turn continuity (the model received "system + bare user sentence" and could
+    # not resolve "why?"); it is eliminated structurally here, not just made rarer by budget.
     if len(messages) > 2:
         system_msg = messages[0]
         user_msg = messages[-1]
         history = list(messages[1:-1])
+        protected = history[-protect_recent:] if protect_recent > 0 else []
+        trimmable = history[:len(history) - len(protected)]
 
         current_total = report.total
-        while history and current_total > budget:
-            removed = history.pop(0)
+        while trimmable and current_total > budget:
+            removed = trimmable.pop(0)
             removed_tokens = estimate_message_tokens(removed)
             current_total -= removed_tokens
             history_tokens -= removed_tokens
 
         report.components['conversation_history'] = history_tokens
         report.total = current_total
-        report.trimmed.append('conversation_history')
+        if len(trimmable) < (len(messages) - 2 - len(protected)):
+            report.trimmed.append('conversation_history')
 
+        # Recent turns are always preserved; only older history may have been trimmed.
+        history = trimmable + protected
         messages = [system_msg] + history + [user_msg]
 
     # Phase 2: If still over budget after trimming all history,

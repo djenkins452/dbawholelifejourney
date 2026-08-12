@@ -92,10 +92,21 @@ An unsupported/insufficient `get_analysis` result read as "truth unavailable" an
 
 Entirely inside the Constitution. Strengthens I.2/I.4 (the model owns whether to keep investigating and the judgment), IV.4 (expose the alternative truth rather than inventing a capability/router), and IV.3 (reuse existing surfaces). It does **not** move reasoning into WLJ (no fallback call, no per-domain routing, no deterministic sufficiency/judgment), does not touch III.2, and adds no new authority. No Review.
 
-## 19. Production certification (AFTER correction)
+## 19. Production certification (AFTER correction) — PASS (worker `8c4371fe`)
 
-*(Recorded after worker deploy — see the Certification Result section appended below.)*
+| Probe | Before | After |
+|---|---|---|
+| Projects "How are my projects going?" | `get_analysis` → insufficient → **stop** | **`get_analysis` → `get_entity('projects','project')`** → grounded overview (Pool Project active/overdue; WLJ 98%; tasks/progress) — **drilled** |
+| Projects "Which needs most attention, why?" | — | 0 tools → reused evidence → "WLJ project — 4 of 204 tasks pending, overdue" (grounded judgment, no fabrication) |
+| Finance "Which transactions are responsible?" | `get_analysis` → **stops at summary** | **`get_analysis` → `get_entity('finance','transaction')`** → real transactions (Uber Eats $21.88/$39.78/$54.39) — **drilled** |
+| Relationships "how are my relationships / what makes you say that?" (control) | ✓ | ✓ `get_analysis` — no regression |
+| Costco "What did I spend at Costco?" (simple regression) | direct | `get_entity({contains:Costco})` — **1 tool, no wandering** |
+| "What should I do next?" (execution regression) | current_action | current_action — unaffected |
+
+**Result: PASS.** The controlled experiment (§11) is conclusive — with ONLY the result semantics + description corrected, the model now persists `get_analysis → get_entity → grounded answer` on both Projects and Finance, forms its own judgment ("needs most attention", "responsible transactions"), and does **not** wander on simple/execution questions. **Latency:** the 2-tool drill ("how are my projects going?") = ~7.1 s; the simple Costco question = ~4.8 s (1 tool) — same band as before; persistence adds one modest round only when the first result is insufficient, never on already-sufficient questions.
+
+**Definition-of-done answer — "When the Chief of Staff's first truth request is insufficient, can it intelligently continue investigating WLJ on its own?" — YES.** The runtime supported multiple rounds all along; the model could see the deeper truth; the "insufficient" semantics were misleading it (now fixed to point at the retrievable records); the tool description framed `get_analysis` as terminal (now clarified); no prompt guidance suppressed persistence; existing Project/Finance records are sufficient for the model to assess without any new deterministic capability; iterative retrieval costs ~one modest round; a small reusable platform correction was sufficient — no new deterministic judgment was needed.
 
 ## 20. Recommended next milestone
 
-Determined by the certification result. If the correction makes the model drill, the residual "ranked-entity" question ("my 5 biggest expenses" as one deterministic call) remains a legitimate *calculation* candidate — but only if runtime shows the model cannot reasonably rank a retrievable record set itself. Truth-first; reasoning stays with the model.
+**None required to close this class.** The residual **Ranked Entity** capability ("my 5 biggest expenses" / "longest-overdue tasks" as one deterministic call) remains a legitimate *reusable calculation* candidate — but the runtime now shows the model reasonably drills into and ranks a retrievable record set itself (Finance "which transactions are responsible?" surfaced the specific transactions), so it is a *latency/UX* optimization, not a correctness need. Defer it; keep certifying the truth foundation, not pre-building reasoning paths. The prior refreshed accessibility matrix (`WLJ_COS_TRUTH_ACCESS_ARCHITECTURE_INVESTIGATION.md`) determines any further exposure work.

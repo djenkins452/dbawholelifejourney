@@ -543,6 +543,33 @@ class ModelInterfaceService:
         )
 
     @staticmethod
+    def _reference_lead(standing_context: dict) -> str:
+        """Raise the CONVERSATIONAL PRECEDENCE rule to the salient lead tier: a follow-up that
+        refers back to what was just discussed is resolved from the conversation FIRST — before any
+        current_action / Current Context / active-subject lead. Runtime-proven (Conversation
+        Continuity Correction, 2026-08-12): the SAME rule placed low in the CONSTITUTION body was
+        out-weighed by the high-salience executive frame, so bare pronouns ("why?") deflected to
+        "please clarify" and action-worded follow-ups ("what should I do about it?") collapsed onto
+        current_action. Compact and GENERAL — no pronoun list to maintain, no new state; the model
+        already understands conversation, this only fixes PRECEDENCE. Placed immediately before the
+        executive lead, which defers to it. Always present (any turn may carry a follow-up)."""
+        return (
+            "\n\n=== CONVERSATION FIRST (precedence rule — apply before the leads below) ===\n"
+            "Resolve WHAT the user is referring to before deciding WHAT KIND of request it is. If "
+            "the current message naturally continues the conversation you were just having — a "
+            "short or elliptical follow-up (\"why?\", \"why that?\", \"tell me more\", \"which "
+            "one?\", \"is that getting worse?\", or even action-worded ones like \"what should I "
+            "do about it?\", \"which one should I focus on?\", \"what would improve that?\") — then "
+            "\"that / it / this / one\" refers to YOUR OWN immediately preceding answer and its "
+            "subject(s). Reason from it (retrieve deeper truth only if the explanation needs it), "
+            "and NEVER ask what they are referring to when your last turn supplies the referent. A "
+            "follow-up that contains action words is STILL about the established subject — do NOT "
+            "abandon it for an unrelated current action or page. The standalone-execution / "
+            "current_action / Current Context / active-subject guidance below applies ONLY when the "
+            "message genuinely starts a NEW request that does not refer back."
+        )
+
+    @staticmethod
     def _executive_lead(standing_context: dict) -> str:
         """Raise the salience of WLJ's deterministic EXECUTIVE READ — the single "what to do
         now" (`current_action`, from decision_authority) — so an EXECUTION / CHECK-IN request is
@@ -590,10 +617,16 @@ class ModelInterfaceService:
             "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read) ===\n"
             f"{body}\n"
             "This is WLJ's single most important EXECUTION item for the user right now — a "
-            "deterministic FACT (the next action), NOT a verdict on their whole life. How you use "
-            "it depends on what the user is actually asking; decide that yourself:\n"
-            "• EXECUTION / CHECK-IN — \"what should I do\", \"what should I do next\", \"what's "
-            "next\", \"what do I do now\", \"check in\", \"status\", \"where do things stand\", "
+            "deterministic FACT (the next action), NOT a verdict on their whole life. It leads "
+            "ONLY a STANDALONE question that starts a new thread. FIRST apply CONVERSATION FIRST "
+            "above: if the user's message is a FOLLOW-UP to what you were just discussing "
+            "(\"why?\", \"which part concerns you most?\", \"what should I do about it?\"), answer "
+            "about THAT established subject and do NOT lead with the item above — even when the "
+            "follow-up contains action words. Only for a genuinely standalone request does the "
+            "guidance below apply; decide which case it is yourself:\n"
+            "• EXECUTION / CHECK-IN (standalone) — \"what should I do now\", \"what should I do "
+            "next\", \"what's next\", \"what do I do now\", \"check in\", \"status\", \"where do "
+            "things stand\", "
             "\"brief me\", or a short reply continuing a check-in you just sent: you ALREADY KNOW "
             "the answer — LEAD with the item above and give ONE clear next action. NEVER ask them "
             "what to check in on, and NEVER ask them to name their own tasks — that hands your job "
@@ -634,6 +667,7 @@ class ModelInterfaceService:
             CONSTITUTION
             + self._attachment_lead(standing_context)
             + self._conversation_state_lead(standing_context)
+            + self._reference_lead(standing_context)
             + self._executive_lead(standing_context)
             + self._focus_lead(standing_context)
             + self._profile_lead(standing_context)

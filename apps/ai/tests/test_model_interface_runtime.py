@@ -161,6 +161,37 @@ class StandingContextTests(TestCase):
             "kind": "artifact", "ref": "art-123", "label": "scan.pdf", "turns_ago": 1}}})
         self.assertIn("get_entity (domain='artifacts')", lead)
 
+    def test_reference_lead_is_salient_and_precedes_the_executive_lead(self):
+        # CONVERSATION CONTINUITY CORRECTION v2 (2026-08-12): the first prompt-body instruction
+        # was out-weighed by the high-salience executive frame (production certification). The
+        # reference-resolution rule is now raised to the lead tier AND must be read BEFORE the
+        # executive/current_action lead so it takes precedence for follow-ups.
+        mi = ModelInterfaceService(self.user)
+        ctx = {**mi.build_standing_context(),
+               "current_action": {"message": "Work on WLJ",
+                                  "primary_action": {"title": "Work on WLJ"}}}
+        sp = mi._system_prompt(ctx)
+        self.assertIn("CONVERSATION FIRST", sp)
+        # precedence: the conversation rule is positioned before the executive read
+        self.assertLess(sp.find("CONVERSATION FIRST"), sp.find("WHAT MATTERS RIGHT NOW"))
+        # it names the action-worded follow-up case explicitly (the proven hijack)
+        low = mi._reference_lead(ctx).lower()
+        self.assertIn("what should i do about it", low)
+        self.assertIn("still about the established subject", low)
+        self.assertIn("never ask what they are referring to", low)
+
+    def test_executive_lead_defers_to_conversation_followups(self):
+        # The executive/current_action lead must DEFER to CONVERSATION FIRST for follow-ups
+        # (one coherent hierarchy — not a competing rule). A standalone "what should I do next?"
+        # still leads with current_action; a follow-up "what should I do about it?" does not.
+        mi = ModelInterfaceService(self.user)
+        lead = mi._executive_lead({"current_action": {
+            "message": "Work on WLJ", "primary_action": {"title": "Work on WLJ"}}}).lower()
+        self.assertIn("follow-up", lead)
+        self.assertIn("conversation first", lead)
+        self.assertIn("standalone", lead)
+        self.assertIn("do not lead with the item above", lead)
+
     def test_checkin_and_chat_surface_the_same_current_action_no_contradiction(self):
         # Blocker #4: the proactive check-in claims a high-priority action; the chat must be
         # able to name the SAME one — they cannot contradict ("I can't see your to-do list")

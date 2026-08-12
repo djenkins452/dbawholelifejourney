@@ -168,9 +168,12 @@ The assembler **owns nothing**; each field is pulled from its owner at its own f
 - `_attachment_lead` (`:457`) — files attached this turn ("do NOT ask to upload again").
 - `_conversation_state_lead` (`:354`) — pending confirmation → `resolve_pending_action`; active
   subject (metric → re-retrieve for new date; "it/that/why" follow-ups also refer to it — #12).
-- `_executive_lead` (`:501`) — **`current_action`**; LEAD with it on check-in/status/whole-life;
-  distinguishes check-in vs completeness ("what's left" → enumerate) vs "walk me through my day"
-  (tasks + calendar). *(Grown across #3, #6, #7, #9.)*
+- `_executive_lead` (`:526`) — **`current_action`**; LEAD with it on EXECUTION/check-in vs
+  completeness ("what's left" → enumerate) vs "walk me through my day" (tasks + calendar). A broad
+  EXECUTIVE ASSESSMENT / investigation question ("how am I doing", "where should I focus", "what am
+  I neglecting") is NOT collapsed onto `current_action` — it investigates across domains and
+  synthesizes (the model owns the verdict, I.4). *(Grown across #3, #6, #7, #9; Executive
+  Over-Steer Correction 2026-08-12 — `docs/WLJ_COS_MODEL_ON_TRUTH_ASSESSMENT.md`.)*
 - `_focus_lead` (`:237`) — on-screen object (inlines content; "answer from THIS, do not retrieve").
 - `_profile_lead` (`:278`) — nutrition targets / conditions / allergies as HARD CONSTRAINTS.
 - `_grounding_lead` (`:428`) — unconditional; restates GROUND-IT / READ-ENVELOPE / OWN-A-CONTRADICTION.

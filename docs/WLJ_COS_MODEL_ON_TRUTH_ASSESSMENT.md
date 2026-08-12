@@ -290,6 +290,37 @@ This is the smallest change that turns the runtime you already have — a strong
 
 ---
 
+## Post-correction certification (Executive Over-Steer Correction, 2026-08-12)
+
+**Change shipped:** `_executive_lead` narrowed (commit `f7c2da68`). The `current_action` LEAD now applies only to genuine EXECUTION / CHECK-IN / COMPLETENESS / DAY-BRIEFING intents; open-ended EXECUTIVE ASSESSMENT / INVESTIGATION questions are explicitly told the current action is *not* the answer and to investigate across the domains that matter and synthesize their own judgment. No other change (no `deterministic_understanding` rewrite, no new tool, no new subsystem).
+
+**Certified through the REAL production runtime** (`wlj-worker` on `f7c2da68`, `cos-run`, real gpt-4o). Same probe classes; `TOOLS` = actual recorded `tool_calls`.
+
+| Class | Question | Before (tools → answer) | After (tools → answer) |
+|---|---|---|---|
+| Execution | What should I do next? | — | **(none)** → "write in your journal." (current_action leads, no wasteful retrieval — preserved) |
+| Broad assessment | How am I doing? | (none) → "drink your protein shake." | **6× get_analysis** (life, health, finance, relationships, tasks, goals) → cross-domain synthesis: weight −8.8 lb but lean mass down / body-fat up, BP 138/87, A1C 6.2, sleep 5.6 h, income +122.2%, relationships need reconnect |
+| Drift | What am I neglecting? | (none) → "drink your protein shake." | **5× get_analysis** → "26 days since Heather, 31 since Haley; sleep 5.6 h; several 'someday' tasks" |
+| Health prioritization | I want to get healthier. Where should I focus? | (none) → "drink your protein shake." | **1× get_analysis(health)** → "sleep (5.6 h) and hydration (26.4 of 64 oz)" — grounded, specific |
+| Mission alignment | Am I actually making progress on what matters? | — | **5× get_analysis** → synthesized progress read across domains |
+| Open investigation | Is there anything I should be concerned about? | — | **5× get_analysis** (incl. journal) → surfaced the body-recomposition risk (lean −13.3 lb, fat +9.07 lb) |
+
+**Product acceptance (does it now feel like ChatGPT on top of Danny's WLJ truth?):** Yes, for broad questions. The model freely decides which domains matter, retrieves certified truth, crosses domains, forms its OWN verdict, and no longer collapses onto `current_action`. Execution ("what should I do next?") still correctly leads with the deterministic action. The model was not forced to a minimum tool count or a fixed recipe — it chose 1 call for a single-domain health-focus question and 5–6 for a whole-life question.
+
+### Phase 5 — reassessment (evidence, not action)
+
+1. **How much of the broad-question failure disappeared from the `_executive_lead` correction alone?** Essentially all of it. All three previously-failing probes ("how am I doing", "what am I neglecting", "where should I focus") now investigate across domains and synthesize. The single smallest correction closed the proven defect.
+2. **What still prevents whole-life Chief-of-Staff behavior?** Nothing large remains on broad questions. Two smaller, *separate* things are visible: (a) a **voice/format nuance** — the synthesized answers lean on numbered "1. Health 2. Finance…" sections, which is closer to the dashboard-ish shape the CONSTITUTION's EXECUTIVE ASSESSMENT section says to avoid ("ONE synthesized narrative… NEVER sections, a bullet per metric"); (b) **narrow accessibility gaps** (People has no history/trend, Finance no record-level entity, Projects near-blind — §5) that will surface on *specific* questions, not broad ones.
+3. **First REMAINING failing layer (evidence-supported)?** The proven defect is resolved. No *trust-breaking* failing layer is currently demonstrated on the tested probes. The strongest observable residual is **Layer 4 (Experience/voice)** — sectioned/listy output vs synthesized prose — which is a materially smaller trust issue than the over-steer and is a product-review question, not a proven architectural defect.
+4. **Does `deterministic_understanding` demonstrably constrain or contaminate the new runtime?** **No — not demonstrably.** In every post-correction probe the model grounded its answer on freshly-retrieved certified `get_analysis` truth (real numbers, cross-domain), not on heuristic verdicts. The predicted contamination did **not** materialize in the runtime once the over-steer was removed.
+5. **Are the pre-decided I.4 verdict fields (`primary_challenge`/`biggest_risk`/`priority`) influencing answers after the correction?** No observable evidence. The model formed its own verdicts from retrieved truth; the pre-decided fields did not appear as the answer.
+6. **Is truth accessibility itself the limiting factor anywhere?** Only on specific narrow questions (relationship *trend over time*, finance *transactions*, projects) — the §5 matrix gaps. Not on the broad questions.
+7. **Is another code change necessary at all?** **Not to close the proven defect.** The next candidates — voice/prose refinement, or the §5 accessibility gaps, or (only if later proven) `deterministic_understanding` grounding — each require their own product review + runtime evidence before any change. Per the milestone: report first, do not implement.
+
+**Standing conclusion:** This is the textbook outcome of "fix the first proven failing layer → recertify → inspect what remains." The `deterministic_understanding` rewrite the original assessment listed as step 2 is **not justified by current runtime evidence** — removing the over-steer alone restored model-on-truth behavior on broad questions. The next milestone is determined by *this* evidence, not by the original assessment's assumed sequence, and is Danny's/ChatGPT's call.
+
+---
+
 ## Appendix A — Runtime evidence log (reproducible)
 
 - **Path:** `CoSGateway.respond` → `ModelInterfaceRuntime.respond` → `ModelInterfaceService.generate` (`use_model_interface=True` for Danny; migrations 0088/0089).

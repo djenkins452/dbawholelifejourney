@@ -168,6 +168,43 @@ Deferred to the following milestone (unchanged): the truth-exposure gaps (Relati
 
 ---
 
+## Certification Result (2026-08-12, worker `6be6572d`) — the minimal fix was INSUFFICIENT
+
+The recommended smallest correction was implemented (CONSTITUTION precedence item 2 reference-resolution instruction + `_conversation_state_lead` analysis-branch fix) and certified through the real runtime. **It did not resolve the defect.** Reported honestly (results, not intentions).
+
+**Certifications A–F (bare-pronoun follow-ups still fail):**
+
+| Cert | Follow-up | Outcome |
+|---|---|---|
+| A | "Why do you think that?" | ✗ deflect ("clarify what you're referring to") |
+| A | "Which part concerns you most?" · "What should I do about it?" | ✗ hijacked → "write in your journal" (`current_action`) |
+| B | "Why?" | ✗ deflect |
+| B | "What should I focus on this week?" | ✗ hijacked → `current_action` |
+| C | "Tell me more about that." · "How long has that been happening?" | ✗ deflect |
+| D | "Is that getting worse?" | ✗ deflect |
+| E | "Which one concerns you more?" · "Why?" | ✗ deflect |
+| F | "What should I do next?" | ✓ `current_action` (correct) |
+
+Named follow-ups still work (A-T1 7×get_analysis; B-T2 "the biggest thing holding me back" 6×get_analysis; C-T1, D-T1, E-T1). The unit test confirms the instruction *is* in the assembled prompt — so it reached the model but was **out-weighed** at its low-salience position.
+
+**Step-9 answers (runtime-grounded):**
+1. **Solve broad multi-domain follow-ups?** No — bare pronouns still deflect.
+2. **Preserve single-subject follow-ups?** Yes — named follow-ups (broad and narrow) still work.
+3. **Preserve execution?** Yes — "what should I do next?" → `current_action`.
+4. **Deterministic context still hijacking?** Yes — `_executive_lead` hijacks action-phrased follow-ups to `current_action` (A-T3/T4, B-T4). Now proven a **co-cause**, not a deferrable residual.
+5. **Analysis-branch fix effect?** A genuine correctness fix (retained), but the deflection is not caused by that branch, so it did not move the needle alone.
+6. **Continuity comparable to ChatGPT?** No.
+7. **First remaining trust-breaking defect:** the bare-pronoun deflection persists **because the reference-resolution rule sits at low salience in the CONSTITUTION body while the high-salience `_executive_lead`/executive frame near the top dominates** — the exact salience dynamic the existing "leads" mechanism was invented to solve.
+8. **Another code change necessary?** Yes.
+
+**Reassessment — the "smallest prompt instruction buried in the constitution" hypothesis is FALSIFIED by runtime.** The over-scaffolding diagnosis (§1) stands and is reinforced: a low-salience instruction cannot override the high-salience deterministic frame. The corrected approach, both runtime-proven necessary:
+- **(a) Raise the reference-resolution rule to the high-salience lead tier** — a compact lead placed near the user's turn (the same mechanism `_focus_lead`/`_profile_lead`/`_grounding_lead` use to survive the ~60k-char prompt). This is a placement change of the *same* instruction, not new machinery, and still no Conversation State expansion.
+- **(b) The `_executive_lead` hijack is entangled with continuity** and can no longer be cleanly deferred — action-phrased reasoning follow-ups ("which part concerns you most", "what should I do about it") must resolve against the conversation, not collapse to `current_action`.
+
+Both are prompt-level, in-Constitution (I.4/IV.2), and reduce/reposition scaffolding rather than add systems. **Stopped per Step 9 to report before implementing (b) touches the `_executive_lead` this milestone was scoped to leave alone).**
+
+---
+
 ## Appendix A — Runtime evidence log (reproducible)
 
 - **Path:** `run_cos_acceptance_conversation` (`apps/core/tasks.py:94`) → `CoSGateway.respond` per turn → `ModelInterfaceRuntime` → `ModelInterfaceService.generate` (history via `load_conversation_history`, `service.py:62`; tool loop `services.py:685`).

@@ -170,12 +170,17 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         bucket = _classify_item(item)
         by_bucket.setdefault(bucket, []).append(item)
 
+    # Dashboard(date): a PAST day has no "now" bucket. Every block is treated as
+    # past → summary mode + actionable (mass-complete + per-item toggles stay
+    # live), so the user can complete the item they forgot for that day.
+    is_historical = execution_contract.get("is_today") is False
+
     try:
         now = get_user_now(user)
         current_hour = now.time().hour
     except Exception:
         current_hour = 12  # safe default
-    current_key = _current_rhythm_key(current_hour)
+    current_key = None if is_historical else _current_rhythm_key(current_hour)
 
     sections: list[dict] = []
     totals = {"total": 0, "completed": 0, "at_risk": 0, "overdue": 0}
@@ -218,11 +223,20 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         else:
             status = "pending"
 
-        is_current = bucket["key"] == current_key
         bucket_idx = _bucket_index(bucket["key"])
-        current_idx = _bucket_index(current_key)
-        is_past = bucket_idx < current_idx
-        is_future = not is_current and not is_past
+        if is_historical:
+            # Whole day is in the past → every block is a completed-day block:
+            # actionable, summary mode, no "current"/"future". current_idx is
+            # placed past every real bucket so nothing reads as current/next.
+            is_current = False
+            is_past = True
+            is_future = False
+            current_idx = len(RHYTHM_BUCKETS)
+        else:
+            is_current = bucket["key"] == current_key
+            current_idx = _bucket_index(current_key)
+            is_past = bucket_idx < current_idx
+            is_future = not is_current and not is_past
         # Decoupled from scheduled time: today's current + past blocks stay
         # completable until midnight (END_OF_DAY). Only future blocks are not.
         block_actionable = _block_actionable(is_future)
@@ -266,6 +280,9 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         # blocks show nothing for this slot (handled in the template).
         if is_current:
             open_label = "Still Open" if open_count else ""
+        elif is_past and is_historical:
+            # A prior calendar day: honest, not "today"-relative.
+            open_label = "Not completed" if open_count else ""
         elif is_past:
             # Encouraging, not punitive: the day is still open, so is the item.
             open_label = "Behind — still available today" if open_count else ""
@@ -332,6 +349,7 @@ def build_rhythm_sections(user, execution_contract: dict | None = None) -> dict:
         "preview_key": preview_key,
         "sections": sections,
         "totals": totals,
+        "is_historical": is_historical,
     }
 
 

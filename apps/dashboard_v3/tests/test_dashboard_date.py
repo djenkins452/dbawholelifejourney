@@ -142,3 +142,78 @@ class DashboardDateViewTests(_DashboardUserMixin, TestCase):
         self.assertEqual(resp.status_code, 200)
         html = resp.content.decode("utf-8", "ignore")
         self.assertIn('class="v3-gauges"', html)
+
+
+class HistoricalRhythmInteractionTests(_DashboardUserMixin, TestCase):
+    """THE primary acceptance scenario: a past day stays an operational workspace
+    — expand a routine, complete the forgotten item, it belongs to that day while
+    the completion timestamp stays now, and the card recalculates in place."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import time
+        from apps.life.models import Routine, RoutineSchedule
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Routine",
+            time_of_day="morning", is_active=True)
+        self.items = [
+            RoutineSchedule.objects.create(
+                routine=self.routine, name=n, scheduled_time=time(7, 0),
+                days_of_week="0,1,2,3,4,5,6", is_active=True)
+            for n in ["Prayer", "Make Bed", "Vitamins", "Stretch", "Review Goals"]
+        ]
+
+    def test_acceptance_complete_forgotten_item_on_yesterday(self):
+        from django.utils import timezone
+        from apps.core.execution.today_execution import build_today_execution
+        from apps.life.models import RoutineLog
+        from apps.life.services.routine_helpers import toggle_routine_completion
+
+        # Yesterday: 4 of 5 done, "Stretch" forgotten.
+        for item in self.items:
+            if item.name != "Stretch":
+                toggle_routine_completion(self.user, item, self.past)
+
+        contract = build_today_execution(self.user, self.past)
+        ritems = [i for i in contract["items"] if i["source_type"] == "routine_item"]
+        self.assertEqual(len(ritems), 5)
+        open_items = [i for i in ritems if not i["completed_today"]]
+        self.assertEqual([i["title"] for i in open_items], ["Stretch"])
+
+        # Complete the forgotten item FROM the historical dashboard endpoint,
+        # passing the viewed occurrence date.
+        stretch = next(i for i in self.items if i.name == "Stretch")
+        resp = self.client.post(
+            reverse("dashboard_v2:routine_schedule_toggle",
+                    kwargs={"schedule_id": stretch.id}),
+            data={"date": self.past.isoformat()})
+        self.assertIn(resp.status_code, (200, 204))
+
+        # Occurrence belongs to yesterday; completion timestamp stays TODAY.
+        log = RoutineLog.objects.get(schedule=stretch, scheduled_date=self.past)
+        self.assertIn(log.log_status, ("completed", "completed_late"))
+        self.assertEqual(log.completed_at.date(), self.today)  # not falsified to past
+
+        # Dashboard(yesterday) immediately recalculates to 5/5.
+        contract2 = build_today_execution(self.user, self.past)
+        r2 = [i for i in contract2["items"] if i["source_type"] == "routine_item"]
+        self.assertTrue(r2 and all(i["completed_today"] for i in r2))
+
+    def test_past_day_renders_interactive_rhythm_plus_summary(self):
+        from apps.life.services.routine_helpers import toggle_routine_completion
+        toggle_routine_completion(self.user, self.items[0], self.past)
+
+        resp = self.client.get(
+            reverse("dashboard_v3:home") + f"?date={self.past.isoformat()}")
+        html = resp.content.decode("utf-8", "ignore")
+        # The rhythm (interactive workspace) renders on a past day, with real
+        # per-item completion buttons (not just the JS handler string) …
+        self.assertIn("v3-rhythm-section", html)
+        self.assertIn("v3-ritem-glyph-btn", html)  # an actual open-item toggle button
+        self.assertIn("Make Bed", html)             # individual routine items are shown
+        # … completion POSTs are stamped with the viewed occurrence date …
+        self.assertIn(f'data-view-date="{self.past.isoformat()}"', html)
+        # … and the Daily Review summary is ALSO present (secondary, not a replacement).
+        self.assertIn('<section class="v3-review"', html)
+        # LIVE cockpit stays hidden.
+        self.assertNotIn('class="v3-gauges"', html)

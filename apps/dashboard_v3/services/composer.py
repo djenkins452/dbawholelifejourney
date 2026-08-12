@@ -92,19 +92,35 @@ def build_dashboard_v3_context(user, view_date=None) -> dict[str, Any]:
     is_today = (view_date == user_today)
 
     if not is_today:
-        # PAST day → the DATE-SCOPED Daily Review only. LIVE cards are omitted;
-        # the template's is_today gate hides them (they have no historical form).
-        try:
-            from apps.dashboard_v3.services.daily_review import build_daily_review
-            daily_review = build_daily_review(user, view_date)
-        except Exception:
-            logger.warning("v3: daily_review build failed", exc_info=True)
-            daily_review = {}
-        return {
+        # PAST day → the Dashboard OPERATES against view_date: the DATE_SCOPED
+        # rhythm is reconstructed for that day and stays INTERACTIVE (expand a
+        # routine, complete the item that was forgotten — the tile posts the same
+        # canonical action stamped with the occurrence date). The Daily Review is
+        # a SECONDARY summary within the workspace, not a replacement. LIVE cards
+        # (executive summary, mission, cockpit, weather) are omitted — the
+        # template's is_today gate hides them; they have no historical form.
+        context: dict[str, Any] = {
             "is_today": False,
             "view_date": view_date,
-            "daily_review": daily_review,
         }
+        # One date-D execution contract feeds BOTH the interactive rhythm and the
+        # Daily Review summary — same truth, no second producer.
+        exec_contract = None
+        try:
+            from apps.core.execution.today_execution import build_today_execution
+            exec_contract = build_today_execution(user, view_date)
+        except Exception:
+            logger.warning("v3: date-D execution contract failed", exc_info=True)
+        context["rhythm"] = _safe(
+            _build_rhythm, user, execution_contract=exec_contract,
+            default={"sections": [], "totals": {}})
+        try:
+            from apps.dashboard_v3.services.daily_review import build_daily_review
+            context["daily_review"] = build_daily_review(user, view_date)
+        except Exception:
+            logger.warning("v3: daily_review build failed", exc_info=True)
+            context["daily_review"] = {}
+        return context
 
     # ── Phase 3: bootstrap SAE for brand-new users (one-shot). ──
     # Downstream gauge readers use allow_rebuild=False (Phase 3 read-

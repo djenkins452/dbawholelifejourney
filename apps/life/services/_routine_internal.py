@@ -20,11 +20,20 @@ from apps.core.utils import get_user_now, get_user_today
 logger = logging.getLogger(__name__)
 
 
-def get_todays_routine_items(user):
+def get_todays_routine_items(user, target_date=None):
     """
-    Collect today's routine schedule items for a user, grouped by time window.
+    Collect a day's routine schedule items for a user, grouped by time window.
 
-    INTERNAL — called by build_routine_state() only.
+    ``target_date`` selects the day; ``None`` = today (unchanged behavior). A PAST
+    day is reconstructed identically EXCEPT there is no live-clock lateness: an
+    un-logged item is simply 'pending' (open/actionable), never 'overdue'/'missed'
+    (those are today-relative). Completion state for the day comes from the
+    RoutineLog rows whose ``scheduled_date`` is the target day — the same
+    occurrence truth the completion action writes. This is what lets a past-day
+    dashboard render the SAME interactive routine items and complete the one that
+    was forgotten (Dashboard(date)).
+
+    INTERNAL — called by build_routine_state() and the execution contract.
 
     Returns:
         dict with keys:
@@ -40,9 +49,11 @@ def get_todays_routine_items(user):
     from apps.life.models import Routine, RoutineLog
 
     user_today = get_user_today(user)
+    target_date = target_date or user_today
+    _is_today = (target_date == user_today)
     user_now = get_user_now(user)
     current_time = user_now.time()
-    weekday = user_today.weekday()  # 0=Monday
+    weekday = target_date.weekday()  # 0=Monday
 
     active_routines = Routine.objects.filter(
         user=user, is_active=True,
@@ -65,7 +76,7 @@ def get_todays_routine_items(user):
     for routine in active_routines:
         for item in routine.items.filter(is_active=True):
             if item.specific_date:
-                if item.specific_date != user_today:
+                if item.specific_date != target_date:
                     continue
             elif not item.applies_to_day(weekday):
                 continue
@@ -74,7 +85,7 @@ def get_todays_routine_items(user):
     schedule_ids = [item.id for _, item in today_items]
     logs = RoutineLog.objects.filter(
         schedule_id__in=schedule_ids,
-        scheduled_date=user_today,
+        scheduled_date=target_date,
     )
     log_by_schedule = {log.schedule_id: log for log in logs}
 
@@ -178,6 +189,11 @@ def get_todays_routine_items(user):
                 status = 'rescheduled'
             else:
                 status = 'pending'
+        elif not _is_today:
+            # PAST day: no live-clock lateness. An un-logged item is simply open
+            # (actionable) so it can be completed for the day it belongs to;
+            # 'overdue'/'missed' are today-relative and never apply to history.
+            status = 'pending'
         else:
             # Grace-aware overdue detection via centralized function
             result = classify_time_status(

@@ -173,11 +173,12 @@ class RoutineSingleDefinitionContractTests(TestCase):
         self.assertEqual(result.created_object.get('model'), 'RoutineSchedule')
 
     def test_execution_reader_excludes_is_routine_tasks(self):
-        # Both the overdue and due-today task collectors must drop is_routine tasks so a
-        # legacy Task twin can never double-show alongside a RoutineSchedule occurrence.
+        # EVERY task loop must drop is_routine tasks so a legacy Task twin can never
+        # double-show alongside a RoutineSchedule occurrence — the completed loop as
+        # well as the overdue + due-today loops (all three are read-time dedup).
         import inspect
         from apps.core.execution import today_execution
         src = inspect.getsource(today_execution._collect_task_items)
-        # Two guards — one per loop (overdue + due_today).
-        self.assertEqual(src.count("if t.is_routine:"), 2,
-                         "both task loops must exclude is_routine (read-time dedup)")
+        # Three guards — completed-due-on + overdue + due_today.
+        self.assertEqual(src.count("if t.is_routine:"), 3,
+                         "every task loop must exclude is_routine (read-time dedup)")

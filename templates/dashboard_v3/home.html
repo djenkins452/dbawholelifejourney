@@ -149,7 +149,8 @@ together, so a cached stylesheet against new markup renders a broken dashboard
       instant (optimistic); the true server state swaps in async.
     {% endcomment %}
     <div id="v3-live"
-         hx-get="{% url 'dashboard_v3:section_live' %}"
+         {% if not is_today %}data-view-date="{{ view_date|date:'Y-m-d' }}"{% endif %}
+         hx-get="{% url 'dashboard_v3:section_live' %}{% if not is_today %}?date={{ view_date|date:'Y-m-d' }}{% endif %}"
          hx-trigger="dashboard:completed from:body"
          hx-swap="innerHTML">
         {% include "dashboard_v3/sections/_live.html" with v3=v3 %}
@@ -395,6 +396,14 @@ together, so a cached stylesheet against new markup renders a broken dashboard
         if (trig.hasAttribute('data-v3-toggle')
             || trig.hasAttribute('data-v3-partial')) {
             evt.detail.headers['X-V3-Toggle'] = '1';
+            // Dashboard(date): when viewing a past day, stamp the OCCURRENCE date
+            // onto every completion POST so the canonical action records against
+            // the day being viewed (scheduled_date = view_date) while the
+            // timestamp stays "now". ONE injection covers every tile + group
+            // button; today sends nothing (data-view-date absent → today).
+            var live = document.getElementById('v3-live');
+            var vd = live && live.getAttribute('data-view-date');
+            if (vd) { evt.detail.parameters['date'] = vd; }
         }
     });
 

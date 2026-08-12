@@ -1,6 +1,6 @@
 <section class="v3-rhythm-section">
     <header class="v3-section-head">
-        <h2 class="v3-h2">Today's Rhythm</h2>
+        <h2 class="v3-h2">{% if rhythm.is_historical %}Rhythm{% else %}Today's Rhythm{% endif %}</h2>
         {% if rhythm.totals.total %}
             <span class="v3-rhythm-grand">
                 {{ rhythm.totals.completed }}/{{ rhythm.totals.total }} complete

@@ -32,22 +32,33 @@ from apps.core.utils import classify_time_status, get_user_now, get_user_today
 logger = logging.getLogger(__name__)
 
 
-def build_today_execution(user):
+def build_today_execution(user, target_date=None):
     """
-    Build the authoritative execution contract for today.
+    Build the authoritative execution contract for a day.
+
+    ``target_date`` selects the day; ``None`` = today (unchanged behavior — the
+    single SAE/CoS/decision-authority producer). A PAST day is reconstructed from
+    the SAME date-aware authorities (``get_execution_truth``, ``TaskQueries``,
+    ``get_todays_routine_items``, per-date dose enumeration) so the dashboard can
+    OPERATE against that day — the items keep their normal ``toggle_url`` and the
+    caller stamps the occurrence date onto the completion POST. For a past day the
+    today-relative lateness annotation (execution_status/urgency badges) is skipped
+    — an item is simply completed or open.
 
     Returns:
         dict with 'items' (atomic ExecutionItem dicts) and 'summaries'.
     """
     user_now = get_user_now(user)
     user_today = get_user_today(user)
+    target_date = target_date or user_today
+    _is_today = (target_date == user_today)
 
     # Fetch execution truth once — used for dependency gating (routine + domain
     # prerequisites resolve via truth) and for domain summaries further below.
     # Kept as a single call to avoid redundant work.
     try:
         from apps.core.execution.execution_truth_engine import get_execution_truth
-        truth = get_execution_truth(user, user_today)
+        truth = get_execution_truth(user, target_date)
     except Exception:
         logger.warning(
             "Execution contract: truth fetch failed (gating will fail open)",
@@ -65,7 +76,8 @@ def build_today_execution(user):
 
     # ── Tasks (overdue + due today, excluding legacy routine tasks) ──
     try:
-        items.extend(_collect_task_items(user, user_now, user_today, truth))
+        items.extend(_collect_task_items(
+            user, user_now, target_date, truth, is_today=_is_today))
     except Exception:
         logger.warning("Execution contract: task collection failed", exc_info=True)
 
@@ -79,25 +91,26 @@ def build_today_execution(user):
     except Exception:
         pass
 
-    # ── Routine items (applicable for today) ──
+    # ── Routine items (applicable for the day) ──
     try:
-        routine_items, routine_summaries = _collect_routine_items(user, user_now, user_today)
+        routine_items, routine_summaries = _collect_routine_items(user, user_now, target_date)
         items.extend(routine_items)
         summaries['routines'] = routine_summaries
     except Exception:
         logger.warning("Execution contract: routine collection failed", exc_info=True)
 
-    # ── Medication doses (due today) ──
+    # ── Medication doses (due on the day) ──
     try:
-        med_items, med_summaries = _collect_medication_items(user, user_now, user_today)
+        med_items, med_summaries = _collect_medication_items(
+            user, user_now, target_date, is_today=_is_today)
         items.extend(med_items)
         summaries['medications'] = med_summaries
     except Exception:
         logger.warning("Execution contract: medication collection failed", exc_info=True)
 
-    # ── Domain summaries (explicit today-truth only) ──
+    # ── Domain summaries (explicit day-truth only) ──
     try:
-        summaries['domains'], summaries['expected'] = _collect_domain_summaries(user, user_today)
+        summaries['domains'], summaries['expected'] = _collect_domain_summaries(user, target_date)
     except Exception:
         logger.warning("Execution contract: domain summary failed", exc_info=True)
 
@@ -118,29 +131,41 @@ def build_today_execution(user):
     # of truth — selectors, recovery state, and block eligibility all
     # read this field instead of re-deriving lateness themselves. Must
     # run AFTER task_classifier.annotate (depends on task_class).
-    try:
-        from apps.core.execution.execution_status import (
-            annotate_execution_status,
-        )
-        for it in items:
-            annotate_execution_status(it, user_now)
-    except Exception:
-        logger.warning(
-            "Execution contract: execution_status annotation failed",
-            exc_info=True,
-        )
+    # Live-clock lateness only applies to TODAY. On a past day an item is simply
+    # completed or open — no ON_TIME/LATE/AT_RISK/EXPIRED against the current
+    # clock (those badges would falsely paint history), so skip the annotation.
+    if _is_today:
+        try:
+            from apps.core.execution.execution_status import (
+                annotate_execution_status,
+            )
+            for it in items:
+                annotate_execution_status(it, user_now)
+        except Exception:
+            logger.warning(
+                "Execution contract: execution_status annotation failed",
+                exc_info=True,
+            )
 
     return {
         'items': items,
         'summaries': summaries,
+        'target_date': target_date,
+        'is_today': _is_today,
     }
 
 
 # ── Item Collectors ──────────────────────────────────────────────
 
 
-def _collect_task_items(user, user_now, user_today, truth=None):
-    """Collect overdue + today tasks as ExecutionItems.
+def _collect_task_items(user, user_now, user_today, truth=None, is_today=True):
+    """Collect a day's tasks as ExecutionItems.
+
+    ``user_today`` here is the TARGET day. On TODAY: overdue backlog + tasks due
+    today + completed-due-today. On a PAST day: only the tasks whose occurrence
+    (due_date) IS that day, split completed/open — a prior-day backlog is not part
+    of "what belonged to that calendar day", and completing a past task keeps its
+    due_date as the occurrence while stamping completed_at=now.
 
     Dependency-blocked tasks are excluded via the shared is_task_blocked()
     helper so they never enter the execution contract — and therefore never
@@ -173,16 +198,18 @@ def _collect_task_items(user, user_now, user_today, truth=None):
         items.append(_task_to_item(t, None, 'completed', completed_today=True))
         completed_titles.add(_ident(t.title))
 
-    # Overdue tasks (pending, due_date < today)
-    for t in TaskQueries.overdue(user, as_of=user_today)[:25]:
-        if t.is_routine:
-            continue  # Legacy routine tasks excluded — canonical routines are the
-            # single source (dedup dual-defined routine/task twins at read time).
-        if is_task_blocked(t, truth):
-            continue
-        ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
-                                  grace_minutes=getattr(t, 'grace_minutes', 0))
-        items.append(_task_to_item(t, ts, 'overdue', completed_today=False))
+    # Overdue backlog is TODAY-only — a past day shows only its own occurrences.
+    if is_today:
+        # Overdue tasks (pending, due_date < today)
+        for t in TaskQueries.overdue(user, as_of=user_today)[:25]:
+            if t.is_routine:
+                continue  # Legacy routine tasks excluded — canonical routines are the
+                # single source (dedup dual-defined routine/task twins at read time).
+            if is_task_blocked(t, truth):
+                continue
+            ts = classify_time_status(t.due_date, t.scheduled_time, user_now,
+                                      grace_minutes=getattr(t, 'grace_minutes', 0))
+            items.append(_task_to_item(t, ts, 'overdue', completed_today=False))
 
     # Today tasks (pending, due_date == today)
     for t in TaskQueries.due_today(user, as_of=user_today)[:25]:
@@ -254,11 +281,11 @@ def _task_to_item(task, time_result, time_status, completed_today=False):
     }
 
 
-def _collect_routine_items(user, user_now, user_today):
-    """Collect today's routine items as ExecutionItems + routine summaries."""
+def _collect_routine_items(user, user_now, target_date):
+    """Collect a day's routine items as ExecutionItems + routine summaries."""
     from apps.life.services._routine_internal import get_todays_routine_items
 
-    result = get_todays_routine_items(user)
+    result = get_todays_routine_items(user, target_date)
     items = []
     routine_summaries = result.get('routine_completion', {})
 
@@ -286,7 +313,7 @@ def _collect_routine_items(user, user_now, user_today):
             # For rescheduled items: classify against the new time
             if status == 'rescheduled':
                 ts = classify_time_status(
-                    user_today, sched_time_obj, user_now,
+                    target_date, sched_time_obj, user_now,
                     grace_minutes=0,
                 )
                 # Rescheduled items stay actionable until day close
@@ -296,7 +323,7 @@ def _collect_routine_items(user, user_now, user_today):
                 time_status = 'overdue'
             else:
                 ts = classify_time_status(
-                    user_today, sched_time_obj, user_now,
+                    target_date, sched_time_obj, user_now,
                     grace_minutes=0,
                 )
                 time_status = ts['status']
@@ -370,13 +397,56 @@ def _normalize_time_to_24h(time_str):
     return None
 
 
-def _collect_medication_items(user, user_now, user_today):
-    """Collect today's medication dose instances as ExecutionItems + window summaries."""
-    from apps.core.ai_state.state_builder import build_medicine_state
+def _schedule_status_for_date(user, target_date):
+    """Per-dose medication status for a PAST day, mirroring build_medicine_state's
+    `schedule_status_today` shape but keyed on the target day's RoutineLog-equivalent
+    IntakeLog rows. No live-clock lateness — a dose is 'taken' or 'upcoming' (open),
+    so the tile can complete the one that was forgotten. Same occurrence truth the
+    date-aware completion action writes (IntakeLog.scheduled_date == target_date)."""
+    from apps.health.models import Intake, IntakeLog
+
+    active_meds = (Intake.objects.filter(
+        user=user, intake_status=Intake.STATUS_ACTIVE)
+        .prefetch_related('schedules'))
+    logs = IntakeLog.objects.filter(
+        intake__user=user, scheduled_date=target_date,
+    ).select_related('intake', 'schedule')
+    log_index = {(log.intake_id, log.schedule_id): log for log in logs}
+
+    weekday = target_date.weekday()
+    schedule_status = []
+    for med in active_meds:
+        for sched in med.schedules.filter(is_active=True):
+            if not sched.applies_to_day(weekday):
+                continue
+            log = log_index.get((med.id, sched.id))
+            taken = bool(log and log.log_status in ('taken', 'late'))
+            schedule_status.append({
+                'medicine_name': med.name,
+                'medicine_id': med.id,
+                'schedule_id': sched.id,
+                'scheduled_time': (
+                    sched.scheduled_time.strftime('%I:%M %p').lstrip('0')
+                    if sched.scheduled_time else None),
+                'window_label': sched.time_of_day or '',
+                'status': 'taken' if taken else 'upcoming',
+                'log_time': None,
+                'required_today': True,
+                'intake_type': med.intake_type,
+                'priority': med.priority,
+            })
+    return schedule_status
+
+
+def _collect_medication_items(user, user_now, target_date, is_today=True):
+    """Collect a day's medication dose instances as ExecutionItems + window summaries."""
     from apps.core.time_windows import WINDOW_DISPLAY_NAMES
 
-    med_state = build_medicine_state(user)
-    schedule_status = med_state.get('schedule_status_today', [])
+    if is_today:
+        from apps.core.ai_state.state_builder import build_medicine_state
+        schedule_status = build_medicine_state(user).get('schedule_status_today', [])
+    else:
+        schedule_status = _schedule_status_for_date(user, target_date)
     items = []
     window_summaries = {}
 

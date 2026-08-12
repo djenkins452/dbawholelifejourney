@@ -750,6 +750,31 @@ def _render_action_center(request):
         return HttpResponse(html)
 
 
+def _occurrence_date(request, user):
+    """The occurrence date a dashboard completion applies to — Dashboard(date).
+
+    Reads an optional POST ``date`` (the day the user is viewing) and returns it
+    as the occurrence day, defaulting to today and NEVER accepting a future date
+    (the historical dashboard is retrospective). The completion TIMESTAMP always
+    stays "now" at the call site — only the occurrence (scheduled_date / due_date)
+    moves to the viewed day, so history is never falsified. Invalid input falls
+    back to today (fail-safe: worst case is a today write, never a wrong past one).
+    """
+    import datetime as _dt
+
+    from apps.core.utils import get_user_today
+    today = get_user_today(user)
+    raw = (request.POST.get("date") or "").strip()
+    if raw:
+        try:
+            d = _dt.date.fromisoformat(raw)
+            if d <= today:
+                return d
+        except (ValueError, TypeError):
+            pass
+    return today
+
+
 class TaskToggleAction(LoginRequiredMixin, View):
     """HTMX POST endpoint to toggle task completion from dashboard."""
 
@@ -792,19 +817,23 @@ class IntakeLogAction(LoginRequiredMixin, View):
             pk=schedule_id,
             intake__user=request.user,
         )
-        today = get_user_today(request.user)
+        # Dashboard(date): occurrence day (viewed date). scheduled_date is the
+        # occurrence; mark_taken() stamps taken_at = now (honest — never
+        # back-dated), so a past dose reads as taken on the day it belongs to
+        # while the real recording time is preserved.
+        target_date = _occurrence_date(request, request.user)
         medicine = schedule.intake
 
-        # Validate schedule applies to today
-        if not schedule.applies_to_day(today.weekday()):
+        # Validate schedule applies to the occurrence day
+        if not schedule.applies_to_day(target_date.weekday()):
             return _render_action_center(request)
 
-        # Check if already logged
+        # Check if already logged for that day
         existing = IntakeLog.objects.filter(
             user=request.user,
             intake=medicine,
             schedule=schedule,
-            scheduled_date=today,
+            scheduled_date=target_date,
             log_status__in=["taken", "late"],
         ).first()
 
@@ -820,7 +849,7 @@ class IntakeLogAction(LoginRequiredMixin, View):
                 user=request.user,
                 intake=medicine,
                 schedule=schedule,
-                scheduled_date=today,
+                scheduled_date=target_date,
                 defaults={
                     "scheduled_time": schedule.scheduled_time,
                     "is_prn_dose": False,
@@ -881,8 +910,12 @@ class RoutineScheduleToggleAction(LoginRequiredMixin, View):
             routine__user=request.user,
         )
 
-        today = get_user_today(request.user)
-        result = toggle_routine_completion(request.user, schedule, today)
+        # Dashboard(date): the occurrence day (viewed date), NOT necessarily today.
+        # toggle_routine_completion already records this honestly — scheduled_date
+        # = target_date, performed_at anchored to that day, completed_at = now,
+        # is_user_corrected flagged for a past day.
+        target_date = _occurrence_date(request, request.user)
+        result = toggle_routine_completion(request.user, schedule, target_date)
 
         # Defensive: the helper currently returns plain status dicts for
         # every successful path, but any future blocking condition that
@@ -957,7 +990,10 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
         from apps.core.events.domain_events import EventTypes, safe_emit_event
         from apps.health.models import Intake, IntakeLog, IntakeSchedule
 
-        today = get_user_today(request.user)
+        # Dashboard(date): occurrence day (viewed date). Every dose in the group is
+        # logged against scheduled_date = target_date; mark_taken() stamps the real
+        # "now" as taken_at (never back-dated).
+        target_date = _occurrence_date(request, request.user)
 
         # Whitelist kind + action to keep the URL surface tight.
         if kind is not None and kind not in ("medication", "supplement"):
@@ -982,8 +1018,8 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
             .select_related("intake")
         )
 
-        # Filter to schedules that apply today (day-of-week check)
-        applicable = [s for s in schedules if s.applies_to_day(today.weekday())]
+        # Filter to schedules that apply on the occurrence day (day-of-week check)
+        applicable = [s for s in schedules if s.applies_to_day(target_date.weekday())]
 
         if not applicable:
             return _render_action_center(request)
@@ -994,7 +1030,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
         today_logs = set(
             IntakeLog.objects.filter(
                 user=request.user,
-                scheduled_date=today,
+                scheduled_date=target_date,
                 log_status__in=["taken", "late"],
                 schedule_id__in=applicable_pks,
             ).values_list("schedule_id", flat=True)
@@ -1016,7 +1052,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
             # Undo: delete logs and restore supply
             logs_to_delete = IntakeLog.objects.filter(
                 user=request.user,
-                scheduled_date=today,
+                scheduled_date=target_date,
                 log_status__in=["taken", "late"],
                 schedule_id__in=applicable_pks,
             ).select_related("intake")
@@ -1040,7 +1076,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
                 existing_log = IntakeLog.objects.filter(
                     intake=schedule.intake,
                     schedule=schedule,
-                    scheduled_date=today,
+                    scheduled_date=target_date,
                 ).first()
 
                 if existing_log and existing_log.log_status in [
@@ -1055,7 +1091,7 @@ class IntakeGroupLogAction(LoginRequiredMixin, View):
                     user=request.user,
                     intake=schedule.intake,
                     schedule=schedule,
-                    scheduled_date=today,
+                    scheduled_date=target_date,
                     defaults={
                         "scheduled_time": schedule.scheduled_time,
                         "is_prn_dose": False,

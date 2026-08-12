@@ -31,9 +31,12 @@ today; they are never reconstructed for a past date.
 {% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
 {% else %}
 {% comment %}
-PAST DAY → the DATE-SCOPED Daily Review, reconstructed from deterministic truth
-for that day. No LIVE cards, no snapshots, no fabricated "as-of" insights — just
-what actually belonged to that calendar day.
+PAST DAY → the Dashboard OPERATES against the viewed date. The rhythm is
+reconstructed for that day and stays INTERACTIVE (expand a routine, complete the
+forgotten item — same canonical action, stamped with the occurrence date). The
+Daily Review is a SECONDARY summary within the workspace. No LIVE cards, no
+snapshots, no fabricated "as-of" insights.
 {% endcomment %}
+{% include "dashboard_v3/sections/rhythm.html" with rhythm=v3.rhythm %}
 {% include "dashboard_v3/sections/daily_review.html" with review=v3.daily_review view_date=v3.view_date %}
 {% endif %}

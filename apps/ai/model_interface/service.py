@@ -363,9 +363,10 @@ class ModelInterfaceService:
             pend = standing_context.get("pending_confirmations") or []
             cs = standing_context.get("conversation_state") or {}
             subj = cs.get("active_subject") or {}
+            guided = cs.get("guided_review") or {}
         except Exception:
             return ""
-        if not pend and not subj.get("ref"):
+        if not pend and not subj.get("ref") and not guided.get("current"):
             return ""
         parts = ["\n\n=== ACTIVE CONVERSATION STATE (what we're doing / waiting on — check "
                  "BEFORE page context for follow-ups and short replies) ==="]
@@ -423,6 +424,29 @@ class ModelInterfaceService:
                     "explicitly asks about the page/screen. To see or re-check it, retrieve it "
                     "with get_entity (domain='artifacts' for an uploaded file). Do NOT let an "
                     "unrelated page's Current Context replace this active subject.")
+        if guided.get("current"):
+            cur = guided.get("current") or {}
+            gday = guided.get("relative") or guided.get("day") or "that day"
+            gkind = cur.get("kind") or "item"
+            gtitle = cur.get("title") or "the item"
+            gstate = cur.get("completion_state") or ""
+            detail = f" (currently {gstate})" if gstate and gstate != "incomplete" else ""
+            parts.append(
+                f"AWAITING THE USER'S ANSWER — GUIDED EXECUTION REVIEW of {gday}: you asked "
+                f"whether they completed \"{gtitle}\" ({gkind}){detail}. Their reply ANSWERS "
+                f"THIS QUESTION — it is NOT an orphaned confirmation and there is nothing to "
+                f"'clarify'. Interpret it and act:\n"
+                f"  • yes / \"I did\" / \"finished it\" → call complete_execution_item(kind="
+                f"\"{gkind}\", title=\"{gtitle}\", day=\"{gday}\"), THEN call next_review_item("
+                f"day=\"{gday}\") to move to the next item.\n"
+                f"  • no / \"didn't\" / \"I don't remember\" → do NOT record; call "
+                f"next_review_item(day=\"{gday}\") to move on.\n"
+                f"  • partially / only a specific part → record what genuinely applies (or ask "
+                f"ONE brief clarifier), then next_review_item(day=\"{gday}\").\n"
+                f"  • stop / \"that's enough\" → call next_review_item(day=\"{gday}\", stop=true).\n"
+                f"When next_review_item returns status 'reconciled', tell them {gday} is fully "
+                f"reconciled. You OWN this review until every item is handled or they stop — "
+                f"never make the user ask for the next item.")
         return "\n".join(parts)
 
     @staticmethod
@@ -684,7 +708,7 @@ class ModelInterfaceService:
 
     # -- tool dispatch --------------------------------------------------------
     def _make_dispatch(self, *, turn_id, surface, tools_called, observer=None,
-                       turn_capture=None, conversation_id=""):
+                       turn_capture=None, conversation_id="", conversation=None):
         user = self.user
 
         def _do(name, args):
@@ -903,6 +927,21 @@ class ModelInterfaceService:
                     confirm=bool(args.get("confirm", False)),
                     turn_id=turn_id, surface=surface,
                 )
+            if name == "next_review_item":
+                # Blocker #15: advance the GUIDED one-at-a-time execution review and return
+                # the next item awaiting the user's answer — persisting that pending question
+                # in conversation_state so the next short reply binds to it (never lost).
+                from apps.ai.cos_services.guided_review import next_review_item as _nri
+                out = _nri(user, conversation, day=args.get("day"),
+                           stop=bool(args.get("stop")))
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "item": (out.get("item") or {}).get("title", "")},
+                )
+                return out
             if name == "complete_execution_item":
                 # Blocker #14 Layer 2: record an execution item complete on the ACTUAL day,
                 # reusing existing per-domain writes. AUTO (the user's 'yes' is the confirm;
@@ -972,7 +1011,7 @@ class ModelInterfaceService:
         dispatch = self._make_dispatch(
             turn_id=turn_id, surface=surface, tools_called=tools_called,
             observer=observer, turn_capture=turn_capture,
-            conversation_id=conversation_id,
+            conversation_id=conversation_id, conversation=conversation,
         )
 
         answer = self.ai._call_api_with_tools(

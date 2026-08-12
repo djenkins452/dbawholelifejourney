@@ -145,7 +145,45 @@ def read(conversation, *, now=None) -> dict | None:
         # (domain/metric pointers ride along untouched — see _SUBJECT_REF_FIELDS.)
         if subj["turns_ago"] <= MAX_SUBJECT_TURNS:
             out["active_subject"] = subj
-    return out if (out.get("active_subject") or out.get("active_artifacts")) else None
+    # GUIDED REVIEW session (Blocker #15): the active one-at-a-time execution review —
+    # the current item awaiting the user's answer + which items were already presented.
+    # A conversation-scoped CURSOR (references only, not truth); the item queue itself is
+    # re-derived from the Execution Review projection each turn. Ages out with the state TTL.
+    gr = state.get("guided_review")
+    if isinstance(gr, dict) and gr.get("current"):
+        out["guided_review"] = gr
+    return out if (out.get("active_subject") or out.get("active_artifacts")
+                   or out.get("guided_review")) else None
+
+
+def set_guided_review(conversation, guided_review) -> None:
+    """Persist the active guided-review cursor (current item awaiting an answer + the
+    keys already presented) onto the conversation state, atomically. Never raises."""
+    if conversation is None:
+        return
+    try:
+        now = _now()
+        state = _load(conversation)
+        state["guided_review"] = guided_review
+        state["updated_ts"] = _iso(now)          # keep the session alive under the TTL
+        state.setdefault("schema_version", SCHEMA_VERSION)
+        _save(conversation, state)
+    except Exception:
+        logger.warning("conversation_state: set_guided_review failed conv=%s",
+                       getattr(conversation, "id", "?"), exc_info=True)
+
+
+def clear_guided_review(conversation) -> None:
+    """End the guided-review session (reconciled / stopped). Never raises."""
+    if conversation is None:
+        return
+    try:
+        state = _load(conversation)
+        if state.pop("guided_review", None) is not None:
+            _save(conversation, state)
+    except Exception:
+        logger.warning("conversation_state: clear_guided_review failed conv=%s",
+                       getattr(conversation, "id", "?"), exc_info=True)
 
 
 def active_artifact_ids(conversation, *, now=None) -> list:
@@ -215,7 +253,7 @@ def record_turn(conversation, *, attachments=None, retrieved_subject=None,
                     subject[field] = val
         # else: keep the prior subject unchanged (it ages via source_turn).
 
-        state = {
+        new_state = {
             "schema_version": SCHEMA_VERSION,
             "turn": turn,
             "updated_ts": _iso(now),
@@ -223,7 +261,14 @@ def record_turn(conversation, *, attachments=None, retrieved_subject=None,
             "active_artifacts": artifacts[:_MAX_ARTIFACTS],
             "last_answer_turn": turn,
         }
-        _save(conversation, state)
+        # PRESERVE the active guided-review session across the end-of-turn rebuild — the
+        # tool set it mid-turn; it must survive to the next turn until the workflow itself
+        # advances or clears it (else the pending question is wiped the moment it's asked —
+        # the exact Blocker #15 loss). Ages out with the state TTL like everything else.
+        gr = state.get("guided_review")
+        if isinstance(gr, dict) and gr.get("current"):
+            new_state["guided_review"] = gr
+        _save(conversation, new_state)
     except Exception:
         logger.warning("conversation_state: record_turn failed conv=%s",
                        getattr(conversation, "id", "?"), exc_info=True)

@@ -189,10 +189,14 @@ CONSTITUTION = (
     "exist. For general or outside-work topics, do not pull personal truth.\n"
     "\n"
     "CONVERSATION STATE: separate from Current Context (WHAT PAGE), `conversation_state` and "
-    "`pending_confirmations` are WHAT WE ARE ACTIVELY DOING / WAITING ON. When either is "
+    "`pending_confirmations` are WHAT WE ARE ACTIVELY DOING / WAITING ON. When any is "
     "present it is raised up top under 'ACTIVE CONVERSATION STATE'. A short reply "
     "(yes/no/cancel/\"do it\") answers a pending confirmation; a short follow-up or "
-    "'it/that/this' refers to `conversation_state.active_subject` — NOT the page. An active "
+    "'it/that/this' refers to `conversation_state.active_subject` — NOT the page. If "
+    "`conversation_state.guided_review` is present you are mid guided execution review: a "
+    "short reply (yes/no/partly/skip/stop) ANSWERS THE ITEM QUESTION YOU JUST ASKED — bind it "
+    "to that item and act (see the ACTIVE CONVERSATION STATE block), never treat it as an "
+    "orphaned confirmation and never ask what their 'yes' referred to. An active "
     "conversation takes precedence over UNRELATED page Current Context; only fall back to the "
     "page when the user explicitly asks about the screen, changes topic, or no conversation "
     "state is active. WLJ gives you the deterministic referents; YOU decide whether the "
@@ -1276,11 +1280,43 @@ def _complete_execution_item_tool():
         }, "required": ["kind", "title"]}}}
 
 
+def _next_review_item_tool():
+    """Drive a GUIDED, one-at-a-time execution review: return the next item awaiting the
+    user's answer and PERSIST it as the pending question, so their next short reply binds
+    to it. Owns no truth — the queue is re-derived from the execution review each call."""
+    return {"type": "function", "function": {
+        "name": "next_review_item",
+        "description": (
+            "Conduct a GUIDED, one-at-a-time reconciliation of a day's execution. Call this "
+            "whenever the user wants to go through their items ONE AT A TIME (e.g. 'go through "
+            "everything I didn't finish and ask me about each', 'let's reconcile yesterday one "
+            "by one'). It returns the NEXT still-incomplete item awaiting their answer and "
+            "remembers it, so their reply on the next turn ('yes'/'no'/'partly'/'skip'/'stop') "
+            "binds to THAT question — you never lose it and never ask what their 'yes' meant. "
+            "Flow: call next_review_item to get an item → ASK the user about that one item → on "
+            "their answer, if yes call complete_execution_item for it then call next_review_item "
+            "again for the next; if no/skip just call next_review_item again. Result status is "
+            "'question' (ask about `item`), 'reconciled' (nothing left — tell them the day is "
+            "fully reconciled), or 'stopped'. You own the review until it is reconciled or the "
+            "user stops — always advance it yourself; never make the user ask for the next item."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "day": {"type": "string",
+                    "description": ("The day being reviewed, in the user's words — 'yesterday', a "
+                                    "date. Omit to default to yesterday. Use the SAME day for "
+                                    "every call in one review.")},
+            "stop": {"type": "boolean",
+                     "description": ("Set true ONLY when the user asks to stop/end the review "
+                                     "before it is finished; ends the guided review.")},
+        }}}}
+
+
 def action_tools():
     """Named deterministic action tools (curated write set) + the bound-confirmation
-    resolver + the execution-completion router. No generic request_action; no invented
-    interface."""
-    return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool()]
+    resolver + the execution-completion router + the guided-review driver. No generic
+    request_action; no invented interface."""
+    return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool(),
+                                    _next_review_item_tool()]
 
 
 def all_tools(writes_enabled=True):

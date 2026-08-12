@@ -52,6 +52,37 @@ The lead fired whenever `current_action` had a headline and injected THREE thing
 
 **Constitutional:** strengthens I.2 (model owns interpretation), I.4 (model owns judgment), IV.2 (simpler as the model improves), IV.4 (expose, don't command); preserves I.3 (WLJ owns the calculation) and III.2. No Article changed; no Review.
 
-## 5. Certification — AFTER
+## 5. Certification — AFTER (real runtime, worker `f0237238`) — PASS
 
-*(Recorded after worker deploy of the correction — see the Certification section below.)*
+| Category | Probe | BEFORE | AFTER |
+|---|---|---|---|
+| A execution | "What should I do next?" | journal ✓ | journal ✓ (execution preserved) |
+| A execution | "What's left for today?" | enumerated ✓ | enumerated ✓ |
+| B assessment | "How am I doing?" | investigate ✓ | investigate ✓ |
+| B assessment | "Is there anything you're concerned about?" | protein ✓ | protein ✓ |
+| B drift | "What am I neglecting?" | protein ✓ | protein ✓ |
+| C health-prio | "focus to improve my health?" | protein ✓ | protein ✓ |
+| E day | "Walk me through my day" | day picture ✓ | day picture ✓ |
+| D follow-up | "…What should I do about it?" | on subject ✓ | on subject ✓ |
+| **Contrast-A** standalone | "What should I focus on right now?" | journal | journal *(reasonable — a truly standalone question, current_action is a legitimate answer)* |
+| **Contrast-B** after sleep | "What should I focus on right now?" | ✗ **journal (overrode sleep)** | ✓ **"protect your sleep and energy… a consistent sleep routine"** — stays on the sleep subject |
+
+**Result: PASS.** The residual is fixed — an established conversational subject is no longer overridden by `current_action` (Contrast-B), while standalone execution still leads with the deterministic priority (A, Contrast-A). The contrast test's point is satisfied: **identical wording ("what should I focus on right now?"), different interpretation because the conversation differs.** Latency in the normal band (execution ~7s; a broad tool-heavy turn ~18s — queue/tool variance; the correction only *shrank* the prompt, so it cannot regress latency).
+
+### Step-14 answers
+1. **Legitimate responsibility `_executive_lead` still serves:** exposing the deterministic `current_action` FACT at salience (so a genuine execution/check-in question is answered from it, not by handing the job back), and the one deterministic protection — never ask the user to pick an area or name their own tasks.
+2. **Model-owned responsibilities it had taken over:** intent interpretation (which bucket a question is) and the conclusion ("you ALREADY KNOW the answer — LEAD with X"). Both returned to the model.
+3. **Removed/narrowed:** the four phrase-list buckets and the "you already know the answer" imperative — replaced by a factual exposure + delegation.
+4. **Did the prompt get simpler?** Yes — `_executive_lead` ~835 → 380 tokens; no classifier.
+5. **"What should I do next?"** still works (leads with current_action).
+6. **"Is there anything you're concerned about?"** triggers genuine judgment (protein concern), not an unrelated current action.
+7. **Health prioritization** works (protein, health-grounded).
+8. **Drift reasoning** works ("what am I neglecting?" → protein).
+9. **Conversational action follow-ups stay on subject** — "what should I do about it?" (protein) and the Contrast-B "what should I focus on right now?" (sleep).
+10. **Day planning** behaves correctly (completed + ahead day picture).
+11. **`current_action` remains available as truth** without dominating unrelated reasoning — exposed as a fact; the model decides.
+12. **New deterministic intent logic introduced?** No — the opposite; a classifier was removed. No regex, phrase routing, or extra model call.
+13. **Another executive prompt mechanism necessary?** No.
+14. **First remaining trust/access defect:** none newly proven in this surface. The next known work is the deferred **truth-exposure gaps** (Relationships history, Projects tasks, Finance entities) from `WLJ_COS_TRUTH_ACCESS_ARCHITECTURE_INVESTIGATION.md` — deterministic truth the model still cannot reach — not a reasoning/steering defect. (Also available if pursued: the ~20.6k system prompt is now the main *simplification* lever, CONSTITUTION 61%.)
+
+**Architectural conclusion:** WLJ now exposes execution truth and lets the Chief of Staff decide what it means. `current_action` is truth; whether it answers Danny's question is the model's reasoning. The over-steer class is closed at its source (the classifier + imperative are gone), the prompt is smaller, and Execution Decision Authority is intact.

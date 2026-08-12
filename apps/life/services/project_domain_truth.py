@@ -58,7 +58,24 @@ class ProjectDomainTruth(DomainTruth):
              .order_by("status", "-created_at").first())
         return self._project_entity(p) if p else None
 
+    _MAX_TASKS = 60          # bound the payload; standing.task_count carries the true total
+
     def _project_entity(self, p):
+        # Child TASK records — the SAME canonical Task rows the Tasks domain owns (via the
+        # Project FK), surfaced here SCOPED to this project so the CoS can answer "what's open /
+        # done / what's next / what's stalled on this project" instead of only counts. This is a
+        # REFERENCE to the canonical Task authority, not a second producer (III.1): every field
+        # comes straight from the Task model, and the Tasks domain remains the owner. `p.tasks.all()`
+        # is prefetch-cached in describe() and already ordered (Task.Meta: status, priority, due_date).
+        tasks = [
+            {"title": t.title,
+             "status": t.completion_status,
+             "due_date": t.due_date.isoformat() if t.due_date else None,
+             "completed_at": (t.completed_at.isoformat()
+                              if getattr(t, "completed_at", None) else None),
+             "priority": t.priority}
+            for t in list(p.tasks.all())[:self._MAX_TASKS]
+        ]
         return CompleteEntity(
             kind="project",
             identity=p.title,
@@ -79,5 +96,7 @@ class ProjectDomainTruth(DomainTruth):
             performance={"completed_date": p.completed_date.isoformat()
                          if p.completed_date else None,
                          "reflection": (p.reflection_plain or "").strip()},
+            # Canonical Task records for this project (reference, not a second authority).
+            extensions={"tasks": tasks} if tasks else {},
             freshness=F.CURRENT,
         )

@@ -488,6 +488,13 @@ class RelationshipDomainTruth(DomainTruth):
     # there). Answers "tell me about Heather", "when did I last spend time with Heather",
     # "most important people" (by interaction volume), "who have I not connected with".
     entity_types = ("person",)
+    # Contact-frequency HISTORY over the canonical RelationshipInteraction dated series —
+    # the deterministic evidence behind "have I been staying in touch", "has my contact
+    # dropped off", "am I connecting more or less than before". Exposure of EXISTING truth
+    # (the interaction rows already power the Person analytics + PersonDetailView); get_history
+    # / get_comparison / get_analysis inherit the trend for free. WLJ supplies the counts; the
+    # model judges (it never labels anyone "neglected" here — that is a verdict, I.4).
+    history_metrics = ("interactions",)
 
     def current(self, metric):
         contract = self.state().get("_contract") or {}
@@ -517,6 +524,29 @@ class RelationshipDomainTruth(DomainTruth):
                      "last_contact": p.last_interaction_date.isoformat()
                      if p.last_interaction_date else None} for p in people]})
         return _absent(self.domain, metric, "unsupported metric")
+
+    def history(self, metric, period="last_7_days", **kwargs):
+        """Per-day COUNT of logged interactions across all people — the deterministic
+        contact-frequency series. ONE grouped query over the canonical
+        RelationshipInteraction.interaction_date series (the SAME rows the Person analytics
+        and PersonDetailView read); the model reads the trend and forms the judgment."""
+        from django.db.models import Count
+        from apps.core.truth.history import series_from_rows
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.relationships.models import RelationshipInteraction
+        if metric != "interactions":
+            raise KeyError(f"relationships history unsupported: {metric!r}")
+        p = resolve_period(period, get_user_today(self.user),
+                           start=kwargs.get("start"), end=kwargs.get("end"))
+        rows = (RelationshipInteraction.objects
+                .filter(user=self.user, interaction_date__range=(p.start, p.end))
+                .values("interaction_date")
+                .annotate(v=Count("id")).order_by("interaction_date"))
+        return series_from_rows(
+            "relationships", metric, p,
+            [{"date": r["interaction_date"], "value": r["v"]} for r in rows],
+            unit="interactions")
 
     def _upcoming_birthdays(self, within_days=14):
         # Reads life.SignificantEvent directly — the _contract birthday path reads a

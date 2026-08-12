@@ -228,6 +228,50 @@ Both are prompt-level, in-Constitution (I.4/IV.2), and reduce/reposition scaffol
 
 ---
 
+## ROOT-CAUSE FIX — CERTIFIED (2026-08-12, worker `55361964`)
+
+The token-governor root cause was fixed and the compensating prompt leads reverted (the clean experiment: *give the model the conversation, then get out of its way*). **Certification PASSES: delivering the conversation restored native reference resolution — no prompt scaffolding needed.**
+
+**The fix (context-assembly layer, `55361964`):**
+- `token_governor.govern_prompt`: an explicit caller budget now WINS over the setting; new `protect_recent` (default 6) guarantees the most-recent turns are NEVER trimmed (the "system + bare user sentence" condition is eliminated structurally).
+- `services.py`: the tool loop passes `TOOL_LOOP_GOVERN_BUDGET = 64000` (sized to gpt-4o's 128k window; holds the ~21k system prompt + the bounded 12-turn history + margin).
+- **Reverted** the v1/v2 compensating reference-resolution leads (kept the analysis-branch bug fix; preserved the Executive Over-Steer fix).
+
+**Certifications A–F + contrast (bare-pronoun and reference follow-ups now resolve):**
+
+| Cert | Follow-up | v2 (broken) | Root-cause fix |
+|---|---|---|---|
+| A | Why do you think that? | deflect | ✓ "the reasoning behind the assessment…" (4 tools) |
+| A | Which part concerns you most? | journal-hijack | ✓ "nutrition, protein at 67.8%" |
+| A | What should I do about it? | deflect | ✓ "to address the protein concern…" (stays on subject) |
+| B | Why? | deflect | ✓ protein/lean-mass reasoning |
+| C | Tell me more · How long…? | deflect | ✓ resolved (4 tools) |
+| E | Which one concerns you more? · Why? | deflect | ✓ "lean mass concerns me more…" |
+| D | Is that getting worse? | deflect | ✓ resolved to the nutrition subject (retrieved) |
+| F | What should I do next? | ✓ | ✓ current_action |
+
+**Step-16 answers (runtime-grounded):**
+1. **Was the 12k governor deleting history?** Yes — proven: it reduced a Turn-2 payload to `['system','user']`.
+2. **What budget now, and why correct?** 64,000 for the tool-loop assembly — model is gpt-4o (128k window); holds the ~21k system prompt + the 12-turn history bound + wide margin, leaving ~64k for tool-round growth + output.
+3. **Trimming guarantees?** `protect_recent=6` — the immediate turns are never trimmed; only older history beyond that window is removable, and only when genuinely over budget.
+4. **v1/v2 prompt leads removed?** Yes — reverted; analysis-branch bug fix kept; Executive Over-Steer preserved.
+5. **Native reference resolution once history is delivered?** **Yes** — the central result. No reference-resolution scaffolding remains, and every reference follow-up resolves.
+6. **"Why?"** works (A, B, E).
+7. **"What should I do about it?"** stays attached to the established subject (A-T4 → protein).
+8. **"Which one concerns you more?"** works after a multi-subject answer (E-T2).
+9. **Standalone "What should I do next?"** still uses execution truth (F).
+10. **Broad multi-domain conversation like ChatGPT?** Yes for reference follow-ups (A/C/E flow coherently across 3–4 turns).
+11. **Context per turn:** system ~20.6k tokens (empty local; prod larger) + tool schemas ~11k (sent separately) + history (grows with the conversation) + user. Well within 64k govern / 128k window.
+12. **Latency/cost:** single-turn ~11.5s wall-clock (incl. queue + 2s poll quantization) — same band as the pre-fix ~5–11s baseline; no material regression. Multi-turn adds history tokens (the cost of correctness).
+13. **Is the ~21k system prompt now the next constraint?** It is the next *simplification* lever, not a correctness constraint. Inventory: CONSTITUTION 12,597 tokens (61%), standing JSON 6,032 (29%), reminders+leads ~2k (10%); tool schemas 11k separate. The CONSTITUTION is the obvious target if prompt reduction is later pursued (report only — not optimized here).
+14. **Any continuity-specific prompt scaffolding still necessary?** **No** — proven by reverting it and still passing.
+15. **Conversation State expansion necessary?** **No** — history carries the referent; `active_subject` stays a compact deterministic pointer (its role is unchanged and correct).
+16. **First remaining trust-breaking defect:** the residual `_executive_lead` behavior — action-phrased *standalone-looking* questions ("what should I focus on right now?", "is there anything you're concerned about?") answer from `current_action` rather than the established conversational subject (contrast-B; D-T1). This is NOT a continuity/reference failure (the actual reference follow-ups all resolve) — it is the `_executive_lead` residual explicitly scoped OUT of this milestone, now cleanly isolated. It is the natural candidate for the next milestone.
+
+**Architectural conclusion:** the defect was never in the prompt, the model, the truth, or Conversation State — it was context assembly silently deleting the conversation. Give the model the conversation and it is the Chief of Staff. The two prompt milestones were compensating for missing input and were correctly reverted; WLJ got *simpler*.
+
+---
+
 ## Appendix A — Runtime evidence log (reproducible)
 
 - **Path:** `run_cos_acceptance_conversation` (`apps/core/tasks.py:94`) → `CoSGateway.respond` per turn → `ModelInterfaceRuntime` → `ModelInterfaceService.generate` (history via `load_conversation_history`, `service.py:62`; tool loop `services.py:685`).

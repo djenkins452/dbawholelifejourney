@@ -77,46 +77,39 @@ class StandingContextTests(TestCase):
         self.assertIn("clock", ctx["current_context"])                       # current ctx
         self.assertIn("answerable_domains", ctx["current_context"]["capabilities"])
 
-    def test_executive_lead_surfaces_current_action_for_checkin(self):
-        # Blocker #3 (turn "check in"): WLJ's deterministic executive read (current_action) must
-        # be raised to a salient lead so a bare check-in/status request is answered by LEADING
-        # with it — not by asking the user what they want to check in on. Same one-source pattern
-        # as the other leads: it reflects current_action, invents nothing.
+    def test_executive_lead_exposes_the_fact_and_delegates_the_judgment(self):
+        # EXECUTIVE LEAD RESPONSIBILITY CORRECTION (2026-08-12): the lead must EXPOSE the
+        # deterministic current_action FACT (I.3) and DELEGATE to the model whether it answers
+        # the user's question (I.4) — NOT classify intent via phrase-list buckets nor command
+        # "you ALREADY KNOW the answer — LEAD with the item above" (which collapsed action-worded
+        # questions like "what should I focus on right now?" onto current_action, even overriding
+        # an established conversational subject).
         mi = ModelInterfaceService(self.user)
         ctx = {"current_action": {
             "reason": "foundational; prioritized now",
             "message": "Work on WLJ",
             "primary_action": {"title": "Work on WLJ"}}}
         lead = mi._executive_lead(ctx)
-        self.assertIn("Work on WLJ", lead)
-        self.assertIn("check in", lead.lower())
-        self.assertIn("never ask", lead.lower())
-        # EXECUTIVE OVER-STEER CORRECTION (2026-08-12): a broad WHOLE-LIFE assessment must NOT be
-        # collapsed onto the single current_action. The lead must direct the assessment class to
-        # INVESTIGATE across the life and synthesize (the model owns that judgment, I.4) — it is
-        # explicitly told the current action is "not the conclusion". The anti-"pick an area /
-        # name your own tasks" protection is preserved; only its RESOLUTION changed (investigate
-        # yourself, don't hand it back).
-        self.assertIn("how am i doing", lead.lower())
-        self.assertIn("investigate", lead.lower())
-        self.assertIn("never the conclusion", lead.lower())
-        self.assertIn("must not be collapsed", lead.lower())
-        self.assertIn("pick an area", lead.lower())        # still forbidden — but now: investigate
-        # Blocker #7: "what's left" is a COMPLETENESS question — enumerate the rest, never answer
-        # with only the top item, and never ask the user to name their own tasks.
-        self.assertIn("what's left", lead.lower())
-        self.assertIn("enumerate", lead.lower())
-        self.assertIn("name their own tasks", lead.lower())
-        # Blocker #9: a day-briefing ("walk me through my day") is a COMPLETE day picture — lead
-        # with the priority + cover tasks AND calendar; never declare the day done while the
-        # priority is unaddressed, never answer from the calendar alone.
-        self.assertIn("walk me through my day", lead.lower())
-        self.assertIn("calendar alone", lead.lower())
-        self.assertIn("finished", lead.lower())
-        # and it is wired into the system prompt
+        low = lead.lower()
+        self.assertIn("Work on WLJ", lead)                       # the FACT is surfaced
+        self.assertIn("deterministic fact", low)                 # framed as fact, not answer
+        self.assertIn("you decide", low)                         # judgment delegated to the model
+        # the over-steer imperative is GONE
+        self.assertNotIn("you already know the answer", low)
+        # a broader question is one input, not the answer (over-steer stays fixed)
+        self.assertIn("one input", low)
+        self.assertIn("do not collapse", low)
+        # conversation precedence: an established subject is not overridden by current_action
+        self.assertIn("does not override", low)
+        # the ONE preserved deterministic protection: never hand the job back
+        self.assertIn("pick an area", low)
+        self.assertIn("name their own tasks", low)
+        # NO phrase-list intent classifier remains (the four bucket headers are gone)
+        self.assertNotIn("• execution", low)
+        self.assertNotIn("• completeness", low)
+        # wired into the system prompt; empty current_action → no lead (WLJ never invents one)
         sp = mi._system_prompt({**mi.build_standing_context(), **ctx})
         self.assertIn("WHAT MATTERS RIGHT NOW", sp)
-        # no current action → no lead (WLJ never invents one)
         self.assertEqual(mi._executive_lead({"current_action": {}}), "")
 
     def test_overall_rollup_is_not_anchored_as_a_narrow_active_subject(self):

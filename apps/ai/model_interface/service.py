@@ -525,16 +525,30 @@ class ModelInterfaceService:
     @staticmethod
     def _executive_lead(standing_context: dict) -> str:
         """Raise the salience of WLJ's deterministic EXECUTIVE READ — the single "what to do
-        now" (`current_action`, from decision_authority) — so a check-in / status request is
+        now" (`current_action`, from decision_authority) — so an EXECUTION / CHECK-IN request is
         answered by LEADING with it, not by asking the user what they want to check in on.
 
         The facts already reach the model as `current_action` in the structured context; buried
         in a ~60k-char JSON the model overlooked them and, right after sending a proactive
         end-of-day check-in, replied "what would you like to check in on?" (Blocker #3, prod).
         Same inline-salience pattern as the other leads: ONE source (`current_action` — the SAME
-        truth the proactive check-in is authored from), named + up front, with what to DO. The
-        model still decides what it MEANS; WLJ only surfaces the fact. Empty when there is no
-        current action (WLJ never invents one). Never raises."""
+        truth the proactive check-in is authored from), named + up front, with what to DO.
+
+        SCOPE CORRECTION (Executive Over-Steer Correction, 2026-08-12,
+        `docs/WLJ_COS_MODEL_ON_TRUTH_ASSESSMENT.md`): this lead originally told the model that a
+        broad WHOLE-LIFE assessment ("how am I doing", "give me an overall assessment of my
+        life", "where should I focus") was ALSO answered by leading with the single
+        `current_action` — "you ALREADY KNOW the answer". Runtime probes proved that over-steered
+        the frontier model: broad executive questions made ZERO truth-tool calls and collapsed
+        onto "drink your protein shake", contradicting the CONSTITUTION's own EXECUTIVE ASSESSMENT
+        / INVESTIGATE-BEFORE-CONCLUDING behavior. The current_action LEAD is now NARROWED to
+        genuine EXECUTION / CHECK-IN / COMPLETENESS / DAY-BRIEFING intents; an open-ended
+        ASSESSMENT / INVESTIGATION question is explicitly told NOT to collapse onto current_action
+        but to investigate across the life and synthesize (the model owns that judgment, I.4). The
+        anti-"pick an area / name your own tasks" protection is preserved — only its resolution
+        changes (investigate yourself, don't hand it back). WLJ still only surfaces the fact; the
+        model decides what it means and how far to look. Empty when there is no current action
+        (WLJ never invents one). Never raises."""
         try:
             ca = standing_context.get("current_action") or {}
         except Exception:
@@ -553,32 +567,43 @@ class ModelInterfaceService:
         if reason:
             body += f" (Why it leads: {reason}.)"
         return (
-            "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read — LEAD with "
-            "this on any check-in / status request) ===\n"
+            "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read) ===\n"
             f"{body}\n"
-            "When the user asks for a check-in, where they stand, or a WHOLE-LIFE assessment — "
-            "\"check in\", \"status\", \"overall status\", \"where do things stand\", \"what "
-            "should I do\", \"brief me\", \"how am I doing\", \"how am I doing across "
-            "everything\", \"give me an overall assessment of my life\", or a short reply "
-            "continuing a check-in you just sent — you ALREADY KNOW the answer: lead with the "
-            "item above and give ONE clear next action. NEVER ask them what to check in on, to "
-            "narrow the request, or to pick an area, and NEVER ask them to name their own tasks "
-            "— that hands your job back to them; a Chief of Staff answers directly from what it "
-            "can already see. "
-            "But if they ask what REMAINS or for their full list or schedule — \"what's left\", "
-            "\"what's on my list\", \"is that everything\", \"anything else\", \"how many do I "
-            "have left\" — that is a COMPLETENESS question: lead with what matters most AND then "
+            "This is WLJ's single most important EXECUTION item for the user right now — a "
+            "deterministic FACT (the next action), NOT a verdict on their whole life. How you use "
+            "it depends on what the user is actually asking; decide that yourself:\n"
+            "• EXECUTION / CHECK-IN — \"what should I do\", \"what should I do next\", \"what's "
+            "next\", \"what do I do now\", \"check in\", \"status\", \"where do things stand\", "
+            "\"brief me\", or a short reply continuing a check-in you just sent: you ALREADY KNOW "
+            "the answer — LEAD with the item above and give ONE clear next action. NEVER ask them "
+            "what to check in on, and NEVER ask them to name their own tasks — that hands your job "
+            "back to them; a Chief of Staff answers directly from what it can already see.\n"
+            "• COMPLETENESS — \"what's left\", \"what's on my list\", \"is that everything\", "
+            "\"anything else\", \"how many do I have left\": lead with what matters most AND then "
             "RETRIEVE and ENUMERATE the rest (e.g. get_domain_state for the relevant domain). "
             "Never answer a list/completeness question with only the top item, and never ask the "
-            "user to tell you their own tasks — you can see them. "
-            "And if they ask you to WALK THROUGH or BRIEF their DAY — \"walk me through my day\", "
-            "\"what's my day look like\", \"how's my day\", \"my schedule today\", \"plan my "
-            "day\" — give a COMPLETE day picture: lead with the single most important thing "
-            "(above), then cover today's tasks (done AND still due) together with calendar events "
-            "(get_domain_state for BOTH tasks and calendar). Do NOT answer from the calendar "
-            "alone, and NEVER tell the user the day is finished or that nothing is left while the "
-            "item above is still unaddressed. This is the SAME executive truth carried in "
-            "`current_action` below."
+            "user to tell you their own tasks — you can see them.\n"
+            "• DAY BRIEFING — \"walk me through my day\", \"what's my day look like\", \"how's my "
+            "day\", \"my schedule today\", \"plan my day\": give a COMPLETE day picture — lead "
+            "with the single most important thing (above), then cover today's tasks (done AND "
+            "still due) together with calendar events (get_domain_state for BOTH tasks and "
+            "calendar). Do NOT answer from the calendar alone, and NEVER tell the user the day is "
+            "finished or that nothing is left while the item above is still unaddressed.\n"
+            "• EXECUTIVE ASSESSMENT / INVESTIGATION — \"how am I doing\", \"how am I doing across "
+            "everything\", \"give me an overall assessment of my life\", \"what should I focus "
+            "on\", \"where should I focus\", \"what am I neglecting\", \"where am I drifting\", "
+            "\"am I making progress on what matters\", \"is there anything I should be concerned "
+            "about\", \"what's changed about me\": the item above is NOT the answer — it is only "
+            "today's single top execution task, and a whole-life question must NOT be collapsed "
+            "onto it. This is an executive assessment: INVESTIGATE the user's deterministic truth "
+            "across the domains that matter (get_analysis and the other truth tools) and then "
+            "SYNTHESIZE your OWN judgment, exactly as the EXECUTIVE ASSESSMENT and "
+            "INVESTIGATE-BEFORE-CONCLUDING rules describe. You decide which truth is relevant and "
+            "how far to look — but never ask the user to pick an area or narrow the request; a "
+            "Chief of Staff investigates that themselves. The current action is at most one input "
+            "you may mention, never the conclusion.\n"
+            "This is the SAME executive truth carried in `current_action` below; WLJ surfaces the "
+            "fact, and YOU decide what it means and how far to investigate."
         )
 
     def _system_prompt(self, standing_context: dict) -> str:

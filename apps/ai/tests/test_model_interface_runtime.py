@@ -91,9 +91,17 @@ class StandingContextTests(TestCase):
         self.assertIn("Work on WLJ", lead)
         self.assertIn("check in", lead.lower())
         self.assertIn("never ask", lead.lower())
-        # Blocker #6: whole-life questions also lead with the executive read (never "pick an area")
-        self.assertIn("whole-life", lead.lower())
-        self.assertIn("narrow", lead.lower())
+        # EXECUTIVE OVER-STEER CORRECTION (2026-08-12): a broad WHOLE-LIFE assessment must NOT be
+        # collapsed onto the single current_action. The lead must direct the assessment class to
+        # INVESTIGATE across the life and synthesize (the model owns that judgment, I.4) — it is
+        # explicitly told the current action is "not the conclusion". The anti-"pick an area /
+        # name your own tasks" protection is preserved; only its RESOLUTION changed (investigate
+        # yourself, don't hand it back).
+        self.assertIn("how am i doing", lead.lower())
+        self.assertIn("investigate", lead.lower())
+        self.assertIn("never the conclusion", lead.lower())
+        self.assertIn("must not be collapsed", lead.lower())
+        self.assertIn("pick an area", lead.lower())        # still forbidden — but now: investigate
         # Blocker #7: "what's left" is a COMPLETENESS question — enumerate the rest, never answer
         # with only the top item, and never ask the user to name their own tasks.
         self.assertIn("what's left", lead.lower())

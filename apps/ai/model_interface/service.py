@@ -59,7 +59,7 @@ logger = logging.getLogger(__name__)
 _HISTORY_LIMIT = 12
 
 
-def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT):
+def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT, exclude_ids=None):
     """Load prior turns for `conversation` as [{role, content}] for the model, reusing
     the existing AssistantMessage store (Blocker 2 — conversation continuity). Returns
     the most recent `limit` user/assistant messages, chronologically. Never raises.
@@ -74,16 +74,22 @@ def load_conversation_history(conversation, *, limit=_HISTORY_LIMIT):
     non-empty content bound the set. `role='system'` messages are excluded by the filter.
 
     Call this BEFORE persisting the current user message so the current turn is not
-    duplicated into the history.
+    duplicated into the history. When the current turn is ALREADY persisted (durable
+    turn lifecycle — the streaming submit path persists the user message + pending turn
+    synchronously, then the worker loads history), pass `exclude_ids` with the current
+    turn's message ids so they are not fed back as history.
     """
     if conversation is None or not getattr(conversation, "id", None):
         return []
     try:
         from apps.ai.models import AssistantMessage
+        qs = AssistantMessage.objects.filter(
+            conversation=conversation, role__in=("user", "assistant"),
+        )
+        if exclude_ids:
+            qs = qs.exclude(id__in=[i for i in exclude_ids if i])
         rows = list(
-            AssistantMessage.objects.filter(
-                conversation=conversation, role__in=("user", "assistant"),
-            ).order_by("-created_at").values("role", "content")[:limit]
+            qs.order_by("-created_at").values("role", "content")[:limit]
         )
     except Exception:  # pragma: no cover - defensive
         logger.warning("mi: history load failed", exc_info=True)

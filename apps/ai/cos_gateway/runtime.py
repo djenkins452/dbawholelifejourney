@@ -221,20 +221,80 @@ class ModelInterfaceRuntime(ConversationalRuntime):
         # --- streaming: dispatch the model-interface task ---
         if stream or surface == SURFACE_CHAT_STREAM:
             from apps.ai.model_interface.tasks import run_model_interface_generation
+            from apps.ai.models import AssistantMessage
+            from apps.ai.multimodal import receipts_from_attachments
+
             job_id = str(_uuid.uuid4())
+
+            # DUPLICATE PROTECTION — synchronous persistence (below) means a genuine
+            # double-submit of the SAME text (double-click / an over-eager "try again")
+            # would otherwise mint a SECOND durable turn. If an identical message is
+            # already in flight, do NOT create a second turn: emit the existing turn's
+            # `duplicate_pending` so the client shows "already in progress — view latest".
+            # (Reload/navigation never re-submits, so this only guards true resubmits.)
+            if message and not (images or attachments):
+                from apps.ai import idempotency as _idem
+                marker = _idem.is_in_flight(user.id, message)
+                if marker:
+                    import time as _t
+                    secs = max(0, int((_t.time() * 1000 - marker.get(
+                        "submitted_at_ms", 0)) / 1000))
+                    snap = bus.new_snapshot(user.id, conversation.id)
+                    snap["events"].append({"type": "duplicate_pending", "data": {
+                        "request_id": marker.get("request_id"),
+                        "original_message": marker.get("original_message", message),
+                        "pending_seconds_ago": secs,
+                        "conversation_id": conversation.id}})
+                    snap["status"] = "done"
+                    bus.write(job_id, snap)
+                    return CoSResponse(
+                        text="", runtime=self.name, surface=surface,
+                        stream_job_id=job_id,
+                        meta={"conversation_id": conversation.id,
+                              "duplicate_pending": True})
+                _idem.mark_in_flight(user.id, message, job_id)
+
             bus.write(job_id, bus.new_snapshot(user.id, conversation.id))
+
+            # DURABLE TURN LIFECYCLE (server-owned) — the browser is a VIEWER, it must
+            # never own the lifetime of a CoS turn. Persist the USER MESSAGE and a
+            # PENDING assistant turn NOW, synchronously at submit, BEFORE the enqueue.
+            # The instant Danny hits send the turn exists in durable truth, so
+            # navigation, a browser-tab switch, a refresh, a client timeout, a
+            # pre-pickup delay, or a dropped enqueue can no longer erase it — a reload
+            # rehydrates the user message + the pending turn from the DB. The worker
+            # UPDATES this pending turn (it no longer creates the rows). Persist BEFORE
+            # enqueue so there is never a window where the job is running but the turn
+            # is not yet durable.
+            user_msg = AssistantMessage.objects.create(
+                conversation=conversation, role="user", content=message or "",
+                message_type="text",
+                attachment_receipts=receipts_from_attachments(attachments),
+            )
+            if images:
+                from apps.ai.multimodal import attach_images_to_message
+                attach_images_to_message(user_msg, images)
+            pending_msg = AssistantMessage.objects.create(
+                conversation=conversation, role="assistant", content="",
+                message_type="text",
+                metadata={"request_id": job_id, "cos_path": "model_interface",
+                          "status": "processing"},
+            )
             run_model_interface_generation.delay(
                 user.id, conversation.id, message, page_context, job_id,
                 images=perceive_images or None, attachments=attachments or None,
+                assistant_msg_id=pending_msg.id, user_msg_id=user_msg.id,
             )
             logger.info(
-                "COS_GATEWAY runtime=model_interface surface=%s stream job=%s user=%s",
-                surface, job_id, user.id,
+                "COS_GATEWAY runtime=model_interface surface=%s stream job=%s user=%s "
+                "durable_turn=%s",
+                surface, job_id, user.id, pending_msg.id,
             )
             return CoSResponse(
                 text="", runtime=self.name, surface=surface,
                 stream_job_id=job_id,
-                meta={"conversation_id": conversation.id},
+                meta={"conversation_id": conversation.id,
+                      "message_id": pending_msg.id},
             )
 
         # --- non-streaming: generate synchronously + persist (mirror the task) ---

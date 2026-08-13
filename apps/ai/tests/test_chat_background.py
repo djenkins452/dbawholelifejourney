@@ -329,3 +329,197 @@ class ChatStreamPostIntegrationTests(TransactionTestCase):
             content_type='application/json',
         )
         self.assertEqual(resp.status_code, 400)
+
+
+class ModelInterfaceDurableLifecycleTests(TransactionTestCase):
+    """Durable Chief-of-Staff turn lifecycle (model-interface runtime).
+
+    The turn must be owned by the CONVERSATION, not the browser tab. These tests
+    prove the submit path persists the user message AND a PENDING assistant turn
+    SYNCHRONOUSLY — before the worker runs — so navigation / refresh / a client
+    timeout / a delayed-or-dropped worker pickup can never erase the turn.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.user = _make_user('mi_durable@test.com')
+        prefs = self.user.preferences
+        prefs.use_model_interface = True
+        prefs.save()
+
+    def tearDown(self):
+        cache.clear()
+
+    def test_user_and_pending_turn_persist_synchronously_before_worker(self):
+        """Keystone: after submit, BEFORE the worker runs, the user message and a
+        PENDING assistant turn already exist durably — the turn cannot disappear."""
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.cos_gateway.envelope import SURFACE_CHAT_STREAM
+
+        captured = {}
+
+        def fake_delay(*args, **kwargs):
+            captured['args'] = args
+            captured['kwargs'] = kwargs  # worker NOT run — simulate pre-pickup window
+
+        with patch(
+            'apps.ai.model_interface.tasks.run_model_interface_generation.delay',
+            side_effect=fake_delay,
+        ):
+            env = ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='how am I doing overall?', stream=True,
+            )
+
+        conv = AssistantConversation.get_or_create_active(self.user)
+        user_msgs = AssistantMessage.objects.filter(conversation=conv, role='user')
+        pend = AssistantMessage.objects.filter(conversation=conv, role='assistant')
+        # Durable at submit — the worker has NOT run.
+        self.assertEqual(user_msgs.count(), 1)
+        self.assertEqual(user_msgs.first().content, 'how am I doing overall?')
+        self.assertEqual(pend.count(), 1)
+        self.assertEqual(pend.first().content, '')  # empty, pending
+        self.assertEqual(pend.first().metadata.get('status'), 'processing')
+        self.assertEqual(pend.first().metadata.get('request_id'), env.stream_job_id)
+        # The worker was handed the ids so it UPDATES (never re-creates) the turn.
+        self.assertEqual(captured['kwargs'].get('assistant_msg_id'), pend.first().id)
+        self.assertEqual(captured['kwargs'].get('user_msg_id'), user_msgs.first().id)
+
+    def test_worker_reuses_pending_turn_no_duplicate(self):
+        """The worker advances the SAME pending turn to completed — it never mints a
+        second assistant message (no duplicate on completion)."""
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.cos_gateway.envelope import SURFACE_CHAT_STREAM
+        from apps.ai.model_interface.tasks import run_model_interface_generation
+
+        captured = {}
+        with patch(
+            'apps.ai.model_interface.tasks.run_model_interface_generation.delay',
+            side_effect=lambda *a, **k: captured.update(args=a, kwargs=k),
+        ):
+            ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='what deserves my attention?', stream=True,
+            )
+        conv = AssistantConversation.get_or_create_active(self.user)
+        pending_id = captured['kwargs']['assistant_msg_id']
+
+        with patch(
+            'apps.ai.model_interface.service.ModelInterfaceService.generate',
+            return_value={'answer': 'Here is your synthesized read.',
+                          'tools_called': [], 'turn_id': 't1'},
+        ):
+            run_model_interface_generation(*captured['args'], **captured['kwargs'])
+
+        assistants = AssistantMessage.objects.filter(conversation=conv, role='assistant')
+        self.assertEqual(assistants.count(), 1)  # SAME row, no duplicate
+        done = assistants.first()
+        self.assertEqual(done.id, pending_id)
+        self.assertEqual(done.content, 'Here is your synthesized read.')
+        self.assertEqual(done.metadata.get('status'), 'completed')
+
+    def test_history_excludes_the_current_turn(self):
+        """The worker loads prior history EXCLUDING the just-persisted current turn,
+        so the user message is not fed back to the model as its own context."""
+        from apps.ai.model_interface.service import load_conversation_history
+        conv = AssistantConversation.get_or_create_active(self.user)
+        prior_u = AssistantMessage.objects.create(
+            conversation=conv, role='user', content='earlier question')
+        prior_a = AssistantMessage.objects.create(
+            conversation=conv, role='assistant', content='earlier answer')
+        cur_u = AssistantMessage.objects.create(
+            conversation=conv, role='user', content='current question')
+        cur_a = AssistantMessage.objects.create(
+            conversation=conv, role='assistant', content='')  # pending
+        hist = load_conversation_history(
+            conv, exclude_ids=[cur_u.id, cur_a.id])
+        contents = [h['content'] for h in hist]
+        self.assertIn('earlier question', contents)
+        self.assertIn('earlier answer', contents)
+        self.assertNotIn('current question', contents)  # current turn excluded
+
+    def test_genuine_failure_leaves_turn_visible_and_recoverable(self):
+        """A real backend failure marks the pending turn FAILED with visible content
+        (non-empty), so it survives on history reload with a retry path."""
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.cos_gateway.envelope import SURFACE_CHAT_STREAM
+        from apps.ai.model_interface.tasks import run_model_interface_generation
+
+        captured = {}
+        with patch(
+            'apps.ai.model_interface.tasks.run_model_interface_generation.delay',
+            side_effect=lambda *a, **k: captured.update(args=a, kwargs=k),
+        ):
+            ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='trigger a failure', stream=True,
+            )
+        conv = AssistantConversation.get_or_create_active(self.user)
+        with patch(
+            'apps.ai.model_interface.service.ModelInterfaceService.generate',
+            side_effect=RuntimeError('boom'),
+        ):
+            run_model_interface_generation(*captured['args'], **captured['kwargs'])
+
+        assistants = AssistantMessage.objects.filter(conversation=conv, role='assistant')
+        self.assertEqual(assistants.count(), 1)  # still the same turn, not lost
+        failed = assistants.first()
+        self.assertEqual(failed.metadata.get('status'), 'failed')
+        self.assertTrue(failed.content.strip())  # visible error, not a blank bubble
+        snap = bus.read(captured['kwargs']['job_id'] if 'job_id' in captured['kwargs']
+                        else captured['args'][4])
+        self.assertEqual(snap['status'], 'failed')
+
+    def test_duplicate_resubmit_does_not_create_second_turn(self):
+        """A genuine double-submit of the SAME text while in flight does NOT mint a
+        second durable turn — it returns the existing turn's duplicate_pending."""
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.cos_gateway.envelope import SURFACE_CHAT_STREAM
+
+        with patch(
+            'apps.ai.model_interface.tasks.run_model_interface_generation.delay',
+            side_effect=lambda *a, **k: None,
+        ):
+            ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='same message', stream=True)
+            env2 = ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='same message', stream=True)
+
+        conv = AssistantConversation.get_or_create_active(self.user)
+        # Only ONE user turn + ONE pending turn — the resubmit was suppressed.
+        self.assertEqual(
+            AssistantMessage.objects.filter(conversation=conv, role='user').count(), 1)
+        self.assertTrue(env2.meta.get('duplicate_pending'))
+        snap = bus.read(env2.stream_job_id)
+        self.assertTrue(any(e.get('type') == 'duplicate_pending'
+                            for e in snap['events']))
+
+    def test_history_endpoint_surfaces_pending_turn_lifecycle(self):
+        """Conversation hydration returns the pending turn WITH its lifecycle status,
+        so the client can render/reconcile pending from durable SERVER state."""
+        from apps.ai.cos_gateway.runtime import ModelInterfaceRuntime
+        from apps.ai.cos_gateway.envelope import SURFACE_CHAT_STREAM
+
+        with patch(
+            'apps.ai.model_interface.tasks.run_model_interface_generation.delay',
+            side_effect=lambda *a, **k: None,
+        ):
+            ModelInterfaceRuntime().respond(
+                user=self.user, surface=SURFACE_CHAT_STREAM,
+                message='pending lifecycle question', stream=True)
+
+        client = Client()
+        client.force_login(self.user)
+        resp = client.get('/assistant/api/history/')
+        self.assertEqual(resp.status_code, 200)
+        msgs = resp.json()['messages']
+        # user message present (never disappears)
+        self.assertTrue(any(m['role'] == 'user' and
+                            m['content'] == 'pending lifecycle question' for m in msgs))
+        # pending assistant turn present with server-authoritative lifecycle status
+        pend = [m for m in msgs if m['role'] == 'assistant'
+                and m.get('lifecycle', {}).get('status') == 'processing']
+        self.assertEqual(len(pend), 1)
+        self.assertTrue(pend[0].get('lifecycle', {}).get('request_id'))

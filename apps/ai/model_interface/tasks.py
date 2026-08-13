@@ -47,7 +47,8 @@ def warm_understanding(user_id):
 )
 def run_model_interface_generation(self, user_id, conversation_id, message,
                                    page_context, job_id, images=None,
-                                   attachments=None):
+                                   attachments=None, assistant_msg_id=None,
+                                   user_msg_id=None):
     from django.contrib.auth import get_user_model
     from django.utils import timezone
 
@@ -64,26 +65,52 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
     try:
         user = User.objects.get(id=user_id)
         conversation = AssistantConversation.objects.get(id=conversation_id, user=user)
-        # Load PRIOR turns BEFORE persisting this one (conversation continuity).
         from apps.ai.model_interface.service import load_conversation_history
-        history = load_conversation_history(conversation)
-        from apps.ai.multimodal import receipts_from_attachments
-        user_msg = AssistantMessage.objects.create(
-            conversation=conversation, role="user", content=message or "",
-            message_type="text",
-            attachment_receipts=receipts_from_attachments(attachments),
-        )
-        # Conversation integrity: persist the submitted image(s) onto the user's message so
-        # the transcript stays faithful after reload — independent of the artifact lifecycle.
-        if images:
-            from apps.ai.multimodal import attach_images_to_message
-            attach_images_to_message(user_msg, [tuple(img) for img in images])
-        assistant_msg = AssistantMessage.objects.create(
-            conversation=conversation, role="assistant", content="",
-            message_type="text",
-            metadata={"request_id": job_id, "cos_path": "model_interface",
-                      "status": "processing"},
-        )
+
+        if assistant_msg_id is not None:
+            # DURABLE TURN LIFECYCLE — the submit path already persisted the user message
+            # and this PENDING assistant turn synchronously (server-owned turn). REUSE the
+            # existing rows; the worker only advances PENDING -> RUNNING -> COMPLETED/FAILED.
+            # History excludes the current turn's two messages (they are already persisted)
+            # so they are not fed back as prior context.
+            try:
+                assistant_msg = AssistantMessage.objects.get(
+                    id=assistant_msg_id, conversation=conversation, role="assistant")
+            except AssistantMessage.DoesNotExist:
+                assistant_msg = None
+            history = load_conversation_history(
+                conversation, exclude_ids=[user_msg_id, assistant_msg_id])
+            if assistant_msg is None:
+                # Defensive: the durable turn vanished (should not happen). Recreate it so
+                # the answer is never lost.
+                assistant_msg = AssistantMessage.objects.create(
+                    conversation=conversation, role="assistant", content="",
+                    message_type="text",
+                    metadata={"request_id": job_id, "cos_path": "model_interface",
+                              "status": "processing"},
+                )
+        else:
+            # Legacy path (no synchronous persistence at submit) — create the rows here.
+            # Load PRIOR turns BEFORE persisting this one (conversation continuity).
+            history = load_conversation_history(conversation)
+            from apps.ai.multimodal import receipts_from_attachments
+            user_msg = AssistantMessage.objects.create(
+                conversation=conversation, role="user", content=message or "",
+                message_type="text",
+                attachment_receipts=receipts_from_attachments(attachments),
+            )
+            # Conversation integrity: persist the submitted image(s) onto the user's message
+            # so the transcript stays faithful after reload — independent of the artifact
+            # lifecycle.
+            if images:
+                from apps.ai.multimodal import attach_images_to_message
+                attach_images_to_message(user_msg, [tuple(img) for img in images])
+            assistant_msg = AssistantMessage.objects.create(
+                conversation=conversation, role="assistant", content="",
+                message_type="text",
+                metadata={"request_id": job_id, "cos_path": "model_interface",
+                          "status": "processing"},
+            )
         result = ModelInterfaceService(user).generate(
             conversation, message, page_context=page_context, surface="chat_stream",
             request_id=job_id, conversation_history=history,
@@ -125,6 +152,15 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
                        job_id, user_id, exc_info=True)
         _fail(bus, snap, job_id, assistant_msg, "error")
         return
+    finally:
+        # DUPLICATE PROTECTION — release the in-flight marker once this turn reaches a
+        # terminal state (done/failed/timeout), so a later, legitimately-repeated
+        # identical message is allowed. TTL is a backstop; this is the clean release.
+        try:
+            from apps.ai.idempotency import clear_in_flight
+            clear_in_flight(user_id, message)
+        except Exception:
+            pass
 
     bus.write(job_id, snap)
 

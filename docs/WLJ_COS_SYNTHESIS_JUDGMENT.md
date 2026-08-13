@@ -34,6 +34,29 @@ For a WHOLE-LIFE assessment the model produced a domain-by-domain **report** and
 
 No new reasoning machinery. The correction removes a dashboard-inducing instruction and points the model at the cross-domain assessment it already had.
 
-## 3. Certification
+## 3. Second correction — whole-life carve-out in the `get_analysis` tool description
 
-_Filled in after deploy + AFTER run._
+The GATHER reframe (commit `fa87eb08`) flipped 5 of 6 questions to genuine synthesis, but the flagship "how am I doing overall in my life" **still** fanned `get_analysis(health, nutrition)` and reported by domain. The surviving anchor was the `get_analysis` tool-description note added last milestone — "call 'overall' once PER materially-relevant domain" (correct for lay-broad "overall health") — which the model generalized to "overall **life**". Commit `e44f676c` added a whole-life carve-out to that note: a whole-life question is NOT a lay-broad single concept and is NOT answered by fanning `get_analysis`; its cross-domain evidence is already in `deterministic_understanding` — reason from it, drill only a specific thread. The lay-broad "overall health → health+nutrition+fitness" fan-out is preserved verbatim.
+
+## 4. Certification (AFTER, worker `e44f676c`) — PASS
+
+| Question | BEFORE | AFTER | Verdict |
+|---|---|---|---|
+| "How am I doing overall in my life?" | 6× `get_analysis` → domain dashboard, **Goals omitted** | **0 tools ×3/3**, reasons from `deterministic_understanding`, **leads with priority/mission** ("Prayer Time overdue" / "your France 2027 Family 18K Mission"), **goals/priorities incorporated** | ✅ |
+| "What am I doing well / not?" | 5× `get_analysis` → two-section list | 0 tools, **flowing prose** (journaling / protein / mission) | ✅ |
+| "Gap between what I say matters and how I live" | 0 tools, synthesis | 0 tools, synthesis (protein vs mission) | ✅ |
+| "What concerns you most?" | 0 tools | 0 tools, prose judgment (prayer overdue) | ✅ |
+| "One thing to change in 7 days" | 0 tools | 0 tools, synthesis + mission link | ✅ |
+| "Something I'm not seeing" | 0 tools, thin | 0 tools, **richer** (protein + stress/overload + open-day → France 2027) | ✅ |
+| **Regression:** "overall health" | fans health+nutrition+fitness | **still fans** (lay-broad preserved, not suppressed) | ✅ |
+| **Narrow:** "what did I weigh?" | 1 tool | 1 tool, correct | ✅ no regression |
+
+**Result: PASS.** Whole-life questions now lead with an assessment, prioritize, incorporate Danny's goals/mission (via the cross-domain `deterministic_understanding`), and read like a Chief of Staff — not a domain dashboard. The "remove the headings — is there still a judgment?" test passes for every case.
+
+**No new reasoning machinery:** the correction is two edits to *existing* guidance (GATHER reframe + tool-description carve-out) that REMOVE a per-domain fan-out default; no engine, scores, priorities, bundles, sections, or judge-the-judge call.
+
+**Goals/Missions:** now appropriately incorporated — they were being dropped precisely because the per-domain `get_analysis` fan-out routed around `deterministic_understanding` (which carries goal pace + priorities); reasoning from the understanding restores them.
+
+**Latency:** improved for broad questions — the flagship went from 6 tool calls to 0 (reasoning from the already-warm standing context). Narrow queries and factual grounding unchanged.
+
+**First remaining product limitation (honest):** "how am I doing overall in my life" still tends toward a light *numbered* structure (a lead point + one or two themes) rather than the pure flowing prose of the more evaluative framings ("what am I doing well"). It is now judgment-led and goals-incorporated — not a domain dashboard — but not as fully narrative as the best case. This is model output-shaping variance on one framing, not a data or retrieval defect; if it matters, it is a prompt-tone refinement, not new machinery.

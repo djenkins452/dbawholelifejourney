@@ -45,6 +45,26 @@ Ruled out: capability discoverability (the capability index already advertises n
 
 Tests: `test_model_interface_runtime.py::test_investigation_breadth_matches_question_scope` and `::test_absence_must_be_proven_before_claiming_missing`. 29/29 OK; `check` clean; no migrations.
 
-## 5. Production certification (AFTER)
+## 5. Second correction (the decisive lever) — de-anchor the tool-description example
 
-_Filled in by the certification run below._
+The first commit (`5da1a67a`) fixed the two flagship failures decisively (case 4: 1→6 tools across the named domains, 2/2; case 2: retrieves nutrition, no false-missing) but "overall health" still landed on one `get_analysis(health, overall)` call across repeats. Root anchor: the `get_analysis` **tool description** used **"overall health"** as its flagship whole-*single*-domain example ("For a WHOLE-DOMAIN summary — 'overall health'… pass subject 'overall'"), teaching domain==scope at the exact point the model picks the call. Commit `afa36f8c` replaced it with clean single-domain examples (finances, sleep) and a note that 'overall' rolls up ONE domain's subjects — "my overall health" spans health AND nutrition AND fitness (separate WLJ domains), so call 'overall' once per materially-relevant domain (model decides which). No bundle; model judgment preserved.
+
+## 6. Production certification (AFTER, worker `afa36f8c`) — PASS
+
+| Certification | BEFORE | AFTER | Verdict |
+|---|---|---|---|
+| "How is my overall health doing right now?" | 1 tool (health), no nutrition | **4/4 runs: `get_analysis` health + nutrition + fitness; nutrition woven into every answer** (24–36 s) | ✅ FIXED |
+| "…what can't you evaluate / what are you missing?" | 1 tool → false blind spot | enumerates real capabilities (body-comp, glucose, cardio, sleep, activity, hydration, respiratory) and names only a genuine gap; **no false "missing nutrition"** | ✅ FIXED |
+| "How am I doing overall in my life right now?" | collapsed toward health | **5 tools: health, nutrition, goals, relationships — one synthesized whole-life read** (46 s) | ✅ FIXED |
+| "…what deserves my attention most across health/goals/projects/relationships/finances?" | 1 tool (health only) | **6 tools: all five named domains — synthesized, not a dashboard** (32 s) | ✅ FIXED |
+| Narrow: "what did I weigh recently?" | 1 | weight only — no wandering | ✅ no regression |
+| Narrow: "what did I spend at Costco?" | 1 | finance only | ✅ no regression |
+| Narrow: "what should I do next?" | 0 | execution answer, no fan-out | ✅ no regression |
+
+**Result: PASS.** Broad health became genuinely broader (now consistently spans nutrition + fitness, 4/4). Whole-life assessment became genuinely holistic (4–5 domains, synthesized). False "missing data" claims stopped (capability check + retrieval before any absence claim). No narrow-question regression — breadth is symmetric.
+
+**Latency:** a broad question now costs one extra parallel round of `get_analysis` calls (~24–46 s for 4–6 domains vs ~one call before) — the accepted cost of a judgment that actually covers its scope; narrow questions are unchanged (1 tool). Absolute times include queue wait from firing the certification batch concurrently and are not per-request compute.
+
+## 7. First remaining product limitation (honest)
+
+Which domains the model deems "materially relevant" for an **implicit** scope ("overall health", "overall life") is model judgment and retains some run-to-run variance in the *edges* (e.g. whether "overall life" includes finance/projects on a given run — case 3 covered health/nutrition/goals/relationships but not finance this run). The two flagship, high-value cases are now consistent (overall-health 4/4; explicit multi-domain 2/2). This is a prompt-contract improvement (floor raised decisively, collapse eliminated), not a hard guarantee of identical domain coverage every run. If field evidence shows a specific broad question under-covering a domain that clearly matters, that is the signal for a targeted truth-delivery improvement — reported, not pre-built.

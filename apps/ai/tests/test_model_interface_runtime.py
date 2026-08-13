@@ -222,17 +222,28 @@ class StandingContextTests(TestCase):
         self.assertIn("retrieve that truth first", c)
 
     def test_investigation_breadth_matches_question_scope(self):
-        # Investigation-sufficiency milestone: a broad question must be investigated as
-        # broadly as its scope — the WLJ domain partition is NOT the question's scope
-        # ("my health" spans nutrition/fitness). Model-reasoning contract, not a bundle:
-        # breadth of investigation MATCHES breadth of question, in BOTH directions, and
-        # which domains are materially relevant stays the model's judgment.
+        # Breadth-matching contract (model reasoning, not a bundle): gather to the breadth
+        # of the question. A LAY-BROAD single concept ("overall health") spans several
+        # named domains; which truth is relevant stays the model's judgment.
         c = CONSTITUTION.lower()
         self.assertIn("match the breadth", c)
-        self.assertIn("internal filing system, not the scope", c)
-        self.assertIn("sufficiency check", c)
-        self.assertIn("in both directions", c)          # narrow question -> narrow gather
+        self.assertIn("lay-broad single concept", c)   # "overall health" -> named domains
         self.assertIn("never a fixed bundle", c)         # forbids a hardcoded domain bundle
+
+    def test_whole_life_assessment_synthesizes_not_reports(self):
+        # Synthesis/judgment milestone: a WHOLE-LIFE assessment must reason FROM the single
+        # cross-domain deterministic_understanding (which carries goals/mission/priorities),
+        # NOT rebuild the picture by fanning get_analysis per domain (that fragments evidence
+        # into domain bundles mirrored as a domain report). Retrieval structure must never
+        # become answer structure. Removing that fan-out default is the correction.
+        c = CONSTITUTION.lower()
+        self.assertIn("how you gather is never how you answer", c)
+        self.assertIn("whole-life or cross-domain assessment", c)
+        self.assertIn("reason from these", c)            # from the cross-domain understanding
+        self.assertIn("one section per domain", c)       # the dashboard failure it forbids
+        self.assertIn("number of bundles you gather is never the number of sections", c)
+        # goals/mission are incorporated via the standing understanding, not a per-domain fan
+        self.assertIn("goal pace and priorities", c)
 
     def test_absence_must_be_proven_before_claiming_missing(self):
         # Second invariant: never declare WLJ truth missing/unevaluable from the one bundle

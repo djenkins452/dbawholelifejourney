@@ -221,6 +221,31 @@ class StandingContextTests(TestCase):
         self.assertIn("never answered with generic advice first", c)
         self.assertIn("retrieve that truth first", c)
 
+    def test_investigation_breadth_matches_question_scope(self):
+        # Investigation-sufficiency milestone: a broad question must be investigated as
+        # broadly as its scope — the WLJ domain partition is NOT the question's scope
+        # ("my health" spans nutrition/fitness). Model-reasoning contract, not a bundle:
+        # breadth of investigation MATCHES breadth of question, in BOTH directions, and
+        # which domains are materially relevant stays the model's judgment.
+        c = CONSTITUTION.lower()
+        self.assertIn("match the breadth", c)
+        self.assertIn("internal filing system, not the scope", c)
+        self.assertIn("sufficiency check", c)
+        self.assertIn("in both directions", c)          # narrow question -> narrow gather
+        self.assertIn("never a fixed bundle", c)         # forbids a hardcoded domain bundle
+
+    def test_absence_must_be_proven_before_claiming_missing(self):
+        # Second invariant: never declare WLJ truth missing/unevaluable from the one bundle
+        # already fetched. Check the capability index and retrieve the candidate surface
+        # first; only a genuinely-empty candidate supports "unavailable". Targets the
+        # "you HAVE my nutrition data" incident.
+        c = CONSTITUTION.lower()
+        self.assertIn("prove the absence before you claim truth is missing", c)
+        self.assertIn("what are you missing", c)
+        self.assertIn("capabilities.truth_analysis", c)
+        self.assertIn("you have my nutrition data", c)
+        self.assertIn("never announce a blind spot for truth wlj actually holds", c)
+
     def test_constitution_carries_the_fabrication_rule(self):
         mi = ModelInterfaceService(self.user)
         sp = mi._system_prompt(mi.build_standing_context())

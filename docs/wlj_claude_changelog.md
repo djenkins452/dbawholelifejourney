@@ -55715,3 +55715,17 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 **Verification:** all 9 referenced governing/record docs exist (no dangling index links); bootloader shorter; startup-package integrity reviewed (self-contained, one responsibility per doc). Committed by explicit pathspec — foreign concurrent work (operations banner / ops_executive / assistant_panel) left untouched.
 
 **Files:** `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/{00_NEXT_CHAT_STARTUP,01_READ_FIRST_WLJ_CHIEF_OF_STAFF_ARCHITECTURE,99_REFERENCE_INDEX}.md`, `docs/wlj_claude_changelog.md`.
+
+## 2026-08-12 — CoS Investigation Sufficiency & Scope Completeness (breadth matches question; prove absence)
+
+**Why:** Production testing exposed the model deciding it had enough evidence too early. (1) "How is my overall health?" and "what deserves my attention across health/goals/projects/relationships/finances?" collapsed onto a single `get_analysis(health, overall)` call — the WLJ `health` domain excludes nutrition/fitness, so "health" (lay scope) was under-investigated. (2) "What are you missing / can't evaluate?" declared a blind spot from the one bundle already fetched, without checking the capability index — the class behind the "you HAVE my nutrition data" incident.
+
+**Root cause (proven via real-runtime `cos-run`, worker `ac43d386`):** two facets of one meta-cognitive gap — the model never checked its investigation's SCOPE against the QUESTION's scope. The EXECUTIVE ASSESSMENT GATHER contract equated the question's scope with a single WLJ domain ("use get_analysis(<domain>,'overall') for a single domain"); nothing governed the "what am I missing" meta-question or pointed the model at the capability index before declaring absence. NOT capability discoverability (index already advertises the domains), NOT tool selection, NOT a bundle problem.
+
+**Changes (`apps/ai/model_interface/constitution.py` — modifies existing guidance; NO bundle, NO classifier, NO engine):**
+- EXECUTIVE ASSESSMENT → GATHER: added the breadth-matching invariant — scope is the model's judgment of the question, NOT one WLJ domain (the domain partition is an internal filing system; "my health" spans body-comp AND nutrition AND fitness AND sleep); gather across ALL materially-relevant domains, then run ONE sufficiency check ("does my evidence cover the scope asked?"). Symmetric (narrow question → narrow gather) and always model-judgment, never a fixed bundle.
+- New "PROVE THE ABSENCE BEFORE YOU CLAIM TRUTH IS MISSING" paragraph: check `capabilities.truth_analysis`/`domain_semantics` and retrieve the candidate surface before claiming truth is unavailable; distinguish "not gathered yet" / "this surface can't, another may" / "genuinely absent".
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_model_interface_runtime.py` (+2 invariants), `docs/WLJ_COS_INVESTIGATION_SUFFICIENCY.md` (investigation record).
+
+**Verification:** `apps.ai.tests.test_model_interface_runtime` 29/29 OK; `manage.py check` clean; no migrations. Production certification appended after worker deploy.

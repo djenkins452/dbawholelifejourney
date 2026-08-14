@@ -35,8 +35,9 @@ _SCAFFOLD_KEYS = frozenset({
 
 _READ_TOOLS = frozenset({
     "get_domain_state", "get_history", "get_readings", "get_event_frequency",
-    "get_comparison", "get_analysis", "get_entity", "get_user_truth",
-    "get_foundational_health_facts", "get_execution_review", "search_history",
+    "get_consistency", "get_comparison", "get_analysis", "get_entity",
+    "get_user_truth", "get_foundational_health_facts", "get_execution_review",
+    "search_history",
 })
 
 # Pre-decided PROGRESS/DRIFT verdict fields WLJ must NOT hand OpenAI as executive input

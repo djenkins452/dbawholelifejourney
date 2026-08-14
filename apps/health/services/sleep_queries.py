@@ -139,6 +139,87 @@ def recent_average_hours(user, days=7):
     return round((total / len(by_night)) / 60, 1)
 
 
+# ── Sleep SCHEDULE CONSISTENCY (regularity of bedtime / wake / duration) ─────────
+# The deterministic answer to "how consistent has my sleep schedule been" — the SPREAD of
+# bedtime, wake-time and duration around their normal pattern (and whether that spread is
+# tightening or loosening). Reuse-only: the authoritative-record-per-night selection above
+# and the platform Consistency capability (apps.core.truth.consistency) which owns the
+# midnight-safe circular statistics. Facts only — WLJ never says a schedule is good/bad.
+_CONSISTENCY_FIELDS = ("sleep_date", "source", "bedtime", "wake_time",
+                       "total_duration_minutes", "asleep_duration_minutes")
+
+
+def _local_minute_of_day(dt, tz):
+    """Minute-of-day (0..1439) of an aware datetime in the user's LOCAL clock — the value
+    circular statistics need. Missing → None (never a fabricated midnight)."""
+    if dt is None:
+        return None
+    try:
+        loc = dt.astimezone(tz)
+    except Exception:
+        return None
+    return loc.hour * 60 + loc.minute
+
+
+def sleep_consistency(user, start_date, end_date, *, period_label=""):
+    """THE single producer of sleep SCHEDULE-CONSISTENCY truth for nights whose `sleep_date`
+    falls in [start_date, end_date]. One authoritative record per night (the SAME
+    deterministic selection as `last_night`), each night's bedtime/wake converted to the
+    user's LOCAL clock, then handed to the platform Consistency capability (circular for the
+    clock fields, linear for duration). Returns a JSON-safe dict; `present` is False when
+    fewer than two nights have the timing to measure a spread. Never fabricates a missing
+    time as midnight."""
+    from apps.core.truth.consistency import ConsistencyMetric
+    from apps.core.utils import _get_user_tz
+    from apps.health.models import SleepEntry
+
+    try:
+        tz = _get_user_tz(user)
+    except Exception:
+        from django.utils import timezone as _dtz
+        tz = _dtz.get_current_timezone()
+
+    by_night = {}
+    for r in (SleepEntry.objects.filter(
+            user=user, sleep_date__gte=start_date, sleep_date__lte=end_date)
+            .values(*_CONSISTENCY_FIELDS)):
+        d = r["sleep_date"]
+        if d not in by_night or _rank(r) > _rank(by_night[d]):
+            by_night[d] = r
+
+    bed_pts, wake_pts, dur_pts = [], [], []
+    for d in sorted(by_night):
+        r = by_night[d]
+        bm = _local_minute_of_day(r.get("bedtime"), tz)
+        wm = _local_minute_of_day(r.get("wake_time"), tz)
+        dur = _canonical_minutes(r)
+        if bm is not None:
+            bed_pts.append((d, float(bm)))
+        if wm is not None:
+            wake_pts.append((d, float(wm)))
+        if dur is not None:
+            dur_pts.append((d, float(dur)))
+
+    fields = {
+        "bedtime": ConsistencyMetric("sleep", "bedtime", "clock", "minutes",
+                                     tuple(bed_pts)).to_dict(),
+        "wake_time": ConsistencyMetric("sleep", "wake_time", "clock", "minutes",
+                                       tuple(wake_pts)).to_dict(),
+        "duration": ConsistencyMetric("sleep", "duration", "linear", "minutes",
+                                      tuple(dur_pts)).to_dict(),
+    }
+    nights = len(by_night)
+    present = any(f.get("present") for f in fields.values())
+    return {
+        "domain": "health", "metric": "sleep", "subject": "sleep",
+        "period": period_label,
+        "start": start_date.isoformat(), "end": end_date.isoformat(),
+        "present": present,
+        "nights_with_data": nights,
+        "fields": fields,
+    }
+
+
 # ── Entity Completeness (record-level sleep detail for the Model Interface) ──────
 # `describe`/`describe_one` return CompleteEntity objects exposing EVERY stored sleep
 # dimension (stages, efficiency, quality, bedtime/waketime, HRV, respiratory rate…) —

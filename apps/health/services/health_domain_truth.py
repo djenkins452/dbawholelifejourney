@@ -38,6 +38,11 @@ class HealthDomainTruth(DomainTruth):
     # first adopter (CGM lows/highs); the other reading metrics adopt the same platform
     # producer as their episode thresholds are declared. See event_frequency() below.
     event_frequency_metrics = ("glucose",)
+    # Consistency/regularity metrics (how much a repeated observation VARIES around its
+    # normal pattern: "how consistent has my sleep schedule been"). Sleep is the first
+    # adopter (bedtime/wake circular regularity + duration spread); meal/med/exercise
+    # timing adopt the same platform producer later. See consistency() below.
+    consistency_metrics = ("sleep",)
     entity_types = ("workout", "sleep", "body_measurement",
                     "steps", "glucose", "blood_pressure", "weight",
                     "heart_rate", "water", "spo2", "body_temperature")
@@ -101,6 +106,11 @@ class HealthDomainTruth(DomainTruth):
         "glucose": "apps.health.services.glucose_readings.glucose_event_frequency",
     }
 
+    _CONSISTENCY = {
+        # metric -> dotted path to callable(user, start, end, period_label) -> consistency dict
+        "sleep": "apps.health.services.sleep_queries.sleep_consistency",
+    }
+
     _READINGS = {
         # metric -> dotted path to callable(user, window) -> ReadingSeries dict
         "glucose": "apps.health.services.glucose_readings.glucose_reading_window",
@@ -137,6 +147,19 @@ class HealthDomainTruth(DomainTruth):
         mod_path, fn_name = target.rsplit(".", 1)
         fn = getattr(import_module(mod_path), fn_name)
         return fn(self.user, event, windows)
+
+    def consistency(self, metric, start_date, end_date, period_label=""):
+        """Schedule-consistency (regularity) for a metric ("how consistent has my sleep
+        schedule been"). Delegates to the domain's single consistency producer (no new
+        retrieval logic here); the caller resolves the (start, end) period."""
+        target = self._CONSISTENCY.get(metric)
+        if target is None:
+            raise KeyError(f"health consistency unsupported: {metric!r} "
+                           f"(have {self.consistency_metrics})")
+        from importlib import import_module
+        mod_path, fn_name = target.rsplit(".", 1)
+        fn = getattr(import_module(mod_path), fn_name)
+        return fn(self.user, start_date, end_date, period_label=period_label)
 
     def history(self, metric, period="last_7_days", **kwargs):
         if metric in _BODY_METRICS:

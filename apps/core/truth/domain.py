@@ -97,6 +97,7 @@ class DomainTruth:
     history_metrics = ()          # introspection: metrics history() supports
     reading_metrics = ()          # introspection: metrics readings() supports (intra-day)
     event_frequency_metrics = ()  # introspection: metrics event_frequency() supports
+    consistency_metrics = ()      # introspection: metrics consistency() supports
 
     def __init__(self, user):
         self.user = user
@@ -136,6 +137,20 @@ class DomainTruth:
         (apps.core.truth.windows.Window list). Raise KeyError for an unsupported metric."""
         raise NotImplementedError(
             f"{self.domain} domain truth exposes no event_frequency()")
+
+    # CONSISTENCY CAPABILITY (how regular is a repeated observation over time) --------
+    # history() answers "is my bedtime getting earlier" (the LEVEL); consistency() answers
+    # "is my bedtime becoming more REGULAR" (the SPREAD) — the centre, dispersion (std dev /
+    # MAD / range), most/least regular observation, and the arithmetic change in that spread
+    # (see apps.core.truth.consistency; clock fields use midnight-safe circular statistics).
+    # A domain opts in by declaring `consistency_metrics` and returning the consistency dict.
+    # The caller (Model Interface) resolves the (start, end) period; the domain owns ONE bulk
+    # query; the platform owns the statistics. Sleep is the reference adopter.
+    def consistency(self, metric, start_date, end_date, period_label=""):
+        """Return a consistency dict (apps.core.truth.consistency) describing the regularity
+        of `metric` over [start_date, end_date]. Raise KeyError for an unsupported metric."""
+        raise NotImplementedError(
+            f"{self.domain} domain truth exposes no consistency()")
 
     def state(self):
         from apps.core.ai_state.state_engine import get_module_state
@@ -237,5 +252,6 @@ class DomainTruth:
                 "history": tuple(self.history_metrics),
                 "readings": tuple(self.reading_metrics),
                 "event_frequency": tuple(self.event_frequency_metrics),
+                "consistency": tuple(self.consistency_metrics),
                 "entities": tuple(self.entity_types),
                 "analysis": analysis}

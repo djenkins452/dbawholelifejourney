@@ -73,6 +73,12 @@ from apps.ai.cos_services.domain_event_frequency import (
     event_frequency_capable_domains,
     get_domain_event_frequency,
 )
+from apps.ai.cos_services.domain_consistency import (
+    DOMAIN_CONSISTENCY_SCHEMA_VERSION,
+    consistency_capability_index,
+    consistency_capable_domains,
+    get_domain_consistency,
+)
 from apps.ai.cos_services.domain_adherence import (
     DOMAIN_ADHERENCE_SCHEMA_VERSION,
     adherence_capability_index,
@@ -152,6 +158,12 @@ __all__ = [
     "event_frequency_capability_index",
     "event_frequency_capable_domains",
     "DOMAIN_EVENT_FREQUENCY_SCHEMA_VERSION",
+    # Pillar 1 — consistency branch (spread/regularity of a repeated observation; reuses the
+    # midnight-safe circular statistics)
+    "get_domain_consistency",
+    "consistency_capability_index",
+    "consistency_capable_domains",
+    "DOMAIN_CONSISTENCY_SCHEMA_VERSION",
     # Pillar 1 — adherence branch (actual vs target; reuses history + target registry)
     "get_domain_adherence",
     "adherence_capability_index",

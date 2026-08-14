@@ -22,8 +22,8 @@ from apps.core.truth.question_catalog import (
 EXPECTED_HEALTH_GAPS = {
     "health.body_temperature.current_context",   # no temperature overview page (Phase 2c)
     # health.glucose.lows_more_frequent — CLOSED (Phase 3b: Event Frequency Analysis).
+    # health.sleep.consistency — CLOSED (Phase 3a: Consistency/Variance capability).
     "health.heart_rate.recovery",                # HRV/recovery exposure (Phase 3c)
-    "health.sleep.consistency",                  # variance/consistency capability (Phase 3a)
     "health.weight.trend_change_point",          # change-point capability (Phase 3c)
     "nutrition.meals_most_carbs",                # ranked-by-macro entity surface (Phase 3+)
 }

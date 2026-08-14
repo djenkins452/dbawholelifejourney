@@ -820,6 +820,17 @@ def _valid_truth_event_frequency_domains():
         return []
 
 
+def _valid_truth_consistency_domains():
+    """Domains that answer at least one metric as a CONSISTENCY series
+    (DomainTruth.consistency) — the enum for the get_consistency tool. Catalog-driven, so a
+    domain that later declares consistency_metrics participates automatically."""
+    try:
+        from apps.ai.cos_services.domain_consistency import consistency_capable_domains
+        return consistency_capable_domains()
+    except Exception:
+        return []
+
+
 def _valid_truth_adherence_domains():
     """Domains with at least one metric that has a registered TARGET (get_adherence).
     Registry-driven, so a metric that later registers a target participates
@@ -862,6 +873,7 @@ def truth_tools():
     truth_reading_domains = _valid_truth_reading_domains()
     truth_comparison_domains = _valid_truth_comparison_domains()
     truth_event_frequency_domains = _valid_truth_event_frequency_domains()
+    truth_consistency_domains = _valid_truth_consistency_domains()
     truth_adherence_domains = _valid_truth_adherence_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
@@ -903,6 +915,11 @@ def truth_tools():
                                                     "windows over time."}
     if truth_event_frequency_domains:
         event_frequency_domain_schema["enum"] = truth_event_frequency_domains
+    consistency_domain_schema = {"type": "string",
+                                 "description": "The domain whose schedule regularity "
+                                                "(bedtime/wake/duration spread) to measure."}
+    if truth_consistency_domains:
+        consistency_domain_schema["enum"] = truth_consistency_domains
     adherence_domain_schema = {"type": "string",
                                "description": "The domain whose metric has a target to "
                                               "measure adherence against."}
@@ -1087,6 +1104,42 @@ def truth_tools():
                                            "'this quarter', 'last 30 days'). Defaults to "
                                            "'last_month'. WLJ resolves it against the user's "
                                            "today.")},
+            }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_consistency",
+            "description": (
+                "Get how REGULAR a repeated observation has been — the ONLY tool that "
+                "answers 'how consistent has my sleep schedule been', 'have I been going to "
+                "bed around the same time', 'is my wake-up time consistent', 'has my "
+                "schedule become more or less regular', 'how much does my sleep timing "
+                "vary'. It measures the SPREAD of each field (bedtime, wake time, duration) "
+                "around its normal pattern: the typical value, the variation (standard "
+                "deviation / mean-absolute-deviation in minutes), the most and least regular "
+                "days, and whether the spread is TIGHTENING or LOOSENING (first half vs "
+                "second half of the period). This is NOT get_history/get_trend (which show "
+                "the LEVEL — whether bedtime is getting earlier) and NOT get_comparison "
+                "(which compares AVERAGES). Regularity ≠ average: a steady 11 PM bedtime and "
+                "a bedtime swinging 9 PM–1 AM can share the same average. Clock times are "
+                "handled on a 24h ring, so 11:50 PM and 12:10 AM are 20 minutes apart, not a "
+                "day. Direction is arithmetic (rising/falling spread), NOT a good/bad "
+                "verdict — you interpret whether more or less regular is desirable. PERIOD: "
+                "the natural span the user said ('lately' ≈ 'last month', 'the last two "
+                "weeks'). Answerable (domain, metric) pairs are in "
+                "`capabilities.truth_consistency`."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": consistency_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The metric whose schedule regularity to measure "
+                                           "— one advertised in "
+                                           "`capabilities.truth_consistency` (e.g. "
+                                           "'sleep').")},
+                "period": {"type": "string",
+                           "description": ("The span of days to measure regularity over — "
+                                           "the natural expression the user said ('last "
+                                           "month', 'the last two weeks', 'last 30 days'). "
+                                           "Defaults to 'last_month'. WLJ resolves it "
+                                           "against the user's today.")},
             }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_comparison",

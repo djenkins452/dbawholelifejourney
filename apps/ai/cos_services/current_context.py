@@ -100,6 +100,7 @@ def _capabilities() -> dict:
     domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
     truth_readings = {}
     truth_event_frequency = {}
+    truth_consistency = {}
     try:
         from apps.core.truth import catalog
         cat = catalog.truth_catalog()
@@ -120,6 +121,11 @@ def _capabilities() -> dict:
                 for d, s in cat.items()
                 if isinstance(s, dict) and s.get("event_frequency")
             }
+            truth_consistency = {
+                d: sorted(s.get("consistency", ()))
+                for d, s in cat.items()
+                if isinstance(s, dict) and s.get("consistency")
+            }
             truth_entities = {
                 d: sorted(s.get("entities", ()))
                 for d, s in cat.items()
@@ -134,6 +140,7 @@ def _capabilities() -> dict:
         domains, truth_history, truth_entities, truth_analysis = [], {}, {}, {}
         truth_readings = {}
         truth_event_frequency = {}
+        truth_consistency = {}
     # Plain-language capability semantics — so the model routes by MEANING, not by a
     # domain NAME (e.g. an EATEN meal is `nutrition`, a planned/recipe meal is `meals`).
     # Advertised-only: a domain the model can actually call. One authoritative source
@@ -142,7 +149,7 @@ def _capabilities() -> dict:
     try:
         from apps.core.truth.semantics import domain_semantics as _sem
         advertised = (set(truth_history) | set(truth_readings)
-                      | set(truth_event_frequency)
+                      | set(truth_event_frequency) | set(truth_consistency)
                       | set(truth_entities) | set(truth_analysis))
         all_sem = _sem()
         domain_semantics = {}
@@ -181,6 +188,11 @@ def _capabilities() -> dict:
         # more frequent'; distinct from truth_readings (ONE window) and truth_comparison
         # (averages, not event counts).
         "truth_event_frequency": truth_event_frequency,
+        # How REGULAR a repeated observation is over time (spread around its centre + whether
+        # it's tightening) — the get_consistency tool. Answers 'how consistent has my sleep
+        # schedule been'; distinct from truth_history (the LEVEL/trend) and truth_comparison
+        # (averages). Regularity ≠ average.
+        "truth_consistency": truth_consistency,
         # Any truth_history metric is also comparable period-vs-period (get_comparison).
         "truth_comparison": truth_history,
         # Metrics with a stored target — actual-vs-target adherence (get_adherence).

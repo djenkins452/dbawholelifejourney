@@ -239,6 +239,17 @@ class StandingContextTests(TestCase):
         self.assertIn("number of bundles you gather is never the number of sections", c)
         self.assertIn("one judgment, never one section per source", c)
 
+    def test_current_evaluative_claim_not_answered_by_standing_understanding(self):
+        # Current-judgment-needs-current-evidence: the RETRIEVAL PRECEDENCE decision point must
+        # state that a CURRENT EVALUATIVE claim is NOT "answered" by sources 1-3 merely holding
+        # deterministic_understanding — it needs current evidence (retrieved, or sufficiently
+        # current in this conversation). Closes the ~1/8 0-tool variant. Model still decides.
+        c = CONSTITUTION.lower()
+        self.assertIn("is not 'answered' by sources 1–3 merely containing the standing", c)
+        self.assertIn("does not let you stop here and answer 0-tool", c)
+        self.assertIn("sufficiently-current grounded evidence already in this conversation", c)
+        self.assertIn("you still decide which evidence and how much is sufficient", c)
+
     def test_whole_life_requires_current_evidence_not_only_orientation(self):
         # Current-evidence-before-judgment: deterministic_understanding + missions/personal_truth
         # ORIENT (who the user is / what matters); they are NOT current evidence and their

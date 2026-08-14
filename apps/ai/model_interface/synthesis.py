@@ -64,46 +64,90 @@ def synthesis_eligible(evidence):
     return len(surfaces) >= 2
 
 
-def _strip(obj):
-    """Recursively drop scaffolding keys; keep every fact-bearing value."""
-    if isinstance(obj, dict):
-        return {k: _strip(v) for k, v in obj.items() if k not in _SCAFFOLD_KEYS}
-    if isinstance(obj, list):
-        return [_strip(v) for v in obj]
-    return obj
+def _facts_from_result(result):
+    """Flatten ONE truth result to compact 'label: value unit (Δ change)' lines — every
+    deterministic fact, none of the scaffolding/nesting. This keeps the Phase-2 prompt small
+    (the A/B experiment showed ~9× reduction with grounding preserved), so the synthesis call
+    is fast and never times out on payload size."""
+    facts = []
+    if not isinstance(result, dict):
+        return facts
+    for grp in (result.get("concepts") or {}).values():
+        if not isinstance(grp, dict):
+            continue
+        for m in (grp.get("members") or {}).values():
+            if isinstance(m, dict) and m.get("value") is not None:
+                s = f"{m.get('label')}: {m.get('value')}{(' ' + m['unit']) if m.get('unit') else ''}"
+                if m.get("change") not in (None, ""):
+                    s += f" (Δ {m['change']})"
+                facts.append(s)
+    st = result.get("state")
+    if isinstance(st, dict):
+        for k, v in st.items():
+            if isinstance(v, (int, float, str)) and k not in ("enabled",) and not str(k).endswith("basis"):
+                facts.append(f"{k}: {v}")
+    subs = result.get("subjects")
+    if isinstance(subs, dict):
+        for name, s in subs.items():
+            if not isinstance(s, dict) or not s.get("present"):
+                continue
+            ch = s.get("change") or {}
+            if ch:
+                facts.append(f"{name}: {ch.get('first')}→{ch.get('last')} "
+                             f"(Δ {ch.get('delta')}, {ch.get('direction')})")
+            elif s.get("average") is not None:
+                facts.append(f"{name}: avg {s.get('average')} {s.get('unit', '')}")
+    # Fallback for non-analysis truth shapes: keep top-level scalar facts.
+    if not facts:
+        for k, v in result.items():
+            if k in _SCAFFOLD_KEYS or k in ("domain", "window"):
+                continue
+            if isinstance(v, (int, float, str, bool)):
+                facts.append(f"{k}: {v}")
+    return facts
 
 
 def render_evidence(evidence):
-    """Consolidate the gathered evidence into ONE pooled block (facts tagged by what
-    was retrieved), scaffolding removed. Pooled — NOT re-partitioned as one section per
-    tool — because the controlled experiment showed a per-tool partition invites a
-    per-tool report. This is the Phase-1→Phase-2 handoff of already-gathered truth, not
-    a new retrieval format."""
+    """Consolidate the gathered evidence into ONE pooled block of COMPACT flat facts (tagged
+    by what was retrieved), scaffolding + nesting removed. Pooled — NOT one section per tool —
+    because the controlled experiment showed a per-tool partition invites a per-tool report.
+    The Phase-1→Phase-2 handoff of already-gathered truth; small so synthesis stays fast."""
     blocks = []
     for e in evidence or []:
         a = e.get("args") or {}
-        tag = e.get("tool", "")
-        dom = a.get("domain") or a.get("section")
+        dom = a.get("domain") or a.get("section") or e.get("tool", "")
         sub = a.get("subject") or a.get("metric")
-        label = tag + (f"[{dom}" + (f".{sub}" if sub else "") + "]" if dom else "")
-        facts = _strip(e.get("result") or {})
-        blocks.append(f"### {label}\n{json.dumps(facts, default=str, ensure_ascii=False)}")
-    return "\n\n".join(blocks)
+        label = f"{dom}" + (f".{sub}" if sub and sub != "overall" else "")
+        facts = _facts_from_result(e.get("result") or {})
+        if facts:
+            blocks.append(f"[{label}] " + "; ".join(str(f) for f in facts))
+    return "\n".join(blocks)
+
+
+def _compact(v, limit=1200):
+    s = json.dumps(v, default=str, ensure_ascii=False)
+    return s if len(s) <= limit else s[:limit] + "…"
 
 
 def build_orientation(standing_context):
-    """The standing ORIENTATION for Phase 2: who Danny is and what he is working toward
-    (missions, personal truth, current action) + the deterministic understanding as
-    ORIENTATION ONLY. Its interpretive/verdict fields are WLJ's heuristic read, NOT
-    current evidence — the synthesis prompt says so. Never the substance of the judgment."""
+    """The standing ORIENTATION for Phase 2 — small: who Danny is and what he is working
+    toward (missions, current action, a capped personal-truth summary) + a COMPACT read of
+    the deterministic understanding (challenge/risk/goal-pace) as ORIENTATION ONLY. Its
+    interpretive fields are WLJ's heuristic read, NOT current evidence (the prompt says so).
+    Capped so the synthesis prompt stays small and fast."""
     if not isinstance(standing_context, dict):
         return "{}"
     keep = {}
-    for k in ("missions", "personal_truth", "current_action", "deterministic_understanding",
-              "current_context"):
-        v = standing_context.get(k)
-        if v:
-            keep[k] = v
+    if standing_context.get("missions"):
+        keep["missions"] = _compact(standing_context["missions"], 800)
+    if standing_context.get("current_action"):
+        keep["current_action"] = _compact(standing_context["current_action"], 400)
+    if standing_context.get("personal_truth"):
+        keep["personal_truth"] = _compact(standing_context["personal_truth"], 900)
+    du = standing_context.get("deterministic_understanding")
+    if isinstance(du, dict):
+        keep["understanding_read"] = _compact(
+            {k: du.get(k) for k in ("executive", "priority", "direction") if du.get(k)}, 900)
     return json.dumps(keep, default=str, ensure_ascii=False)
 
 

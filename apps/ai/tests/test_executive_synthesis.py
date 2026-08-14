@@ -49,17 +49,24 @@ class EligibilityTests(TestCase):
         self.assertFalse(S.synthesis_eligible(dup))         # same surface twice != 2
         self.assertTrue(S.synthesis_eligible(two))          # 2 distinct domains -> eligible
 
-    def test_render_evidence_strips_scaffolding_keeps_facts_pooled(self):
+    def test_render_evidence_compact_facts_pooled_scaffolding_stripped(self):
         ev = [{"tool": "get_analysis", "args": {"domain": "health", "subject": "overall"},
                "result": {"status": "ready", "holds_data": True, "scope": "long prose…",
                           "note": "facts only", "schema_version": "1", "generated_at": "x",
-                          "subjects": {"weight": {"change": {"delta": "-9.2"}}}}}]
+                          "concepts": {"body": {"members": {"weight": {
+                              "label": "Weight", "value": "274.5", "unit": "lb", "change": "-9.2"}}}},
+                          "subjects": {"weight": {"present": True,
+                              "change": {"first": "280", "last": "274.5", "delta": "-5.5",
+                                         "direction": "falling"}}}}}]
         out = S.render_evidence(ev)
         self.assertIn("health", out)
-        self.assertIn("-9.2", out)          # fact preserved
+        self.assertIn("274.5", out)          # current value fact preserved
+        self.assertIn("-9.2", out)           # concept change preserved
+        self.assertIn("falling", out)        # trend fact preserved
         self.assertNotIn("long prose", out)  # scope scaffolding stripped
         self.assertNotIn("facts only", out)  # note stripped
         self.assertNotIn("schema_version", out)
+        self.assertNotIn("{", out)           # compact flat facts, not nested json
 
     def test_run_executive_synthesis_no_tools_returns_answer(self):
         class FakeAI:

@@ -181,11 +181,25 @@ SYNTHESIS_SYSTEM = (
 )
 
 
+# Phase 2 is a SINGLE, hard-bounded call. It deliberately bypasses AIService._call_api's
+# retry loop + rate-limit circuit breaker so it can NEVER storm retries or hang a turn: one
+# attempt, a strict wall-clock timeout, and on ANY error/timeout return "" so the caller keeps
+# the grounded Phase-1 answer. (A retry storm here was making broad turns run >260s.)
+SYNTHESIS_TIMEOUT_SECONDS = 35
+
+
 def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
                             conversation_history=None, user=None, temperature=0.5):
-    """Run the bounded Phase-2 synthesis: one completion, NO tools, over the already-gathered
-    evidence + standing orientation. Returns the answer string, or "" on failure (the caller
+    """Run the bounded Phase-2 synthesis: ONE completion, NO tools, NO retries, over the
+    already-gathered evidence + standing orientation. The prompt is self-contained (question +
+    evidence + orientation), so conversation history is not needed here — cross-turn continuity
+    is preserved because the FINAL answer persists as the turn and the NEXT turn re-enters
+    Phase 1 with full history. Returns the answer, or "" on any failure/timeout (the caller
     keeps the grounded Phase-1 answer as the justified safe fallback). Never raises."""
+    import time as _time
+    client = getattr(ai_service, "client", None)
+    if client is None:
+        return ""
     try:
         evidence_block = render_evidence(evidence)
         orientation = build_orientation(standing_context)
@@ -197,12 +211,19 @@ def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
             f"in THIS; do not invent; if it is insufficient for a claim, say so):\n"
             f"{evidence_block}"
         )
-        answer = ai_service._call_api(
-            SYNTHESIS_SYSTEM, user_prompt, max_tokens=650, temperature=temperature,
-            endpoint="model_interface_synthesis", user=user,
-            conversation_history=conversation_history,
+        t0 = _time.monotonic()
+        resp = client.chat.completions.create(
+            model=getattr(ai_service, "model", None),
+            messages=[{"role": "system", "content": SYNTHESIS_SYSTEM},
+                      {"role": "user", "content": user_prompt}],
+            temperature=temperature, max_tokens=650,
+            timeout=SYNTHESIS_TIMEOUT_SECONDS,
         )
-        return (answer or "").strip()
+        answer = (resp.choices[0].message.content or "").strip()
+        logger.info("MI_SYNTHESIS_CALL ok=%s dur=%.1fs evidence_chars=%d",
+                    bool(answer), _time.monotonic() - t0, len(evidence_block))
+        return answer
     except Exception:
-        logger.warning("executive synthesis failed", exc_info=True)
+        logger.warning("executive synthesis failed/timed out — keeping phase-1 answer",
+                       exc_info=True)
         return ""

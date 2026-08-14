@@ -68,25 +68,45 @@ class EligibilityTests(TestCase):
         self.assertNotIn("schema_version", out)
         self.assertNotIn("{", out)           # compact flat facts, not nested json
 
-    def test_run_executive_synthesis_no_tools_returns_answer(self):
-        class FakeAI:
-            model = "gpt-4o"
-            calls = []
-            def _call_api(self, system, user_prompt, **kw):
-                FakeAI.calls.append((system, user_prompt, kw))
-                return "  My read is you're progressing on X.  "
-        ai = FakeAI()
+    def test_run_executive_synthesis_single_bounded_call(self):
+        # Phase 2 is a single, hard-bounded, no-retry client call (bypasses _call_api's retry
+        # loop/circuit breaker so it can never hang a turn), no tools, bounded timeout.
+        from types import SimpleNamespace
+        captured = {}
+
+        class FakeCompletions:
+            def create(self, **kw):
+                captured.update(kw)
+                msg = SimpleNamespace(content="  My read is you're progressing on X.  ")
+                return SimpleNamespace(choices=[SimpleNamespace(message=msg)])
+
+        ai = SimpleNamespace(model="gpt-4o",
+                             client=SimpleNamespace(chat=SimpleNamespace(completions=FakeCompletions())),
+                             _call_api=lambda *a, **k: (_ for _ in ()).throw(AssertionError("must not use _call_api")))
         ans = S.run_executive_synthesis(
             ai, message="how am I doing overall?",
             evidence=[{"tool": "get_analysis", "args": {"domain": "health"},
                        "result": {"holds_data": True, "subjects": {}}}],
             standing_context={"missions": {"primary": "France 2027"}})
         self.assertEqual(ans, "My read is you're progressing on X.")
-        # synthesis uses the dedicated contract + endpoint, no tools
-        sys_prompt, up, kw = FakeAI.calls[-1]
-        self.assertIn("SECOND phase", sys_prompt)
-        self.assertEqual(kw.get("endpoint"), "model_interface_synthesis")
-        self.assertIn("France 2027", up)   # standing orientation carried
+        self.assertEqual(captured.get("timeout"), S.SYNTHESIS_TIMEOUT_SECONDS)  # bounded
+        msgs = captured.get("messages")
+        self.assertEqual(msgs[0]["role"], "system")
+        self.assertIn("SECOND phase", msgs[0]["content"])
+        self.assertIn("France 2027", msgs[1]["content"])   # orientation carried
+        self.assertNotIn("tools", captured)                # no tools
+
+    def test_run_executive_synthesis_returns_empty_on_error(self):
+        # On any client error/timeout, return "" so the caller keeps the grounded Phase-1 answer.
+        from types import SimpleNamespace
+
+        class Boom:
+            def create(self, **kw):
+                raise RuntimeError("timeout")
+        ai = SimpleNamespace(model="gpt-4o",
+                             client=SimpleNamespace(chat=SimpleNamespace(completions=Boom())))
+        self.assertEqual(S.run_executive_synthesis(
+            ai, message="q", evidence=[], standing_context={}), "")
 
 
 class SynthesisTimeoutTests(TestCase):

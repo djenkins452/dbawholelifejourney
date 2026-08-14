@@ -28,6 +28,18 @@ So the model treated `deterministic_understanding` as *sufficient evidence* rath
 
 The model still decides what is material; nothing is prescribed.
 
-## 3. Certification
+## 3. Certification (AFTER, worker `401a47c5`) — PRIMARY GOAL MET; synthesis residual reported
 
-_Filled in after deploy + AFTER run._
+**Truth test — PASS (the milestone's core objective).** "How am I doing overall in my life?" now retrieves **3–5 domains of CURRENT evidence every run** (was 0 tools / standing-facts-only). On the 2-turn probe, "what did you use and how current?" now **identifies the actual retrieved evidence with freshness** — "Weight: lost 9.2 lb over the last 30 days, current 274.5 lb; Glucose: 30-day avg 111…". The evaluative questions are grounded: "gap between say vs live" → 5 tools, leads with the judgment. Narrow ("weigh" → 1 tool) and concept-broad ("overall health" → 3 tools, health assessment) preserved.
+
+**Chief-of-Staff test — PARTIAL on the flagship.** "How am I doing overall in my life" consistently still opens with a forbidden framing ("here's how you're doing across key areas") and tours 3–4 domain sections, despite the explicit prohibition. The minimum-material + forbidden-opening nudges reduced it (5–7 sections → 3–4; 5–6 tools → 3–5) but did not make it judgment-led. Other evaluative framings ("where is the gap", "one thing to change") are more judgment-led.
+
+**Oscillation (proven across three milestones on this one framing):** fan-out→dashboard (grounded, not synthesized) → 0-tool→synthesis (synthesized, not grounded) → selective-retrieve→dashboard (grounded, not synthesized). The tension is architectural: retrieving N domains of current evidence pulls the output toward N sections, and no prompt instruction reliably breaks that for the "how am I doing overall" framing when multiple domains are present — and pushing synthesis harder has repeatedly re-cost grounding.
+
+**Decision (per the milestone's "STOP if more architectural"):** reliably guaranteeing BOTH grounded AND judgment-led over multi-domain evidence would require a separate synthesis pass over the gathered evidence — the "another model call to judge the first" / engine the milestone forbids. I stopped nudging and report rather than build it. The primary objective (current evidence before judgment) is met and robust.
+
+**Role of `deterministic_understanding` — before/after:** before, it was the model's *primary evidence and judgment* (0-tool answers echoed it, including its legacy heuristic verdicts). After, it is *orientation only* — the model retrieves current authoritative evidence and forms its own judgment (I.3→I.4 respected).
+
+**Current evidence the model selected (flagship):** health (weight −9.2 lb/30d, glucose/A1C, sleep), nutrition (protein 59 g vs 180 g target/14d), finance, relationships, goals — selectively, not a fixed set (which domains vary run to run). **Freshness:** the model reports it (30-day windows, "current as of Aug 13"). **Tool calls:** 3–5 for the flagship (was 0); 0 for "one thing to change" (a pointed single recommendation); 1 for narrow. **Latency:** the flagship costs one selective retrieval round (~3–5 parallel `get_analysis`), up from the prior 0-tool answer — the accepted cost of grounding; narrow unchanged.
+
+**First remaining limitation (honest):** the flagship "how am I doing overall in my life" is now well-grounded but still tends to present as a light domain-sectioned readout rather than a single judgment-led narrative. This is a stable prompt-contract limit for that specific framing; closing it reliably (not probabilistically) appears to need the separate-synthesis-pass architecture the milestone excludes, so it is reported as a scoped decision rather than patched with more scaffolding.

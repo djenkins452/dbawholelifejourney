@@ -33,6 +33,30 @@ No new authority: WLJ still owns truth; both phases are the same configured Open
 
 Phase 2 failure → keep the grounded Phase-1 answer (logged; `synthesis_used=false`). The final answer persists as the normal assistant turn via the existing durable turn lifecycle; follow-ups ("why do you think that?", "what should I do about it?", "what evidence did you use?") continue from it and can retrieve deeper truth in a fresh Phase-1. One Chief of Staff, one conversation — no separate Phase-2 identity.
 
-## 6. Certification
+## 6. Two deployment defects found + fixed during certification
 
-_Filled in after deploy + real-runtime run._
+1. **Fatal startup crash (unrelated to synthesis):** the temporary A/B experiment module was deleted but a prior `git add` aborted on the removed pathspec, so its `urls.py` URL path and `apps.py` `ready()` import survived in the committed tree. Django loaded the URLconf/`ready()` at startup, hit `__import__` of the deleted module, and crashed web (URLconf) + worker/beat (`ready()`). Fixed in `2814322b`; full-site recovery confirmed on the fix SHA. No rollback of synthesis.
+2. **Phase-2 latency/hang:** two bugs — (a) the `model_interface_synthesis` endpoint was absent from `ENDPOINT_TIMEOUTS`, inheriting the 8s utility timeout (`80ac1155`); (b) routing Phase 2 through `_call_api`'s 2×45s retry loop + rate-limit circuit breaker made a triggered broad turn **hang >260s** (proven: 0-tool turns finished in ~12s, retrieving turns hung). Fixed by compact evidence rendering (`9583b51b`, ~9× smaller handoff) and by making Phase 2 a **single hard-bounded client call** — one attempt, strict 35s timeout, no retry loop, self-contained prompt (`61fad3bc`); on any error/timeout it returns "" and the grounded Phase-1 answer is kept.
+
+## 7. Production certification (worker `61fad3bc`) — PASS
+
+**Flagship "How am I doing overall in my life right now?"** (3+ runs, 18–25s): retrieves **4–6 domains** of current evidence, Phase 2 triggers, **0 domain sections**, judgment-led — e.g. "you're in a state of **drift** … particularly serving others", "progress is **steady, but protein needs immediate attention** … your highest-leverage move", "**solid but uneven**, relationship with God has the most momentum". Grounded + Chief-of-Staff, not a dashboard.
+
+| Certification | Result |
+|---|---|
+| Flagship — Truth + Chief-of-Staff | ✅ grounded (4–6 surfaces), leads with judgment, prioritizes, mission-connected, **no domain tour** |
+| "What evidence & how current?" | ✅ identifies each piece + freshness (protein 6 days/57%, God-mission 50%, workload "as of today") |
+| Continuity: "why" / "what should I do" | ✅ continue naturally from the synthesized turn, grounded |
+| "biggest gap" | ✅ 10s, 4 surfaces, Phase 2, judgment-led ("the gap is your 'Serve Others' mission") |
+| "one thing to change" | ✅ 9s, single-phase, focused recommendation |
+| **Narrow:** weigh / Costco / next / protein | ✅ single-phase (Phase 2 NOT activated), 9–19s, correct |
+| "overall health" | ✅ 9s, 2 surfaces, Phase 2, synthesized ("stable, but protein a concern") — documented: it DOES use synthesis and reads as a judgment, not a dashboard |
+
+**New authority introduced:** none — both phases are the same configured OpenAI reasoning authority; Phase 2 retrieves nothing and computes no deterministic verdict.
+**Evidence slimming:** `get_analysis('overall')` `_envelope` scope-prose/metadata removed; Phase-2 handoff rendered as compact flat facts (~472 tokens for 4 domains vs ~6,200 full).
+**Phase-1 evidence selected (certification):** health, nutrition, finance, relationships, journal, tasks, goals, faith — selectively, varying by run (no fixed set).
+**Phase-2 input:** the question + capped standing orientation + the pooled compact facts; no tools, no history (self-contained).
+**Latency:** flagship ~18–25s (conversational — comparable to or faster than the pre-synthesis broad turns at 24–46s, thanks to the payload slimming that offsets the added call); narrow queries 9–19s, single-phase.
+**Failure behavior:** Phase-2 error/timeout → grounded Phase-1 answer kept (bounded ≤35s; the durable turn is never lost).
+
+**First remaining limitation (honest):** eligibility depends on Phase 1 actually retrieving ≥2 surfaces; the flagship's Phase-1 retrieval still has run-to-run variance (occasionally 0 tools → single-phase, answering judgment-led from standing context — acceptable, but not synthesis-grounded that run). When Phase 1 does retrieve (the common case in certification), Phase 2 delivers grounded judgment reliably.

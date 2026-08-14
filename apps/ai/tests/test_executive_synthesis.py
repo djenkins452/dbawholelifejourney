@@ -68,6 +68,56 @@ class EligibilityTests(TestCase):
         self.assertNotIn("schema_version", out)
         self.assertNotIn("{", out)           # compact flat facts, not nested json
 
+    def test_build_orientation_strips_predecided_verdicts_keeps_facts(self):
+        # The Phase-2 orientation must carry FACTS (who Danny is / what he's working toward)
+        # but NEVER a pre-decided progress/drift verdict (momentum score/band, biggest_risk,
+        # strategic summary) — handed one, the model narrated it as its own judgment with no
+        # lineage to defend on challenge (proven on the live runtime 2026-08-14).
+        sc = {
+            "missions": {"g1": {"title": "Serve Others", "why_it_matters": "beyond self",
+                                "progress": {"milestone_percent": 0, "momentum_score": 25,
+                                             "momentum_7d_avg": 22}}},
+            "current_action": {"primary_action": "Work on WLJ", "reason": "overdue foundational"},
+            "personal_truth": {"summary": "Danny, faith-centered"},
+            "deterministic_understanding": {
+                "executive": {"biggest_risk": "sleep debt is the main thing to watch",
+                              "primary_challenge": "workload"},
+                "priority": {"executive": "batch the overdue tasks"},
+                "direction": {"momentum": 25, "strategic_summary": "drifting rather than progressing"},
+            },
+        }
+        out = S.build_orientation(sc)
+        # Facts survive
+        self.assertIn("Serve Others", out)
+        self.assertIn("milestone_percent", out)
+        self.assertIn("Work on WLJ", out)          # deterministic current action
+        self.assertIn("faith-centered", out)       # personal truth
+        # Pre-decided verdicts are gone
+        self.assertNotIn("25", out)                        # momentum score
+        self.assertNotIn("momentum", out.lower())          # any momentum score/band
+        self.assertNotIn("biggest_risk", out)
+        self.assertNotIn("sleep debt is the main thing", out)
+        self.assertNotIn("primary_challenge", out)
+        self.assertNotIn("strategic_summary", out)
+        self.assertNotIn("drifting rather than progressing", out)
+        self.assertNotIn("understanding_read", out)        # the whole du verdict block dropped
+
+    def test_render_evidence_drops_verdict_labels_keeps_metric_facts(self):
+        # A domain STATE may carry a scalar verdict label (momentum='low',
+        # momentum_summary='behind pace') beside real facts. The verdict is stripped from the
+        # Phase-2 evidence; the numeric facts are kept.
+        ev = [{"tool": "get_analysis", "args": {"domain": "goals", "subject": "overall"},
+               "result": {"status": "ready", "holds_data": True,
+                          "state": {"momentum": "low", "momentum_summary": "behind pace",
+                                    "recommended_action": "complete a task today",
+                                    "milestones_completed": 3, "milestones_overdue": 1}}}]
+        out = S.render_evidence(ev)
+        self.assertIn("milestones_completed: 3", out)   # fact kept
+        self.assertIn("milestones_overdue: 1", out)     # fact kept
+        self.assertNotIn("behind pace", out)            # verdict stripped
+        self.assertNotIn("momentum", out.lower())       # verdict stripped
+        self.assertNotIn("complete a task today", out)  # prescription stripped
+
     def test_run_executive_synthesis_single_bounded_call(self):
         # Phase 2 is a single, hard-bounded, no-retry client call (bypasses _call_api's retry
         # loop/circuit breaker so it can never hang a turn), no tools, bounded timeout.

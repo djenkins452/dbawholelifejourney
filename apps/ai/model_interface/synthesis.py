@@ -39,6 +39,20 @@ _READ_TOOLS = frozenset({
     "get_foundational_health_facts", "get_execution_review", "search_history",
 })
 
+# Pre-decided PROGRESS/DRIFT verdict fields WLJ must NOT hand OpenAI as executive input
+# (Blueprint §4 — the I.3→I.4 line). A momentum SCORE / band / pace label ("momentum 25",
+# "behind pace", "slipping") IS the progress-vs-drift judgment OpenAI is being asked to form;
+# handed one pre-decided, the model narrates it as its own verdict — and cannot substantiate
+# it on challenge, because the collapsed number has no retrievable lineage (proven on the live
+# runtime 2026-08-14: the flagship claimed "momentum scores low / drifting" for missions it
+# never retrieved — the values came only from this orientation). The FACTS underneath
+# (milestone %, target dates, completion counts, last activity) stay: OpenAI reasons from
+# those and can re-retrieve them to defend the judgment.
+_VERDICT_KEYS = frozenset({
+    "momentum_score", "momentum_7d_avg", "momentum", "momentum_summary",
+    "momentum_trend", "recommended_action", "strategic_summary",
+})
+
 
 def is_substantive_truth(name, result):
     """A truth read that returned real data (not empty/error/unsupported)."""
@@ -84,7 +98,8 @@ def _facts_from_result(result):
     st = result.get("state")
     if isinstance(st, dict):
         for k, v in st.items():
-            if isinstance(v, (int, float, str)) and k not in ("enabled",) and not str(k).endswith("basis"):
+            if (isinstance(v, (int, float, str)) and k not in ("enabled",)
+                    and not str(k).endswith("basis") and k not in _VERDICT_KEYS):
                 facts.append(f"{k}: {v}")
     subs = result.get("subjects")
     if isinstance(subs, dict):
@@ -129,25 +144,36 @@ def _compact(v, limit=1200):
     return s if len(s) <= limit else s[:limit] + "…"
 
 
+def _strip_verdicts(obj):
+    """Recursively drop the pre-decided progress/drift VERDICT fields (`_VERDICT_KEYS`),
+    keeping every FACT. A momentum score/band/pace label is the very judgment OpenAI must
+    form (I.4); the milestone %, target dates and counts underneath it are the facts it
+    reasons from and can substantiate."""
+    if isinstance(obj, dict):
+        return {k: _strip_verdicts(v) for k, v in obj.items() if k not in _VERDICT_KEYS}
+    if isinstance(obj, list):
+        return [_strip_verdicts(v) for v in obj]
+    return obj
+
+
 def build_orientation(standing_context):
-    """The standing ORIENTATION for Phase 2 — small: who Danny is and what he is working
-    toward (missions, current action, a capped personal-truth summary) + a COMPACT read of
-    the deterministic understanding (challenge/risk/goal-pace) as ORIENTATION ONLY. Its
-    interpretive fields are WLJ's heuristic read, NOT current evidence (the prompt says so).
-    Capped so the synthesis prompt stays small and fast."""
+    """The standing ORIENTATION for Phase 2 — FACTS ONLY: who Danny is and what he is working
+    toward (missions with their concrete progress facts, the deterministic current action, a
+    capped personal-truth summary). It deliberately carries NO pre-decided executive verdict —
+    WLJ's heuristic assessment (biggest_risk, primary_challenge, momentum score/band, strategic
+    summary) is NOT forwarded. The whole progress/drift/risk/priority judgment is OpenAI's to
+    form from the gathered evidence + these facts (Blueprint §4, the I.3→I.4 line): handed a
+    pre-decided verdict, the model narrated it as its own with no evidence lineage to defend on
+    challenge. Capped so the synthesis prompt stays small and fast."""
     if not isinstance(standing_context, dict):
         return "{}"
     keep = {}
     if standing_context.get("missions"):
-        keep["missions"] = _compact(standing_context["missions"], 800)
+        keep["missions"] = _compact(_strip_verdicts(standing_context["missions"]), 800)
     if standing_context.get("current_action"):
-        keep["current_action"] = _compact(standing_context["current_action"], 400)
+        keep["current_action"] = _compact(_strip_verdicts(standing_context["current_action"]), 400)
     if standing_context.get("personal_truth"):
         keep["personal_truth"] = _compact(standing_context["personal_truth"], 900)
-    du = standing_context.get("deterministic_understanding")
-    if isinstance(du, dict):
-        keep["understanding_read"] = _compact(
-            {k: du.get(k) for k in ("executive", "priority", "direction") if du.get(k)}, 900)
     return json.dumps(keep, default=str, ensure_ascii=False)
 
 
@@ -173,11 +199,14 @@ SYNTHESIS_SYSTEM = (
     "EVIDENCE provided (or valid WLJ-grounded evidence already in the conversation, the "
     "standing personal truth, or general world knowledge where relevant). NEVER invent a "
     "Danny-specific fact and never silently fill a gap — if the evidence is genuinely "
-    "insufficient to support a claim, say so plainly. The STANDING ORIENTATION tells you "
-    "WHO Danny is and WHAT he is working toward (goals, missions, priorities); its "
-    "interpretive fields (biggest risk, primary challenge, patterns-as-meaning) are WLJ's "
-    "HEURISTIC read — orientation, NOT current evidence and NOT your judgment. The gathered "
-    "EVIDENCE tells you HOW he is actually doing right now; base the current judgment on it."
+    "insufficient to support a claim, say so plainly. The STANDING ORIENTATION gives you only "
+    "FACTS about WHO Danny is and WHAT he is working toward — his missions and their milestone "
+    "progress, his personal truth, and the deterministic next action. It contains NO assessment "
+    "of how he is doing: whether he is progressing or drifting, what his biggest risk is, what "
+    "to do first — all of that is YOURS to judge, and ONLY from the gathered EVIDENCE plus those "
+    "facts. Distinguish what WLJ measured (a fact/number) from what you conclude it means (your "
+    "judgment); never present a bare score or label as if it were the verdict, and if a claim "
+    "about how he is doing is not supported by the gathered evidence, say so rather than assert it."
 )
 
 

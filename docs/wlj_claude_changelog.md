@@ -55781,3 +55781,26 @@ NOTE on live verification: still no in-browser screenshot — `SESSION_COOKIE_SE
 ## 2026-08-13 — TEMPORARY: multi-domain evidence representation A/B experiment (operator-only, to be removed)
 
 Investigation for the multi-domain synthesis residual (docs/WLJ_COS_MULTIDOMAIN_EVIDENCE.md). Adds a temporary API-key-guarded operator endpoint `api/claude/analysis-ab/` + worker task that runs the SAME model/system-prompt/question/tool-call-count with two get_analysis('overall') result representations — A (current production envelopes) vs B (same deterministic facts, report scaffolding removed) — and returns both answers + token usage. Isolates whether the tool-RESULT representation drives retrieval-structure→answer-structure. NO production behavior change; NO change to the composer. Files: `apps/admin_console/_analysis_ab_experiment.py` (new), `apps/admin_console/urls.py`, `apps/admin_console/apps.py` (ready() registers the temp task on the worker). REMOVE in one commit after the run.
+
+## 2026-08-13 — CoS Multi-Domain Evidence: investigation + A/B/C experiment (STOP-and-report; temp infra removed)
+
+**Investigation** for the multi-domain synthesis residual (the flagship "how am I doing overall in my life" tours domains). Traced the `get_analysis('overall')` payload: deterministic facts only (verdict-free — the `note` guarantees it), BUT report-shaped and bloated — labeled `concepts` tree + 12 nested per-facet `subjects` (8-field change blocks) + `state` (concepts/subjects overlap) + a ~150-token `scope` prose instruction repeated per result + metadata. ~6,200 evidence tokens for a 4-domain turn.
+
+**Controlled A/B/C experiment (real model, production untouched):** same model/system-prompt/question; only the tool-result representation varied. A=current envelopes (~6,196 tok evidence, domain tour). B=same facts, scaffolding removed (~690 tok, 9× smaller, grounding preserved — but STILL a domain tour). C=same facts pooled into ONE block (~790 tok — inconsistent: sometimes a sharp prioritized judgment, sometimes a generic multi-section answer).
+
+**Findings:** (1) representation is ~9× bloated; (2) cleaning per-result content does NOT fix sectioning; (3) the section driver is the DOMAIN PARTITIONING (N domain-partitioned tool results → N sections), proven by the pooled arm — but pooling only inconsistently helps AND is a cross-domain aggregator, which the milestone forbids; (4) a second synthesis pass is not proven necessary (one model synthesizes pooled evidence in the best case), but no ALLOWED representation change reliably fixes the sectioning.
+
+**Decision:** STOP and report — the implementation gate (a small representation change that reliably improves synthesis) is NOT met; the reliable fix needs a forbidden aggregator/second-pass. No production change shipped. Temp A/B experiment endpoint (`api/claude/analysis-ab/` + `_analysis_ab_experiment.py` + apps.py ready hook) REMOVED. Separately noted (not shipped): a generic ~9× slimming of the `get_analysis('overall')` payload is a real efficiency win that preserves grounding. Doc: `docs/WLJ_COS_MULTIDOMAIN_EVIDENCE.md`.
+
+## 2026-08-13 — CoS Bounded Executive Synthesis Phase (authorized) + evidence-payload slimming
+
+**Why:** the whole-life synthesis-vs-grounding oscillation was proven architectural (retrieving N domain-partitioned tool results → the model tours them; prompt tuning couldn't reliably fix both). Danny authorized a bounded second phase.
+
+**What (two phases of ONE CoS task; same model; no new authority/engine/assistant/aggregator/judge-the-judge/classifier):**
+- Phase 1 (investigation, unchanged) now CAPTURES the substantive truth it gathers (`turn_capture["evidence"]` in `_make_dispatch`).
+- Eligibility = runtime signal only: ≥2 independent substantive truth surfaces (`synthesis.synthesis_eligible`). Narrow lookups stay single-phase.
+- Phase 2 (`apps/ai/model_interface/synthesis.py`): for eligible turns the SAME model runs ONE bounded completion, NO tools, over the gathered evidence (pooled, scaffolding-stripped) + standing orientation, with a dedicated synthesis contract (lead with judgment, prioritize, connect to goals, ground in provided evidence, never invent, surface insufficiency, don't mirror evidence structure). Replaces Phase 1's answer; Phase 2 never sees Phase 1's prose (not judge-the-judge).
+- Failure: keep the grounded Phase-1 answer (durable turn never lost; `synthesis_used` audited).
+- Evidence slimming (`domain_analysis.py::_envelope`): the ~275-token `scope` prose repeated per get_analysis result reduced to the one unique rule (rest already in the tool description); pure metadata dropped. Facts/provenance untouched.
+
+**Files:** `apps/ai/model_interface/synthesis.py` (new), `apps/ai/model_interface/service.py` (capture + Phase-2 wiring + fallback), `apps/ai/cos_services/domain_analysis.py` (_envelope slim), `apps/ai/tests/test_executive_synthesis.py` (new), `docs/WLJ_COS_EXECUTIVE_SYNTHESIS_PHASE.md`. **Verification:** 38 synthesis+runtime + 43 gateway/chat/request-path tests OK; check clean; no migrations. Production certification appended after worker deploy.

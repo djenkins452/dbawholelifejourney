@@ -463,29 +463,20 @@ def _domain_overview(user, domain, truth, t0, uid, period=None):
 
 
 def _envelope(domain, subject, status, **extra):
-    from django.utils import timezone
+    # Evidence-payload slimming (2026-08-13): the ~275-token `scope` prose was repeated in
+    # EVERY get_analysis result. Its `holds_data` meaning and "consider all, present the vital
+    # few / not a checklist to recite" guidance already live ONCE in the model contract
+    # (get_analysis tool description). Only the all_time PAIRING rule was unique, so `scope` is
+    # reduced to that; pure metadata (schema_version/generated_at/granularity) is dropped —
+    # none of it is reasoning evidence. Facts (subjects/concepts/state/window/holds_data) and
+    # provenance are untouched. Slims the tool-loop payload; Phase-2 synthesis strips the rest.
     base = {
         "status": status,
         "domain": domain,
         "subject": subject,
-        "schema_version": DOMAIN_ANALYSIS_SCHEMA_VERSION,
-        "generated_at": timezone.now().isoformat(),
-        "granularity": "analysis",
-        "scope": ("The COMPLETE deterministic evidence WLJ holds for analyzing this "
-                  "subject — trends across trailing windows, the all-time span with its "
-                  "coherent lifetime CHANGE (`all_time.change` + `all_time.start`/`.end`, "
-                  "each a reading WITH its own date), and recent record detail — composed "
-                  "in ONE retrieval. For a TOTAL question ('how much have I lost/gained "
-                  "since I started') use `all_time.change` (first→last value + delta) and "
-                  "`all_time.start`/`.end`; NEVER pair a trailing window's value with the "
-                  "all-time start date. This is the COMPLETE evidence to CONSIDER — it is "
-                  "NOT a checklist to recite: reason over ALL of it, then PRESENT ONLY the "
-                  "one or two things that best answer the user and let the rest go unsaid "
-                  "(`subjects_covered`/`subjects` is what was CONSIDERED, never what you must "
-                  "say). `holds_data` is WLJ's deterministic verdict on whether relevant "
-                  "truth exists: when it is true you have the evidence and must not say "
-                  "'insufficient'; only `status: empty` (holds_data false) is a genuine "
-                  "absence of WLJ truth."),
+        "scope": ("For a TOTAL ('how much since I started') use `all_time.change` "
+                  "(first→last value + delta) with `all_time.start`/`.end`; NEVER pair a "
+                  "trailing window's value with the all-time start date."),
     }
     base.update(extra)
     return base

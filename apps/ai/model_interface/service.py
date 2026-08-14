@@ -1012,6 +1012,16 @@ class ModelInterfaceService:
                 subj = self._subject_from_truth_result(name, args, result)
                 if subj is not None:
                     turn_capture["subject"] = subj
+                # EXECUTIVE SYNTHESIS (Phase 2) — retain the deterministic evidence the model
+                # chose to gather (truth reads that returned real data), so an eligible broad
+                # turn can be synthesized over the SAME evidence without re-retrieving.
+                try:
+                    from apps.ai.model_interface import synthesis as _synth
+                    if _synth.is_substantive_truth(name, result):
+                        turn_capture.setdefault("evidence", []).append(
+                            {"tool": name, "args": args, "result": result})
+                except Exception:  # pragma: no cover - defensive
+                    pass
             if observer is not None:  # observability only (validation harness); no-op in prod
                 try:
                     observer(name, args, result)
@@ -1062,6 +1072,35 @@ class ModelInterfaceService:
         )
         answer = answer or ""
 
+        # ============================================================
+        # PHASE 2 — BOUNDED EXECUTIVE SYNTHESIS. Phase 1 (above) INVESTIGATED and gathered
+        # evidence. For a turn that genuinely required cross-evidence executive judgment
+        # (≥2 independent substantive truth surfaces — a runtime signal, never a phrase
+        # classifier), the SAME model steps back from the gathered evidence and produces the
+        # final judgment. Phase 2 never sees Phase 1's prose (not judge-the-judge); it reasons
+        # over the EVIDENCE. On failure/empty, keep the grounded Phase-1 answer as the
+        # justified safe fallback (the durable turn is never lost). Never breaks the turn.
+        synthesis_used = False
+        try:
+            from apps.ai.model_interface import synthesis as _synth
+            _evidence = turn_capture.get("evidence") or []
+            if answer and _synth.synthesis_eligible(_evidence):
+                _synth_answer = _synth.run_executive_synthesis(
+                    self.ai, message=message or "", evidence=_evidence,
+                    standing_context=standing_context,
+                    conversation_history=conversation_history, user=self.user,
+                )
+                if _synth_answer:
+                    answer, synthesis_used = _synth_answer, True
+                    logger.info("MI_SYNTHESIS used turn=%s surfaces=%s phase1_discarded",
+                                turn_id, len(_evidence))
+                else:
+                    logger.warning("MI_SYNTHESIS empty; kept grounded phase-1 answer turn=%s",
+                                   turn_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.warning("MI_SYNTHESIS phase skipped (error); kept phase-1 answer turn=%s",
+                           turn_id, exc_info=True)
+
         # CONVERSATION STATE — deterministically advance the working-state AFTER the turn:
         # this turn's uploads (attachments) or the entity the model just retrieved become the
         # ACTIVE SUBJECT carried to the next turn (the leak-video continuity). Durable in
@@ -1079,7 +1118,9 @@ class ModelInterfaceService:
             conversation_id=conversation_id,
             result_status="ok" if answer else "empty",
             result_digest={"answer_len": len(answer),
-                           "tools_called": list(tools_called)},
+                           "tools_called": list(tools_called),
+                           "synthesis_used": synthesis_used},
         )
         return {"answer": answer, "tools_called": tools_called,
-                "standing_context": standing_context, "turn_id": turn_id}
+                "standing_context": standing_context, "turn_id": turn_id,
+                "synthesis_used": synthesis_used}

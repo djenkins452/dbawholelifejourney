@@ -65,6 +65,10 @@ ENDPOINT_TIMEOUTS = {
     'journal_reflection': LLM_TIMEOUT_INTENT,
     'general': LLM_TIMEOUT_GENERAL,
     'model_interface': LLM_TIMEOUT_MODEL_INTERFACE,
+    # Bounded Executive Synthesis (Phase 2) — a large-prompt, long executive-judgment call,
+    # same class as model_interface. It must NEVER inherit LLM_TIMEOUT_UTILITY (8s), or the
+    # synthesis silently times out and falls back to the Phase-1 answer (no synthesis).
+    'model_interface_synthesis': LLM_TIMEOUT_MODEL_INTERFACE,
 }
 
 

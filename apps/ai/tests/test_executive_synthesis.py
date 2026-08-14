@@ -82,6 +82,19 @@ class EligibilityTests(TestCase):
         self.assertIn("France 2027", up)   # standing orientation carried
 
 
+class SynthesisTimeoutTests(TestCase):
+    def test_synthesis_endpoint_has_full_timeout_not_utility(self):
+        # Phase 2 is a large-prompt executive-judgment call; it must get the model_interface
+        # timeout, never the 8s utility default (which would silently time out -> no synthesis).
+        from apps.ai.services import (
+            ENDPOINT_TIMEOUTS, LLM_TIMEOUT_MODEL_INTERFACE, LLM_TIMEOUT_UTILITY,
+        )
+        self.assertEqual(ENDPOINT_TIMEOUTS.get("model_interface_synthesis"),
+                         LLM_TIMEOUT_MODEL_INTERFACE)
+        self.assertNotEqual(ENDPOINT_TIMEOUTS.get("model_interface_synthesis"),
+                            LLM_TIMEOUT_UTILITY)
+
+
 class GenerateTwoPhaseWiringTests(TestCase):
     """generate() routes an eligible turn through Phase 2, keeps Phase-1 on failure,
     and stays single-phase for a narrow turn."""

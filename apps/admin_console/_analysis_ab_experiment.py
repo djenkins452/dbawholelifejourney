@@ -100,10 +100,17 @@ def run_analysis_ab(email, question, rk):
             except Exception:
                 logger.warning("ab: get_domain_analysis failed dom=%s", dom, exc_info=True)
         B = {dom: _clean_domain(env) for dom, env in A.items()}
+        # C: the SAME cleaned facts, POOLED into ONE cross-domain evidence block delivered as a
+        # SINGLE tool result (not N domain-partitioned results). Tests whether the domain
+        # PARTITIONING (N results) — not the per-result content — is what drives sectioning.
+        pooled = {"window": next(iter(B.values()), {}).get("window") if B else None,
+                  "facts": [f"[{dom}] {f}" for dom, cb in B.items() for f in cb["facts"]]}
+        C = {"life_evidence": pooled}
         out = {
             "status": "ready", "question": question, "domains": list(A.keys()),
             "A": _synthesize(question, A),
             "B": _synthesize(question, B),
+            "C": _synthesize(question, C),
         }
         cache.set(rk, out, 1800)
     except Exception as exc:

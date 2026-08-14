@@ -23,8 +23,8 @@ EXPECTED_HEALTH_GAPS = {
     "health.body_temperature.current_context",   # no temperature overview page (Phase 2c)
     # health.glucose.lows_more_frequent — CLOSED (Phase 3b: Event Frequency Analysis).
     # health.sleep.consistency — CLOSED (Phase 3a: Consistency/Variance capability).
-    "health.heart_rate.recovery",                # HRV/recovery exposure (Phase 3c)
-    "health.weight.trend_change_point",          # change-point capability (Phase 3c)
+    # health.weight.trend_change_point — CLOSED (Phase 3c: Change-Point Detection).
+    "health.heart_rate.recovery",                # HRV/recovery exposure (Phase 3d)
     "nutrition.meals_most_carbs",                # ranked-by-macro entity surface (Phase 3+)
 }
 

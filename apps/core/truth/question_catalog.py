@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 KNOWN_CAPABILITIES = frozenset({
     "current_context", "current", "history", "trend", "comparison",
     "adherence", "analysis", "readings", "by_hour", "event_frequency",
-    "consistency",
+    "consistency", "change_point",
 })
 
 # The eight question CATEGORIES a domain is certified across (the dimensions).
@@ -145,9 +145,9 @@ def _satisfied(req: Requirement) -> bool:
     if cap == "current_context":
         from apps.core.current_context import registered_page_summaries
         return (req.target or "") in registered_page_summaries()
-    # history/trend/comparison all ride the per-day history series.
+    # history/trend/comparison/change_point all ride the per-day history series.
     index_name = {"trend": "history", "comparison": "history",
-                  "by_hour": "readings"}.get(cap, cap)
+                  "change_point": "history", "by_hour": "readings"}.get(cap, cap)
     idx = _index(index_name)
     return req.target in tuple(idx.get(req.domain, ()) or ())
 

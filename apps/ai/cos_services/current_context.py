@@ -193,6 +193,9 @@ def _capabilities() -> dict:
         # schedule been'; distinct from truth_history (the LEVEL/trend) and truth_comparison
         # (averages). Regularity ≠ average.
         "truth_consistency": truth_consistency,
+        # Any truth_history metric can be analysed for WHEN its trend changed
+        # (get_change_point) — distinct from the Trend (one direction) and Comparison.
+        "truth_change_point": truth_history,
         # Any truth_history metric is also comparable period-vs-period (get_comparison).
         "truth_comparison": truth_history,
         # Metrics with a stored target — actual-vs-target adherence (get_adherence).

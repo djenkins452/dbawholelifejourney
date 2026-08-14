@@ -831,6 +831,16 @@ def _valid_truth_consistency_domains():
         return []
 
 
+def _valid_truth_change_point_domains():
+    """Domains with a change-point-analysable metric (get_change_point) — identical to the
+    history domains (any per-day series can be segmented). Catalog-driven."""
+    try:
+        from apps.ai.cos_services.domain_change_point import change_point_capable_domains
+        return change_point_capable_domains()
+    except Exception:
+        return []
+
+
 def _valid_truth_adherence_domains():
     """Domains with at least one metric that has a registered TARGET (get_adherence).
     Registry-driven, so a metric that later registers a target participates
@@ -874,6 +884,7 @@ def truth_tools():
     truth_comparison_domains = _valid_truth_comparison_domains()
     truth_event_frequency_domains = _valid_truth_event_frequency_domains()
     truth_consistency_domains = _valid_truth_consistency_domains()
+    truth_change_point_domains = _valid_truth_change_point_domains()
     truth_adherence_domains = _valid_truth_adherence_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
@@ -920,6 +931,11 @@ def truth_tools():
                                                 "(bedtime/wake/duration spread) to measure."}
     if truth_consistency_domains:
         consistency_domain_schema["enum"] = truth_consistency_domains
+    change_point_domain_schema = {"type": "string",
+                                  "description": "The domain whose metric to analyse for a "
+                                                 "trend change (when it shifted)."}
+    if truth_change_point_domains:
+        change_point_domain_schema["enum"] = truth_change_point_domains
     adherence_domain_schema = {"type": "string",
                                "description": "The domain whose metric has a target to "
                                               "measure adherence against."}
@@ -1140,6 +1156,39 @@ def truth_tools():
                                            "month', 'the last two weeks', 'last 30 days'). "
                                            "Defaults to 'last_month'. WLJ resolves it "
                                            "against the user's today.")},
+            }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_change_point",
+            "description": (
+                "Find WHEN a metric's trend materially CHANGED within a period — the ONLY "
+                "tool that answers 'when did my weight trend change', 'when did the recent "
+                "decline begin', 'when did my glucose start improving', 'has there been a "
+                "meaningful shift in my pattern', 'did my trend change around a particular "
+                "date'. It fits the canonical per-day history as two trend segments and "
+                "reports the single split date where that is materially better than one "
+                "continuous trend — with the pre- and post-change slopes and directions, "
+                "the slope delta, and `residual_reduction` (the fraction of the one-trend "
+                "error the split removes — a concrete strength number, not a verdict). This "
+                "is NOT get_trend (ONE direction over the whole period) and NOT "
+                "get_comparison (two periods YOU name); change-point FINDS the date for you. "
+                "IMPORTANT: there may be NO supported change point — a steady trend or noisy "
+                "data returns `supported: false` with a reason, and that is the correct, "
+                "honest answer; never treat it as a failure or invent a date. Do not claim "
+                "causation from it. PERIOD: pass a reasonably long natural span ('last 6 "
+                "months', 'this year', 'last 90 days'). Answerable (domain, metric) pairs "
+                "are those in `capabilities.truth_change_point` (any per-day history metric)."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "domain": change_point_domain_schema,
+                "metric": {"type": "string",
+                           "description": ("The metric to analyse for a trend change — one "
+                                           "advertised in `capabilities.truth_change_point` "
+                                           "(e.g. 'weight').")},
+                "period": {"type": "string",
+                           "description": ("The span to analyse — the natural expression the "
+                                           "user said ('last 6 months', 'this year', 'last "
+                                           "90 days'). Defaults to 'last 90 days'. A change "
+                                           "point needs a reasonably long series.")},
             }, "required": ["domain", "metric"]}}},
         {"type": "function", "function": {
             "name": "get_comparison",

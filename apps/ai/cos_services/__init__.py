@@ -79,6 +79,12 @@ from apps.ai.cos_services.domain_consistency import (
     consistency_capable_domains,
     get_domain_consistency,
 )
+from apps.ai.cos_services.domain_change_point import (
+    DOMAIN_CHANGE_POINT_SCHEMA_VERSION,
+    change_point_capability_index,
+    change_point_capable_domains,
+    get_domain_change_point,
+)
 from apps.ai.cos_services.domain_adherence import (
     DOMAIN_ADHERENCE_SCHEMA_VERSION,
     adherence_capability_index,
@@ -164,6 +170,12 @@ __all__ = [
     "consistency_capability_index",
     "consistency_capable_domains",
     "DOMAIN_CONSISTENCY_SCHEMA_VERSION",
+    # Pillar 1 — change-point branch (WHEN a trend shifted; reuses history + segmented
+    # regression)
+    "get_domain_change_point",
+    "change_point_capability_index",
+    "change_point_capable_domains",
+    "DOMAIN_CHANGE_POINT_SCHEMA_VERSION",
     # Pillar 1 — adherence branch (actual vs target; reuses history + target registry)
     "get_domain_adherence",
     "adherence_capability_index",

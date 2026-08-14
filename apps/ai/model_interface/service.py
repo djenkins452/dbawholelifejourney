@@ -34,6 +34,7 @@ from apps.ai.cos_services import (
     get_current_context_baseline,
     get_domain_adherence,
     get_domain_analysis,
+    get_domain_change_point,
     get_domain_comparison,
     get_domain_consistency,
     get_domain_entity,
@@ -648,8 +649,8 @@ class ModelInterfaceService:
     # from get_foundational_health_facts, the elliptical follow-up "Yesterday's?" carried
     # no subject and drifted to the Journal domain (0/4 probes stayed on weight).
     _SUBJECT_BEARING_TOOLS = ("get_entity", "get_history", "get_readings",
-                              "get_event_frequency", "get_consistency", "get_comparison",
-                              "get_adherence", "get_analysis",
+                              "get_event_frequency", "get_consistency", "get_change_point",
+                              "get_comparison", "get_adherence", "get_analysis",
                               "get_foundational_health_facts")
 
     @classmethod
@@ -667,6 +668,8 @@ class ModelInterfaceService:
         if name == "get_event_frequency":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name == "get_consistency":
+            return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
+        if name == "get_change_point":
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
         if name in ("get_comparison", "get_adherence"):
             return cls._subject_from_metric(args.get("domain"), args.get("metric"), result)
@@ -877,6 +880,23 @@ class ModelInterfaceService:
                 out = _wrap_truth(
                     raw,
                     source=f"consistency:{args.get('domain', '')}."
+                           f"{args.get('metric', '')}",
+                )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_change_point":
+                raw = get_domain_change_point(
+                    user, args.get("domain", ""), args.get("metric", ""),
+                    period=args.get("period", "last 90 days"),
+                )
+                out = _wrap_truth(
+                    raw,
+                    source=f"change_point:{args.get('domain', '')}."
                            f"{args.get('metric', '')}",
                 )
                 _audit.record_tool_call(

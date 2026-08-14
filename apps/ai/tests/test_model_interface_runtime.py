@@ -231,19 +231,27 @@ class StandingContextTests(TestCase):
         self.assertIn("never a fixed bundle", c)         # forbids a hardcoded domain bundle
 
     def test_whole_life_assessment_synthesizes_not_reports(self):
-        # Synthesis/judgment milestone: a WHOLE-LIFE assessment must reason FROM the single
-        # cross-domain deterministic_understanding (which carries goals/mission/priorities),
-        # NOT rebuild the picture by fanning get_analysis per domain (that fragments evidence
-        # into domain bundles mirrored as a domain report). Retrieval structure must never
-        # become answer structure. Removing that fan-out default is the correction.
+        # Synthesis/judgment: a WHOLE-LIFE assessment is judgment-led, not a domain report —
+        # retrieval structure must never become answer structure.
         c = CONSTITUTION.lower()
         self.assertIn("how you gather is never how you answer", c)
         self.assertIn("whole-life or cross-domain assessment", c)
-        self.assertIn("reason from these", c)            # from the cross-domain understanding
-        self.assertIn("one section per domain", c)       # the dashboard failure it forbids
         self.assertIn("number of bundles you gather is never the number of sections", c)
-        # goals/mission are incorporated via the standing understanding, not a per-domain fan
-        self.assertIn("goal pace and priorities", c)
+        self.assertIn("one judgment, never one section per source", c)
+
+    def test_whole_life_requires_current_evidence_not_only_orientation(self):
+        # Current-evidence-before-judgment: deterministic_understanding + missions/personal_truth
+        # ORIENT (who the user is / what matters); they are NOT current evidence and their
+        # interpretive fields are WLJ's heuristic read, not the model's judgment (I.3->I.4).
+        # An evaluative claim about CURRENT doing requires selectively-retrieved current truth;
+        # both a zero-retrieval standing-only answer AND a per-domain fan are wrong.
+        c = CONSTITUTION.lower()
+        self.assertIn("orients you — it is not, by itself, your evidence", c)
+        self.assertIn("heuristic read", c)                       # verdict fields != judgment
+        self.assertIn("requires current authoritative evidence", c)
+        self.assertIn("selectively retrieve the minimum current truth", c)
+        self.assertIn("zero-retrieval answer built from standing facts", c)  # forbidden
+        self.assertIn("never a domain just because it exists", c)            # no fixed bundle
 
     def test_absence_must_be_proven_before_claiming_missing(self):
         # Second invariant: never declare WLJ truth missing/unevaluable from the one bundle

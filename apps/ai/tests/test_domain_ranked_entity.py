@@ -75,6 +75,19 @@ class DomainRankedEntityServiceTests(TestCase):
         self.assertEqual(r["results"][0]["value"], round(authoritative, 2))
         self.assertEqual(r["results"][0]["value"], 60.0)
 
+    def test_top_result_carries_canonical_detail_for_followup(self):
+        # "tell me about the top one" must be answerable from the ranking result itself —
+        # the meal-occurrence reference does not round-trip through get_entity, so the ranked
+        # result carries the meal's own foods (the domain's canonical detail).
+        self._food(1, "dinner", 40, name="Pasta")
+        self._food(1, "dinner", 35, name="Garlic Bread")
+        r = get_domain_ranked_entity(self.user, "meal_by_carbs", period="last 7 days")
+        top = r["results"][0]
+        self.assertIn("meta", top)
+        names = {it.get("food_name") for it in top["meta"].get("items", [])}
+        self.assertIn("Pasta", names)               # the actual foods, for "what was in it"
+        self.assertIn("Garlic Bread", names)
+
     def test_contribution_pct_and_total(self):
         self._food(1, "dinner", 75)
         self._food(1, "lunch", 25)

@@ -213,13 +213,22 @@ def get_domain_ranked_entity(user, subject, *, period="this_month",
     for e in (entities or []):
         defn = getattr(e, "definition", {}) or {}
         occurred = defn.get("date")
+        meta = {k: defn[k] for k in ("meal_type", "item_count") if k in defn}
+        # Carry the entity's OWN canonical detail (the foods the domain already returned) so
+        # a follow-up ("tell me about the top one / what was in it") is answered from the
+        # truth already in hand — the entity's meal-occurrence reference does not round-trip
+        # through get_entity (there is no meal-by-identity lookup). This is the domain's own
+        # already-authoritative detail, not a copy/recompute or new persistence.
+        detail = defn.get("items")
+        if isinstance(detail, list):
+            meta["items"] = detail
         items.append(RankItem(
             ref=str(getattr(e, "identity", "") or ""),
             name=str(getattr(e, "identity", "") or ""),
             value=_entity_value(e, spec["measure_source"], spec["measure_key"]),
             occurred_on=(occurred.isoformat() if hasattr(occurred, "isoformat")
                          else (str(occurred) if occurred else None)),
-            meta={k: defn[k] for k in ("meal_type", "item_count") if k in defn},
+            meta=meta,
         ))
 
     ranking = build_ranking(

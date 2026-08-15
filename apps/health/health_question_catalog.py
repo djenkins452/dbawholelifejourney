@@ -284,3 +284,34 @@ _q("health.workouts.current_context", "workouts", "current_context",
    ["look at my fitness page"],
    [R("current_context", "health", "health.fitness")],
    note="GAP: FitnessHomeView has no page summary yet (Phase 2c).")
+# FITNESS Phase 3f — reuse the platform capabilities the Health arc built. Workout
+# frequency change-point + activity change-point ride the existing history series (zero
+# new code). Training VOLUME (per-day sum of the canonical WorkoutSession.total_volume /
+# ExerciseSet.volume) is the one genuinely-missing history metric; once exposed it inherits
+# trend/comparison/change-point. Ranked workouts by volume + Personal Records are the
+# remaining exposure gaps.
+_q("health.workouts.change_point", "workouts", "trend",
+   ["when did my workout frequency change", "when did I start working out more"],
+   [R("change_point", "health", "workouts")])
+_q("health.steps.change_point", "steps", "trend",
+   ["when did my activity level change", "when did my steps start dropping"],
+   [R("change_point", "health", "steps")])
+_q("health.workouts.volume_history", "workouts", "history",
+   ["how much training volume have I done", "my lifting volume this month"],
+   [R("history", "health", "training_volume")])
+_q("health.workouts.volume_trend", "workouts", "trend",
+   ["is my training volume increasing", "am I lifting more volume than before"],
+   [R("trend", "health", "training_volume")])
+_q("health.workouts.volume_comparison", "workouts", "comparison",
+   ["did I lift more volume this month than last"],
+   [R("comparison", "health", "training_volume")])
+_q("health.workouts.volume_change_point", "workouts", "trend",
+   ["when did my training volume start increasing"],
+   [R("change_point", "health", "training_volume")])
+_q("health.workouts.most_volume", "workouts", "analysis",
+   ["which workouts had the most volume", "my heaviest training sessions"],
+   [R("ranked_entity", "health", "workout_by_volume")])
+_q("health.exercise.personal_records", "exercise", "analysis",
+   ["what are my personal records", "what's the most weight I've lifted",
+    "what's my best bench press", "have I set any PRs recently"],
+   [R("analysis", "health", "personal_records")])

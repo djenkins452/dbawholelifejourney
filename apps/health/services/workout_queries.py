@@ -144,22 +144,29 @@ class WorkoutQueries:
             .order_by("-date", "-completed_at", "-created_at")
         )
 
+    _RANGE_CAP = 200          # bounded cap when an explicit window is requested (ranking)
+
     @classmethod
-    def describe(cls, user, *, since_days=None, limit=None):
+    def describe(cls, user, *, since_days=None, limit=None, start=None, end=None):
         """Recent completed workouts, each a `CompleteEntity` (bounded, newest-first).
 
         Workouts are historical, so "describe all entities of this type" is bounded to
         a recent window (`_DESCRIBE_DAYS`) and a count cap (`_DESCRIBE_LIMIT`) to keep
-        the truth package small. The model reasons over the returned entities to resolve
-        "yesterday" / "my last workout" / "did I do X" — WLJ owns the facts, the model
-        picks among them.
+        the truth package small. When an explicit `start`/`end` window is given (e.g. a
+        ranked-entity query over a period), that window is used instead, with a larger
+        `_RANGE_CAP`. The model reasons over the returned entities to resolve "yesterday" /
+        "my last workout" / "did I do X" — WLJ owns the facts, the model picks among them.
         """
         from datetime import timedelta
         from apps.core.utils import get_user_today
         today = get_user_today(user)
-        days = cls._DESCRIBE_DAYS if since_days is None else since_days
-        cap = cls._DESCRIBE_LIMIT if limit is None else limit
-        sessions = list(cls._describe_qs(user, today - timedelta(days=days), today)[:cap])
+        if start is not None and end is not None:
+            cap = cls._RANGE_CAP if limit is None else limit
+            sessions = list(cls._describe_qs(user, start, end)[:cap])
+        else:
+            days = cls._DESCRIBE_DAYS if since_days is None else since_days
+            cap = cls._DESCRIBE_LIMIT if limit is None else limit
+            sessions = list(cls._describe_qs(user, today - timedelta(days=days), today)[:cap])
         return [cls._to_entity(s) for s in sessions]
 
     @classmethod

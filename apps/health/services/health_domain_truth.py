@@ -22,7 +22,7 @@ _BODY_METRICS = tuple(k for k, _ in BODY_COMPOSITION_METRIC_CHOICES)
 class HealthDomainTruth(DomainTruth):
     domain = "health"
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
-    history_metrics = (("steps", "sleep", "weight", "workouts",
+    history_metrics = (("steps", "sleep", "weight", "workouts", "training_volume",
                         "glucose", "bp_systolic", "bp_diastolic", "bp_pulse",
                         "heart_rate", "resting_heart_rate", "hrv", "water", "spo2",
                         "body_temperature")
@@ -45,7 +45,8 @@ class HealthDomainTruth(DomainTruth):
     consistency_metrics = ("sleep",)
     entity_types = ("workout", "sleep", "body_measurement",
                     "steps", "glucose", "blood_pressure", "weight",
-                    "heart_rate", "water", "spo2", "body_temperature")
+                    "heart_rate", "water", "spo2", "body_temperature",
+                    "personal_record")
 
     # Analyzable subjects — each composes the domain's EXISTING history()/describe()
     # surfaces into one evidence bundle (see DomainTruth.analysis_subjects). Subjects
@@ -75,6 +76,22 @@ class HealthDomainTruth(DomainTruth):
                              "entity_type": "heart_rate"},
         "resting_heart_rate": {"history_metric": "resting_heart_rate",
                                "entity_type": "heart_rate"},
+        # Training VOLUME (lb lifted/day) — the strength-progression trend, composed over the
+        # canonical per-day volume series + the workout record detail. "is my volume
+        # increasing / how's my lifting trending".
+        "training_volume":  {"history_metric": "training_volume",
+                             "entity_type": "workout"},
+        "volume":           {"history_metric": "training_volume",
+                             "entity_type": "workout"},
+        "lifting":          {"history_metric": "training_volume",
+                             "entity_type": "workout"},
+        # Personal records / strength bests — an ENTITY-only analysis subject (PRs are a set
+        # of records, not a per-day series). "what are my PRs / most weight I've lifted /
+        # best bench". Exposes the canonical PersonalRecord (+ Brzycki e1RM); WLJ never
+        # judges "getting stronger" — the model reasons over the records.
+        "personal_records": {"entity_type": "personal_record"},
+        "prs":              {"entity_type": "personal_record"},
+        "strength":         {"entity_type": "personal_record"},
         # HRV (overnight SDNN, ms) — the deterministic recovery-relevant trend. WLJ exposes
         # the HRV facts (current/history/trend/comparison inherited); the model interprets
         # "recovery". NOT a WLJ recovery verdict (the legacy DailyHealthSummary.recovery_score
@@ -107,6 +124,7 @@ class HealthDomainTruth(DomainTruth):
         "spo2": HealthHistory.spo2,
         "body_temperature": HealthHistory.body_temperature,
         "hrv": HealthHistory.hrv,
+        "training_volume": WorkoutHistory.volume,
     }
 
     _EVENT_FREQUENCY = {
@@ -180,16 +198,22 @@ class HealthDomainTruth(DomainTruth):
 
     # -- Entity Completeness Contract (record-level truth) --------------------
     # Delegates to the canonical WorkoutQueries authority (no new retrieval logic).
-    def describe(self, entity_type="workout"):
-        """Record-level health truth. entity_type ∈ workout | sleep. Workouts →
-        exercises/sets/reps/weight/PRs; sleep → stages/efficiency/quality/HRV
-        (all stored on SleepEntry, previously unreachable)."""
+    def describe(self, entity_type="workout", filters=None):
+        """Record-level health truth. entity_type ∈ workout | sleep | steps | vitals…
+        Workouts → exercises/sets/reps/weight/PRs; sleep → stages/efficiency/quality/HRV.
+        `filters` (optional start/end) scopes the workout entity to a period for the
+        ranked-entity surface; other entity types ignore it (uniform describe contract)."""
         if entity_type == "sleep":
             from apps.health.services import sleep_queries
             return sleep_queries.describe(self.user)
         if entity_type == "body_measurement":
             from apps.health.services.body_measurement_queries import BodyMeasurementQueries
             return BodyMeasurementQueries.describe(self.user)
+        if entity_type == "personal_record":
+            from apps.health.services.pr_queries import PersonalRecordQueries
+            f = filters or {}
+            return PersonalRecordQueries.describe(self.user, start=f.get("start"),
+                                                  end=f.get("end"))
         if entity_type in ("steps", "glucose", "blood_pressure", "weight",
                             "heart_rate", "water", "spo2", "body_temperature"):
             from apps.health.services import health_entities as HE
@@ -202,7 +226,10 @@ class HealthDomainTruth(DomainTruth):
             raise KeyError(f"health domain cannot describe {entity_type!r} "
                            f"(have {self.entity_types})")
         from apps.health.services.workout_queries import WorkoutQueries
-        return WorkoutQueries.describe(self.user)
+        # `filters` (start/end) lets the ranked-entity surface scope workouts to a period —
+        # e.g. "which workouts had the most volume this month". Unscoped = the recent window.
+        f = filters or {}
+        return WorkoutQueries.describe(self.user, start=f.get("start"), end=f.get("end"))
 
     def describe_one(self, name):
         """Resolve a named health record across ALL entity types. A workout by name/type/
@@ -213,6 +240,10 @@ class HealthDomainTruth(DomainTruth):
         w = WorkoutQueries.describe_one(self.user, name)
         if w is not None:
             return w
+        from apps.health.services.pr_queries import PersonalRecordQueries
+        pr = PersonalRecordQueries.describe_one(self.user, name)   # "my bench PR"
+        if pr is not None:
+            return pr
         return self._entity_by_identity(
             name, ("weight", "blood_pressure", "glucose", "steps",
                    "body_measurement", "sleep"))

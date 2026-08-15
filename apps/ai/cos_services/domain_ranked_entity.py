@@ -57,6 +57,15 @@ RANKING_SUBJECTS = {
         # pattern from the ranked occurrences.
         "aggregation": "occurrence",
     },
+    "workout_by_volume": {
+        "domain": "health", "entity_type": "workout",
+        "measure_source": "performance", "measure_key": "strength_load_lb",
+        "unit": "lb", "label": "training volume",
+        # A "workout" is one completed WorkoutSession OCCURRENCE, ranked by its canonical
+        # strength_load_lb (Σ ExerciseSet.volume). Not recomputed here — the workout entity
+        # already carries it. "which workouts had the most volume".
+        "aggregation": "occurrence",
+    },
 }
 
 

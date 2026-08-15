@@ -841,6 +841,17 @@ def _valid_truth_change_point_domains():
         return []
 
 
+def _valid_ranked_entity_subjects():
+    """Registered ranking subjects (get_ranked_entity) — the ONLY rankable (domain, entity,
+    measure) tuples, e.g. 'meal_by_carbs'. Registry-driven, so a subject added to
+    RANKING_SUBJECTS participates automatically (never an arbitrary DB field)."""
+    try:
+        from apps.ai.cos_services.domain_ranked_entity import RANKING_SUBJECTS
+        return sorted(RANKING_SUBJECTS)
+    except Exception:
+        return []
+
+
 def _valid_truth_adherence_domains():
     """Domains with at least one metric that has a registered TARGET (get_adherence).
     Registry-driven, so a metric that later registers a target participates
@@ -885,6 +896,7 @@ def truth_tools():
     truth_event_frequency_domains = _valid_truth_event_frequency_domains()
     truth_consistency_domains = _valid_truth_consistency_domains()
     truth_change_point_domains = _valid_truth_change_point_domains()
+    ranked_entity_subjects = _valid_ranked_entity_subjects()
     truth_adherence_domains = _valid_truth_adherence_domains()
     _NAMED_PERIODS = _named_periods()
     domain_schema = {"type": "string", "description": "The life domain to read."}
@@ -936,6 +948,11 @@ def truth_tools():
                                                  "trend change (when it shifted)."}
     if truth_change_point_domains:
         change_point_domain_schema["enum"] = truth_change_point_domains
+    ranked_entity_subject_schema = {"type": "string",
+                                    "description": "The registered ranking subject — a "
+                                                   "declared (entity, measure) pair."}
+    if ranked_entity_subjects:
+        ranked_entity_subject_schema["enum"] = ranked_entity_subjects
     adherence_domain_schema = {"type": "string",
                                "description": "The domain whose metric has a target to "
                                               "measure adherence against."}
@@ -1190,6 +1207,36 @@ def truth_tools():
                                            "90 days'). Defaults to 'last 90 days'. A change "
                                            "point needs a reasonably long series.")},
             }, "required": ["domain", "metric"]}}},
+        {"type": "function", "function": {
+            "name": "get_ranked_entity",
+            "description": (
+                "RANK entities by a canonical measure — 'which meals contributed the most "
+                "carbs', 'which meals were highest in protein/calories'. It orders the "
+                "domain's real entities by an ALREADY-authoritative value (WLJ does not "
+                "recompute the measure) and returns the bounded top-N with each entity's "
+                "value, its share of the total, the date/occurrence, and a canonical "
+                "reference you can follow up on ('tell me about the top one' → use its name "
+                "with get_entity). Use this for 'most/least/top/highest/which X had the most "
+                "Y' — NOT get_history (a per-day total, not per-entity) and NOT get_analysis. "
+                "You may ONLY pass a REGISTERED `subject` (a declared entity+measure pair in "
+                "`capabilities.truth_ranked_entity`, e.g. 'meal_by_carbs') — there is no "
+                "arbitrary-field ranking. For nutrition a 'meal' is one meal OCCURRENCE "
+                "(a day's breakfast/lunch/dinner/snack); infer any 'your dinners tend to be "
+                "highest' pattern yourself from the ranked occurrences. WLJ ranks the facts; "
+                "you judge — never call a meal 'unhealthy'/'worst' as if WLJ said so."
+            ),
+            "parameters": {"type": "object", "properties": {
+                "subject": ranked_entity_subject_schema,
+                "period": {"type": "string",
+                           "description": ("The window to rank over — the natural expression "
+                                           "the user said ('this month', 'last 30 days', "
+                                           "'last week'). Defaults to 'this_month'.")},
+                "order": {"type": "string", "enum": ["desc", "asc"],
+                          "description": ("'desc' = most first (default), 'asc' = least "
+                                          "first.")},
+                "limit": {"type": "integer",
+                          "description": "How many to return (default 10, max 50)."},
+            }, "required": ["subject"]}}},
         {"type": "function", "function": {
             "name": "get_comparison",
             "description": (

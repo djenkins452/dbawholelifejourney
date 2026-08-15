@@ -40,6 +40,7 @@ from apps.ai.cos_services import (
     get_domain_entity,
     get_domain_event_frequency,
     get_domain_history,
+    get_domain_ranked_entity,
     get_domain_readings,
     get_domain_state,
     get_foundational_health_facts,
@@ -899,6 +900,21 @@ class ModelInterfaceService:
                     source=f"change_point:{args.get('domain', '')}."
                            f"{args.get('metric', '')}",
                 )
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
+            if name == "get_ranked_entity":
+                raw = get_domain_ranked_entity(
+                    user, args.get("subject", ""),
+                    period=args.get("period", "this_month"),
+                    order=args.get("order", "desc"),
+                    limit=args.get("limit", 10),
+                )
+                out = _wrap_truth(raw, source=f"ranked_entity:{args.get('subject', '')}")
                 _audit.record_tool_call(
                     user, kind="truth", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),

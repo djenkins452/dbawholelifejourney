@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 KNOWN_CAPABILITIES = frozenset({
     "current_context", "current", "history", "trend", "comparison",
     "adherence", "analysis", "readings", "by_hour", "event_frequency",
-    "consistency", "change_point",
+    "consistency", "change_point", "ranked_entity",
 })
 
 # The eight question CATEGORIES a domain is certified across (the dimensions).
@@ -123,6 +123,11 @@ def _index(name):
                 consistency_capability_index,
             )
             return consistency_capability_index()
+        if name == "ranked_entity":
+            from apps.ai.cos_services.domain_ranked_entity import (
+                ranked_entity_capability_index,
+            )
+            return ranked_entity_capability_index()
         if name == "adherence":
             from apps.core.truth.targets import target_capability_index
             return target_capability_index()

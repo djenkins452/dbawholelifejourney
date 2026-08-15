@@ -176,6 +176,15 @@ def _capabilities() -> dict:
         truth_adherence = {d: list(m) for d, m in target_capability_index().items()}
     except Exception:  # pragma: no cover - defensive
         truth_adherence = {}
+    # Registered ranking subjects — "which X had the most Y" (get_ranked_entity). A declared
+    # (entity, measure) pair per domain, NEVER an arbitrary field.
+    truth_ranked_entity = {}
+    try:
+        from apps.ai.cos_services.domain_ranked_entity import ranked_entity_capability_index
+        truth_ranked_entity = {d: list(s)
+                               for d, s in ranked_entity_capability_index().items()}
+    except Exception:  # pragma: no cover - defensive
+        truth_ranked_entity = {}
     return {
         "answerable_domains": domains,
         "truth_history": truth_history,
@@ -198,6 +207,10 @@ def _capabilities() -> dict:
         "truth_change_point": truth_history,
         # Any truth_history metric is also comparable period-vs-period (get_comparison).
         "truth_comparison": truth_history,
+        # Declared "which X had the most Y" rankings (get_ranked_entity) — {domain: (subject
+        # keys...)}, e.g. {"nutrition": ("meal_by_carbs",)}. Registry-controlled, never an
+        # arbitrary DB field.
+        "truth_ranked_entity": truth_ranked_entity,
         # Metrics with a stored target — actual-vs-target adherence (get_adherence).
         "truth_adherence": truth_adherence,
         "truth_entities": truth_entities,

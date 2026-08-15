@@ -85,6 +85,12 @@ from apps.ai.cos_services.domain_change_point import (
     change_point_capable_domains,
     get_domain_change_point,
 )
+from apps.ai.cos_services.domain_ranked_entity import (
+    DOMAIN_RANKED_ENTITY_SCHEMA_VERSION,
+    get_domain_ranked_entity,
+    ranked_entity_capability_index,
+    ranked_entity_capable_domains,
+)
 from apps.ai.cos_services.domain_adherence import (
     DOMAIN_ADHERENCE_SCHEMA_VERSION,
     adherence_capability_index,
@@ -176,6 +182,12 @@ __all__ = [
     "change_point_capability_index",
     "change_point_capable_domains",
     "DOMAIN_CHANGE_POINT_SCHEMA_VERSION",
+    # Pillar 1 — ranked-entity branch (order canonical entities by an authoritative measure;
+    # registry-controlled, reuses each domain's describe() producer)
+    "get_domain_ranked_entity",
+    "ranked_entity_capability_index",
+    "ranked_entity_capable_domains",
+    "DOMAIN_RANKED_ENTITY_SCHEMA_VERSION",
     # Pillar 1 — adherence branch (actual vs target; reuses history + target registry)
     "get_domain_adherence",
     "adherence_capability_index",

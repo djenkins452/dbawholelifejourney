@@ -25,7 +25,8 @@ EXPECTED_HEALTH_GAPS = {
     # health.sleep.consistency — CLOSED (Phase 3a: Consistency/Variance capability).
     # health.weight.trend_change_point — CLOSED (Phase 3c: Change-Point Detection).
     # health.heart_rate.recovery — CLOSED (Phase 3d: HRV exposure → history+trend).
-    "nutrition.meals_most_carbs",                # ranked-by-macro entity surface (Phase 3+)
+    # nutrition.meals_most_carbs — CLOSED (Phase 3e: reusable ranked_entity capability).
+    # The ONLY remaining GAP is intentionally deferred (no Temperature workspace exists yet).
 }
 
 

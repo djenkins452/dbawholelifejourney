@@ -168,10 +168,15 @@ _q("health.heart_rate.analysis", "heart_rate", "analysis",
 _q("health.heart_rate.readings", "heart_rate", "readings",
    ["my heart rate through the day"], [R("readings", "health", "heart_rate")])
 _q("health.heart_rate.recovery", "heart_rate", "analysis",
-   ["is my recovery improving", "did exercise change my baseline"],
-   [R("hrv_recovery", "health", "heart_rate")],
-   note="GAP: SleepEntry HRV/heart-rate fields not exposed as history; no recovery "
-        "composite; cross-domain correlation (Phase 3c).")
+   ["how has my HRV been trending", "what does my recent recovery look like",
+    "is my overnight HRV higher or lower than a month ago", "is my recovery improving"],
+   [R("history", "health", "hrv"), R("trend", "health", "hrv")],
+   note="Phase 3d: EXPOSURE fix — the canonical overnight HRV (SleepEntry.hrv_value, SDNN "
+        "ms) is now a Health history metric, so it inherits Trend/Comparison/Analysis. The "
+        "requirement is deliberately HRV history+trend, NOT a WLJ 'recovery' verdict: HRV is "
+        "one deterministic INPUT and OpenAI owns the recovery interpretation. The legacy "
+        "DailyHealthSummary.recovery_score is a heuristic I.4 classification and is NOT "
+        "exposed as truth.")
 
 # ── BLOOD PRESSURE ────────────────────────────────────────────────────────────
 _q("health.blood_pressure.current_context", "blood_pressure", "current_context",

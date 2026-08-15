@@ -24,7 +24,7 @@ class HealthDomainTruth(DomainTruth):
     current_metrics = tuple(sorted(CurrentHealth.SUPPORTED))
     history_metrics = (("steps", "sleep", "weight", "workouts",
                         "glucose", "bp_systolic", "bp_diastolic", "bp_pulse",
-                        "heart_rate", "resting_heart_rate", "water", "spo2",
+                        "heart_rate", "resting_heart_rate", "hrv", "water", "spo2",
                         "body_temperature")
                        + _BODY_METRICS)
     # Intra-day reading windows (individual timestamped samples + excursions + hour-of-day
@@ -75,6 +75,13 @@ class HealthDomainTruth(DomainTruth):
                              "entity_type": "heart_rate"},
         "resting_heart_rate": {"history_metric": "resting_heart_rate",
                                "entity_type": "heart_rate"},
+        # HRV (overnight SDNN, ms) — the deterministic recovery-relevant trend. WLJ exposes
+        # the HRV facts (current/history/trend/comparison inherited); the model interprets
+        # "recovery". NOT a WLJ recovery verdict (the legacy DailyHealthSummary.recovery_score
+        # is a heuristic I.4 classification and is deliberately NOT exposed here).
+        "hrv":                {"history_metric": "hrv"},
+        "heart_rate_variability": {"history_metric": "hrv"},
+        "recovery":           {"history_metric": "hrv"},
         "water":            {"history_metric": "water", "entity_type": "water"},
         "hydration":        {"history_metric": "water", "entity_type": "water"},
         "spo2":             {"history_metric": "spo2", "entity_type": "spo2"},
@@ -99,6 +106,7 @@ class HealthDomainTruth(DomainTruth):
         "water": HealthHistory.water,
         "spo2": HealthHistory.spo2,
         "body_temperature": HealthHistory.body_temperature,
+        "hrv": HealthHistory.hrv,
     }
 
     _EVENT_FREQUENCY = {

@@ -49,6 +49,25 @@ class HealthHistory:
             unit="hours")
 
     @classmethod
+    def hrv(cls, user, period="last_month", *, today=None, start=None, end=None):
+        """Per-night Heart Rate Variability (HRV **SDNN, milliseconds**) — the canonical
+        overnight HRV series from `SleepEntry.hrv_value` (as recorded by the wearable). One
+        value per sleep_date (Avg over any multi-source rows), NULLs excluded so a night with
+        no HRV reading is ABSENT, never a fabricated 0 (missing HRV ≠ zero recovery). Unit is
+        always 'ms'; the model interprets whether higher/lower HRV means better recovery."""
+        from apps.health.models import SleepEntry
+        p = resolve_period(period, today or _today(user), start=start, end=end)
+        rows = (SleepEntry.objects.filter(user=user,
+                                          sleep_date__range=(p.start, p.end),
+                                          hrv_value__isnull=False)
+                .values("sleep_date").annotate(v=Avg("hrv_value"))
+                .order_by("sleep_date"))
+        return series_from_rows(
+            "health", "hrv", p,
+            [{"date": r["sleep_date"], "value": round(float(r["v"]), 1)} for r in rows],
+            unit="ms")
+
+    @classmethod
     def weight(cls, user, period="last_month", *, today=None, start=None, end=None):
         from apps.health.models import WeightEntry
         p = resolve_period(period, today or _today(user), start=start, end=end)

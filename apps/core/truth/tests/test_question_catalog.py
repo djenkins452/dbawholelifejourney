@@ -24,7 +24,7 @@ EXPECTED_HEALTH_GAPS = {
     # health.glucose.lows_more_frequent — CLOSED (Phase 3b: Event Frequency Analysis).
     # health.sleep.consistency — CLOSED (Phase 3a: Consistency/Variance capability).
     # health.weight.trend_change_point — CLOSED (Phase 3c: Change-Point Detection).
-    "health.heart_rate.recovery",                # HRV/recovery exposure (Phase 3d)
+    # health.heart_rate.recovery — CLOSED (Phase 3d: HRV exposure → history+trend).
     "nutrition.meals_most_carbs",                # ranked-by-macro entity surface (Phase 3+)
 }
 

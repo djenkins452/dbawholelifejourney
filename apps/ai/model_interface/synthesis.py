@@ -103,6 +103,21 @@ def _facts_from_result(result):
     facts = []
     if not isinstance(result, dict):
         return facts
+    # UNWRAP the canonical truth envelope: dispatch wraps every tool result via
+    # `make_envelope`, which nests the ENTIRE payload under "value" (alongside freshness/
+    # confidence/source/status). Without unwrapping, `_facts_from_result` read only the
+    # envelope scaffolding and Phase 2 received NO real facts — it then fabricated entities/
+    # numbers (proven 2026-08-14: the ranked+PR combo invented "squats/deadlifts"). If the
+    # inner value is a scalar, that IS the fact.
+    if ("value" in result and isinstance(result.get("source"), str)
+            and ("freshness" in result or "status" in result)):
+        inner = result.get("value")
+        if isinstance(inner, dict):
+            result = inner
+        elif inner is not None:
+            return [str(inner)]
+        else:
+            return facts
     for grp in (result.get("concepts") or {}).values():
         if not isinstance(grp, dict):
             continue

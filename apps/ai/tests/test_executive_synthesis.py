@@ -123,6 +123,7 @@ class EligibilityTests(TestCase):
         # records — else it fabricates names/values (the "which workouts had the most volume
         # + PRs" → invented "squats/deadlifts" class, 2026-08-14). It previously kept only
         # the ranked scalar totals + `holds_data`.
+        from apps.core.truth import envelope as _env
         ranked = {"status": "ready", "granularity": "ranked_entity", "unit": "lb",
                   "results": [{"rank": 1, "name": "Adjusted Upper Body — 2026-08-12",
                                "value": 13500.0, "occurred_on": "2026-08-12",
@@ -132,11 +133,17 @@ class EligibilityTests(TestCase):
                     "records": {"count": 5, "records": [
                         {"identity": "Preacher Curl — Max Weight",
                          "performance": {"weight_lb": 60.0, "estimated_1rm_lb": 80.0}}]}}
+        # WRAP exactly as dispatch does (make_envelope nests payload under "value") — the fix
+        # must survive that, else Phase 2 sees only freshness/confidence/source scaffolding.
+        wr = _env.make_envelope(ranked, source="ranked_entity:workout_by_volume",
+                                status=_env.STATUS_OK)
+        wa = _env.make_envelope(analysis, source="analysis:health.personal_records",
+                                status=_env.STATUS_OK)
         out = S.render_evidence([
             {"tool": "get_ranked_entity", "args": {"subject": "workout_by_volume"},
-             "result": ranked},
+             "result": wr},
             {"tool": "get_analysis", "args": {"domain": "health", "subject": "personal_records"},
-             "result": analysis}])
+             "result": wa}])
         self.assertIn("Adjusted Upper Body", out)      # the real ranked workout name
         self.assertIn("13500", out)
         self.assertIn("Seated Cable Row", out)         # its REAL exercises

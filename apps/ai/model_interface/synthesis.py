@@ -79,6 +79,22 @@ def synthesis_eligible(evidence):
     return len(surfaces) >= 2
 
 
+def _sub_item_labels(meta):
+    """The identifying sub-item NAMES a ranked entity carries (a workout's exercises, a
+    meal's foods) — so Phase 2 grounds "which exercises/what was in it" in the real items."""
+    if not isinstance(meta, dict):
+        return []
+    for key in ("exercises", "items"):
+        seq = meta.get(key)
+        if isinstance(seq, list) and seq:
+            out = [str(x.get("name") or x.get("food_name") or "").strip()
+                   for x in seq if isinstance(x, dict)]
+            out = [x for x in out if x]
+            if out:
+                return out
+    return []
+
+
 def _facts_from_result(result):
     """Flatten ONE truth result to compact 'label: value unit (Δ change)' lines — every
     deterministic fact, none of the scaffolding/nesting. This keeps the Phase-2 prompt small
@@ -113,6 +129,35 @@ def _facts_from_result(result):
                              f"(Δ {ch.get('delta')}, {ch.get('direction')})")
             elif s.get("average") is not None:
                 facts.append(f"{name}: avg {s.get('average')} {s.get('unit', '')}")
+    # RANKED ENTITY — `results[]` are the ranked ENTITIES (name + value + their own detail).
+    # Without this Phase 2 saw only the ranked scalar totals and FABRICATED the entities (the
+    # "which workouts/exercises had the most X" → invented "squats/deadlifts" class, 2026-08-14).
+    unit = result.get("unit")
+    for r in (result.get("results") or [])[:12]:
+        if not isinstance(r, dict):
+            continue
+        line = (f"#{r.get('rank')} {r.get('name') or r.get('ref')}: "
+                f"{r.get('value')}{(' ' + unit) if unit else ''}")
+        if r.get("occurred_on"):
+            line += f" ({r['occurred_on']})"
+        sub_labels = _sub_item_labels(r.get("meta"))
+        if sub_labels:
+            line += " — " + ", ".join(sub_labels[:8])
+        facts.append(line)
+    # ENTITY RECORDS — analysis/entity `records[]` are the user's ACTUAL entities (a PR, a
+    # workout): render each identity + its numeric performance so Phase 2 names REAL entities.
+    recs = result.get("records")
+    rec_list = (recs.get("records") if isinstance(recs, dict)
+                else recs if isinstance(recs, list) else None)
+    for e in (rec_list or [])[:15]:
+        if not isinstance(e, dict):
+            continue
+        ident = e.get("identity") or (e.get("definition") or {}).get("name") or e.get("name")
+        perf = e.get("performance") if isinstance(e.get("performance"), dict) else {}
+        vals = "; ".join(f"{k} {v}" for k, v in perf.items()
+                         if isinstance(v, (int, float)) and v is not None)
+        if ident:
+            facts.append(f"{ident}" + (f": {vals}" if vals else ""))
     # Fallback for non-analysis truth shapes: keep top-level scalar facts.
     if not facts:
         for k, v in result.items():

@@ -118,6 +118,33 @@ class EligibilityTests(TestCase):
         self.assertNotIn("momentum", out.lower())       # verdict stripped
         self.assertNotIn("complete a task today", out)  # prescription stripped
 
+    def test_render_evidence_includes_ranked_entities_and_records(self):
+        # Phase 2 must SEE the ranked entities + their sub-items and the actual entity
+        # records — else it fabricates names/values (the "which workouts had the most volume
+        # + PRs" → invented "squats/deadlifts" class, 2026-08-14). It previously kept only
+        # the ranked scalar totals + `holds_data`.
+        ranked = {"status": "ready", "granularity": "ranked_entity", "unit": "lb",
+                  "results": [{"rank": 1, "name": "Adjusted Upper Body — 2026-08-12",
+                               "value": 13500.0, "occurred_on": "2026-08-12",
+                               "meta": {"exercises": [{"name": "Seated Cable Row"},
+                                                      {"name": "Lat Pulldown"}]}}]}
+        analysis = {"status": "ready", "holds_data": True,
+                    "records": {"count": 5, "records": [
+                        {"identity": "Preacher Curl — Max Weight",
+                         "performance": {"weight_lb": 60.0, "estimated_1rm_lb": 80.0}}]}}
+        out = S.render_evidence([
+            {"tool": "get_ranked_entity", "args": {"subject": "workout_by_volume"},
+             "result": ranked},
+            {"tool": "get_analysis", "args": {"domain": "health", "subject": "personal_records"},
+             "result": analysis}])
+        self.assertIn("Adjusted Upper Body", out)      # the real ranked workout name
+        self.assertIn("13500", out)
+        self.assertIn("Seated Cable Row", out)         # its REAL exercises
+        self.assertIn("Lat Pulldown", out)
+        self.assertIn("Preacher Curl", out)            # the REAL PR record + value
+        self.assertIn("60.0", out)
+        self.assertNotIn("holds_data", out)            # scaffolding still stripped
+
     def test_run_executive_synthesis_single_bounded_call(self):
         # Phase 2 is a single, hard-bounded, no-retry client call (bypasses _call_api's retry
         # loop/circuit breaker so it can never hang a turn), no tools, bounded timeout.

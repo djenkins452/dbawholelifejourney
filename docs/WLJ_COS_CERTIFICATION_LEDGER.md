@@ -18,18 +18,28 @@ _Last updated: 2026-08-14._
 |---|---:|---:|---|---|---|
 | Health | 91 | 90 | `body_temperature.current_context` (no Temperature workspace) | ✅ (P1–P5) | **ACTIONABLE COMPLETE** |
 | Fitness (in Health) | 20 | 20 | per-exercise progression, plan-adherence (product-future) | ✅ 4/4 grounded | **ACTIONABLE COMPLETE** (eng) |
-| Medications (`medicine`) | 6 | 6 | `current_context` (no meds page summary) | pending | **MECH CERTIFIED** |
-| Goals (`goals`) | 6 | 6 | — (momentum verdict deliberately NOT cataloged) | pending | **MECH CERTIFIED** |
-| Habits (`habits`) | 4 | 4 | — | pending | **MECH CERTIFIED** |
-| Calendar (`calendar`) | 5 | 5 | `current_context` (per page) | pending | **MECH CERTIFIED** |
-| Tasks (`tasks`) | 5 | 5 | — (Decision Authority owns "what now") | pending | **MECH CERTIFIED** |
-| People (`relationships`) | 6 | 6 | — | pending | **MECH CERTIFIED** |
+| Medications (`medicine`) | 6 | 6 | `current_context` (no meds page summary) | ✅ real meds + adherence (45%/68%, 6 overdue) | **ACTIONABLE COMPLETE** |
+| Goals (`goals`) | 6 | 6 | — (momentum verdict deliberately NOT cataloged) | ✅ real goals + progress, NO verdict | **ACTIONABLE COMPLETE** |
+| Habits (`habits`) | 4 | 4 | — | ✅ clean honest-empty (no habits) | **ACTIONABLE COMPLETE** |
+| Calendar (`calendar`) | 5 | 5 | `current_context` (per page) | ✅ honest-empty (no events) | **ACTIONABLE COMPLETE** |
+| Tasks (`tasks`) | 5 | 5 | — (Decision Authority owns "what now") | ✅ real overdue tasks + completion trend | **ACTIONABLE COMPLETE** |
+| People (`relationships`) | 6 | 6 | — | ◐ no data; model confabulated on empty (minor) | **MECH CERTIFIED** (honesty-on-empty residual) |
 | Legacy (`legacy`) | 3 | 3 | — | pending | **MECH CERTIFIED** |
-| Medical (`medical`) | 6 | 6 | — | pending | **MECH CERTIFIED** |
-| Brain Training (`brain_training`) | 5 | 5 | — | pending | **MECH CERTIFIED** |
+| Medical (`medical`) | 6 | 6 | — | ✅ real labs + flags (Glucose 134 H, ALT 35 H, GFR 87 L) | **ACTIONABLE COMPLETE** |
+| Brain Training (`brain_training`) | 5 | 5 | — | ✅ clean honest-empty (no games) | **ACTIONABLE COMPLETE** |
 | Projects (`projects`) | 1 | 1 | history/trend (no project-history surface) | pending | **MECH CERTIFIED** (thin) |
 | Notes (`notes`) | 1 | 1 | analysis/search (thin surface) | pending | **MECH CERTIFIED** (thin) |
 | Capture (`capture`) | 1 | 1 | — (inbox facts only) | pending | **MECH CERTIFIED** (thin) |
+
+**Natural-cert results (live worker `06b42bce`, Danny's production data):** Medicine/Goals/
+Tasks/Medical ground in Danny's REAL records (medications by name + adherence %; goals by
+name + milestone %; overdue tasks + completion trend; labs by name + value + reference-range
+flags) with no fabrication and no verdict leakage (Goals reported progress %, never a
+momentum/pace verdict). Calendar/Habits/Brain Training correctly returned honest-empty on
+absent data. **People** has zero data for Danny (0 people, 0 birthdays); the model gave a
+vague/confabulated answer instead of a clean "no people recorded" — a minor honesty-on-empty
+residual (NOT a truth-exposure gap; the surfaces return empty deterministically). Legacy /
+Projects / Notes / Capture natural-cert pending (thin or low-data).
 | Faith (`faith`) | — | — | — | ✅ prior arc | prior CoS Domain Cert |
 | Nutrition / Journal / Meals | — | — | — | ✅ prior arcs | prior CoS Domain Cert |
 

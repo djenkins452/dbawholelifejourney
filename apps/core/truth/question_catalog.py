@@ -79,6 +79,20 @@ class Question:
 _REGISTRY = {}                        # id -> Question
 _DOMAIN_MODULES = {                   # domain -> catalog module (lazy import at ready)
     "health": "apps.health.health_question_catalog",
+    # The remaining Layer-1 CoS domains share ONE catalog module (each domain lazy-imports
+    # it; importing once registers all). Health/nutrition/workouts stay in the health catalog.
+    "medicine": "apps.core.truth.cos_question_catalogs",
+    "goals": "apps.core.truth.cos_question_catalogs",
+    "habits": "apps.core.truth.cos_question_catalogs",
+    "calendar": "apps.core.truth.cos_question_catalogs",
+    "tasks": "apps.core.truth.cos_question_catalogs",
+    "relationships": "apps.core.truth.cos_question_catalogs",
+    "legacy": "apps.core.truth.cos_question_catalogs",
+    "medical": "apps.core.truth.cos_question_catalogs",
+    "brain_training": "apps.core.truth.cos_question_catalogs",
+    "projects": "apps.core.truth.cos_question_catalogs",
+    "notes": "apps.core.truth.cos_question_catalogs",
+    "capture": "apps.core.truth.cos_question_catalogs",
 }
 
 

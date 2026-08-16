@@ -73,3 +73,20 @@ class HealthCertificationRatchetTests(SimpleTestCase):
             if q["certified"]:
                 for r in q["requirements"]:
                     self.assertIn(r["capability"], KNOWN_CAPABILITIES, q["id"])
+
+
+# Remaining CoS domains — MECH CERTIFIED (deterministic catalog fully answerable from the
+# live surfaces). This ratchet locks their answerability: if a truth surface regresses, a
+# question here flips to GAP and this fails. Update ONLY after investigating the regression.
+_MECH_CERTIFIED_DOMAINS = ("medicine", "goals", "habits", "calendar", "tasks",
+                           "relationships", "legacy", "medical", "brain_training",
+                           "projects", "notes", "capture")
+
+
+class RemainingDomainRatchetTests(SimpleTestCase):
+    def test_remaining_domains_fully_certified(self):
+        for d in _MECH_CERTIFIED_DOMAINS:
+            rep = certify(d)
+            uncert = [q["id"] for q in rep["questions"] if not q["certified"]]
+            self.assertEqual(uncert, [], f"{d}: gaps appeared {uncert} — a surface regressed")
+            self.assertGreaterEqual(rep["summary"]["total"], 1, d)

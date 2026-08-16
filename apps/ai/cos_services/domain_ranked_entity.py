@@ -56,6 +56,9 @@ RANKING_SUBJECTS = {
         # meal-type across days; the model infers any "your dinners tend to be highest"
         # pattern from the ranked occurrences.
         "aggregation": "occurrence",
+        # Identifying detail carried INTO each ranked result (the meal's real foods), so
+        # "what was in it" is answered from truth in hand — never a generic substitution.
+        "detail_keys": ("meal_type", "item_count", "items"),
     },
     "workout_by_volume": {
         "domain": "health", "entity_type": "workout",
@@ -65,6 +68,9 @@ RANKING_SUBJECTS = {
         # strength_load_lb (Σ ExerciseSet.volume). Not recomputed here — the workout entity
         # already carries it. "which workouts had the most volume".
         "aggregation": "occurrence",
+        # The workout's REAL exercises carried into each ranked result, so "which exercises
+        # had the most volume" is grounded in the actual session — not a generic guess.
+        "detail_keys": ("workout_type", "exercise_count", "exercises"),
     },
 }
 
@@ -219,18 +225,17 @@ def get_domain_ranked_entity(user, subject, *, period="this_month",
 
     from apps.core.truth.ranked_entity import RankItem, build_ranking
     items = []
+    detail_keys = spec.get("detail_keys") or ()
     for e in (entities or []):
         defn = getattr(e, "definition", {}) or {}
         occurred = defn.get("date")
-        meta = {k: defn[k] for k in ("meal_type", "item_count") if k in defn}
-        # Carry the entity's OWN canonical detail (the foods the domain already returned) so
-        # a follow-up ("tell me about the top one / what was in it") is answered from the
-        # truth already in hand — the entity's meal-occurrence reference does not round-trip
-        # through get_entity (there is no meal-by-identity lookup). This is the domain's own
-        # already-authoritative detail, not a copy/recompute or new persistence.
-        detail = defn.get("items")
-        if isinstance(detail, list):
-            meta["items"] = detail
+        # Carry the entity's OWN canonical IDENTIFYING detail (the subject declares WHICH
+        # definition keys — a meal's foods, a workout's exercises) INTO the ranked result, so
+        # "which had the most, and what was in it / which exercises" is answered from the
+        # truth already in hand. Without the entity's real sub-items the model was observed
+        # to SUBSTITUTE generic examples (e.g. "squats/deadlifts") for a top workout whose
+        # actual exercises it never saw (2026-08-14). Domain's own detail — no recompute.
+        meta = {k: defn[k] for k in detail_keys if k in defn}
         items.append(RankItem(
             ref=str(getattr(e, "identity", "") or ""),
             name=str(getattr(e, "identity", "") or ""),

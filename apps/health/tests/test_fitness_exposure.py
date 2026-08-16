@@ -90,6 +90,11 @@ class FitnessExposureTests(TestCase):
         self.assertEqual(r["unit"], "lb")
         self.assertEqual(r["results"][0]["value"], 2000.0)   # heaviest session first
         self.assertEqual(r["results"][1]["value"], 1000.0)
+        # The ranked result carries the workout's REAL exercises, so "which exercises had
+        # the most volume" is grounded — never a generic squat/deadlift substitution.
+        top = r["results"][0]
+        names = {x.get("name") for x in top["meta"].get("exercises", [])}
+        self.assertIn("Bench Press", names)
 
     # --- Personal Records exposure (entity + analysis) ---
     def test_personal_records_entity_and_e1rm(self):

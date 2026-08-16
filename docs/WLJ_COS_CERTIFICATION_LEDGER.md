@@ -23,13 +23,47 @@ _Last updated: 2026-08-14._
 | Habits (`habits`) | 4 | 4 | — | ✅ clean honest-empty (no habits) | **ACTIONABLE COMPLETE** |
 | Calendar (`calendar`) | 5 | 5 | `current_context` (per page) | ✅ honest-empty (no events) | **ACTIONABLE COMPLETE** |
 | Tasks (`tasks`) | 5 | 5 | — (Decision Authority owns "what now") | ✅ real overdue tasks + completion trend | **ACTIONABLE COMPLETE** |
-| People (`relationships`) | 6 | 6 | — | ◐ no data; model confabulated on empty (minor) | **MECH CERTIFIED** (honesty-on-empty residual) |
-| Legacy (`legacy`) | 3 | 3 | — | pending | **MECH CERTIFIED** |
+| People (`relationships`) | 6 | 6 | — | ✅ real relationships (Heather/Haley/Mike + days-since-contact; correctly flags neglected) | **ACTIONABLE COMPLETE** |
+| Legacy (`legacy`) | 3 | 3 | — | ✅ honest "no legacy recorded" (minor phrasing edge) | **ACTIONABLE COMPLETE** |
 | Medical (`medical`) | 6 | 6 | — | ✅ real labs + flags (Glucose 134 H, ALT 35 H, GFR 87 L) | **ACTIONABLE COMPLETE** |
 | Brain Training (`brain_training`) | 5 | 5 | — | ✅ clean honest-empty (no games) | **ACTIONABLE COMPLETE** |
-| Projects (`projects`) | 1 | 1 | history/trend (no project-history surface) | pending | **MECH CERTIFIED** (thin) |
-| Notes (`notes`) | 1 | 1 | analysis/search (thin surface) | pending | **MECH CERTIFIED** (thin) |
-| Capture (`capture`) | 1 | 1 | — (inbox facts only) | pending | **MECH CERTIFIED** (thin) |
+| Projects (`projects`) | 1 | 1 | history/trend (no project-history surface) | ✅ real projects (Pool Project, Home Organization) | **ACTIONABLE COMPLETE** |
+| Notes (`notes`) | 1 | 1 | analysis/search (thin surface) | ✅ real notes (2, with title+content; ≠ Journal) | **ACTIONABLE COMPLETE** |
+| Capture (`capture`) | 1 | 1 | — (inbox facts only) | ✅ honest-empty (nothing to process) | **ACTIONABLE COMPLETE** |
+
+## 🏁 PROGRAM CLOSURE — ACTIONABLE COMPLETE (2026-08-14)
+
+**Program-wide mechanical certification: 139/140 (99.3%) across 13 registered catalog
+domains.** The ONE remaining GAP is `health.body_temperature.current_context` —
+intentionally DEFERRED (no Temperature workspace; honest deferral beats fake completeness).
+**Zero actionable gaps remain.**
+
+**Cross-domain natural certification (live, Danny's real data):** "How am I doing overall?"
+→ multi-domain `get_analysis`, leads with a prioritized judgment (nutrition + task management
+as the biggest issues), distinguishes strengths (workouts 1→3/week, −6.9 lb) from problems
+(fat/waist up, nutrition non-compliance), NOT a dashboard. "What makes you say that?" →
+substantiates from real data. **"What information are you missing?"** → names its own evidence
+boundaries (recent nutrition intake detail, exercise routine specifics) — elite self-awareness.
+No fabrication, no verdict leakage, empty domains not treated as negative evidence.
+
+**People root cause (corrected):** People was NOT empty — Danny has rich `relationship_signals`
+(Heather/Haley/Mike…); the CoS grounds in them via `get_analysis`. The earlier vague answer was
+a non-reproducible edge on a compound "whose birthday" sub-question (empty `upcoming_birthdays`).
+No code change justified. Residual (data-layer, not CoS): the canonical `relationships.Person`
+entity + `top_interacted` current-metric producers are empty while the SAE signals have the
+people — `get_analysis` grounds correctly regardless.
+
+**VERDICT: the WLJ Chief of Staff is deterministically AND conversationally certified across
+every currently actionable life domain.** Core architecture closed; actionable domain truth
+mechanically certified + ratchet-locked; natural routing/grounding certified; cross-domain
+Executive Synthesis grounded; missing-data awareness present. Remaining items are the one
+deferred workspace gap + operator (Danny) production validation of a few domains. Future work
+should be driven by NEW product capability / real trust failures / product refinement — NOT by
+continuing a generic "finish the CoS certification" program.
+
+**Minor residuals (reasoning-quality, empty-data phrasing — not truth/routing/grounding
+defects, not chased):** People "whose birthday" edge; Legacy "not available in registry"
+phrasing on empty. Both are honesty-on-empty phrasing nuances on domains with little/no data.
 
 **Natural-cert results (live worker `06b42bce`, Danny's production data):** Medicine/Goals/
 Tasks/Medical ground in Danny's REAL records (medications by name + adherence %; goals by

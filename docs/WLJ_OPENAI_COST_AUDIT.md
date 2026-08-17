@@ -259,8 +259,14 @@ Danny approved a bounded governance milestone (still with proactive Phase 2 paus
   `chat.completions.create` sites (scan/meals/etc.) still route their own accounting; folding them
   onto the same seam is a later cleanup.
 
-**Measured unit economics** and the **idle-day baseline** are recorded in the changelog (2026-08-16)
-after the bounded post-deploy validation.
+**Measured unit economics (first real WLJ AI numbers, bounded post-deploy validation — 3 real gpt-4o
+turns, read straight from the new ledger):** narrow factual = **2 requests / ≈$0.153**; broad executive
+= **3 requests / ≈$0.190**; Daily Brief = **3 requests / ≈$0.176**. **Cost is input-token dominated by
+the fixed ~60k-token system prompt re-sent every round** (a one-fact turn still sends 61k input tokens),
+so broad ≈ narrow and **prompt-caching the stable prefix is the top future lever**. **Idle-day baseline**
+≈ **$0.20–0.28 / proactive-enabled user / weekday** (Brief + midday + evening; everything else $0), now
+directly observable via `cost-summary` filtered to `traffic_class=proactive`. Full detail: changelog
+2026-08-16.
 
 ## Guardrail compliance
 

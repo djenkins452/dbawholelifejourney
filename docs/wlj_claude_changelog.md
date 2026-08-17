@@ -22,6 +22,13 @@
 
 **Tests:** `apps/ai/tests/test_llm_cost_accounting.py` (10) — accounting/provenance/failure/cost-from-pricebook/certification-tagging/proactive-zero-calls/reserve-once/endpoint. Regression: request-path-safety contract, daily-brief (7), proactive suite (33) all green. `check` clean.
 
+**MEASURED unit economics (bounded post-deploy validation, 3 real gpt-4o turns via cos-run, read from the new ledger — first real WLJ AI unit economics):**
+- Narrow factual turn ("what is my current weight?") = **2 provider requests, 61,067 in / 39 out tokens, ≈ $0.153**.
+- Broad executive turn ("how am I doing across my whole life?") = **3 requests, 72,801 in / 782 out, ≈ $0.190** (6 truth tool calls).
+- Daily Brief (directive) = **3 requests, 69,082 in / 378 out, ≈ $0.176** (3 truth tool calls).
+- **Decisive finding:** cost is **input-token dominated by the fixed ~60k-token system prompt** (constitution + standing context + tool schemas) re-sent every round — even a one-fact narrow turn sends 61k input tokens. Broad ≈ narrow (+$0.04) because the fixed prompt dwarfs the incremental tool rounds + synthesis. This makes **prompt-caching the stable prefix the single highest-leverage future efficiency** (cached input is ~½ price), and confirms the surge arithmetic: ~100–400 certification broad turns over Aug 12–16 ≈ $15–75 → the repeated ~$16–17 charges.
+- **Idle-day baseline (per proactive-enabled user):** 1 Daily Brief (≈$0.176, measured) + Midday Alignment + Evening Wrap (1 small `author_checkin` request each, `max_tokens=400`, now ledgered under `source=proactive_checkin` when they fire) ≈ **~$0.20–0.28 / user / weekday** (~$0.18–0.22 weekend, no midday); ×N proactive users. All other ISE/Beat/post-write paths remain $0 (deterministic). Real per-user idle cost is now directly observable at `cost-summary` filtered to `traffic_class=proactive`.
+
 ## 2026-08-16 — docs(cost): forensic OpenAI API cost audit (READ-ONLY, no code changes)
 
 **Danny's OpenAI account began auto-charging ~$16–17 repeatedly; forensic read-only audit to attribute the surge.** New doc `docs/WLJ_OPENAI_COST_AUDIT.md` (15 sections). No models/schedules/proactive/synthesis/retry/code changed — investigation only.

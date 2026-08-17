@@ -1031,6 +1031,7 @@ class ModelInterfaceService:
             if name in _ALLOWED_WRITE_INTENTS:
                 return action_interface.request_action(
                     user, name, args, turn_id=turn_id, surface=surface,
+                    conversation_id=conversation_id,
                 )
             if name == "resolve_pending_action":
                 return action_interface.resolve_pending_action(

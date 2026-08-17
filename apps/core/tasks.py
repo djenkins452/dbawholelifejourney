@@ -74,7 +74,7 @@ def run_cos_acceptance_turn(user_email, message, result_key):
                                       conversation=conv, stream=False)
         answer = getattr(resp, "text", "") or ""
         tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
-                  "status": r.result_status}
+                  "status": r.result_status, "digest": r.result_digest}
                  for r in ToolCallLog.objects.filter(conversation_id=conv.id)
                  .order_by("created_at")]
         out = {"status": "ready", "answer": answer, "tool_calls": tools,
@@ -152,7 +152,7 @@ def run_cos_acceptance_conversation(user_email, steps, result_key):
                                               conversation=conv, stream=False)
                     answer = getattr(resp, "text", "") or ""
                     tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
-                              "status": r.result_status}
+                              "status": r.result_status, "digest": r.result_digest}
                              for r in ToolCallLog.objects.filter(conversation_id=conv.id)
                              .order_by("created_at")[before:]]
                     transcript.append({"kind": "turn", "user": umsg, "answer": answer,

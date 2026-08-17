@@ -1072,7 +1072,8 @@ class ModelInterfaceService:
                     conversation_id=conversation_id,
                     result_digest={"status": out.get("status"),
                                    "due_at": out.get("due_at", ""),
-                                   "topic": (out.get("topic") or "")[:120]},
+                                   "topic": (out.get("topic") or "")[:120],
+                                   "message": (out.get("message") or "")[:200]},
                 )
                 return out
 

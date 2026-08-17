@@ -138,6 +138,51 @@ push/SMS/email dormant. Scenarios:
 
 ---
 
+## 21. MILESTONE 1 — SHIPPED (2026-08-14, commit `30d2499c`)
+**Proactive Daily Executive Brief, authored by the CERTIFIED CoS.** Delivered exactly as
+recommended — connect proven pieces, no new architecture.
+
+- **Where:** `generate_daily_executive_brief_for_user(user)` in `apps/ai/proactive_checkins.py`,
+  called FIRST in the existing PGS morning window (`WINDOW_MORNING = range(7, 10)`).
+- **Reasoning:** the SAME certified runtime Danny gets on a broad question —
+  `ModelInterfaceService.generate(conversation, DAILY_BRIEF_DIRECTIVE)` → model-directed
+  CURRENT-truth retrieval + bounded Executive Synthesis. **No second reasoning system;** the
+  legacy `PersonalAssistant`/proactive generators are untouched.
+- **Delivery:** the existing `_create_proactive_message` → real `is_proactive` assistant turn
+  in the active conversation + DNE/bell. A real turn Danny can reply to ("why?/I disagree").
+- **Idempotency:** at most one per **user-local day** by DETERMINISTIC DB identity
+  (`metadata.brief_date`), never model-prose equality; atomic `cache.add` lock guards
+  concurrent workers. Safe against repeated 15-min cycles, retries, and multiple app opens.
+- **Fail-safe:** empty/error answer → NO brief written, NO legacy reasoning substituted, never
+  raises; normal interactive CoS unaffected. Respects the proactive-disabled preference.
+- **Request-path safe:** runs only in the PGS worker cycle; never on a page load (contract 4/4).
+
+**Natural product certification (deployed worker, Danny's real data):**
+- **A — daily generation:** grounded (retrieved health/goals/relationships/finance live), one
+  high-impact focus (body-composition drift: weight −5.1 lb but lean mass −2.2 lb / fat +4.0 lb,
+  low protein), executive judgment + one action. No domain-tour/metric-dump/five-list. PASS.
+- **B — evidence challenge:** substantiated with real numbers (protein 33g vs 180g target =
+  18.3% compliance, tied to the lean-mass loss). PASS.
+- **C — disagreement + data-quality doubt:** genuinely RECONSIDERED — acknowledged inconsistent
+  logging (34 entries/wk, last Aug 16), recognized the low-intake signal could be a data
+  artifact, and reframed the priority to "verify logging first." Did not dig in or capitulate.
+  PASS (also demonstrates **D — missing-data awareness** firing when it materially limits
+  judgment).
+- **E — duplicate protection:** deterministic DB identity + atomic lock; unit-proven
+  (`test_daily_executive_brief.py`, one-per-local-day + next-day-regenerates). PASS.
+- **F — normal-chat regression:** a plain "how's my weight trending?" returns the usual focused
+  answer; the brief is fully isolated to the morning window. PASS.
+- **Multiple runs:** 3 independent brief openings, consistent single-focus executive quality
+  with honest variance in which facet of the same whole-life story leads.
+
+**Legacy proactive migration — remaining (NOT this milestone):** the morning window's other
+generators (medicine / birthday / faith check-ins) and the DBE dashboard card still run on the
+legacy pipeline — but **none is a whole-life executive chat brief**, so there is NO content
+duplication with the new brief and nothing was suppressed. The broader migration of the ~25
+PGS check-in types and the DBE card onto the certified CoS is deferred to a later milestone
+(each is a domain-specific nudge, lower value than the day-opener). Milestone 2 (durable
+promised follow-up) and push-to-device (operator-gated) remain per §15/§20.
+
 ## CLOSURE ANSWER
 **Smallest next capability that makes Danny noticeably feel his Chief of Staff HELPS RUN his
 life:** the **Proactive Daily Executive Brief in the certified CoS's own voice** — his CoS has

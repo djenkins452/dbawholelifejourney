@@ -2992,6 +2992,89 @@ def _send_prioritized_nudges(user, candidates):
 
 
 # -----------------------------------------------------------------------------
+# Daily Executive Brief — authored by the CERTIFIED Chief of Staff (not legacy reasoning)
+# -----------------------------------------------------------------------------
+# Product Milestone 1 (post-certification). The one proactive message per user-local day
+# that opens Danny's day is authored by the SAME certified runtime he gets when he asks a
+# broad whole-life question (ModelInterfaceService → model-directed current-evidence retrieval
+# → bounded Executive Synthesis). This is NOT a new reasoning system: it REUSES the certified
+# CoS for reasoning and the existing proactive machinery (active conversation, is_proactive,
+# _create_proactive_message → DNE/bell) for delivery. WLJ does not decide the priority; OpenAI
+# does, over CURRENT truth. Fails safe: on any error/empty answer NO brief is written and NO
+# legacy reasoning is substituted; normal interactive CoS use is unaffected.
+
+DAILY_BRIEF_DIRECTIVE = (
+    "It is the start of Danny's day. Before he has asked anything, review his CURRENT "
+    "whole-life truth and give him a concise executive brief — the way an exceptional chief "
+    "of staff opens the morning. Investigate the truth you actually need right now (do not "
+    "rely on standing summaries or yesterday's conclusion). Lead with the ONE thing that "
+    "most matters today and why; add at most one or two supporting observations only if they "
+    "materially help; note missing or stale information ONLY if it materially limits your "
+    "judgment. One high-impact focus — never a domain-by-domain tour, a metric dump, a list "
+    "of five things, or generic encouragement. Speak to Danny directly, briefly."
+)
+
+
+def _has_brief_today(conversation, local_today_iso):
+    """True if a Daily Executive Brief already exists for this user-local day (idempotency —
+    deterministic identity, never model-prose equality)."""
+    return AssistantMessage.objects.filter(
+        conversation=conversation, message_type='daily_brief',
+        metadata__brief_date=local_today_iso).exists()
+
+
+def generate_daily_executive_brief_for_user(user):
+    """Author + deliver the one Daily Executive Brief for the user's local day, via the
+    CERTIFIED CoS. Idempotent (at most one per user-local day; safe against repeated
+    scheduler cycles, worker retries, and concurrent workers). Never raises; never falls back
+    to legacy reasoning. Runs in the PGS worker cycle (never the request path)."""
+    from django.core.cache import cache
+    from apps.core.utils import get_user_today
+    # Never bypass the user's proactive preference (even if called directly, not via PGS).
+    prefs = getattr(user, 'preferences', None)
+    if not (prefs and getattr(prefs, 'personal_assistant_enabled', False)
+            and getattr(prefs, 'assistant_proactive_checkins', False)):
+        return None
+    try:
+        local_today = get_user_today(user).isoformat()
+    except Exception:
+        return None
+    conversation = AssistantConversation.get_or_create_active(user)
+    if _has_brief_today(conversation, local_today):
+        return None
+    # Atomic cross-worker lock so two concurrent cycles never both generate (cache.add is
+    # set-if-absent). The durable DB check above is the source of truth; this only prevents
+    # a same-instant double-author.
+    lock_key = f"daily_brief_lock:{user.pk}:{local_today}"
+    if not cache.add(lock_key, "1", 600):
+        return None
+    try:
+        from apps.ai.model_interface.service import ModelInterfaceService
+        out = ModelInterfaceService(user).generate(
+            conversation, DAILY_BRIEF_DIRECTIVE, surface="chat")
+        answer = (out or {}).get("answer") if isinstance(out, dict) else None
+        answer = (answer or "").strip()
+        if not answer:
+            # No brief rather than a fabricated/legacy one. Normal use continues.
+            logger.warning("DAILY_BRIEF empty answer user=%s — no brief written", user.pk)
+            return None
+        svc = ProactiveCheckInService(user)
+        msg = svc._create_proactive_message(
+            content=answer, quick_replies=[], message_type='daily_brief',
+            metadata={'check_in_type': 'daily_brief', 'brief_date': local_today,
+                      'authored_by': 'model_interface',
+                      'synthesis_used': bool((out or {}).get('synthesis_used'))})
+        logger.info("DAILY_BRIEF authored+delivered user=%s day=%s msg=%s synthesis=%s",
+                    user.pk, local_today, getattr(msg, 'id', None),
+                    (out or {}).get('synthesis_used'))
+        return msg
+    except Exception:
+        logger.warning("DAILY_BRIEF generation failed user=%s — no brief, no fallback",
+                       user.pk, exc_info=True)
+        return None
+
+
+# -----------------------------------------------------------------------------
 # Time Window Dispatch
 # -----------------------------------------------------------------------------
 
@@ -3024,6 +3107,10 @@ def _dispatch_for_window(user, prefs, hour, is_weekend):
 
     # --- Morning 7–9 ---
     if hour in WINDOW_MORNING:
+        # The certified CoS opens the day FIRST (once per user-local day, idempotent).
+        generate_daily_executive_brief_for_user(user)
+        count += 1
+
         generate_birthday_check_ins_for_user(user)
         count += 1
 

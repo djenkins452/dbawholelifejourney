@@ -6,6 +6,10 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-17 — fix(cos): M2 follow-through prod-hardening + Django 5.x timezone.utc lesson
+
+Post-deploy Tier-2 real-model smoke (ONE turn: "ask me tonight whether I did my workout") found a real prod defect deterministic tests missed: `schedule_follow_up` used **`django.utils.timezone.utc`, which Django 5.x removed** → `AttributeError` → the write raised → the model reported "a system error." Root-caused by surfacing the action `result_digest` through the cos-run harness (a permanent operator-diagnostics improvement) + a temporary error-detail tail (reverted). Fixes: use `datetime.timezone.utc`; portable `%I`+lstrip strftime (`%-I` is a glibc extension that raises on musl libc); tolerant ISO parse (`Z`/offset/space/date-only for Python 3.9 `fromisoformat`); the whole schedule path is now raise-proof (always returns an honest status the model relays). **Durable lesson:** local dev Django lagged prod Django 5.x, so `timezone.utc` passed locally and failed in prod — env drift a unit test cannot catch, exactly what the one post-deploy real-model smoke is for. Final smoke confirmed `scheduled` end-to-end on prod. `check` clean; tests green.
+
 ## 2026-08-17 — feat(cos): Proactive Phase 2 M2 — Durable Conversational Follow-Through
 
 **The Chief of Staff can now promise to return to a thread later, and actually do it.** When Danny asks it to check back ("ask me tonight whether I got my workout done", "follow up at 4 about the report"), it schedules a durable follow-up; when that time comes the certified CoS re-reads his CURRENT truth and authors the follow-up fresh (if he already did it, it acknowledges and closes the loop — never nags, never replays stored prose).

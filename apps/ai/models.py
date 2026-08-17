@@ -2180,3 +2180,80 @@ class ToolCallLog(models.Model):
 
     def __str__(self):
         return f"{self.user_id}:{self.turn_id}:{self.kind}:{self.tool_name}={self.result_status}"
+
+
+class ConversationFollowUp(models.Model):
+    """Durable conversational follow-through (Proactive Product Phase 2, M2).
+
+    THE single deterministic owner of a promise the Chief of Staff made to return to a
+    thread later ("ask me tonight whether I got my workout done"; "check back at 4 about the
+    compensation deliverable"). WLJ owns the COMMITMENT — the due time, the subject reference,
+    the conversation, and the status lifecycle. OpenAI owns the JUDGMENT (that a follow-up is
+    worth it) and, at FIRE TIME, the wording — the follow-up is authored fresh from CURRENT
+    truth when it comes due, never replayed from stored prose. `topic` is a short structured
+    REFERENCE to what to follow up about (not a verdict, not the answer). A follow-up is only
+    ever created by an EXPLICIT tool call (schedule_follow_up) — free-form model prose that
+    merely says "I'll check back" never creates scheduled state.
+
+    Fired by the existing PGS cycle (no new scheduler); delivered via the existing
+    _create_proactive_message (no new channel). Duplicate-safe via an atomic status claim.
+    """
+
+    ORIGIN_USER = 'user_requested'        # Danny explicitly asked ("ask me tonight")
+    ORIGIN_ASSISTANT = 'assistant_proposed'  # the CoS proposed and it was accepted
+    ORIGIN_CHOICES = [
+        (ORIGIN_USER, 'User requested'),
+        (ORIGIN_ASSISTANT, 'Assistant proposed'),
+    ]
+
+    STATUS_PENDING = 'pending'        # scheduled, not yet due/delivered
+    STATUS_DELIVERING = 'delivering'  # atomically claimed by one worker (in-flight)
+    STATUS_DELIVERED = 'delivered'    # the follow-up turn was authored + delivered
+    STATUS_RESOLVED = 'resolved'      # closed before firing (superseded/no longer needed)
+    STATUS_CANCELLED = 'cancelled'    # explicitly cancelled by the user
+    STATUS_FAILED = 'failed'          # generation failed repeatedly; gave up (never faked)
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_DELIVERING, 'Delivering'),
+        (STATUS_DELIVERED, 'Delivered'),
+        (STATUS_RESOLVED, 'Resolved'),
+        (STATUS_CANCELLED, 'Cancelled'),
+        (STATUS_FAILED, 'Failed'),
+    ]
+
+    MAX_ATTEMPTS = 3
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='conversation_follow_ups',
+    )
+    conversation = models.ForeignKey(
+        'AssistantConversation', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='follow_ups',
+    )
+    due_at = models.DateTimeField(db_index=True)
+    # Short structured subject — WHAT to follow up about, a reference the fire-time author
+    # re-grounds in current truth. NOT a stored answer/verdict.
+    topic = models.CharField(max_length=280)
+    # Optional durable object reference (app_label.model:pk) when the follow-up maps to one.
+    subject_ref = models.CharField(max_length=120, blank=True, default='')
+    origin = models.CharField(max_length=20, choices=ORIGIN_CHOICES, default=ORIGIN_USER)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES,
+                              default=STATUS_PENDING, db_index=True)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['due_at']
+        indexes = [
+            models.Index(fields=['user', 'status', 'due_at']),
+            models.Index(fields=['status', 'due_at']),
+        ]
+        verbose_name = 'Conversation Follow-Up'
+        verbose_name_plural = 'Conversation Follow-Ups'
+
+    def __str__(self):
+        return f"{self.user_id}:{self.status}:{self.topic[:40]} @ {self.due_at:%Y-%m-%d %H:%M}"

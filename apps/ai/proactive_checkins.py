@@ -3168,6 +3168,16 @@ def _dispatch_for_window(user, prefs, hour, is_weekend):
     """
     count = 0
 
+    # --- Durable follow-through (M2): deliver any promised follow-up that has come due,
+    #     authored fresh by the certified CoS. Runs EVERY cycle (a follow-up can be due in any
+    #     window); duplicate-safe + proactive-pref-gated inside the scanner.
+    try:
+        from apps.ai.cos_services.follow_up import deliver_due_follow_ups_for_user
+        deliver_due_follow_ups_for_user(user)
+        count += 1
+    except Exception:
+        logger.warning("FOLLOW_UP dispatch failed user=%s", user.id, exc_info=True)
+
     # --- Always active (any non-quiet hour) ---
     if getattr(prefs, 'health_enabled', False):
         generate_medicine_check_ins_for_user(user)

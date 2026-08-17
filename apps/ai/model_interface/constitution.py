@@ -1583,12 +1583,52 @@ def _next_review_item_tool():
         }}}}
 
 
+def _schedule_follow_up_tool():
+    """Persist a promised follow-up: WLJ will bring THIS topic back to Danny at the given time,
+    authored fresh from current truth then. Create scheduled state ONLY through this tool —
+    saying 'I'll check back' in prose does NOT schedule anything."""
+    return {"type": "function", "function": {
+        "name": "schedule_follow_up",
+        "description": (
+            "Promise to follow up with Danny about ONE thing at a LATER time, and make it real. "
+            "Call this ONLY when Danny asks you to check back / remind him about something "
+            "conversational ('ask me tonight whether I did my workout', 'follow up with me at 4 "
+            "about the report', 'check in with me later on this'), OR when you propose a follow-up "
+            "and he agrees. It creates a durable commitment: when the time comes, WLJ re-reads his "
+            "CURRENT truth and you author the follow-up then (if he already did it, you'll see that "
+            "and just close the loop — so never promise data you'll fabricate). Do NOT use it for a "
+            "fixed clock reminder/alarm or a to-do (use a reminder/task for those); this is for "
+            "returning to a CONVERSATIONAL thread. Saying you'll check back WITHOUT calling this "
+            "schedules nothing — always call it if you make the promise. "
+            "Pass `when_local` as an ISO-8601 datetime IN DANNY'S LOCAL TIME that YOU compute from "
+            "the current time you were given (e.g. 'tonight' → today 19:00 → \"2026-08-17T19:00\"; "
+            "'in 2 hours', 'tomorrow morning' → ~08:00). It returns `scheduled` (tell him you'll "
+            "check back, in his words) or `needs_info` (do exactly what the message says)."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "topic": {"type": "string",
+                      "description": ("Short, concrete subject of the follow-up in plain terms — "
+                                      "WHAT you'll check on, e.g. 'whether he started the "
+                                      "compensation deliverable', 'whether he got his workout done'. "
+                                      "Not a verdict, not the answer — just what to revisit.")},
+            "when_local": {"type": "string",
+                           "description": ("ISO-8601 local datetime YOU computed from the current "
+                                           "time, e.g. \"2026-08-17T19:00\". Must be in the future "
+                                           "and within ~2 weeks.")},
+            "when_label": {"type": "string",
+                           "description": "How Danny said it ('tonight', 'at 4 PM') — for your reply."},
+            "subject_ref": {"type": "string",
+                            "description": ("Optional durable object reference app_label.model:pk "
+                                            "if the follow-up maps to one (e.g. a task); omit if not.")},
+        }, "required": ["topic", "when_local"]}}}
+
+
 def action_tools():
     """Named deterministic action tools (curated write set) + the bound-confirmation
-    resolver + the execution-completion router + the guided-review driver. No generic
-    request_action; no invented interface."""
+    resolver + the execution-completion router + the guided-review driver + the durable
+    follow-up scheduler. No generic request_action; no invented interface."""
     return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool(),
-                                    _next_review_item_tool()]
+                                    _next_review_item_tool(), _schedule_follow_up_tool()]
 
 
 def all_tools(writes_enabled=True):

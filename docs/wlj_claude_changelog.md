@@ -6,6 +6,18 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-17 — feat(cos): Proactive Phase 2 M2 — Durable Conversational Follow-Through
+
+**The Chief of Staff can now promise to return to a thread later, and actually do it.** When Danny asks it to check back ("ask me tonight whether I got my workout done", "follow up at 4 about the report"), it schedules a durable follow-up; when that time comes the certified CoS re-reads his CURRENT truth and authors the follow-up fresh (if he already did it, it acknowledges and closes the loop — never nags, never replays stored prose).
+
+**Architecture (reuses everything; no new scheduler/channel/reasoning system):**
+- **Owner:** new `ConversationFollowUp` model (`apps/ai/models.py`, migration `0038`) — THE single deterministic owner of the commitment (due_at, topic-reference, conversation, status lifecycle pending→delivering→delivered/resolved/cancelled/failed, attempts). `topic` is a short structured *reference* to what to revisit — NOT a stored verdict/answer. Not Conversation State (short-TTL scratchpad), not CosPromptSchedule (prose-replay + cos_v2 gate).
+- **Creation:** ONLY via an explicit new certified-CoS-native action tool `schedule_follow_up` (`constitution.py` + `service.py` dispatch, same pattern as `complete_execution_item`) — free-form prose that merely says "I'll check back" schedules nothing. The MODEL computes the concrete local time (it has temporal grounding); WLJ validates (future, ≤14 days) + stores. Service `apps/ai/cos_services/follow_up.py`.
+- **Firing:** `deliver_due_follow_ups_for_user` runs in the EXISTING PGS cycle (every 15 min, any window); authored via `ModelInterfaceService.generate` (certified reasoning, re-grounded in current truth) under `traffic_class=proactive`; delivered via existing `_create_proactive_message`. **Duplicate-safe** via an atomic `pending→delivering` status claim (only one worker delivers). Fail-safe: empty/error answer → NOT delivered, bounded retry (≤3) then `failed` — never a fabricated follow-up. Respects the proactive preference.
+- **Fixed the live lie:** legacy `handle_remind_later` returned a cosmetic `snooze_until` that nothing consumed ("I'll remind you at 8:30" → nothing fired). It now writes a real `ConversationFollowUp`, honored by the same certified-CoS scanner.
+
+**Tests:** `apps/ai/tests/test_conversation_follow_up.py` (11) — schedule validation/horizon/supersede, fire-time authoring by the certified runtime (mocked), not-yet-due, duplicate-claim, empty→retry→failed, proactive-disabled, remind-later-is-real, tool exposed. Regression: intent-registration gate, request-path-safety, proactive scheduler, cost accounting (45) green. `check` clean. Release note added. Preserves all cost telemetry (follow-up turns ledgered under `source=conversation_follow_up`, `traffic_class=proactive`).
+
 ## 2026-08-16 — feat(cost): OpenAI cost governance — usage accounting seam, provenance, proactive waste fix, testing discipline
 
 **Danny-approved bounded cost-governance milestone following the forensic audit.** Makes AI spend observable, eliminates proven proactive waste, and makes real-model testing discipline governing doctrine. Model (`gpt-4o`), Executive Synthesis, schedules, retries UNCHANGED — cost is now *visible*, not optimized away.

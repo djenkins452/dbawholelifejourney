@@ -340,39 +340,51 @@ def handle_skip_medicine_group(user, params: dict) -> dict:
 
 
 def handle_remind_later(user, params: dict) -> dict:
-    """Snooze a reminder for later. Uses the actual due time when available."""
-    reminder_type = params.get('reminder_type', 'general')
-    item_id = params.get('item_id')
-    due_time = params.get('due_time')
+    """Snooze a check-in for later — and ACTUALLY follow up. Persists a durable
+    ConversationFollowUp (M2) so the promise is honored by the certified-CoS follow-up
+    scanner. Historically this returned a cosmetic `snooze_until` that nothing consumed —
+    the assistant said 'I'll remind you at 8:30' and nothing ever fired. Fixed."""
+    from apps.core.utils import get_user_now
 
-    # Calculate snooze: use actual due time if available, otherwise 30 min
+    reminder_type = params.get('reminder_type', 'general')
+    topic = (params.get('title') or params.get('topic')
+             or f"the {reminder_type.replace('_', ' ')} you asked me to check back on")
+
+    user_now = get_user_now(user)
+    due_time = params.get('due_time')
+    due_dt = None
     if due_time:
         try:
-            from apps.core.utils import get_user_now
-            from datetime import datetime
-            user_now = get_user_now(user)
             due_hour, due_min = map(int, due_time.split(':'))
-            due_dt = user_now.replace(hour=due_hour, minute=due_min, second=0, microsecond=0)
-
-            # If due time hasn't passed yet, remind at due time
-            if due_dt > user_now:
-                diff_minutes = int((due_dt - user_now).total_seconds() / 60)
-                time_display = due_dt.strftime('%I:%M %p').lstrip('0')
-                return {
-                    'success': True,
-                    'message': f"Got it! I'll remind you at {time_display}.",
-                    'data': {'snooze_until': due_dt.isoformat()},
-                }
+            candidate = user_now.replace(hour=due_hour, minute=due_min, second=0, microsecond=0)
+            if candidate > user_now:
+                due_dt = candidate
         except Exception:
-            pass
+            due_dt = None
+    if due_dt is None:
+        due_dt = user_now + timedelta(minutes=30)
 
-    # Fallback: 30 minute snooze
-    snooze_time = timezone.now() + timedelta(minutes=30)
-    return {
-        'success': True,
-        'message': "Got it! I'll check back in about 30 minutes.",
-        'data': {'snooze_until': snooze_time.isoformat()},
-    }
+    time_display = due_dt.strftime('%I:%M %p').lstrip('0')
+    try:
+        from apps.ai.models import AssistantConversation
+        from apps.ai.cos_services.follow_up import schedule_follow_up
+        conversation = AssistantConversation.get_or_create_active(user)
+        result = schedule_follow_up(
+            user, conversation, topic=topic, when_local=due_dt.isoformat(),
+            when_label=f"at {time_display}", origin='user_requested')
+        if result.get('status') == 'scheduled':
+            return {'success': True,
+                    'message': f"Got it — I'll check back with you at {time_display}.",
+                    'data': {'follow_up_id': result.get('follow_up_id'),
+                             'due_at': result.get('due_at')}}
+    except Exception:
+        logger.warning("handle_remind_later: follow-up scheduling failed for user=%s",
+                       user.id, exc_info=True)
+
+    # Honest fallback if the durable follow-up could not be created — do not imply a timed
+    # promise we cannot keep.
+    return {'success': True,
+            'message': "Okay — I'll bring this back up next time we talk."}
 
 
 def handle_confirm_workout(user, params: dict) -> dict:

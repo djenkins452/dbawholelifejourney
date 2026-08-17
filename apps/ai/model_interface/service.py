@@ -1057,6 +1057,24 @@ class ModelInterfaceService:
                                    "message": (out.get("message") or "")[:200]},
                 )
                 return out
+            if name == "schedule_follow_up":
+                # M2: persist a durable promised follow-up. WLJ owns the commitment; the model
+                # computed the concrete local time. The follow-up is authored FRESH from current
+                # truth when it fires (deliver_due_follow_ups_for_user), never replayed prose.
+                from apps.ai.cos_services.follow_up import schedule_follow_up as _sfu
+                out = _sfu(user, conversation, topic=args.get("topic"),
+                           when_local=args.get("when_local"),
+                           when_label=args.get("when_label"),
+                           subject_ref=args.get("subject_ref"))
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "due_at": out.get("due_at", ""),
+                                   "topic": (out.get("topic") or "")[:120]},
+                )
+                return out
 
             return {"status": "error", "error": f"unknown tool '{name}'"}
 

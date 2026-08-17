@@ -22,9 +22,14 @@
 > **Testing discipline is now MANDATORY (CLAUDE.md + `03 §10a`): Tier 1 deterministic by default; ONE
 > real-model smoke per deploy; never default to repeated real-model runs — answer the 4 questions first.**
 > Model (`gpt-4o`), Executive Synthesis, schedules, retries UNCHANGED (cost is now visible, not optimized).
-> **⏸ Proactive Product Phase 2 (M2 follow-through / M3 missing-data / M4 action) REMAINS PAUSED** until
-> Danny reviews the measured cost baseline. M2 design is done (minimal deterministic follow-up record,
-> certified-CoS fire-time authoring); NO M2 code written.
+> **✅ Proactive Product Phase 2 COMPLETE (2026-08-17):** M2 Durable Follow-Through (`ConversationFollowUp`
+> + native `schedule_follow_up` tool, fired by PGS, authored fresh by the certified CoS), M3 Missing-Data
+> (`get_data_health` on-demand truth over `health_sync_status`), M4 Action Completeness (exposed the DAY1-safe
+> high-leverage actions). All prod-deployed + validated; integrated day-long cert passed. Cost telemetry
+> preserved (proactive turns ledgered `traffic_class=proactive`). Detail: `WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`
+> §22. Residuals minor (follow-up firing time-delayed; `resolve_pending_action` audit-linkage; read-after-write
+> SAE snapshot staleness — all pre-existing/minor). **Awaiting Danny's app-level validation + cleanup of cert
+> test artifacts** (a few events/tasks/follow-ups on his account from real-model smokes).
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 

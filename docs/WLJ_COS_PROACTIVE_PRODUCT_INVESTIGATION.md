@@ -183,6 +183,46 @@ PGS check-in types and the DBE card onto the certified CoS is deferred to a late
 (each is a domain-specific nudge, lower value than the day-opener). Milestone 2 (durable
 promised follow-up) and push-to-device (operator-gated) remain per §15/§20.
 
+## 22. PROACTIVE PRODUCT PHASE 2 — COMPLETE (2026-08-17)
+All three milestones shipped, prod-deployed (web+worker), and validated on Danny's real data.
+Cost telemetry + testing-cost guardrails from the governance milestone were preserved throughout
+(every new proactive turn is ledgered under `traffic_class=proactive`; validation used bounded
+Tier-2/Tier-4 real-model runs per `03 §10a`, never batches).
+
+- **M2 — Durable Conversational Follow-Through** (`cabea74b`…`22d45741`). `ConversationFollowUp`
+  is the single deterministic owner; created only by the native `schedule_follow_up` tool (model
+  computes the time, WLJ validates+stores); fired by the existing PGS cycle, authored FRESH from
+  current truth by the certified CoS, delivered via `_create_proactive_message`; duplicate-safe
+  (atomic claim), fail-safe (no fabricated follow-up), proactive-pref-gated. Fixed the dead
+  `handle_remind_later` `snooze_until` lie. Prod smoke: `scheduled` end-to-end. **Prod bug the
+  Tier-2 smoke caught:** `django.utils.timezone.utc` (removed in Django 5.x) → fixed to
+  `datetime.timezone.utc` (env drift a unit test couldn't see — the reason the smoke exists).
+- **M3 — Proactive Missing-Data Intervention** (`019146f1`). Core capability already existed
+  (model reasons over freshness/`holds_data`/briefing STALE tier; proven M1 Test D) — not rebuilt.
+  Closed the one real TRUTH gap: on-demand facts-only `get_data_health` tool over the single
+  existing `health_sync_status` authority, so the CoS tells "not synced" from "not done." OpenAI
+  decides materiality; no importance brain. Prod smoke: listed quiet sources w/ days-since.
+- **M4 — Action Completeness** (`415b6038`…`13941f24`). Exposed the remaining DAY1-safe
+  high-leverage actions (create_event, add_reminder, log_workout, log_habit, create_goal,
+  update_goal_progress, log_prayer, save_verse, create_journal_entry, add_gratitude) through the
+  existing validate→confirm→execute→audit pipeline; safety ratchet test locks the invariant.
+  Prod-verified `create_event status=ok`. **Fixed an action-audit observability gap** (named-write
+  rows were unlinked from the conversation) that briefly masqueraded as write-fabrication but was
+  a stale-snapshot read + missing `conversation_id`.
+
+**Integrated day-long certification (one scripted conversation, Danny's data):** executive read
+("Prayer Time is the one thing — overdue") → plan + `schedule_follow_up` ("I'll check back at 6 PM
+about your Prayer Time") → `get_data_health` (quiet sources named) → `create_event(ok)` — with
+continuity threading the subject across all four turns. **It reads as one Chief of Staff running the
+day with Danny, not disconnected features.**
+
+**Residuals (proven, minor — not blockers):** (1) follow-up *firing* is time-delayed (PGS), shown
+via unit tests + a real 6 PM follow-up scheduled during cert, not synchronously; (2)
+`resolve_pending_action` shares the audit-linkage gap now fixed for `request_action`; (3) a read
+immediately after a write can reflect a stale SAE snapshot (pre-existing Layer-1 read-freshness,
+affects all writes, not M4-specific). **Phase 2 can be declared COMPLETE** pending Danny's app-level
+validation and cleanup of the cert test artifacts (a few events/tasks/follow-ups on his account).
+
 ## CLOSURE ANSWER
 **Smallest next capability that makes Danny noticeably feel his Chief of Staff HELPS RUN his
 life:** the **Proactive Daily Executive Brief in the certified CoS's own voice** — his CoS has

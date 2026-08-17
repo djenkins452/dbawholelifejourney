@@ -818,6 +818,26 @@ class ModelInterfaceService:
                     result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
+            if name == "navigate_to_workspace":
+                # Reveal Target: model chose the target (in words); WLJ resolves it to a real
+                # URL via the existing destination authority and owns the already-there
+                # relation. On `ok`, stash the navigation directive for the client (the app
+                # owns the verb via the existing renderNavigation). Audited (reveal action).
+                from apps.ai.cos_services.reveal import resolve_reveal
+                _cur = (turn_capture or {}).get("current_url")
+                out = resolve_reveal(user, args.get("target"), current_url=_cur)
+                if out.get("status") == "ok" and turn_capture is not None:
+                    turn_capture["navigation"] = {
+                        "url": out.get("url"), "label": out.get("label") or "Open",
+                        "action_type": "open_workflow"}
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "url": (out.get("url") or "")[:200]},
+                )
+                return out
             if name == "get_data_health":
                 # M3: source-sync missingness — reuse the single health-sync authority so the
                 # model can distinguish "not synced" from "not done". Facts only; on-demand.
@@ -1150,6 +1170,14 @@ class ModelInterfaceService:
         )
         system_prompt = self._system_prompt(standing_context)
         turn_capture = {}
+        # Reveal Target: expose the CURRENT workspace URL to the dispatch so
+        # navigate_to_workspace can detect "already here" and skip pointless navigation.
+        try:
+            turn_capture["current_url"] = (
+                ((standing_context.get("current_context") or {})
+                 .get("current_screen") or {}).get("location", {}) or {}).get("url")
+        except Exception:
+            pass
         dispatch = self._make_dispatch(
             turn_id=turn_id, surface=surface, tools_called=tools_called,
             observer=observer, turn_capture=turn_capture,
@@ -1214,4 +1242,7 @@ class ModelInterfaceService:
         )
         return {"answer": answer, "tools_called": tools_called,
                 "standing_context": standing_context, "turn_id": turn_id,
-                "synthesis_used": synthesis_used}
+                "synthesis_used": synthesis_used,
+                # Reveal Target: the navigation directive (if the model revealed a workspace
+                # this turn). Shaped {url,label,action_type} for the existing client renderer.
+                "navigation": turn_capture.get("navigation")}

@@ -6,6 +6,20 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — feat(cos): Reveal Target — navigate_to_workspace on the certified CoS
+
+**The certified Chief of Staff can now take Danny to the right WLJ workspace** — "show me my weight," "take me to yesterday's dashboard," "open my medications" now open the page, not just describe it. Smallest solution to the settled Reveal Target design (`WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md` §5/§9); the larger Part-II `reveal(target)`/bidirectional-Current-Context reframe is deliberately NOT undertaken (would be a navigation-architecture redesign).
+
+**Reuse-first, zero new route map / no model-invented URLs:**
+- **Model chooses the target in words** (a new always-available `navigate_to_workspace` tool, `constitution.py` → `all_tools()`; reveal is not a mutation, so it is available even to read-only users). **WLJ resolves the URL** via the EXISTING single destination authority `apps/core/action_router.resolve_route` → `TeachingDestination` (190 rows) — `apps/ai/cos_services/reveal.py :: resolve_reveal`. Verified against real data: "my weight"→`/health/physical/weight/`, "medications"→`/health/physical/intake/`, "dashboard"→`/dashboard/`, "journal"→`/journal/new/`.
+- **WLJ owns the already-there relation** — if the resolved workspace is the page the user is already on (compared against `standing_context.current_context.current_screen.location.url`, already inside `generate()`), it returns `already_here` and emits NO navigation (answer-in-place; Article II.4). Path/slash/query-insensitive.
+- **Client owns the verb** — reuses the existing `renderNavigation()` (`chat_widget.html`) on ALL four paths; **no client changes.** The `navigation {url,label,action_type}` directive is carried on both transports by mirroring the `confirmation` precedent exactly (`runtime.py` meta → `views.py` copy from `envelope.meta`; streaming `done_data` in `model_interface/tasks.py`). Audited as a reveal action (`ToolCallLog`).
+- The legacy `NAVIGATION_HINTS` map (legacy PersonalAssistant, mutation-only) is untouched — no parallel map was created (the keeper runtime uses the single `resolve_route` authority); retiring the legacy map is deferred to the Part-II elimination.
+
+**Read-after-write SAE staleness:** investigated, NOT fixed — reveal opens the actual workspace page via a fresh browser navigation that renders LIVE data, so "create X → show me X" is not blocked by the in-conversation snapshot staleness (which only affects the CoS's conversational read-back). No runtime proof it blocks reveal → no change (per mandate; avoids a snapshot redesign).
+
+**Tests:** `apps/ai/tests/test_reveal_target.py` (7) — resolve ok / already-here / not-found / blank / resolver-exception, same-workspace path logic, tool always-available (writes on+off). Registration gate + request-path-safety + action regressions green. `check` clean. Release note added. No Constitutional Review (ordinary in-Articles work — target=Reasoning, url/relation=Truth, verb=Experience).
+
 ## 2026-08-17 — chore(cos): Proactive Phase 2 cleanup — cert artifacts removed, resolve_pending_action audit-linkage, memory compaction
 
 Post-completion cleanup of Proactive Phase 2. No behavior change to shipped features.

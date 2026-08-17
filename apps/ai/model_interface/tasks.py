@@ -130,6 +130,10 @@ def run_model_interface_generation(self, user_id, conversation_id, message,
                      "cos_path": "model_interface"}
         if card:
             done_data["confirmation"] = card
+        # Reveal Target — surface the navigation directive on the streaming `done` event so the
+        # existing client renderNavigation opens the revealed workspace.
+        if result.get("navigation"):
+            done_data["navigation"] = result["navigation"]
         snap["events"].append({"type": "done", "data": done_data})
         snap["status"] = "done"
         assistant_msg.content = answer

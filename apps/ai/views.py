@@ -1153,6 +1153,10 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
                     response_data['confirmation'] = envelope.meta['confirmation']
                 if envelope.meta.get('confirmation_resolved'):
                     response_data['confirmation_resolved'] = envelope.meta['confirmation_resolved']
+                # Reveal Target — the certified CoS revealed a workspace; hand the existing
+                # client renderNavigation its {url,label,action_type} directive.
+                if envelope.meta.get('navigation'):
+                    response_data['navigation'] = envelope.meta['navigation']
             else:
                 # Backwards compatibility for string response
                 response_data = {

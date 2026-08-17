@@ -1659,6 +1659,35 @@ def _schedule_follow_up_tool():
         }, "required": ["topic", "when_local"]}}}
 
 
+def _navigate_tool():
+    """Reveal a workspace: take the user to the right WLJ page when the conversation calls
+    for it. The model chooses the TARGET (in words); WLJ resolves it to a concrete URL via
+    the existing destination authority and owns the already-there relation. Not a mutation —
+    always available. Never a model-invented URL."""
+    return {"type": "function", "function": {
+        "name": "navigate_to_workspace",
+        "description": (
+            "Take Danny to a WLJ workspace/page when he actually wants to GO there or SEE it — "
+            "'show me my weight', 'take me to yesterday's dashboard', 'open my medications', "
+            "'pull up my calendar', 'let me journal'. WLJ resolves your target to the real URL "
+            "and the app navigates there; you never write a URL. Use it ONLY for a genuine "
+            "go-there/show-me request, and PREFER to answer in place when you can already give "
+            "the answer from what you know or from what's on screen — navigation is for when the "
+            "workspace itself is the better answer (to see the full history, a chart, or to act "
+            "there), not a substitute for answering. It returns `ok` (the app is opening it — tell "
+            "him you're taking him there), `already_here` (he's ALREADY on that page — do NOT "
+            "announce navigation; just answer/point to what's on it), or `not_found` (say you "
+            "couldn't find that workspace; do not guess a link). Pass the destination in plain "
+            "words as `target`."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "target": {"type": "string",
+                       "description": ("What to open, in plain words — the workspace/page/topic, "
+                                       "e.g. 'weight history', 'dashboard', 'medications', "
+                                       "'calendar', 'journal'. Not a URL.")},
+        }, "required": ["target"]}}}
+
+
 def action_tools():
     """Named deterministic action tools (curated write set) + the bound-confirmation
     resolver + the execution-completion router + the guided-review driver + the durable
@@ -1668,11 +1697,12 @@ def action_tools():
 
 
 def all_tools(writes_enabled=True):
-    """The minimal tool set. Truth tools are always present; the curated named action
-    tools are included ONLY when writes are enabled (Blocker 4). Valid argument values are
-    advertised via the existing intent schemas (enums, required fields) — the model never
-    invents an interface WLJ already owns."""
-    tools = truth_tools()
+    """The minimal tool set. Truth tools + the reveal (navigation) tool are always present;
+    the curated named action tools are included ONLY when writes are enabled (Blocker 4).
+    Reveal is not a state mutation, so it is available even to read-only users. Valid argument
+    values are advertised via the existing intent schemas — the model never invents an
+    interface WLJ already owns."""
+    tools = truth_tools() + [_navigate_tool()]
     if writes_enabled:
         tools += action_tools()
     return tools

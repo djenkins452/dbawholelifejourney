@@ -346,6 +346,10 @@ class ModelInterfaceRuntime(ConversationalRuntime):
                 "turn_id": result.get("turn_id", "")}
         if card:
             meta["confirmation"] = card
+        # Reveal Target: forward the navigation directive (if the model revealed a workspace)
+        # so the view can hand it to the existing client renderNavigation.
+        if result.get("navigation"):
+            meta["navigation"] = result["navigation"]
         return CoSResponse(text=answer, runtime=self.name, surface=surface, meta=meta)
 
     def _deliver_confirmation_result(self, *, user, surface, conversation, message,

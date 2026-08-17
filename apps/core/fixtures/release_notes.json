@@ -4742,5 +4742,21 @@
    "created_at": "2026-08-17T11:45:00Z",
    "updated_at": "2026-08-17T11:45:00Z"
   }
+ },
+ {
+  "model": "core.releasenote",
+  "pk": 298,
+  "fields": {
+   "title": "Your Chief of Staff can now take you there",
+   "description": "Ask your Chief of Staff to open something — “show me my weight,” “take me to my dashboard,” “open my medications,” “pull up my calendar” — and it will take you straight to the right page in WLJ, instead of just describing it. If you’re already on that page, it won’t send you in a circle; it’ll just answer.",
+   "entry_type": "feature",
+   "version": "",
+   "release_date": "2026-08-18",
+   "is_published": true,
+   "is_major": true,
+   "learn_more_url": "",
+   "created_at": "2026-08-18T09:00:00Z",
+   "updated_at": "2026-08-18T09:00:00Z"
+  }
  }
 ]

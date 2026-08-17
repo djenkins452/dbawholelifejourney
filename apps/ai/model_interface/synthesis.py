@@ -309,6 +309,19 @@ def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
             temperature=temperature, max_tokens=650,
             timeout=SYNTHESIS_TIMEOUT_SECONDS,
         )
+        # Cost ledger: Phase-2 synthesis is a SEPARATE billable provider request that was
+        # previously untracked. Tag source=executive_synthesis; traffic_class inherits the
+        # ambient context (a certification/proactive turn's synthesis stays that class).
+        try:
+            from apps.ai.llm_accounting import (record_llm_event_from_response,
+                                                SOURCE_EXECUTIVE_SYNTHESIS)
+            record_llm_event_from_response(
+                resp, model=getattr(ai_service, "model", None), user=user, success=True,
+                latency_ms=int((_time.monotonic() - t0) * 1000),
+                endpoint='model_interface_synthesis', source=SOURCE_EXECUTIVE_SYNTHESIS,
+            )
+        except Exception:
+            pass
         answer = (resp.choices[0].message.content or "").strip()
         logger.info("MI_SYNTHESIS_CALL ok=%s dur=%.1fs evidence_chars=%d",
                     bool(answer), _time.monotonic() - t0, len(evidence_block))
@@ -316,4 +329,14 @@ def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
     except Exception:
         logger.warning("executive synthesis failed/timed out — keeping phase-1 answer",
                        exc_info=True)
+        # Record the failed/timed-out synthesis honestly.
+        try:
+            from apps.ai.llm_accounting import (record_llm_event,
+                                                SOURCE_EXECUTIVE_SYNTHESIS)
+            record_llm_event(
+                model=getattr(ai_service, "model", None), user=user, success=False,
+                endpoint='model_interface_synthesis', source=SOURCE_EXECUTIVE_SYNTHESIS,
+            )
+        except Exception:
+            pass
         return ""

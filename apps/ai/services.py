@@ -807,7 +807,19 @@ class AIService:
 
                 logger.info("COS_OPENAI_START endpoint=%s round=%d tools=%s",
                             endpoint, _round, not last_round)
+                _round_t0 = time.monotonic()
                 response = self.client.chat.completions.create(**kwargs)
+                # Cost ledger: EVERY tool-loop round is a billable provider request. This
+                # is the path the certified CoS actually uses and was previously untracked.
+                try:
+                    from apps.ai.llm_accounting import record_llm_event_from_response
+                    record_llm_event_from_response(
+                        response, model=effective_model, user=user, success=True,
+                        latency_ms=int((time.monotonic() - _round_t0) * 1000),
+                        endpoint=endpoint, attempt=_round + 1,
+                    )
+                except Exception:
+                    pass
                 _choice = response.choices[0]
                 msg = _choice.message
                 tool_calls = getattr(msg, "tool_calls", None)
@@ -967,6 +979,15 @@ class AIService:
                 "COS_TOOL_LOOP_FALLBACK exception_type=%s exception_message=%s",
                 type(_loop_exc).__name__, _loop_exc, exc_info=True,
             )
+            # Record the failed round honestly (the fallback _call_api accounts itself).
+            try:
+                from apps.ai.llm_accounting import record_llm_event
+                record_llm_event(
+                    model=effective_model, user=user, success=False, endpoint=endpoint,
+                    error_class=type(_loop_exc).__name__[:60],
+                )
+            except Exception:
+                pass
 
         # Fallback: plain completion (no tools) — never regress the answer path.
         _fb = self._call_api(
@@ -1000,10 +1021,20 @@ class AIService:
                     "retrieved."
                 ),
             }]
+            _synth_t0 = time.monotonic()
             resp = self.client.chat.completions.create(
                 model=model, messages=_msgs, max_tokens=max_tokens,
                 temperature=temperature, timeout=timeout,
             )
+            try:
+                from apps.ai.llm_accounting import record_llm_event_from_response
+                record_llm_event_from_response(
+                    resp, model=model, success=True,
+                    latency_ms=int((time.monotonic() - _synth_t0) * 1000),
+                    endpoint=endpoint, source='tool_loop_synthesis_retry',
+                )
+            except Exception:
+                pass
             _choice = resp.choices[0]
             _content = (_choice.message.content or "").strip()
             logger.warning(
@@ -1190,6 +1221,26 @@ class AIService:
         except Exception:
             pass
 
+        # --- Cost ledger via the ONE accounting seam (best-effort, never raises) ---
+        # Runs BEFORE the no-user guard so background/briefing calls (user=None) are still
+        # cost-accounted. Provenance (source/traffic_class) resolves from the ambient
+        # contextvar set at the entry point; failures are recorded too (success=False).
+        try:
+            from apps.ai.llm_accounting import record_llm_event
+            record_llm_event(
+                model=self.model,
+                user=user,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                success=success,
+                latency_ms=int((elapsed or 0) * 1000),
+                endpoint=endpoint,
+                error_class=(error_message.split(':')[0][:60] if error_message else None),
+            )
+        except Exception:
+            pass
+
         if not user:
             return
         try:
@@ -1206,29 +1257,6 @@ class AIService:
             )
         except Exception as log_err:
             logger.debug("AIUsageLog write failed: %s", log_err)
-
-        # --- Owner Finance telemetry (best-effort, never raises) ---
-        if success and total_tokens > 0:
-            try:
-                from apps.owner_finance.services.telemetry import log_llm_usage
-                # Map endpoint names to LLMUsageEvent feature codes
-                _endpoint_to_feature = {
-                    'journal_reflection': 'JOURNAL_REFLECTION',
-                    'daily_insight': 'DAILY_INSIGHT',
-                    'weekly_summary': 'WEEKLY_SUMMARY',
-                    'cos_chat': 'COS_CHAT',
-                    'exec_briefing': 'EXEC_BRIEFING',
-                }
-                feature = _endpoint_to_feature.get(endpoint, 'MAIN_RESPONSE')
-                log_llm_usage(
-                    user=user,
-                    feature=feature,
-                    model_name=self.model,
-                    input_tokens=prompt_tokens,
-                    output_tokens=completion_tokens,
-                )
-            except Exception:
-                pass  # telemetry must never break core flow
 
     # =========================================================================
     # JOURNAL INSIGHTS

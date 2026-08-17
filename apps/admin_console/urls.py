@@ -231,6 +231,7 @@ urlpatterns = [
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/truth-probe/", views.TruthProbeAPIView.as_view(), name="api_claude_truth_probe"),
     path("api/claude/cos-run/", views.CoSAcceptanceRunAPIView.as_view(), name="api_claude_cos_run"),
+    path("api/claude/cost-summary/", views.CostSummaryAPIView.as_view(), name="api_claude_cost_summary"),
     path("api/claude/exec-sentinel/", views.ExecSentinelCertAPIView.as_view(), name="api_claude_exec_sentinel"),
     path("api/claude/ready-tasks/", views.ReadyTasksAPIView.as_view(), name="api_claude_ready_tasks"),
     path("api/claude/tasks/<int:pk>/status/", views.UpdateTaskStatusAPIView.as_view(), name="api_claude_task_status"),

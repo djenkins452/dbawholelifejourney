@@ -3710,6 +3710,94 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         }, json_dumps_params={'default': str})
 
 
+class CostSummaryAPIView(APIRateLimitMixin, View):
+    """Operator AI-COST SUMMARY (read-only, API-key-guarded) — answers "what is WLJ spending
+    on OpenAI, and which subsystem spent it?" from the owner_finance LLMUsageEvent ledger,
+    without an OpenAI credit-card email. Request-path-safe: pure indexed aggregates, never a
+    model call or heavy compute.
+
+    GET /admin-console/api/claude/cost-summary/?days=7   Auth: X-Claude-API-Key.
+    Returns today + last-N-day provider calls / tokens / estimated cost, broken down by
+    traffic_class (production/proactive/certification/background), source, and model.
+    """
+
+    rate_limit_requests_per_minute = 30
+    rate_limit_requests_per_hour = 300
+    rate_limit_key_prefix = 'admin_api_cost_summary'
+
+    def get(self, request):
+        from django.conf import settings
+        from django.db.models import Count, Sum
+        from django.utils import timezone
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        try:
+            days = max(1, min(90, int(request.GET.get('days', '7'))))
+        except (TypeError, ValueError):
+            days = 7
+
+        from apps.owner_finance.models import LLMUsageEvent
+
+        now = timezone.now()
+        today = now.date()
+        since = now - timezone.timedelta(days=days)
+
+        def _summarize(qs):
+            agg = qs.aggregate(
+                calls=Count('id'), input_tokens=Sum('input_tokens'),
+                output_tokens=Sum('output_tokens'),
+                cached_input_tokens=Sum('cached_input_tokens'),
+                cost=Sum('cost_usd'))
+            by = {}
+            for dim in ('traffic_class', 'source', 'model_name'):
+                rows = (qs.values(dim).annotate(
+                    calls=Count('id'), cost=Sum('cost_usd'),
+                    input_tokens=Sum('input_tokens'),
+                    output_tokens=Sum('output_tokens')).order_by('-cost'))
+                by[dim] = [
+                    {'key': r[dim] or '(unset)', 'calls': r['calls'],
+                     'input_tokens': r['input_tokens'] or 0,
+                     'output_tokens': r['output_tokens'] or 0,
+                     'est_cost_usd': float(r['cost'] or 0)}
+                    for r in rows]
+            failures = qs.filter(success=False).count()
+            return {
+                'calls': agg['calls'] or 0,
+                'input_tokens': agg['input_tokens'] or 0,
+                'output_tokens': agg['output_tokens'] or 0,
+                'cached_input_tokens': agg['cached_input_tokens'] or 0,
+                'est_cost_usd': round(float(agg['cost'] or 0), 4),
+                'failed_calls': failures,
+                'by_traffic_class': by['traffic_class'],
+                'by_source': by['source'],
+                'by_model': by['model_name'],
+            }
+
+        base = LLMUsageEvent.objects.all()
+        note = None
+        if not base.exists():
+            note = ('No LLMUsageEvent rows yet — either no model calls have run since the '
+                    'accounting seam deployed, or this build predates it.')
+
+        return JsonResponse({
+            'as_of': now.isoformat(),
+            'window_days': days,
+            'today_utc': _summarize(base.filter(created_at__date=today)),
+            f'last_{days}_days': _summarize(base.filter(created_at__gte=since)),
+            'note': note,
+        }, json_dumps_params={'default': str})
+
+
 class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
     """Operator ACCEPTANCE-TEST runner (API-key-guarded). Runs ONE Chief-of-Staff turn
     through the REAL production pipeline for a user (worker-side, isolated throwaway

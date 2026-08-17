@@ -1270,6 +1270,55 @@ class ProactiveCheckInService:
                                'cdce_correlation', 'routine_recovery',
                                'pre_nudge', 'due_now'}
 
+    def _proactive_suppressed(self, check_in_type, conversation=None):
+        """Deterministic PRE-generation suppression gate (cost governance, 2026-08-16).
+
+        Mirrors the affirmation + conversation-mode guards inside _create_proactive_message
+        so a model-calling generator can consult them BEFORE paying for generation. The
+        invariant: if deterministic logic ALREADY knows the message will not be delivered,
+        OpenAI must not be called. Returns True when the message would be suppressed.
+        Never raises (a broken suppression check must never trigger extra generation, so it
+        fails CLOSED to False = 'not known-suppressed' → the post-gen guard still catches it)."""
+        if not check_in_type:
+            return False
+        try:
+            conversation = conversation or AssistantConversation.get_or_create_active(self.user)
+        except Exception:
+            return False
+        try:
+            from .affirmation_detector import is_activity_affirmed
+            if is_activity_affirmed(conversation, check_in_type):
+                logger.info("PROACTIVE_PREGEN_SUPPRESS_AFFIRMED user=%s type=%s — no model call",
+                            self.user.id, check_in_type)
+                return True
+        except Exception:
+            pass
+        try:
+            from apps.core.blueprint.conversation_mode import should_suppress_proactive
+            if should_suppress_proactive(self.user, check_in_type):
+                logger.info("PROACTIVE_PREGEN_SUPPRESS_MODE user=%s type=%s — no model call",
+                            self.user.id, check_in_type)
+                return True
+        except Exception:
+            pass
+        return False
+
+    def _reserve_proactive_slot(self, check_in_type, ttl_seconds=6 * 3600):
+        """Atomic per-user-local-day reservation for a model-generating proactive slot
+        (cost governance). cache.add is set-if-absent, so only the FIRST scheduler pass /
+        worker that reaches an eligible, unsuppressed opportunity generates; repeated
+        15-minute passes and concurrent workers get False and skip. Date-keyed so it
+        naturally frees the next local day. Best-effort — on cache failure returns True
+        (fail-open to preserve the check-in) since the batch dedup + already_sent still bound it."""
+        try:
+            from django.core.cache import cache
+            from apps.core.utils import get_user_today
+            day = get_user_today(self.user).isoformat()
+            key = f"proactive_slot:{self.user.pk}:{check_in_type}:{day}"
+            return bool(cache.add(key, "1", ttl_seconds))
+        except Exception:
+            return True
+
     def _create_proactive_message(
         self,
         content: str,
@@ -2563,11 +2612,24 @@ def generate_midday_alignment_for_user(user):
     if dedup.already_sent('midday_alignment'):
         return
 
+    # ── Cost governance: never pay for generation we will suppress, and never let repeated
+    # 15-min passes / concurrent workers re-generate the same opportunity (this path had NO
+    # lock and could re-bill every pass through its window). Gate BEFORE the model call.
+    service = get_proactive_service(user)
+    if service._proactive_suppressed('midday_alignment'):
+        return
+    if not service._reserve_proactive_slot('midday_alignment'):
+        return
+
     # Use the canonical CoS renderer — same path as briefing/check-in.
     # render_checkin_for_time -> OpenAI authors from truth (midday).
     try:
         from apps.ai.beth_checkin_renderer import render_checkin_for_time
-        message = render_checkin_for_time(user)
+        from apps.ai.llm_accounting import (llm_traffic_context, TRAFFIC_PROACTIVE,
+                                            SOURCE_PROACTIVE_CHECKIN)
+        with llm_traffic_context(traffic_class=TRAFFIC_PROACTIVE,
+                                 source=SOURCE_PROACTIVE_CHECKIN):
+            message = render_checkin_for_time(user)
     except Exception:
         logger.error(
             "[MIDDAY ALIGNMENT] Canonical renderer failed for user=%s",
@@ -2578,7 +2640,6 @@ def generate_midday_alignment_for_user(user):
     if not message or len(message) < 20:
         return
 
-    service = get_proactive_service(user)
     service._create_proactive_message(
         content=message,
         quick_replies=[],
@@ -2665,11 +2726,23 @@ def generate_evening_wrap_for_user(user):
     if dedup.already_sent('evening_wrap'):
         return
 
+    # ── Cost governance: gate BEFORE the model call (see midday). This path spans a 5h
+    # window (17–21) with no lock — a suppressed wrap could re-bill ~20×/day.
+    service = get_proactive_service(user)
+    if service._proactive_suppressed('evening_wrap'):
+        return
+    if not service._reserve_proactive_slot('evening_wrap'):
+        return
+
     # Use the canonical CoS renderer — same path as briefing/check-in.
     # render_checkin_for_time -> OpenAI authors from truth (evening).
     try:
         from apps.ai.beth_checkin_renderer import render_checkin_for_time
-        message = render_checkin_for_time(user)
+        from apps.ai.llm_accounting import (llm_traffic_context, TRAFFIC_PROACTIVE,
+                                            SOURCE_PROACTIVE_CHECKIN)
+        with llm_traffic_context(traffic_class=TRAFFIC_PROACTIVE,
+                                 source=SOURCE_PROACTIVE_CHECKIN):
+            message = render_checkin_for_time(user)
     except Exception:
         logger.error(
             "[EVENING WRAP] Canonical renderer failed for user=%s",
@@ -2680,7 +2753,6 @@ def generate_evening_wrap_for_user(user):
     if not message or len(message) < 20:
         return
 
-    service = get_proactive_service(user)
     service._create_proactive_message(
         content=message,
         quick_replies=[],
@@ -3050,8 +3122,14 @@ def generate_daily_executive_brief_for_user(user):
         return None
     try:
         from apps.ai.model_interface.service import ModelInterfaceService
-        out = ModelInterfaceService(user).generate(
-            conversation, DAILY_BRIEF_DIRECTIVE, surface="chat")
+        from apps.ai.llm_accounting import (llm_traffic_context, TRAFFIC_PROACTIVE,
+                                            SOURCE_DAILY_EXECUTIVE_BRIEF)
+        # Cost governance: tag the whole brief turn (tool loop + Executive Synthesis) as
+        # proactive so it is never counted as customer-interactive cost.
+        with llm_traffic_context(traffic_class=TRAFFIC_PROACTIVE,
+                                 source=SOURCE_DAILY_EXECUTIVE_BRIEF):
+            out = ModelInterfaceService(user).generate(
+                conversation, DAILY_BRIEF_DIRECTIVE, surface="chat")
         answer = (out or {}).get("answer") if isinstance(out, dict) else None
         answer = (answer or "").strip()
         if not answer:

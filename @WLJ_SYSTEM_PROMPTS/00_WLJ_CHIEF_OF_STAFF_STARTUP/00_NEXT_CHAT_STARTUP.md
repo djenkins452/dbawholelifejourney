@@ -10,18 +10,21 @@
 
 ---
 
-> ## 🛑💸 COST FREEZE (2026-08-16) — READ BEFORE ANY MODEL TESTING
-> **Danny's OpenAI account is auto-charging ~$16–17 repeatedly.** A read-only forensic audit is complete:
-> **`docs/WLJ_OPENAI_COST_AUDIT.md`** (the authoritative record — read it before touching CoS runtime).
-> **Conclusion:** the surge is overwhelmingly **Claude's own certification / `cos-run` real-model testing**
-> (Aug 12–16), amplified by the **Executive Synthesis Phase-2 multiplier** (broad turn = 3–9 billable
-> requests). Idle background = only the 3 proactive model callers (Brief + Midday + Evening), ~4–11
-> calls/user/weekday. **The main CoS runtime persists NO token/cost telemetry — we can't see spend.**
-> **DO NOT** run high-volume real-model `cos-run` suites, and **DO NOT resume the Proactive Product Phase 2
-> implementation (M2 follow-through / M3 missing-data / M4 action completeness)** until Danny reviews the
-> audit. Default testing = deterministic/local (Tier 1); one real-model smoke per deploy at most (§15).
-> **M2 design was completed but NO code was written** — see the audit + this session's transcript to resume.
-> Nothing was changed by the audit: no models, schedules, proactive behavior, synthesis, retries, or code.
+> ## 💸 COST GOVERNANCE (2026-08-16) — READ BEFORE ANY MODEL TESTING
+> **Incident:** Danny's OpenAI account auto-charged ~$16–17 repeatedly. Root cause = **Claude's own
+> certification / `cos-run` real-model testing** (Aug 12–16) × the **Executive Synthesis Phase-2
+> multiplier** (a broad turn = 3–9 billable requests). Forensic record: **`docs/WLJ_OPENAI_COST_AUDIT.md`**.
+> **GOVERNANCE MILESTONE SHIPPED (§16 of that doc):** every billable provider request now writes ONE
+> `owner_finance.LLMUsageEvent` via the single seam `apps/ai/llm_accounting.py :: record_llm_event`
+> (tokens+cost+`source`+`traffic_class`); certification traffic is tagged `certification`, proactive as
+> `proactive`; **generate-before-suppress waste eliminated** (midday/evening now gate + lock before the
+> model call). See spend at `/owner/finance/` or `GET /admin-console/api/claude/cost-summary/?days=7`.
+> **Testing discipline is now MANDATORY (CLAUDE.md + `03 §10a`): Tier 1 deterministic by default; ONE
+> real-model smoke per deploy; never default to repeated real-model runs — answer the 4 questions first.**
+> Model (`gpt-4o`), Executive Synthesis, schedules, retries UNCHANGED (cost is now visible, not optimized).
+> **⏸ Proactive Product Phase 2 (M2 follow-through / M3 missing-data / M4 action) REMAINS PAUSED** until
+> Danny reviews the measured cost baseline. M2 design is done (minimal deterministic follow-up record,
+> certified-CoS fire-time authoring); NO M2 code written.
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 

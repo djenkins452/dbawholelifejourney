@@ -220,6 +220,49 @@ A **narrow factual turn** (0–1 surfaces, no synthesis): **1–2 requests** (si
 
 ---
 
+## 16. Cost-Governance Milestone — SHIPPED (2026-08-16)
+
+Danny approved a bounded governance milestone (still with proactive Phase 2 paused). Delivered:
+
+- **One accounting seam.** `apps/ai/llm_accounting.py :: record_llm_event` is the single seam
+  called immediately around every billable provider request. It writes ONE
+  `owner_finance.LLMUsageEvent` (the existing canonical ledger — not a competitor) per request:
+  model, input/output/**cached** tokens, latency, success, `source`, `traffic_class`, cost
+  (auto-computed from `LLMPriceBook`; `gpt-4o` already priced). Wired at **every** previously-blind
+  seam: the tool loop (per round), the empty-final synthesis retry, and **Executive Synthesis
+  Phase 2** — plus the already-logged `_call_api`/streaming paths. Failures are recorded honestly
+  (`success=False`).
+- **Provenance / traffic taxonomy.** `traffic_class` ∈ {production, proactive, certification,
+  background} + fine `source` (interactive_chat, executive_synthesis, daily_executive_brief,
+  proactive_checkin, …), carried by a contextvar set at the entry point — **never inferred from
+  prose.** `cos-run` / acceptance tasks now run under `traffic_class=certification`, so **development
+  traffic is finally distinct from customer cost**; proactive generators run under `proactive`.
+- **Operator visibility.** The existing `/owner/finance/` dashboard now lights up (it was blind
+  because the CoS bypassed the ledger). Added a headless read-only operator endpoint
+  `GET /admin-console/api/claude/cost-summary/?days=7` (X-Claude-API-Key) returning today + N-day
+  calls / tokens / est-cost broken down **by traffic_class, source, and model** — request-path-safe
+  (indexed aggregates only). *Danny no longer needs a credit-card email to see a surge.*
+- **Generate-before-suppress waste ELIMINATED.** The proactive model callers now gate BEFORE the
+  model call: `_proactive_suppressed()` (affirmation + conversation-mode) short-circuits, and
+  `_reserve_proactive_slot()` (atomic per-user-local-day `cache.add`) prevents repeated 15-min
+  passes / concurrent workers from regenerating. **Midday Alignment + Evening Wrap** — which had NO
+  lock and could re-bill every pass through their windows — are covered; the Daily Brief keeps its
+  existing lock and now carries proactive provenance. Proven by deterministic tests:
+  suppressed opportunity → **zero** model calls; duplicate pass → **one** generation.
+- **Testing discipline is now governing doc.** Tiers 1–4 + the hard rule ("never default to
+  repeated production-model runs; answer the 4 questions first") added to `CLAUDE.md` and
+  `03_ENGINEERING_OPERATING_GUIDE §10a`.
+- **NOT touched (deliberately):** the model (`gpt-4o`), Executive Synthesis (Phase 2 kept — cost is
+  now *visible*, not optimized away), tool-round budget, retries, schedules, proactive judgment.
+- **Deferred:** `BudgetGuardrail` already exists (warn-only, no kill switch) — wiring a daily
+  warn-threshold alert is a small follow-up (Part 7), not built this milestone. Non-CoS
+  `chat.completions.create` sites (scan/meals/etc.) still route their own accounting; folding them
+  onto the same seam is a later cleanup.
+
+**Measured unit economics** and the **idle-day baseline** are recorded in the changelog (2026-08-16)
+after the bounded post-deploy validation.
+
 ## Guardrail compliance
 
-No models changed, no schedules altered, no proactive behavior modified, no synthesis/retry/caching/budget changes, **no code changes of any kind.** This document is the only artifact. Optimization is deferred to Danny's review.
+- **§1–§15 (the forensic audit, 2026-08-16 read-only phase):** no code of any kind changed — investigation only.
+- **§16 (the governance milestone, Danny-approved):** added observability + eliminated proven waste **without** changing the model (`gpt-4o`), Executive Synthesis (kept), tool-round budget, retries, schedules, or proactive judgment. Cost is now *visible*; nothing was optimized away by fiat. Proactive Product Phase 2 (follow-through / missing-data / action) remains **paused** pending Danny's review of the measured baseline.

@@ -110,6 +110,21 @@ class LLMUsageEvent(models.Model):
         ('OTHER', 'Other'),
     ]
 
+    # Traffic class — the DEV-vs-PRODUCTION provenance axis (cost governance). Every
+    # billable provider request declares WHY it exists so certification/dev traffic is
+    # never invisibly commingled with real customer cost. Observability only — it never
+    # changes the model's reasoning.
+    TRAFFIC_PRODUCTION = 'production'      # real customer-interactive use (class unspecified)
+    TRAFFIC_PROACTIVE = 'proactive'       # proactive production intelligence (brief/check-ins)
+    TRAFFIC_CERTIFICATION = 'certification'  # cos-run / acceptance / dev validation
+    TRAFFIC_BACKGROUND = 'background'      # other server-side (reflection/perception/etc.)
+    TRAFFIC_CLASS_CHOICES = [
+        (TRAFFIC_PRODUCTION, 'Production (interactive)'),
+        (TRAFFIC_PROACTIVE, 'Proactive'),
+        (TRAFFIC_CERTIFICATION, 'Certification / Dev'),
+        (TRAFFIC_BACKGROUND, 'Background'),
+    ]
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='llm_usage_events',
@@ -119,9 +134,21 @@ class LLMUsageEvent(models.Model):
     feature = models.CharField(max_length=30, choices=FEATURE_CHOICES, db_index=True)
     engine = models.CharField(max_length=50, null=True, blank=True, db_index=True)
     model_name = models.CharField(max_length=100, db_index=True)
+    # Fine-grained logical source (why the call exists): interactive_chat,
+    # executive_synthesis, daily_executive_brief, proactive_checkin, certification,
+    # perception, reflection, … Deterministic — set at the call site / contextvar, never
+    # inferred from generated prose.
+    source = models.CharField(max_length=40, default='', blank=True, db_index=True)
+    traffic_class = models.CharField(
+        max_length=20, choices=TRAFFIC_CLASS_CHOICES,
+        default=TRAFFIC_PRODUCTION, db_index=True,
+    )
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
+    cached_input_tokens = models.PositiveIntegerField(default=0)
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
+    latency_ms = models.PositiveIntegerField(default=0)
+    success = models.BooleanField(default=True, db_index=True)
     escalated = models.BooleanField(default=False, db_index=True)
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -133,6 +160,8 @@ class LLMUsageEvent(models.Model):
             models.Index(fields=['feature', 'created_at']),
             models.Index(fields=['model_name', 'created_at']),
             models.Index(fields=['created_at', 'cost_usd']),
+            models.Index(fields=['traffic_class', 'created_at']),
+            models.Index(fields=['source', 'created_at']),
         ]
         verbose_name = 'LLM Usage Event'
         verbose_name_plural = 'LLM Usage Events'

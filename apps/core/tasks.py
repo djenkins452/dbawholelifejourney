@@ -66,8 +66,12 @@ def run_cos_acceptance_turn(user_email, message, result_key):
         conv = AssistantConversation.objects.create(
             user=user, is_active=False,
             title=("[acceptance-test] " + (message or ""))[:120])
-        resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=message,
-                                  conversation=conv, stream=False)
+        # Cost governance: every provider request this turn is DEVELOPMENT/certification
+        # traffic, not customer cost. Tag it so the ledger keeps them distinct.
+        from apps.ai.llm_accounting import llm_traffic_context, TRAFFIC_CERTIFICATION
+        with llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
+            resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=message,
+                                      conversation=conv, stream=False)
         answer = getattr(resp, "text", "") or ""
         tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
                   "status": r.result_status}
@@ -122,33 +126,37 @@ def run_cos_acceptance_conversation(user_email, steps, result_key):
         from apps.ai.models import AssistantConversation, AssistantMessage, ToolCallLog
         conv = AssistantConversation.objects.create(
             user=user, is_active=False, title="[acceptance-conversation]")
+        # Cost governance: this whole scripted conversation is DEVELOPMENT/certification
+        # traffic, not customer cost.
+        from apps.ai.llm_accounting import llm_traffic_context, TRAFFIC_CERTIFICATION
         transcript = []
-        for step in (steps or []):
-            if not isinstance(step, dict):
-                continue
-            if "seed" in step:
-                mtype = step.get("seed") or "nudge"
-                if mtype not in _ACCEPTANCE_SEED_TYPES:
-                    mtype = "nudge"
-                content = step.get("content") or ""
-                AssistantMessage.objects.create(
-                    conversation=conv, role="assistant", content=content,
-                    message_type=mtype, is_proactive=(mtype != "text"))
-                transcript.append({"kind": "seed", "message_type": mtype,
-                                   "content": content})
-                continue
-            if "user" in step:
-                umsg = step.get("user") or ""
-                before = ToolCallLog.objects.filter(conversation_id=conv.id).count()
-                resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=umsg,
-                                          conversation=conv, stream=False)
-                answer = getattr(resp, "text", "") or ""
-                tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
-                          "status": r.result_status}
-                         for r in ToolCallLog.objects.filter(conversation_id=conv.id)
-                         .order_by("created_at")[before:]]
-                transcript.append({"kind": "turn", "user": umsg, "answer": answer,
-                                   "tool_calls": tools})
+        with llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
+            for step in (steps or []):
+                if not isinstance(step, dict):
+                    continue
+                if "seed" in step:
+                    mtype = step.get("seed") or "nudge"
+                    if mtype not in _ACCEPTANCE_SEED_TYPES:
+                        mtype = "nudge"
+                    content = step.get("content") or ""
+                    AssistantMessage.objects.create(
+                        conversation=conv, role="assistant", content=content,
+                        message_type=mtype, is_proactive=(mtype != "text"))
+                    transcript.append({"kind": "seed", "message_type": mtype,
+                                       "content": content})
+                    continue
+                if "user" in step:
+                    umsg = step.get("user") or ""
+                    before = ToolCallLog.objects.filter(conversation_id=conv.id).count()
+                    resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=umsg,
+                                              conversation=conv, stream=False)
+                    answer = getattr(resp, "text", "") or ""
+                    tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
+                              "status": r.result_status}
+                             for r in ToolCallLog.objects.filter(conversation_id=conv.id)
+                             .order_by("created_at")[before:]]
+                    transcript.append({"kind": "turn", "user": umsg, "answer": answer,
+                                       "tool_calls": tools})
         out = {"status": "ready", "transcript": transcript,
                "conversation_id": conv.id, "stamped_at": timezone.now().isoformat()}
     except Exception as e:  # never crash the worker; surface the error to the operator

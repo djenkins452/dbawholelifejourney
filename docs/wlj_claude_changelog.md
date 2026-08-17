@@ -6,6 +6,22 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-16 — feat(cost): OpenAI cost governance — usage accounting seam, provenance, proactive waste fix, testing discipline
+
+**Danny-approved bounded cost-governance milestone following the forensic audit.** Makes AI spend observable, eliminates proven proactive waste, and makes real-model testing discipline governing doctrine. Model (`gpt-4o`), Executive Synthesis, schedules, retries UNCHANGED — cost is now *visible*, not optimized away.
+
+**One accounting seam.** New `apps/ai/llm_accounting.py :: record_llm_event` is the single seam around every billable provider request; it writes ONE `owner_finance.LLMUsageEvent` (the existing canonical ledger — extended, not replaced) per request: model, input/output/**cached** tokens, latency, success, `source`, `traffic_class`, auto-cost from `LLMPriceBook`. Wired into every previously-blind seam — the `model_interface` **tool loop (per round)**, the empty-final synthesis retry, and **Executive Synthesis Phase 2** — plus the already-logged `_call_api`/streaming paths (moved above the no-user guard so background calls count). Failures recorded honestly (`success=False`). Files: `services.py`, `model_interface/synthesis.py`, `owner_finance/models.py` (+migration `0003`, +fields source/traffic_class/success/latency_ms/cached_input_tokens), `owner_finance/services/telemetry.py`.
+
+**Provenance taxonomy.** `traffic_class` ∈ {production, proactive, certification, background} + fine `source` (interactive_chat / executive_synthesis / daily_executive_brief / proactive_checkin / …), carried by a contextvar set at the entry point — never inferred from prose. `cos-run`/acceptance tasks (`core/tasks.py`) now run under `traffic_class=certification` → **development traffic finally distinct from customer cost**; proactive generators run under `proactive`.
+
+**Operator visibility.** The existing `/owner/finance/` dashboard now receives CoS events (was blind). New headless read-only endpoint `GET /admin-console/api/claude/cost-summary/?days=N` (X-Claude-API-Key) → today + N-day calls/tokens/est-cost **by traffic_class, source, model**; request-path-safe (indexed aggregates).
+
+**Generate-before-suppress waste ELIMINATED.** Proactive model callers now gate BEFORE the model call: `_proactive_suppressed()` (affirmation + conversation-mode) + `_reserve_proactive_slot()` (atomic per-user-local-day `cache.add`). **Midday Alignment + Evening Wrap** — which had NO lock and could re-bill every 15-min pass through their windows — are covered; Daily Brief keeps its lock + gains proactive provenance. Tests prove: suppressed opportunity → **zero** model calls; duplicate pass → **one** generation.
+
+**Testing discipline (durable rule).** Tiers 1–4 + the hard rule ("never default to repeated production-model runs; answer 4 questions first") added to `CLAUDE.md` + `03_ENGINEERING_OPERATING_GUIDE §10a`.
+
+**Tests:** `apps/ai/tests/test_llm_cost_accounting.py` (10) — accounting/provenance/failure/cost-from-pricebook/certification-tagging/proactive-zero-calls/reserve-once/endpoint. Regression: request-path-safety contract, daily-brief (7), proactive suite (33) all green. `check` clean.
+
 ## 2026-08-16 — docs(cost): forensic OpenAI API cost audit (READ-ONLY, no code changes)
 
 **Danny's OpenAI account began auto-charging ~$16–17 repeatedly; forensic read-only audit to attribute the surge.** New doc `docs/WLJ_OPENAI_COST_AUDIT.md` (15 sections). No models/schedules/proactive/synthesis/retry/code changed — investigation only.

@@ -33,12 +33,23 @@ def log_llm_usage(
     escalated: bool = False,
     conversation_id: str = None,
     metadata: dict = None,
+    source: str = '',
+    traffic_class: str = None,
+    cached_input_tokens: int = 0,
+    latency_ms: int = 0,
+    success: bool = True,
 ):
     """
     Log an LLM usage event with auto-computed cost from the PriceBook.
 
+    Provenance (cost governance): `source` = the fine-grained logical reason for the
+    call (interactive_chat / executive_synthesis / daily_executive_brief / … ), and
+    `traffic_class` = the dev-vs-production axis (production / proactive / certification /
+    background). Both are observability only — they never influence model reasoning.
+
     Best-effort: never raises. If PriceBook entry is missing, stores cost=0
-    with metadata flag missing_pricebook=True.
+    with metadata flag missing_pricebook=True. Records failures honestly (success=False,
+    typically zero tokens) so retries/failures are represented, not hidden.
     """
     try:
         from django.db import transaction
@@ -47,6 +58,8 @@ def log_llm_usage(
         cost_usd = Decimal('0')
         meta = dict(metadata or {})
         today = date.today()
+        if traffic_class is None:
+            traffic_class = LLMUsageEvent.TRAFFIC_PRODUCTION
 
         # Look up price book entry
         price = (
@@ -98,9 +111,14 @@ def log_llm_usage(
                 feature=feature,
                 engine=engine or '',
                 model_name=model_name,
+                source=source or '',
+                traffic_class=traffic_class,
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
+                cached_input_tokens=cached_input_tokens or 0,
                 cost_usd=cost_usd,
+                latency_ms=latency_ms or 0,
+                success=success,
                 escalated=escalated,
                 conversation_id=conversation_id or '',
                 metadata=meta,

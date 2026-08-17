@@ -15,6 +15,7 @@
 # ==============================================================================
 import logging
 from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db.models import F
 from django.utils import timezone
@@ -91,9 +92,9 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=tz)
         now = get_user_now(user)
-    except Exception as _tzexc:
-        return {"status": "error",
-                "message": f"Could not resolve your timezone. [diag: {type(_tzexc).__name__}: {str(_tzexc)[:160]}]"}
+    except Exception:
+        logger.warning("FOLLOW_UP tz resolve failed user=%s", user.pk, exc_info=True)
+        return {"status": "error", "message": "I couldn't work out the timing just now."}
 
     if dt <= now + timedelta(seconds=30):
         return {"status": "needs_info",
@@ -104,7 +105,8 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
                             "for anything longer, set a reminder or task instead.")}
 
     try:
-        due_at_utc = dt.astimezone(timezone.utc)
+        # datetime.timezone.utc (NOT django.utils.timezone.utc — removed in Django 5.x).
+        due_at_utc = dt.astimezone(dt_timezone.utc)
         # Supersede any prior PENDING follow-up on the SAME durable subject (keep one live
         # promise per subject); otherwise let distinct topics coexist.
         if subject_ref:
@@ -121,10 +123,10 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
             origin=origin or ConversationFollowUp.ORIGIN_USER,
             metadata={"when_label": when_label or ""},
         )
-    except Exception as _exc:
+    except Exception:
         logger.warning("FOLLOW_UP schedule write failed user=%s", user.pk, exc_info=True)
         return {"status": "error",
-                "message": f"I couldn't set that follow-up up just now. [diag: {type(_exc).__name__}: {str(_exc)[:160]}]"}
+                "message": "I couldn't set that follow-up up just now."}
     logger.info("FOLLOW_UP_SCHEDULED user=%s id=%s due=%s topic=%s",
                 user.pk, fu.pk, due_at_utc.isoformat(), topic[:60])
     return {"status": "scheduled", "follow_up_id": fu.pk,

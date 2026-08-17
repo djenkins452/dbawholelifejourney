@@ -1,6 +1,11 @@
 # WLJ — Chief of Staff Platform Evolution: Architectural Investigation
 
-**Status:** Investigation only. No code written. Produced in response to the ratified direction *"One Chief of Staff, many workspaces"* (`01 §6`, `02` Constitution Article II, bootloader `00 §PRIMARY FOCUS`).
+**Status:** Investigation + phased implementation. Reveal Target (navigate_to_workspace) SHIPPED 2026-08-18 (`225edbb9`); single-authority navigation + precision refs SHIPPED 2026-08-18 (see "Navigation cleanup increment" below). Produced in response to the ratified direction *"One Chief of Staff, many workspaces"* (`01 §6`, `02` Constitution Article II, bootloader `00 §PRIMARY FOCUS`).
+
+> ## Navigation cleanup increment (2026-08-18) — single authority + precision, additive only
+> **Done:** (1) **One navigation authority** — retired the legacy `NAVIGATION_HINTS` map (its URLs had drifted, e.g. stale `/health/weight/`); `PersonalAssistant._get_navigation_hint` now derives the concept from the action verb and resolves via `resolve_route()`/`TeachingDestination` (the same registry the certified Reveal Target uses). All 25 legacy action types resolve (0 misses) at current URLs; unresolvable → no link. (2) **Object addressability** — `get_absolute_url()` added to `WorkoutSession` + `Intake` (they already declare object Current Context; the missing piece was a resolvable URL). (3) **Reveal Cert** smoke artifact soft-deleted (ai migration `0040`).
+> **Current Context coverage — audited:** most high-value workspaces already declare context; `already_here` works from the client-reported current URL (independent of a declared ref).
+> **DEFERRED coverage (documented; need a new builder, not just a ref):** `health.intake` medications-home summary (extract a shared request-path-safe adherence builder from `IntakeHomeView`); `calendar.overview` (make `CalendarEvent` Narratable + provider); `life.tasks` home summary; `get_absolute_url` on remaining health objects; and **object-level-reveal ACTIVATION** (extend the reveal tool to resolve a specific object ref → `get_absolute_url`) — the refs are now in place for it. NONE requires a Current Context or Part-II redesign.
 **Method:** Four parallel runtime traces (reuse map · Current Context flow · Journal separability · navigation), every claim carrying `file:line`.
 **Governing question:** How do we *evolve* — not redesign — the existing system so the Chief of Staff sits above every domain, preserving everything that already works?
 

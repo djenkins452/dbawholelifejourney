@@ -2746,33 +2746,23 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
     # ── Navigation hints for post-action UX ─────────────────────────
     # Maps action_type → URL path so the front-end can offer "View it"
-    NAVIGATION_HINTS = {
-        'log_heart_rate': '/health/vitals/',
-        'log_blood_pressure': '/health/vitals/',
-        'log_blood_glucose': '/health/vitals/',
-        'log_oxygen_saturation': '/health/vitals/',
-        'log_temperature': '/health/vitals/',
-        'log_weight': '/health/weight/',
-        'log_body_measurements': '/health/weight/',
-        'log_medicine': '/health/medicine/log/',
-        'create_medicine': '/health/medicine/',
-        'log_workout': '/health/fitness/',
-        'log_cardio': '/health/fitness/',
-        'log_nutrition': '/health/nutrition/',
-        'log_fasting': '/health/fasting/',
-        'log_journal': '/journal/',
-        'create_journal': '/journal/',
-        'log_prayer': '/faith/prayer/',
-        'log_scripture_reading': '/faith/scripture/',
-        'create_task': '/life/tasks/',
-        'mutate_task': '/life/tasks/',
-        'complete_task': '/life/tasks/',
-        'create_goal': '/purpose/goals/',
-        'create_habit': '/life/habits/',
-        'create_event': '/life/calendar/',
-        'mutate_calendar_event': '/life/calendar/',
-        'create_appointment': '/medical/appointments/',
-    }
+    # Action-verb prefixes stripped to derive the destination CONCEPT from an action_type
+    # (e.g. 'log_weight' → 'weight', 'mutate_calendar_event' → 'calendar event'). The concept
+    # is resolved to a URL by the SINGLE destination authority (resolve_route/TeachingDestination) —
+    # this runtime no longer holds its own {action → url} map. (Single-authority navigation,
+    # Article III.1: retired the 26-entry NAVIGATION_HINTS whose URLs had already drifted from
+    # the registry, e.g. its stale '/health/weight/' vs the current '/health/physical/weight/'.)
+    _NAV_VERB_PREFIXES = ('log_', 'create_', 'mutate_', 'complete_', 'add_', 'update_',
+                          'start_', 'end_', 'skip_', 'save_')
+
+    @classmethod
+    def _nav_concept_for_action(cls, action_type):
+        """Derive the destination concept from an action_type by stripping the verb prefix."""
+        at = action_type or ""
+        for p in cls._NAV_VERB_PREFIXES:
+            if at.startswith(p):
+                return at[len(p):].replace("_", " ")
+        return at.replace("_", " ")
 
     @staticmethod
     def _extract_options_from_actions(actions_taken):
@@ -2856,21 +2846,33 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
 
     def _get_navigation_hint(self, actions_taken):
         """
-        Get a navigation hint for successful actions.
+        Get a post-action navigation hint ("View it") for a successful action.
 
-        Returns a dict with 'url' and 'label' if the action type
-        has a known destination page, or None.
+        Single-authority: the URL is resolved by resolve_route()/TeachingDestination (the SAME
+        190-row registry the certified CoS Reveal Target uses), NOT a local map — so the link
+        always points at the CURRENT workspace URL and can never drift. Returns {url, label,
+        action_type} or None (unresolvable → no link, never a guessed/stale URL). Never raises.
         """
         if not actions_taken:
+            return None
+        try:
+            from apps.core.action_router import ActionType, resolve_route
+        except Exception:
             return None
         for action in actions_taken:
             if not action.get('success'):
                 continue
             action_type = action.get('type', '')
-            url = self.NAVIGATION_HINTS.get(action_type)
-            if url:
+            concept = self._nav_concept_for_action(action_type)
+            if not concept:
+                continue
+            try:
+                route = resolve_route(text=concept)
+            except Exception:
+                continue
+            if route.action_type == ActionType.OPEN_WORKFLOW and route.destination_url:
                 return {
-                    'url': url,
+                    'url': route.destination_url,
                     'label': 'View it',
                     'action_type': action_type,
                 }

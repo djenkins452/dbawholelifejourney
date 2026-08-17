@@ -6,6 +6,20 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — refactor(cos): single-authority navigation + Reveal Target precision refs + cert cleanup
+
+Follow-through on Reveal Target: complete single-authority navigation and improve reveal precision, additively (no Current Context redesign, no Part-II architecture).
+
+**Single navigation authority (Article III.1).** The legacy `PersonalAssistant` post-action "View it" hint no longer holds its own `NAVIGATION_HINTS` map (26 entries, whose URLs had already DRIFTED from the registry — e.g. its stale `/health/weight/` vs the current `/health/physical/weight/`, `/life/habits/` vs `/purpose/habits/`). `_get_navigation_hint` now derives the destination concept from the action verb (`log_weight`→`weight`) and resolves the URL through **`resolve_route()`/`TeachingDestination`** — the SAME 190-row authority the certified CoS Reveal Target uses. Proven: all 25 legacy action types resolve to an OPEN_WORKFLOW URL (0 misses) at the *current* paths; unresolvable → no link (never a guessed/stale URL). One deterministic producer of "where does this go."
+
+**Reveal precision — additive object addressability.** Added `get_absolute_url()` to the two most-revealed health objects `WorkoutSession` and `Intake` (medication) — both already declare object Current Context (`CurrentContextMixin`) and have `context_ref()`; the missing piece was a resolvable URL. Now object-level-reveal-ready. (Methods only — no migration.)
+
+**Reveal Cert artifact removed** — ai migration `0040` soft-deletes (recoverable) the single "Reveal Cert" calendar event from the create→reveal smoke, by proven identity (owner + exact unique title + cert-day window).
+
+**Current Context coverage — audited; findings:** most high-value workspaces already declare context (both dashboards, most Health homes, Journal, Faith, Finance, Meals; Workout/Intake/Goal/Journal/Medical detail pages). `already_here` works from the client-reported current URL (`page_context.url`), independent of a declared ref. **Documented DEFERRED coverage gaps** (need new builders, not just a ref — deliberately not rushed): `health.intake` medications-home summary (needs a shared request-path-safe adherence builder extracted from `IntakeHomeView`), `calendar.overview` (needs `CalendarEvent` made Narratable + a provider), `life.tasks` home summary, and `get_absolute_url` on the remaining health objects (WeightEntry etc.) + object-level-reveal ACTIVATION in the reveal tool.
+
+**Tests:** `apps/ai/tests/test_navigation_single_authority.py` (7) — map retired, concept derivation, delegation to the single authority, no-guessed-URL, fail-safe, object URLs. Reveal + action regressions green. `check` clean; no schema changes.
+
 ## 2026-08-18 — feat(cos): Reveal Target — navigate_to_workspace on the certified CoS
 
 **The certified Chief of Staff can now take Danny to the right WLJ workspace** — "show me my weight," "take me to yesterday's dashboard," "open my medications" now open the page, not just describe it. Smallest solution to the settled Reveal Target design (`WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md` §5/§9); the larger Part-II `reveal(target)`/bidirectional-Current-Context reframe is deliberately NOT undertaken (would be a navigation-architecture redesign).

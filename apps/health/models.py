@@ -1823,6 +1823,12 @@ class WorkoutSession(UserOwnedModel):
             return f"{self.workout_type} - {self.date}"
         return f"Workout on {self.date}"
 
+    def get_absolute_url(self):
+        """Canonical detail URL — makes this workout an addressable object for Reveal Target
+        (object-level reveal / already-here). Reuses the existing detail route."""
+        from django.urls import reverse
+        return reverse("health:workout_detail", args=[self.pk])
+
     @property
     def is_activity(self):
         """Whether this is a duration-driven activity workout."""
@@ -2573,6 +2579,12 @@ class Intake(UserOwnedModel):
 
     def __str__(self):
         return f"{self.name} ({self.dose})"
+
+    def get_absolute_url(self):
+        """Canonical detail URL — makes this medication/supplement an addressable object for
+        Reveal Target (object-level reveal / already-here). Reuses the existing detail route."""
+        from django.urls import reverse
+        return reverse("health:intake_detail", args=[self.pk])
 
     @property
     def is_active(self):

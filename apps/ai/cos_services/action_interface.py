@@ -103,6 +103,7 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},
         result_status=out["status"],
+        conversation_id=conversation_id,
         result_digest={"result": out.get("result", ""),
                        "confirmation_id": (out.get("confirmation") or {}).get("confirmation_id")},
     )

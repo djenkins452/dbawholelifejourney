@@ -8,6 +8,21 @@
 3. **Do not revisit constitutional decisions** unless a change genuinely requires a **Constitutional Review** (`02 §3`, default NO, Danny's explicit written approval).
 4. Continue from the live sprint state below.
 
+---
+
+> ## 🛑💸 COST FREEZE (2026-08-16) — READ BEFORE ANY MODEL TESTING
+> **Danny's OpenAI account is auto-charging ~$16–17 repeatedly.** A read-only forensic audit is complete:
+> **`docs/WLJ_OPENAI_COST_AUDIT.md`** (the authoritative record — read it before touching CoS runtime).
+> **Conclusion:** the surge is overwhelmingly **Claude's own certification / `cos-run` real-model testing**
+> (Aug 12–16), amplified by the **Executive Synthesis Phase-2 multiplier** (broad turn = 3–9 billable
+> requests). Idle background = only the 3 proactive model callers (Brief + Midday + Evening), ~4–11
+> calls/user/weekday. **The main CoS runtime persists NO token/cost telemetry — we can't see spend.**
+> **DO NOT** run high-volume real-model `cos-run` suites, and **DO NOT resume the Proactive Product Phase 2
+> implementation (M2 follow-through / M3 missing-data / M4 action completeness)** until Danny reviews the
+> audit. Default testing = deterministic/local (Tier 1); one real-model smoke per deploy at most (§15).
+> **M2 design was completed but NO code was written** — see the audit + this session's transcript to resume.
+> Nothing was changed by the audit: no models, schedules, proactive behavior, synthesis, retries, or code.
+
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 
 **Last regenerated:** 2026-08-14 (**🧠 CHIEF OF STAFF EXECUTIVE-TRUTH ARC — IMPLEMENTED + PRODUCTION-CERTIFIED; ONE residual OPEN (the FIRST active CoS item — see the ACTIVE CoS ARCHITECTURE TRACK section).** This CoS-architecture session (a separate track from the Health Question Certification primary focus below, which is PRESERVED intact for its owning session) executed the deferred "Executive Truth grounding" milestone end-to-end against the original governing model — *WLJ owns deterministic truth; OpenAI owns interpretation/judgment; OpenAI decides what it needs; WLJ supplies it; OpenAI decides when it has enough; OpenAI thinks; Clara acts as Chief of Staff.* Shipped + certified across a long MASTER-PROMPT arc: **model-directed broad truth retrieval · broad-answer continuity · removed `current_action` over-steer / WLJ-side intent steering · model-directed retrieval persistence · Danny-specific grounding across framings · personalized "show-your-work" retrieval · investigation-sufficiency + broad-scope · the current-judgment-needs-current-evidence rule (standing ORIENTS ≠ evidence; never a 0-tool current judgment from `deterministic_understanding`) · durable CoS turn lifecycle · the bounded two-phase Executive Synthesis Phase · evidence-payload slimming · narrow-query regression protection · Phase-2 latency correction.** Durable knowledge folded UP: architecture → `01 §5`/`§6` (Executive Synthesis two-phase lesson + maturity), engineering → `03 §11` (the temp-infra `git add`-abort outage lesson), index → `99 §B` (`WLJ_COS_EXECUTIVE_SYNTHESIS_PHASE.md`). **PRODUCTION INCIDENT LESSON (now permanent, `03 §11`): a temp-experiment cleanup caused a ~40-min full-site 502 because a `git add` that included an already-`git rm`'d path fatal-aborted the whole add → only the deletion committed while the `urls.py`/`AppConfig.ready()` edits stayed uncommitted → orphaned `__import__` of the deleted module crashed web (URLconf) + worker/beat (`ready()`); local `check` passed against the uncommitted fix. Removed, recovered, verified absent.** The **FIRST ACTIVE CoS ITEM** for next session is the newly-exposed heuristic-leakage / evidence-lineage residual — see its section below. All parallel tracks, Meal Intelligence, deferred roadmap, and Waiting-on-Danny are PRESERVED exactly.**)

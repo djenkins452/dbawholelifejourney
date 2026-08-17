@@ -6,6 +6,15 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — chore(cos): close the CoS development arc + remove Object-Level Reveal cert artifacts
+
+**Formally closes the Chief-of-Staff development / certification / navigation arc and resets the operating posture to production-friction-driven.** No new features.
+
+- **Cleanup** — ai migration `0041` soft-deletes (recoverable) the Object-Level Reveal smoke artifacts on the owner's account by PROVEN identity: the "Reveal Test" journal entry (unique title) and the 15-minute "mobility" workout (duration 15 + name/type contains "mobility" + owner + cert-day window). Identity discrimination proven by `apps/ai/tests/test_object_reveal_cleanup.py` (removes the artifacts; spares a real 45-minute mobility workout and a normal same-day journal). Note: a queued/slow acceptance turn that creates one of these AFTER the migration runs won't be caught — remove manually if it appears.
+- **Arc closed** — the original product model is realized end-to-end and prod-validated (WLJ knows → OpenAI reasons → the CoS proactively guides, follows up, acts, navigates). Bootloader (`00_NEXT_CHAT_STARTUP.md`) now leads with a **CoS DEVELOPMENT ARC CLOSED** banner + a reset PRIMARY FOCUS: new CoS work is driven **primarily by real production friction Danny hits** (something the CoS failed to notice / remember / follow up on / execute / navigate to / reason about) or a genuine new requirement — NOT capability/coverage expansion on spec. No milestone is queued.
+- **Deferred items preserved as deferred (NOT active):** `health.intake`/`calendar.overview`/`life.tasks` page-summary providers; remaining health `get_absolute_url`s + object-level reveal for update/complete + entity-resolved reveal; read-after-write SAE snapshot staleness; legacy runtime convergence onto `model_interface`; `health.body_temperature.current_context`; the durable-draft generalization.
+- **Cost discipline preserved:** Tier-1 deterministic by default; ≤1 real-model smoke per deploy. This change is docs + a data migration + tests — no real-model calls. `check` clean; no schema changes.
+
 ## 2026-08-18 — feat(cos): Object-Level Reveal — "did it, here it is"
 
 **After a safe CoS action creates an object, the CoS can reveal THAT specific object, not just its workspace.** "Log my workout and show me" now opens the exact workout's detail page; "create a goal, open it" opens that goal. Deterministic identity — the object comes from the action result, never fuzzy entity resolution.

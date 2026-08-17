@@ -10,6 +10,39 @@
 
 ---
 
+> ## 🏁 CoS DEVELOPMENT ARC CLOSED (2026-08-18) — WORK IS NOW PRODUCTION-FRICTION-DRIVEN
+> **The Chief-of-Staff architecture / certification / navigation arc is COMPLETE and CLOSED.** The
+> original product model is realized end-to-end and prod-validated: **WLJ knows → OpenAI reasons → the
+> CoS proactively guides, follows up, acts, and navigates.** Shipped across this arc: whole-life
+> Executive Truth + two-phase Synthesis · the full CoS Domain Certification program · Proactive Product
+> Phase 2 (Daily Executive Brief · Durable Follow-Through · Missing-Data Intervention · Action
+> Completeness) · Reveal Target + single-authority navigation + Object-Level Reveal · OpenAI cost
+> governance.
+>
+> **NEW OPERATING POSTURE — do NOT resume capability/coverage expansion on spec.** From here, new CoS
+> development is driven **primarily by REAL production friction Danny actually hits** — something the CoS
+> **failed to notice, remember, follow up on, execute, navigate to, or reason about correctly** — or a
+> genuine new user requirement. **Do NOT** start new features, additional Current Context / navigation
+> coverage, or architectural cleanup **without a real product failure or new requirement.** When a real
+> failure appears: reproduce it (runtime-trace, `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`), classify the
+> failing layer (Truth → Reasoning → Action → Experience), fix the first that failed, and prefer
+> eliminating the *class* over patching the symptom. Product-first: judge every change by *"would a
+> paying customer trust this conversation?"*, not by architectural completeness.
+>
+> **Intentionally DEFERRED (remain deferred — NOT active work; pick up only on real need):** `health.intake`
+> + `calendar.overview` + `life.tasks` page-summary providers (need shared request-path-safe builders);
+> `get_absolute_url` on the remaining health objects + object-level reveal for update/complete actions +
+> entity-resolved reveal ("open the workout from Tuesday"); read-after-write SAE snapshot staleness
+> (Layer-1 read-freshness, pre-existing, affects all writes, not proven to block anything); legacy
+> `PersonalAssistant`/ChatGPT-CoS runtime convergence onto `model_interface`; `health.body_temperature.current_context`;
+> the durable-draft (`WorkspaceDraftSession`) generalization. See the changelog + the topic docs for each.
+>
+> **COST DISCIPLINE STILL BINDS:** Tier-1 deterministic testing by default; at most ONE real-model smoke
+> per deploy; never repeated real-model runs on spec (CLAUDE.md + `03 §10a`). Cleanup complete: Object-Level
+> Reveal cert artifacts removed (ai migration `0041`, soft-delete by proven identity).
+
+---
+
 > ## 💸 COST GOVERNANCE (2026-08-16) — READ BEFORE ANY MODEL TESTING
 > **Incident:** Danny's OpenAI account auto-charged ~$16–17 repeatedly. Root cause = **Claude's own
 > certification / `cos-run` real-model testing** (Aug 12–16) × the **Executive Synthesis Phase-2
@@ -43,11 +76,11 @@
 <!-- PRIOR REGEN (2026-07-25): 📐 Executive Truth — constitutional ownership SETTLED (architecture review series, no code); durable conclusions in 01 §5/§6, ownership-classification discipline in 03 §3h, blueprint docs/WLJ_EXECUTIVE_TRUTH_OWNERSHIP_BLUEPRINT.md. A parallel Operations track closed the same day (Config Governance OPS-13 report-only + Recovery Stabilization f871a511; lessons 03 §4a/§7a). Both remain valid and are preserved in the sections below. -->
 ---
 
-## 🧭 PRIMARY FOCUS — 🏁 CoS CERTIFICATION PROGRAM = ACTIONABLE COMPLETE (139/140); next = PRODUCT phase "helps me run my life"
+## 🧭 PRIMARY FOCUS — 🏁 CoS DEVELOPMENT ARC CLOSED (2026-08-18); posture = production-friction-driven (see top banner)
 
-> **🏁 THE WHOLE CoS CERTIFICATION PROGRAM IS ACTIONABLE COMPLETE (2026-08-14).** All 13 registered catalog domains mechanically certified (**139/140, 99.3%**; only GAP = deferred `health.body_temperature.current_context`); Health · Fitness · Medicine · Goals · Tasks · Medical · Habits · Calendar · Brain Training · People · Legacy · Projects · Notes · Capture natural-certified on Danny's real data; cross-domain Executive Synthesis grounded (prioritizes, distinguishes strengths/problems, knows what it's missing). Program-wide ledger = `docs/WLJ_COS_CERTIFICATION_LEDGER.md`. Catalog module `apps/core/truth/cos_question_catalogs.py`; ratchet `RemainingDomainRatchetTests` locks all 12. **Do NOT continue generic certification / add catalog questions to keep a score going. Do NOT reopen CoS architecture.**
+> **🏁 THE CoS ARC IS COMPLETE AND CLOSED.** Certification program (139/140), whole-life Executive Truth + two-phase Synthesis, Proactive Product Phase 2 (Daily Executive Brief · Durable Follow-Through · Missing-Data · Action Completeness), Reveal Target + single-authority navigation + Object-Level Reveal, and OpenAI cost governance are ALL shipped + prod-validated. The recommended milestones from the earlier product investigation were all implemented. **Do NOT reopen CoS architecture, continue generic certification, or expand capability/coverage on spec.** Ledgers/records: `docs/WLJ_COS_CERTIFICATION_LEDGER.md`, `docs/WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`, `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md`, `docs/WLJ_OPENAI_COST_AUDIT.md`.
 >
-> **➡️ NEXT PHASE = PRODUCT: "from knows-my-life → helps-me-run-my-life."** A read-only product investigation (`docs/WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`) found WLJ ALREADY has a wired proactive backbone (PGS check-ins every 15 min seed real chat messages + bell, default-on; DBE dashboard card; app-open briefing) — but that proactive voice runs on the LEGACY `PersonalAssistant` pipeline, NOT the certified `model_interface` CoS; follow-through is broken (`snooze_until` unconsumed, no cross-session thread); missing-data is on-request only; a large action surface is unexposed; push-to-device is dormant (operator: needs a registered `MobileDevice` + APNs env creds). **RECOMMENDED ONE next milestone (AWAITING Danny's review — do NOT implement): the Proactive Daily Executive Brief in the CERTIFIED CoS's voice** — once-daily (app-open/morning) the certified whole-life executive synthesis opens the day (what matters / what changed / what's slipping / what I'm missing) through the already-wired proactive surface. Reuses everything; builds NO new scheduler/channel/briefing-engine/importance-brain. #2 follow-through, #3 proactive missing-data ask, #4 action completeness, #5 Reveal Target (gate-ready). See the investigation doc for the full gap matrix + guardrails.
+> **➡️ NEXT WORK COMES FROM REAL USE, NOT A ROADMAP.** New CoS development is now driven **primarily by production friction Danny actually experiences** — something the CoS failed to notice, remember, follow up on, execute, navigate to, or reason about correctly — or a genuine new requirement. See the **CoS DEVELOPMENT ARC CLOSED** banner at the top for the operating posture and the list of items that remain **intentionally deferred** (pick up only on real need). No milestone is queued.
 >
 > <details><summary>Prior arc detail (Health/Fitness certification — kept for provenance)</summary>
 

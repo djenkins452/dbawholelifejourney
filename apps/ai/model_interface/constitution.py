@@ -1466,6 +1466,21 @@ def truth_tools():
                                         "'today', 'Monday', or a date. Omit to default to "
                                         "yesterday (the usual reconciliation case).")},
             }}}},
+        {"type": "function", "function": {
+            "name": "get_data_health",
+            "description": (
+                "Check whether Danny's health data SOURCES are still syncing — so you can tell "
+                "'I can't SEE it' apart from 'he stopped DOING it'. Use this when health truth "
+                "looks stale/absent and it MATTERS to your read (e.g. before you tell him his "
+                "activity/sleep/steps dropped, or when a metric you'd expect is missing), or when "
+                "he asks why you can't see something. It returns FACTS only: overall sync state "
+                "(setup/healthy/attention), when it last synced, which sources have gone quiet and "
+                "for how many days, and any technical sync issues (each with its fix). YOU decide "
+                "whether a gap materially limits your help and whether to raise it — do not recite "
+                "sync status unprompted. If a source is quiet, say so honestly and ask him to sync/"
+                "log rather than reading the silence as a decline. Do NOT use it for non-health data."
+            ),
+            "parameters": {"type": "object", "properties": {}}}},
     ]
 
 

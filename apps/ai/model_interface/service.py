@@ -818,6 +818,19 @@ class ModelInterfaceService:
                     result_digest=_audit.truth_digest(name, args, out),
                 )
                 return out
+            if name == "get_data_health":
+                # M3: source-sync missingness — reuse the single health-sync authority so the
+                # model can distinguish "not synced" from "not done". Facts only; on-demand.
+                from apps.ai.cos_services.data_health import get_data_health
+                raw = get_data_health(user)
+                out = _wrap_truth(raw, source="data_health")
+                _audit.record_tool_call(
+                    user, kind="truth", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest=_audit.truth_digest(name, args, out),
+                )
+                return out
             if name == "get_history":
                 raw = get_domain_history(
                     user, args.get("domain", ""), args.get("metric", ""),

@@ -1678,7 +1678,9 @@ def _navigate_tool():
             "him you're taking him there), `already_here` (he's ALREADY on that page — do NOT "
             "announce navigation; just answer/point to what's on it), or `not_found` (say you "
             "couldn't find that workspace; do not guess a link). Pass the destination in plain "
-            "words as `target`."
+            "words as `target`. If you JUST created or logged something this turn (a workout, a "
+            "goal, a journal entry) and he wants to see it, call this right after — WLJ opens the "
+            "SPECIFIC item you just made, not just its workspace."
         ),
         "parameters": {"type": "object", "properties": {
             "target": {"type": "string",

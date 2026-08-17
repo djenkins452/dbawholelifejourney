@@ -825,7 +825,9 @@ class ModelInterfaceService:
                 # owns the verb via the existing renderNavigation). Audited (reveal action).
                 from apps.ai.cos_services.reveal import resolve_reveal
                 _cur = (turn_capture or {}).get("current_url")
-                out = resolve_reveal(user, args.get("target"), current_url=_cur)
+                _created = (turn_capture or {}).get("created_reveal")
+                out = resolve_reveal(user, args.get("target"), current_url=_cur,
+                                     created_reveal=_created)
                 if out.get("status") == "ok" and turn_capture is not None:
                     turn_capture["navigation"] = {
                         "url": out.get("url"), "label": out.get("label") or "Open",
@@ -1049,10 +1051,19 @@ class ModelInterfaceService:
             #     pipeline. The tool NAME is the intent; args are its real handler params
             #     (Option B — expose the deterministic interface; centralize the pipeline).
             if name in _ALLOWED_WRITE_INTENTS:
-                return action_interface.request_action(
+                out = action_interface.request_action(
                     user, name, args, turn_id=turn_id, surface=surface,
                     conversation_id=conversation_id,
                 )
+                # Object-Level Reveal: remember a just-created object that has its own detail
+                # URL, so a reveal LATER THIS TURN opens THE object (not just its workspace).
+                co = out.get("created_object") if isinstance(out, dict) else None
+                if turn_capture is not None and isinstance(co, dict) and co.get("url"):
+                    turn_capture["created_reveal"] = {
+                        "url": co["url"],
+                        "label": co.get("title") or co.get("name") or "Open",
+                        "model": co.get("model")}
+                return out
             if name == "resolve_pending_action":
                 return action_interface.resolve_pending_action(
                     user, args.get("confirmation_id"),

@@ -6,6 +6,16 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — feat(cos): Object-Level Reveal — "did it, here it is"
+
+**After a safe CoS action creates an object, the CoS can reveal THAT specific object, not just its workspace.** "Log my workout and show me" now opens the exact workout's detail page; "create a goal, open it" opens that goal. Deterministic identity — the object comes from the action result, never fuzzy entity resolution.
+
+**Path (traced, reuse-first):** each supported handler already returns `created_object` with `model`+`id`; the handlers now also include the object's own `get_absolute_url()` (via a fail-safe `_safe_absolute_url`). `request_action` carries `created_object` through to the caller (it was dropped by `_map_result`); `service.py` captures a just-created object with a detail URL into `turn_capture["created_reveal"]`; and `resolve_reveal` (Reveal Target) **upgrades** the reveal from the workspace home to the object's detail URL **only when the object lives inside the revealed workspace** (`_object_in_workspace` path-containment, trailing new/create/add leaf ignored) — so "log workout, show me my *weight*" still opens Weight, not the workout. Reuses the single navigation authority + the existing client `renderNavigation` (no client change); `already_here` still fires on the object's own page; confirmation/audit/action-safety unchanged.
+
+**Supported today (exposed create action + detail page + get_absolute_url):** `log_workout`→WorkoutSession, `create_goal`→LifeGoal, `create_journal_entry`→JournalEntry. **Intentional gaps (graceful → workspace reveal):** `create_event` (CalendarEvent has no HTML detail page), `log_weight` (WeightEntry has no detail page), `create_task` (no read-only task detail route), and other logs. No fuzzy "open the workout from last Tuesday" (needs entity resolution — deferred).
+
+**Tests:** `apps/ai/tests/test_object_reveal.py` (12) — path containment, object upgrade only when inside the workspace, no-upgrade cross-workspace, already-here on the object, `_safe_absolute_url` fail-safe, `request_action` propagates `created_object`. Reveal + action + registration regressions green. `check` clean; **no schema changes**.
+
 ## 2026-08-18 — refactor(cos): single-authority navigation + Reveal Target precision refs + cert cleanup
 
 Follow-through on Reveal Target: complete single-authority navigation and improve reveal precision, additively (no Current Context redesign, no Part-II architecture).

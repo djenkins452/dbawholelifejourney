@@ -68,6 +68,11 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
     try:
         env = execute_action(user, action, params)
         out = _map_result(env)
+        # Object-Level Reveal: carry the created/updated object descriptor (model/id/url) so
+        # the caller can reveal the SPECIFIC object, not just its workspace. (env["result"] is
+        # the handler's created_object; _map_result intentionally maps "result" to the message.)
+        if out["status"] == OK and isinstance(env.get("result"), dict):
+            out["created_object"] = env["result"]
         if out["status"] == CONFIRMATION_REQUIRED:
             summary = _confirm.summarize(action, params)
             # Build the presentation-independent view (title/summary/preview/actions) from

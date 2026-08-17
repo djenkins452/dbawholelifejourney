@@ -29,6 +29,17 @@ from .intent_service import ActionResult
 logger = logging.getLogger(__name__)
 
 
+def _safe_absolute_url(obj):
+    """The object's canonical detail URL (get_absolute_url) or None — for Object-Level Reveal.
+    Never raises: a model without a resolvable detail route just yields None (→ the CoS reveals
+    the workspace instead of the specific object)."""
+    try:
+        fn = getattr(obj, "get_absolute_url", None)
+        return fn() if callable(fn) else None
+    except Exception:
+        return None
+
+
 def _emit_domain_event(event_type, user, data=None):
     """Emit a domain event (non-blocking, never raises)."""
     try:
@@ -2974,7 +2985,9 @@ class ActionHandler:
                     'id': entry.id,
                     'title': entry.title,
                     'mood': entry.mood,
-                    'entry_date': entry.entry_date.isoformat()
+                    'entry_date': entry.entry_date.isoformat(),
+                    # Object-level Reveal: the created object's own detail URL.
+                    'url': _safe_absolute_url(entry),
                 },
                 action_type='create_journal_entry',
                 confirmation_detail=self._build_confirmation(
@@ -3385,7 +3398,9 @@ class ActionHandler:
                     'title': goal.title,
                     'domain': goal.domain,
                     'timeframe': goal.timeframe,
-                    'created_at': goal.created_at.isoformat()
+                    'created_at': goal.created_at.isoformat(),
+                    # Object-level Reveal: the created object's own detail URL.
+                    'url': _safe_absolute_url(goal),
                 },
                 action_type='create_goal',
                 confirmation_detail=self._build_confirmation(
@@ -5813,7 +5828,9 @@ class ActionHandler:
                     'id': session.id,
                     'name': session.name,
                     'duration_minutes': session.duration_minutes,
-                    'date': session.date.isoformat()
+                    'date': session.date.isoformat(),
+                    # Object-level Reveal: the created object's own detail URL.
+                    'url': _safe_absolute_url(session),
                 },
                 action_type='log_workout',
                 confirmation_detail=self._build_confirmation(

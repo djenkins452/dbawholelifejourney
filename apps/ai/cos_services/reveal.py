@@ -29,11 +29,36 @@ def _same_workspace(current_url, target_url):
     return _path(current_url) == _path(target_url)
 
 
-def resolve_reveal(user, target, *, current_url=None):
+_REVEAL_LEAF_SEGMENTS = {"new", "create", "add", "log", "edit"}
+
+
+def _object_in_workspace(object_url, workspace_url):
+    """True if the created object's detail URL lives INSIDE the workspace the model is
+    revealing — so 'log my workout, show me' opens the specific workout, while 'log my
+    workout, show me my weight' still opens the Weight workspace. Deterministic path
+    containment (a trailing new/create/add/log/edit leaf on the workspace is ignored)."""
+    if not object_url or not workspace_url:
+        return False
+    def _path(u):
+        try:
+            return urlsplit(u).path.rstrip("/")
+        except Exception:
+            return (u or "").rstrip("/")
+    o = _path(object_url)
+    parts = _path(workspace_url).split("/")
+    if parts and parts[-1] in _REVEAL_LEAF_SEGMENTS:
+        parts = parts[:-1]
+    w = "/".join(parts)
+    return bool(w) and (o + "/").startswith(w + "/")
+
+
+def resolve_reveal(user, target, *, current_url=None, created_reveal=None):
     """Resolve a semantic reveal target ('my weight history', 'yesterday's dashboard',
-    'medications') to a workspace URL using the existing destination authority. Returns a
-    facts-only dict: status ∈ {ok, already_here, not_found} plus url/label when resolved.
-    Never raises."""
+    'medications') to a workspace URL using the existing destination authority. If an object
+    was created/updated THIS TURN (created_reveal) and it lives inside the revealed workspace,
+    upgrade the reveal to that SPECIFIC object's detail URL (Object-Level Reveal) — a
+    deterministic identity from the action result, never fuzzy resolution. Returns a facts-only
+    dict: status ∈ {ok, already_here, not_found} plus url/label (+ object:bool). Never raises."""
     target = (target or "").strip()
     if not target:
         return {"status": "not_found", "message": "Where would you like me to take you?"}
@@ -51,9 +76,17 @@ def resolve_reveal(user, target, *, current_url=None):
         return {"status": "not_found",
                 "message": f"I couldn't find a WLJ workspace for “{target}”."}
 
+    is_object = False
+    obj_url = (created_reveal or {}).get("url")
+    if obj_url and _object_in_workspace(obj_url, url):
+        # The thing the user just created IS what they want to see — reveal the object itself.
+        url = obj_url
+        label = (created_reveal or {}).get("label") or label
+        is_object = True
+
     if _same_workspace(current_url, url):
         # Already on that page — do NOT navigate; let the model answer in place.
-        return {"status": "already_here", "url": url, "label": label}
+        return {"status": "already_here", "url": url, "label": label, "object": is_object}
 
-    return {"status": "ok", "url": url, "label": label,
+    return {"status": "ok", "url": url, "label": label, "object": is_object,
             "source": getattr(route, "source", None)}

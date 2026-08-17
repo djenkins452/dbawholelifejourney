@@ -91,8 +91,9 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=tz)
         now = get_user_now(user)
-    except Exception:
-        return {"status": "error", "message": "Could not resolve your timezone."}
+    except Exception as _tzexc:
+        return {"status": "error",
+                "message": f"Could not resolve your timezone. [diag: {type(_tzexc).__name__}: {str(_tzexc)[:160]}]"}
 
     if dt <= now + timedelta(seconds=30):
         return {"status": "needs_info",
@@ -120,10 +121,10 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
             origin=origin or ConversationFollowUp.ORIGIN_USER,
             metadata={"when_label": when_label or ""},
         )
-    except Exception:
+    except Exception as _exc:
         logger.warning("FOLLOW_UP schedule write failed user=%s", user.pk, exc_info=True)
         return {"status": "error",
-                "message": "I couldn't set that follow-up up just now."}
+                "message": f"I couldn't set that follow-up up just now. [diag: {type(_exc).__name__}: {str(_exc)[:160]}]"}
     logger.info("FOLLOW_UP_SCHEDULED user=%s id=%s due=%s topic=%s",
                 user.pk, fu.pk, due_at_utc.isoformat(), topic[:60])
     return {"status": "scheduled", "follow_up_id": fu.pk,

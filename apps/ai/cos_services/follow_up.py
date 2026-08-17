@@ -39,6 +39,33 @@ def _follow_up_directive(topic):
     )
 
 
+def _parse_local_iso(when_local):
+    """Tolerantly parse the model-computed local datetime string. Python 3.9's
+    datetime.fromisoformat is strict (no 'Z', limited offsets), and the model may emit a
+    'Z' suffix, an offset, a space separator, or a date-only value — accept them all. Returns
+    an aware/naive datetime, or None if unparseable. Never raises."""
+    s = str(when_local).strip()
+    if not s:
+        return None
+    candidates = [s]
+    if s.endswith("Z"):
+        candidates.append(s[:-1] + "+00:00")
+    candidates.append(s.replace(" ", "T"))
+    for c in candidates:
+        try:
+            return datetime.fromisoformat(c)
+        except (ValueError, TypeError):
+            continue
+    # Last resort: strptime a few common shapes.
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M",
+                "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s.replace("Z", ""), fmt)
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
 def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None,
                        subject_ref=None, origin=None):
     """Persist a promised follow-up. `when_local` is an ISO-8601 datetime the MODEL computed
@@ -54,9 +81,8 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
     if not when_local:
         return {"status": "needs_info", "message": "When should I follow up?"}
 
-    try:
-        dt = datetime.fromisoformat(str(when_local).strip())
-    except (ValueError, TypeError):
+    dt = _parse_local_iso(when_local)
+    if dt is None:
         return {"status": "needs_info",
                 "message": "I need a concrete time to follow up (e.g. later today or tomorrow)."}
 
@@ -76,29 +102,33 @@ def schedule_follow_up(user, conversation, *, topic, when_local, when_label=None
                 "message": (f"I can follow up within about {MAX_HORIZON_DAYS} days — "
                             "for anything longer, set a reminder or task instead.")}
 
-    due_at_utc = dt.astimezone(timezone.utc)
-
-    # Supersede any prior PENDING follow-up on the SAME durable subject (keep one live promise
-    # per subject); otherwise let distinct topics coexist.
-    if subject_ref:
-        (ConversationFollowUp.objects
-         .filter(user=user, status=ConversationFollowUp.STATUS_PENDING, subject_ref=subject_ref)
-         .update(status=ConversationFollowUp.STATUS_RESOLVED, resolved_at=timezone.now()))
-
-    fu = ConversationFollowUp.objects.create(
-        user=user,
-        conversation=conversation if getattr(conversation, "pk", None) else None,
-        due_at=due_at_utc,
-        topic=topic[:280],
-        subject_ref=(subject_ref or "")[:120],
-        origin=origin or ConversationFollowUp.ORIGIN_USER,
-        metadata={"when_label": when_label or ""},
-    )
+    try:
+        due_at_utc = dt.astimezone(timezone.utc)
+        # Supersede any prior PENDING follow-up on the SAME durable subject (keep one live
+        # promise per subject); otherwise let distinct topics coexist.
+        if subject_ref:
+            (ConversationFollowUp.objects
+             .filter(user=user, status=ConversationFollowUp.STATUS_PENDING,
+                     subject_ref=subject_ref)
+             .update(status=ConversationFollowUp.STATUS_RESOLVED, resolved_at=timezone.now()))
+        fu = ConversationFollowUp.objects.create(
+            user=user,
+            conversation=conversation if getattr(conversation, "pk", None) else None,
+            due_at=due_at_utc,
+            topic=topic[:280],
+            subject_ref=(subject_ref or "")[:120],
+            origin=origin or ConversationFollowUp.ORIGIN_USER,
+            metadata={"when_label": when_label or ""},
+        )
+    except Exception:
+        logger.warning("FOLLOW_UP schedule write failed user=%s", user.pk, exc_info=True)
+        return {"status": "error",
+                "message": "I couldn't set that follow-up up just now."}
     logger.info("FOLLOW_UP_SCHEDULED user=%s id=%s due=%s topic=%s",
                 user.pk, fu.pk, due_at_utc.isoformat(), topic[:60])
     return {"status": "scheduled", "follow_up_id": fu.pk,
             "due_at": due_at_utc.isoformat(),
-            "when": when_label or dt.strftime("%A %-I:%M %p"),
+            "when": when_label or dt.strftime("%A %I:%M %p").lstrip("0"),
             "topic": topic}
 
 

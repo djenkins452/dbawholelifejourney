@@ -6,6 +6,14 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — docs(cos): session close-out — fold durable knowledge up, regenerate the bootloader (arc closed)
+
+End-of-chat close-out (`99_PREPARE_NEXT_CHAT.md`) for the closed CoS arc. Docs only; no code.
+- **Permanent knowledge folded UP into owning docs:** `01 §5` gains a **CoS PRODUCT ARC — COMPLETE + CLOSED** maturity bullet (proactive/action/navigation capabilities; production-friction-driven posture) and the stale "OPEN residual / FIRST active item" is corrected to RESOLVED (verdict-leakage fix). `03 §10a` gains the **Django 5.x `timezone.utc` env-drift lesson** (use `datetime.timezone.utc`; why the one post-deploy smoke exists) + the `cos-run` result-digest operator improvement. `03 §11` gains the **Railway deploy-slowness lesson** (pending ≠ failed — verify by stamp; ~35 min under load; don't re-push/re-enqueue).
+- **Reference Index:** added `WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`, `WLJ_OPENAI_COST_AUDIT.md`, `WLJ_COS_CERTIFICATION_LEDGER.md` to `99 §B`.
+- **Bootloader regenerated + shortened (171 → ~105 lines):** removed the CoS-arc history now folded into permanent docs (Executive-Truth arc detail, Health/Fitness P1–P5 records, the resolved heuristic-leakage track, prior-regen comments); the top banner states the arc is closed + the production-friction-driven posture + the intentionally-deferred list; **foreign parallel tracks (Meal Intelligence, Journal Workspace, Travel, WLJ Operations) + Waiting-on-Danny preserved verbatim**; added the CoS product-arc app-validation ask to Waiting-on-Danny; marked the CoS Domain Certification parallel-track line COMPLETE.
+- Cost/testing discipline reaffirmed as governing. Committed by explicit pathspec (foreign uncommitted `.gitignore` + Renpho docs left untouched).
+
 ## 2026-08-18 — chore(cos): close the CoS development arc + remove Object-Level Reveal cert artifacts
 
 **Formally closes the Chief-of-Staff development / certification / navigation arc and resets the operating posture to production-friction-driven.** No new features.

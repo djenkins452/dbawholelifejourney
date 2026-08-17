@@ -7,7 +7,47 @@
 #   through the existing validate→confirm→execute→audit pipeline. Prevents a future unsafe
 #   exposure (adding a name to ALLOWED_WRITE_INTENTS that skips the safe path).
 # ==============================================================================
+from django.conf import settings
 from django.test import TestCase
+
+from apps.users.models import TermsAcceptance
+
+try:
+    from apps.users.models import User
+except ImportError:
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+
+
+def _user(email="act@test.com"):
+    u = User.objects.create_user(email=email, password="pw12345!")
+    TermsAcceptance.objects.create(
+        user=u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+    return u
+
+
+class ActionAuditConversationLinkageTests(TestCase):
+    """Every CoS action audit row must be linked to its conversation (observability).
+    Locks the request_action + resolve_pending_action fixes against regression."""
+
+    def test_request_action_links_conversation_id(self):
+        from apps.ai.cos_services.action_interface import request_action
+        from apps.ai.models import ToolCallLog
+        user = _user("req@test.com")
+        request_action(user, "not_a_real_action", {}, turn_id="t1", surface="chat",
+                       conversation_id="777")
+        row = ToolCallLog.objects.filter(kind="action").latest("created_at")
+        self.assertEqual(row.conversation_id, "777")
+
+    def test_resolve_pending_action_links_conversation_id(self):
+        from apps.ai.cos_services.action_interface import resolve_pending_action
+        from apps.ai.models import ToolCallLog
+        user = _user("res@test.com")
+        # No matching confirmation → still audits, and MUST carry conversation_id.
+        resolve_pending_action(user, "missing-id", confirm=False, turn_id="t2",
+                               surface="chat", conversation_id="888")
+        row = ToolCallLog.objects.filter(kind="action").latest("created_at")
+        self.assertEqual(row.conversation_id, "888")
 
 
 class ActionExposureSafetyInvariantTests(TestCase):

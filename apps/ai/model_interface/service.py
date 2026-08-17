@@ -1038,6 +1038,7 @@ class ModelInterfaceService:
                     user, args.get("confirmation_id"),
                     confirm=bool(args.get("confirm", False)),
                     turn_id=turn_id, surface=surface,
+                    conversation_id=conversation_id,
                 )
             if name == "next_review_item":
                 # Blocker #15: advance the GUIDED one-at-a-time execution review and return

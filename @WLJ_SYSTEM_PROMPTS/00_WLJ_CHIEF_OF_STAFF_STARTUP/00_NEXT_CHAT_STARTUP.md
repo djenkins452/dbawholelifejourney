@@ -27,9 +27,10 @@
 > (`get_data_health` on-demand truth over `health_sync_status`), M4 Action Completeness (exposed the DAY1-safe
 > high-leverage actions). All prod-deployed + validated; integrated day-long cert passed. Cost telemetry
 > preserved (proactive turns ledgered `traffic_class=proactive`). Detail: `WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`
-> §22. Residuals minor (follow-up firing time-delayed; `resolve_pending_action` audit-linkage; read-after-write
-> SAE snapshot staleness — all pre-existing/minor). **Awaiting Danny's app-level validation + cleanup of cert
-> test artifacts** (a few events/tasks/follow-ups on his account from real-model smokes).
+> §22. Cleanup DONE (2026-08-17): cert test artifacts removed (ai migration `0039`, soft-delete by proven
+> identity), `resolve_pending_action` audit-linkage fixed (same class as `request_action`), MEMORY.md compacted.
+> Residual: read-after-write SAE snapshot staleness (pre-existing Layer-1 read-freshness, affects all writes).
+> **Awaiting Danny's app-level validation.**
 
 *Regenerated at the end of every chat by `@WLJ_SYSTEM_PROMPTS/99_PREPARE_NEXT_CHAT.md`. Live sprint state only — nothing constitutional, architectural, or duplicated.*
 

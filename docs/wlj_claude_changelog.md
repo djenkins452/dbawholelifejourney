@@ -6,6 +6,14 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-17 — chore(cos): Proactive Phase 2 cleanup — cert artifacts removed, resolve_pending_action audit-linkage, memory compaction
+
+Post-completion cleanup of Proactive Phase 2. No behavior change to shipped features.
+- **Cert test artifacts removed** (ai migration `0039_cleanup_phase2_cert_artifacts`, RunPython): SOFT-deletes the owner's real-model-smoke `CalendarEvent`s ("Review Cost Audit", "Weekly Review", "Health Metrics Update") + `Task` ("Call the pharmacy") and removes all `ConversationFollowUp` rows — by PROVEN identity (owner email + exact title + created within the 2026-08-17 UTC cert window; the follow-up model shipped the same day so every row is a test artifact). Recoverable (soft delete via `deleted_at`), idempotent. Identity discrimination proven by `apps/ai/tests/test_phase2_cleanup.py` (deletes artifact task, spares a legitimately-named same-day task).
+- **`resolve_pending_action` audit-linkage fixed** — same proven class as the `request_action` fix: all three `record_tool_call` sites dropped `conversation_id`, so confirmation-resolution action rows were unlinked from their conversation. Now threaded through (`action_interface.py` + `service.py` dispatch). Locked by `apps/ai/tests/test_action_completeness.py` (request_action + resolve_pending_action both carry `conversation_id`).
+- **Memory index compacted** (institutional memory, not repo) — `MEMORY.md` 22.5KB→17.1KB via the consolidation discipline: closed CoS arcs clustered as terse pointer lines (detail already in topic files), no decisions or active state lost.
+- Bootloader updated: Phase 2 = COMPLETE, artifacts cleaned. Tests green; `check` clean.
+
 ## 2026-08-17 — feat(cos): Proactive Phase 2 M4 — Action Completeness (expose the DAY1-safe high-leverage actions)
 
 **Common conversations that used to end in advice can now end in DONE.** The certified CoS previously exposed only 6 write actions (tasks + body metrics + journal import) even though ~55 deterministic writers exist behind the same safe pipeline. M4 completes the **curated, pre-vetted** set — NOT a blind expansion — by adding the remaining `DAY1_ACTION_ALLOWLIST` actions to `ALLOWED_WRITE_INTENTS`: **create_event, add_reminder** (planning — "block 4–5 for the report", "remind me to…"), **log_workout, log_habit** (daily logging — closes the "did you get your workout done? / yes" loop with the follow-up milestone), **create_goal, update_goal_progress** (goals), **log_prayer, save_verse** (faith), **create_journal_entry, add_gratitude** (real-time journaling, distinct from the bulk import already exposed).

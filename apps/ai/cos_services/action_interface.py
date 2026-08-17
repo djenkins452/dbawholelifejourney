@@ -111,7 +111,7 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
 
 
 def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=None,
-                           turn_id="", surface="") -> dict:
+                           turn_id="", surface="", conversation_id=None) -> dict:
     """Resolve a SPECIFIC bound confirmation by id — the ONE resolver for BOTH a clicked
     button and a typed confirm/cancel.
 
@@ -135,6 +135,7 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                "confirmation_id": confirmation_id}
         record_tool_call(user, kind="action", tool_name="", turn_id=turn_id,
                          surface=surface, result_status=out["status"],
+                         conversation_id=conversation_id,
                          result_digest={"confirmation_id": confirmation_id, "code": code})
         return out
 
@@ -159,6 +160,7 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                "confirmation_id": confirmation_id}
         record_tool_call(user, kind="action", tool_name=action, turn_id=turn_id,
                          surface=surface, result_status=out["status"],
+                         conversation_id=conversation_id,
                          result_digest={"confirmation_id": confirmation_id, "declined": True})
         return out
 
@@ -179,7 +181,7 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
     record_tool_call(
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},
-        result_status=out["status"],
+        result_status=out["status"], conversation_id=conversation_id,
         result_digest={"confirmation_id": confirmation_id, "choice": key,
                        "result": out.get("result", "")},
     )

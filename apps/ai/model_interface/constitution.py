@@ -1487,8 +1487,29 @@ def truth_tools():
 # Curated, write-enabled action set (Option B). These are EXISTING deterministic intent
 # schemas — sourced verbatim from apps/ai/intents (ALL_INTENT_TOOLS), NOT copied or
 # generalized. Start with the smallest safe task set; grow only by real need.
-ALLOWED_WRITE_INTENTS = ("mutate_task", "create_task", "complete_task", "log_weight",
-                         "log_body_measurements", "import_journal_entries")
+# The curated write set the certified CoS may perform. Every name here MUST already be in
+# DAY1_ACTION_ALLOWLIST (the Day-1-safe set) and have both a tool schema in ALL_INTENT_TOOLS
+# and a handler in INTENT_HANDLERS — so each routes through the SAME validate → confirm (by
+# ACTION_POLICY) → execute → audit pipeline. Proactive Phase 2 M4 (2026-08-17) completed the
+# curated high-leverage set by exposing the remaining DAY1-safe actions the CoS could reason
+# about but not DO: calendar/reminders (block time, remind me), daily logging (workout, habit),
+# goals (create/update progress), faith (prayer, verse), and real-time journaling (entry,
+# gratitude). NOT a blind expansion of the ~55-writer surface — only the pre-vetted DAY1 set.
+ALLOWED_WRITE_INTENTS = (
+    # Tasks + body metrics + structured import (original set)
+    "mutate_task", "create_task", "complete_task", "log_weight",
+    "log_body_measurements", "import_journal_entries",
+    # M4 — planning & action (highest proactive-loop leverage)
+    "create_event", "add_reminder",
+    # M4 — daily logging (connects to follow-through / execution reconciliation)
+    "log_workout", "log_habit",
+    # M4 — goals
+    "create_goal", "update_goal_progress",
+    # M4 — faith (daily)
+    "log_prayer", "save_verse",
+    # M4 — real-time journaling (distinct from the bulk import already exposed)
+    "create_journal_entry", "add_gratitude",
+)
 
 
 def _named_action_tools():

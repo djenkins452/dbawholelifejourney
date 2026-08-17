@@ -4726,5 +4726,21 @@
    "created_at": "2026-08-17T11:00:00Z",
    "updated_at": "2026-08-17T11:00:00Z"
   }
+ },
+ {
+  "model": "core.releasenote",
+  "pk": 297,
+  "fields": {
+   "title": "Your Chief of Staff can now do more of the doing",
+   "description": "Ask your Chief of Staff to take an action and it can now actually do it — block time on your calendar, set a reminder, log a workout or a habit, create or update a goal, log a prayer or save a verse, or add a journal or gratitude entry — right from the conversation, so more of what you decide together ends in done, not just advice. It always uses your real records and confirms anything that needs it.",
+   "entry_type": "feature",
+   "version": "",
+   "release_date": "2026-08-17",
+   "is_published": true,
+   "is_major": true,
+   "learn_more_url": "",
+   "created_at": "2026-08-17T11:45:00Z",
+   "updated_at": "2026-08-17T11:45:00Z"
+  }
  }
 ]

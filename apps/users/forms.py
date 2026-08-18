@@ -483,7 +483,18 @@ class PreferencesForm(forms.ModelForm):
             'ai_coaching_style',
             'cos_response_style',
             'ai_profile',
-            # Personal Assistant (sub-module of AI)
+            # M1 — unified Chief of Staff preferences (Contract 2.1). Every field here
+            # MUST have a certified-runtime consumer; test_personalization_contract::T4
+            # fails CI otherwise.
+            'cos_display_name',
+            # NOTE: assistant_confirm_actions, preference_learning_enabled and
+            # knowledge_invitations are deliberately NOT ModelForm fields. A partial POST
+            # omits an unchecked box / absent radio, and ModelForm would silently reset the
+            # user's choice - exactly what M1 Definition-of-done §9 forbids. They are
+            # written in PreferencesView.form_valid ONLY when actually submitted.
+            # Personal Assistant enablement is RETIRED from the UI (Contract 2.3) and is
+            # now derived from AI consent in PreferencesView.form_valid. The fields stay
+            # until M7 because the runtime still gates on them.
             "personal_assistant_enabled",
             "personal_assistant_consent",
             # Location

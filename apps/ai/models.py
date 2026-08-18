@@ -37,11 +37,33 @@ def invalidate_system_prompt_cache():
             cache.delete(f'system_prompt_{style}_{faith}')
 
 
+class CoachingStyleManager(models.Manager):
+    """Natural-key manager — `key` is the stable identity, NOT the pk.
+
+    M1 (persona registry): the `coaching_styles` fixture previously carried
+    hard-coded pks 1-8 while migration 0015 created the Armed Forces personas with
+    AUTO pks. On a fresh database migrations run first, so the Armed Forces rows
+    took pks 1-6 and a later `load_initial_data` OVERWROTE them with the General
+    personas - silently destroying a user's selected persona. Natural keys make the
+    fixture idempotent on `key`, which is what `UserPreferences.ai_coaching_style`
+    actually stores.
+    """
+
+    def get_by_natural_key(self, key):
+        return self.get(key=key)
+
+
 class CoachingStyle(models.Model):
     """
-    Database-driven coaching styles for AI personality customization.
+    The canonical PERSONA REGISTRY - "how my Chief of Staff feels and speaks".
 
-    Allows admin to add, edit, or disable coaching styles without code deploys.
+    Contract 1 (`docs/WLJ_PERSONALIZATION_PERSONAL_KNOWLEDGE_CONTRACTS.md`):
+    one persona authority; `key` is immutable once selectable; personas are
+    deactivated, never deleted or re-keyed; admin-editable without a deploy.
+
+    Persona is VOICE ONLY. It never carries truth, never relaxes a deterministic
+    rule, and never overrides an explicit user Operational Preference
+    (`explicit user setting > persona default > system default`).
     """
     CATEGORY_CHOICES = [
         ('', 'General'),
@@ -85,6 +107,25 @@ class CoachingStyle(models.Model):
             "\"day_summary\": {\"strong\": \"Great work today.\", ...}}"
         ),
     )
+    voice_attributes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Reusable VOICE attributes (Contract 1.2) - internal, never shown to the "
+            "customer as sliders. Recognized keys: register, warmth, directness, humor, "
+            "formality, verbosity_bias, signature_expressions (list). Used to compose the "
+            "persona instruction block so N personas do not need N hand-written essays."
+        ),
+    )
+    operational_defaults = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "SUGGESTED Operational Preference defaults (Contract 1.4). Applied ONLY where "
+            "the user has expressed no explicit setting. A persona NEVER overrides an "
+            "explicit user choice. Keys must be canonical preference keys."
+        ),
+    )
     is_active = models.BooleanField(
         default=True,
         help_text="Whether this style is available for users to select"
@@ -100,6 +141,8 @@ class CoachingStyle(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = CoachingStyleManager()
+
     class Meta:
         ordering = ['sort_order', 'name']
         verbose_name = "Coaching Style"
@@ -108,6 +151,43 @@ class CoachingStyle(models.Model):
     def __str__(self):
         status = "" if self.is_active else " (inactive)"
         return f"{self.name}{status}"
+
+    def natural_key(self):
+        return (self.key,)
+
+    # -- Contract 1.3: persona instruction composition ------------------------
+    # VOICE ONLY. No truth claims, no behaviour policy that duplicates an
+    # Operational Preference, no instruction that could relax a deterministic rule.
+    def composed_instructions(self):
+        """The deterministic persona VOICE block delivered to the model.
+
+        `prompt_instructions` is the authored voice; `voice_attributes` adds a
+        compact, machine-composed summary so a new persona can be created from
+        attributes alone. Returns "" when the persona has neither.
+        """
+        parts = []
+        authored = (self.prompt_instructions or "").strip()
+        if authored:
+            parts.append(authored)
+
+        attrs = self.voice_attributes if isinstance(self.voice_attributes, dict) else {}
+        if attrs:
+            bits = []
+            for label, key in (
+                ("Register", "register"), ("Warmth", "warmth"),
+                ("Directness", "directness"), ("Humor", "humor"),
+                ("Formality", "formality"), ("Length", "verbosity_bias"),
+            ):
+                val = attrs.get(key)
+                if val:
+                    bits.append(f"{label}: {val}")
+            expressions = attrs.get("signature_expressions") or []
+            if isinstance(expressions, (list, tuple)) and expressions:
+                sample = ", ".join(str(e) for e in expressions[:6])
+                bits.append(f"Signature expressions (use sparingly, never every line): {sample}")
+            if bits:
+                parts.append("Voice attributes - " + " | ".join(bits))
+        return "\n\n".join(parts).strip()
 
     def save(self, *args, **kwargs):
         # Clear cache when style is updated

@@ -298,6 +298,44 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             if line.strip()
         ]) if ai_personal_context else 0
 
+        # ── M1: unified Chief of Staff settings (Contract 2) ──────────────────
+        # These live on PersonalOperatingBlueprint, not UserPreferences, so they are
+        # not ModelForm fields. They are read here and written in form_valid().
+        # `ai_relationship` resolves precedence (explicit > persona > default); the
+        # template shows the RESOLVED value so what the user sees is what the CoS gets.
+        try:
+            from apps.ai.cos_services.ai_relationship import get_ai_relationship
+            rel = get_ai_relationship(self.request.user)
+            context['cos_accountability_style'] = rel['accountability']['level']
+            context['cos_question_frequency'] = rel['accountability']['question_frequency']
+            context['cos_knowledge_invitations'] = rel['proactivity']['knowledge_invitations']
+            context['cos_event_reflections'] = rel['proactivity']['event_reflections']
+            context['cos_relationship_suggestions'] = rel['proactivity']['relationship_suggestions']
+            context['cos_sensitivity_tags'] = rel['boundaries']['sensitivity_topics']
+            context['cos_sensitivity_tags_raw'] = ', '.join(
+                rel['boundaries']['sensitivity_topics'])
+            context['cos_setting_sources'] = rel.get('_sources') or {}
+        except Exception:
+            logger.warning("Preferences: CoS relationship projection unavailable",
+                           exc_info=True)
+            context.setdefault('cos_accountability_style', 'standard')
+            context.setdefault('cos_question_frequency', 'medium')
+            context.setdefault('cos_knowledge_invitations', 'occasionally')
+            context.setdefault('cos_event_reflections', True)
+            context.setdefault('cos_relationship_suggestions', True)
+            context.setdefault('cos_sensitivity_tags', [])
+            context.setdefault('cos_sensitivity_tags_raw', '')
+            context.setdefault('cos_setting_sources', {})
+        context['cos_display_name_raw'] = (prefs.cos_display_name or '')
+
+        # Persona gallery (Contract 1) — the customer chooses a NAMED persona.
+        try:
+            from apps.ai.models import CoachingStyle
+            context['coaching_styles_grouped'] = CoachingStyle.get_styles_by_category()
+        except Exception:
+            logger.warning("Preferences: persona registry unavailable", exc_info=True)
+            context['coaching_styles_grouped'] = []
+
         # Module navigation order for drag-and-drop reordering
         from apps.users.models import UserModulePreference
         UserModulePreference.initialize_for_user(self.request.user)
@@ -328,14 +366,20 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         if instance.ai_data_consent and not instance.ai_data_consent_date:
             instance.ai_data_consent_date = dj_timezone.now()
 
-        # If AI consent revoked, disable Personal Assistant
+        # ── M1: reconcile the retired "Personal Assistant" enablement (Contract 2.3) ──
+        # The Chief of Staff IS the product; a separate "enable the assistant" toggle is a
+        # relic of when it was a side feature, and it has been removed from the UI. Consent
+        # is NOT weakened or silently broadened: the AI consent the user affirms above now
+        # names the Chief of Staff explicitly and is a superset of the old PA consent text,
+        # so an affirmative AI consent IS the consent. Revoking AI consent still revokes both.
+        # The underlying fields are retained (they still gate the runtime) — M7 owns removal.
         if not instance.ai_data_consent:
             instance.personal_assistant_enabled = False
             instance.personal_assistant_consent = False
         else:
-            # Auto-grant PA consent when PA is enabled (covered by single AI consent)
-            instance.personal_assistant_consent = instance.personal_assistant_enabled
-            if instance.personal_assistant_enabled and not instance.personal_assistant_consent_date:
+            instance.personal_assistant_enabled = True
+            instance.personal_assistant_consent = True
+            if not instance.personal_assistant_consent_date:
                 instance.personal_assistant_consent_date = dj_timezone.now()
 
         # Set SMS consent date if consent was given
@@ -350,11 +394,82 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         ai_personal_context = self.request.POST.get('ai_personal_context', '').strip()
         instance.ai_personal_context = ai_personal_context
 
+        # ── M1: presence-gated Chief of Staff preferences (Definition-of-done §9) ──
+        # Written ONLY when the Chief of Staff section was actually submitted, so a
+        # partial POST from another part of the page can never reset a user's choice.
+        post = self.request.POST
+        cos_section_submitted = 'ai_coaching_style' in post or 'cos_response_style' in post
+        if cos_section_submitted:
+            instance.assistant_confirm_actions = post.get('assistant_confirm_actions') is not None
+            instance.preference_learning_enabled = (
+                post.get('preference_learning_enabled') is not None)
+            choice = (post.get('knowledge_invitations') or '').strip()
+            if choice in dict(instance.KNOWLEDGE_INVITATION_CHOICES):
+                instance.knowledge_invitations = choice
+
+        # ── M1: persist the blueprint-owned Chief of Staff settings ───────────
+        # Written here so ONE settings home owns them (the separate CoS Settings page
+        # is retired). Missing keys are left untouched, so a partial POST never resets
+        # a user's existing choice (Definition-of-done §9).
+        self._save_cos_blueprint_settings()
+
         messages.success(self.request, "Preferences saved successfully.")
         # Nutrition targets are no longer stored on UserPreferences — they live in the
         # single canonical NutritionGoals store, edited on the Nutrition Goals page. The
         # former _sync_nutrition_goals mirror (a duplicate writer) was removed here.
         return super().form_valid(form)
+
+
+    def _save_cos_blueprint_settings(self):
+        """Persist the Chief of Staff settings that live on PersonalOperatingBlueprint.
+
+        Only keys actually PRESENT in the POST are written, so an unrelated partial
+        submit can never silently reset a user's accountability, question frequency
+        or boundaries back to a default.
+        """
+        post = self.request.POST
+        try:
+            from apps.core.blueprint.engine import get_blueprint
+            bp = get_blueprint(self.request.user)
+        except Exception:
+            logger.warning("Preferences: blueprint unavailable; CoS settings not saved",
+                           exc_info=True)
+            return
+
+        changed = []
+        valid_accountability = {'light', 'standard', 'firm'}  # canonical: blueprint ACCOUNTABILITY_CHOICES
+        valid_frequency = {'low', 'medium', 'high'}
+
+        if 'accountability_style' in post:
+            val = (post.get('accountability_style') or '').strip()
+            if val in valid_accountability and bp.accountability_style != val:
+                bp.accountability_style = val
+                changed.append('accountability_style')
+        if 'question_frequency' in post:
+            val = (post.get('question_frequency') or '').strip()
+            if val in valid_frequency and bp.question_frequency != val:
+                bp.question_frequency = val
+                changed.append('question_frequency')
+
+        # Checkboxes: absent means unchecked, but ONLY when the CoS section was
+        # actually submitted (proven by a companion radio being present).
+        if 'accountability_style' in post or 'question_frequency' in post:
+            for field, key in (('event_reflections_enabled', 'event_reflections'),
+                               ('relationship_suggestions_enabled', 'relationship_suggestions')):
+                val = post.get(key) is not None
+                if getattr(bp, field, None) != val:
+                    setattr(bp, field, val)
+                    changed.append(field)
+
+        if 'sensitivity_tags' in post:
+            raw = post.get('sensitivity_tags') or ''
+            tags = [t.strip() for t in raw.split(',') if t.strip()][:20]
+            if (bp.sensitivity_tags or []) != tags:
+                bp.sensitivity_tags = tags
+                changed.append('sensitivity_tags')
+
+        if changed:
+            bp.save(update_fields=sorted(set(changed)) + ['updated_at'])
 
 
 class ThemeSelectionView(LoginRequiredMixin, TemplateView):

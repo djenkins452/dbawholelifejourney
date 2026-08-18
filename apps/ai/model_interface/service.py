@@ -625,12 +625,61 @@ class ModelInterfaceService:
             "in `current_action` below; WLJ surfaces the fact, and YOU decide what it means."
         )
 
+    @staticmethod
+    def _persona_lead(standing_context: dict) -> str:
+        """M1 — the PERSONA voice, at high salience.
+
+        The persona is the user's CHOSEN relationship with their Chief of Staff and it
+        must actually change how the answer sounds. Before M1 the runtime received only
+        the persona SLUG (proven 2026-08-18: `"texas_rancher"` with no voice at all), so
+        fourteen personas were decorative. The composed voice now rides in
+        `ai_relationship.persona_instructions`; this lead makes the model USE it.
+
+        VOICE ONLY — it never changes truth, safety, authorization, confirmation
+        requirements, or action behaviour, and it never overrides an explicit
+        Operational Preference.
+        """
+        try:
+            rel = standing_context.get("ai_relationship") or {}
+            instructions = (rel.get("persona_instructions") or "").strip()
+            if not instructions:
+                return ""
+            persona = ((rel.get("assistant") or {}).get("persona")) or {}
+            name = persona.get("name") or "your configured persona"
+            display = (rel.get("assistant") or {}).get("display_name") or "Chief of Staff"
+            boundaries = ((rel.get("boundaries") or {}).get("sensitivity_topics")) or []
+            out = (
+                f"\n\n=== YOUR VOICE ({name}) ===\n"
+                f"You are {display}. The user CHOSE this persona - speak in it, naturally and "
+                "consistently, from the first sentence. It is who you are to them, not a costume "
+                "you put on for greetings and drop when the content gets substantive.\n"
+                f"{instructions}\n"
+                "This governs VOICE ONLY. It NEVER changes the truth you report, a number, a "
+                "safety or medical rule, an authorization or confirmation requirement, or which "
+                "action you take - and it NEVER overrides the user's explicit settings below "
+                "(their choices beat your persona's habits every time). Stay in voice while being "
+                "exactly as accurate, careful and honest as you would otherwise be. If the user is "
+                "in real distress, keep the voice but drop the shtick - warmth outranks flavour."
+            )
+            if boundaries:
+                out += (
+                    "\n\nBOUNDARIES: the user has asked you to be especially careful with "
+                    + ", ".join(boundaries)
+                    + ". Do not raise these unprompted; when the user raises one, be gentle and "
+                    "brief, and let them lead how far it goes."
+                )
+            return out
+        except Exception:  # pragma: no cover - defensive; the prompt must never hard-fail
+            logger.warning("mi: persona lead skipped", exc_info=True)
+            return ""
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
         # the standing supportive/question-frequency relationship signals in the context above.
         return (
             CONSTITUTION
+            + self._persona_lead(standing_context)
             + self._attachment_lead(standing_context)
             + self._conversation_state_lead(standing_context)
             + self._executive_lead(standing_context)

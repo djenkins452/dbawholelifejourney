@@ -2457,6 +2457,13 @@ class CosSettingsView(LoginRequiredMixin, TemplateView):
         return context
 
 
+# ── M1 NOTE ──────────────────────────────────────────────────────────────────
+# CosSettingsSaveView is RETAINED but no longer reachable from the UI: the controls
+# it wrote (display name, accountability, question frequency, sensitivity topics,
+# event reflections, relationship suggestions) moved to Preferences → Chief of Staff,
+# which is now the ONE settings home (Contract 2). Two editors for the same fields is
+# the dual-authority defect that let `sensitivity_tags` drift out of the runtime.
+# Deleting the view/route belongs to M7 (legacy retirement), after adoption is proven.
 class CosSettingsSaveView(LoginRequiredMixin, View):
     """Handle CoS settings form submission."""
 

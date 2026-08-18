@@ -71,7 +71,10 @@ class AIRelationshipProjectionTests(TestCase):
 
         self.assertEqual(rel["assistant"]["default_relationship"], DEFAULT_RELATIONSHIP)
         self.assertEqual(rel["_sources"]["assistant.default_relationship"], "default")
-        self.assertIsNone(rel["personality_overlay"]["name"])
+        # M1: personality_overlay is RETIRED (Contract 2.2) - redundant with Persona,
+        # which is now projected with its composed voice.
+        self.assertNotIn("personality_overlay", rel)
+        self.assertIn("persona", rel["assistant"])
         self.assertEqual(rel["learned_preferences"], [])
         self.assertTrue(rel["learning"]["enabled"])
 
@@ -114,28 +117,23 @@ class AIRelationshipProjectionTests(TestCase):
         self.assertEqual(a["schema_version"], AI_RELATIONSHIP_SCHEMA_VERSION)
 
     # --- persisted AI Relationship fields (slice 2) ---------------------------
-    def test_persisted_default_relationship_and_overlay_are_projected(self):
+    def test_persisted_default_relationship_is_projected(self):
         prefs = self.user.preferences
         prefs.default_relationship = "best_friend"
-        prefs.personality_overlay = "calm_wise"
         prefs.save()
 
         rel = get_ai_relationship(self.user)
         self.assertEqual(rel["assistant"]["default_relationship"], "best_friend")
         self.assertEqual(rel["_sources"]["assistant.default_relationship"], "user")
-        self.assertEqual(rel["personality_overlay"]["name"], "calm_wise")
-        self.assertEqual(rel["_sources"]["personality_overlay.name"], "user")
 
     def test_blank_default_relationship_falls_back_to_baseline(self):
         prefs = self.user.preferences
         prefs.default_relationship = ""
-        prefs.personality_overlay = ""
         prefs.save()
 
         rel = get_ai_relationship(self.user)
         self.assertEqual(rel["assistant"]["default_relationship"], DEFAULT_RELATIONSHIP)
         self.assertEqual(rel["_sources"]["assistant.default_relationship"], "default")
-        self.assertIsNone(rel["personality_overlay"]["name"])
 
     def test_preference_learning_toggle_is_read_from_field(self):
         prefs = self.user.preferences

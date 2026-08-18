@@ -698,8 +698,8 @@
                     <div class="accordion-header-content">
                         <span class="accordion-icon">🤖</span>
                         <div class="accordion-title-group">
-                            <h2 class="accordion-title">AI & Intelligence</h2>
-                            <p class="accordion-subtitle">AI-powered insights, coaching, and personal assistant</p>
+                            <h2 class="accordion-title">Chief of Staff &amp; AI</h2>
+                            <p class="accordion-subtitle">Who your Chief of Staff is, and how it works with you</p>
                         </div>
                     </div>
                     <div class="accordion-header-right">
@@ -726,7 +726,7 @@
                             </div>
                             <p class="text-muted text-sm">
                                 I consent to AI processing my journal entries, tasks, goals, health data, and other information
-                                to provide personalized insights, coaching, and the Personal Assistant.
+                                to provide personalized insights, coaching, and your Chief of Staff.
                                 Data is sent to OpenAI's API for analysis. Images from camera scanning are processed in real-time and <strong>never stored</strong>.
                                 AI provides thoughts to consider — never medical, financial, or spiritual advice.
                             </p>
@@ -743,13 +743,13 @@
                     <div class="accordion mt-4" data-accordion-id="ai-subsections" id="ai-subsections-container" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
 
                         <!-- Coaching Style -->
-                        <div class="accordion-group" data-accordion-key="coaching-style">
+                        <div class="accordion-group" data-accordion-key="chief-of-staff" id="chief-of-staff-accordion">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
                                     <span class="accordion-icon">🎯</span>
                                     <div class="accordion-title-group">
-                                        <h3 class="accordion-title">Coaching Style</h3>
-                                        <p class="accordion-subtitle">How the AI communicates with you</p>
+                                        <h3 class="accordion-title">Your Chief of Staff</h3>
+                                        <p class="accordion-subtitle">Give it a name and choose its personality</p>
                                     </div>
                                 </div>
                                 <div class="accordion-header-right">
@@ -759,8 +759,19 @@
                                 </div>
                             </button>
                             <div class="accordion-body">
+                                <div class="form-group">
+                                    <label for="id_cos_display_name" class="form-label">What should I call your Chief of Staff?</label>
+                                    <input type="text" name="cos_display_name" id="id_cos_display_name"
+                                           class="form-input" maxlength="50"
+                                           value="{{ cos_display_name_raw|default:'' }}"
+                                           placeholder="Chief of Staff">
+                                    <p class="form-help">Leave blank to use &ldquo;Chief of Staff&rdquo;.</p>
+                                </div>
+
                                 <p class="text-muted text-sm mb-4">
-                                    Choose how you'd like the AI to communicate with you. This affects the tone of insights, encouragements, and accountability nudges.
+                                    Pick a personality. This changes how your Chief of Staff <strong>sounds</strong> &mdash;
+                                    its voice, warmth and humour. It never changes your information, what it can do for you,
+                                    or any of your settings below.
                                 </p>
 
                                 {% for category_name, styles in coaching_styles_grouped %}
@@ -800,12 +811,12 @@
                         </div>
 
                         <!-- CoS Response Style -->
-                        <div class="accordion-group" data-accordion-key="cos-response-style" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
+                        <div class="accordion-group" data-accordion-key="how-we-work" id="how-we-work-accordion" {% if not form.ai_data_consent.value %}style="display: none;"{% endif %}>
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
                                     <span class="accordion-icon">📏</span>
                                     <div class="accordion-title-group">
-                                        <h3 class="accordion-title">Response Detail Level</h3>
+                                        <h3 class="accordion-title">How We Work Together</h3>
                                         <p class="accordion-subtitle">How detailed should the Chief of Staff be?</p>
                                     </div>
                                 </div>
@@ -868,6 +879,143 @@
                                         </div>
                                     </label>
                                 </div>
+                                <h4 class="category-title mt-4">Accountability</h4>
+                                <p class="text-muted text-sm mb-2">How firmly should your Chief of Staff hold you to what you said you'd do?</p>
+                                <div class="coaching-style-options">
+                                    <label class="coaching-style-card {% if cos_accountability_style == 'light' %}selected{% endif %}">
+                                        <input type="radio" name="accountability_style" value="light" {% if cos_accountability_style == 'light' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🌱</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Gentle</div>
+                                                <div class="card-description">Encouraging. Nudges rather than pushes.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_accountability_style == 'standard' %}selected{% endif %}">
+                                        <input type="radio" name="accountability_style" value="standard" {% if cos_accountability_style == 'standard' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🤝</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Balanced</div>
+                                                <div class="card-description">Honest about slipping, without piling on.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_accountability_style == 'firm' %}selected{% endif %}">
+                                        <input type="radio" name="accountability_style" value="firm" {% if cos_accountability_style == 'firm' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">💪</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Firm</div>
+                                                <div class="card-description">Direct about what you committed to. No soft-pedalling.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <h4 class="category-title mt-4">Questions & check-ins</h4>
+                                <p class="text-muted text-sm mb-2">How often should it ask you things, rather than just telling you what it sees?</p>
+                                <div class="coaching-style-options">
+                                    <label class="coaching-style-card {% if cos_question_frequency == 'low' %}selected{% endif %}">
+                                        <input type="radio" name="question_frequency" value="low" {% if cos_question_frequency == 'low' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🔇</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Rarely</div>
+                                                <div class="card-description">Mostly answers. Asks only when it really matters.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_question_frequency == 'medium' %}selected{% endif %}">
+                                        <input type="radio" name="question_frequency" value="medium" {% if cos_question_frequency == 'medium' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">💬</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Sometimes</div>
+                                                <div class="card-description">A natural mix of answering and asking.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_question_frequency == 'high' %}selected{% endif %}">
+                                        <input type="radio" name="question_frequency" value="high" {% if cos_question_frequency == 'high' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🗣️</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Often</div>
+                                                <div class="card-description">Curious. Checks in and asks follow-ups.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <h4 class="category-title mt-4">Getting to know you</h4>
+                                <p class="text-muted text-sm mb-2">May your Chief of Staff occasionally offer to learn more about your life? It never asks about anything you've told it to leave alone.</p>
+                                <div class="coaching-style-options">
+                                    <label class="coaching-style-card {% if cos_knowledge_invitations == 'never' %}selected{% endif %}">
+                                        <input type="radio" name="knowledge_invitations" value="never" {% if cos_knowledge_invitations == 'never' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🚫</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Never</div>
+                                                <div class="card-description">It will never offer. Your choice is absolute.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_knowledge_invitations == 'occasionally' %}selected{% endif %}">
+                                        <input type="radio" name="knowledge_invitations" value="occasionally" {% if cos_knowledge_invitations == 'occasionally' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🌤️</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Occasionally</div>
+                                                <div class="card-description">Now and then, when it fits the conversation.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                    <label class="coaching-style-card {% if cos_knowledge_invitations == 'naturally' %}selected{% endif %}">
+                                        <input type="radio" name="knowledge_invitations" value="naturally" {% if cos_knowledge_invitations == 'naturally' %}checked{% endif %}>
+                                        <div class="card-content">
+                                            <div class="card-icon">🌊</div>
+                                            <div class="card-text">
+                                                <div class="card-title">Naturally</div>
+                                                <div class="card-description">Whenever the conversation genuinely opens the door.</div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <h4 class="category-title mt-4">Working style</h4>
+                                <div class="toggle-option">
+                                    <div class="toggle-info">
+                                        <div class="module-header"><span class="module-icon">✅</span><h4>Confirm before acting</h4></div>
+                                        <p class="text-muted text-sm">Ask me first before creating, changing or deleting anything on my behalf.</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="assistant_confirm_actions" {% if form.assistant_confirm_actions.value %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="toggle-option">
+                                    <div class="toggle-info">
+                                        <div class="module-header"><span class="module-icon">🪞</span><h4>Reflections after events</h4></div>
+                                        <p class="text-muted text-sm">Offer a short reflection after something significant happens.</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="event_reflections" {% if cos_event_reflections %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="toggle-option">
+                                    <div class="toggle-info">
+                                        <div class="module-header"><span class="module-icon">👥</span><h4>Suggestions about people</h4></div>
+                                        <p class="text-muted text-sm">Suggest reaching out to people you haven't connected with in a while.</p>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" name="relationship_suggestions" {% if cos_relationship_suggestions %}checked{% endif %}>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
                             </div>
                         </div>
 
@@ -1017,23 +1165,19 @@ The AI will remember these to respond more thoughtfully in the future."
                             </div>
                         </div>
 
-                        <!-- Personal Assistant -->
-                        <div class="accordion-group" data-accordion-key="personal-assistant" id="personal-assistant-accordion">
+                        <!-- Boundaries -->
+                        <div class="accordion-group" data-accordion-key="cos-boundaries" id="cos-boundaries-accordion">
                             <button type="button" class="accordion-header">
                                 <div class="accordion-header-content">
-                                    <span class="accordion-icon">🎯</span>
+                                    <span class="accordion-icon">🛡️</span>
                                     <div class="accordion-title-group">
-                                        <h3 class="accordion-title">Personal Assistant</h3>
-                                        <p class="accordion-subtitle">AI-powered daily coaching and priorities</p>
+                                        <h3 class="accordion-title">Boundaries</h3>
+                                        <p class="accordion-subtitle">Subjects to treat gently</p>
                                     </div>
                                 </div>
                                 <div class="accordion-header-right">
                                     <div class="accordion-status">
-                                        {% if form.personal_assistant_enabled.value %}
-                                            <span class="accordion-badge accordion-badge-active">Active</span>
-                                        {% else %}
-                                            <span class="accordion-badge accordion-badge-inactive">Disabled</span>
-                                        {% endif %}
+                                        {% if cos_sensitivity_tags %}<span class="accordion-badge accordion-badge-active">{{ cos_sensitivity_tags|length }} set</span>{% else %}<span class="accordion-badge accordion-badge-inactive">None set</span>{% endif %}
                                     </div>
                                     <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="6 9 12 15 18 9"></polyline>
@@ -1042,41 +1186,64 @@ The AI will remember these to respond more thoughtfully in the future."
                             </button>
                             <div class="accordion-body">
                                 <p class="text-muted text-sm mb-4">
-                                    Your AI-powered daily coach that helps you live the life you said you want to live.
-                                    Generates daily priorities, celebrates wins, and provides gentle accountability.
+                                    Some subjects deserve a lighter touch. List any here and your Chief of Staff
+                                    won&rsquo;t raise them on its own &mdash; and when you bring one up, it will be
+                                    gentle and let you lead how far it goes.
                                 </p>
+                                <div class="form-group">
+                                    <label for="id_sensitivity_tags" class="form-label">Sensitive subjects</label>
+                                    <input type="text" name="sensitivity_tags" id="id_sensitivity_tags"
+                                           class="form-input" value="{{ cos_sensitivity_tags_raw|default:'' }}"
+                                           placeholder="grief, money, family">
+                                    <p class="form-help">Separate with commas. Leave blank if there aren&rsquo;t any.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Privacy & Learning -->
+                        <div class="accordion-group" data-accordion-key="cos-privacy-learning" id="cos-privacy-learning-accordion">
+                            <button type="button" class="accordion-header">
+                                <div class="accordion-header-content">
+                                    <span class="accordion-icon">🔒</span>
+                                    <div class="accordion-title-group">
+                                        <h3 class="accordion-title">Privacy &amp; Learning</h3>
+                                        <p class="accordion-subtitle">What&rsquo;s remembered, and who processes it</p>
+                                    </div>
+                                </div>
+                                <div class="accordion-header-right">
+                                    <div class="accordion-status">
+                                        {% if form.preference_learning_enabled.value %}<span class="accordion-badge accordion-badge-active">Learning on</span>{% else %}<span class="accordion-badge accordion-badge-inactive">Learning paused</span>{% endif %}
+                                    </div>
+                                    <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                </div>
+                            </button>
+                            <div class="accordion-body">
+                                <div class="info-box info-box-info mb-4">
+                                    <h4>Whole Life Journey remembers. The AI provider processes.</h4>
+                                    <p class="text-sm">
+                                        What you tell your Chief of Staff is stored in <strong>your Whole Life Journey
+                                        account</strong> &mdash; that&rsquo;s why it&rsquo;s still there tomorrow. To
+                                        answer you, we send the relevant parts to our AI provider, which generates the
+                                        reply. The provider isn&rsquo;t where your Chief of Staff&rsquo;s memory lives.
+                                    </p>
+                                </div>
 
                                 <div class="toggle-option">
                                     <div class="toggle-info">
                                         <div class="module-header">
-                                            <span class="module-icon">🎯</span>
-                                            <h4>Enable Personal Assistant</h4>
-                                            {% if form.personal_assistant_enabled.value %}<span class="module-status status-active">Active</span>{% endif %}
+                                            <span class="module-icon">🧠</span><h4>Let my Chief of Staff learn my preferences</h4>
                                         </div>
                                         <p class="text-muted text-sm">
-                                            Get daily priorities, celebrate wins, and receive gentle accountability based on your complete journey.
+                                            Remember how I like to be worked with. Turn this off to pause learning &mdash;
+                                            anything already saved stays, and you stay in control of it.
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="personal_assistant_enabled" id="personal_assistant_toggle" {% if form.personal_assistant_enabled.value %}checked{% endif %}>
+                                        <input type="checkbox" name="preference_learning_enabled" {% if form.preference_learning_enabled.value %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
-                                </div>
-
-                                <div class="personal-assistant-info" id="personal-assistant-info" {% if not form.personal_assistant_enabled.value %}style="display: none;"{% endif %}>
-                                    <div class="info-box info-box-success">
-                                        <h4>What the Personal Assistant Does:</h4>
-                                        <ul class="tips-list">
-                                            <li><strong>Daily Priorities:</strong> Suggests 3-5 priorities based on your goals, tasks, and patterns</li>
-                                            <li><strong>Celebrates Wins:</strong> Recognizes your achievements and progress</li>
-                                            <li><strong>Gentle Nudges:</strong> Reminds you about commitments and intentions</li>
-                                            <li><strong>Trend Analysis:</strong> Detects patterns and offers insights over time</li>
-                                            <li><strong>Reflection Prompts:</strong> Provides personalized journaling questions</li>
-                                        </ul>
-                                        <p class="mt-3">
-                                            <a href="{% url 'ai:cos_settings' %}" class="btn btn-primary btn-sm">Chief of Staff Settings</a>
-                                        </p>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -3660,24 +3827,12 @@ function updateAISubsectionsVisibility() {
     }
 }
 
-function updatePersonalAssistantVisibility() {
-    const paToggle = document.getElementById('personal_assistant_toggle');
-    const paInfo = document.getElementById('personal-assistant-info');
-
-    if (paInfo && paToggle) {
-        paInfo.style.display = paToggle.checked ? 'block' : 'none';
-    }
-}
 
 const aiConsentToggle = document.getElementById('ai_data_consent_toggle');
 if (aiConsentToggle) {
     aiConsentToggle.addEventListener('change', updateAISubsectionsVisibility);
 }
 
-const personalAssistantToggle = document.getElementById('personal_assistant_toggle');
-if (personalAssistantToggle) {
-    personalAssistantToggle.addEventListener('change', updatePersonalAssistantVisibility);
-}
 
 // Character counter for AI profile
 const aiProfileTextarea = document.getElementById('id_ai_profile');

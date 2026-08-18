@@ -2551,5 +2551,21 @@
       "created_at": "2026-07-12T14:00:00Z",
       "updated_at": "2026-07-12T14:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 162,
+    "fields": {
+      "context_id": "SETTINGS_CHIEF_OF_STAFF",
+      "help_id": "chief-of-staff-settings",
+      "title": "Your Chief of Staff: Name, Personality & How It Works With You",
+      "description": "Choose who your Chief of Staff is, how it communicates, and the subjects it treats gently.",
+      "content": "## Your Chief of Staff\n\nYour Chief of Staff is the assistant you talk to in Whole Life Journey. You decide who it is and how it works with you, in **Preferences → Chief of Staff & AI**.\n\nThere are three separate things you control, and they combine however you like.\n\n### 1. Who it is\n\nGive your Chief of Staff a name, and pick a personality. There are personalities for most moods — warm and gracious, plainspoken and direct, laid-back, playful, quietly observant, or full military intensity.\n\nThe personality changes how your Chief of Staff **sounds**: its voice, its warmth, its humour. It never changes your information, what it can do for you, how carefully it treats a health question, or whether it checks with you before acting.\n\n### 2. How it works with you\n\n- **Response detail** — short and direct, balanced, strategic, or a full deep dive.\n- **Accountability** — how firmly it holds you to what you said you'd do.\n- **Questions & check-ins** — how often it asks you things rather than just telling you what it sees.\n- **Getting to know you** — whether it may occasionally offer to learn more about your life. Never, Occasionally (the default), or Naturally.\n- **Confirm before acting** — ask you first before creating, changing or deleting anything.\n- **Reflections and suggestions** — whether it offers a reflection after something significant, or suggests reaching out to people.\n\n**Your settings always win.** A personality may come with its own habits — a drill sergeant tends toward firm accountability — but anything you set yourself overrides it. You can have a Texas Rancher who gives deep-dive answers and rarely asks questions, and it will do exactly that.\n\n### 3. Boundaries\n\nSome subjects deserve a lighter touch. List them under **Boundaries** and your Chief of Staff won't raise them on its own. When you bring one up, it stays gentle and lets you lead how far it goes.\n\n### Privacy\n\nWhole Life Journey remembers. The AI provider processes.\n\nWhat you tell your Chief of Staff is stored in **your Whole Life Journey account** — that's why it's still there tomorrow. To answer you, we send the relevant parts to our AI provider, which generates the reply. The provider isn't where your Chief of Staff's memory lives.\n\nYou can pause preference learning at any time under **Privacy & Learning**. Anything already saved stays, and you stay in control of it.\n",
+      "app_name": "users",
+      "order": 7,
+      "is_active": true,
+      "created_at": "2026-08-18T12:00:00Z",
+      "updated_at": "2026-08-18T12:00:00Z"
+    }
   }
 ]

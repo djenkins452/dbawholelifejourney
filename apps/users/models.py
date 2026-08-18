@@ -609,6 +609,27 @@ class UserPreferences(models.Model):
         help_text='AI coaching style key (loaded from CoachingStyle model)',
     )
 
+    # ── Progressive relationship-building (Contract 12) ────────────────────────
+    # M1 owns CONFIGURATION + deterministic runtime DELIVERY of this preference.
+    # The About Me invitations that CONSUME it are downstream (M4). Stored here so
+    # later milestones have ONE authority to read.
+    KNOWLEDGE_INVITATION_CHOICES = [
+        ('never', 'Never'),
+        ('occasionally', 'Occasionally'),
+        ('naturally', 'Naturally'),
+    ]
+    knowledge_invitations = models.CharField(
+        max_length=20,
+        choices=KNOWLEDGE_INVITATION_CHOICES,
+        default='occasionally',
+        help_text=(
+            "How often the Chief of Staff may offer to learn more about the user. "
+            "Initial-release default is 'occasionally' (trust calibration). WLJ "
+            "deterministically enforces rate limits, declined-topic suppression and "
+            "parked topics at EVERY setting; 'never' means never."
+        ),
+    )
+
     COS_RESPONSE_STYLE_CHOICES = [
         ('concise', 'Concise'),
         ('balanced', 'Balanced'),

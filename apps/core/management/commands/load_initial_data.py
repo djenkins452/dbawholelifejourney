@@ -57,11 +57,6 @@ FIXTURE_LOADERS = [
         'description': 'Writing prompts for journal entries',
     },
     {
-        'name': 'coaching_styles',
-        'display': 'AI Coaching Styles',
-        'description': 'Personality styles for AI coach',
-    },
-    {
         'name': 'ai_prompt_configs',
         'display': 'AI Prompt Configurations',
         'description': 'System prompts for AI features',
@@ -154,6 +149,16 @@ FIXTURE_LOADERS = [
 ]
 
 COMMAND_LOADERS = [
+    {
+        'name': 'seed_personas',
+        'display': 'Chief of Staff Personas',
+        'description': (
+            'M1: persona registry seeded BY KEY (idempotent). Moved out of '
+            'FIXTURE_LOADERS because loaddata addresses rows by pk, which silently '
+            'overwrote the Armed Forces personas and destroyed user selections.'
+        ),
+    },
+
     {
         'name': 'populate_choices',
         'display': 'Dropdown Choices (Moods, Milestones, etc.)',
@@ -697,6 +702,12 @@ class Command(BaseCommand):
 
         # One-time: Reset ALL users for new intro/calibration experience
         self._reset_all_calibration_for_intro(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset release_notes for M1 Chief of Staff personalization (PK 299-302)
+        self._reset_m1_personalization_release_notes(DataLoadConfig, force, verbosity)
+
+        # One-time: Reset help_topics for the M1 Chief of Staff settings topic (PK 162)
+        self._reset_m1_personalization_help(DataLoadConfig, force, verbosity)
 
         # One-time: Reset release_notes for Calendar Engine (PK 59)
         self._reset_calendar_engine_fixtures(DataLoadConfig, force, verbosity)
@@ -8842,6 +8853,65 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset exec briefing coherence release notes FAILED: {e}'))
+
+    def _reset_m1_personalization_help(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload help_topics after adding the M1 Chief of Staff topic."""
+        reset_tracker_name = 'reset_m1_personalization_help_2026_08_18'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='help_topics')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset help_topics for M1 Chief of Staff settings')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset help_topics for M1 Chief of Staff settings',
+                'command',
+                'One-time reset: added SETTINGS_CHIEF_OF_STAFF help topic'
+            )
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset M1 personalization help FAILED: {e}'))
+
+    def _reset_m1_personalization_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """
+        One-time reset to reload release_notes after adding PK 299-302 (M1: personas
+        actually reach the Chief of Staff, one unified settings home, boundaries now
+        enforced at runtime, and the get-to-know-me invitation preference).
+        """
+        reset_tracker_name = 'reset_m1_personalization_2026_08_18'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for M1 personalization (PK 299-302)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for M1 Chief of Staff personalization',
+                'command',
+                'One-time reset: added PK 299-302 for M1 personas + unified CoS preferences'
+            )
+
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset M1 personalization release notes FAILED: {e}'))
 
     def _reset_action_center_vocabulary_release_notes(self, DataLoadConfig, force=False, verbosity=1):
         """

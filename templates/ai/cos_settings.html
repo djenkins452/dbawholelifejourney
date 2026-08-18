@@ -78,103 +78,23 @@
         </div>
     </div>
 
-    <form method="post" action="{% url 'ai:cos_settings_save' %}">
-        {% csrf_token %}
-
-        {# --- Display Name --- #}
-        <div class="cos-setting-group">
-            <label class="cos-setting-label">Display Name</label>
-            <p class="cos-setting-help">{% if cos_has_custom_name %}Rename {{ cos_display_name }}, or clear to reset to "Chief of Staff".{% else %}Give your Chief of Staff a custom name, or leave blank for "Chief of Staff".{% endif %}</p>
-            <input type="text" name="cos_display_name" class="cos-text-input"
-                   value="{{ cos_display_name_raw }}"
-                   placeholder="e.g. Max, Jarvis, Friday"
-                   maxlength="50">
-        </div>
-
-        {# --- Accountability Style --- #}
-        <div class="cos-setting-group">
-            <label class="cos-setting-label">How firm should I be?</label>
-            <p class="cos-setting-help">Controls how directly {{ cos_display_name|default:"the CoS" }} holds you accountable.</p>
-            <div class="cos-radio-group">
-                <label class="cos-radio-option {% if blueprint.accountability_style == 'light' %}active{% endif %}">
-                    <input type="radio" name="accountability_style" value="light"
-                           {% if blueprint.accountability_style == 'light' %}checked{% endif %}>
-                    <span class="cos-radio-label">Light</span>
-                    <span class="cos-radio-desc">Gentle suggestions, no pressure</span>
-                </label>
-                <label class="cos-radio-option {% if blueprint.accountability_style == 'standard' %}active{% endif %}">
-                    <input type="radio" name="accountability_style" value="standard"
-                           {% if blueprint.accountability_style == 'standard' %}checked{% endif %}>
-                    <span class="cos-radio-label">Standard</span>
-                    <span class="cos-radio-desc">Balanced — clear but kind</span>
-                </label>
-                <label class="cos-radio-option {% if blueprint.accountability_style == 'firm' %}active{% endif %}">
-                    <input type="radio" name="accountability_style" value="firm"
-                           {% if blueprint.accountability_style == 'firm' %}checked{% endif %}>
-                    <span class="cos-radio-label">Firm</span>
-                    <span class="cos-radio-desc">Direct, calls out missed items</span>
-                </label>
-            </div>
-        </div>
-
-        {# --- Question Frequency --- #}
-        <div class="cos-setting-group">
-            <label class="cos-setting-label">How often should I ask questions?</label>
-            <p class="cos-setting-help">Controls how many check-in questions per day.</p>
-            <div class="cos-radio-group">
-                <label class="cos-radio-option {% if blueprint.question_frequency == 'low' %}active{% endif %}">
-                    <input type="radio" name="question_frequency" value="low"
-                           {% if blueprint.question_frequency == 'low' %}checked{% endif %}>
-                    <span class="cos-radio-label">Low</span>
-                    <span class="cos-radio-desc">Only when essential</span>
-                </label>
-                <label class="cos-radio-option {% if blueprint.question_frequency == 'medium' %}active{% endif %}">
-                    <input type="radio" name="question_frequency" value="medium"
-                           {% if blueprint.question_frequency == 'medium' %}checked{% endif %}>
-                    <span class="cos-radio-label">Medium</span>
-                    <span class="cos-radio-desc">1-2 per day when helpful</span>
-                </label>
-                <label class="cos-radio-option {% if blueprint.question_frequency == 'high' %}active{% endif %}">
-                    <input type="radio" name="question_frequency" value="high"
-                           {% if blueprint.question_frequency == 'high' %}checked{% endif %}>
-                    <span class="cos-radio-label">High</span>
-                    <span class="cos-radio-desc">Check in regularly</span>
-                </label>
-            </div>
-        </div>
-
-        {# --- Toggles --- #}
-        <div class="cos-setting-group">
-            <label class="cos-setting-label">Features</label>
-
-            <label class="cos-toggle-row">
-                <input type="checkbox" name="event_reflections" {% if blueprint.event_reflections_enabled %}checked{% endif %}>
-                <div>
-                    <span class="cos-toggle-title">Event reflections</span>
-                    <span class="cos-toggle-desc">Follow up after meetings, workouts, and events</span>
-                </div>
-            </label>
-
-            <label class="cos-toggle-row">
-                <input type="checkbox" name="relationship_suggestions" {% if blueprint.relationship_suggestions_enabled %}checked{% endif %}>
-                <div>
-                    <span class="cos-toggle-title">Relationship suggestions</span>
-                    <span class="cos-toggle-desc">Suggest reconnecting with important people</span>
-                </div>
-            </label>
-        </div>
-
-        {# --- Sensitivity Tags --- #}
-        <div class="cos-setting-group">
-            <label class="cos-setting-label">Sensitivity topics</label>
-            <p class="cos-setting-help">Topics where {{ cos_display_name|default:"the CoS" }} should be extra gentle (comma-separated).</p>
-            <input type="text" name="sensitivity_tags" class="cos-text-input"
-                   value="{{ sensitivity_tags|join:', ' }}"
-                   placeholder="e.g. medicine, relationships, faith">
-        </div>
-
-        <button type="submit" class="cos-save-btn">Save Settings</button>
-    </form>
+    <!-- M1: these controls MOVED to Preferences → Chief of Staff & AI, which is now the
+         ONE settings home. This page keeps only Learning Mode, which lives nowhere else.
+         Keeping a second editor for the same fields is what let `sensitivity_tags` drift
+         out of the runtime unnoticed (Contract 2, Definition-of-done §10). -->
+    <div class="cos-setting-group">
+        <label class="cos-setting-label">Everything else about your Chief of Staff</label>
+        <p class="cos-setting-help">
+            Its name, personality, how detailed it is, how firmly it holds you accountable,
+            how often it asks questions, and the subjects it treats gently all live in one
+            place now.
+        </p>
+        <p style="margin-top: 0.75rem;">
+            <a href="{% url 'users:preferences' %}#chief-of-staff" class="cos-btn cos-btn-primary">
+                Open Chief of Staff settings
+            </a>
+        </p>
+    </div>
 
     {# --- Learned Preferences (expandable) --- #}
     {% if learned_preferences %}

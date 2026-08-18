@@ -118,10 +118,12 @@ def complete_by_identity(user, source_type, source_id, target_date,
                                    "resolved_target": resolved,
                                    "source_id": source_id, "mutated": False})
         if st == "task":
-            return _complete_task_by_id(user, source_id, target_date)
-        if st == "routine_item":
-            return _complete_routine_by_id(user, source_id, target_date)
-        return _complete_dose_by_id(user, source_id, target_date, source_type=st)
+            out = _complete_task_by_id(user, source_id, target_date)
+        elif st == "routine_item":
+            out = _complete_routine_by_id(user, source_id, target_date)
+        else:
+            out = _complete_dose_by_id(user, source_id, target_date, source_type=st)
+        return _verify(out, user, st, source_id, target_date, want_complete=True)
     except Exception:
         logger.warning("execution_completion: identity completion failed %s/%s",
                        st, source_id, exc_info=True)
@@ -193,16 +195,83 @@ def reverse_by_identity(user, source_type, source_id, target_date,
                 return _result("not_complete", "medications", resolved,
                                message=f"'{resolved}' was not logged as taken.",
                                detail={"mutated": False})
-        return _result("reversed", kind, resolved,
-                       message=f"Put '{resolved}' back to not complete.",
-                       detail={"source_id": source_id, "mutated": True,
-                               "occurrence_date": target_date.isoformat()})
+        return _verify(
+            _result("reversed", kind, resolved,
+                    message=f"Put '{resolved}' back to not complete.",
+                    detail={"source_id": source_id, "mutated": True,
+                            "occurrence_date": target_date.isoformat()}),
+            user, st, source_id, target_date, want_complete=False)
     except Exception:
         logger.warning("execution_completion: reversal failed %s/%s", st, source_id,
                        exc_info=True)
         return _result("error", kind, "",
                        message="That could not be reversed; nothing was changed.",
                        detail={"mutated": False})
+
+
+def _is_complete(user, source_type, source_id, target_date):
+    """READ BACK canonical completion state through the SAME domain authority that owns
+    it. Returns True/False, or None when the state cannot be determined.
+
+    This is the postcondition check, not a second truth authority — each branch reads the
+    owning domain's own record.
+    """
+    try:
+        if source_type == "task":
+            from apps.life.models import Task
+            row = Task.objects.filter(pk=source_id, user=user).first()
+            return None if row is None else (row.completion_status == "completed")
+        if source_type == "routine_item":
+            from apps.core.execution.completion_service import is_routine_item_complete
+            from apps.life.models import RoutineSchedule
+            sched = (RoutineSchedule.objects.filter(pk=source_id, routine__user=user)
+                     .select_related("routine").first())
+            return None if sched is None else bool(
+                is_routine_item_complete(user, sched, target_date))
+        from apps.health.models import IntakeSchedule
+        from apps.health.services.dose_completion import is_dose_complete
+        sched = (IntakeSchedule.objects.filter(pk=source_id, intake__user=user)
+                 .select_related("intake").first())
+        return None if sched is None else bool(
+            is_dose_complete(user, sched, target_date))
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("execution_completion: postcondition read failed %s/%s",
+                       source_type, source_id, exc_info=True)
+        return None
+
+
+def _verify(result, user, source_type, source_id, target_date, *, want_complete):
+    """Gate a claimed mutation on canonical truth (2026-08-18 false-success incident).
+
+    The CoS told the user an item "is marked as complete" while the Dashboard still showed
+    it open. A handler returning without raising is NOT evidence that the requested state
+    exists. `recorded`/`reversed` may only survive if the canonical record AGREES.
+    """
+    if result.get("status") not in ("recorded", "reversed"):
+        return result
+    actual = _is_complete(user, source_type, source_id, target_date)
+    if actual is None:
+        # Cannot verify — do not claim success we cannot prove.
+        result["status"] = "postcondition_unverified"
+        result["message"] = ("The change was attempted but WLJ could not verify the "
+                             "result. Treat it as NOT done.")
+        result.setdefault("detail", {}).update(
+            {"verified": False, "postcondition": "unverifiable"})
+        return result
+    if actual is want_complete:
+        result.setdefault("detail", {}).update(
+            {"verified": True, "postcondition": "complete" if actual else "not_complete"})
+        return result
+    logger.warning("execution_completion: POSTCONDITION FAILED user=%s %s/%s "
+                   "wanted_complete=%s actual=%s", getattr(user, "id", None),
+                   source_type, source_id, want_complete, actual)
+    result["status"] = "postcondition_failed"
+    result["message"] = ("WLJ ran the change but the item did NOT end up in the "
+                         "requested state. It is not done — do not say it is.")
+    result.setdefault("detail", {}).update(
+        {"verified": False, "postcondition": "mismatch",
+         "wanted_complete": want_complete, "actual_complete": actual})
+    return result
 
 
 def _peek_identity(user, source_type, source_id):

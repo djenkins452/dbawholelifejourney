@@ -209,3 +209,111 @@ class NoWriteBypassesConfirmationTests(SimpleTestCase):
         self.assertIn("assistant_confirm_actions", src,
                       "the write authority must READ the preference, not rely on the "
                       "model having been told about it")
+
+
+class VerifiedResultIntegrityTests(TestCase):
+    """FALSE SUCCESS (2026-08-18). With confirmation ON the CoS asked, Danny said "Yes",
+    the CoS said "'Shower' is marked as complete" — and the Dashboard still showed it open.
+
+    ToolCallLog: turn 92e4210b produced `confirmation_required` (mutated: false); the
+    following "Yes" turn (48957246) made **ZERO tool calls**. The model narrated a
+    completion it never executed.
+
+    INVARIANT: requested state → mutation → canonical truth VERIFIES it → success.
+    A handler returning without raising is not evidence.
+    """
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = User.objects.create_user(email="vr@contract.test", password="x")
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.shower = RoutineSchedule.objects.create(
+            routine=self.routine, name="Shower", scheduled_time=datetime.time(7, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+
+    def test_success_is_reported_only_after_canonical_verification(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        out = complete_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                                   requested_target="Shower")
+        self.assertEqual(out["status"], "recorded")
+        self.assertTrue(out["detail"]["verified"],
+                        "a success was returned without verifying canonical state")
+
+    def test_a_silent_no_op_cannot_report_success(self):
+        """If the mutation does not take, the result must NOT say recorded."""
+        from unittest import mock
+        from apps.core.execution.execution_completion import complete_by_identity
+        with mock.patch("apps.life.services.routine_helpers.toggle_routine_completion"):
+            out = complete_by_identity(self.user, "routine_item", self.shower.pk,
+                                       self.today, requested_target="Shower")
+        self.assertEqual(out["status"], "postcondition_failed", (
+            "a mutation that changed NOTHING was reported as success — exactly the "
+            "production false-success"))
+        self.assertFalse(out["detail"]["verified"])
+        self.assertIn("not", out["message"].lower())
+
+    def test_reversal_is_verified_too(self):
+        from apps.core.execution.execution_completion import (
+            complete_by_identity, reverse_by_identity,
+        )
+        complete_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                             requested_target="Shower")
+        out = reverse_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                                  requested_target="Shower")
+        self.assertEqual(out["status"], "reversed")
+        self.assertTrue(out["detail"]["verified"])
+
+    def test_verified_completion_shows_in_the_truth_the_dashboard_reads(self):
+        """Same-truth: the Dashboard must agree after a CoS completion."""
+        from apps.core.execution.execution_completion import complete_by_identity
+        from apps.core.execution.today_execution import build_today_execution
+        complete_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                             requested_target="Shower")
+        items = build_today_execution(self.user)["items"]
+        shower = [i for i in items
+                  if i.get("source_type") == "routine_item"
+                  and i.get("source_id") == self.shower.pk]
+        self.assertTrue(shower, "Shower vanished from execution truth")
+        self.assertTrue(shower[0].get("completed_today"),
+                        "the Dashboard's own truth still shows the item open after a "
+                        "completion the CoS reported as done")
+
+    def test_end_to_end_confirmation_then_verified_execution(self):
+        """The full production sequence: ask → yes → actually complete → verified."""
+        from apps.ai.cos_services.action_interface import (
+            request_confirmation_for, resolve_pending_action,
+        )
+        from apps.core.execution.completion_service import is_routine_item_complete
+        prefs = self.user.preferences
+        prefs.assistant_confirm_actions = True
+        prefs.save()
+        user = User.objects.get(pk=self.user.pk)
+
+        gate = request_confirmation_for(
+            user, "complete_execution_item",
+            {"source_type": "routine_item", "source_id": self.shower.pk,
+             "title": "Shower"})
+        self.assertEqual(gate["status"], "confirmation_required")
+        self.assertFalse(is_routine_item_complete(user, self.shower, self.today),
+                         "the item mutated before confirmation")
+
+        cid = (gate.get("confirmation") or {}).get("confirmation_id")
+        done = resolve_pending_action(user, cid, confirm=True)
+        self.assertEqual(done["status"], "ok", done)
+        self.assertTrue(is_routine_item_complete(user, self.shower, self.today),
+                        "confirmation was consumed but the item never completed")
+
+
+class NoNarratedSuccessTests(SimpleTestCase):
+    """The model must not close the loop by narration."""
+
+    def test_constitution_forbids_reporting_an_unexecuted_action(self):
+        # Assert against the COMPOSED constant, not raw source: the clause spans several
+        # adjacent string literals, so a source grep can miss a phrase that is present.
+        from apps.ai.model_interface.constitution import CONSTITUTION
+        self.assertIn("NEVER REPORT AN ACTION YOU DID NOT EXECUTE", CONSTITUTION)
+        self.assertIn("PENDING CONFIRMATION IS NOT A COMPLETED ACTION", CONSTITUTION)
+        self.assertIn("postcondition_failed", CONSTITUTION)
+        self.assertIn("resolve_pending_action", CONSTITUTION)

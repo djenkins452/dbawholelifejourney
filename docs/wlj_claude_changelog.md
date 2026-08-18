@@ -6,6 +6,22 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): VERIFIED RESULT INTEGRITY — success may be claimed only when canonical truth agrees
+
+**Production defect (false success).** With Confirm-before-acting ON: *"mark shower as complete"* → CoS correctly asked → *"Yes"* → CoS said *"'Shower' is marked as complete."* After refresh, **Shower was still open**.
+
+**Evidence — both turns.** Turn `92e4210b` (19:28:19Z): `complete_execution_item(source_id=9, source_type="routine_item")` → `confirmation_required`, `mutated: false`, `confirmation_id=575c0866…`. **Confirmation behaved correctly and nothing mutated.** The following *"Yes"* turn `48957246` (19:28:43Z) contains **ONE `response` row and ZERO tool calls.** The model never resolved the confirmation and narrated a completion it had not executed.
+
+**Ruled out deterministically, not assumed.** Reproduced the mint locally: the pending confirmation IS surfaced — `pending_confirmations` carries it, the system prompt names `resolve_pending_action` AND contains the confirmation id. So this was not a plumbing or binding failure (hypotheses A/B/C/E disproven). **First failing layer: the model reported an outcome without executing anything — and nothing deterministic made that claim impossible (hypothesis F, plus a real D gap: no postcondition was ever verified).**
+
+**Structural fix — postcondition verification.** `complete_by_identity` and `reverse_by_identity` now READ BACK canonical state through the SAME domain authority that owns it (`Task.completion_status`, `is_routine_item_complete`, `is_dose_complete`) — no second truth authority. `recorded`/`reversed` survive ONLY if the canonical record agrees. New honest statuses: **`postcondition_failed`** (mutation ran, state did not change) and **`postcondition_unverified`** (state unreadable — treat as NOT done), both carrying `verified: false`. A handler returning without raising is no longer evidence of anything.
+
+**Grounding clause.** New governing Constitution rule: *NEVER REPORT AN ACTION YOU DID NOT EXECUTE AND VERIFY* — a change may be reported only from a tool call made THIS turn returning verified success; **a pending confirmation is not a completed action** (the user's "yes" authorizes, it does not perform — call `resolve_pending_action` and report only what it returns); and `postcondition_failed`/`postcondition_unverified` mean NOT done. This half is a prompt-layer guard **by necessity**: when the model calls no tool at all, there is no deterministic lever over what it says. The postcondition contract is what makes every path it *does* call incapable of lying.
+
+**Tests:** 6 new — success only after canonical verification · **a mocked silent no-op now yields `postcondition_failed` instead of success** (reproduces the production false-success directly) · reversal verified too · **same-truth: after a CoS completion, `build_today_execution` (the Dashboard's own truth) shows the item complete** · full end-to-end ask → yes → verified execution · and a guard on the Constitution clause asserted against the COMPOSED constant rather than raw source (the clause spans several literals, so a source grep can miss text that is present). **117 scoped tests pass.** `makemigrations --check` clean.
+
+**Files:** `apps/core/execution/execution_completion.py`, `apps/ai/model_interface/constitution.py`, tests. **M2 remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(cos): CONFIRMATION ENFORCEMENT — a safety preference must be enforced at the write boundary, not delivered to the model
 
 **Production defect.** Preferences visibly promised *"Ask me first before creating, changing or deleting anything on my behalf"* (`assistant_confirm_actions=True`). Danny said *"mark 'call the pharmacy' as complete"* and the CoS mutated immediately with no confirmation step. ToolCallLog `62d315f8`: `complete_execution_item(source_id=622, source_type="task")` → `recorded`.

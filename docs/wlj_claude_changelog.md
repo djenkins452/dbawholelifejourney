@@ -6,6 +6,30 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): EXACT TARGET INTEGRITY — a write may only touch the object the user named (wrong-target mutation)
+
+**Critical production trust failure, caused by `9caaddac` (this session's own fix).** The user said *"Mark Shower complete"*. The CoS replied *"Shower is not showing up as an incomplete item for today, but I've successfully marked 'Log Nutrition' as complete."* The user said *"No! Do not mark Log Nutrition as complete."* The CoS then completed Shower and **left Log Nutrition wrongly completed.**
+
+**Proven from the production ToolCallLog, not inferred.** Turn `bb930a1d` (16:03:35Z):
+`complete_execution_item(source_id=19, source_type="routine_item")` → `recorded` *"Log Nutrition"*.
+Turn `fec0edc8` (16:04:29Z): `complete_execution_item(source_id=3, source_type="routine_item")` → `recorded` *"Shower"*. **No reversal call for id 19 was ever made.**
+
+**Root cause — my own change.** `9caaddac` added an executive-lead line that PRE-FILLED a ready-to-fire call carrying the CURRENT ACTION's identity (*"call complete_execution_item(source_type=…, source_id=…) — use that identity, do NOT look it up by name"*). At that moment the current action was **Log Nutrition** (Day Rhythm, now, AT RISK). The user named **Shower**. The model, unable to bind Shower, fired the call it had been handed. **A current-action fallback baked into the prompt** — and the action layer never compared the requested target with the resolved one before mutating.
+
+**Fixes (defence in depth):**
+1. **Prompt** — the lead no longer pre-fills any call. It states the identity is available in `current_action` and adds an explicit TARGET RULE: a named object is the target; the current action is never a substitute; if you cannot bind what they named, complete NOTHING.
+2. **Structural binding (the real fix)** — `complete_by_identity` now RESOLVES the object first via a new read-only `_peek_identity` (which also enforces ownership), VERIFIES it against `requested_target`, and only then mutates. Mismatch → new `target_mismatch` status, **zero mutation**, both identities audited, `establishes_absence: False`. requested → resolved → mutated must be the same canonical object.
+3. **Tool schema** — the model passes `title` alongside identity as the object it believes it is; WLJ verifies and refuses on disagreement. The schema states the absolute no-substitution rule.
+4. **Constitution** — new governing clause **EXACT TARGET INTEGRITY**: an explicitly named subject always outranks whatever WLJ is surfacing; no "best available"/"nearest"/"first result" for a write; and if the user rejects something just changed, REVERSE it immediately rather than apologizing and moving on.
+
+**Tests:** 9 new in `ExactTargetIntegrityTests` / `NoCurrentActionSubstitutionTests`, including a direct reproduction of the production failure (Shower requested + Log Nutrition's id supplied → `target_mismatch`, nothing mutated), mismatch auditing, correct completion still working, ownership isolation, and a guard that the lead never again pre-fills a completion call. **58 scoped tests pass.** `makemigrations --check` clean.
+
+**Notable:** the previously-shipped test `test_executive_lead_names_the_identity_call` REQUIRED the pre-filled call — it encoded the defect as a contract. Replaced with the safe invariant. Also removed every "Shower" literal from shipped code (the no-special-case test caught my own constitution example).
+
+**Production remediation still required (operator):** Log Nutrition remains wrongly completed on 2026-08-18. Reversal is a single click on the Dashboard (routine items are toggles, the canonical reversible authority). Not performed by Claude — a one-off data migration for a single user's row was explicitly out of bounds.
+
+**Files:** `apps/core/execution/execution_completion.py`, `apps/ai/cos_services/execution_completion.py`, `apps/ai/model_interface/{constitution,service}.py`, `apps/admin_console/views.py` (operator ToolCallLog forensics), tests. **M2 remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(cos): identity-first execution completion + action-result grounding ("Mark Shower complete")
 
 **Production friction.** The Dashboard showed **Shower** as the current executable action (07:00, visible Mark Complete, also under Morning Rhythm → Still Open). "Mark Shower complete" failed, and the CoS then speculated *"you might not have a scheduled routine item matching that exactly"* and *"it might not be listed as an incomplete task for today"* — contradicting deterministic truth on the same screen.

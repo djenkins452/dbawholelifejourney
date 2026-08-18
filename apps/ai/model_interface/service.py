@@ -606,18 +606,30 @@ class ModelInterfaceService:
         body = f"The single most important thing for this user right now: {headline}."
         if reason:
             body += f" (Why it leads: {reason}.)"
-        # EXECUTABLE IDENTITY (2026-08-18 incident). The action already carries the exact
-        # canonical occurrence WLJ is showing on screen. Name it here so completing it is
-        # an identity call, not a title guess — "Mark Shower complete" previously became a
-        # Task lookup that missed, and the model then doubted the screen.
+        # EXECUTABLE IDENTITY — WRONG-TARGET INCIDENT (2026-08-18, ToolCallLog
+        # bb930a1d). An earlier version of this lead pre-filled a ready-to-fire
+        # completion call carrying THIS action's identity and told the model "use that
+        # identity - do NOT look it up by name". The user asked to complete SHOWER while
+        # the current action was LOG NUTRITION; the model fired the handed call and
+        # mutated the wrong object. A current-action suggestion must NEVER become the
+        # target of a write the user did not ask for.
+        #
+        # The identity still travels in `current_action` for the model to USE - but only
+        # after it has decided the user actually means THIS item. No pre-built call, and
+        # an explicit rule that a named subject outranks this suggestion.
         _stype = (primary.get("source_type") or primary.get("source") or "").strip()
         _sid = primary.get("source_id", primary.get("pk"))
         if _stype and _sid is not None and primary.get("can_complete", True):
             body += (
-                f" It is EXECUTABLE and you can complete it directly: call "
-                f"complete_execution_item(source_type=\"{_stype}\", source_id={_sid}). "
-                f"Use that identity — do NOT look it up by name, and do NOT use "
-                f"complete_task unless source_type is 'task'."
+                " It is executable, and `current_action.primary_action` carries its "
+                "canonical `source_type` and `source_id`. TARGET RULE: if the user NAMES "
+                "an object ('mark my workout complete'), that named object is the target - "
+                "this current action is NOT a substitute for it, and you must never "
+                "complete this item because the one they named was harder to find. Use "
+                "this identity ONLY when the user is clearly referring to THIS item "
+                "('mark it done', 'finished that', 'complete my current task'). If you "
+                "cannot bind what they named to a specific object, complete NOTHING and "
+                "say so."
             )
         return (
             "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read) ===\n"

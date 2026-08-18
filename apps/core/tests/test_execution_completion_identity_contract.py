@@ -263,10 +263,20 @@ class GroundingInvariantTests(SimpleTestCase):
 class ExecutableIdentityDeliveryTests(SimpleTestCase):
     """Identity must be visible to the model, not merely present in the data."""
 
-    def test_executive_lead_names_the_identity_call(self):
+    def test_executive_lead_exposes_identity_without_prefilling_a_call(self):
+        """SUPERSEDED by the 2026-08-18 wrong-target incident.
+
+        This test previously required the lead to PRE-FILL
+        `complete_execution_item(source_type=..., source_id=...)` for the current action.
+        That is precisely what let "Mark Shower complete" mutate Log Nutrition. The lead
+        must point at the identity carried in context — never hand over a ready-to-fire
+        call for an object the user has not named.
+        """
         src = (REPO / "apps/ai/model_interface/service.py").read_text(encoding="utf-8")
-        self.assertIn("complete_execution_item(source_type=", src,
-                      "the current action must tell the model how to complete it by identity")
+        self.assertIn("canonical `source_type` and `source_id`", src,
+                      "the model must still know the identity is available")
+        self.assertIn("TARGET RULE", src,
+                      "the lead must state that a named object outranks the current action")
 
     def test_action_carries_source_id(self):
         src = (REPO / "apps/core/decision_engine/action_prioritizer.py").read_text(
@@ -280,3 +290,115 @@ class ExecutableIdentityDeliveryTests(SimpleTestCase):
         for banned in ("complete_routine_item", "complete_dose", "complete_execution"):
             self.assertNotIn(banned, ALLOWED_WRITE_INTENTS,
                              f"{banned} is a SECOND completion verb — extend the existing one")
+
+
+class ExactTargetIntegrityTests(TestCase):
+    """WRONG-TARGET MUTATION (2026-08-18, production ToolCallLog bb930a1d).
+
+    "Mark Shower complete" while the current action was Log Nutrition produced:
+        complete_execution_item(source_id=19, source_type="routine_item")
+        -> recorded "Log Nutrition"
+
+    The model was handed a pre-filled completion call carrying the CURRENT ACTION's
+    identity, and fired it for an object the user never named. Nothing in the action
+    layer compared the requested target with the resolved one before mutating.
+
+    INVARIANT: requested -> resolved -> mutated must be the SAME canonical object.
+    If binding cannot be proven, mutate NOTHING.
+    """
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = User.objects.create_user(email="ti@contract.test", password="x")
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.shower = RoutineSchedule.objects.create(
+            routine=self.routine, name="Shower", scheduled_time=datetime.time(7, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+        self.nutrition = RoutineSchedule.objects.create(
+            routine=self.routine, name="Log Nutrition",
+            scheduled_time=datetime.time(12, 0), is_active=True,
+            days_of_week="0,1,2,3,4,5,6")
+
+    def _complete(self, sched):
+        from apps.core.execution.completion_service import is_routine_item_complete
+        return is_routine_item_complete(self.user, sched, self.today)
+
+    def test_the_exact_production_failure_cannot_recur(self):
+        """Shower requested, Log Nutrition's identity supplied → nothing mutates."""
+        from apps.core.execution.execution_completion import complete_by_identity
+        result = complete_by_identity(
+            self.user, "routine_item", self.nutrition.pk, self.today,
+            requested_target="Shower")
+        self.assertEqual(result["status"], "target_mismatch", result)
+        self.assertFalse(result["detail"]["mutated"])
+        self.assertFalse(self._complete(self.nutrition),
+                         "THE PRODUCTION BUG: an object the user never named was mutated")
+        self.assertFalse(self._complete(self.shower))
+
+    def test_mismatch_is_audited_with_both_identities(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        result = complete_by_identity(
+            self.user, "routine_item", self.nutrition.pk, self.today,
+            requested_target="Shower")
+        self.assertEqual(result["detail"]["requested_target"], "Shower")
+        self.assertEqual(result["detail"]["resolved_target"], "Log Nutrition")
+        self.assertFalse(result["detail"]["establishes_absence"])
+
+    def test_matching_target_still_completes(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        result = complete_by_identity(
+            self.user, "routine_item", self.shower.pk, self.today,
+            requested_target="Shower")
+        self.assertEqual(result["status"], "recorded")
+        self.assertTrue(self._complete(self.shower))
+        self.assertFalse(self._complete(self.nutrition),
+                         "an unrelated object changed during a correct completion")
+
+    def test_binding_tolerates_harmless_title_variation(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        result = complete_by_identity(
+            self.user, "routine_item", self.shower.pk, self.today,
+            requested_target="shower ")
+        self.assertEqual(result["status"], "recorded")
+
+    def test_foreign_object_never_reaches_a_mutation_path(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        other = User.objects.create_user(email="ti2@contract.test", password="x")
+        result = complete_by_identity(other, "routine_item", self.shower.pk, self.today,
+                                      requested_target="Shower")
+        self.assertEqual(result["status"], "not_found")
+        self.assertFalse(self._complete(self.shower))
+
+    def test_cos_surface_passes_the_requested_target_through(self):
+        """The title the model states is used to VERIFY, never to select."""
+        from apps.ai.cos_services.execution_completion import complete_execution_item
+        out = complete_execution_item(
+            self.user, source_type="routine_item", source_id=self.nutrition.pk,
+            title="Shower")
+        self.assertEqual(out["status"], "target_mismatch")
+        self.assertFalse(self._complete(self.nutrition))
+
+
+class NoCurrentActionSubstitutionTests(SimpleTestCase):
+    """The prompt must not hand the model a ready-to-fire call for the current action."""
+
+    def test_executive_lead_does_not_prefill_a_completion_call(self):
+        src = (REPO / "apps/ai/model_interface/service.py").read_text(encoding="utf-8")
+        code = "\n".join(l for l in src.splitlines() if not l.strip().startswith("#"))
+        self.assertNotIn('complete_execution_item(source_type=\\"', code, (
+            "the executive lead pre-fills a completion call with the CURRENT ACTION's "
+            "identity. That is what caused Log Nutrition to be completed when the user "
+            "asked for Shower."))
+
+    def test_lead_states_that_a_named_object_outranks_the_current_action(self):
+        src = (REPO / "apps/ai/model_interface/service.py").read_text(encoding="utf-8")
+        self.assertIn("TARGET RULE", src)
+        self.assertIn("NOT a substitute", src)
+
+    def test_constitution_forbids_substituting_a_write_target(self):
+        src = (REPO / "apps/ai/model_interface/constitution.py").read_text(encoding="utf-8")
+        self.assertIn("EXACT TARGET INTEGRITY", src)
+        for phrase in ("outranks", "change NOTHING", "REVERSE it immediately"):
+            self.assertIn(phrase, src)

@@ -37,11 +37,15 @@ def complete_execution_item(user, kind=None, title=None, day=None, content=None,
         ("what am I doing now" vs "what did I already do yesterday").
     """
     if source_type and source_id is not None:
-        return _complete_by_identity(user, source_type, source_id, day)
+        # `title` (when the model supplies it) is the REQUESTED TARGET — used only to
+        # verify the identity points at what the user asked for. It never selects.
+        return _complete_by_identity(user, source_type, source_id, day,
+                                     requested_target=title)
     return _complete_by_title(user, kind or "", title or "", day=day, content=content)
 
 
-def _complete_by_identity(user, source_type, source_id, day=None) -> dict:
+def _complete_by_identity(user, source_type, source_id, day=None,
+                          requested_target=None) -> dict:
     """Identity path — the occurrence is already known. Defaults to TODAY."""
     from apps.core.execution.execution_completion import complete_by_identity
     today = _user_today(user)
@@ -56,7 +60,8 @@ def _complete_by_identity(user, source_type, source_id, day=None) -> dict:
             logger.warning("execution_completion: date resolve failed for %r", day,
                            exc_info=True)
     try:
-        out = complete_by_identity(user, source_type, source_id, target)
+        out = complete_by_identity(user, source_type, source_id, target,
+                                   requested_target=requested_target)
     except Exception:
         logger.warning("execution_completion: identity record failed", exc_info=True)
         return {"status": "error", "source_type": source_type, "source_id": source_id,

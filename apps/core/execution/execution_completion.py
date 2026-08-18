@@ -63,7 +63,22 @@ def kind_for_source_type(source_type):
     return SOURCE_TYPE_TO_KIND.get((source_type or "").strip().lower())
 
 
-def complete_by_identity(user, source_type, source_id, target_date):
+def _titles_agree(requested, resolved):
+    """Deterministic target binding: does the resolved object match what was requested?
+
+    Conservative and case/space-insensitive: either side containing the other counts as
+    agreement ("Workout" vs "Workout (5 min)"), anything else does not. A SAFETY
+    check, not a matcher — it never SELECTS an object, it only refuses one.
+    """
+    a = " ".join((requested or "").lower().split())
+    b = " ".join((resolved or "").lower().split())
+    if not a or not b:
+        return True          # nothing to compare against — binding not asserted
+    return a in b or b in a
+
+
+def complete_by_identity(user, source_type, source_id, target_date,
+                         requested_target=None):
     """Complete the EXACT occurrence identified by execution truth.
 
     Identity establishes the occurrence, so this never re-resolves from a display title
@@ -78,6 +93,30 @@ def complete_by_identity(user, source_type, source_id, target_date):
                        detail={"resolution": "unsupported_source_type",
                                "establishes_absence": False})
     try:
+        # TARGET INTEGRITY (2026-08-18). Resolve the object FIRST, verify it is the one
+        # the user asked for, and only then mutate. requested -> resolved -> mutated must
+        # be the same canonical object; a mismatch FAILS CLOSED and changes nothing.
+        resolved = _peek_identity(user, st, source_id)
+        if resolved is None:
+            return _result("not_found", kind, requested_target or "",
+                           message="That item no longer exists.",
+                           detail={"resolution": "identity_not_found",
+                                   "establishes_absence": True,
+                                   "requested_target": requested_target,
+                                   "source_id": source_id})
+        if not _titles_agree(requested_target, resolved):
+            logger.warning(
+                "execution_completion: TARGET MISMATCH user=%s requested=%r "
+                "resolved=%r source=%s/%s — refusing to mutate",
+                getattr(user, "id", None), requested_target, resolved, st, source_id)
+            return _result("target_mismatch", kind, resolved,
+                           message=(f"That id belongs to '{resolved}', not "
+                                    f"'{requested_target}'. I did not change anything."),
+                           detail={"resolution": "target_mismatch",
+                                   "establishes_absence": False,
+                                   "requested_target": requested_target,
+                                   "resolved_target": resolved,
+                                   "source_id": source_id, "mutated": False})
         if st == "task":
             return _complete_task_by_id(user, source_id, target_date)
         if st == "routine_item":
@@ -89,6 +128,36 @@ def complete_by_identity(user, source_type, source_id, target_date):
         return _result("error", kind, "",
                        message="That completion could not be recorded; nothing was changed.",
                        detail={"resolution": "error", "establishes_absence": False})
+
+
+def _peek_identity(user, source_type, source_id):
+    """Return the canonical TITLE of the owned object, or None. READ-ONLY — never writes.
+
+    Ownership is enforced here: a foreign object resolves to None, so a mismatched or
+    foreign id can never reach a mutation path.
+    """
+    try:
+        if source_type == "task":
+            from apps.life.models import Task
+            row = Task.objects.filter(pk=source_id, user=user, status="active").first()
+            return getattr(row, "title", None) if row else None
+        if source_type == "routine_item":
+            from apps.life.models import RoutineSchedule
+            row = (RoutineSchedule.objects
+                   .filter(pk=source_id, routine__user=user, is_active=True)
+                   .select_related("routine").first())
+            if not row:
+                return None
+            return (getattr(row, "item_name", "") or getattr(row, "name", "")
+                    or getattr(getattr(row, "routine", None), "name", "") or "")
+        from apps.health.models import IntakeSchedule
+        row = (IntakeSchedule.objects.filter(pk=source_id, intake__user=user)
+               .select_related("intake").first())
+        return getattr(getattr(row, "intake", None), "name", None) if row else None
+    except Exception:  # pragma: no cover - defensive; binding must fail closed
+        logger.warning("execution_completion: identity peek failed %s/%s",
+                       source_type, source_id, exc_info=True)
+        return None
 
 
 def _complete_task_by_id(user, source_id, target_date):

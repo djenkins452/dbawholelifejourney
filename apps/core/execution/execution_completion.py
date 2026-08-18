@@ -38,6 +38,136 @@ def _anchor_dt(target_date):
         return timezone.make_aware(naive)
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# IDENTITY-FIRST COMPLETION (2026-08-18 production incident)
+# ══════════════════════════════════════════════════════════════════════════════
+# Execution truth already carries canonical identity for every executable object it
+# surfaces (`source_type` + `source_id`, plus the same `toggle_url` the Dashboard button
+# posts to). Before this, the ONLY way in here was `kind` + display TITLE, so the model
+# had to translate a known object back into text and ask WLJ to rediscover it — which is
+# how "Mark Shower complete" became a Task lookup that missed and then a claim that
+# Shower might not be scheduled.
+#
+# ONE mapping, here, from the execution-truth vocabulary to this router's kind
+# vocabulary. Unsupported source types FAIL CLOSED.
+SOURCE_TYPE_TO_KIND = {
+    "task": "task",
+    "routine_item": "routine",
+    "medication_dose": "medications",
+    "supplement_dose": "medications",
+}
+
+
+def kind_for_source_type(source_type):
+    """Deterministic vocabulary bridge. Returns None for an unsupported source type."""
+    return SOURCE_TYPE_TO_KIND.get((source_type or "").strip().lower())
+
+
+def complete_by_identity(user, source_type, source_id, target_date):
+    """Complete the EXACT occurrence identified by execution truth.
+
+    Identity establishes the occurrence, so this never re-resolves from a display title
+    and never inherits a default day. Delegates to the SAME domain-owned authority the
+    corresponding UI control uses. Never raises.
+    """
+    st = (source_type or "").strip().lower()
+    kind = kind_for_source_type(st)
+    if kind is None:
+        return _result("unsupported", st or "unknown", "",
+                       message=f"'{source_type}' is not a completable execution type.",
+                       detail={"resolution": "unsupported_source_type",
+                               "establishes_absence": False})
+    try:
+        if st == "task":
+            return _complete_task_by_id(user, source_id, target_date)
+        if st == "routine_item":
+            return _complete_routine_by_id(user, source_id, target_date)
+        return _complete_dose_by_id(user, source_id, target_date, source_type=st)
+    except Exception:
+        logger.warning("execution_completion: identity completion failed %s/%s",
+                       st, source_id, exc_info=True)
+        return _result("error", kind, "",
+                       message="That completion could not be recorded; nothing was changed.",
+                       detail={"resolution": "error", "establishes_absence": False})
+
+
+def _complete_task_by_id(user, source_id, target_date):
+    """Delegate to the EXISTING canonical task authority (`Task.mark_complete`)."""
+    from apps.life.models import Task
+    task = Task.objects.filter(pk=source_id, user=user, status="active").first()
+    if task is None:
+        return _result("not_found", "task", "",
+                       message="That task no longer exists.",
+                       detail={"resolution": "identity_not_found",
+                               "establishes_absence": True, "source_id": source_id})
+    if getattr(task, "completion_status", "") == "completed":
+        return _result("already_complete", "task", task.title,
+                       detail={"source_id": source_id})
+    task.mark_complete()
+    return _result("recorded", "task", task.title,
+                   message=f"Marked '{task.title}' complete.",
+                   detail={"source_id": source_id})
+
+
+def _complete_routine_by_id(user, source_id, target_date):
+    """Delegate to `toggle_routine_completion` — the EXACT authority the Dashboard
+    routine control posts to (`dashboard_v2:routine_schedule_toggle`)."""
+    from apps.core.execution.completion_service import is_routine_item_complete
+    from apps.life.models import RoutineSchedule
+    from apps.life.services.routine_helpers import toggle_routine_completion
+
+    schedule = (RoutineSchedule.objects
+                .filter(pk=source_id, routine__user=user, is_active=True)
+                .select_related("routine").first())
+    if schedule is None:
+        return _result("not_found", "routine", "",
+                       message="That routine item no longer exists.",
+                       detail={"resolution": "identity_not_found",
+                               "establishes_absence": True, "source_id": source_id})
+    title = (getattr(schedule, "item_name", "") or getattr(schedule, "name", "")
+             or getattr(getattr(schedule, "routine", None), "name", "") or "")
+    try:
+        if is_routine_item_complete(user, schedule, target_date):
+            return _result("already_complete", "routine", title,
+                           detail={"source_id": source_id})
+    except Exception:
+        pass
+    toggle_routine_completion(user, schedule, target_date, completion_mode="scheduled")
+    return _result("recorded", "routine", title,
+                   message=f"Marked '{title}' complete.",
+                   detail={"source_id": source_id,
+                           "occurrence_date": target_date.isoformat()})
+
+
+def _complete_dose_by_id(user, source_id, target_date, *, source_type):
+    """Delegate to the shared dose authority the Dashboard control also uses."""
+    from apps.health.models import IntakeSchedule
+    from apps.health.services.dose_completion import complete_dose
+
+    schedule = (IntakeSchedule.objects
+                .filter(pk=source_id, intake__user=user)
+                .select_related("intake").first())
+    if schedule is None:
+        return _result("not_found", "medications", "",
+                       message="That scheduled dose no longer exists.",
+                       detail={"resolution": "identity_not_found",
+                               "establishes_absence": True, "source_id": source_id})
+    out = complete_dose(user, schedule, target_date)
+    title = out.get("title", "")
+    if out["status"] == "already_complete":
+        return _result("already_complete", "medications", title,
+                       detail={"source_id": source_id})
+    if out["status"] == "not_applicable":
+        return _result("unsupported", "medications", title,
+                       message="That dose is not scheduled for that day.",
+                       detail={"resolution": "not_scheduled_that_day",
+                               "establishes_absence": False, "source_id": source_id})
+    return _result("recorded", "medications", title,
+                   message=f"Recorded '{title}' as taken.",
+                   detail={"source_id": source_id,
+                           "occurrence_date": target_date.isoformat()})
+
+
 def complete_execution_item(user, kind, title, target_date, *, content=None):
     """Record completion of ONE execution item (identified by kind + title) on
     `target_date`, reusing the existing per-domain write. `content` carries the actual

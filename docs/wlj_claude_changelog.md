@@ -6,6 +6,32 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): identity-first execution completion + action-result grounding ("Mark Shower complete")
+
+**Production friction.** The Dashboard showed **Shower** as the current executable action (07:00, visible Mark Complete, also under Morning Rhythm → Still Open). "Mark Shower complete" failed, and the CoS then speculated *"you might not have a scheduled routine item matching that exactly"* and *"it might not be listed as an incomplete task for today"* — contradicting deterministic truth on the same screen.
+
+**Two defects, different layers.**
+1. **Identity delivered but unusable.** Execution truth already carries `source_type` + occurrence id + `toggle_url` for every executable object, and `enrich_action` copies it into the envelope — but the model-facing completion verb accepted only `kind` + display **title**, with a `kind` vocabulary (`task`/`routine`/`medications`) that differs from the execution vocabulary (`task`/`routine_item`/`medication_dose`/`supplement_dose`). With no way to pass identity it already had, the model reached for `complete_task`, which searches `Task.objects` by title — and Shower is a `RoutineSchedule`. Miss.
+2. **A type-scoped miss read as global absence.** `complete_task` returned *"I couldn't find an incomplete task matching 'Shower'"* — true about Tasks, false about reality — and the model generalized it.
+
+**Corrected diagnosis (an earlier one was wrong and is recorded as a lesson).** A first pass concluded "no routine-completion capability exists" from a grep for `complete_routine_item`. False: `complete_execution_item` already existed, was already model-facing, and its routine branch already delegated to `toggle_routine_completion` — the Dashboard's own authority. Building the originally-approved new intent would have created a SECOND completion verb. Lesson persisted in `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` (prove absence by tracing registered tools to their delegation targets, never by name search).
+
+**Fix — extend the existing authority; no new intent.**
+- **Identity-first params** on `complete_execution_item`: `source_type` + `source_id`. When present they win, the exact occurrence is completed, and there is **no title rediscovery**. Legacy `kind`+`title` is untouched for `get_execution_review` reconciliation.
+- **One vocabulary bridge** — `SOURCE_TYPE_TO_KIND` in `apps/core/execution/execution_completion.py`; unsupported types **fail closed**. A test asserts the mapping exists in exactly one place.
+- **Temporal split**: identity path defaults to **today** (a current action is today's occurrence); the retrospective path keeps its **yesterday** default. Both are tested.
+- **Per-type delegation to the existing canonical authority** — task → `Task.mark_complete()`; routine_item → `toggle_routine_completion` (the Dashboard's authority, asserted by test); dose → the new shared service below.
+- **Dose convergence (the one genuine gap):** dose completion lived INLINE in `IntakeLogAction.post`, so the UI and CoS had nothing to share. Extracted verbatim to `apps/health/services/dose_completion.py`; the Dashboard view now calls it, and so does the CoS. Medications and supplements share one authority because they share `IntakeSchedule`/`IntakeLog`.
+- **Discoverability**: the tool description now leads with identity-first current-action completion (retrospective use preserved), and the executive lead names the exact call for the current action — no second context block, no Shower special case (asserted by test).
+
+**Grounding (separate defect class).** `ActionResult` gained a structured `data` field, carried through the action envelope as `evidence` to the model. `complete_task`'s miss now returns `error='task_type_no_match'` with `searched_type`, `resolution`, `retry_with`, and — the load-bearing field — **`establishes_absence: False`**. The message was also rewritten to make no claims (even negated) about scheduling or completion. A new Constitution clause states that **an action failure never overturns established truth** and references `establishes_absence`. Fixed at the result contract first, not by prompt-patching a sentence.
+
+**Class scope.** Applies to every executable type WLJ surfaces, not Shower: `task`, `routine_item`, `medication_dose`, `supplement_dose`.
+
+**Tests:** 24 new in `apps/core/tests/test_execution_completion_identity_contract.py` — vocabulary bridge + fail-closed · routine completes by identity via the Dashboard authority · idempotency · foreign-user and invalid-id mutate nothing · task identity path · dose service convergence (and the view no longer inlines it) · today-vs-yesterday semantics both directions · `establishes_absence` contract · no Shower special-case · no second completion intent. **57 scoped tests run; all pass except two PRE-EXISTING `test_action_interface.BoundConfirmationTests` failures (verified pre-existing by stashing this change).** `makemigrations --check` clean; no model changes.
+
+**Files:** `apps/core/execution/execution_completion.py`, `apps/ai/cos_services/execution_completion.py`, `apps/health/services/dose_completion.py` (new), `apps/dashboard_v2/views.py`, `apps/ai/model_interface/{constitution,service}.py`, `apps/ai/action_handlers.py`, `apps/ai/intent_service.py`, `apps/ai/cos_services/{action_execution,action_interface}.py`, `apps/core/decision_engine/action_prioritizer.py`, `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`, tests. **M2 Personal Knowledge work remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(prefs): M1 regression — selecting a persona blanked the page (root-scroll escape)
 
 **Symptom (production, immediately after `fd400b15`).** Preferences rendered correctly; clicking a persona tile blanked the main content area while the app shell remained.

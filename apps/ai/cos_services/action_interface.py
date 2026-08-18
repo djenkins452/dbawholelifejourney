@@ -50,11 +50,18 @@ def _map_result(env: dict) -> dict:
     if status == "confirmation_required":
         return {"status": CONFIRMATION_REQUIRED, "result": message}
     # failed / denied / error → error, but carry the REAL reason.
-    return {
+    out = {
         "status": ERROR,
         "result": message or "That action could not be completed.",
         "code": env.get("code", status),
     }
+    evidence = env.get("evidence")
+    if isinstance(evidence, dict) and evidence:
+        # GROUNDING CONTRACT: `establishes_absence` tells the model whether this failure
+        # actually proves the object is absent from WLJ, or only that this handler/type
+        # did not match. A type-scoped miss must never be reported as global absence.
+        out["evidence"] = evidence
+    return out
 
 
 def request_action(user, action, params=None, *, turn_id="", surface="",

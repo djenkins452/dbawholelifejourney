@@ -540,6 +540,13 @@ def prioritize_execution_items(
             a['execution_status'] = meta.get('execution_status')
             a['domain'] = meta.get('domain')
             a['source_type'] = meta.get('source_type')
+            # Canonical occurrence identity (2026-08-18 incident). `source_type` alone
+            # is not actionable; carrying `source_id` lets the CoS complete THE exact
+            # occurrence the Dashboard is showing instead of re-resolving by title.
+            # Grouped medicine actions have no single occurrence id, so this stays absent
+            # for them and identity-first completion simply does not offer itself.
+            if meta.get('source_id') is not None:
+                a['source_id'] = meta.get('source_id')
         else:
             # Binary actions and unmapped items: safe defaults.
             a.setdefault('task_class', None)

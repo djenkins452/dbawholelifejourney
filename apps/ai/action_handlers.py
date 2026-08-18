@@ -4020,10 +4020,35 @@ class ActionHandler:
                         ),
                         error='task_not_found'
                     )
+                # TYPE-SCOPED MISS - NOT global absence (2026-08-18 incident).
+                # This handler only searches Tasks. WLJ also surfaces routine items and
+                # medication/supplement doses as executable, and any of those can be the
+                # thing the user just asked to complete. Saying "I couldn't find an
+                # incomplete task matching X" was read by the model as "X does not exist /
+                # is not scheduled / is not incomplete" - contradicting Current Context on
+                # the same screen. The result now says exactly what was searched, and the
+                # structured fields let the continuation tell the two cases apart.
                 return ActionResult(
                     success=False,
-                    message=f"I couldn't find an incomplete task matching '{task_keyword}'.",
-                    error='task_not_found'
+                    message=(
+                        f"I searched your Tasks only, and none match '{task_keyword}'. "
+                        f"This result speaks about Tasks and nothing else. WLJ also tracks "
+                        f"routine items and medication/supplement doses as executable, so "
+                        f"if '{task_keyword}' is on their screen it is one of those: "
+                        f"complete it with complete_execution_item using its source_type "
+                        f"and source_id from the current action or execution truth."
+                    ),
+                    error='task_type_no_match',
+                    action_type='complete_task',
+                    data={
+                        'searched_type': 'task',
+                        'resolution': 'type_scoped_no_match',
+                        # The single field the continuation must respect: this result does
+                        # NOT establish that the object is absent from WLJ.
+                        'establishes_absence': False,
+                        'query': task_keyword,
+                        'retry_with': 'complete_execution_item(source_type, source_id)',
+                    },
                 )
             elif count == 1:
                 task = tasks[0]

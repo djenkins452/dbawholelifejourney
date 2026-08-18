@@ -52,6 +52,12 @@ class ActionResult:
     error: Optional[str] = None
     action_type: Optional[str] = None
     confirmation_detail: Optional[Dict[str, Any]] = None
+    # STRUCTURED EVIDENCE for the continuation (2026-08-18 incident). A failure message
+    # alone is too easy to over-generalize: "I couldn't find an incomplete task matching
+    # X" was read as "X does not exist". Handlers put machine-checkable facts here —
+    # notably `establishes_absence`, which says whether the result actually proves the
+    # object is absent from WLJ, or only that THIS handler/type did not match.
+    data: Optional[Dict[str, Any]] = None
 
 
 class IntentService:

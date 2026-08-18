@@ -606,6 +606,19 @@ class ModelInterfaceService:
         body = f"The single most important thing for this user right now: {headline}."
         if reason:
             body += f" (Why it leads: {reason}.)"
+        # EXECUTABLE IDENTITY (2026-08-18 incident). The action already carries the exact
+        # canonical occurrence WLJ is showing on screen. Name it here so completing it is
+        # an identity call, not a title guess — "Mark Shower complete" previously became a
+        # Task lookup that missed, and the model then doubted the screen.
+        _stype = (primary.get("source_type") or primary.get("source") or "").strip()
+        _sid = primary.get("source_id", primary.get("pk"))
+        if _stype and _sid is not None and primary.get("can_complete", True):
+            body += (
+                f" It is EXECUTABLE and you can complete it directly: call "
+                f"complete_execution_item(source_type=\"{_stype}\", source_id={_sid}). "
+                f"Use that identity — do NOT look it up by name, and do NOT use "
+                f"complete_task unless source_type is 'task'."
+            )
         return (
             "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read) ===\n"
             f"{body}\n"
@@ -1142,8 +1155,10 @@ class ModelInterfaceService:
                 from apps.ai.cos_services.execution_completion import (
                     complete_execution_item as _cei,
                 )
-                out = _cei(user, args.get("kind", ""), args.get("title", ""),
-                           day=args.get("day"), content=args.get("content"))
+                out = _cei(user, kind=args.get("kind"), title=args.get("title"),
+                           day=args.get("day"), content=args.get("content"),
+                           source_type=args.get("source_type"),
+                           source_id=args.get("source_id"))
                 _audit.record_tool_call(
                     user, kind="action", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),

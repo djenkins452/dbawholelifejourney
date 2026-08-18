@@ -179,6 +179,18 @@ CONSTITUTION = (
     "deterministic health data and an accurate EXPLAINER of established medical knowledge — "
     "never their clinician, and never a replacement for professional medical judgment.\n"
     "\n"
+    "ACTION FAILURE NEVER OVERTURNS ESTABLISHED TRUTH (governing). A failed or "
+    "unresolved action tells you that a CAPABILITY did not work. It does NOT tell you "
+    "that the thing does not exist, is not scheduled, or is not incomplete. When "
+    "Current Context, current_action or a truth tool has already established an "
+    "object and its state, that truth STANDS after the failure - say the action "
+    "failed and what you will do next, and NEVER speculate that the object may be "
+    "absent, unscheduled or already done in order to explain the failure. An action "
+    "result carries `evidence`: when `establishes_absence` is false, that result "
+    "rules out only the path you tried - the object may well exist under a different "
+    "execution type, so retry the way the result tells you to rather than doubting "
+    "the user or the screen in front of them.\n"
+    "\n"
     "RELATIONSHIP: Honor the user's AI Relationship (their chosen name for you, their "
     "chosen PERSONA and its voice, default relationship, communication style, "
     "accountability, proactivity and boundaries) provided in the context. The persona is "
@@ -1555,6 +1567,20 @@ def _complete_execution_item_tool():
     return {"type": "function", "function": {
         "name": "complete_execution_item",
         "description": (
+            "THE completion verb for anything WLJ is tracking as an execution item - both "
+            "the CURRENT action and a retrospective review item. "
+            "IDENTITY FIRST: when `current_action.primary_action` (or any execution item) "
+            "carries `source_type` and `pk`/`source_id`, pass them as `source_type` + "
+            "`source_id` and OMIT kind/title. That completes THAT EXACT occurrence through "
+            "the same deterministic path the on-screen control uses, defaults to TODAY, and "
+            "needs no name lookup. Use this whenever the user says to complete, finish, mark "
+            "done or check off the thing WLJ is currently showing them - whatever type it is "
+            "(routine item, task, medication or supplement dose). Do NOT reach for "
+            "complete_task for a non-task execution item; complete_task only searches Tasks "
+            "and will miss. "
+            "RETROSPECTIVE (unchanged): when there is no identity - reconciling a past day "
+            "from get_execution_review - pass `kind` + `title` exactly as it returned them "
+            "and the `day` in the user's words; that path still defaults to yesterday. "
             "Record that ONE execution item was completed, ON THE DAY IT ACTUALLY HAPPENED "
             "(you reconcile reality, not data-entry time — 'yes, I took my meds yesterday' "
             "updates YESTERDAY). Use this after the user confirms they did an item from "
@@ -1575,8 +1601,18 @@ def _complete_execution_item_tool():
             "reconciling the day, then continue to the next item."
         ),
         "parameters": {"type": "object", "properties": {
+            "source_type": {"type": "string",
+                            "description": ("PREFERRED. The canonical execution type from "
+                                            "execution truth / current_action — 'task', "
+                                            "'routine_item', 'medication_dose', "
+                                            "'supplement_dose'. Pass with source_id.")},
+            "source_id": {"type": "integer",
+                          "description": ("PREFERRED. The canonical id (`pk`/`source_id`) of "
+                                          "the exact occurrence, straight from the context. "
+                                          "With this, no title lookup happens.")},
             "kind": {"type": "string",
-                     "description": ("The item kind from get_execution_review — e.g. 'task', "
+                     "description": ("Legacy/retrospective path only, when no identity is "
+                                     "available. The item kind from get_execution_review — e.g. 'task', "
                                      "'medications', 'prayer', 'bible_reading', 'workout', "
                                      "'journal', 'routine'.")},
             "title": {"type": "string",
@@ -1589,7 +1625,7 @@ def _complete_execution_item_tool():
                                         "wrote/reflected on that day. Omit on the first call (you "
                                         "will get needs_info asking for it); provide it on the "
                                         "follow-up call to record the entry dated to that day.")},
-        }, "required": ["kind", "title"]}}}
+        }, "required": []}}}
 
 
 def _next_review_item_tool():

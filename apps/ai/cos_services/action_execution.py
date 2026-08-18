@@ -234,5 +234,9 @@ def execute_action(user, action, params):
         message=getattr(result, "message", ""),
         result=_jsonsafe(getattr(result, "created_object", None)),
         error=err,
+        # Structured EVIDENCE from the handler (2026-08-18 incident). Carries machine-
+        # checkable facts about a failure — notably `establishes_absence` — so the
+        # continuation can tell "this handler did not match" from "WLJ has no such object".
+        evidence=_jsonsafe(getattr(result, "data", None)),
         _meta={"duration_ms": round(ms, 1)},
     )

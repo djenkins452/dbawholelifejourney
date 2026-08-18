@@ -828,47 +828,19 @@ class IntakeLogAction(LoginRequiredMixin, View):
         if not schedule.applies_to_day(target_date.weekday()):
             return _render_action_center(request)
 
-        # Check if already logged for that day
-        existing = IntakeLog.objects.filter(
-            user=request.user,
-            intake=medicine,
-            schedule=schedule,
-            scheduled_date=target_date,
-            log_status__in=["taken", "late"],
-        ).first()
-
-        if existing:
-            # Undo: delete log and restore supply
-            existing.delete()
-            if medicine.current_supply is not None:
-                medicine.current_supply += 1
-                medicine.save(update_fields=["current_supply", "updated_at"])
+        # ONE authority (2026-08-18): this logic moved to
+        # apps/health/services/dose_completion.py so the Dashboard control and the Chief
+        # of Staff complete the SAME occurrence through the SAME deterministic path.
+        # Behaviour is unchanged — occurrence-scoped scheduled_date, mark_taken() for
+        # late/on-time classification, supply adjustment, and the domain event.
+        from apps.health.services.dose_completion import (
+            complete_dose, is_dose_complete, undo_dose,
+        )
+        if is_dose_complete(request.user, schedule, target_date):
+            undo_dose(request.user, schedule, target_date)
         else:
-            # Create log with canonical fields
-            log, _created = IntakeLog.objects.get_or_create(
-                user=request.user,
-                intake=medicine,
-                schedule=schedule,
-                scheduled_date=target_date,
-                defaults={
-                    "scheduled_time": schedule.scheduled_time,
-                    "is_prn_dose": False,
-                    "source": IntakeLog.SOURCE_UI_PER_ITEM,
-                },
-            )
-            # mark_taken handles late/on-time classification via grace period
-            log.mark_taken(source=IntakeLog.SOURCE_UI_PER_ITEM)
-
-            # Decrement supply if tracked
-            if medicine.current_supply is not None and medicine.current_supply > 0:
-                medicine.current_supply -= 1
-                medicine.save(update_fields=["current_supply", "updated_at"])
-
-            # Fire event for signal pipeline
-            safe_emit_event(EventTypes.HEALTH_MEDICATION_TAKEN, request.user, {
-                "log_id": log.id, "medicine_name": medicine.name,
-                "source": "dashboard_action_center",
-            })
+            complete_dose(request.user, schedule, target_date,
+                          source=IntakeLog.SOURCE_UI_PER_ITEM)
 
         # Return unified action center
         return _render_action_center(request)

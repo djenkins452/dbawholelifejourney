@@ -106,6 +106,28 @@ passing is NOT verification — the browser displaying the corrected behavior is
 
 ---
 
+## Proving a capability is ABSENT (2026-08-18)
+
+**A name search is not proof of absence.** While diagnosing the "Mark Shower complete"
+incident, a grep for `complete_routine_item` returned nothing, and that was reported as
+*"no routine-completion capability exists anywhere."* It was wrong. `complete_execution_item`
+already existed, was already model-facing, and its routine branch already delegated to
+`toggle_routine_completion` — the exact authority the Dashboard button uses. The proposed
+fix would have added a **second** model-facing completion verb for objects that already
+had one.
+
+Before declaring a capability missing, trace it **by behaviour, not by name**:
+
+1. Enumerate the tools/intents actually **registered** for the runtime (e.g. `all_tools()`,
+   `ALLOWED_WRITE_INTENTS`, the intent registry) — not the names you expect to find.
+2. Follow each plausible candidate to its **delegation target** and see which domain
+   authority it ends at.
+3. Compare that target with the authority the **visible UI control** uses. If they match,
+   the capability exists and the defect is discoverability, parameters, or routing.
+
+The corrected fix was much smaller: extend the existing verb to accept canonical identity,
+rather than build a parallel one.
+
 ## Anti-Patterns (do NOT)
 - Modify code because it *looks* related.
 - Improve nearby code before proving ownership.

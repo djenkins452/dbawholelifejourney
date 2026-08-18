@@ -3685,17 +3685,33 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             return JsonResponse({'error': f'analysis failed: {exc!r}',
                                  'web_commit': web_commit}, status=500)
 
-        # --- recent get_analysis ToolCallLog rows for this user (forensics) ---
+        # --- recent ToolCallLog rows for this user (forensics) ---
+        # `tool=` selects which tool to inspect (default get_analysis, the truth path).
+        # `tool=*` returns EVERY recent call, and `kind=action` narrows to write actions —
+        # required to investigate a wrong-target mutation, where the question is which
+        # tool the model chose and with WHAT ARGUMENTS. Read-only; args/digests only.
         recent_calls = []
         try:
             from apps.ai.models import ToolCallLog
-            for row in (ToolCallLog.objects
-                        .filter(user=user, tool_name='get_analysis')
-                        .order_by('-created_at')[:5]):
+            tool = (request.GET.get('tool') or 'get_analysis').strip()
+            kind = (request.GET.get('kind') or '').strip()
+            try:
+                limit = max(1, min(int(request.GET.get('calls') or 5), 40))
+            except (TypeError, ValueError):
+                limit = 5
+            qs = ToolCallLog.objects.filter(user=user)
+            if tool and tool != '*':
+                qs = qs.filter(tool_name=tool)
+            if kind:
+                qs = qs.filter(kind=kind)
+            for row in qs.order_by('-created_at')[:limit]:
                 recent_calls.append({
                     'created_at': row.created_at.isoformat(),
+                    'kind': row.kind, 'tool_name': row.tool_name,
                     'args': row.args, 'result_status': row.result_status,
-                    'turn_id': row.turn_id,
+                    'result_digest': row.result_digest,
+                    'turn_id': row.turn_id, 'conversation_id': row.conversation_id,
+                    'surface': row.surface,
                 })
         except Exception as exc:
             recent_calls = [{'error': repr(exc)}]

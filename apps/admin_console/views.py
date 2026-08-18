@@ -3685,6 +3685,47 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             return JsonResponse({'error': f'analysis failed: {exc!r}',
                                  'web_commit': web_commit}, status=500)
 
+        # --- routine occurrence forensics (read-only) ---
+        # `routine=<name fragment>` dumps the canonical RoutineSchedule rows and their
+        # RoutineLog records for the requested day. Prose in a transcript is not evidence;
+        # these rows are. Read-only — never writes.
+        routine_forensics = None
+        routine_q = (request.GET.get('routine') or '').strip()
+        if routine_q:
+            routine_forensics = []
+            try:
+                from datetime import date as _d
+                from apps.core.utils import get_user_today
+                from apps.life.models import RoutineLog, RoutineSchedule
+                day_s = (request.GET.get('day') or '').strip()
+                day = (_d.fromisoformat(day_s) if day_s
+                       else (get_user_today(user) or _d.today()))
+                for sched in (RoutineSchedule.objects
+                              .filter(routine__user=user, name__icontains=routine_q)
+                              .select_related('routine')):
+                    logs = [{
+                        'id': lg.id,
+                        'scheduled_date': str(getattr(lg, 'scheduled_date', '')),
+                        'log_status': getattr(lg, 'log_status', ''),
+                        'completed_at': str(getattr(lg, 'completed_at', '') or ''),
+                        'performed_at': str(getattr(lg, 'performed_at', '') or ''),
+                        'completion_source': getattr(lg, 'completion_source', ''),
+                        'is_user_corrected': getattr(lg, 'is_user_corrected', None),
+                        'created_at': str(getattr(lg, 'created_at', '') or ''),
+                    } for lg in RoutineLog.objects.filter(
+                        user=user, schedule=sched).order_by('-scheduled_date', '-id')[:10]]
+                    routine_forensics.append({
+                        'schedule_id': sched.id, 'name': sched.name,
+                        'routine': getattr(sched.routine, 'name', ''),
+                        'is_active': sched.is_active,
+                        'days_of_week': getattr(sched, 'days_of_week', ''),
+                        'scheduled_time': str(getattr(sched, 'scheduled_time', '') or ''),
+                        'queried_day': str(day),
+                        'logs': logs,
+                    })
+            except Exception as exc:
+                routine_forensics = {'error': repr(exc)}
+
         # --- recent ToolCallLog rows for this user (forensics) ---
         # `tool=` selects which tool to inspect (default get_analysis, the truth path).
         # `tool=*` returns EVERY recent call, and `kind=action` narrows to write actions —
@@ -3723,6 +3764,7 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
                       'period': period},
             'envelope': envelope,
             'recent_get_analysis_calls': recent_calls,
+            'routine_forensics': routine_forensics,
         }, json_dumps_params={'default': str})
 
 

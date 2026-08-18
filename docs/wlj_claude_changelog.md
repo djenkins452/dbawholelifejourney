@@ -6,6 +6,30 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(prefs): M1 regression — selecting a persona blanked the page (root-scroll escape)
+
+**Symptom (production, immediately after `fd400b15`).** Preferences rendered correctly; clicking a persona tile blanked the main content area while the app shell remained.
+
+**Root cause — PROVEN in a real browser, not inferred.** `.coaching-style-card input[type="radio"]` is `position: absolute` (visually hidden), but `.coaching-style-card` was `position: static` — so the radio had **no positioned ancestor** and its containing block was the **initial containing block (the root)**. Its box therefore resolved to a document-level coordinate. Clicking the `<label>` focuses that radio, and the browser scrolls the **focused element** into view **at the root**, dragging `<body>` — the entire app shell — off the top of the window.
+
+**Runtime evidence:** the click generated **no request at all** (network log empty of any POST/navigation) and the DOM was fully intact (43 body children, shell present, form 3054px tall, accordions still `is-open`, `checkedPersona = texas_rancher`) — but `<body>` measured at `y = -1190` and the root was scrolled to its maximum. Before the fix `documentElement.scrollHeight = 1910` vs `clientHeight = 720` (**1190px of root overflow**, contributed entirely by the escaped absolutely-positioned radios); after the fix **720 == 720 — the root is no longer scrollable at all**. This is the standing WLJ rule: the app shell owns scrolling; page content must never scroll the viewport.
+
+**Not an M1-authored bug, but an M1-triggered one.** The CSS predates M1 (present at `d4922bab` and earlier). M1 added 10 personas plus three new radio-card groups, making the section tall enough for the root to overflow — which is what turned a latent containing-block error into a blank screen.
+
+**Fix (one line + comment):** `.coaching-style-card { position: relative; }`, so the radio is contained by its own card and can never resolve against the root. This removes the CONDITION rather than intercepting the scroll — no event-handler patch, no `preventDefault`, no forced reload.
+
+**Second defect found while verifying (also fixed).** M1 deliberately removed `assistant_confirm_actions` and `preference_learning_enabled` from the ModelForm (to stop a partial POST resetting them), but the template still rendered them from `form.<field>.value` — which no longer existed. Both checkboxes therefore rendered **unchecked**, and saving the page **silently switched both settings off**. Now rendered from the resolved projection (`cos_confirm_actions`, `cos_preference_learning`), with a regression test asserting a stored-True toggle renders checked and survives a save.
+
+**Persona persistence was never broken** — the selection saved correctly even while the screen was blank; the defect was purely visual/interaction.
+
+**Regression coverage (8 new tests, at the real interaction altitude — `PersonaSelectionInteractionTests`):** page renders with the gallery · the card establishes a containing block for its radio (the defect itself) · selecting a persona returns a **rendered** page, not blank · the persona persists · reload shows it selected · **no other CoS setting changes and AI consent is untouched** · toggles reflect stored state rather than a missing form field · persona tiles do **not** auto-submit (no `.submit()`/`requestSubmit`/`fetch`/`location.href` in the change handler — the selection is saved with the page). The save path submits the **real rendered form** scraped from the page, so it exercises the customer's actual interaction rather than a hand-written subset.
+
+**Verification:** 314 scoped tests PASS; all 34 personalization-contract tests PASS (T1-T4, T22 unchanged and green); `makemigrations --check` clean; browser-verified before/after on the real page (click → tile selected, page fully usable, shell intact, display name applied). **No real-model smoke** — the change is CSS + template/context wiring only; the model-facing persona projection is untouched and its deterministic tests remain green.
+
+**M1 invariants preserved:** persona first-class · persona persists canonically · persona instructions still reach `model_interface` (974-char Texas Rancher voice verified) · explicit settings still override persona defaults · partial interactions do not reset unrelated settings · AI consent unaltered · one unified Preferences authority · no M2+ functionality pulled forward.
+
+**Files:** `templates/users/preferences.html`, `apps/users/views.py`, `apps/core/tests/test_personalization_contract.py`.
+
 ## 2026-08-18 — feat(cos): M1 — Personas reach the certified CoS + one unified Chief of Staff settings home
 
 **Why.** M0 froze the contracts; M1 makes the customer statement true: *"I choose who my Chief of Staff is and how it works with me, and those choices actually affect the Chief of Staff I experience."* A runtime proof BEFORE any change (`ModelInterfaceService.build_standing_context` + `_system_prompt`, distinctive non-default values) showed **7 of 14 M1 preferences reached the envelope**: the persona arrived as the bare slug `"texas_rancher"` with **no voice instructions at all**, and `sensitivity_tags`, `event_reflections_enabled`, `relationship_suggestions_enabled` reached it **not at all**. Same first failing layer for every one — **Layer 1: the `ai_relationship` projection under-projected.** One seam, not five. After the fix: **14/14**, with no second context block.

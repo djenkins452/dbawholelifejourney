@@ -470,3 +470,222 @@ class ExistingChoicePreservationTests(TestCase):
         self.assertEqual(fresh.preferences.knowledge_invitations, "occasionally")
         self.assertEqual(
             CANONICAL_PREFERENCES["knowledge_invitations"]["default"], "occasionally")
+
+
+class PersonaSelectionInteractionTests(TestCase):
+    """M1 PRODUCTION REGRESSION (2026-08-18) — selecting a persona blanked the page.
+
+    ROOT CAUSE: `.coaching-style-card input[type="radio"]` is `position: absolute` while
+    `.coaching-style-card` was `position: static`. With no positioned ancestor the radio's
+    containing block was the INITIAL containing block (the root), so its box resolved to a
+    document-level coordinate. Clicking the label focuses that radio, the browser scrolls
+    the FOCUSED ELEMENT into view — at the ROOT — and dragged the whole app shell
+    off-screen. Browser-proven: root scrollHeight 1910 vs clientHeight 720 (1190px of root
+    overflow) before the fix; 720 == 720 after. WLJ rule: the app shell owns scrolling;
+    page content must never scroll the viewport.
+
+    The CSS predates M1; M1 made the section tall enough for the root to overflow. These
+    tests cover the CUSTOMER INTERACTION, not the CSS text alone.
+    """
+
+    def setUp(self):
+        from apps.ai.models import CoachingStyle
+        from django.conf import settings as dj_settings
+        from apps.users.models import TermsAcceptance
+        for key, name, instr in (
+            ("supportive", "Supportive Partner", "Be warm but balanced, like a trusted friend."),
+            ("texas_rancher", "Texas Rancher", "Talk like someone who has worked the land."),
+        ):
+            CoachingStyle.objects.get_or_create(
+                key=key, defaults=dict(name=name, description=f"{name} voice.",
+                                       prompt_instructions=instr, is_active=True))
+        self.user = User.objects.create_user(
+            email="regress@contract.test", password="regress-pw-1", first_name="Reg")
+        self.user.has_completed_onboarding = True
+        self.user.save()
+        TermsAcceptance.objects.get_or_create(
+            user=self.user,
+            defaults={"terms_version": dj_settings.WLJ_SETTINGS["TERMS_VERSION"]})
+        prefs = self.user.preferences
+        prefs.ai_enabled = True
+        prefs.ai_data_consent = True
+        prefs.has_completed_onboarding = True
+        prefs.ai_coaching_style = "supportive"
+        prefs.cos_display_name = "Ranger"
+        prefs.cos_response_style = "deep_dive"
+        prefs.assistant_confirm_actions = True
+        prefs.preference_learning_enabled = True
+        prefs.knowledge_invitations = "naturally"
+        prefs.save()
+        from apps.core.blueprint.engine import get_blueprint
+        bp = get_blueprint(self.user)
+        bp.accountability_style = "firm"
+        bp.question_frequency = "low"
+        bp.sensitivity_tags = ["grief"]
+        bp.save()
+        self.client.force_login(self.user)
+
+    def _url(self):
+        from django.urls import reverse
+        return reverse("users:preferences")
+
+    # -- 1. the page renders -------------------------------------------------
+    def test_preferences_page_renders_with_the_persona_gallery(self):
+        r = self.client.get(self._url())
+        self.assertEqual(r.status_code, 200)
+        html = r.content.decode()
+        self.assertIn("Your Chief of Staff", html)
+        self.assertIn('name="ai_coaching_style"', html)
+        self.assertIn("Texas Rancher", html)
+
+    # -- 2. the interaction cannot scroll the ROOT ---------------------------
+    def test_persona_card_establishes_a_containing_block_for_its_radio(self):
+        """The defect itself: an absolutely-positioned radio must not escape its card.
+
+        Without `position: relative` on the card, focusing the radio scrolls the ROOT and
+        the entire app shell leaves the screen — the blank page Danny reported.
+        """
+        html = self.client.get(self._url()).content.decode()
+        start = html.index(".coaching-style-card {")
+        block = html[start:html.index("}", start)]
+        self.assertIn("position: relative", block, (
+            "REGRESSION: .coaching-style-card lost its containing block. Its radio is "
+            "position:absolute; without a positioned ancestor the radio resolves against "
+            "the ROOT, and clicking a persona scrolls the whole app shell off-screen."))
+
+    # -- 3-6. the real save path -------------------------------------------
+    def _full_form_post(self, **overrides):
+        """Submit the REAL rendered form, exactly as the browser does.
+
+        The page posts every control together, so the payload is scraped from the
+        rendered HTML rather than hand-written — a hand-written subset fails ModelForm
+        validation and would prove nothing about the customer's actual interaction.
+        """
+        import re as _re
+        # Required fields whose markup the lightweight scraper below does not model
+        # (custom select widgets / a time input). They are unrelated to the Chief of
+        # Staff controls under test; supplying them keeps the ModelForm valid so the
+        # test exercises the real save path instead of a validation failure.
+        prefs = self.user.preferences
+        data_required = {
+            name: getattr(prefs, name)
+            for name in ("theme", "timezone", "default_fasting_type",
+                         "email_notification_frequency")
+        }
+        data_required["notification_reminder_time"] = (
+            prefs.notification_reminder_time.strftime("%H:%M"))
+        html = self.client.get(self._url()).content.decode()
+        start = html.index('id="preferences-form"')
+        form = html[start:html.index("</form>", start)]
+        data = {}
+        # text / hidden / number / email inputs
+        for tag in _re.findall(r"<input\b[^>]*>", form):
+            name = _re.search(r'name="([^"]+)"', tag)
+            if not name:
+                continue
+            name = name.group(1)
+            itype = (_re.search(r'type="([^"]+)"', tag) or [None, "text"])[1]
+            value = (_re.search(r'value="([^"]*)"', tag) or [None, ""])[1]
+            if itype in ("checkbox", "radio"):
+                if "checked" in tag:
+                    data[name] = value or "on"
+            elif itype != "submit":
+                # never let an empty rendered value clobber a supplied required default
+                if value or name not in data:
+                    data[name] = value
+        # selects: take the selected option, else the first
+        for sel in _re.findall(r"<select\b[^>]*>.*?</select>", form, _re.S):
+            name = _re.search(r'name="([^"]+)"', sel)
+            if not name:
+                continue
+            chosen = _re.search(r'<option[^>]*value="([^"]*)"[^>]*selected', sel)
+            first = _re.search(r'<option[^>]*value="([^"]*)"', sel)
+            if chosen or first:
+                data[name] = (chosen or first).group(1)
+        # textareas
+        for ta in _re.findall(r'<textarea\b[^>]*name="([^"]+)"[^>]*>(.*?)</textarea>',
+                              form, _re.S):
+            data.setdefault(ta[0], ta[1].strip())
+        # Unrelated required fields are applied from stored values AFTER scraping, so a
+        # widget this lightweight scraper cannot model never invalidates the payload.
+        data.update(data_required)
+        data.update(overrides)
+        response = self.client.post(self._url(), data, follow=True)
+        # A successful save REDIRECTS. If the ModelForm rejected the payload the view
+        # re-renders at 200 with no redirect and silently saves nothing — surface that
+        # here rather than letting a downstream assertion fail with a confusing diff.
+        form = response.context.get("form") if response.context else None
+        if form is not None and getattr(form, "errors", None):
+            raise AssertionError(
+                f"Preferences form rejected the rendered payload: {dict(form.errors)}")
+        return response
+
+    def test_selecting_a_persona_saves_and_returns_a_rendered_page(self):
+        r = self._full_form_post(ai_coaching_style="texas_rancher")
+        self.assertEqual(r.status_code, 200)
+        html = r.content.decode()
+        self.assertGreater(len(html), 5000,
+                           "the response must be a rendered Preferences page, not blank")
+        self.assertIn("Your Chief of Staff", html)
+
+    def test_selected_persona_persists_and_shows_selected_on_reload(self):
+        self._full_form_post(ai_coaching_style="texas_rancher")
+        self.user.preferences.refresh_from_db()
+        self.assertEqual(self.user.preferences.ai_coaching_style, "texas_rancher")
+        html = self.client.get(self._url()).content.decode()
+        marker = 'value="texas_rancher"'
+        idx = html.index(marker)
+        self.assertIn("checked", html[idx:idx + 200],
+                      "the saved persona must render as selected on reload")
+
+    def test_saving_a_persona_leaves_other_settings_untouched(self):
+        """The toggles that are no longer ModelForm fields must not silently switch off."""
+        from apps.core.blueprint.engine import get_blueprint
+        self._full_form_post()
+        prefs = self.user.preferences
+        prefs.refresh_from_db()
+        bp = get_blueprint(self.user)
+        self.assertTrue(prefs.assistant_confirm_actions,
+                        "saving a persona switched OFF action confirmations")
+        self.assertTrue(prefs.preference_learning_enabled,
+                        "saving a persona switched OFF preference learning")
+        self.assertEqual(prefs.cos_response_style, "deep_dive")
+        self.assertEqual(prefs.knowledge_invitations, "naturally")
+        self.assertEqual(prefs.cos_display_name, "Ranger")
+        self.assertEqual(bp.accountability_style, "firm")
+        self.assertEqual(bp.question_frequency, "low")
+        self.assertEqual(bp.sensitivity_tags, ["grief"])
+        self.assertTrue(prefs.ai_data_consent, "AI consent must never be altered")
+
+    def test_rendered_toggles_reflect_stored_state_not_a_missing_form_field(self):
+        """A checkbox bound to a non-existent form field renders unchecked and then
+        silently turns the setting off on the next save. Caught in the same session."""
+        html = self.client.get(self._url()).content.decode()
+        for name in ("assistant_confirm_actions", "preference_learning_enabled"):
+            idx = html.index(f'name="{name}"')
+            self.assertIn("checked", html[idx:idx + 120],
+                          f"{name} is stored True but renders unchecked — saving would "
+                          "silently disable it")
+        self.assertNotIn("form.assistant_confirm_actions.value", html)
+        self.assertNotIn("form.preference_learning_enabled.value", html)
+
+    # -- 7. the runtime invariant still holds -------------------------------
+    def test_persona_instructions_still_reach_the_runtime_after_selection(self):
+        self._full_form_post(ai_coaching_style="texas_rancher")
+        # Re-fetch: `self.user.preferences` is a cached related object and would still
+        # hold the pre-save persona, hiding whether the RUNTIME sees the new choice.
+        fresh = User.objects.get(pk=self.user.pk)
+        rel = get_ai_relationship(fresh)
+        self.assertEqual(rel["assistant"]["persona"]["key"], "texas_rancher")
+        self.assertIn("worked the land", rel["persona_instructions"])
+
+    # -- 8. no duplicate submission behaviour --------------------------------
+    def test_persona_tiles_do_not_auto_submit_the_form(self):
+        """Selection is a plain radio choice saved with the page — the tile must not
+        submit on change, which would double-post and fight the unified save button."""
+        html = self.client.get(self._url()).content.decode()
+        start = html.index("Coaching / response-style card selection")
+        handler = html[start:start + 700]
+        for forbidden in (".submit()", "requestSubmit", "fetch(", "location.href"):
+            self.assertNotIn(forbidden, handler,
+                             f"persona selection must not {forbidden} on change")

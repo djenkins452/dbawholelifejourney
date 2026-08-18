@@ -311,6 +311,8 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             context['cos_knowledge_invitations'] = rel['proactivity']['knowledge_invitations']
             context['cos_event_reflections'] = rel['proactivity']['event_reflections']
             context['cos_relationship_suggestions'] = rel['proactivity']['relationship_suggestions']
+            context['cos_confirm_actions'] = rel['action_preferences']['confirm_actions']
+            context['cos_preference_learning'] = rel['learning']['enabled']
             context['cos_sensitivity_tags'] = rel['boundaries']['sensitivity_topics']
             context['cos_sensitivity_tags_raw'] = ', '.join(
                 rel['boundaries']['sensitivity_topics'])
@@ -323,6 +325,8 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
             context.setdefault('cos_knowledge_invitations', 'occasionally')
             context.setdefault('cos_event_reflections', True)
             context.setdefault('cos_relationship_suggestions', True)
+            context.setdefault('cos_confirm_actions', False)
+            context.setdefault('cos_preference_learning', True)
             context.setdefault('cos_sensitivity_tags', [])
             context.setdefault('cos_sensitivity_tags_raw', '')
             context.setdefault('cos_setting_sources', {})

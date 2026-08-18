@@ -991,7 +991,7 @@
                                         <p class="text-muted text-sm">Ask me first before creating, changing or deleting anything on my behalf.</p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="assistant_confirm_actions" {% if form.assistant_confirm_actions.value %}checked{% endif %}>
+                                        <input type="checkbox" name="assistant_confirm_actions" {% if cos_confirm_actions %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -1212,7 +1212,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                 </div>
                                 <div class="accordion-header-right">
                                     <div class="accordion-status">
-                                        {% if form.preference_learning_enabled.value %}<span class="accordion-badge accordion-badge-active">Learning on</span>{% else %}<span class="accordion-badge accordion-badge-inactive">Learning paused</span>{% endif %}
+                                        {% if cos_preference_learning %}<span class="accordion-badge accordion-badge-active">Learning on</span>{% else %}<span class="accordion-badge accordion-badge-inactive">Learning paused</span>{% endif %}
                                     </div>
                                     <svg class="accordion-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="6 9 12 15 18 9"></polyline>
@@ -1241,7 +1241,7 @@ The AI will remember these to respond more thoughtfully in the future."
                                         </p>
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" name="preference_learning_enabled" {% if form.preference_learning_enabled.value %}checked{% endif %}>
+                                        <input type="checkbox" name="preference_learning_enabled" {% if cos_preference_learning %}checked{% endif %}>
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
@@ -2932,6 +2932,16 @@ The AI will remember these to respond more thoughtfully in the future."
 
 .coaching-style-card {
     display: block;
+    /* CONTAINING BLOCK (required — do not remove).
+       The card's radio is `position: absolute` (visually hidden below). Without a
+       positioned ancestor its containing block is the INITIAL containing block (the
+       root), so its box resolves to a document-level coordinate. Clicking the label
+       focuses that radio and the browser scrolls the FOCUSED ELEMENT into view — at the
+       ROOT, dragging the whole app shell off-screen and blanking the page.
+       Reproduced in production 2026-08-18 after M1 made this section tall enough for the
+       root to overflow. WLJ rule: the app shell owns scrolling; page content must never
+       scroll the viewport. `position: relative` keeps the radio inside its own card. */
+    position: relative;
     cursor: pointer;
     border: 2px solid var(--color-border);
     border-radius: var(--radius-lg);

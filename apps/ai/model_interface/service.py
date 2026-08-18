@@ -1170,7 +1170,8 @@ class ModelInterfaceService:
                 out = _cei(user, kind=args.get("kind"), title=args.get("title"),
                            day=args.get("day"), content=args.get("content"),
                            source_type=args.get("source_type"),
-                           source_id=args.get("source_id"))
+                           source_id=args.get("source_id"),
+                           undo=bool(args.get("undo")))
                 _audit.record_tool_call(
                     user, kind="action", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),

@@ -402,3 +402,142 @@ class NoCurrentActionSubstitutionTests(SimpleTestCase):
         self.assertIn("EXACT TARGET INTEGRITY", src)
         for phrase in ("outranks", "change NOTHING", "REVERSE it immediately"):
             self.assertIn(phrase, src)
+
+
+class VisibleExecutableResolutionTests(TestCase):
+    """PRODUCT GATE B — a visible executable item must be addressable even when it is
+    NOT the current action (proven gaps: `_facts()` carried no identity, and the routine
+    title resolver matched the PARENT ROUTINE's name)."""
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = User.objects.create_user(email="vb@contract.test", password="x")
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.shower = RoutineSchedule.objects.create(
+            routine=self.routine, name="Shower", scheduled_time=datetime.time(7, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+
+    def test_envelope_carries_identity_for_every_executable_item(self):
+        from apps.core.execution.decision_authority import _facts
+        projected = _facts({"title": "Shower", "source_type": "routine_item",
+                            "source_id": self.shower.pk, "can_complete": True})
+        self.assertIn("source_id", projected, (
+            "executable items reached the model without canonical identity, so anything "
+            "that was not current_action had to be rediscovered by title"))
+        self.assertEqual(projected["source_id"], self.shower.pk)
+        self.assertTrue(projected["can_complete"])
+
+    def test_routine_resolver_matches_the_item_not_its_parent_routine(self):
+        """Production ToolCallLog 2b1093b7 returned `unsupported` because of this."""
+        from apps.core.execution.execution_completion import _complete_routine
+        out = _complete_routine(self.user, "Shower", self.today)
+        self.assertEqual(out["status"], "recorded", (
+            "the routine resolver still matches the PARENT ROUTINE's name — 'Shower' "
+            f"was compared against '{self.routine.name}'"))
+
+
+class ReversalIntegrityTests(TestCase):
+    """The Constitution promises reversal — prove the CAPABILITY exists and executes."""
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule, Task
+        self.user = User.objects.create_user(email="rv@contract.test", password="x")
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.shower = RoutineSchedule.objects.create(
+            routine=self.routine, name="Shower", scheduled_time=datetime.time(7, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+        self.nutrition = RoutineSchedule.objects.create(
+            routine=self.routine, name="Log Nutrition",
+            scheduled_time=datetime.time(12, 0), is_active=True,
+            days_of_week="0,1,2,3,4,5,6")
+        self.task = Task.objects.create(
+            user=self.user, title="Submit the report", due_date=self.today,
+            completion_status="pending", status="active")
+
+    def _routine_done(self, sched):
+        from apps.core.execution.completion_service import is_routine_item_complete
+        return is_routine_item_complete(self.user, sched, self.today)
+
+    def test_the_production_recovery_case(self):
+        """CoS completes X → user says "No, don't do that" → X returns to open."""
+        from apps.core.execution.execution_completion import (
+            complete_by_identity, reverse_by_identity,
+        )
+        complete_by_identity(self.user, "routine_item", self.nutrition.pk, self.today,
+                             requested_target="Log Nutrition")
+        self.assertTrue(self._routine_done(self.nutrition))
+
+        out = reverse_by_identity(self.user, "routine_item", self.nutrition.pk,
+                                  self.today, requested_target="Log Nutrition")
+        self.assertEqual(out["status"], "reversed", out)
+        self.assertFalse(self._routine_done(self.nutrition),
+                         "the unauthorized completion was not restored")
+        self.assertFalse(self._routine_done(self.shower),
+                         "reversal changed an unrelated object")
+
+    def test_task_reversal_uses_mark_incomplete(self):
+        from apps.core.execution.execution_completion import (
+            complete_by_identity, reverse_by_identity,
+        )
+        complete_by_identity(self.user, "task", self.task.pk, self.today,
+                             requested_target="Submit the report")
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.completion_status, "completed")
+        out = reverse_by_identity(self.user, "task", self.task.pk, self.today,
+                                  requested_target="Submit the report")
+        self.assertEqual(out["status"], "reversed")
+        self.task.refresh_from_db()
+        self.assertEqual(self.task.completion_status, "pending")
+
+    def test_repeated_completion_never_uncompletes(self):
+        """Toggle-backed domains must not flip on a second 'complete' request."""
+        from apps.core.execution.execution_completion import complete_by_identity
+        complete_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                             requested_target="Shower")
+        again = complete_by_identity(self.user, "routine_item", self.shower.pk,
+                                     self.today, requested_target="Shower")
+        self.assertEqual(again["status"], "already_complete")
+        self.assertTrue(self._routine_done(self.shower),
+                        "a repeated completion silently UNCOMPLETED the item")
+
+    def test_reversal_honours_target_binding(self):
+        from apps.core.execution.execution_completion import (
+            complete_by_identity, reverse_by_identity,
+        )
+        complete_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                             requested_target="Shower")
+        out = reverse_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                                  requested_target="Log Nutrition")
+        self.assertEqual(out["status"], "target_mismatch")
+        self.assertTrue(self._routine_done(self.shower), "a mismatched reversal mutated")
+
+    def test_reversing_something_not_complete_mutates_nothing(self):
+        from apps.core.execution.execution_completion import reverse_by_identity
+        out = reverse_by_identity(self.user, "routine_item", self.shower.pk, self.today,
+                                  requested_target="Shower")
+        self.assertEqual(out["status"], "not_complete")
+        self.assertFalse(out["detail"]["mutated"])
+
+    def test_undo_is_reachable_from_the_cos_surface(self):
+        from apps.ai.cos_services.execution_completion import complete_execution_item
+        complete_execution_item(self.user, source_type="routine_item",
+                                source_id=self.shower.pk, title="Shower")
+        out = complete_execution_item(self.user, source_type="routine_item",
+                                      source_id=self.shower.pk, title="Shower", undo=True)
+        self.assertEqual(out["status"], "reversed")
+        self.assertFalse(self._routine_done(self.shower))
+
+    def test_undo_is_exposed_in_the_tool_schema(self):
+        from apps.ai.model_interface.constitution import all_tools
+        for t in all_tools(writes_enabled=True):
+            f = t.get("function") or {}
+            if f.get("name") == "complete_execution_item":
+                self.assertIn("undo", f["parameters"]["properties"], (
+                    "the Constitution instructs the model to reverse, but no undo "
+                    "capability is exposed — instruction without capability"))
+                return
+        self.fail("complete_execution_item is not registered")

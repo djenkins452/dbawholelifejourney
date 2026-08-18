@@ -130,6 +130,81 @@ def complete_by_identity(user, source_type, source_id, target_date,
                        detail={"resolution": "error", "establishes_absence": False})
 
 
+def reverse_by_identity(user, source_type, source_id, target_date,
+                        requested_target=None):
+    """EXPLICIT reversal of a completion, by canonical identity.
+
+    Separate verb from completion ON PURPOSE. Several domains reverse via a TOGGLE, so
+    if "complete" and "undo" shared one call a repeated completion could silently
+    uncomplete something. Completion is idempotent (`already_complete` is a no-op);
+    reversal must be asked for.
+
+    Delegates to each domain's existing inverse — the same authority the on-screen
+    control uses. Same target binding as completion: resolve, verify, then mutate.
+    """
+    st = (source_type or "").strip().lower()
+    kind = kind_for_source_type(st)
+    if kind is None:
+        return _result("unsupported", st or "unknown", "",
+                       message=f"'{source_type}' cannot be reversed.",
+                       detail={"resolution": "unsupported_source_type", "mutated": False})
+    try:
+        resolved = _peek_identity(user, st, source_id)
+        if resolved is None:
+            return _result("not_found", kind, requested_target or "",
+                           message="That item no longer exists.",
+                           detail={"resolution": "identity_not_found", "mutated": False})
+        if not _titles_agree(requested_target, resolved):
+            return _result("target_mismatch", kind, resolved,
+                           message=(f"That id belongs to '{resolved}'. Nothing changed."),
+                           detail={"resolution": "target_mismatch", "mutated": False,
+                                   "requested_target": requested_target,
+                                   "resolved_target": resolved})
+        if st == "task":
+            from apps.life.models import Task
+            row = Task.objects.filter(pk=source_id, user=user, status="active").first()
+            if getattr(row, "completion_status", "") != "completed":
+                return _result("not_complete", "task", resolved,
+                               message=f"'{resolved}' was not marked complete.",
+                               detail={"mutated": False})
+            row.mark_incomplete()
+        elif st == "routine_item":
+            from apps.core.execution.completion_service import is_routine_item_complete
+            from apps.life.models import RoutineSchedule
+            from apps.life.services.routine_helpers import toggle_routine_completion
+            sched = (RoutineSchedule.objects.filter(pk=source_id, routine__user=user)
+                     .select_related("routine").first())
+            if not is_routine_item_complete(user, sched, target_date):
+                return _result("not_complete", "routine", resolved,
+                               message=f"'{resolved}' was not marked complete.",
+                               detail={"mutated": False})
+            # completed -> pending (deletes the log) — the documented toggle transition.
+            # completion_mode MUST be omitted here: passing 'scheduled' is a RE-CLICK
+            # OVERRIDE that rewrites the existing log as on-time instead of removing it,
+            # so the item would stay complete and the reversal would silently no-op.
+            toggle_routine_completion(user, sched, target_date)
+        else:
+            from apps.health.models import IntakeSchedule
+            from apps.health.services.dose_completion import undo_dose
+            sched = (IntakeSchedule.objects.filter(pk=source_id, intake__user=user)
+                     .select_related("intake").first())
+            out = undo_dose(user, sched, target_date)
+            if out.get("status") == "not_logged":
+                return _result("not_complete", "medications", resolved,
+                               message=f"'{resolved}' was not logged as taken.",
+                               detail={"mutated": False})
+        return _result("reversed", kind, resolved,
+                       message=f"Put '{resolved}' back to not complete.",
+                       detail={"source_id": source_id, "mutated": True,
+                               "occurrence_date": target_date.isoformat()})
+    except Exception:
+        logger.warning("execution_completion: reversal failed %s/%s", st, source_id,
+                       exc_info=True)
+        return _result("error", kind, "",
+                       message="That could not be reversed; nothing was changed.",
+                       detail={"mutated": False})
+
+
 def _peek_identity(user, source_type, source_id):
     """Return the canonical TITLE of the owned object, or None. READ-ONLY — never writes.
 
@@ -348,8 +423,12 @@ def _complete_routine(user, title, target_date, *, name_words=None):
         routine__user=user, is_active=True).select_related("routine")]
     matched = []
     for s in schedules:
-        nm = (getattr(s, "item_name", "") or getattr(getattr(s, "routine", None), "name", "")
-              or "").lower()
+        # The ITEM's own name is the match target. This previously read a non-existent
+        # `item_name` attribute and fell through to the PARENT ROUTINE's name, so
+        # "shower" was matched against "Morning Rhythm" and never resolved — the
+        # `unsupported` seen in production ToolCallLog 2b1093b7.
+        nm = (getattr(s, "name", "") or getattr(s, "item_name", "")
+              or getattr(getattr(s, "routine", None), "name", "") or "").lower()
         hit = (want and want in nm) if not name_words else any(w in nm for w in name_words)
         if hit and _schedule_applies(s, dow):
             matched.append(s)

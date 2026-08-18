@@ -187,8 +187,10 @@ CONSTITUTION = (
     "'best available', 'nearest', 'first result' or 'current item instead' for a "
     "write. If you cannot bind their words to one specific object, change NOTHING "
     "and say you could not identify it. If you have just changed something and the "
-    "user says not to, REVERSE it immediately using the same capability before "
-    "doing anything else - do not apologize and move on leaving it changed.\n"
+    "user says not to, REVERSE it immediately: call complete_execution_item again with "
+    "the SAME source_type and source_id and `undo: true`, BEFORE doing anything else - "
+    "do not apologize and move on leaving it changed. Your previous action result carries "
+    "the identity you need.\n"
     "\n"
     "ACTION FAILURE NEVER OVERTURNS ESTABLISHED TRUTH (governing). A failed or "
     "unresolved action tells you that a CAPABILITY did not work. It does NOT tell you "
@@ -1623,6 +1625,13 @@ def _complete_execution_item_tool():
                                             "execution truth / current_action — 'task', "
                                             "'routine_item', 'medication_dose', "
                                             "'supplement_dose'. Pass with source_id.")},
+            "undo": {"type": "boolean",
+                     "description": ("Set true to REVERSE a completion you just made — "
+                                     "use it the moment the user says not to do what you "
+                                     "just did. Requires source_type + source_id (from "
+                                     "your previous action result). Reversal is a "
+                                     "SEPARATE, explicit request: a normal completion "
+                                     "call never uncompletes anything.")},
             "source_id": {"type": "integer",
                           "description": ("PREFERRED. The canonical id (`pk`/`source_id`) of "
                                           "the exact occurrence, straight from the context. "

@@ -6,6 +6,24 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): visible executable resolution + executable reversal (Gate B + undo)
+
+Closes the two items `be0580a5` left open. Target-integrity architecture unchanged.
+
+**Gate B — a visible item that is NOT the current action must be addressable. TWO layers were broken; both proven, neither assumed.**
+1. **Identity was withheld from everything except `current_action`.** `decision_authority._facts()` projected `source_type` but **no `source_id`**, so every other executable item reached the model as a bare title — it literally could not be addressed by identity. FIX: `_facts()` now carries `source_id` + `can_complete` for every executable item. Combined with the `be0580a5` target binding, naming any visible item is now both possible and safe.
+2. **The one canonical routine resolver matched the WRONG NAME.** `_complete_routine` read a non-existent `item_name` attribute and fell through to the PARENT ROUTINE's name — so `"shower"` was compared against `"Morning Rhythm"` and never matched. That is the `unsupported` in production ToolCallLog `2b1093b7`. FIX: match `RoutineSchedule.name` first. Proven before/after: `unsupported` → `recorded`.
+
+**Reversal — the Constitution promised an undo that did not exist.** `be0580a5` instructed the model to "REVERSE it immediately" with **no capability behind it** — instruction without execution. Audited all four types; every one has a canonical inverse: task → `Task.mark_incomplete()`; routine_item → `toggle_routine_completion` (completed → pending); medication_dose / supplement_dose → `undo_dose`. Added `reverse_by_identity`, exposed as `undo: true` on the EXISTING verb (no second intent), with the same resolve → verify → mutate binding.
+
+**Completion and reversal are deliberately separate semantics.** Routine reversal is toggle-backed, so if one call did both, a repeated "complete" could silently uncomplete. Completion stays idempotent (`already_complete` is a no-op) and reversal must be explicitly requested — locked by test.
+
+**Subtle bug caught by test:** the first reversal passed `completion_mode="scheduled"`, which is a **re-click OVERRIDE** that rewrites the existing log as on-time rather than deleting it — the item stayed complete and the reversal silently no-opped. Corrected to omit `completion_mode` so the documented `completed → pending` transition applies.
+
+**Tests:** 9 new (`VisibleExecutableResolutionTests`, `ReversalIntegrityTests`) — identity present for every executable item · routine resolver matches the item not its parent · **the production recovery case** (complete → user rejects → exact object restored, nothing else touched) · task reversal via `mark_incomplete` · repeated completion never uncompletes · reversal honours target binding · reversing something not complete mutates nothing · undo reachable from the CoS surface and exposed in the tool schema. **101 scoped tests pass.** `makemigrations --check` clean.
+
+**Files:** `apps/core/execution/{decision_authority,execution_completion}.py`, `apps/ai/cos_services/execution_completion.py`, `apps/ai/model_interface/{constitution,service}.py`, tests. **M2 remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(cos): EXACT TARGET INTEGRITY — a write may only touch the object the user named (wrong-target mutation)
 
 **Critical production trust failure, caused by `9caaddac` (this session's own fix).** The user said *"Mark Shower complete"*. The CoS replied *"Shower is not showing up as an incomplete item for today, but I've successfully marked 'Log Nutrition' as complete."* The user said *"No! Do not mark Log Nutrition as complete."* The CoS then completed Shower and **left Log Nutrition wrongly completed.**

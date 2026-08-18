@@ -94,6 +94,13 @@ def _facts(action) -> dict:
         "urgency": action.get("urgency"),
         "importance": action.get("importance"),
         "source_type": action.get("source_type") or action.get("source"),
+        # CANONICAL IDENTITY for every executable item in the envelope — not just the
+        # current action (2026-08-18). Without this the model could only address the
+        # ONE prioritized item by identity, so a visible-but-not-current item had to be
+        # rediscovered by title. Identity here + the target-binding check in
+        # execution_completion means naming any visible item is both possible and safe.
+        "source_id": action.get("source_id", action.get("pk")),
+        "can_complete": action.get("can_complete", False),
     }
 
 

@@ -96,6 +96,19 @@ def complete_by_identity(user, source_type, source_id, target_date,
         # TARGET INTEGRITY (2026-08-18). Resolve the object FIRST, verify it is the one
         # the user asked for, and only then mutate. requested -> resolved -> mutated must
         # be the same canonical object; a mismatch FAILS CLOSED and changes nothing.
+        # MANDATORY BINDING (2026-08-18). `requested_target` is REQUIRED on the identity
+        # path. Production turn 92e4210b called
+        # complete_execution_item(source_id=9, source_type="routine_item") with NO title
+        # for a request that named "Shower" — and id 9 is "Wake up". Optional binding is
+        # not binding: with nothing to compare against, a wrong id sails straight through.
+        # Fail closed and make the caller state what it believes it is completing.
+        if not (requested_target or "").strip():
+            return _result("target_unverified", kind, "",
+                           message=("I need to know which item you mean before I change "
+                                    "anything. Nothing was changed."),
+                           detail={"resolution": "missing_requested_target",
+                                   "establishes_absence": False, "mutated": False,
+                                   "source_id": source_id})
         resolved = _peek_identity(user, st, source_id)
         if resolved is None:
             return _result("not_found", kind, requested_target or "",

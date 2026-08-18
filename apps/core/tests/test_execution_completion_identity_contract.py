@@ -82,7 +82,8 @@ class RoutineIdentityCompletionTests(TestCase):
 
     def test_completes_the_exact_occurrence_by_identity(self):
         from apps.core.execution.completion_service import is_routine_item_complete
-        result = complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today)
+        result = complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today,
+                                     requested_target="Shower")
         self.assertEqual(result["status"], "recorded", result)
         self.assertEqual(result["detail"]["source_id"], self.schedule.pk)
         self.assertTrue(is_routine_item_complete(self.user, self.schedule, self.today),
@@ -92,7 +93,8 @@ class RoutineIdentityCompletionTests(TestCase):
         """Dashboard posts to routine_schedule_toggle → toggle_routine_completion."""
         from unittest import mock
         with mock.patch("apps.life.services.routine_helpers.toggle_routine_completion") as m:
-            complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today)
+            complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today,
+                                     requested_target="Shower")
             self.assertTrue(m.called,
                             "routine completion must delegate to toggle_routine_completion "
                             "— the exact authority the Dashboard button uses")
@@ -100,19 +102,23 @@ class RoutineIdentityCompletionTests(TestCase):
             self.assertEqual(called_schedule.pk, self.schedule.pk)
 
     def test_already_complete_is_idempotent(self):
-        complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today)
-        again = complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today)
+        complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today,
+                                     requested_target="Shower")
+        again = complete_by_identity(self.user, "routine_item", self.schedule.pk, self.today,
+                                     requested_target="Shower")
         self.assertEqual(again["status"], "already_complete")
 
     def test_foreign_user_identity_mutates_nothing(self):
         from apps.core.execution.completion_service import is_routine_item_complete
-        result = complete_by_identity(self.other, "routine_item", self.schedule.pk, self.today)
+        result = complete_by_identity(self.other, "routine_item", self.schedule.pk, self.today,
+                                     requested_target="Shower")
         self.assertEqual(result["status"], "not_found")
         self.assertFalse(is_routine_item_complete(self.user, self.schedule, self.today),
                          "a foreign user's request completed someone else's occurrence")
 
     def test_invalid_identity_mutates_nothing(self):
-        result = complete_by_identity(self.user, "routine_item", 999999999, self.today)
+        result = complete_by_identity(self.user, "routine_item", 999999999, self.today,
+                                     requested_target="Shower")
         self.assertEqual(result["status"], "not_found")
         self.assertTrue(result["detail"]["establishes_absence"],
                         "a genuinely missing id DOES establish absence")
@@ -130,14 +136,16 @@ class TaskIdentityCompletionTests(TestCase):
             completion_status="pending", status="active")
 
     def test_completes_by_identity_via_mark_complete(self):
-        result = complete_by_identity(self.user, "task", self.task.pk, self.today)
+        result = complete_by_identity(self.user, "task", self.task.pk, self.today,
+                                     requested_target="Submit the report")
         self.assertEqual(result["status"], "recorded", result)
         self.task.refresh_from_db()
         self.assertEqual(self.task.completion_status, "completed")
 
     def test_foreign_task_mutates_nothing(self):
         other = User.objects.create_user(email="ec2b@contract.test", password="x")
-        result = complete_by_identity(other, "task", self.task.pk, self.today)
+        result = complete_by_identity(other, "task", self.task.pk, self.today,
+                                     requested_target="Submit the report")
         self.assertEqual(result["status"], "not_found")
         self.task.refresh_from_db()
         self.assertEqual(self.task.completion_status, "pending")
@@ -541,3 +549,45 @@ class ReversalIntegrityTests(TestCase):
                     "capability is exposed — instruction without capability"))
                 return
         self.fail("complete_execution_item is not registered")
+
+
+class MandatoryBindingTests(TestCase):
+    """Optional binding is not binding (production turn 92e4210b).
+
+    The model called complete_execution_item(source_id=9, source_type="routine_item")
+    with NO title, for a request that named "Shower". Id 9 is "Wake up". Because
+    `requested_target` was empty the binding check was skipped entirely, so a wrong id
+    would have executed unchallenged.
+    """
+
+    def setUp(self):
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = User.objects.create_user(email="mb@contract.test", password="x")
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.wake = RoutineSchedule.objects.create(
+            routine=self.routine, name="Wake up", scheduled_time=datetime.time(6, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+
+    def test_identity_without_a_stated_target_fails_closed(self):
+        from apps.core.execution.completion_service import is_routine_item_complete
+        from apps.core.execution.execution_completion import complete_by_identity
+        out = complete_by_identity(self.user, "routine_item", self.wake.pk, self.today)
+        self.assertEqual(out["status"], "target_unverified", out)
+        self.assertFalse(out["detail"]["mutated"])
+        self.assertFalse(is_routine_item_complete(self.user, self.wake, self.today),
+                         "an unverified identity mutated an object")
+
+    def test_the_exact_production_argument_shape_is_refused(self):
+        from apps.ai.cos_services.execution_completion import complete_execution_item
+        out = complete_execution_item(self.user, source_type="routine_item",
+                                      source_id=self.wake.pk)
+        self.assertEqual(out["status"], "target_unverified")
+
+    def test_a_stated_target_that_disagrees_is_refused(self):
+        from apps.core.execution.execution_completion import complete_by_identity
+        out = complete_by_identity(self.user, "routine_item", self.wake.pk, self.today,
+                                   requested_target="Shower")
+        self.assertEqual(out["status"], "target_mismatch")
+        self.assertEqual(out["detail"]["resolved_target"], "Wake up")

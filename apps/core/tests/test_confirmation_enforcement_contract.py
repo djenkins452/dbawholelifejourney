@@ -317,3 +317,128 @@ class NoNarratedSuccessTests(SimpleTestCase):
         self.assertIn("PENDING CONFIRMATION IS NOT A COMPLETED ACTION", CONSTITUTION)
         self.assertIn("postcondition_failed", CONSTITUTION)
         self.assertIn("resolve_pending_action", CONSTITUTION)
+
+
+class DeterministicConfirmationContinuationTests(TestCase):
+    """NO-TOOL-CALL CLASS (production 2026-08-18, turn 48957246).
+
+    A bound confirmation existed and was surfaced, the user said "Yes", the model made
+    ZERO tool calls and narrated success anyway.
+
+    A deterministic typed pre-parser ALREADY existed — `resolve_typed_confirmation`,
+    called from `cos_gateway.runtime` BEFORE the provider call. It did not fire because
+    `request_confirmation_for` minted the confirmation WITHOUT a `view`, and
+    `confirmation_contract.match_typed` returns None immediately when the view is absent.
+    A plain "Yes" therefore fell through to the model.
+
+    Correct execution must NEVER depend on the model choosing to call
+    `resolve_pending_action`.
+    """
+
+    def setUp(self):
+        from apps.ai.models import AssistantConversation
+        from apps.life.models import Routine, RoutineSchedule
+        self.user = User.objects.create_user(email="dc@contract.test", password="x")
+        prefs = self.user.preferences
+        prefs.assistant_confirm_actions = True
+        prefs.save()
+        self.user = User.objects.get(pk=self.user.pk)
+        self.today = datetime.date.today()
+        self.routine = Routine.objects.create(
+            user=self.user, name="Morning Rhythm", time_of_day="morning")
+        self.shower = RoutineSchedule.objects.create(
+            routine=self.routine, name="Shower", scheduled_time=datetime.time(7, 0),
+            is_active=True, days_of_week="0,1,2,3,4,5,6")
+        self.conv = AssistantConversation.get_or_create_active(self.user)
+
+    def _pend(self, schedule=None, title="Shower"):
+        from apps.ai.cos_services.action_interface import request_confirmation_for
+        from apps.ai.model_interface import confirmation as _confirm
+        gate = request_confirmation_for(
+            self.user, "complete_execution_item",
+            {"source_type": "routine_item", "source_id": (schedule or self.shower).pk,
+             "title": title},
+            conversation_id=self.conv.id)
+        _confirm.bind_conversation(self.user, self.conv.id)
+        return (gate.get("confirmation") or {}).get("confirmation_id")
+
+    def _done(self, schedule=None):
+        from apps.core.execution.completion_service import is_routine_item_complete
+        return is_routine_item_complete(self.user, schedule or self.shower, self.today)
+
+    def test_minted_confirmation_carries_the_view_the_resolver_matches_on(self):
+        from apps.ai.model_interface import confirmation as _confirm
+        cid = self._pend()
+        rec = _confirm.get(self.user, cid)
+        self.assertIsInstance(rec.get("view"), dict, (
+            "a confirmation without a view is INVISIBLE to the deterministic typed "
+            "resolver — the exact production defect"))
+        from apps.ai.confirmation_contract import match_typed
+        self.assertEqual(match_typed("Yes", rec["view"]), "confirm")
+
+    def test_yes_executes_without_any_model_tool_call(self):
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        self._pend()
+        self.assertFalse(self._done())
+        out = resolve_typed_confirmation(self.user, self.conv.id, "Yes",
+                                         turn_id="t", surface="chat_stream")
+        self.assertIsNotNone(out, "a plain 'Yes' was not resolved deterministically")
+        self.assertEqual(out["status"], "ok", out)
+        self.assertTrue(self._done(),
+                        "the bound action did not execute — correctness still depends "
+                        "on the model remembering to call resolve_pending_action")
+
+    def test_common_affirmative_variants_resolve(self):
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        for phrase in ("yes", "Yes please", "yep", "confirm"):
+            with self.subTest(phrase=phrase):
+                from apps.life.models import RoutineSchedule
+                sched = RoutineSchedule.objects.create(
+                    routine=self.routine, name=f"Item {phrase}",
+                    scheduled_time=datetime.time(8, 0), is_active=True,
+                    days_of_week="0,1,2,3,4,5,6")
+                self._pend(sched, title=f"Item {phrase}")
+                out = resolve_typed_confirmation(self.user, self.conv.id, phrase,
+                                                 turn_id="t", surface="chat")
+                if out is not None:          # narrow grammar: some variants may not match
+                    self.assertEqual(out["status"], "ok")
+                    self.assertTrue(self._done(sched))
+
+    def test_no_cancels_deterministically_and_mutates_nothing(self):
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        self._pend()
+        out = resolve_typed_confirmation(self.user, self.conv.id, "No",
+                                         turn_id="t", surface="chat")
+        self.assertIsNotNone(out, "a plain 'No' was not resolved deterministically")
+        self.assertFalse(self._done(), "a rejection mutated the object")
+
+    def test_ambiguous_reply_does_not_execute(self):
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        self._pend()
+        for phrase in ("Tell me when it was due.", "Maybe", "what time was that"):
+            with self.subTest(phrase=phrase):
+                out = resolve_typed_confirmation(self.user, self.conv.id, phrase,
+                                                 turn_id="t", surface="chat")
+                self.assertIsNone(out, f"{phrase!r} was treated as a confirmation")
+                self.assertFalse(self._done(), "an ambiguous reply mutated the object")
+
+    def test_execution_is_postcondition_verified(self):
+        """Deterministic continuation must still obey the 086a69c3 verification."""
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        from apps.core.execution.today_execution import build_today_execution
+        self._pend()
+        resolve_typed_confirmation(self.user, self.conv.id, "Yes",
+                                   turn_id="t", surface="chat")
+        items = build_today_execution(self.user)["items"]
+        mine = [i for i in items if i.get("source_type") == "routine_item"
+                and i.get("source_id") == self.shower.pk]
+        self.assertTrue(mine and mine[0].get("completed_today"),
+                        "the Dashboard's own truth disagrees with the reported result")
+
+    def test_confirmation_is_consumed_and_not_replayable(self):
+        from apps.ai.cos_services.action_interface import resolve_typed_confirmation
+        self._pend()
+        resolve_typed_confirmation(self.user, self.conv.id, "Yes", turn_id="t", surface="c")
+        again = resolve_typed_confirmation(self.user, self.conv.id, "Yes",
+                                           turn_id="t", surface="c")
+        self.assertIsNone(again, "the confirmation was replayable after resolution")

@@ -6,6 +6,24 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): DETERMINISTIC CONFIRMATION CONTINUATION + mandatory target binding
+
+Eliminates the no-tool-call class structurally. Danny was right that a Constitution guard was not the ceiling.
+
+**A deterministic continuation ALREADY EXISTED.** `action_interface.resolve_typed_confirmation`, called from `cos_gateway.runtime` **before the provider call**, resolves a typed confirm/cancel against the open confirmation bound to the conversation — "the model is never the load-bearing path for a confirm/cancel". It was built for exactly this class.
+
+**Why it didn't fire — my bug in `fdabf773`.** `match_typed(message, rec["view"])` matches the typed reply against the action ALIASES carried in the confirmation's **view**, and returns `None` immediately when the view is absent. `request_confirmation_for` minted the confirmation **without a view** (`request_action` passes one; my new minter did not). So the pre-parser found nothing to match, a plain "Yes" fell through to the model, and the model narrated a completion it never executed (turn `48957246`: zero tool calls). **One missing argument disabled an entire deterministic safety layer.** Fixed by building the view at mint time; proven: `Yes` → resolution `ok` → item complete, with no model involvement.
+
+**Second defect found while checking the "duplicate Shower IDs".** They are not duplicates: **id 3 is "Shower"; id 9 is "Wake up".** Production turn `92e4210b` requested confirmation for `source_id=9` — the WRONG ITEM — for a request that named Shower. The `be0580a5` binding did not catch it because the model passed **no `title`**, and `_titles_agree` treated an absent requested-target as "not asserted". **Optional binding is not binding.** `requested_target` is now REQUIRED on the identity path: absent → `target_unverified`, mutate nothing. The tool schema states it, and the false-success actually MASKED this wrong-target selection.
+
+**Final sequence:** bound target → **deterministic confirmation** → canonical execution → **canonical postcondition verification** → structured result → model narration. The Constitution clause stays as defence in depth, no longer as primary enforcement.
+
+**Semantics:** exactly one bound confirmation + unambiguous yes/no → resolved deterministically (narrow existing grammar, ≤40 chars, exact-alias or short leading-token match); ambiguous ("Maybe", "Tell me when it was due") → no mutation, flows to the model, which still sees `pending_confirmations`; resolution is single-use and not replayable. Multiple pending confirmations use the existing per-conversation binding; nothing is guessed.
+
+**Tests:** 10 new — the minted confirmation carries a matchable view · **"Yes" executes with NO model tool call** · affirmative variants · "No" cancels and mutates nothing · ambiguous replies do not execute · deterministic execution is still postcondition-verified against `build_today_execution` · single-use · plus mandatory-binding tests including **the exact production argument shape (`source_id` with no title) now refused**. **127 scoped tests pass.** `makemigrations --check` clean.
+
+**Files:** `apps/ai/cos_services/action_interface.py`, `apps/core/execution/execution_completion.py`, `apps/ai/model_interface/constitution.py`, tests. **M2 remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(cos): VERIFIED RESULT INTEGRITY — success may be claimed only when canonical truth agrees
 
 **Production defect (false success).** With Confirm-before-acting ON: *"mark shower as complete"* → CoS correctly asked → *"Yes"* → CoS said *"'Shower' is marked as complete."* After refresh, **Shower was still open**.

@@ -79,7 +79,21 @@ def request_confirmation_for(user, action, params=None, *, turn_id="", surface="
     params = dict(params) if isinstance(params, dict) else {}
     try:
         summary = _confirm.summarize(action, params)
-        handle = _confirm.create(user, action, params, summary,
+        # The VIEW is not decoration — it carries the action aliases that
+        # `confirmation_contract.match_typed` matches a typed "yes"/"no" against, and it
+        # is what the deterministic pre-parser in cos_gateway.runtime uses to resolve a
+        # confirmation WITHOUT the model. Omitting it (as this function first did) made
+        # `match_typed` return None immediately, so a plain "Yes" silently fell through
+        # to the model — which then narrated a completion it never executed
+        # (production 2026-08-18, turn 48957246: zero tool calls).
+        try:
+            from apps.ai.confirmation_contract import build_view
+            view = build_view(action, params, None, summary=summary)
+        except Exception:  # pragma: no cover - never block a confirmation
+            logger.warning("action_interface: build_view failed action=%s", action,
+                           exc_info=True)
+            view = None
+        handle = _confirm.create(user, action, params, summary, view=view,
                                  conversation_id=conversation_id)
         if not handle:
             return None

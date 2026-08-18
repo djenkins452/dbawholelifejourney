@@ -1598,8 +1598,8 @@ def _complete_execution_item_tool():
             "referred to. NEVER substitute the current action, the next item, or a "
             "similar one because the object they named was hard to find - if you cannot "
             "bind their words to a specific object, call nothing and say so. When you "
-            "pass identity, ALSO pass `title` as the object you believe it is: WLJ "
-            "verifies the two agree and refuses the write if they do not. "
+            "pass identity, you MUST ALSO pass `title` as the object you believe it is: "
+            "WLJ verifies the two agree and REFUSES the write without it. "
             "IDENTITY FIRST: when `current_action.primary_action` (or any execution item) "
             "carries `source_type` and `pk`/`source_id`, pass them as `source_type` + "
             "`source_id` and OMIT kind/title. That completes THAT EXACT occurrence through "
@@ -1647,7 +1647,8 @@ def _complete_execution_item_tool():
             "source_id": {"type": "integer",
                           "description": ("PREFERRED. The canonical id (`pk`/`source_id`) of "
                                           "the exact occurrence, straight from the context. "
-                                          "With this, no title lookup happens.")},
+                                          "REQUIRES `title` alongside it — WLJ refuses the "
+                                          "write if you cannot say what that id is.")},
             "kind": {"type": "string",
                      "description": ("Legacy/retrospective path only, when no identity is "
                                      "available. The item kind from get_execution_review — e.g. 'task', "

@@ -1164,9 +1164,28 @@ class ModelInterfaceService:
                 # Blocker #14 Layer 2: record an execution item complete on the ACTUAL day,
                 # reusing existing per-domain writes. AUTO (the user's 'yes' is the confirm;
                 # reversible). Honest result — never a false claim.
+                # CONFIRMATION GATE (2026-08-18). This tool previously called the
+                # completion service DIRECTLY, bypassing `request_action` and therefore the
+                # confirmation authority entirely — so "Confirm before acting = ON" never
+                # gated it (ToolCallLog 62d315f8: straight to `recorded`). Its original
+                # AUTO exemption was valid only in the guided-review flow, where the user
+                # had ALREADY said yes; it is not valid now that this is the general
+                # completion verb. Mint a BOUND confirmation instead of mutating, unless
+                # the user is resolving one (`confirmed`) or this is an undo of something
+                # they just rejected.
                 from apps.ai.cos_services.execution_completion import (
                     complete_execution_item as _cei,
                 )
+                from apps.ai.cos_services.action_execution import confirmation_required_for
+                if (not args.get("confirmed") and not args.get("undo")
+                        and confirmation_required_for(user, "complete_execution_item")):
+                    gate = action_interface.request_confirmation_for(
+                        user, "complete_execution_item", args,
+                        turn_id=turn_id, surface=surface,
+                        conversation_id=conversation_id,
+                    )
+                    if gate is not None:
+                        return gate
                 out = _cei(user, kind=args.get("kind"), title=args.get("title"),
                            day=args.get("day"), content=args.get("content"),
                            source_type=args.get("source_type"),

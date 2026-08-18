@@ -81,6 +81,47 @@ def allowed_actions():
     return sorted(DAY1_ACTION_ALLOWLIST)
 
 
+# Model-facing writes that are intrinsically low-risk AND reversible through a canonical
+# inverse. They still obey `assistant_confirm_actions`; this only says they carry no
+# independent risk that would force confirmation when the user has not asked for it.
+REVERSIBLE_MODEL_INTERFACE_WRITES = frozenset({"complete_execution_item"})
+
+
+def confirmation_required_for(user, action, *, state_changing=True):
+    """THE confirmation policy for CoS writes. ONE authority; every state-changing
+    model-facing action consults this, and none implements its own check.
+
+    Two independent grounds, either sufficient:
+      1. the USER'S PREFERENCE `assistant_confirm_actions` ("Ask me first before
+         creating, changing or deleting anything on my behalf");
+      2. the action's own risk policy (destructive / high-risk / explicit-verb).
+
+    (1) was previously enforced ONLY inside `IntentService.recognize_intents`, which the
+    certified model_interface runtime does not use — the model selects tools directly. So
+    a user with the preference ON had it delivered into the envelope (M1 T3) but NEVER
+    enforced at the write boundary. Proven 2026-08-18: ToolCallLog 62d315f8 shows
+    `complete_execution_item` executing straight to `recorded` with the preference ON.
+
+    Delivery is not enforcement. This function is the enforcement.
+    """
+    if state_changing:
+        try:
+            if bool(getattr(user.preferences, "assistant_confirm_actions", False)):
+                return True
+        except Exception:  # pragma: no cover - defensive; fail SAFE toward confirming
+            logger.warning("action_execution: confirm-preference read failed user=%s",
+                           getattr(user, "id", None), exc_info=True)
+            return True
+    # Model-interface tools are not DAY1 intents, so they have no ACTION_POLICY row and
+    # would hit the unknown-action safe default (always confirm). Register their intrinsic
+    # risk explicitly, so the USER'S PREFERENCE is what decides for them: with the
+    # preference OFF a reversible completion executes directly (preserving the guided
+    # review flow); with it ON, the branch above already required confirmation.
+    if action in REVERSIBLE_MODEL_INTERFACE_WRITES:
+        return False
+    return _confirmation_required(action)
+
+
 def _confirmation_required(action):
     """Reuse ACTION_POLICY metadata; apply the Phase-6 CoS threshold:
     destructive category OR high/critical risk OR explicit-verb actions need
@@ -166,7 +207,7 @@ def execute_action(user, action, params):
         )
 
     # 2. confirmation gate (reuses ACTION_POLICY risk/category metadata)
-    if _confirmation_required(action_norm) and not confirmed:
+    if confirmation_required_for(user, action_norm) and not confirmed:
         _emit(uid, action_norm, "confirmation_required",
               ms=(time.monotonic() - t0) * 1000)
         return _envelope(

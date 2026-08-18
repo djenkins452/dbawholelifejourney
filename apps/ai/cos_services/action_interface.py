@@ -64,6 +64,46 @@ def _map_result(env: dict) -> dict:
     return out
 
 
+def request_confirmation_for(user, action, params=None, *, turn_id="", surface="",
+                             conversation_id=None):
+    """Mint a BOUND confirmation for a write that must not execute yet, and MUTATE NOTHING.
+
+    For model-facing writes that do not run through `request_action` (currently
+    `complete_execution_item`). Reuses the SAME confirmation store, binding and client
+    view — there is no second confirmation system. Returns the interface result, or None
+    if a confirmation could not be minted (caller then fails closed).
+
+    The confirmation carries the EXACT target params, so the later "yes" executes that
+    bound action and never re-resolves from a name or the current action.
+    """
+    params = dict(params) if isinstance(params, dict) else {}
+    try:
+        summary = _confirm.summarize(action, params)
+        handle = _confirm.create(user, action, params, summary,
+                                 conversation_id=conversation_id)
+        if not handle:
+            return None
+        rec = _confirm.get(user, handle["confirmation_id"])
+        out = {
+            "status": CONFIRMATION_REQUIRED,
+            "result": f"Please confirm: {summary}",
+            "confirmation": (_confirm.client_view(rec) if rec else handle),
+        }
+        record_tool_call(
+            user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
+            args=params, result_status=CONFIRMATION_REQUIRED,
+            conversation_id=conversation_id,
+            result_digest={"status": CONFIRMATION_REQUIRED,
+                           "confirmation_id": handle.get("confirmation_id"),
+                           "mutated": False},
+        )
+        return out
+    except Exception:
+        logger.warning("action_interface.request_confirmation_for failed action=%s user=%s",
+                       action, getattr(user, "id", "?"), exc_info=True)
+        return None
+
+
 def request_action(user, action, params=None, *, turn_id="", surface="",
                    conversation_id=None) -> dict:
     """Request one action. If it needs confirmation, WLJ mints a BOUND, CONVERSATION-BOUND
@@ -178,6 +218,32 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
 
     # Execute exactly this confirmation's action, authorized.
     params["confirmed"] = True
+    # `complete_execution_item` is a model-interface tool, not a DAY1 intent, so it is not
+    # dispatchable by `execute_action`. Route the CONFIRMED action back to the completion
+    # service with the EXACT bound params — the target is never re-resolved from a name or
+    # from whatever the current action happens to be by now.
+    if action == "complete_execution_item":
+        try:
+            from apps.ai.cos_services.execution_completion import (
+                complete_execution_item as _cei,
+            )
+            done = _cei(user, kind=params.get("kind"), title=params.get("title"),
+                        day=params.get("day"), content=params.get("content"),
+                        source_type=params.get("source_type"),
+                        source_id=params.get("source_id"),
+                        undo=bool(params.get("undo")))
+            _confirm.consume(user, confirmation_id, status="resolved",
+                             choice="confirm")   # single-use, same as below
+            ok = done.get("status") in ("recorded", "already_complete", "reversed")
+            return {"status": OK if ok else ERROR,
+                    "result": done.get("message") or done.get("status"),
+                    "code": None if ok else done.get("status"),
+                    "evidence": done.get("detail") or {}}
+        except Exception:
+            logger.warning("action_interface: bound completion failed user=%s",
+                           getattr(user, "id", "?"), exc_info=True)
+            return {"status": ERROR, "code": "interface_error",
+                    "result": "That confirmed action could not be completed."}
     try:
         env = execute_action(user, action, params)
         out = _map_result(env)

@@ -6,6 +6,26 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): CONFIRMATION ENFORCEMENT — a safety preference must be enforced at the write boundary, not delivered to the model
+
+**Production defect.** Preferences visibly promised *"Ask me first before creating, changing or deleting anything on my behalf"* (`assistant_confirm_actions=True`). Danny said *"mark 'call the pharmacy' as complete"* and the CoS mutated immediately with no confirmation step. ToolCallLog `62d315f8`: `complete_execution_item(source_id=622, source_type="task")` → `recorded`.
+
+**Two layers, both proven before any change.**
+1. **`complete_execution_item` bypassed the confirmation authority entirely.** `model_interface/service.py` dispatched it DIRECTLY to the completion service; only `_ALLOWED_WRITE_INTENTS` went through `action_interface.request_action` → `execute_action` → confirmation policy. Its original "AUTO authority — the user's 'yes' IS the confirmation" exemption was valid only in the guided-review flow where the user had already said yes; it became invalid the moment this was generalized into THE completion verb.
+2. **The authority never read the preference.** `_confirmation_required(action)` consulted only `ACTION_POLICY` (destructive / high-risk / explicit-verb). `assistant_confirm_actions` was read ONLY in `IntentService.recognize_intents` — a legacy path the certified `model_interface` runtime does not use. **So the preference had NO enforcement on the certified runtime for ANY write, not just completion.** M1's T3 proved it was *delivered* to the model; delivery is not enforcement.
+
+**Fix — one authority.** New `confirmation_required_for(user, action)` in `action_execution.py` is THE policy: it returns True on either ground — the user's preference, or the action's own risk. `execute_action` now calls it (covering every DAY1 write), and the `complete_execution_item` dispatch consults it and mints a **bound** confirmation via the EXISTING confirmation store (`request_confirmation_for`) instead of mutating. No second confirmation system, and no per-handler checks.
+
+**Exact-target binding through confirmation.** The pending confirmation carries the exact `source_type` + `source_id` + `title`. On "yes", `resolve_pending_action` routes the CONFIRMED action back to the completion service with those bound params — the target is never re-resolved from a name or from whatever the current action has become. Composes with the `be0580a5` target integrity.
+
+**Preference OFF still works.** Model-interface tools have no `ACTION_POLICY` row, so they would have hit the unknown-action safe default and confirmed *always* — breaking guided review. `REVERSIBLE_MODEL_INTERFACE_WRITES` registers their intrinsic risk as low, so the USER'S preference decides: ON → confirm; OFF → execute directly. Verified in both directions.
+
+**Gate B validated by production.** The same turn proves the visible-executable work: ONE call, identity-first (`source_id=622`), on a Morning Rhythm item that was NOT the current action, exactly one mutation, correct target.
+
+**Tests:** 12 new in `test_confirmation_enforcement_contract.py` — preference ON requires confirmation across five write actions · OFF permits a reversible completion · unknown actions fail safe · an unreadable preference fails SAFE (confirm, not open) · the production case now asks first and mutates nothing · confirmation binds the exact target and executes only it · declining mutates nothing and closes the pending action · single-use · the bound record carries identity, not a name · structural guards that the dispatch consults the authority, that exactly one module owns the policy, and that the write authority READS the preference. **119 scoped tests run, 117 pass; the 2 failures are PRE-EXISTING `BoundConfirmationTests` (re-verified by stashing all three changed files).** `makemigrations --check` clean.
+
+**Files:** `apps/ai/cos_services/{action_execution,action_interface}.py`, `apps/ai/model_interface/service.py`, tests. **M2 remains uncommitted and untouched.**
+
 ## 2026-08-18 — fix(cos): visible executable resolution + executable reversal (Gate B + undo)
 
 Closes the two items `be0580a5` left open. Target-integrity architecture unchanged.

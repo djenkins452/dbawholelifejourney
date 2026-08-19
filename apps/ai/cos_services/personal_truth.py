@@ -41,7 +41,7 @@ from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
-PERSONAL_TRUTH_SCHEMA_VERSION = "1.0"
+PERSONAL_TRUTH_SCHEMA_VERSION = "1.1"  # M2: + personal knowledge section
 _TTL = 600  # seconds — durable facts change slowly; cache-first, TTL refresh
 _PROVENANCE_EXPLICIT = "explicit"
 
@@ -122,6 +122,32 @@ def _relationship_section(user):
         return {"status": "ready" if facts else "empty", "facts": facts}
     except Exception:
         logger.warning("personal_truth: relationship section failed", exc_info=True)
+        return {"status": "error", "facts": []}
+
+
+def _personal_knowledge_section(user):
+    """M2 — durable personal context the user taught WLJ (Contract 7).
+
+    REUSES the ONE canonical Personal Knowledge authority; this composer never queries
+    the model or re-derives the standing set. Facts only: WLJ stores and retrieves, the
+    conversational model reasons over them.
+    """
+    try:
+        from apps.core.personal_knowledge.service import standing_context_block
+        block = standing_context_block(user)
+        if block.get("status") != "ready":
+            return {"status": block.get("status", "empty"), "facts": []}
+        facts = []
+        for item in block.get("facts") or []:
+            facts.append(_fact(
+                f"knowledge.{item.get('topic', 'other')}",
+                item.get("statement", ""),
+                module="personal_knowledge",
+                source="personal_knowledge.service",
+            ))
+        return {"status": "ready" if facts else "empty", "facts": facts}
+    except Exception:
+        logger.warning("personal_truth: personal knowledge section failed", exc_info=True)
         return {"status": "error", "facts": []}
 
 
@@ -287,6 +313,26 @@ def _clean_list(v):
 
 
 # ── the ONE canonical composer (feeds BOTH standing context and the tool) ────
+def invalidate(user):
+    """Drop this user's cached Personal Truth projection.
+
+    The composer is cached for 10 minutes because durable facts change slowly — but
+    Personal Knowledge is USER-CONTROLLED, and a control the user cannot see take effect
+    is not control. Without this, a fact they just taught stayed invisible and a fact they
+    just deleted kept reaching the model for up to `_TTL` seconds (proven 2026-08-19: the
+    composer said the deleted fact was gone while the system prompt still carried it).
+
+    Called by the ONE Personal Knowledge writer on every mutation. Never raises.
+    """
+    uid = getattr(user, "id", None)
+    if uid is None:
+        return
+    try:
+        cache.delete(_key(uid))
+    except Exception:  # pragma: no cover - cache issues must never break a write
+        logger.debug("personal_truth: cache invalidate skipped", exc_info=True)
+
+
 def build_personal_truth(user, *, use_cache=True):
     """Compose the full durable-fact projection for `user`. Cache-first (slow TTL);
     resilient per-source (one failing module never erases the others). Deterministic —
@@ -303,6 +349,7 @@ def build_personal_truth(user, *, use_cache=True):
 
     sections = {
         "relationship": _relationship_section(user),
+        "knowledge": _personal_knowledge_section(user),
         "nutrition": _nutrition_section(user),
         "health": _health_section(user),
         "goals": _goals_section(user),

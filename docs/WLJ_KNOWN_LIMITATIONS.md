@@ -16,6 +16,10 @@ The product is **not finished**. The milestone establishes that the **fundamenta
 - **OPS-2/3/4:** No monitoring for volumes/artifact storage/DB capacity; `chat` queue backlog not measured; no OpenAI/Model-Interface upstream health card. *Phase: next.*
 - **OPS-5–10:** Postgres depth, per-component `owner` field, dead-job detection, confirmation-queue/attachment/dedup/audit-lag health, build-runner observability, direct Beat measurement. *Phase: following.*
 
+### Test-suite debt (from the 2026-08-19 action-safety audit)
+- **`apps.ai.tests.test_action_interface.BoundConfirmationTests` — 2 stale failures.** Verified PRE-EXISTING on three separate occasions by stashing every changed file; they predate the action-integrity work and are unrelated to it. They assert an older confirmation summary shape (`out["confirmation"]["summary"]` containing the action name) that the current Rich-Confirmation `view` architecture builds differently. **Follow-up: reconcile these tests with the certified deterministic confirmation architecture.** Deliberately NOT fixed opportunistically during M2 — nothing in M2 touches that behaviour, and a drive-by change to confirmation tests during a Personal Knowledge milestone is exactly the kind of unscoped edit that hides regressions. *Phase: next.*
+- **`apps.ai.tests.test_personal_truth.ProtectedBehaviorsUnregressedTests.test_truth_tool_set_is_the_expected_seven` — 1 stale failure.** The truth-tool set legitimately grew (`get_data_health`, `get_consistency`, `get_change_point`, `get_ranked_entity`, `get_execution_review`) at `019146f1` and later, without this counting test being updated. *Phase: next.*
+
 ### Current Context adoption (from `WLJ_CURRENT_CONTEXT_HELP_COVERAGE.md`)
 - The overview page-summary pattern is live on **one** page (Weight). ~90 overview/list pages and ~8 non-DetailView detail pages still need declarations. The mechanism is complete; adoption is the work. *Phase: next (Tier-1 dashboards) → following (Tier-2).*
 - Not yet verified that all ~45 auto-declared DetailViews inherit `UserOwnedModel` (faith/medical/legacy shared-content models may not). *Phase: next spot-check.*

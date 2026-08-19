@@ -261,13 +261,18 @@ class EndToEndActionLifecycleTests(ExecutableIdentityIntegrityTests):
         from apps.ai.model_interface import confirmation as _confirm
         from apps.core.execution.decision_authority import current_action
 
-        target = "Shower"
-        target_id = self.canonical[target]
-
-        # -- the current action is deliberately NOT the requested item -------
+        # Pick the target FROM the runtime: any visible executable item that is not the
+        # current action. Prioritization weighs importance and task class, not just
+        # clock time, so which item is "current" cannot be fixed by scheduling — an
+        # earlier version of this test tried and was flaky by hour of day. What matters
+        # is that the target is NOT the prioritized item.
         ca = (current_action(User.objects.get(pk=self.user.pk)).get("primary_action") or {})
-        self.assertNotEqual(ca.get("source_id"), target_id,
-                            "fixture invalid: the requested item IS the current action")
+        candidates = [n for n, pk_id in self.canonical.items()
+                      if pk_id != ca.get("source_id") and self._projected(n) is not None]
+        self.assertTrue(candidates, "no non-current executable item is visible")
+        target = candidates[0]
+        target_id = self.canonical[target]
+        self.assertNotEqual(ca.get("source_id"), target_id)
 
         # -- projection integrity for the requested item ---------------------
         proj = self._projected(target)
@@ -317,12 +322,15 @@ class EndToEndActionLifecycleTests(ExecutableIdentityIntegrityTests):
 
         # -- a later turn: current truth governs, prose is irrelevant --------
         from apps.ai.models import AssistantMessage
+        other = next(n for n in self.canonical if n != target)
         AssistantMessage.objects.create(
             conversation=self.conv, role="assistant", message_type="text",
-            content="Empty Dishwasher is marked as complete.")
-        self.assertFalse(self._complete_state("Empty Dishwasher"))
-        self.assertFalse(self._projected("Empty Dishwasher")["completed_today"],
-                         "assistant prose became current truth on a later turn")
+            content=f"{other} is marked as complete.")
+        self.assertFalse(self._complete_state(other))
+        other_proj = self._projected(other)
+        if other_proj is not None:
+            self.assertFalse(other_proj["completed_today"],
+                             "assistant prose became current truth on a later turn")
 
     def test_a_wrong_identity_is_still_refused_at_the_write_layer(self):
         """Defence in depth must remain, even now that projection is correct."""

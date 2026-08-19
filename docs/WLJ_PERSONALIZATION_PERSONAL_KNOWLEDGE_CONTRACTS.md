@@ -664,6 +664,31 @@ These follow the established repository pattern (`apps/core/tests/test_*_contrac
 
 ---
 
+## 16a. M2 as-built — provider/privacy verification status (2026-08-19)
+
+M2 creates the first persistent Personal Knowledge store, so Contract 13's verification
+list is now **live and outstanding**. Recorded here rather than in the frozen design,
+because it is operational state, not architecture.
+
+**Established from the repository (no operator action needed):**
+
+| Fact | Evidence |
+|---|---|
+| Endpoint in use | `/v1/chat/completions` (`apps/ai/services.py`) — ZDR-eligible per OpenAI docs |
+| PK payload encrypted at rest | `encrypt_personal_data` / `decrypt_personal_data_safe`, the SAME utility as the legacy `_ai_personal_context` blob — no plaintext regression |
+| Dev fallback behaviour | without a key the utility prefixes `UNENCRYPTED:`; identical to the legacy blob, and asserted by test so the column can never hold an unmarked plaintext statement |
+| PK never reaches the provider except as context | PK is delivered only inside the structured-context block of the system prompt; no separate provider call exists |
+| No PK in logs/telemetry | `__str__` omits the statement; service logging carries ids/topics only — both asserted by test |
+
+**Requires Danny/operator verification before ANY user-facing privacy wording ships (M3):**
+
+1. Is the OpenAI organisation opted **out** of data sharing for training? (API default is out; the account setting is what must be confirmed.)
+2. Is **Zero Data Retention** enabled, or eligible-but-unenabled, for this organisation?
+3. Is `PERSONAL_DATA_ENCRYPTION_KEY` configured in the production environment? **Until it is, Personal Knowledge statements are stored with the `UNENCRYPTED:` prefix rather than Fernet-encrypted** — the same exposure the legacy blob already has, but M2 materially increases the volume of durable personal text, so this should be confirmed before M3 invites users to teach WLJ about their lives.
+
+Item 3 is the one with real user-visible consequence and is the single highest-value
+check of the three. Nothing in the architecture depends on ZDR (Contract 13.5).
+
 ## 17. M0 definition-of-done audit
 
 | # | Criterion | Status |

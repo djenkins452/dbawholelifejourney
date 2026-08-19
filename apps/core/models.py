@@ -2265,6 +2265,13 @@ from apps.core.ai_memory.models import (  # noqa: E402, F401
     LearnedMapping,
 )
 
+# Import Personal Knowledge models so Django discovers them for migrations.
+# M2: the CANONICAL authority for durable personal context (Contract 4). Every surface
+# reads/writes through apps/core/personal_knowledge/service.py — never this model directly.
+from apps.core.personal_knowledge.models import (  # noqa: E402, F401
+    PersonalKnowledgeFact,
+)
+
 # Import ai_insights models so Django discovers them for migrations
 from apps.core.ai_insights.models import Insight  # noqa: E402, F401
 

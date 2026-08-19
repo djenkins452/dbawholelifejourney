@@ -6,6 +6,26 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): EXECUTABLE IDENTITY INTEGRITY — identity travels with every projection
+
+**Production.** *"mark shower completre"* → CoS reported Shower incomplete but did not start the write. *"I am asking you to mark it complete"* → confirmation offered. *"Confirm"* → the write layer refused: **"That id belongs to 'Empty Dishwasher', not 'Shower'. I did not change anything."** The exact-target guard prevented a second wrong mutation.
+
+**ToolCallLog (turn `aa667067`):** `complete_execution_item(title="Shower", source_id=11, source_type="routine_item")`. Canonical rows: **Shower = 3** (Morning Routine), **Empty Dishwasher = 11** (Nightly Routine). An earlier attempt sent **id 9 = "Wake up"** for the same request — two different wrong ids, so not a one-off.
+
+**Root cause — the envelope carried the same items in TWO projections, only one with identity.** `execution_state` paired `title` + `source_id` correctly (verified: a production-equivalent fixture shows zero mismatches). But `timing.remaining[]`, `timing.next_anchor` and `earliest_future_commitment` named items by **TITLE ONLY**. Anything reading the timing view — which is where "what's late / what fits" lives — had to join back to identity **by title, across separate JSON structures**. That join failed twice, on different items. The failure was upstream of mutation, exactly as the evidence indicated.
+
+**Fix — identity travels with every projection that names an item.** A shared `_identity(item)` helper adds `source_type` + `source_id` to all three timing projections, read from values the item already carries. **No new query, no new authority, no lookup per item, no runtime validation cost.** Verified in the real prompt: every serialized object naming Shower now carries Shower's id.
+
+**Class-level protection (new file).** Rather than asserting one item, a property test walks the ENTIRE envelope and, for every dict that names an executable item, asserts: identity present · title→id consistent across the whole envelope · the id resolves to a canonical object whose name IS that title · no id claimed by two titles · identity survives JSON serialization adjacent to its title. **Negative control run: with the fix reverted these tests FAIL; restored, they pass.**
+
+**End-to-end lifecycle contract** — one test, not six units, on a production-equivalent fixture (two routines, five items, a current action that is NOT the target, confirmation ON): projection integrity → request → confirmation bound to the exact identity → nothing mutated → typed "Confirm" → deterministic execution → canonical truth → **no other item changed** → rebuilt Dashboard truth agrees (`completed_today=true`) → a later turn where prose cannot override current truth. The write-layer mismatch refusal is retained and separately asserted as defence in depth.
+
+**Open finding (not fixed, model behaviour):** the first natural imperative *"mark shower completre"* produced a state report instead of initiating the write; the second phrasing started it. Turn log confirms no tool call on the first. Included in the acceptance gate, deliberately not addressed before identity integrity.
+
+**Tests:** 14 new. **159 scoped tests pass** across the full action-integrity suite; every prior invariant green and unmodified. `makemigrations --check` clean.
+
+**Files:** `apps/core/execution/timing.py`, `apps/core/tests/test_executable_identity_integrity_contract.py` (new). **No M2 files.**
+
 ## 2026-08-18 — fix(cos): TEMPORAL TRUTH — current canonical state outranks action/prose history
 
 Closes the last open layer of the action-integrity incident, on canonical evidence.

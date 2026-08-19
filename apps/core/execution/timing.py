@@ -93,6 +93,27 @@ def _is_anchor(item) -> bool:
     return any(k in name for k in _ANCHOR_KEYWORDS)
 
 
+def _identity(item) -> dict:
+    """Canonical identity for an execution item, for projections that name a title.
+
+    EXECUTABLE IDENTITY INTEGRITY (2026-08-18). The envelope carried the same items in
+    TWO projections — execution_state (title + source_id) and timing.remaining
+    (title ONLY) — so anything reading the timing view had to join back to identity by
+    TITLE across two JSON structures. Production shows that join failing twice: a request
+    naming "Shower" arrived as source_id=9 ("Wake up"), then as source_id=11 ("Empty
+    Dishwasher"). Identity now travels with every projection that names an item; the
+    values already exist on the item, so this costs nothing.
+    """
+    out = {}
+    st = item.get("source_type") or item.get("source")
+    if st:
+        out["source_type"] = st
+    sid = item.get("source_id", item.get("pk"))
+    if sid is not None:
+        out["source_id"] = sid
+    return out
+
+
 def _title(item) -> str:
     return (item.get('title') or item.get('name') or '').strip()
 
@@ -152,7 +173,8 @@ def compute_execution_timing(state, now) -> dict:
         buffer_minutes = None
         if anchor is not None:
             buffer_minutes = _minutes(anchor_dt, now)
-            next_anchor = {"title": _title(anchor), "time": _fmt(anchor_dt),
+            next_anchor = {"title": _title(anchor), **_identity(anchor),
+                           "time": _fmt(anchor_dt),
                            "minutes_until": buffer_minutes}
 
         # Per-task calculations along the critical path (execution order from `now`).
@@ -177,6 +199,7 @@ def compute_execution_timing(state, now) -> dict:
             fits = (earliest_completion <= anchor_dt) if anchor_dt is not None else True
             remaining.append({
                 "title": title,
+                **_identity(it),
                 "scheduled_time": _fmt(sched),
                 "minutes_late": minutes_late,
                 "duration_estimate_min": dur,
@@ -240,6 +263,7 @@ def earliest_future_commitment(items, now) -> dict | None:
             return None
         return {
             "title": _title(best),
+            **_identity(best),
             "time": _fmt(best_dt),
             "minutes_until": _minutes(best_dt, now),
         }

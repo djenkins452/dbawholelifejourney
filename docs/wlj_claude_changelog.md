@@ -6,6 +6,22 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-18 — fix(cos): TEMPORAL TRUTH — current canonical state outranks action/prose history
+
+Closes the last open layer of the action-integrity incident, on canonical evidence.
+
+**Forensics (Case A, proven from rows).** `RoutineSchedule id=3` is the ONLY Shower schedule. The single completion row for 2026-08-18 (`RoutineLog 1430`) was created at **20:29 local, `completion_source: manual`** — by the Dashboard. Turn `fec0edc8` at 12:04 reported `recorded` and **created no row at all**; Shower was still incomplete at 15:28 and at 17:50 when turn `c1e0005f` made **zero tool calls** and asserted *"already marked as complete."* **The 12:04 result was FALSE from the moment it was emitted — not stale.** One false claim then contaminated every later turn. *(The rows prove the write produced nothing; they cannot prove why it no-opped, and postcondition verification now catches the class regardless of cause.)*
+
+**Why the model was not simply wrong.** Current truth was fresh and correct — but **nothing in the envelope stated, of that item, "complete: false".** Pending items appeared in pending buckets and completed items appeared as bare `{title, time}` with **no identity and no explicit state**, so "is it done?" was only inferable from which list an item sat in. With no explicit fact to contradict it, recollection filled the gap.
+
+**Fix — explicit current state, from the value that already exists.** `decision_authority._facts()` now projects **`completed_today`** for every executable item, read straight from the canonical value `build_today_execution` already computed. The `completed` bucket now uses the same fact shape, so completed items finally carry `source_type` + `source_id` + `completed_today: true`. `_facts()` also accepts either time key (`time_display` / `scheduled_time`) since both shapes flow through it. **No second derivation, no new query, no cache, no new authority, no provider traffic** — asserted by a query-count test.
+
+**Governing rule** recorded in `WLJ_RUNTIME_TRACE_DEBUGGING.md`: for mutable state, **current canonical truth > historical action result > assistant prose**. A concise Constitution clause states it as defence in depth — the enforcement is the explicit projection plus `086a69c3` postcondition verification, not prompt compliance.
+
+**Tests:** 7 new multi-turn cases (16 total in the lifecycle contract) — `completed_today` false when incomplete · flips true after canonical completion (identity preserved) · flips back after reversal (no stale projection across turns) · **assistant prose cannot establish current state** (the exact 17:50 shape) · **a historical `recorded` ToolCallLog cannot override current state** · a fresh request after false history starts a NEW confirmation lifecycle and still requires authorization · query-count guard. **145 scoped tests pass** across the full action-integrity suite; every prior invariant green and unmodified. `makemigrations --check` clean.
+
+**Files:** `apps/core/execution/decision_authority.py`, `apps/ai/model_interface/constitution.py`, `apps/core/tests/test_action_lifecycle_multiturn_contract.py`, `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`. **No M2 files.**
+
 ## 2026-08-18 — fix(cos): DETERMINISTIC CONFIRMATION CONTINUATION + mandatory target binding
 
 Eliminates the no-tool-call class structurally. Danny was right that a Constitution guard was not the ceiling.

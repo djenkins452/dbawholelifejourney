@@ -89,7 +89,9 @@ def _facts(action) -> dict:
     """Project an action to envelope-safe FACTS (no heavy objects, no judgment)."""
     return {
         "title": action.get("title"),
-        "time": action.get("time_display"),
+        # Accept either shape: prioritized actions carry `time_display`, raw execution
+        # items carry `scheduled_time`. Same value, no recomputation.
+        "time": action.get("time_display") or action.get("scheduled_time"),
         "time_status": action.get("time_status"),
         "urgency": action.get("urgency"),
         "importance": action.get("importance"),
@@ -101,6 +103,13 @@ def _facts(action) -> dict:
         # execution_completion means naming any visible item is both possible and safe.
         "source_id": action.get("source_id", action.get("pk")),
         "can_complete": action.get("can_complete", False),
+        # EXPLICIT CURRENT STATE (2026-08-18 temporal-truth incident). Read straight from
+        # the canonical value `build_today_execution` already computed — no second
+        # derivation, no extra query, no cache. Every executable item now states whether
+        # it is done RIGHT NOW, so a later turn never has to remember (or misremember)
+        # what an earlier turn claimed. Production 2026-08-18: an item was asserted
+        # "already complete" five hours after a completion that never actually wrote.
+        "completed_today": bool(action.get("completed_today", False)),
     }
 
 
@@ -118,10 +127,11 @@ def execution_facts(user, now=None, state=None) -> dict:
             state = build_execution_state(user, now=now)
         # Completed reads the SINGLE reconciled bucket from build_execution_state — never
         # an independent completion query — so it can never disagree with overdue/pending.
-        completed = [
-            {"title": (i.get("title") or ""), "time": i.get("scheduled_time")}
-            for i in (state.get("completed_today") or [])
-        ]
+        # Completed items now carry the SAME fact shape as every other bucket —
+        # including canonical identity and `completed_today: true`. Previously they were
+        # bare {title, time}, so a completed item had no identity and no explicit state,
+        # and the model could only infer "is it done?" from which list it appeared in.
+        completed = [_facts(i) for i in (state.get("completed_today") or [])]
         return _stamp_execution({
             "active_block": (state.get("active_block") or {}).get("name"),
             "timing": state.get("timing"),

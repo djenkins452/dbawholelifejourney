@@ -128,6 +128,38 @@ Before declaring a capability missing, trace it **by behaviour, not by name**:
 The corrected fix was much smaller: extend the existing verb to accept canonical identity,
 rather than build a parallel one.
 
+## Mutable state: current truth outranks history (2026-08-18)
+
+**An assistant's prior statement about mutable state is conversation, not truth.**
+
+Proven in production: a completion reported `recorded` and wrote no canonical row. Five
+hours later, with **zero tool calls**, the CoS asserted the item was "already marked as
+complete" — reading its own earlier sentence as current state. Canonical rows showed the
+item was never completed by the assistant at all; the only completion row that day was
+created manually, hours later.
+
+The precedence rule for anything that can change (completion, progress, counts,
+schedules):
+
+> **current canonical truth  >  historical action result  >  assistant prose/history**
+
+- *current canonical truth* — what is true NOW, read from the owning domain authority.
+- *historical action result* — what a prior action reported at that time. It explains
+  history; it never establishes the present.
+- *assistant prose* — never a truth authority, at any age.
+
+Two structural consequences, both now enforced:
+
+1. **An action result may report success only when the domain authority verifies the
+   requested state** (postcondition verification). A handler returning without raising is
+   not evidence.
+2. **Current state must be projected explicitly**, per item, from the canonical value —
+   not left to be inferred from which bucket an item appears in, and never from memory.
+
+The second matters because the first alone is not enough: correct truth was available and
+fresh in the envelope, but nothing *stated* it about that item, so recollection filled the
+gap. When a claim about mutable state is cheap to make explicit, make it explicit.
+
 ## Anti-Patterns (do NOT)
 - Modify code because it *looks* related.
 - Improve nearby code before proving ownership.

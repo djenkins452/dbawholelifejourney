@@ -225,3 +225,120 @@ class CurrentTruthOutranksHistoryTests(ActionLifecycleHarness):
         self.assertTrue(recorded, "the historical action result should still exist")
         self.assertFalse(self._canonical_complete(),
                          "a historical 'recorded' result was treated as current state")
+
+
+class CurrentStateProjectionTests(ActionLifecycleHarness):
+    """TEMPORAL TRUTH (2026-08-18). Executable items must state whether they are done NOW.
+
+    Production: a completion reported `recorded` at 12:04 but wrote no canonical row;
+    five hours later, with zero tool calls, the CoS asserted "already marked as complete"
+    from its own earlier prose. Current truth was correct and available — but no fact in
+    the envelope said, of that item, "complete: false".
+
+    Invariant: current canonical truth > historical action result > assistant prose.
+    """
+
+    def _projected(self):
+        """The facts for our item as the NEXT turn would receive them."""
+        from apps.core.execution.decision_authority import execution_facts
+        facts = execution_facts(self._fresh_user())
+        for bucket in ("overdue", "due_now", "coming_up", "later", "completed"):
+            for item in (facts.get(bucket) or []):
+                if (item.get("source_type") == "routine_item"
+                        and item.get("source_id") == self.item.pk):
+                    return bucket, item
+        return None, None
+
+    def test_incomplete_item_projects_completed_today_false(self):
+        bucket, item = self._projected()
+        self.assertIsNotNone(item, "the executable item is absent from the envelope")
+        self.assertIn("completed_today", item,
+                      "no explicit current-state fact — the model must infer or recall")
+        self.assertFalse(item["completed_today"])
+
+    def test_state_flips_to_true_after_canonical_completion(self):
+        self._request_completion()
+        self._say("Yes")
+        self.assertTrue(self._canonical_complete())
+        bucket, item = self._projected()
+        self.assertIsNotNone(item, "a completed item vanished from the envelope entirely")
+        self.assertTrue(item["completed_today"])
+        self.assertEqual(item["source_id"], self.item.pk,
+                         "completed items must keep canonical identity")
+
+    def test_state_flips_back_after_canonical_reversal(self):
+        from apps.core.execution.execution_completion import reverse_by_identity
+        self._request_completion()
+        self._say("Yes")
+        reverse_by_identity(self._fresh_user(), "routine_item", self.item.pk,
+                            self.today, requested_target=self.item.name)
+        bucket, item = self._projected()
+        self.assertFalse(item["completed_today"],
+                         "STALE PROJECTION across turns after a reversal")
+
+    def test_assistant_prose_cannot_establish_current_state(self):
+        """The exact 17:50 shape: the transcript claims done, canonical truth says not."""
+        from apps.ai.models import AssistantMessage
+        AssistantMessage.objects.create(
+            conversation=self.conv, role="assistant", message_type="text",
+            content=f"'{self.item.name}' is marked as complete.")
+        AssistantMessage.objects.create(
+            conversation=self.conv, role="assistant", message_type="text",
+            content=f"'{self.item.name}' is already marked as complete.")
+        self.assertFalse(self._canonical_complete())
+        bucket, item = self._projected()
+        self.assertFalse(item["completed_today"], (
+            "assistant prose became current truth — the projection must derive state "
+            "from canonical records only"))
+
+    def test_historical_action_result_cannot_establish_current_state(self):
+        """A recorded ToolCallLog success must not read as present-tense truth."""
+        from apps.ai.models import ToolCallLog
+        ToolCallLog.objects.create(
+            user=self.user, kind="action", tool_name="complete_execution_item",
+            args={"source_type": "routine_item", "source_id": self.item.pk},
+            result_status="recorded",
+            result_digest={"status": "recorded",
+                           "message": f"Marked '{self.item.name}' complete."},
+            turn_id="historical", surface="chat_stream")
+        self.assertFalse(self._canonical_complete())
+        bucket, item = self._projected()
+        self.assertFalse(item["completed_today"], (
+            "a historical action result overrode current canonical state — exactly the "
+            "false-success contamination proven in production"))
+
+    def test_fresh_request_after_false_history_starts_a_new_lifecycle(self):
+        """Old prose/result cannot satisfy a new write; a NEW confirmation is required."""
+        from apps.ai.models import AssistantMessage
+        from apps.ai.model_interface import confirmation as _confirm
+        AssistantMessage.objects.create(
+            conversation=self.conv, role="assistant", message_type="text",
+            content=f"'{self.item.name}' is marked as complete.")
+        bucket, item = self._projected()
+        self.assertFalse(item["completed_today"])
+
+        gate = self._request_completion()
+        self.assertEqual(gate["status"], "confirmation_required",
+                         "a fresh write skipped confirmation because history claimed done")
+        cid = (gate.get("confirmation") or {}).get("confirmation_id")
+        self.assertIsNotNone(_confirm.get(self._fresh_user(), cid))
+        self.assertFalse(self._canonical_complete(),
+                         "the fresh request mutated before authorization")
+
+        self._say("Yes")
+        self.assertTrue(self._canonical_complete())
+        bucket, item = self._projected()
+        self.assertTrue(item["completed_today"])
+
+    def test_projection_adds_no_extra_queries_beyond_execution_truth(self):
+        """No new authority, no second derivation — one build_execution_state read."""
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+        from apps.core.execution.decision_authority import execution_facts
+        with CaptureQueriesContext(connection) as ctx:
+            execution_facts(self._fresh_user())
+        baseline = len(ctx.captured_queries)
+        with CaptureQueriesContext(connection) as ctx2:
+            execution_facts(self._fresh_user())
+        self.assertLessEqual(len(ctx2.captured_queries), baseline,
+                             "the projection introduced additional queries")

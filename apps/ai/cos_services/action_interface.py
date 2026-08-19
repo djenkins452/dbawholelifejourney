@@ -249,10 +249,31 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
             _confirm.consume(user, confirmation_id, status="resolved",
                              choice="confirm")   # single-use, same as below
             ok = done.get("status") in ("recorded", "already_complete", "reversed")
-            return {"status": OK if ok else ERROR,
-                    "result": done.get("message") or done.get("status"),
-                    "code": None if ok else done.get("status"),
-                    "evidence": done.get("detail") or {}}
+            out = {"status": OK if ok else ERROR,
+                   "result": done.get("message") or done.get("status"),
+                   "code": None if ok else done.get("status"),
+                   "evidence": done.get("detail") or {}}
+            # AUDITABILITY (write-surface audit, 2026-08-19). This branch returns before
+            # the function's trailing record_tool_call, so the CONFIRMED EXECUTION — the
+            # turn that actually mutates — left no audit row. Production 2026-08-19 shows
+            # `confirmation_required` and a later `reversed`, with the successful
+            # completion between them missing entirely. Every write must be
+            # reconstructable: tool, args, requested target, resolved identity,
+            # confirmation state, result.
+            record_tool_call(
+                user, kind="action", tool_name=action, turn_id=turn_id,
+                surface=surface, args=params, result_status=done.get("status", ""),
+                conversation_id=conversation_id,
+                result_digest={"status": done.get("status"),
+                               "message": (done.get("message") or "")[:200],
+                               "confirmation_id": confirmation_id,
+                               "confirmed": True,
+                               "source_type": params.get("source_type"),
+                               "source_id": params.get("source_id"),
+                               "requested_target": params.get("title"),
+                               "detail": done.get("detail") or {}},
+            )
+            return out
         except Exception:
             logger.warning("action_interface: bound completion failed user=%s",
                            getattr(user, "id", "?"), exc_info=True)

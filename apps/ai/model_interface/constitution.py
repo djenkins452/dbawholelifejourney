@@ -1649,8 +1649,10 @@ def _complete_execution_item_tool():
             "undo": {"type": "boolean",
                      "description": ("Set true to REVERSE a completion you just made — "
                                      "use it the moment the user says not to do what you "
-                                     "just did. Requires source_type + source_id (from "
-                                     "your previous action result). Reversal is a "
+                                     "just did. Requires source_type + source_id AND "
+                                     "`title` (from your previous action result) — WLJ "
+                                     "refuses a reversal it cannot bind to a named "
+                                     "object, exactly like a completion. Reversal is a "
                                      "SEPARATE, explicit request: a normal completion "
                                      "call never uncompletes anything.")},
             "source_id": {"type": "integer",

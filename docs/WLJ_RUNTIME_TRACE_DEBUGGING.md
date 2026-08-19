@@ -160,6 +160,29 @@ The second matters because the first alone is not enough: correct truth was avai
 fresh in the envelope, but nothing *stated* it about that item, so recollection filled the
 gap. When a claim about mutable state is cheap to make explicit, make it explicit.
 
+## Re-certify a capability whenever its scope expands (2026-08-19)
+
+> **A model-facing capability is not certified merely because it exists, routes, and
+> passes functional tests. Whenever its scope or runtime path expands, its assumptions
+> about target identity, authorization, confirmation, reversibility, postcondition truth,
+> mutable-state precedence, and auditability must be RE-CERTIFIED.**
+
+`complete_execution_item` was genuinely safe as a narrow guided-review verb: the user had
+already said "yes", so it carried an AUTO confirmation exemption and resolved items by
+title. Generalizing it into THE completion verb silently invalidated every one of those
+assumptions and produced, in sequence: a wrong-target mutation, a confirmation bypass, a
+false success, a no-tool-call narration, and a cross-wired identity — each fix exposing
+the next layer.
+
+The failure mode is not carelessness; it is that an assumption earned by a NARROW scope
+stays invisible when the scope widens. Nothing in the code says "this was only safe
+because the user had already confirmed."
+
+`apps/core/tests/test_write_surface_safety_contract.py` is the standing gate: every
+model-facing state-changing tool must be declared with its canonical authority,
+confirmation policy, target binding, reversibility and postcondition semantics — or be
+explicitly exempted with a stated reason. Adding a write without declaring one fails CI.
+
 ## Anti-Patterns (do NOT)
 - Modify code because it *looks* related.
 - Improve nearby code before proving ownership.

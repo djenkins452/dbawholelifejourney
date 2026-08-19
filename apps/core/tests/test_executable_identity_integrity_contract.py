@@ -54,24 +54,48 @@ class ExecutableIdentityIntegrityTests(TestCase):
         self.user = User.objects.get(pk=self.user.pk)
         self.today = datetime.date.today()
 
+        # The ROUTINE's block drives recovery eligibility, so it must match the times
+        # below or the whole block ages out and the fixture silently loses its subject.
+        # Both derived from `now`, keeping this suite wall-clock independent.
+        _blocks = ["morning", "mid_morning", "lunch", "afternoon", "evening", "nightly"]
+        _hour = datetime.datetime.now().hour
+        _current = ("morning" if _hour < 9 else "mid_morning" if _hour < 11
+                    else "lunch" if _hour < 14 else "afternoon" if _hour < 17
+                    else "evening" if _hour < 21 else "nightly")
+        _later = _blocks[min(_blocks.index(_current) + 1, len(_blocks) - 1)]
         morning = Routine.objects.create(
-            user=self.user, name="Morning Routine", time_of_day="morning")
+            user=self.user, name="Morning Routine", time_of_day=_current)
         nightly = Routine.objects.create(
-            user=self.user, name="Nightly Routine", time_of_day="evening")
+            user=self.user, name="Nightly Routine", time_of_day=_later)
 
         def mk(routine, name, t):
             return RoutineSchedule.objects.create(
                 routine=routine, name=name, scheduled_time=t, is_active=True,
                 days_of_week="0,1,2,3,4,5,6")
 
+        # Times are RELATIVE TO NOW, clamped inside the day. Fixed clock times made this
+        # suite wall-clock dependent: morning items stop being recoverable late in the
+        # day (correct Recovery-Contract behaviour), so they legitimately leave the
+        # actionable buckets and the fixture silently lost its subject.
+        now = datetime.datetime.now()
+        def offset(minutes):
+            t = (now + datetime.timedelta(minutes=minutes))
+            hour = min(max(t.hour, 1), 22)
+            return datetime.time(hour, t.minute)
+
         # Order here deliberately differs from time order, so a positional/index merge
         # would produce a visible mismatch.
         self.items = {
-            "Wake up": mk(morning, "Wake up", datetime.time(6, 0)),
-            "Shower": mk(morning, "Shower", datetime.time(7, 0)),
-            "THORNE Creatine": mk(morning, "THORNE Creatine", datetime.time(7, 30)),
-            "Empty Dishwasher": mk(nightly, "Empty Dishwasher", datetime.time(20, 0)),
-            "Lay out clothes": mk(nightly, "Lay out clothes", datetime.time(21, 0)),
+            # All UPCOMING. Overdue items are subject to the Recovery Contract's
+            # recoverability window, which legitimately drops them from the actionable
+            # buckets late in a block — correct product behaviour, but it makes a
+            # fixture wall-clock dependent. Identity/confirmation/execution/verification
+            # are what this suite exercises; overdue-ness is not.
+            "Wake up": mk(morning, "Wake up", offset(10)),
+            "Shower": mk(morning, "Shower", offset(15)),
+            "THORNE Creatine": mk(morning, "THORNE Creatine", offset(20)),
+            "Empty Dishwasher": mk(nightly, "Empty Dishwasher", offset(90)),
+            "Lay out clothes": mk(nightly, "Lay out clothes", offset(120)),
         }
         self.canonical = {n: s.pk for n, s in self.items.items()}
         Task.objects.create(

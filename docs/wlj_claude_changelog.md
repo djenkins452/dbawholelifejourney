@@ -6,6 +6,26 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-19 — chore(cos): CoS WRITE-SURFACE SAFETY AUDIT — Action Safety Baseline established
+
+**Shower/action-integrity incident: CLOSED / PRODUCTION VALIDATED.** ToolCallLog confirms the deterministic chain — turn `0698d9cd` `complete_execution_item(title="Shower", source_id=3, routine_item)` → `confirmation_required, mutated: false` (**correct identity 3, not the earlier wrong 11**), typed "Yes" resolved deterministically, completion recorded and postcondition-verified, then turn `4ef77433` `undo=true, source_id=3` → `reversed`. First natural imperative initiated the flow; exact target bound; no wrong-target mutation.
+
+**Audit scope:** every state-changing capability exposed to the certified `model_interface` — 16 DAY-1 named intents + 4 direct dispatches. Read-only truth tools out of scope.
+
+**Two GAPS FOUND — both in code shipped during this incident, both fixed.**
+1. **Audit gap (invariant 9).** The confirmed-execution branch in `resolve_pending_action` returned before the function's trailing `record_tool_call`, so **the turn that actually mutates left no audit row.** Production proves it: `confirmation_required` at 10:53:43 and `reversed` at 10:54:28, with the successful completion between them **missing entirely**. Now records tool, args, `source_type`/`source_id`, `requested_target`, `confirmation_id`, status and detail.
+2. **Reversal binding gap (invariants 1 + 6).** `undo` accepted an identity with **no stated target**, so `_titles_agree` short-circuited and a wrong id would have un-completed the wrong object. Production ran `undo` with `source_id` and no `title`; it happened to be correct. Reversal now enforces the SAME mandatory binding as completion (`target_unverified`, mutate nothing), and the tool schema says so.
+
+**Structural contract (new):** `test_write_surface_safety_contract.py` declares the whole write surface with per-capability policy and **fails CI if a model-facing write is registered without one** — the gate that stops the next capability entering the way `complete_execution_item` did. Three documented EXPLICIT EXEMPTIONS: `resolve_pending_action` (it IS the confirmation), `schedule_follow_up` (conversational commitment the user just asked for, not domain truth), `next_review_item` (Conversation State only, completes nothing).
+
+**Also fixed:** the end-to-end lifecycle fixture was wall-clock dependent — routine `time_of_day` blocks and the Recovery Contract's recoverability window legitimately drop overdue items from actionable buckets late in a block, so the suite silently lost its subject when run in the evening. Fixture is now time-relative and uses upcoming items.
+
+**Tests:** 10 new. **177 scoped tests run, 175 pass**; the 2 failures are the PRE-EXISTING `BoundConfirmationTests` (verified pre-existing by stashing, twice). `makemigrations --check` clean. **No real-model run was necessary** — every gap was structural.
+
+**Durable lesson persisted** in `WLJ_RUNTIME_TRACE_DEBUGGING.md`: a capability is not certified because it routes and passes functional tests; when its scope expands, its assumptions must be re-certified.
+
+**Files:** `apps/ai/cos_services/action_interface.py`, `apps/core/execution/execution_completion.py`, `apps/ai/model_interface/constitution.py`, `apps/core/tests/test_write_surface_safety_contract.py` (new), `apps/core/tests/test_executable_identity_integrity_contract.py`, `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`. **No M2 files.**
+
 ## 2026-08-18 — fix(cos): EXECUTABLE IDENTITY INTEGRITY — identity travels with every projection
 
 **Production.** *"mark shower completre"* → CoS reported Shower incomplete but did not start the write. *"I am asking you to mark it complete"* → confirmation offered. *"Confirm"* → the write layer refused: **"That id belongs to 'Empty Dishwasher', not 'Shower'. I did not change anything."** The exact-target guard prevented a second wrong mutation.

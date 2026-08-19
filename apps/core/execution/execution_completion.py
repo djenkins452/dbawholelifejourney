@@ -164,6 +164,17 @@ def reverse_by_identity(user, source_type, source_id, target_date,
                        message=f"'{source_type}' cannot be reversed.",
                        detail={"resolution": "unsupported_source_type", "mutated": False})
     try:
+        # MANDATORY BINDING, same as completion (write-surface audit, 2026-08-19).
+        # Reversal previously accepted an identity with no stated target, so
+        # `_titles_agree` short-circuited and a wrong id would have un-completed the wrong
+        # object. Production 2026-08-19 ran `undo` with source_id and NO title; it happened
+        # to be correct. Optional binding is not binding — on either verb.
+        if not (requested_target or "").strip():
+            return _result("target_unverified", kind, "",
+                           message=("I need to know which item you mean before I change "
+                                    "anything. Nothing was changed."),
+                           detail={"resolution": "missing_requested_target",
+                                   "mutated": False, "source_id": source_id})
         resolved = _peek_identity(user, st, source_id)
         if resolved is None:
             return _result("not_found", kind, requested_target or "",

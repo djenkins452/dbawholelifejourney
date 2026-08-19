@@ -689,6 +689,44 @@ because it is operational state, not architecture.
 Item 3 is the one with real user-visible consequence and is the single highest-value
 check of the three. Nothing in the architecture depends on ZDR (Contract 13.5).
 
+## 16b. Production encryption gate — SATISFIED (2026-08-19)
+
+Verified presence-only through the deployed governance/probe mechanisms; the secret value
+was never read, printed, hashed, compared or derived.
+
+| Service | Commit | Personal-data encryption |
+|---|---|---|
+| `wlj-web-app` | `aaf7f3fea45e` | **configured** |
+| `wlj-worker` | `aaf7f3fea45e` | **configured** |
+| `chatworker` | not deployed | n/a — the dedicated chat queue is optional (`Procfile`) and no such service exists in the production project |
+
+Both runtime services are on the same SHA, so they share one code path as well as one key,
+and can therefore decrypt each other's persisted values. Confirmed across repeated reads.
+
+**The operative key is `OAUTH_TOKEN_ENCRYPTION_KEY`.** `PERSONAL_DATA_ENCRYPTION_KEY` is
+read via `getattr(settings, ...)` but is never declared in `config/settings.py`, so it can
+never resolve from the environment — production reports
+`dedicated_key_declared_in_settings: False`. Setting that variable in Railway would have
+no effect; the fallback is what protects data today.
+
+**Deterministic proof that the fallback is not used when configured** (isolated test, no
+production data written): with a production-style key the column holds no `UNENCRYPTED:`
+prefix and no plaintext, and the value round-trips; without one, storage is explicitly
+MARKED `UNENCRYPTED:` so it can never be mistaken for ciphertext. Pinned by
+`test_personal_knowledge_truth_path_contract.py::EncryptionEngagementTests`, including an
+assertion that the key the code actually uses is declared in settings.
+
+### Deferred security-hardening decision (NOT implemented)
+
+> **Evaluate separation of OAuth-token encryption and durable personal-data encryption into
+> distinct keys, with a safe backwards-compatible migration/rotation strategy.**
+
+Today one key protects OAuth tokens, the legacy AI-personal-context blob, and Personal
+Knowledge. Separating them limits blast radius and allows independent rotation, but it is a
+one-way migration over already-encrypted rows and is **not required to unblock M3**. Any
+such work must plan for: dual-read during transition, re-encryption of existing values, and
+the fact that rotating the current key makes existing values permanently undecryptable.
+
 ## 17. M0 definition-of-done audit
 
 | # | Criterion | Status |

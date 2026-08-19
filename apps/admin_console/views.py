@@ -3685,6 +3685,21 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             return JsonResponse({'error': f'analysis failed: {exc!r}',
                                  'web_commit': web_commit}, status=500)
 
+        # --- encryption-at-rest PRESENCE (boolean only, never the value) -----
+        # `get_personal_data_fernet()` prefers PERSONAL_DATA_ENCRYPTION_KEY and falls back
+        # to OAUTH_TOKEN_ENCRYPTION_KEY. Reported as booleans so an operator can confirm
+        # Personal Knowledge is encrypted at rest without the secret ever being exposed.
+        try:
+            web_encryption = {
+                "personal_data_encryption_configured": bool(
+                    getattr(settings, "PERSONAL_DATA_ENCRYPTION_KEY", None)
+                    or getattr(settings, "OAUTH_TOKEN_ENCRYPTION_KEY", None)),
+                "dedicated_key_declared_in_settings": hasattr(
+                    settings, "PERSONAL_DATA_ENCRYPTION_KEY"),
+            }
+        except Exception as exc:
+            web_encryption = {"error": repr(exc)}
+
         # --- routine occurrence forensics (read-only) ---
         # `routine=<name fragment>` dumps the canonical RoutineSchedule rows and their
         # RoutineLog records for the requested day. Prose in a transcript is not evidence;
@@ -3765,6 +3780,7 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             'envelope': envelope,
             'recent_get_analysis_calls': recent_calls,
             'routine_forensics': routine_forensics,
+            'web_encryption': web_encryption,
         }, json_dumps_params={'default': str})
 
 

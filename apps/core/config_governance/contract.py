@@ -149,6 +149,28 @@ CONTRACT: tuple = (
         remediation="Share OPENAI_API_KEY with Web, Worker, and Chat Worker.",
     ),
     VariableSpec(
+        name="OAUTH_TOKEN_ENCRYPTION_KEY", classification=CLASS_SECRET,
+        description=(
+            "Fernet key for encrypting personal data at rest. NOTE: despite the name this "
+            "is ALSO the key `get_personal_data_fernet()` actually uses — "
+            "PERSONAL_DATA_ENCRYPTION_KEY is read via getattr(settings, ...) but is never "
+            "declared in config/settings.py, so it can never resolve and the code always "
+            "falls through to this one."
+        ),
+        capability=(
+            "Encryption at rest for Personal Knowledge statements, the legacy AI personal "
+            "context blob, and OAuth tokens. WITHOUT IT these are stored with an "
+            "'UNENCRYPTED:' prefix rather than encrypted."
+        ),
+        required_services=(SERVICE_WEB, SERVICE_WORKER, SERVICE_CHATWORKER),
+        severity=SEV_CRITICAL, preferred_source=SOURCE_SHARED,
+        remediation=(
+            "Share OAUTH_TOKEN_ENCRYPTION_KEY with Web, Worker and Chat Worker. Rotating "
+            "or replacing it makes existing encrypted values undecryptable — treat as a "
+            "one-way decision."
+        ),
+    ),
+    VariableSpec(
         name="CLAUDE_API_KEY", classification=CLASS_SECRET,
         description="Operator/automation API key for admin task + ops-diagnostic endpoints.",
         capability="Internal operator automation (not customer-facing)",

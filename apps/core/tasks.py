@@ -179,7 +179,14 @@ def report_worker_build():
     sha = (os.environ.get("RAILWAY_GIT_COMMIT_SHA")
            or os.environ.get("SOURCE_VERSION")
            or os.environ.get("GIT_COMMIT") or "development")
-    payload = {"commit": sha[:12], "stamped_at": timezone.now().isoformat()}
+    # Encryption-at-rest PRESENCE for this worker process — a BOOLEAN ONLY. The value is
+    # never read into the payload, never logged, never hashed and never partially shown;
+    # this answers "is personal data encrypted on the worker?" and nothing else.
+    from django.conf import settings as _s
+    _enc = bool(getattr(_s, "PERSONAL_DATA_ENCRYPTION_KEY", None)
+                or getattr(_s, "OAUTH_TOKEN_ENCRYPTION_KEY", None))
+    payload = {"commit": sha[:12], "stamped_at": timezone.now().isoformat(),
+               "personal_data_encryption_configured": _enc}
     cache.set(WORKER_BUILD_CACHE_KEY, payload, timeout=3600)
     logger.info("report_worker_build: worker commit=%s", payload["commit"])
     return payload

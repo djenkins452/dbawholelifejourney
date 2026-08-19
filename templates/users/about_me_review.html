@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Review what I noted - About Me{% endblock %}
+{% block content %}
+<div class="content-container about-me">
+  <header class="about-me-header">
+    <p><a href="{% url 'users:about_me' %}">&larr; About Me</a></p>
+    <h1>Things I noted earlier</h1>
+    <p class="about-me-subtitle">
+      I picked these up from our past conversations. <strong>I&rsquo;m not using them yet.</strong>
+      Keep what&rsquo;s right, fix what&rsquo;s changed, and remove anything you&rsquo;d rather I
+      didn&rsquo;t remember. You can stop and come back any time.
+    </p>
+  </header>
+
+  {% if messages %}{% for message in messages %}
+    <div class="about-me-flash">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  {% for fact in facts %}
+  <section class="about-me-panel">
+    <p class="about-me-statement">{{ fact.statement }}</p>
+    <p class="about-me-meta">{{ fact.provenance_label }} &middot; {{ fact.topic_label }}
+      {% if fact.subject %} &middot; about {{ fact.subject }}{% endif %}</p>
+
+    <details class="about-me-edit">
+      <summary>Fix this</summary>
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'correct' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'users:about_me_review' %}">
+        <textarea name="statement" rows="2" class="about-me-input"
+                  aria-label="Correct this">{{ fact.statement }}</textarea>
+        <button type="submit" class="about-me-btn about-me-btn-primary">Save</button>
+      </form>
+    </details>
+
+    <div class="about-me-actions">
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'keep' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_review' %}">
+        <button type="submit" class="about-me-btn about-me-btn-primary">Keep this</button>
+      </form>
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'delete' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_review' %}">
+        <button type="submit" class="about-me-btn about-me-btn-danger"
+                aria-label="Remove: {{ fact.statement|truncatechars:60 }}">Remove</button>
+      </form>
+    </div>
+  </section>
+  {% empty %}
+  <section class="about-me-panel">
+    <h2>Nothing waiting for review</h2>
+    <p>You&rsquo;re all caught up.</p>
+    <form method="post" action="{% url 'users:about_me_import' %}">
+      {% csrf_token %}
+      <button type="submit" class="about-me-btn">Check for anything else from earlier</button>
+    </form>
+  </section>
+  {% endfor %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.about-me { max-width: 860px; margin: 0 auto; padding-bottom: 2rem; }
+.about-me-panel { background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px); padding: 1.25rem; margin-bottom: 1rem; }
+.about-me-statement { font-size: 1.02rem; margin: 0 0 .5rem; }
+.about-me-meta { color: var(--color-text-muted); font-size: .85rem; margin: 0; }
+.about-me-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .85rem; }
+.about-me-actions form { margin: 0; }
+.about-me-edit { margin-top: .75rem; }
+.about-me-edit summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.about-me-input { width: 100%; padding: .6rem .7rem; font-size: 16px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    background: var(--color-background); color: var(--color-text); }
+.about-me-btn { padding: .6rem 1rem; min-height: 44px; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); background: var(--color-background);
+    color: var(--color-text); font-weight: 600; cursor: pointer; }
+.about-me-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.about-me-btn-danger { border-color: var(--color-danger, #b3261e); color: var(--color-danger, #b3261e); }
+.about-me-flash { padding: .7rem 1rem; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); margin-bottom: 1rem; background: var(--color-surface); }
+@media (max-width: 480px) { .about-me { padding-left: .75rem; padding-right: .75rem; } }
+</style>
+{% endblock %}

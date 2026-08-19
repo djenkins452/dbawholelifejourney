@@ -6,6 +6,28 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-19 — feat(cos): M3 — About Me workspace + existing-knowledge review
+
+The customer-facing trust surface over the M2 Personal Knowledge authority. Management and review only — no interview, no learning, no legacy retirement.
+
+**About Me is a first-class destination** (`/user/about-me/`, left-rail entry), deliberately not a Preferences accordion. Three surfaces: the workspace (Knowledge Map + add + privacy + scoped clear), a topic drill-down (edit · keep · pin · mark sensitive · remove · add), and a review page for knowledge noted in earlier conversations.
+
+**Presentation law honoured.** The map reports a factual **count and nothing else** — "14 things I know", "nothing yet". No quality labels, percentages, completeness scores, progress bars, deficiency language, or colour encoding sufficiency; counts are text, never colour alone. An empty topic reads as a neutral fact about storage, never a gap in the person. Guarded by `PresentationLawTests`.
+
+**Legacy review ships WITH About Me**, so an existing user never opens an empty workspace while WLJ holds their history. `legacy_import.py` adopts from `_ai_personal_context` (line-delimited), `ai_profile` (deterministic paragraph/sentence split) and `PersonalFact` (structured, with `fact_type` → topic mapping). Four enforced rules: everything lands `provenance=legacy_extraction` + `review_state=unreviewed` so it is **reviewable but never trusted**; idempotent via `attributes.legacy_source`/`legacy_ref`; **non-destructive** (M7 owns retirement); and **deterministic — no model call**, asserted by test. Proven end to end: 6 facts from 3 sources, 0 adopted on rerun, 0 leaked into standing context, and keeping one made it eligible immediately.
+
+**AI Profile treatment:** brought forward as seed material into PK and preserved intact. The user no longer maintains a biography in parallel — but the field is untouched until M7.
+
+**One authority throughout.** About Me reads and writes only through the M2 service, so cache invalidation, supersession lineage and standing-context eligibility are never re-implemented. A contract test caught the view querying the model directly for its ownership lookup; a `service.get_fact()` accessor now keeps that literally true.
+
+**Tests:** 26 new at the real HTTP paths — counts reflect canonical PK · drill-down shows the same authority · add/delete/correct reach the model immediately · correction supersedes with lineage · unreviewed legacy visible for review but never in context · keeping makes it eligible · marking sensitive removes it at once · import idempotent, provenance-preserving, source-preserving · **clear removes only learned knowledge, never a Task/Person** · destructive action requires explicit confirmation · ownership isolation (404 + no mutation) · customer language, not table terminology · block-comment syntax. **431 scoped tests pass**; M1, M2 and the Action Safety Baseline all green. `makemigrations --check` clean (no schema change).
+
+**Three test-mechanics bugs fixed in my own work**, all the same class: assertions scanning *prose* instead of structure. A whole-document scan matched "Rich"/"incomplete" in the app shell (now scoped to page content); a word-scan flagged `Provenance.INTERVIEW`/`CANDIDATE_ACCEPTED` **labels** as implementations (now asserts imports and callables via AST); and the end-to-end action fixture clamped late-night offsets into the past (now scaled to the time left in the day). Also caught by browser verification: a multi-line `{# #}` rendered as visible text — the documented Django trap — now `{% comment %}`, with a test.
+
+**Not pulled forward:** Getting to Know You, natural learning, candidate extraction, progressive invitations, auto-commit, legacy-store retirement, encryption redesign.
+
+**Files:** `apps/core/personal_knowledge/{legacy_import,service}.py`, `apps/users/{about_me_views,urls}.py`, `templates/users/about_me{,_topic,_review}.html`, `templates/components/desktop_left_rail.html`, `apps/core/tests/test_about_me_contract.py` (new), `apps/core/tests/test_executable_identity_integrity_contract.py`, `apps/core/fixtures/release_notes.json`, `apps/help/fixtures/help_topics.json`, `apps/core/management/commands/load_initial_data.py`.
+
 ## 2026-08-19 — feat(cos): M2 — canonical Personal Knowledge foundation
 
 Builds the one WLJ-owned authority for *"what my Chief of Staff knows about me"*. Foundation only: no About Me, no interview, no natural learning, no legacy migration.

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}{{ topic_label }} - About Me{% endblock %}
+{% block content %}
+<div class="content-container about-me">
+  <header class="about-me-header">
+    <p><a href="{% url 'users:about_me' %}">&larr; About Me</a></p>
+    <h1>{{ topic_label }}</h1>
+    <p class="about-me-subtitle">
+      {% if facts %}{{ facts|length }} thing{{ facts|length|pluralize }} I know.
+      {% else %}Nothing stored here yet.{% endif %}
+    </p>
+  </header>
+
+  {% if messages %}{% for message in messages %}
+    <div class="about-me-flash">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  {% for fact in facts %}
+  <section class="about-me-panel about-me-fact">
+    <p class="about-me-statement">{{ fact.statement }}</p>
+
+    <p class="about-me-meta">
+      {{ fact.provenance_label }}{% if fact.subject %} &middot; about {{ fact.subject }}{% endif %}
+      {# States are TEXT, never colour alone. #}
+      {% if fact.needs_review %} &middot; <strong>waiting for your review</strong>{% endif %}
+      {% if fact.is_sensitive %} &middot; <strong>sensitive</strong>{% endif %}
+      {% if fact.pinned %} &middot; <strong>pinned</strong>{% endif %}
+      {% if not fact.in_standing_context %} &middot; not used in everyday conversation{% endif %}
+    </p>
+
+    <details class="about-me-edit">
+      <summary>Edit</summary>
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'correct' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+        <label class="about-me-label" for="stmt-{{ fact.id }}">What should I remember?</label>
+        <textarea id="stmt-{{ fact.id }}" name="statement" rows="2"
+                  class="about-me-input">{{ fact.statement }}</textarea>
+        <button type="submit" class="about-me-btn about-me-btn-primary">Save</button>
+      </form>
+    </details>
+
+    <div class="about-me-actions">
+      {% if fact.needs_review %}
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'keep' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+        <button type="submit" class="about-me-btn">Keep this</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'pin' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+        <button type="submit" class="about-me-btn">{% if fact.pinned %}Unpin{% else %}Pin{% endif %}</button>
+      </form>
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'sensitive' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+        <button type="submit" class="about-me-btn">
+          {% if fact.is_sensitive %}Not sensitive{% else %}Mark sensitive{% endif %}
+        </button>
+      </form>
+      <form method="post" action="{% url 'users:about_me_fact_action' fact.id 'delete' %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+        <button type="submit" class="about-me-btn about-me-btn-danger"
+                aria-label="Remove: {{ fact.statement|truncatechars:60 }}">Remove</button>
+      </form>
+    </div>
+  </section>
+  {% empty %}
+  <section class="about-me-panel">
+    <p>Nothing here yet. You can add something below whenever you like.</p>
+  </section>
+  {% endfor %}
+
+  <section class="about-me-panel">
+    <h2>Add to {{ topic_label }}</h2>
+    <form method="post" action="{% url 'users:about_me_add' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'users:about_me_topic' topic %}">
+      <input type="hidden" name="topic" value="{{ topic }}">
+      <label class="about-me-label" for="add-stmt">What should I remember?</label>
+      <textarea id="add-stmt" name="statement" rows="2" class="about-me-input"></textarea>
+      <label class="about-me-label" for="add-subj">Who is it about? (optional)</label>
+      <input id="add-subj" type="text" name="subject" class="about-me-input">
+      <button type="submit" class="about-me-btn about-me-btn-primary">Remember this</button>
+    </form>
+  </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.about-me { max-width: 860px; margin: 0 auto; padding-bottom: 2rem; }
+.about-me-panel { background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px); padding: 1.25rem; margin-bottom: 1rem; }
+.about-me-statement { font-size: 1.02rem; margin: 0 0 .5rem; }
+.about-me-meta { color: var(--color-text-muted); font-size: .85rem; margin: 0; }
+.about-me-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .85rem; }
+.about-me-actions form { margin: 0; }
+.about-me-edit { margin-top: .75rem; }
+.about-me-edit summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.about-me-label { display: block; font-size: .85rem; font-weight: 600; margin: .75rem 0 .25rem; }
+.about-me-input { width: 100%; padding: .6rem .7rem; font-size: 16px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    background: var(--color-background); color: var(--color-text); }
+.about-me-btn { padding: .6rem 1rem; min-height: 44px; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); background: var(--color-background);
+    color: var(--color-text); font-weight: 600; cursor: pointer; }
+.about-me-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.about-me-btn-danger { border-color: var(--color-danger, #b3261e); color: var(--color-danger, #b3261e); }
+.about-me-flash { padding: .7rem 1rem; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); margin-bottom: 1rem; background: var(--color-surface); }
+@media (max-width: 480px) { .about-me { padding-left: .75rem; padding-right: .75rem; } }
+</style>
+{% endblock %}

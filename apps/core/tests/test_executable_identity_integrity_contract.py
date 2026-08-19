@@ -77,11 +77,17 @@ class ExecutableIdentityIntegrityTests(TestCase):
         # suite wall-clock dependent: morning items stop being recoverable late in the
         # day (correct Recovery-Contract behaviour), so they legitimately leave the
         # actionable buckets and the fixture silently lost its subject.
+        # Offsets are SCALED to the time actually left in the day. A fixed clamp broke
+        # late at night: at 23:40 a "+90 minutes" item clamped back to 22:xx, landing in
+        # the PAST and leaving no upcoming item for the test to act on.
         now = datetime.datetime.now()
-        def offset(minutes):
-            t = (now + datetime.timedelta(minutes=minutes))
-            hour = min(max(t.hour, 1), 22)
-            return datetime.time(hour, t.minute)
+        _minutes_left = max((23 * 60 + 55) - (now.hour * 60 + now.minute), 10)
+        def offset(step):
+            """`step` is 1..5 — position in the sequence, not a literal minute count."""
+            delta = max(int(_minutes_left * step / 6), step)
+            t = now + datetime.timedelta(minutes=delta)
+            return datetime.time(t.hour, t.minute) if t.day == now.day \
+                else datetime.time(23, 59)
 
         # Order here deliberately differs from time order, so a positional/index merge
         # would produce a visible mismatch.
@@ -91,11 +97,11 @@ class ExecutableIdentityIntegrityTests(TestCase):
             # buckets late in a block — correct product behaviour, but it makes a
             # fixture wall-clock dependent. Identity/confirmation/execution/verification
             # are what this suite exercises; overdue-ness is not.
-            "Wake up": mk(morning, "Wake up", offset(10)),
-            "Shower": mk(morning, "Shower", offset(15)),
-            "THORNE Creatine": mk(morning, "THORNE Creatine", offset(20)),
-            "Empty Dishwasher": mk(nightly, "Empty Dishwasher", offset(90)),
-            "Lay out clothes": mk(nightly, "Lay out clothes", offset(120)),
+            "Wake up": mk(morning, "Wake up", offset(1)),
+            "Shower": mk(morning, "Shower", offset(2)),
+            "THORNE Creatine": mk(morning, "THORNE Creatine", offset(3)),
+            "Empty Dishwasher": mk(nightly, "Empty Dishwasher", offset(4)),
+            "Lay out clothes": mk(nightly, "Lay out clothes", offset(5)),
         }
         self.canonical = {n: s.pk for n, s in self.items.items()}
         Task.objects.create(

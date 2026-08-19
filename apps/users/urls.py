@@ -29,7 +29,7 @@ Copyright:
 
 from django.urls import path
 
-from . import views
+from . import about_me_views, views
 
 app_name = "users"
 
@@ -39,6 +39,20 @@ urlpatterns = [
     path("profile/edit/", views.ProfileEditView.as_view(), name="profile_edit"),
 
     # Preferences
+    # ── About Me — the Personal Knowledge workspace (M3) ─────────────────────
+    # A first-class destination, deliberately NOT nested under preferences/.
+    path("about-me/", about_me_views.AboutMeView.as_view(), name="about_me"),
+    path("about-me/review/", about_me_views.AboutMeReviewView.as_view(),
+         name="about_me_review"),
+    path("about-me/import/", about_me_views.AboutMeImportView.as_view(),
+         name="about_me_import"),
+    path("about-me/add/", about_me_views.AboutMeAddView.as_view(), name="about_me_add"),
+    path("about-me/clear/", about_me_views.AboutMeClearView.as_view(),
+         name="about_me_clear"),
+    path("about-me/fact/<int:pk_id>/<str:action>/",
+         about_me_views.AboutMeFactActionView.as_view(), name="about_me_fact_action"),
+    path("about-me/<str:topic>/", about_me_views.AboutMeTopicView.as_view(),
+         name="about_me_topic"),
     path("preferences/", views.PreferencesView.as_view(), name="preferences"),
     path("preferences/theme/", views.ThemeSelectionView.as_view(), name="theme_selection"),
     path("preferences/toggle/", views.PreferenceToggleView.as_view(), name="preference_toggle"),

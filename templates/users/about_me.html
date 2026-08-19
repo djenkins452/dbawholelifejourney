@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}About Me - Whole Life Journey{% endblock %}
+
+{% block content %}
+{% comment %}
+About Me — the Personal Knowledge workspace (M3).
+
+PRESENTATION LAW (frozen design §5): counts and nothing else. No quality labels,
+no percentages, no progress bars, no deficiency language, and no colour that
+encodes sufficiency. An empty topic is a neutral fact about what WLJ has
+stored — never a gap in the person.
+
+`{# #}` is SINGLE-LINE ONLY in Django; a multi-line one renders as visible text
+(docs/wlj_claude_troubleshoot.md). Use {% comment %} for blocks.
+{% endcomment %}
+<div class="content-container about-me">
+
+  <header class="about-me-header">
+    <h1>About Me</h1>
+    <p class="about-me-subtitle">What your Chief of Staff knows about you.</p>
+  </header>
+
+  {% if messages %}
+    {% for message in messages %}
+      <div class="about-me-flash about-me-flash-{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
+
+  {% if pending_review %}
+  <section class="about-me-panel about-me-review-prompt">
+    <h2>Things I noted from our earlier conversations</h2>
+    <p>
+      I have <strong>{{ pending_review }}</strong> thing{{ pending_review|pluralize }} I picked up
+      before. I&rsquo;m not using {{ pending_review|pluralize:"it,them" }} in our conversations yet
+      &mdash; have a look and keep what&rsquo;s right, fix what&rsquo;s changed, and remove anything
+      you&rsquo;d rather I didn&rsquo;t remember.
+    </p>
+    <a class="about-me-btn about-me-btn-primary" href="{% url 'users:about_me_review' %}">Review them</a>
+  </section>
+  {% elif has_legacy_material %}
+  <section class="about-me-panel about-me-review-prompt">
+    <h2>I&rsquo;ve got some notes from earlier</h2>
+    <p>
+      There are things I picked up in past conversations that aren&rsquo;t here yet.
+      Bring them in and you can decide what&rsquo;s worth keeping.
+    </p>
+    <form method="post" action="{% url 'users:about_me_import' %}">
+      {% csrf_token %}
+      <button type="submit" class="about-me-btn about-me-btn-primary">Bring them in</button>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="about-me-panel">
+    <h2>What I know about you</h2>
+    {% if total_count %}
+      <p class="about-me-total">{{ total_count }} thing{{ total_count|pluralize }} in total.</p>
+    {% else %}
+      <p class="about-me-total">
+        Nothing stored yet. Anything you add here is yours &mdash; you can change or remove it any time.
+      </p>
+    {% endif %}
+
+    <ul class="about-me-map">
+      {% for card in topic_cards %}
+      <li class="about-me-map-item">
+        <a href="{% url 'users:about_me_topic' card.key %}">
+          <span class="about-me-map-label">{{ card.label }}</span>
+          {# Count only. Never a score, never a judgment. #}
+          <span class="about-me-map-count">{{ card.count_label }}</span>
+          <span class="about-me-map-arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="about-me-panel">
+    <h2>Add something</h2>
+    <p>Tell me something you&rsquo;d like me to remember.</p>
+    <form method="post" action="{% url 'users:about_me_add' %}" class="about-me-add-form">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{% url 'users:about_me' %}">
+      <label class="about-me-label" for="am-statement">What should I remember?</label>
+      <textarea id="am-statement" name="statement" rows="2" class="about-me-input"
+                placeholder="Heather is my wife."></textarea>
+      <label class="about-me-label" for="am-topic">Where does it belong?</label>
+      <select id="am-topic" name="topic" class="about-me-input">
+        {% for card in topic_cards %}
+        <option value="{{ card.key }}">{{ card.label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="about-me-btn about-me-btn-primary">Remember this</button>
+    </form>
+  </section>
+
+  <section class="about-me-panel about-me-privacy">
+    <h2>How this works</h2>
+    <p>
+      <strong>Whole Life Journey remembers. The AI provider processes.</strong>
+    </p>
+    <p>
+      What you keep here is stored in <strong>your Whole Life Journey account</strong> &mdash;
+      that&rsquo;s why your Chief of Staff still knows it tomorrow. When it needs to answer you,
+      the relevant parts are sent to our AI provider to generate the reply. The provider
+      isn&rsquo;t where your Chief of Staff&rsquo;s memory lives &mdash; this page is.
+    </p>
+    <p>
+      You decide what stays: inspect anything, correct it, or remove it. Removing something
+      here removes what I&rsquo;ve <em>learned</em> &mdash; it never deletes your goals, tasks,
+      health records, journal entries or people.
+    </p>
+    <p><a href="{% url 'core:privacy' %}">How AI &amp; your data work</a></p>
+  </section>
+
+  {% if total_count %}
+  <section class="about-me-panel about-me-danger">
+    <h2>Remove everything I&rsquo;ve learned</h2>
+    <p>
+      This removes all {{ total_count }} thing{{ total_count|pluralize }} on this page.
+      Your goals, tasks, health records, journal entries and people are not affected.
+    </p>
+    <form method="post" action="{% url 'users:about_me_clear' %}" class="about-me-clear-form">
+      {% csrf_token %}
+      <label class="about-me-label" for="am-confirm">Type <code>remove everything</code> to confirm</label>
+      <input id="am-confirm" type="text" name="confirm" class="about-me-input"
+             autocomplete="off" placeholder="remove everything">
+      <button type="submit" class="about-me-btn about-me-btn-danger">Remove everything</button>
+    </form>
+  </section>
+  {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.about-me { max-width: 860px; margin: 0 auto; padding-bottom: var(--space-8, 2rem); }
+.about-me-header { margin-bottom: var(--space-5, 1.5rem); }
+.about-me-subtitle { color: var(--color-text-muted); margin-top: .25rem; }
+.about-me-panel {
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px); padding: var(--space-5, 1.25rem);
+    margin-bottom: var(--space-4, 1rem);
+}
+.about-me-panel h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+.about-me-total { color: var(--color-text-muted); margin-bottom: 1rem; }
+.about-me-map { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+.about-me-map-item a {
+    display: flex; align-items: center; gap: .75rem; padding: .85rem 1rem;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    text-decoration: none; color: inherit; min-height: 44px;
+}
+.about-me-map-item a:hover, .about-me-map-item a:focus-visible {
+    border-color: var(--color-accent); background: var(--color-background);
+}
+.about-me-map-label { flex: 1; font-weight: 600; }
+/* Count is TEXT — never colour-coded, so it never reads as a score. */
+.about-me-map-count { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
+.about-me-map-arrow { color: var(--color-text-muted); }
+.about-me-label { display: block; font-size: .85rem; font-weight: 600; margin: .75rem 0 .25rem; }
+.about-me-input {
+    width: 100%; max-width: 100%; padding: .6rem .7rem; font-size: 16px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    background: var(--color-background); color: var(--color-text);
+}
+.about-me-btn {
+    display: inline-block; margin-top: .85rem; padding: .6rem 1.1rem; min-height: 44px;
+    border: 1px solid var(--color-border); border-radius: var(--radius-md, 8px);
+    background: var(--color-background); color: var(--color-text);
+    font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.about-me-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.about-me-btn-danger { border-color: var(--color-danger, #b3261e); color: var(--color-danger, #b3261e); }
+.about-me-review-prompt { border-color: var(--color-accent); }
+.about-me-privacy p { margin-bottom: .6rem; }
+.about-me-danger { border-color: var(--color-danger, #b3261e); }
+.about-me-flash {
+    padding: .7rem 1rem; border-radius: var(--radius-md, 8px);
+    margin-bottom: var(--space-4, 1rem); border: 1px solid var(--color-border);
+    background: var(--color-surface);
+}
+@media (max-width: 480px) {
+    .about-me { padding-left: .75rem; padding-right: .75rem; }
+    .about-me-map-item a { flex-wrap: wrap; }
+}
+</style>
+{% endblock %}

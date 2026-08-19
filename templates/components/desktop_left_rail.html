@@ -108,6 +108,15 @@
         {% endif %}
     {% endfor %}
 
+    <!-- About Me — the Personal Knowledge workspace (M3) -->
+    <a href="{% url 'users:about_me' %}" class="rail-item{% if request.resolver_match.url_name and 'about_me' in request.resolver_match.url_name %} active{% endif %}" data-tooltip="About Me">
+        <svg class="rail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span class="rail-label">About Me</span>
+    </a>
+
     <!-- Chief of Staff (if enabled) -->
     {% if ai_enabled and personal_assistant_enabled %}
     <a href="{% url 'ai:cos_settings' %}" class="rail-item rail-item-assistant{% if request.resolver_match.app_name == 'ai' %} active{% endif %}" data-tooltip="Chief of Staff">

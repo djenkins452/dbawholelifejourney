@@ -709,6 +709,9 @@ class Command(BaseCommand):
         # One-time: Reset help_topics for the M1 Chief of Staff settings topic (PK 162)
         self._reset_m1_personalization_help(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset release_notes + help_topics for M3 About Me
+        self._reset_m3_about_me(DataLoadConfig, force, verbosity)
+
         # One-time: Reset release_notes for Calendar Engine (PK 59)
         self._reset_calendar_engine_fixtures(DataLoadConfig, force, verbosity)
 
@@ -8853,6 +8856,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset exec briefing coherence release notes FAILED: {e}'))
+
+    def _reset_m3_about_me(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes + help_topics for the M3 About Me
+        workspace (Personal Knowledge management + legacy review)."""
+        reset_tracker_name = 'reset_m3_about_me_2026_08_19'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            for loader in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader} for M3 About Me')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes + help_topics for M3 About Me', 'command',
+                'One-time reset: About Me workspace release note and help topic')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(f'Reset M3 About Me FAILED: {e}'))
 
     def _reset_m1_personalization_help(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload help_topics after adding the M1 Chief of Staff topic."""

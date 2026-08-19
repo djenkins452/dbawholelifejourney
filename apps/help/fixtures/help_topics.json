@@ -2567,5 +2567,21 @@
       "created_at": "2026-08-18T12:00:00Z",
       "updated_at": "2026-08-18T12:00:00Z"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 163,
+    "fields": {
+      "context_id": "ABOUT_ME",
+      "help_id": "about-me",
+      "title": "About Me: What Your Chief of Staff Knows",
+      "description": "See, correct and remove what your Chief of Staff has learned about you.",
+      "content": "## About Me\n\nAbout Me answers one question: **what does my Chief of Staff know about me?**\n\nEverything it has learned is here, grouped by topic — family and important people, work, interests, values, and so on. Each topic simply shows how many things are stored. That is a count of what's saved, not a score: an empty topic just means nothing is stored there yet.\n\n### Reviewing things from earlier conversations\n\nIf your Chief of Staff picked things up before this page existed, they appear under **Things I noted earlier**. They are held aside and **not used in conversation** until you keep them. Go through at your own pace — keep what's right, fix what's changed, remove anything you'd rather it didn't remember. You can stop and come back.\n\n### Managing what's stored\n\nOpen any topic to:\n- **Edit** — correct something that's changed. Your Chief of Staff keeps a record of the change so it never quietly loses history.\n- **Remove** — it stops knowing that.\n- **Pin** — keep something front of mind.\n- **Mark sensitive** — it stays stored and you can still see it, but it's kept out of everyday conversation and only comes up when you raise the subject.\n\nYou can also add anything you'd like it to remember.\n\n### What removing does\n\nRemoving something here removes what your Chief of Staff **learned**. It never deletes your goals, tasks, health records, journal entries, or people. Those are yours and live elsewhere in Whole Life Journey.\n\n### How it's stored\n\n**Whole Life Journey remembers. The AI provider processes.**\n\nWhat you keep is stored in your Whole Life Journey account — that's why your Chief of Staff still knows it tomorrow. When it needs to answer you, the relevant parts are sent to our AI provider to generate the reply. The provider isn't where the memory lives; this page is.\n",
+      "app_name": "users",
+      "order": 8,
+      "is_active": true,
+      "created_at": "2026-08-19T12:00:00Z",
+      "updated_at": "2026-08-19T12:00:00Z"
+    }
   }
 ]

@@ -249,6 +249,15 @@ def mark_reviewed(fact):
 # ══════════════════════════════════════════════════════════════════════════════
 # Read primitives — user-scoped; the query IS the ownership boundary
 # ══════════════════════════════════════════════════════════════════════════════
+def get_fact(user, fact_id):
+    """Fetch ONE fact this user owns, or None.
+
+    Exists so surfaces never query the model directly — ownership is enforced here, in
+    the one authority, rather than re-implemented per view.
+    """
+    return PersonalKnowledgeFact.objects.filter(user=user, pk=fact_id).first()
+
+
 def active_facts(user):
     """Every ACTIVE, non-deleted fact for this user (the base for all retrieval)."""
     return (PersonalKnowledgeFact.objects

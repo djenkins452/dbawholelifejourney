@@ -4822,5 +4822,21 @@
       "created_at": "2026-08-18T12:00:00Z",
       "updated_at": "2026-08-18T12:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 303,
+    "fields": {
+      "title": "About Me — see and manage what your Chief of Staff knows",
+      "description": "There's a new About Me page showing everything your Chief of Staff has learned about you, organised by topic. You can read it, correct anything that's changed, remove anything you'd rather it didn't remember, and add things yourself. If it picked things up in earlier conversations, they're waiting for you to review — and it won't use them until you say they're right. Removing something removes what it learned; your goals, tasks, health records and journal entries are never touched.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-19",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-19T12:00:00Z",
+      "updated_at": "2026-08-19T12:00:00Z"
+    }
   }
 ]

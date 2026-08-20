@@ -37,6 +37,8 @@
 
 **Files:** new `apps/ai/llm_admission.py`, `apps/ai/management/commands/authorize_real_llm.py`, `apps/ai/management/commands/llm_dev_usage.py`, `apps/core/tests/test_llm_admission_contract.py`, `docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md`; migrations `ai/0045_real_llm_authorization`, `owner_finance/0004_unattributed_traffic_and_cost_knowability`, `owner_finance/0005_backfill_cost_knowability`; 23 modules migrated to the guarded factory; `apps/ai/llm_accounting.py`, `apps/owner_finance/models.py` + `services/telemetry.py`, `apps/ai/model_interface/service.py`, `CLAUDE.md`, `docs/WLJ_OPENAI_COST_AUDIT.md` (§17 second occurrence).
 
+**Follow-up (`6accd298`):** the `cost-summary` endpoint summed `cost_usd` across ALL rows, so an unpriced model contributed $0.00 and read as free — the same confusion at the API surface. Counts and tokens now cover every call while the dollar figure covers only priced calls, with `unpriced_calls` / `unpriced_models` reported alongside.
+
 **Verification: ZERO real provider calls were made during implementation or testing.** 34 governor tests (all mocked) + 302 M1–M4/Action-Safety contract tests + 27 accounting/registration tests green; all 23 migrated modules import; `makemigrations --check` clean; `check` clean (2 pre-existing djstripe).
 
 ---

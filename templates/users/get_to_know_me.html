@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Getting to know you - Whole Life Journey{% endblock %}
+{% block content %}
+{% comment %}
+Getting to Know You (M4) — the conversational surface.
+
+Never a questionnaire: no progress bar, no required sections, no completion score.
+The conversation itself runs on the certified CoS runtime in the assistant panel,
+in the user's chosen persona voice. This page opens/resumes the session and explains
+the controls in plain language.
+{% endcomment %}
+<div class="content-container gtky">
+
+  <header class="gtky-header">
+    <p><a href="{% url 'users:about_me' %}">&larr; About Me</a></p>
+    <h1>Getting to know you</h1>
+    <p class="gtky-sub">
+      {% if is_returning %}
+        Picking up where we left off.
+      {% else %}
+        A conversation, not a form.
+      {% endif %}
+    </p>
+  </header>
+
+  {% if messages %}{% for message in messages %}
+    <div class="gtky-flash">{{ message }}</div>
+  {% endfor %}{% endif %}
+
+  <section class="gtky-panel">
+    {% if is_returning %}
+      <h2>Carry on whenever you like</h2>
+      <p>
+        {% if things_known %}I know {{ things_known }} thing{{ things_known|pluralize }} about you
+        so far.{% endif %}
+        There&rsquo;s no finishing line here &mdash; we can talk for two minutes or twenty,
+        and pick up again another day.
+      </p>
+    {% else %}
+      <h2>The more I understand, the more useful I can be</h2>
+      <p>
+        Tell me as much or as little as you like about your life &mdash; the people who
+        matter, your work, what you care about, how you like to be helped. Nothing here is
+        required, and you can stop at any point.
+      </p>
+    {% endif %}
+
+    <form method="post" action="{% url 'users:get_to_know_me_start' %}">
+      {% csrf_token %}
+      <button type="submit" class="gtky-btn gtky-btn-primary">
+        {% if is_returning %}Continue getting to know me{% else %}Let&rsquo;s talk{% endif %}
+      </button>
+    </form>
+    <p class="gtky-hint">
+      Opens the chat with your Chief of Staff. Say hello and it&rsquo;ll take it from there.
+    </p>
+  </section>
+
+  <section class="gtky-panel">
+    <h2>You&rsquo;re in charge of the conversation</h2>
+    <p>Just say so, in your own words:</p>
+    <ul class="gtky-controls">
+      <li><strong>&ldquo;skip&rdquo;</strong> or <strong>&ldquo;move on&rdquo;</strong> &mdash; leave that one</li>
+      <li><strong>&ldquo;tell me more&rdquo;</strong> or <strong>&ldquo;go deeper&rdquo;</strong> &mdash; keep going on this</li>
+      <li><strong>&ldquo;just the basics&rdquo;</strong> &mdash; keep it light</li>
+      <li><strong>&ldquo;that&rsquo;s enough about family&rdquo;</strong> &mdash; done with that subject</li>
+      <li><strong>&ldquo;let&rsquo;s come back to this later&rdquo;</strong> &mdash; park it for now</li>
+      <li><strong>&ldquo;I&rsquo;d rather not discuss that&rdquo;</strong> &mdash; I won&rsquo;t bring it up again</li>
+      <li><strong>&ldquo;don&rsquo;t remember that&rdquo;</strong> &mdash; I&rsquo;ll leave it out</li>
+      <li><strong>&ldquo;stop for now&rdquo;</strong> &mdash; we&rsquo;ll pick up later</li>
+    </ul>
+  </section>
+
+  <section class="gtky-panel gtky-privacy">
+    <h2>Where this goes</h2>
+    <p><strong>Whole Life Journey remembers. The AI provider processes.</strong></p>
+    <p>
+      What you tell me is stored in <strong>your Whole Life Journey account</strong> &mdash;
+      that&rsquo;s what makes it still true tomorrow. Because this is a real conversation,
+      what you say is sent to our AI provider to work out how to reply, exactly as any other
+      chat here does. The provider isn&rsquo;t where the memory lives.
+    </p>
+    <p>
+      Everything I learn shows up in <a href="{% url 'users:about_me' %}">About Me</a>, where you
+      can read it, fix it, or remove it whenever you like.
+      <a href="{% url 'core:privacy' %}">How AI &amp; your data work</a>
+    </p>
+  </section>
+
+  {% if session and session.status == 'active' %}
+  <section class="gtky-panel">
+    <form method="post" action="{% url 'users:get_to_know_me_stop' %}">
+      {% csrf_token %}
+      <button type="submit" class="gtky-btn">Stop for now</button>
+    </form>
+    <p class="gtky-hint">Everything you&rsquo;ve told me is saved. We&rsquo;ll pick up where we left off.</p>
+  </section>
+  {% endif %}
+</div>
+
+{% if request.GET.started %}
+{% comment %}
+Hand the user straight into the conversation. This reuses the EXISTING CoS calibration
+entry pattern (components/cos_command_mode.html) — focus the assistant panel's chat input
+and send an opener — so there is no second way to open chat. The certified runtime and the
+user's persona take it from there; WLJ never scripts the interview.
+{% endcomment %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+    'use strict';
+    var statusTab = document.querySelector('.ap-tab[data-tab="status"].active');
+    if (statusTab) { statusTab.click(); }
+    var mobilePanel = document.querySelector('.assistant-pullup-handle');
+    var input = document.getElementById('ap-chat-input')
+             || document.getElementById('mobile-chat-input');
+    if (!input) { return; }
+    var form = document.getElementById(
+        input.id === 'ap-chat-input' ? 'ap-chat-form' : 'mobile-chat-form');
+    if (input.id === 'mobile-chat-input' && mobilePanel) { mobilePanel.click(); }
+    input.focus();
+    if (input.value.trim()) { return; }
+    input.value = {% if is_returning %}"Let's pick up where we left off getting to know me."{% else %}"I'd like you to get to know me."{% endif %};
+    if (form) { form.dispatchEvent(new Event('submit', { cancelable: true })); }
+}());
+</script>
+{% endif %}
+
+<style nonce="{{ csp_nonce }}">
+.gtky { max-width: 780px; margin: 0 auto; padding-bottom: 2rem; }
+.gtky-header { margin-bottom: 1.25rem; }
+.gtky-sub { color: var(--color-text-muted); margin-top: .25rem; }
+.gtky-panel { background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg, 12px); padding: 1.25rem; margin-bottom: 1rem; }
+.gtky-panel h2 { font-size: 1.05rem; margin: 0 0 .5rem; }
+.gtky-controls { margin: .5rem 0 0; padding-left: 1.15rem; line-height: 1.9; }
+.gtky-btn { display: inline-block; margin-top: .5rem; padding: .65rem 1.15rem;
+    min-height: 44px; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); background: var(--color-background);
+    color: var(--color-text); font-weight: 600; cursor: pointer; }
+.gtky-btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.gtky-hint { color: var(--color-text-muted); font-size: .85rem; margin-top: .5rem; }
+.gtky-privacy p { margin-bottom: .6rem; }
+.gtky-flash { padding: .7rem 1rem; border: 1px solid var(--color-border);
+    border-radius: var(--radius-md, 8px); margin-bottom: 1rem; background: var(--color-surface); }
+@media (max-width: 480px) { .gtky { padding-left: .75rem; padding-right: .75rem; } }
+</style>
+{% endblock %}

@@ -39,6 +39,7 @@ from apps.core.personal_knowledge.models import (
     Sensitivity,
     Topic,
 )
+from apps.help.mixins import HelpContextMixin
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +83,11 @@ def _fact_view(fact):
     }
 
 
-class AboutMeView(LoginRequiredMixin, TemplateView):
+class AboutMeView(LoginRequiredMixin, HelpContextMixin, TemplateView):
     """The workspace overview: what I know, and how to manage it."""
 
     template_name = "users/about_me.html"
+    help_context_id = "ABOUT_ME"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -258,6 +260,59 @@ class AboutMeAddView(LoginRequiredMixin, View):
             messages.error(request, str(exc) if isinstance(exc, ValueError)
                            else "That didn't save. Please try again.")
         return redirect(redirect_to)
+
+
+class GetToKnowMeView(LoginRequiredMixin, HelpContextMixin, TemplateView):
+    """Getting to Know You — the conversational surface (M4).
+
+    A first-class experience, never mandatory onboarding: the user can ignore it forever
+    and WLJ works. It reuses the certified CoS runtime — there is no second conversational
+    engine and no interview-specific persona system.
+    """
+
+    template_name = "users/get_to_know_me.html"
+    help_context_id = "GET_TO_KNOW_ME"
+
+    def get_context_data(self, **kwargs):
+        from apps.ai.cos_services import interview as iv
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        session = iv.active_session(user)
+        known = pk.active_facts(user).count()
+        context.update({
+            "session": session,
+            "is_returning": bool(session and session.turn_count) or known > 0,
+            "things_known": known,
+            "page_title": "Getting to know you",
+        })
+        return context
+
+
+class GetToKnowMeStartView(LoginRequiredMixin, View):
+    """Begin or resume. Starting creates NO knowledge — only a place to continue from."""
+
+    def post(self, request, *args, **kwargs):
+        from apps.ai.cos_services import interview as iv
+        from apps.ai.models import AssistantConversation
+        conversation = AssistantConversation.get_or_create_active(request.user)
+        iv.start_or_resume(request.user, conversation)
+        # Hand the user to the CONVERSATION, not back to a page. The surface reuses the
+        # existing CoS calibration entry pattern (focus the panel, send an opener) rather
+        # than introducing a second way to open chat.
+        return redirect(f"{reverse('users:get_to_know_me')}?started=1")
+
+
+class GetToKnowMeStopView(LoginRequiredMixin, View):
+    """Stop for now. Everything already taught stays; it resumes where it left off."""
+
+    def post(self, request, *args, **kwargs):
+        from apps.ai.cos_services import interview as iv
+        iv.pause(request.user)
+        messages.success(
+            request,
+            "Stopped for now — everything you told me is saved, and we can pick up "
+            "whenever you like.")
+        return redirect(reverse("users:about_me"))
 
 
 class AboutMeClearView(LoginRequiredMixin, View):

@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 304,
+    "fields": {
+      "title": "Getting to know you — a conversation, not a form",
+      "description": "Your Chief of Staff can now get to know you properly. Open About Me → “Getting to know you” and it'll start a real conversation about your life — the people who matter, your work, what you care about, how you like to be helped. It's a conversation, not a questionnaire: there's no progress bar, no required questions and no wrong answers. Say “skip that”, “not now” or “I'd rather not talk about that” in your own words and it moves on — and it won't bring a subject back up once you've ruled it out. Stop whenever you like and pick up later exactly where you left off. Everything it learns appears in About Me, where you can correct or remove any of it at any time. It only remembers things here, when you're deliberately telling it — ordinary conversations aren't quietly recorded.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-19",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "/user/about-me/get-to-know-me/",
+      "created_at": "2026-08-19T12:00:00Z",
+      "updated_at": "2026-08-19T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 295,
     "fields": {
       "title": "Your dashboard can now show any past day",

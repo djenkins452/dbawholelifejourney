@@ -77,6 +77,23 @@ WRITE_SURFACE = {
                       "for, not domain truth. Confirming it would re-ask the request "
                       "itself. Reversible by the user, audited, no domain mutation."),
     },
+    "record_interview_knowledge": {
+        "authority": CANONICAL,        # apps.core.personal_knowledge.service.add_fact
+        "confirmation": EXEMPT,
+        "target_binding": "n/a",       # creates new knowledge; targets nothing existing
+        "reversible": True,            # every fact is editable/deletable in About Me
+        "postcondition": "verified",   # the result reports exactly what was kept
+        "exemption": (
+            "Deliberate teaching. The user opened Getting to Know You specifically to "
+            "teach WLJ about themselves, so confirming each extracted fact would turn the "
+            "conversation into a clerical queue and destroy the experience the milestone "
+            "exists to create. Safety comes from elsewhere: it is GATED on an active "
+            "interview session (a no-op otherwise), it creates only Personal Knowledge and "
+            "never domain truth, every write goes through the canonical PK service with "
+            "its domain-boundary validation, the result reports honestly what was and was "
+            "not kept, and About Me is the standing review surface where anything can be "
+            "corrected or removed immediately."),
+    },
     "next_review_item": {
         "authority": CANONICAL, "confirmation": EXEMPT,
         "exemption": ("Advances the guided review and persists the pending question in "

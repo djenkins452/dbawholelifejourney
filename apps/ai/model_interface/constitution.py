@@ -1689,6 +1689,66 @@ def _complete_execution_item_tool():
         }, "required": []}}}
 
 
+def _record_interview_knowledge_tool():
+    """Record what the user just taught during Getting to Know You, plus any area outcome.
+
+    ONE call carries BOTH concerns deliberately: the conversational reply, the facts and
+    the state signal all come from a single model response, so the interview costs no
+    extra provider round-trip per turn (Contract 15).
+    """
+    return {"type": "function", "function": {
+        "name": "record_interview_knowledge",
+        "description": (
+            "During Getting to Know You ONLY: record what the person just taught you, and "
+            "any decision they made about an area. Call it in the SAME turn as your reply "
+            "- never as a separate follow-up question, and never to ask permission. "
+            "STORE WHAT THEY SAID, not what you concluded: split their words into simple "
+            "durable statements in their own framing ('Heather is my wife', 'We have been "
+            "married since 1997'). NEVER record an interpretation, diagnosis, personality "
+            "read or psychological conclusion - that is editorialising about a person and "
+            "is forbidden. Skip anything temporary ('busy this week'), anything they asked "
+            "you not to remember, and anything a WLJ domain already owns (their current "
+            "weight, a tracked goal, a task) - mention those conversationally instead. "
+            "Set `sensitive` for genuinely private material (health conditions, finances, "
+            "another person's private information): it is still stored and they can still "
+            "see it, but WLJ keeps it out of everyday context. "
+            "Use `area_outcome` when they steer: 'that's enough about family' -> satisfied; "
+            "'come back to this later' -> parked; 'I don't want to discuss that' -> "
+            "declined (you must never raise it again). "
+            "WLJ owns storage, provenance and policy - it may reject a statement, and the "
+            "result tells you honestly what was and was not kept. Never claim you "
+            "remembered something this did not record."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "facts": {
+                "type": "array",
+                "description": "Durable things they just taught you. Omit if none.",
+                "items": {"type": "object", "properties": {
+                    "statement": {"type": "string",
+                                  "description": "One simple fact in THEIR framing."},
+                    "topic": {"type": "string",
+                              "description": ("Area it belongs to - e.g. family, work, "
+                                              "home, routines, interests, goals, values, "
+                                              "faith, history, communication. A new "
+                                              "label is fine if none fit.")},
+                    "subject": {"type": "string",
+                                "description": "Who it is about, if a person (optional)."},
+                    "sensitive": {"type": "boolean",
+                                  "description": "True for genuinely private material."},
+                }, "required": ["statement"]},
+            },
+            "area_outcome": {
+                "type": "object",
+                "description": "A decision they made about an area. Omit if none.",
+                "properties": {
+                    "area": {"type": "string"},
+                    "state": {"type": "string",
+                              "enum": ["discussed", "satisfied", "parked", "declined"]},
+                }, "required": ["area", "state"],
+            },
+        }, "required": []}}}
+
+
 def _next_review_item_tool():
     """Drive a GUIDED, one-at-a-time execution review: return the next item awaiting the
     user's answer and PERSIST it as the pending question, so their next short reply binds
@@ -1796,6 +1856,7 @@ def action_tools():
     resolver + the execution-completion router + the guided-review driver + the durable
     follow-up scheduler. No generic request_action; no invented interface."""
     return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool(),
+            _record_interview_knowledge_tool(),
                                     _next_review_item_tool(), _schedule_follow_up_tool()]
 
 

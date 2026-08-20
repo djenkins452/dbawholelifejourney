@@ -53,6 +53,18 @@ stored — never a gap in the person.
   </section>
   {% endif %}
 
+  <section class="about-me-panel about-me-gtky">
+    <h2>Getting to know you</h2>
+    <p>
+      {% if total_count %}There&rsquo;s always more to know &mdash; carry on whenever you like.
+      {% else %}Have a conversation with your Chief of Staff about your life, at whatever depth
+      you choose. Nothing is required, and you can stop any time.{% endif %}
+    </p>
+    <a class="about-me-btn about-me-btn-primary" href="{% url 'users:get_to_know_me' %}">
+      {% if total_count %}Continue getting to know me{% else %}Let&rsquo;s talk{% endif %}
+    </a>
+  </section>
+
   <section class="about-me-panel">
     <h2>What I know about you</h2>
     {% if total_count %}

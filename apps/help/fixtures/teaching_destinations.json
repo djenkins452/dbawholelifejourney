@@ -3216,5 +3216,29 @@
       "keywords": "uploads, files, documents, attachments, library, my files, receipts, my uploads, artifacts",
       "url": "/capture/library/"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 194,
+    "fields": {
+      "destination_id": "about-me",
+      "name": "About Me",
+      "path_description": "Profile menu - About Me",
+      "explanation": "Everything your Chief of Staff knows about you, grouped by subject — family and important people, work, interests, values. Read it, correct anything that's changed, remove anything you'd rather it didn't remember, or add something yourself. Removing something here removes what it learned; your goals, tasks, health records and journal entries are never touched.",
+      "keywords": "about me, what do you know about me, what you know, my profile, personal knowledge, forget that, remember me, correct what you know",
+      "url": "/user/about-me/"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 195,
+    "fields": {
+      "destination_id": "get-to-know-me",
+      "name": "Getting to Know You",
+      "path_description": "Profile menu - About Me - Getting to know you",
+      "explanation": "A conversation where your Chief of Staff gets to know you — the people who matter, your work, what you care about, how you like to be helped. Nothing is required, you can skip or decline any subject in your own words, and you can stop and pick up later exactly where you left off. Everything it learns shows up in About Me.",
+      "keywords": "get to know me, getting to know you, tell you about myself, interview, learn about me, ask me about my life",
+      "url": "/user/about-me/get-to-know-me/"
+    }
   }
 ]

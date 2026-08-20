@@ -2078,6 +2078,63 @@ class ResponsePreference(models.Model):
         return "\n".join(lines)
 
 
+class InterviewSession(models.Model):
+    """M4 — deterministic state for a Getting to Know You conversation.
+
+    THIS IS NOT PERSONAL KNOWLEDGE. It records what has been DISCUSSED and what the user
+    has PARKED or DECLINED, so the conversation can stop and resume honestly. What the
+    Chief of Staff actually knows lives in the one canonical Personal Knowledge authority
+    and nowhere else (Contract 19).
+
+    It is also NOT an agenda. It holds no ordering, no "next topic", no score and no
+    completion state — the model decides what is worth asking; WLJ only reports what is
+    known and enforces the boundaries the user set.
+    """
+
+    STATUS_ACTIVE = "active"
+    STATUS_PAUSED = "paused"
+    STATUS_CHOICES = [(STATUS_ACTIVE, "Active"), (STATUS_PAUSED, "Paused")]
+
+    # Topic outcomes the USER establishes. There is deliberately no "complete".
+    TOPIC_DISCUSSED = "discussed"   # we have talked about it; may talk more
+    TOPIC_SATISFIED = "satisfied"   # "that's enough about family"
+    TOPIC_PARKED = "parked"         # "let's come back to this later"
+    TOPIC_DECLINED = "declined"     # "I don't want to discuss that" — never re-offered
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name="interview_sessions")
+    conversation = models.ForeignKey(
+        "ai.AssistantConversation", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="interview_sessions",
+        help_text="The conversation this session is being conducted in.")
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES,
+                              default=STATUS_ACTIVE, db_index=True)
+    topic_states = models.JSONField(
+        default=dict, blank=True,
+        help_text="{topic: {state, at}} — outcomes the USER established. Emergent topic "
+                  "labels are accepted as-is; no deploy is needed for a new area of life.")
+    turn_count = models.PositiveIntegerField(default=0)
+    facts_recorded = models.PositiveIntegerField(default=0)
+    started_at = models.DateTimeField(auto_now_add=True)
+    last_active_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_active_at"]
+        indexes = [models.Index(fields=["user", "status"])]
+        verbose_name = "Interview Session"
+
+    def __str__(self):
+        return f"Interview({self.user_id}, {self.status}, turns={self.turn_count})"
+
+    def state_of(self, topic):
+        entry = (self.topic_states or {}).get(str(topic)) or {}
+        return entry.get("state")
+
+    def declined_topics(self):
+        return sorted(t for t, v in (self.topic_states or {}).items()
+                      if (v or {}).get("state") == self.TOPIC_DECLINED)
+
+
 class LearnedCommunicationPreference(models.Model):
     """
     A single learned communication/formatting preference for a user (Pillar 3,

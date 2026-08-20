@@ -42,6 +42,12 @@ urlpatterns = [
     # ── About Me — the Personal Knowledge workspace (M3) ─────────────────────
     # A first-class destination, deliberately NOT nested under preferences/.
     path("about-me/", about_me_views.AboutMeView.as_view(), name="about_me"),
+    path("about-me/get-to-know-me/", about_me_views.GetToKnowMeView.as_view(),
+         name="get_to_know_me"),
+    path("about-me/get-to-know-me/start/", about_me_views.GetToKnowMeStartView.as_view(),
+         name="get_to_know_me_start"),
+    path("about-me/get-to-know-me/stop/", about_me_views.GetToKnowMeStopView.as_view(),
+         name="get_to_know_me_stop"),
     path("about-me/review/", about_me_views.AboutMeReviewView.as_view(),
          name="about_me_review"),
     path("about-me/import/", about_me_views.AboutMeImportView.as_view(),

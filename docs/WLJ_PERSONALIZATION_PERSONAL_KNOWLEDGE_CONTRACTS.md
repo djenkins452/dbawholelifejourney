@@ -755,3 +755,46 @@ the fact that rotating the current key makes existing values permanently undecry
 **None.** M1 (Personas + Unified Chief of Staff Preferences) depends only on Contracts 1, 2, 3 and tests T1–T4, T22 — all frozen above. It requires nothing from Personal Knowledge, the interview, or the provider investigation.
 
 **M1 is UNBLOCKED.**
+
+---
+
+## 18. Implementation status ledger
+
+Milestone completion is recorded here (the design doc in §35 is frozen and records *intent*, not progress).
+
+| Milestone | Status | Commit | Notes |
+|---|---|---|---|
+| **M0** Contracts | ✅ COMPLETE | — | 16 contracts frozen; no code |
+| **M1** Personas + Unified CoS Preferences | ✅ COMPLETE | — | Persona voice reaches the certified runtime; one settings home |
+| **M2** Personal Knowledge Foundation | ✅ COMPLETE | `ba2c5f40` | Canonical PK authority; encryption gate satisfied (§16b) |
+| **M3** About Me + Existing Knowledge Review | ✅ COMPLETE | `53ba2401` | Workspace, knowledge map, legacy review/import |
+| **M4** Getting to Know You | ✅ COMPLETE | this change | Persona-voiced hybrid interview on the certified runtime |
+| **M5** Production Validation / Relationship Refinement | ⬜ UNBLOCKED | — | Requires production use, not further build |
+| **M6** Conservative Natural Conversational Learning | ⬜ NOT STARTED | — | Gated on M5 evidence + an explicit product decision |
+| **M7** Legacy Retirement | ⬜ NOT STARTED | — | Gated on proven adoption |
+
+### M4 as-built
+
+**What WLJ owns (deterministic):** which areas exist and how many things are known in each; what the user declined, parked or called satisfied; whether a session is open; persistence of what was taught; the honest result of every write.
+
+**What the model owns (reasoning):** what to ask, in what order, how deep to go, when to move on, how to phrase it in the user's persona voice. WLJ supplies an **unordered inventory** and never an agenda.
+
+| Concern | Where it lives |
+|---|---|
+| Session/orchestration state | `apps.ai.models.InterviewSession` (no biographical content — Contract 19) |
+| Deterministic service | `apps/ai/cos_services/interview.py` |
+| Standing context key | `interview` (present **only** while a session is active) |
+| Model instruction | `ModelInterfaceService._interview_lead` |
+| Write tool | `record_interview_knowledge` — one call carries facts **and** area outcome (Contract 15: no second provider round-trip per turn) |
+| Persistence | `apps.core.personal_knowledge.service.add_fact` — the same single writer as M2/M3 |
+| Provenance | `Provenance.INTERVIEW` / `ReviewState.USER_AUTHORED` |
+| Review + correction | About Me (M3), unchanged |
+| Surface | `/user/about-me/get-to-know-me/` |
+
+**Confirmation exemption.** `record_interview_knowledge` is `authority: CANONICAL`, `confirmation: EXEMPT`, declared in the certified write surface with its governing reason: the user opened this surface specifically to teach, the write is session-gated, it touches Personal Knowledge only, the result is reported honestly, and About Me is the review surface.
+
+**M6 non-regression (structurally enforced).** `record_interview_knowledge` outside an active session returns `not_in_interview` and writes nothing; `interview.py` contains no Celery/background writer; the pre-existing post-response extractor still writes only the legacy `PersonalFact` store and never Personal Knowledge; and the complete set of `add_fact` callers is asserted, so a new writer cannot appear unnoticed. Tests: `apps/core/tests/test_interview_contract.py::GatingTests`.
+
+### Known boundary — free-text domain duplication
+
+The deterministic domain-ownership guard (Contract 5) rejects **structured** duplication: a fact carrying a domain-owned attribute is refused by the PK service. A free-text sentence that merely *restates* a domain value ("my current weight is 280") is not machine-separable from context without interpretation, so it is handled at the tool instruction ("never record what a domain already owns") rather than by a classifier. Building a text classifier here would put a reasoning engine inside WLJ, which the Constitution forbids. Residual risk is low and fully user-correctable: any such fact is visible in About Me and one click from deletion. **Logged, not silently accepted.**

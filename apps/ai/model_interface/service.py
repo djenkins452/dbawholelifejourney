@@ -189,6 +189,18 @@ class ModelInterfaceService:
         except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
             logger.warning("mi: conversation_state read skipped", exc_info=True)
 
+        # Getting to Know You (M4) — deterministic interview state, ONLY when a session
+        # is live. An inventory of what is known and what the user ruled out; never an
+        # agenda. Absent entirely outside the interview, which is what keeps deliberate
+        # teaching gated to this surface (M6 natural learning remains separate).
+        try:
+            from apps.ai.cos_services import interview as _interview
+            block = _interview.read(self.user, conversation)
+            if block:
+                ctx["interview"] = block
+        except Exception:  # pragma: no cover - envelope must never hard-fail
+            logger.warning("mi: interview state skipped", exc_info=True)
+
         # Personal Truth — durable, explicitly-stored cross-module user facts (targets,
         # conditions, medications, relationship, priorities) the model reasons FROM every
         # turn. Cache-first + resilient (never raises); the bounded standing view and the
@@ -698,6 +710,53 @@ class ModelInterfaceService:
             logger.warning("mi: persona lead skipped", exc_info=True)
             return ""
 
+    @staticmethod
+    def _interview_lead(standing_context: dict) -> str:
+        """M4 — conducting Getting to Know You, in the user's chosen persona voice.
+
+        WLJ supplies the inventory and the boundaries; everything about HOW to ask is
+        yours. This lead exists to stop the one failure mode the design names: the
+        interview decaying into a questionnaire wearing a chat costume.
+        """
+        try:
+            iv = standing_context.get("interview")
+            if not isinstance(iv, dict) or iv.get("status") != "active":
+                return ""
+            declined = iv.get("declined_areas") or []
+            out = (
+                "\n\n=== YOU ARE GETTING TO KNOW THIS PERSON ===\n"
+                "They opened this to teach you about their life, so this is a CONVERSATION, "
+                "not an intake form. Ask about what they actually said — follow the "
+                "interesting thread, not the next empty category. One thing at a time, in "
+                "your own voice, and let them lead the depth.\n"
+                "`interview.areas` below is an UNORDERED inventory of what you already know "
+                "and what they have ruled out. It is NOT an agenda: never work through it in "
+                "order, never treat an empty area as a gap to fill, never tell them anything "
+                "is incomplete or missing, and never imply they owe you information. If "
+                "there is nothing natural to ask, say so and let the conversation rest.\n"
+                "THEIR CONTROLS, in plain language — honour them the moment you hear them: "
+                "'skip' or 'move on' (drop it, keep the area open), 'that's enough about X' "
+                "(satisfied), 'come back to this later' (parked), 'I don't want to discuss "
+                "that' (declined — never raise it again), 'tell me more' or 'go deeper' "
+                "(follow it further), 'just the basics' (stay shallow), 'stop' or 'stop for "
+                "now' (end warmly and say it will be here when they return).\n"
+                "RECORDING: when they teach you something durable, call "
+                "record_interview_knowledge in the SAME turn as your reply — one call "
+                "carrying both the facts and any area outcome. Store what they SAID, in "
+                "their framing, split into simple statements. NEVER store an inference "
+                "about them: 'Heather is my wife' and 'married since 1997' are facts; "
+                "'he has a secure attachment style' is you editorialising, and is forbidden. "
+                "If they say not to remember something, do not record it. Acknowledge "
+                "naturally in one clause - never recite a list back for confirmation.\n"
+            )
+            if declined:
+                out += ("OFF LIMITS - they have declined these and you must not raise them: "
+                        + ", ".join(declined) + ".\n")
+            return out
+        except Exception:  # pragma: no cover - defensive
+            logger.warning("mi: interview lead skipped", exc_info=True)
+            return ""
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
@@ -705,6 +764,7 @@ class ModelInterfaceService:
         return (
             CONSTITUTION
             + self._persona_lead(standing_context)
+            + self._interview_lead(standing_context)
             + self._attachment_lead(standing_context)
             + self._conversation_state_lead(standing_context)
             + self._executive_lead(standing_context)
@@ -1145,6 +1205,47 @@ class ModelInterfaceService:
                     turn_id=turn_id, surface=surface,
                     conversation_id=conversation_id,
                 )
+            if name == "record_interview_knowledge":
+                # M4 deliberate teaching. GATED ON AN ACTIVE SESSION — outside Getting to
+                # Know You this is a no-op, which is what keeps ordinary conversation from
+                # learning (M6 remains separate and unbuilt). No per-fact confirmation: the
+                # user opened this surface to teach, and About Me is the review surface.
+                # Every write still goes through the canonical PK service.
+                from apps.ai.cos_services import interview as _iv
+                session = _iv.active_session(user, conversation)
+                if session is None:
+                    out = {"status": "not_in_interview",
+                           "message": ("Nothing was recorded — this only applies during "
+                                       "Getting to Know You.")}
+                else:
+                    recorded, rejected = _iv.record_facts(session, args.get("facts"))
+                    outcome = args.get("area_outcome") or {}
+                    area_set = False
+                    if outcome.get("area") and outcome.get("state"):
+                        area_set = _iv.set_topic_state(
+                            session, outcome.get("area"), outcome.get("state"))
+                    _iv.note_turn(session)
+                    out = {
+                        "status": "recorded" if recorded else "nothing_recorded",
+                        # HONEST result — never claim more was kept than actually was.
+                        "remembered": [f.statement for f in recorded],
+                        "not_remembered": rejected,
+                        "area_outcome_applied": area_set,
+                        "message": (
+                            f"Kept {len(recorded)} thing(s)."
+                            + (f" {len(rejected)} could not be kept; do not say they were."
+                               if rejected else "")),
+                    }
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "recorded": len(out.get("remembered") or []),
+                                   "rejected": len(out.get("not_remembered") or []),
+                                   "area_outcome_applied": out.get("area_outcome_applied")},
+                )
+                return out
             if name == "next_review_item":
                 # Blocker #15: advance the GUIDED one-at-a-time execution review and return
                 # the next item awaiting the user's answer — persisting that pending question

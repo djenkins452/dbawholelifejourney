@@ -6,6 +6,36 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-19 — feat(cos): M4 — Getting to Know You (the persona-voiced interview)
+
+The Chief of Staff can now deliberately get to know the user. Built as a **conversation on the certified runtime**, not a questionnaire and not a second conversational engine.
+
+**The split, enforced in code.** WLJ owns what is *known* and what the user *ruled out*; the model owns what is worth asking. The standing context carries an **unordered inventory** — the areas that exist, how many things are known in each, and each area's user-set state (discussed · satisfied · parked · declined). It exposes **no next question, no ordering, no priority, no progress, no score and no completion**, and `interview.py` defines no `next_question`/`choose_topic`/`rank`/`score` function. Both are asserted structurally (`NotAQuestionnaireTests`), because this is exactly how an interview decays into a form.
+
+**Natural controls, in the user's own words.** "Skip", "not now", "I'd rather not talk about that", "that's enough" — the model interprets the sentence, WLJ records the outcome deterministically. A **declined area is stated as OFF LIMITS in the system prompt** and is never reintroduced, including after a stop/resume. Emergent areas (`volunteer_fire_department`) need no deploy — the inventory is open-vocabulary.
+
+**Resumability is state, not memory.** `InterviewSession` holds orchestration state **only** — status, per-area user state, turn count. It carries no biographical content (Contract 19, asserted against the model's fields), so it can never become a second Personal Knowledge store. Stopping keeps everything taught; resuming returns the *same* session with declines intact.
+
+**One tool, one round-trip.** `record_interview_knowledge` carries the facts **and** the area outcome in a single call — deliberately, so an interview turn does not cost a second provider request (Contract 15). Every write goes through the same single writer as M2/M3 (`personal_knowledge.service.add_fact`) with `provenance=interview`, `review_state=user_authored`, and lands in About Me immediately for correction or removal. Results are **honest**: `remembered` / `not_remembered` are reported separately so the CoS can never claim it kept something it did not — a persistence failure returns rejects and leaves the session open rather than breaking the conversation.
+
+**M6 natural learning was NOT pulled forward — structurally.** Outside an active session the tool returns `not_in_interview` and writes nothing; `interview.py` contains no Celery/background writer; the pre-existing post-response extractor still writes only the legacy `PersonalFact` store; and the **complete set of `add_fact` callers is enumerated in a test**, so a new writer cannot appear unnoticed. Ordinary conversation still does not learn.
+
+**Persona reuse, not a second voice.** The interview inherits the M1 persona projection — `interview.py` never touches `CoachingStyle`, `prompt_instructions` or `voice_attributes` (asserted). A Texas Rancher asks in the rancher's voice because the composed voice instructions are already in the prompt.
+
+**Product fix found in verification:** "Let's talk" started a session and returned to the same page — a dead end that reads as nothing happening. It now hands the user into the conversation, reusing the **existing** CoS calibration entry pattern (focus the panel, send an opener) rather than adding a second way to open chat. CSP-clean: nonce script, no inline handlers.
+
+**Confirmation exemption, declared not assumed.** `record_interview_knowledge` is registered on the certified write surface as `authority: CANONICAL`, `confirmation: EXEMPT`, with its governing reason recorded: the user opened this surface specifically to teach, the write is session-gated, it touches Personal Knowledge only, the result is honest, and About Me is the review surface. The write is audited via `ToolCallLog` like every other action.
+
+**Also fixed while here (M3 gaps):** About Me had a help topic that no view declared, so its Help button showed `GENERAL`; and neither surface was reachable by the CoS. Both views now declare `help_context_id`, and `about-me` / `get-to-know-me` teaching destinations make "take me to About Me" / "get to know me" navigable.
+
+**Known boundary, logged not hidden:** the deterministic domain-ownership guard rejects *structured* duplication (a fact carrying a domain-owned attribute). A free-text sentence that merely restates a domain value ("my current weight is 280") is not machine-separable without interpretation, so it is handled by tool instruction rather than a classifier — building one would put a reasoning engine inside WLJ. Residual risk is low and user-correctable in About Me. Recorded in the contracts doc.
+
+**Files:** `apps/ai/models.py` (`InterviewSession`) + migration `apps/ai/migrations/0044_interviewsession.py`; new `apps/ai/cos_services/interview.py`; `apps/ai/model_interface/service.py` (`ctx["interview"]`, `_interview_lead`, session-gated dispatch + audit); `apps/ai/model_interface/constitution.py` (`_record_interview_knowledge_tool`); `apps/users/about_me_views.py` (`GetToKnowMeView` + start/stop, help contexts) + `apps/users/urls.py`; new `templates/users/get_to_know_me.html` + About Me entry; `apps/core/tests/test_write_surface_safety_contract.py` (declaration); new `apps/core/tests/test_interview_contract.py`; fixtures `release_notes.json` (PK 304), `help_topics.json` (PK 164), `teaching_destinations.json` (194–195) + `load_initial_data.py` reset; `docs/WLJ_PERSONALIZATION_PERSONAL_KNOWLEDGE_CONTRACTS.md` §18 status ledger + M4 as-built.
+
+**Verification:** 40 new lifecycle contract tests + 525 scoped tests green (`test_interview_contract`, PK contract, PK truth-path, About Me, write-surface safety, personalization, request-path safety, `apps.help`, `apps.ai.tests.test_intent_registration`, full `apps.users`). Rendered both surfaces (200, no raw template syntax, no inline handlers) and drove start→teach→decline→stop→resume end to end: opening creates 0 facts; 4 taught facts reach the model prompt and About Me immediately; a declined area appears as OFF LIMITS; resume returns the same session with declines preserved. `makemigrations --check` clean; `check` clean (2 pre-existing djstripe issues). No provider, Railway or encryption-key configuration touched; no production state mutated.
+
+---
+
 ## 2026-08-19 — feat(cos): M3 — About Me workspace + existing-knowledge review
 
 The customer-facing trust surface over the M2 Personal Knowledge authority. Management and review only — no interview, no learning, no legacy retirement.

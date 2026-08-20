@@ -689,6 +689,33 @@ because it is operational state, not architecture.
 Item 3 is the one with real user-visible consequence and is the single highest-value
 check of the three. Nothing in the architecture depends on ZDR (Contract 13.5).
 
+## 16c. Provider account verification — release-copy gate CLEARED (2026-08-19)
+
+**Status: not blocking.** §16a items 1 (training opt-out) and 2 (Zero Data Retention) were raised as a gate on *user-facing privacy wording*. Audited against what actually shipped in M3/M4:
+
+- The shipped copy makes **no claim about provider training or retention**. It states the architecture — *"Whole Life Journey remembers. The AI provider processes… The provider isn't where the memory lives"* — and links to the existing privacy page. Nothing asserts what the OpenAI organisation is configured to do.
+- Item 3 (encryption) is **SATISFIED** (§16b) — that was the item with real user-visible consequence.
+- Contract 13.5 already establishes that **nothing in the architecture depends on ZDR**.
+
+So the gate is cleared *by not making the claim*, which is the correct outcome: WLJ should not put a provider's account configuration in customer-facing copy, because that copy would silently become false if the provider or the account changed. Provider-agnosticism is an architectural commitment (Constitution I.8); it should not be undermined by marketing wording.
+
+**The gate re-arms** the moment any surface says something like "your data is never used for training", "zero data retention", or names the provider's retention behaviour. If that copy is ever proposed, items 1 and 2 must be confirmed first.
+
+### Why this cannot be verified programmatically
+
+OpenAI exposes **no API endpoint** for an organisation's training opt-out state, ZDR status, or project-level retention overrides — these are dashboard-only account settings. There is no read available to WLJ, and no attempt was made to reach the provider account.
+
+### Exact UI path for Danny (when the gate re-arms)
+
+| Question | Where |
+|---|---|
+| 1. Training opt-out | platform.openai.com → **Settings** → **Organization** → **Data controls** — confirm sharing for model training is **off** (API default is off; confirm the account) |
+| 2. Zero Data Retention | ZDR is **not self-serve** — it is granted per-organisation by OpenAI. Check **Settings → Organization → Data controls** for a ZDR/retention entry; if absent, it is not enabled, and enabling it requires contacting OpenAI sales/support |
+| 3. Project retention overrides | platform.openai.com → **Dashboard** → select the project → **Settings** → data-retention settings (a project can carry a stricter retention than the org) |
+| 4. Endpoint in use | Already established from the repository: `/v1/chat/completions` (`apps/ai/services.py`) — the ZDR-eligible endpoint. No operator action needed |
+
+Reporting only. **Do not change any OpenAI configuration** as part of this check.
+
 ## 16b. Production encryption gate — SATISFIED (2026-08-19)
 
 Verified presence-only through the deployed governance/probe mechanisms; the secret value

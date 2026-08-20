@@ -84,6 +84,7 @@ For core project context, see `CLAUDE.md` (project root).
 65. [Page-Aware Contextual Conversation (Current Context)](#page-aware-contextual-conversation-current-context) *(Jul 2026)*
 66. [Calendar Projection Layer & Availability Blocks](#calendar-projection-layer--availability-blocks) *(Jul 2026)*
 67. [Measurement Session Capture (Screenshot Import)](#measurement-session-capture-screenshot-import) *(Jul 2026)*
+68. [About Me — Personal Knowledge & Getting to Know You](#about-me--personal-knowledge--getting-to-know-you) *(Aug 2026)*
 
 ---
 
@@ -4801,3 +4802,62 @@ Full design + rationale: `docs/WLJ_CALENDAR_PROJECTION_ARCHITECTURE.md`.
 ---
 
 *Last updated: 2026-07-19 (Measurement Session Capture — Screenshot Import)*
+
+---
+
+## About Me — Personal Knowledge & Getting to Know You
+
+*(Aug 2026)*
+
+### Overview
+
+**Personal Knowledge** is the canonical store of durable facts about the *person* — who matters to them, what they do, what they care about, how they want to be helped. It is distinct from every domain store: Health owns weight, Goals owns goals, Tasks owns tasks. Personal Knowledge owns the things that are true about a life and are not records of anything.
+
+The Chief of Staff reads it, but it belongs to the user: everything is visible, correctable and removable at `/user/about-me/`.
+
+### The three surfaces
+
+| Surface | URL | What it does |
+|---|---|---|
+| **About Me** | `/user/about-me/` | The workspace. A Knowledge Map by subject, add-your-own, privacy explanation, and a scoped "remove everything I know" |
+| **Topic drill-down** | `/user/about-me/<topic>/` | Edit · keep · pin · mark sensitive · remove · add, within one subject |
+| **Getting to know you** | `/user/about-me/get-to-know-me/` | A conversation where the CoS asks about the user's life |
+
+### Presentation law
+
+The Knowledge Map reports a **count and nothing else** — "14 things I know", "nothing yet". No quality labels, percentages, completeness scores, progress bars, deficiency language, or colour encoding sufficiency. An empty subject is a neutral fact about what WLJ has stored, never a gap in the person. **A life is not a form.** Enforced by test.
+
+### Getting to know you
+
+A conversation, not a questionnaire. WLJ supplies an **unordered inventory** — which subjects exist, how many things are known in each, and each subject's user-set state. The model decides what to ask, in what order, how deep to go and when to move on, in the user's chosen persona voice.
+
+**Natural controls** — the user speaks normally and the model interprets; WLJ records the outcome deterministically:
+
+| The user says | What WLJ records |
+|---|---|
+| "Skip that", "next" | `discussed` — move on |
+| "Not now" | `parked` — may return another time |
+| "I'd rather not talk about that" | `declined` — **stated OFF LIMITS in the prompt, never reintroduced** |
+| "That's enough for now" | Session paused; everything taught is kept |
+
+Stopping never loses anything. Resuming returns the *same* session with declines intact, so the user never repeats themselves and is never re-asked something they ruled out. Subjects are open-vocabulary — an emergent one ("volunteer fire department") needs no deploy.
+
+### What is *not* built
+
+Ordinary conversation does **not** learn. Personal Knowledge is written only when the user is deliberately teaching — inside Getting to Know You, or by typing it into About Me. This is structurally enforced, not merely intended: the write tool is a no-op outside an active session, and the complete set of writers is asserted by test.
+
+### Sensitivity and third parties
+
+A fact can be marked **sensitive**: it stays stored and visible to the user, but is kept out of everyday standing context. Facts about other people are stored as the user's own account of them, and can be linked to a canonical `Person`.
+
+### Key files
+
+| Concern | Location |
+|---|---|
+| Canonical authority | `apps/core/personal_knowledge/service.py` (the single writer) |
+| Model | `apps/core/personal_knowledge/models.py` — statement encrypted at rest |
+| Interview service | `apps/ai/cos_services/interview.py` |
+| Session state | `apps.ai.models.InterviewSession` (orchestration only — no biographical content) |
+| Runtime delivery | `ModelInterfaceService.build_standing_context` → `personal_truth` + `interview` |
+| Workspace views | `apps/users/about_me_views.py` |
+| Governing docs | `docs/WLJ_CHIEF_OF_STAFF_PERSONALIZATION_AND_PERSONAL_KNOWLEDGE.md` (frozen design), `docs/WLJ_PERSONALIZATION_PERSONAL_KNOWLEDGE_CONTRACTS.md` (contracts + status ledger) |

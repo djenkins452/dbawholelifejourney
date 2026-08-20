@@ -472,3 +472,47 @@ class DiscoverabilityTests(TestCase):
                 self.assertEqual(view.help_context_id, context_id)
                 self.assertTrue(HelpTopic.objects.filter(context_id=context_id).exists(),
                                 f"{context_id} has no help topic to show")
+
+
+class ProviderCopyGateTests(SimpleTestCase):
+    """Contracts §16c — the release-copy gate is cleared by NOT making the claim.
+
+    WLJ must not put a provider's account configuration into customer-facing copy: that
+    copy would silently become false if the provider or the account changed, and it would
+    undermine provider-agnosticism (Constitution I.8). If a surface ever wants to say
+    "never used for training" or "zero data retention", the OpenAI organisation settings
+    must be verified first — so this test is the thing that re-arms the gate.
+    """
+
+    SURFACES = [
+        "templates/users/get_to_know_me.html",
+        "templates/users/about_me.html",
+        "templates/users/about_me_topic.html",
+        "templates/users/about_me_review.html",
+    ]
+    CLAIMS = [
+        r"never used (for|to) train",
+        r"not used (for|to) train",
+        r"zero[- ]data[- ]retention",
+        r"\bZDR\b",
+        r"(is|are) not retained",
+        r"deleted (immediately|after)",
+        r"\bOpenAI\b",
+        r"\bChatGPT\b",
+    ]
+
+    def test_no_pk_surface_claims_provider_training_or_retention_behaviour(self):
+        import re
+        for rel in self.SURFACES:
+            path = REPO / rel
+            if not path.exists():
+                continue
+            body = re.sub(r"\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}", "",
+                          path.read_text(encoding="utf-8"), flags=re.S)
+            body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+            for claim in self.CLAIMS:
+                with self.subTest(surface=rel, claim=claim):
+                    self.assertIsNone(
+                        re.search(claim, body, re.I),
+                        f"{rel} makes a provider claim ({claim!r}). Verify the OpenAI "
+                        f"organisation settings first — see contracts doc §16c.")

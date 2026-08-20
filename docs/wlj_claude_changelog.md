@@ -3,8 +3,103 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
+# Last Updated: 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-20 — fix(test-infra): `manage.py test apps.ai` deadlocked forever — CoS context builders parallelised inside an open transaction
+
+**Problem.** `python3 manage.py test apps.ai --keepdb` hung indefinitely against local Postgres —
+process alive, `STAT=SN`, `%CPU 0.0`, zero log output for 45+ minutes, four idle-looking connections to
+`wlj_dev`. Only targeted suites could be verified, so `apps.ai` had **no runnable full-suite regression
+gate at all**. Reproduced deterministically at the same point every time.
+
+**Root cause (PROVEN, not inferred — `faulthandler` thread dump + `pg_blocking_pids`, not a guess).**
+A circular wait between Python and PostgreSQL:
+
+* **Main thread** — inside a `TestCase`'s atomic block, holding an uncommitted
+  `core_personaloperatingblueprint` INSERT. Parked in
+  `concurrent.futures.thread.shutdown → Thread.join → _wait_for_tstate_lock`, reached from
+  `cos_context.build_cos_context` (the `with ThreadPoolExecutor(...)` block's `__exit__`).
+  Its backend: `idle in transaction`.
+* **Builder threads** — each on its OWN connection, outside that transaction, executing
+  `INSERT INTO core_personaloperatingblueprint`. Their backends: `active`,
+  `wait_event=Lock/transactionid`. `pg_blocking_pids()` named the main thread's backend as the blocker
+  for all three.
+
+So the main thread waited on the threads (Python), and the threads waited on the main thread's
+transaction (Postgres). Neither could move, forever.
+
+The existing `as_completed(futures, timeout=10)` and `future.result(timeout=5)` guards did **not** help
+and were never going to: they bound only how long we wait for *results*. When they expire, the `with`
+block still exits — and `ThreadPoolExecutor.__exit__` calls `shutdown(wait=True)`, which joins every
+worker thread with **no timeout**. The timeouts were cosmetic; the real wait was always unbounded.
+
+**Why it stayed hidden.** `build_cos_context` only threads when the backend is not SQLite
+(`_use_threading = 'sqlite' not in ENGINE`). Default dev/CI runs on SQLite and take the sequential path,
+so the deadlock is invisible there. It surfaces only on a Postgres-backed test run. Production is
+unaffected: request paths run in autocommit (`ATOMIC_REQUESTS` is not set), so no caller holds the
+transaction that closes the loop.
+
+**Eliminated the CLASS, not the symptom.** The condition that made this possible is *"DB-touching worker
+threads on independent connections are joined unconditionally while the caller may hold uncommitted
+rows."* That condition is now removed rather than detected: new
+`cos_context._parallel_builders_allowed(engine, in_atomic_block)` refuses the parallel path whenever the
+calling connection is inside a transaction. No detector, no recovery path, no timeout to tune — the
+circular wait can no longer be constructed.
+
+This also fixes a **silent correctness bug that was never about the hang**: inside a transaction the
+builder threads read a snapshot predating the caller's uncommitted writes, so the CoS context was being
+assembled from stale truth. Sequential execution reuses the caller's own connection and sees real state.
+
+*Residual, accepted and logged (blast-radius bound):* a builder blocked for some *other* reason is still
+joined unbounded at pool shutdown. Removing that needs a non-blocking shutdown, which risks leaking live
+DB connections in production — deliberately not taken. Documented in the helper's docstring.
+
+**Secondary find — 3 minutes of dead, silent wait that reads exactly like a second hang.**
+`_chat_relay_stream`'s `MAX_WALL = 90.0` is correct for production (hold one connection, then tell the
+client to reconnect by `job_id`). But a test that mocks out the generation task leaves the job snapshot
+non-terminal forever, so the relay polls the entire 90s. `test_chatgpt_cos_clean.StreamViewRoutingTests`
+does exactly that, twice → 183s of CPU-idle silence. The wall is now a settings knob,
+`WLJ_CHAT_STREAM_MAX_WALL_S` (default 90.0, unchanged in production), set to 5.0 under `TESTING`.
+That module: **183s → 11s**.
+
+> Note: the obvious-looking test-side fix — abandon the stream with `resp.close()` instead of draining it
+> — is WRONG and was tried and rejected. Django's test client wraps a streaming response in
+> `closing_iterator_wrapper`, whose `finally` temporarily disconnects `close_old_connections` from
+> `request_finished` before closing. Calling `resp.close()` directly bypasses that, fires
+> `request_finished` with the handler still attached, and closes the connection *mid-`TestCase`
+> transaction* — the next test in the class then dies on `psycopg2.InterfaceError: connection already
+> closed`. Recorded here so nobody re-derives it.
+
+**Changes.**
+- `apps/core/ai_orchestrator/cos_context.py` — new `_parallel_builders_allowed(engine, in_atomic_block)`
+  (with the full forensic rationale in its docstring); `build_cos_context` now consults it and logs when
+  it drops to sequential because a transaction is open.
+- `apps/ai/views.py` — `_chat_relay_stream`'s `MAX_WALL` reads `WLJ_CHAT_STREAM_MAX_WALL_S`
+  (default 90.0); added the module-level `from django.conf import settings` it needed.
+- `config/settings.py` — `WLJ_CHAT_STREAM_MAX_WALL_S = 5.0` in the `TESTING` block.
+- `apps/core/tests/test_cos_context_transaction_safety.py` — **NEW** regression guard (7 tests). The
+  decision matrix is unit-tested directly; the end-to-end tests replace `ThreadPoolExecutor` with a mock
+  that refuses to run, so a regression **fails loudly and never hangs the suite**. A companion test
+  asserts a `TestCase` body really is inside a transaction, so the guard can never pass vacuously.
+
+**Verification.**
+- `apps.ai` full suite now **completes**: 4087 tests in 732s (previously: never finished).
+- `apps.ai.tests.test_personal_assistant` (contains `test_opening_endpoint`, the test that deadlocked):
+  61 tests, 32s, **OK**.
+- New guard: 7 tests **OK**. Proven to actually catch the regression — with the fix temporarily reverted
+  the two end-to-end tests **FAIL** with the intended message (and do not hang).
+- `test_request_path_safety_contract` + `test_database_resiliency_settings`: **OK**.
+- `manage.py check`: clean (only pre-existing djstripe hints).
+- The 58 failures / 4 errors the completed run exposes are **pre-existing and unrelated** — verified by
+  running a representative six of the failing modules with the fix applied and again with it reverted:
+  byte-identical results (13 failures + 1 error both ways). They were simply never visible before,
+  because the suite could not reach them. Not addressed here.
+
+**Files:** `apps/core/ai_orchestrator/cos_context.py`, `apps/ai/views.py`, `config/settings.py`,
+`apps/core/tests/test_cos_context_transaction_safety.py` (new).
+
+---
 
 ## 2026-08-20 — docs: ENGINE_COS_REFERENCE now documents the Model Interface runtime (legacy path marked LEGACY)
 

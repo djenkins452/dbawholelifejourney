@@ -392,6 +392,12 @@ if TESTING:
     CELERY_TASK_EAGER_PROPAGATES = False
     CELERY_BROKER_URL = "memory://"
     CELERY_RESULT_BACKEND = "cache+memory://"
+    # SSE chat relay wall (apps/ai/views.py :: _chat_relay_stream). Production
+    # holds a connection for up to 90s before telling the client to reconnect.
+    # A test that mocks out the generation task leaves the job snapshot
+    # non-terminal forever, so the relay would poll for the FULL 90s — silent,
+    # CPU-idle dead time indistinguishable from a hung suite. Test-only.
+    WLJ_CHAT_STREAM_MAX_WALL_S = 5.0
 else:
     STORAGES = {
         "staticfiles": {

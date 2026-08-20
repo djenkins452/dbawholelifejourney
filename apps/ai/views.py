@@ -22,6 +22,7 @@ import base64
 import json
 import logging
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -1202,7 +1203,12 @@ def _chat_relay_stream(job_id, user_id):
     )
 
     POLL_INTERVAL = 0.15      # seconds between snapshot reads
-    MAX_WALL = 90.0           # cap one connection; client reconnects by job_id
+    # Cap one connection; the client reconnects by job_id. Configurable so the
+    # test suite is not forced to burn the full production wall on a job that
+    # can never complete (a test that mocks out the generation task leaves the
+    # snapshot non-terminal forever, so the relay polls until this wall expires
+    # — 90s of dead, silent wait that reads exactly like a hung suite).
+    MAX_WALL = float(getattr(settings, 'WLJ_CHAT_STREAM_MAX_WALL_S', 90.0))
     HEARTBEAT = 15.0          # SSE comment cadence to keep proxies/CDN alive
 
     yield f"event: job\ndata: {json.dumps({'job_id': job_id})}\n\n"

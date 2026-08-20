@@ -3562,6 +3562,56 @@ def _build_situational_awareness_context(user):
         return {}
 
 
+def _parallel_builders_allowed(engine, in_atomic_block):
+    """Is it safe to run the CoS context builders on a thread pool?
+
+    A builder thread runs on its OWN database connection, so it can neither see
+    nor safely contend with work the CALLING connection has not committed. Two
+    conditions therefore forbid the parallel path:
+
+    1. **SQLite** — each thread gets a separate (in-memory: empty) database.
+
+    2. **An open transaction on the calling connection.** This is a genuine
+       deadlock condition, not a style preference. The caller holds uncommitted
+       rows; a builder thread's independent connection blocks on those row
+       locks; and ``ThreadPoolExecutor.__exit__`` then joins that thread with
+       **no timeout**. Neither side can move — a circular wait that never
+       breaks. (Proven 2026-08-20: ``manage.py test apps.ai`` against Postgres
+       hung indefinitely with the main thread parked in
+       ``concurrent.futures.thread.shutdown`` and three builder backends in
+       ``Lock/transactionid`` behind the test transaction's uncommitted
+       ``core_personaloperatingblueprint`` INSERT. The ``as_completed(timeout=10)``
+       / ``future.result(timeout=5)`` guards do not help: they bound only how
+       long we wait for *results*, never the unconditional join at pool exit.)
+
+       Even setting the hang aside, the parallel path is simply WRONG inside a
+       transaction — the builders read a snapshot that predates the caller's
+       uncommitted writes, so the context is built from stale truth. Running
+       sequentially reuses the caller's own connection, which sees the real
+       state and cannot self-block.
+
+    Production request paths run in autocommit (``ATOMIC_REQUESTS`` is not set),
+    so this does not disable parallelism for real traffic. It engages for
+    ``TestCase`` (which wraps every test in ``atomic``) and for any caller that
+    deliberately wraps a context build in ``transaction.atomic()``.
+
+    Residual risk, accepted and logged: a builder blocked for some *other*
+    reason is still joined unbounded at pool shutdown. Removing that would need
+    a non-blocking shutdown, which risks leaking live DB connections in
+    production — deliberately not taken here.
+
+    Args:
+        engine: The ``DATABASES['default']['ENGINE']`` string.
+        in_atomic_block: ``connection.in_atomic_block`` for the calling thread.
+
+    Returns:
+        bool — True only when threaded builders are safe.
+    """
+    if 'sqlite' in (engine or ''):
+        return False
+    return not in_atomic_block
+
+
 def build_cos_context(user, scoped_builders=None):
     """
     Assemble the full Chief of Staff operational context.
@@ -3698,11 +3748,20 @@ def build_cos_context(user, scoped_builders=None):
                 len(_skipped_builders), ', '.join(_skipped_builders),
             )
 
-    # Run builders — parallel when possible, sequential on SQLite
-    # (in-memory SQLite gives each thread a separate empty database)
-    _use_threading = 'sqlite' not in settings.DATABASES.get(
-        'default', {}
-    ).get('ENGINE', '')
+    # Run builders — parallel only when it is SAFE (see
+    # _parallel_builders_allowed for the two forbidding conditions).
+    _in_transaction = connection.in_atomic_block
+    _use_threading = _parallel_builders_allowed(
+        settings.DATABASES.get('default', {}).get('ENGINE', ''),
+        _in_transaction,
+    )
+    if _in_transaction:
+        logger.debug(
+            "CoS context: caller holds an open transaction — building "
+            "sequentially (parallel builders would run on separate "
+            "connections and could not see, or would block on, its "
+            "uncommitted rows)."
+        )
 
     # Resolve builder tag for timing (tag → fn mapping for current builders)
     _builder_tag_map = {fn: tag for tag, fn, _ in _TAGGED_BUILDERS}

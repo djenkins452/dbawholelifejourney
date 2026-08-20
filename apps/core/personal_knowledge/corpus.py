@@ -121,7 +121,7 @@ def characterize(user, *, unreviewed_only=True):
         qs = qs.filter(review_state=ReviewState.UNREVIEWED)
 
     by_topic, by_provenance, by_shape = Counter(), Counter(), Counter()
-    by_sensitivity = Counter()
+    by_sensitivity, by_legacy_source = Counter(), Counter()
     exact = defaultdict(list)
     records, lengths = [], []
 
@@ -130,6 +130,7 @@ def characterize(user, *, unreviewed_only=True):
         by_topic[fact.topic] += 1
         by_provenance[fact.provenance] += 1
         by_sensitivity[fact.sensitivity] += 1
+        by_legacy_source[(fact.attributes or {}).get("legacy_source") or "(none)"] += 1
         by_shape[classify_shape(text)] += 1
         exact[_normalize_for_identity(text)].append(fact.id)
         records.append((fact.id, text))
@@ -146,10 +147,14 @@ def characterize(user, *, unreviewed_only=True):
         "by_topic": dict(by_topic.most_common()),
         "by_provenance": dict(by_provenance.most_common()),
         "by_sensitivity": dict(by_sensitivity.most_common()),
+        # WHICH legacy store each record came from — the line-delimited blob and the
+        # profile paragraphs carry no topic, which is why an all-"other" corpus happens.
+        "by_legacy_source": dict(by_legacy_source.most_common()),
         "by_shape": dict(by_shape.most_common()),
         "exact_duplicate_groups": len(exact_groups),
         "exact_redundant_records": exact_redundant,
         "near_duplicate_groups": len(near_groups),
+        "near_duplicate_group_sizes": sorted((len(g) for g in near_groups), reverse=True),
         "near_redundant_records": near_redundant,
         "length_chars": {
             "min": min(lengths) if lengths else 0,

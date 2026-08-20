@@ -3784,6 +3784,61 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         }, json_dumps_params={'default': str})
 
 
+class PKCorpusAPIView(APIRateLimitMixin, View):
+    """Operator PERSONAL KNOWLEDGE CORPUS SHAPE (read-only, API-key-guarded).
+
+    Answers "what is actually in this user's unreviewed legacy knowledge?" so review can be
+    designed for the real corpus instead of a guess. Returns COUNTS AND STRUCTURAL SHAPES
+    ONLY — no statement text ever leaves this endpoint, because the corpus is exactly the
+    private material the Personal Knowledge store exists to protect.
+
+    Read-only and request-path-safe: it never writes, never calls a provider, and is scoped
+    to one user's own facts.
+
+    GET /admin-console/api/claude/pk-corpus/?email=...&all=0   Auth: X-Claude-API-Key.
+    """
+
+    rate_limit_requests_per_minute = 20
+    rate_limit_requests_per_hour = 120
+    rate_limit_key_prefix = 'admin_api_pk_corpus'
+
+    def get(self, request):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        email = (request.GET.get('email') or '').strip()
+        if not email:
+            return JsonResponse({'error': 'email is required'}, status=400)
+        try:
+            user = get_user_model().objects.get(email__iexact=email)
+        except get_user_model().DoesNotExist:
+            return JsonResponse({'error': 'user not found'}, status=404)
+
+        from apps.core.personal_knowledge import corpus as pk_corpus
+
+        unreviewed_only = (request.GET.get('all') or '0').strip() not in ('1', 'true')
+        try:
+            data = pk_corpus.characterize(user, unreviewed_only=unreviewed_only)
+        except Exception as exc:  # pragma: no cover - operator surface must explain itself
+            return JsonResponse({'error': f'{type(exc).__name__}: {exc}'}, status=500)
+        data['scope'] = 'unreviewed_only' if unreviewed_only else 'all_active'
+        data['note'] = ('Counts and structural shapes only — no statement text is exposed. '
+                        'Shapes describe STRUCTURE (length/sentences/list-form), never a '
+                        'claim about meaning.')
+        return JsonResponse(data)
+
+
 class CostSummaryAPIView(APIRateLimitMixin, View):
     """Operator AI-COST SUMMARY (read-only, API-key-guarded) — answers "what is WLJ spending
     on OpenAI, and which subsystem spent it?" from the owner_finance LLMUsageEvent ledger,

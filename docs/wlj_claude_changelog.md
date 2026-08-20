@@ -32,6 +32,8 @@ Real-model validation of the shipped M4 experience — 5 interview runs across 4
 
 **Privacy (§7).** Verified against current OpenAI documentation and recorded in contracts §16c: the sharing toggles live at `Settings → Organization → Data controls → Sharing` (two toggles, both default **Disabled**), while ZDR and per-project overrides live on the separate **Data Retention** tab — and **project settings override the organisation setting**, so reading the org value alone is insufficient. ZDR is not self-serve. No API exposes any of it. No provider configuration was inspected or changed.
 
+**Validation checklist** (`docs/WLJ_GETTING_TO_KNOW_YOU_VALIDATION_CHECKLIST.md`): a short, non-scripted aid for Danny's own validation — what to notice while talking, the phrases worth trying, what to check in About Me afterwards, and a fixed vocabulary for classifying findings (fact-quality tag + severity: trust-breaker / friction / taste) so the same friction is classified the same way twice. States plainly that one example is an anecdote and only a repeated class gets fixed.
+
 **Verification:** 78 interview contract tests (14 new this milestone) + 453 scoped tests green (PK contract, PK truth-path, About Me, write-surface safety, personalization, request-path safety, full `apps.users`, intent registration). Consumer-boundary drift certified with a **primed cache** — the failure mode M2 proved can hide. Real-model revalidation after each fix; stop/resume proven end to end: with **zero chat history**, "what haven't we covered?" listed work, interests, routines, goals and values — and never faith. `makemigrations --check` clean; `check` clean (2 pre-existing djstripe). No migration required.
 
 ---

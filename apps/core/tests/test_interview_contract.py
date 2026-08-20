@@ -516,3 +516,360 @@ class ProviderCopyGateTests(SimpleTestCase):
                         re.search(claim, body, re.I),
                         f"{rel} makes a provider claim ({claim!r}). Verify the OpenAI "
                         f"organisation settings first — see contracts doc §16c.")
+
+
+class CostAttributionTests(InterviewHarness):
+    """M5 §8 — interview cost must be separable from ordinary chat.
+
+    Without this an interview turn is billed as `interactive_chat` and the question
+    "what does Getting to Know You actually cost?" has no answer.
+    """
+
+    def _run_turn(self):
+        """Run one generate() with the provider mocked — no real spend."""
+        from unittest import mock
+        from apps.ai.llm_accounting import current_source
+        from apps.ai.model_interface.service import ModelInterfaceService
+
+        seen = {}
+        svc = ModelInterfaceService(self._fresh())
+
+        def _fake_call(*args, **kwargs):
+            # captured INSIDE the provider call, which is where the seam reads it
+            seen["source"] = current_source()
+            return "ok"
+
+        with mock.patch.object(svc.ai, "_call_api_with_tools", side_effect=_fake_call):
+            svc.generate(self.conv, "hello", surface="test")
+        return seen.get("source")
+
+    def test_an_interview_turn_is_attributed_to_its_own_source(self):
+        from apps.ai.llm_accounting import SOURCE_GETTING_TO_KNOW_YOU
+        iv.start_or_resume(self.user, self.conv)
+        self.assertEqual(self._run_turn(), SOURCE_GETTING_TO_KNOW_YOU)
+
+    def test_an_ordinary_turn_is_not_attributed_to_the_interview(self):
+        from apps.ai.llm_accounting import SOURCE_INTERACTIVE_CHAT
+        self.assertEqual(self._run_turn(), SOURCE_INTERACTIVE_CHAT)
+
+    def test_the_source_does_not_leak_into_the_next_turn(self):
+        """A worker process serves many users; a leaked contextvar would misattribute
+        every later turn."""
+        from apps.ai.llm_accounting import SOURCE_INTERACTIVE_CHAT, current_source
+        iv.start_or_resume(self.user, self.conv)
+        self._run_turn()
+        self.assertIsNone(current_source(), "accounting source leaked past the turn")
+        iv.pause(self.user, self.conv)
+        self.assertEqual(self._run_turn(), SOURCE_INTERACTIVE_CHAT)
+
+    def test_an_accounting_probe_failure_never_breaks_the_turn(self):
+        from unittest import mock
+        with mock.patch("apps.ai.cos_services.interview.active_session",
+                        side_effect=RuntimeError("db down")):
+            self.assertIsNotNone(self._run_turn())
+
+
+class DegradedBehaviourTests(InterviewHarness):
+    """M5 §9 — what happens when things go wrong."""
+
+    def test_a_provider_failure_leaves_the_session_recoverable(self):
+        from unittest import mock
+        from apps.ai.model_interface.service import ModelInterfaceService
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "Heather is my wife.", "topic": "family"}])
+
+        svc = ModelInterfaceService(self._fresh())
+        with mock.patch.object(svc.ai, "_call_api_with_tools",
+                               side_effect=RuntimeError("provider down")):
+            with self.assertRaises(RuntimeError):
+                svc.generate(self.conv, "tell me more", surface="test")
+
+        self.assertIsNotNone(iv.active_session(self._fresh(), self.conv),
+                             "a provider failure ended the interview")
+        self.assertEqual(pk.active_facts(self.user).count(), 1,
+                         "a provider failure lost knowledge already taught")
+
+    def test_a_partial_write_is_reported_honestly_not_rounded_up(self):
+        """The class §9 names: the CoS must not say 'I'll remember that' for a fact
+        that was never persisted."""
+        from unittest import mock
+        iv.start_or_resume(self.user, self.conv)
+        real = pk.add_fact
+        calls = {"n": 0}
+
+        def _flaky(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise RuntimeError("write failed")
+            return real(*args, **kwargs)
+
+        with mock.patch("apps.core.personal_knowledge.service.add_fact",
+                        side_effect=_flaky):
+            out = self._dispatch()("record_interview_knowledge", {"facts": [
+                {"statement": "Heather is my wife.", "topic": "family"},
+                {"statement": "We married in 1997.", "topic": "family"},
+            ]})
+        self.assertEqual(len(out["remembered"]), 1)
+        self.assertEqual(len(out["not_remembered"]), 1)
+        self.assertIn("could not be kept", out["message"])
+        self.assertIn("do not say they were", out["message"])
+
+    def test_the_constitution_binds_memory_claims_to_verified_writes(self):
+        from apps.ai.model_interface.constitution import CONSTITUTION
+        self.assertIn("THIS COVERS MEMORY TOO", CONSTITUTION)
+        self.assertIn("`not_remembered`", CONSTITUTION)
+
+    def _dispatch(self):
+        from apps.ai.model_interface.service import ModelInterfaceService
+        svc = ModelInterfaceService(self._fresh())
+        return svc._make_dispatch(
+            turn_id="t", surface="test", tools_called=[],
+            conversation_id=self.conv.id, conversation=self.conv)
+
+    def test_an_interrupted_session_resumes_rather_than_restarting(self):
+        """Session interruption: the row survives; nothing replays from scratch."""
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.set_topic_state(session, "faith", "declined")
+        iv.record_facts(session, [{"statement": "I ride motorcycles.", "topic": "interests"}])
+        # simulate an interrupted process: no pause() ever ran
+        resumed = iv.start_or_resume(self._fresh(), self.conv)
+        self.assertEqual(resumed.id, session.id)
+        self.assertIn("faith", resumed.declined_topics())
+        self.assertEqual(pk.active_facts(self.user).count(), 1)
+
+
+class ProjectionDriftTests(InterviewHarness):
+    """M5 §5 — certify the whole customer-visible loop, priming the cache first.
+
+    M2 proved this class hides at consumer boundaries: a read POPULATES the projection
+    cache, so a later write is only visible if invalidation actually fires. Tests that
+    write before ever reading cannot see the bug.
+    """
+
+    def test_teaching_after_a_read_is_not_served_stale(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        self._prompt()  # priming read — populates the projection cache
+        iv.record_facts(session,
+                        [{"statement": "MARKER-DRIFT Heather is my wife.", "topic": "family"}])
+        self.assertIn("MARKER-DRIFT", self._prompt(),
+                      "a primed cache hid knowledge taught seconds earlier")
+
+    def test_correction_after_a_read_is_not_served_stale(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        recorded, _ = iv.record_facts(
+            session, [{"statement": "MARKER-A married in 1996.", "topic": "family"}])
+        self._prompt()  # priming read
+        self.client.post(reverse("users:about_me_fact_action",
+                                 kwargs={"pk_id": recorded[0].id, "action": "correct"}),
+                         {"statement": "MARKER-B married in 1997."})
+        prompt = self._prompt()
+        self.assertIn("MARKER-B", prompt)
+        self.assertNotIn("MARKER-A", prompt,
+                         "the superseded statement survived in model truth")
+
+    def test_deletion_after_a_read_is_not_served_stale(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        recorded, _ = iv.record_facts(
+            session, [{"statement": "MARKER-GONE forget this.", "topic": "family"}])
+        self._prompt()  # priming read
+        self.client.post(reverse("users:about_me_fact_action",
+                                 kwargs={"pk_id": recorded[0].id, "action": "delete"}))
+        self.assertNotIn("MARKER-GONE", self._prompt(),
+                         "deleted knowledge survived in model truth")
+
+    def test_counts_and_topic_pages_agree_with_model_truth(self):
+        """The user's view and the model's view must be the same truth, not two
+        independently derived ones."""
+        session = iv.start_or_resume(self.user, self.conv)
+        self._prompt()  # priming read
+        iv.record_facts(session, [
+            {"statement": "MARKER-C1 Heather is my wife.", "topic": "family"},
+            {"statement": "MARKER-C2 We married in 1997.", "topic": "family"},
+            {"statement": "MARKER-C3 I ride motorcycles.", "topic": "interests"},
+        ])
+        self.assertEqual(pk.topic_counts(self.user).get("family"), 2)
+        about = self.client.get(reverse("users:about_me")).content.decode()
+        self.assertIn("3 things in total", about)      # the running total
+        self.assertIn("2 things I know", about)        # the family card
+        self.assertIn("1 thing I know", about)         # the interests card
+        topic = self.client.get(
+            reverse("users:about_me_topic", kwargs={"topic": "family"})).content.decode()
+        prompt = self._prompt()
+        for marker in ("MARKER-C1", "MARKER-C2"):
+            self.assertIn(marker, topic)
+            self.assertIn(marker, prompt)
+
+    def test_a_fresh_process_sees_the_same_truth(self):
+        """A later turn is served by a DIFFERENT worker process — it must not depend on
+        in-process state left behind by the interview."""
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session,
+                        [{"statement": "MARKER-FRESH I ride motorcycles.", "topic": "interests"}])
+        iv.pause(self.user, self.conv)
+        from apps.ai.model_interface.service import ModelInterfaceService
+        svc = ModelInterfaceService(User.objects.get(pk=self.user.pk))
+        prompt = svc._system_prompt(svc.build_standing_context(conversation=self.conv))
+        self.assertIn("MARKER-FRESH", prompt)
+        self.assertNotIn("GETTING TO KNOW", prompt,
+                         "a paused interview still steers ordinary conversation")
+
+
+class DuplicateStorageTests(InterviewHarness):
+    """M5 §2 — production validation showed one turn re-teaching the previous turn's
+    facts verbatim, doubling every count in About Me. Storage integrity is WLJ's job,
+    so the class is made impossible rather than instructed away.
+    """
+
+    def test_teaching_the_same_thing_twice_stores_it_once(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        iv.record_facts(session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        self.assertEqual(pk.active_facts(self.user).count(), 1)
+
+    def test_repeat_is_reported_as_remembered_not_as_a_failure(self):
+        """It IS remembered — reporting a reject would make the CoS apologise for
+        successfully knowing something."""
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        recorded, rejected = iv.record_facts(
+            session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        self.assertEqual(len(recorded), 1)
+        self.assertEqual(rejected, [])
+
+    def test_matching_ignores_only_case_spacing_and_trailing_punctuation(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        for variant in ("i'm married to rachel", "I'm  married to Rachel!",
+                        "  I'm married to Rachel  "):
+            iv.record_facts(session, [{"statement": variant, "topic": "family"}])
+        self.assertEqual(pk.active_facts(self.user).count(), 1)
+
+    def test_different_wordings_are_NOT_merged(self):
+        """Deciding two different sentences mean the same thing is interpretation, which
+        WLJ does not do. Only an identical statement is a duplicate."""
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [
+            {"statement": "I'm married to Rachel.", "topic": "family"},
+            {"statement": "Rachel is my wife.", "topic": "family"},
+        ])
+        self.assertEqual(pk.active_facts(self.user).count(), 2)
+
+    def test_the_same_sentence_in_a_different_topic_is_kept(self):
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "Family comes first.", "topic": "family"}])
+        iv.record_facts(session, [{"statement": "Family comes first.", "topic": "values"}])
+        self.assertEqual(pk.active_facts(self.user).count(), 2)
+
+    def test_a_deleted_fact_can_be_taught_again(self):
+        """Dedup matches ACTIVE facts only — otherwise removing something would make it
+        impossible to tell WLJ again."""
+        session = iv.start_or_resume(self.user, self.conv)
+        recorded, _ = iv.record_facts(
+            session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        pk.delete_fact(recorded[0])
+        iv.record_facts(session, [{"statement": "I'm married to Rachel.", "topic": "family"}])
+        self.assertEqual(pk.active_facts(self.user).count(), 1)
+
+    def test_dedup_is_scoped_to_the_user(self):
+        other = User.objects.create_user(email="other@contract.test", password="x")
+        pk.add_fact(other, "I'm married to Rachel.", topic="family")
+        pk.add_fact(self.user, "I'm married to Rachel.", topic="family")
+        self.assertEqual(pk.active_facts(self.user).count(), 1)
+        self.assertEqual(pk.active_facts(other).count(), 1)
+
+
+class BoundaryPersistenceInstructionTests(InterviewHarness):
+    """M5 §3 — the run showed the CoS agreeing to a decline in prose while recording
+    nothing, so the boundary evaporated. WLJ cannot detect a decline without a text
+    classifier, so the instruction must make the requirement unmissable.
+    """
+
+    def test_the_lead_requires_recording_a_boundary_not_just_agreeing(self):
+        iv.start_or_resume(self.user, self.conv)
+        prompt = self._prompt()
+        self.assertIn("RECORDING WHAT THEY RULE OUT", prompt)
+        self.assertIn("a promise you cannot keep", prompt)
+
+    def test_the_tool_states_it_accepts_an_area_outcome_alone(self):
+        from apps.ai.model_interface.constitution import all_tools
+        tool = next(t["function"] for t in all_tools(writes_enabled=True)
+                    if t["function"]["name"] == "record_interview_knowledge")
+        self.assertIn("`area_outcome` ALONE", tool["description"])
+        self.assertNotIn("facts", tool["parameters"].get("required", []),
+                         "facts must stay optional or a boundary-only call is impossible")
+
+    def test_an_area_outcome_with_no_facts_is_accepted_and_persisted(self):
+        iv.start_or_resume(self.user, self.conv)
+        out = self._dispatch()("record_interview_knowledge",
+                               {"area_outcome": {"area": "faith", "state": "declined"}})
+        self.assertTrue(out.get("area_outcome_applied"))
+        self.assertIn("faith", iv.read(self._fresh(), self.conv)["declined_areas"])
+        self.assertIn("OFF LIMITS", self._prompt())
+
+    def test_the_lead_tells_it_to_lead_rather_than_offer_a_menu(self):
+        iv.start_or_resume(self.user, self.conv)
+        prompt = self._prompt()
+        self.assertIn("LEAD THE CONVERSATION", prompt)
+        self.assertIn("Do NOT open with an acknowledgement", prompt)
+
+    def test_the_lead_forbids_converting_what_they_said(self):
+        iv.start_or_resume(self.user, self.conv)
+        self.assertIn("do not convert it", self._prompt().lower())
+
+    def _dispatch(self):
+        from apps.ai.model_interface.service import ModelInterfaceService
+        svc = ModelInterfaceService(self._fresh())
+        return svc._make_dispatch(
+            turn_id="t", surface="test", tools_called=[],
+            conversation_id=self.conv.id, conversation=self.conv)
+
+
+class TemporalAnchorTests(InterviewHarness):
+    """M5 §2 — a point-in-time detail must not silently become false as it ages.
+
+    WLJ knows when it was told something; that is WLJ's own truth. The model must NOT
+    derive a birth year from an age, because it does not know the birthday.
+    """
+
+    def test_every_interview_fact_is_stamped_with_the_date_it_was_taught(self):
+        from django.utils import timezone
+        session = iv.start_or_resume(self.user, self.conv)
+        recorded, _ = iv.record_facts(
+            session, [{"statement": "Tom is 14.", "topic": "family"}])
+        self.assertEqual(recorded[0].as_of, timezone.localdate())
+
+    def test_the_lead_forbids_deriving_a_birth_year(self):
+        iv.start_or_resume(self.user, self.conv)
+        prompt = self._prompt()
+        self.assertIn("do not know his birthday", prompt)
+        self.assertIn("Record what they SAID", prompt)
+
+
+class CaptureCompletenessTests(InterviewHarness):
+    """M5 §3 — production validation showed the model choosing a follow-up question
+    INSTEAD of recording, then sounding like it knew the fact (from chat history) when
+    nothing had been stored. The fact was gone by the next visit.
+    """
+
+    def test_the_lead_forbids_choosing_a_question_over_recording(self):
+        iv.start_or_resume(self.user, self.conv)
+        prompt = self._prompt()
+        self.assertIn("recording and replying are NOT alternatives", prompt)
+        self.assertIn("Asking instead of recording is how a fact is lost", prompt)
+
+    def test_the_lead_forbids_a_numbered_menu_of_subjects(self):
+        iv.start_or_resume(self.user, self.conv)
+        self.assertIn("a numbered list of subjects is an intake form", self._prompt())
+
+    def test_conversation_history_is_not_a_substitute_for_storage(self):
+        """The structural reason the above matters: a later visit carries no chat
+        history, so anything not persisted is simply gone."""
+        session = iv.start_or_resume(self.user, self.conv)
+        iv.record_facts(session, [{"statement": "MARKER-KEPT I run a landscaping business.",
+                                   "topic": "work"}])
+        iv.pause(self.user, self.conv)
+        from apps.ai.model_interface.service import ModelInterfaceService
+        svc = ModelInterfaceService(User.objects.get(pk=self.user.pk))
+        prompt = svc._system_prompt(svc.build_standing_context(conversation=self.conv))
+        self.assertIn("MARKER-KEPT", prompt)
+        self.assertNotIn("MARKER-UNSAID", prompt)

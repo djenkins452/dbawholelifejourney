@@ -126,6 +126,38 @@ def _validate_domain_boundary(attributes):
 # ══════════════════════════════════════════════════════════════════════════════
 # Write primitives (Contract 11)
 # ══════════════════════════════════════════════════════════════════════════════
+def _normalize_for_identity(text):
+    """Normalized form used ONLY to recognise the same statement twice.
+
+    Deliberately conservative: case, surrounding whitespace, internal whitespace runs and
+    trailing sentence punctuation. It never tries to decide that two DIFFERENT wordings
+    mean the same thing — that would be interpretation, which WLJ does not do.
+    """
+    import re
+    return re.sub(r"\s+", " ", (text or "").strip()).casefold().rstrip(".!? ")
+
+
+def _existing_identical_fact(user, topic, text):
+    """Return this user's ACTIVE fact with an identical statement in the same topic.
+
+    Statements are encrypted at rest, so this cannot be a database lookup — it compares
+    in Python over the same user's same-topic active facts, which is a small set and a
+    rare (write-path, background) cost.
+    """
+    target = _normalize_for_identity(text)
+    if not target:
+        return None
+    try:
+        for fact in PersonalKnowledgeFact.objects.filter(
+                user=user, topic=str(topic), fact_status=FactStatus.ACTIVE):
+            if _normalize_for_identity(fact.statement) == target:
+                return fact
+    except Exception:  # pragma: no cover - dedup must never block a legitimate write
+        logger.warning("PK: duplicate check failed user=%s", getattr(user, "id", "?"),
+                       exc_info=True)
+    return None
+
+
 def add_fact(user, statement, *, topic=Topic.OTHER, subject_person=None,
              subject_label="", attributes=None, provenance=Provenance.ABOUT_ME_ENTRY,
              sensitivity=Sensitivity.NORMAL, review_state=None,
@@ -139,6 +171,17 @@ def add_fact(user, statement, *, topic=Topic.OTHER, subject_person=None,
         raise PersonalKnowledgeError("A Personal Knowledge statement cannot be empty.")
     attributes = attributes or {}
     _validate_domain_boundary(attributes)
+
+    # IDEMPOTENT BY STATEMENT (M5). Storing the same thing twice is not a model mistake
+    # to be instructed away — it is a storage-integrity guarantee WLJ owns. Production
+    # validation showed one turn re-teaching the previous turn's facts verbatim, which
+    # would have doubled every count in About Me. Recognising the repeat here makes the
+    # whole class impossible, whatever the caller does.
+    existing = _existing_identical_fact(user, topic, text)
+    if existing is not None:
+        logger.info("PK: duplicate statement ignored user=%s topic=%s fact=%s",
+                    getattr(user, "id", "?"), topic, existing.id)
+        return existing
 
     if review_state is None:
         review_state = (ReviewState.UNREVIEWED

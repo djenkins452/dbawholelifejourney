@@ -705,16 +705,37 @@ So the gate is cleared *by not making the claim*, which is the correct outcome: 
 
 OpenAI exposes **no API endpoint** for an organisation's training opt-out state, ZDR status, or project-level retention overrides — these are dashboard-only account settings. There is no read available to WLJ, and no attempt was made to reach the provider account.
 
-### Exact UI path for Danny (when the gate re-arms)
+### Exact operator path for Danny (verified against current OpenAI documentation, 2026-08-20)
 
-| Question | Where |
-|---|---|
-| 1. Training opt-out | platform.openai.com → **Settings** → **Organization** → **Data controls** — confirm sharing for model training is **off** (API default is off; confirm the account) |
-| 2. Zero Data Retention | ZDR is **not self-serve** — it is granted per-organisation by OpenAI. Check **Settings → Organization → Data controls** for a ZDR/retention entry; if absent, it is not enabled, and enabling it requires contacting OpenAI sales/support |
-| 3. Project retention overrides | platform.openai.com → **Dashboard** → select the project → **Settings** → data-retention settings (a project can carry a stricter retention than the org) |
-| 4. Endpoint in use | Already established from the repository: `/v1/chat/completions` (`apps/ai/services.py`) — the ZDR-eligible endpoint. No operator action needed |
+Two settings, two different pages. **Reporting only — do not change anything.**
 
-Reporting only. **Do not change any OpenAI configuration** as part of this check.
+**A. Is API data sharing / training on?**
+`platform.openai.com` → **Settings** → **Organization** → **Data controls** → **Sharing**
+(direct: `https://platform.openai.com/settings/organization/data-controls/sharing`)
+
+Two independent toggles, each with three states — **Disabled** · **Enabled for all projects** · **Enabled for selected projects**:
+
+| Toggle | Default | Report |
+|---|---|---|
+| *Share evaluation and fine-tuning data with OpenAI* | Disabled | its state |
+| *Share inputs and outputs with OpenAI* | Disabled | its state, and if "selected projects", **which** |
+
+Both default to **Disabled** for all organisations, and API data has not been used for training by default since 2023-03-01. The state to report is what the *account* says, not the documented default. Note the docs' own caveat: only traffic sent **after** a toggle is switched on is shared — so a past "Enabled" period matters and cannot be inferred from the current state alone.
+
+**B. Zero Data Retention and project overrides**
+`platform.openai.com` → **Settings** → **Organization** → **Data controls** → **Data Retention** tab.
+
+Per project, the value is one of: **default** (inherit the organisation setting) · **Zero Data Retention** · **Modified Abuse Monitoring** · **None** (disable these controls for that project). **So project settings do override the organisation setting — reading the org value alone is not sufficient.** Report the org value *and* the value on the project WLJ's production key belongs to.
+
+**ZDR is not self-serve.** OpenAI's documentation states these controls are "subject to prior approval by OpenAI and acceptance of additional requirements" — obtained by contacting OpenAI sales, not by toggling. If no ZDR entry is offered, it is not enabled. Default retention for abuse-monitoring logs is **30 days** on most endpoints unless longer is legally required.
+
+**C. Endpoint** — already established from the repository: `/v1/chat/completions` (`apps/ai/services.py`). No operator action needed.
+
+### Why this cannot be verified programmatically
+
+OpenAI exposes **no API endpoint** for organisation training-opt-in state, ZDR status, or project retention overrides — the current documentation describes these as dashboard-only configuration. There is no read available to WLJ, and no attempt was made to reach the provider account.
+
+**Sources:** [Data controls in the OpenAI platform](https://developers.openai.com/api/docs/guides/your-data) · [Sharing feedback, evaluation and fine-tuning data, and API inputs and outputs](https://help.openai.com/en/articles/10306912-sharing-feedback-evaluation-and-fine-tuning-data-and-api-inputs-and-outputs-with-openai) · [How your data is used to improve model performance](https://openai.com/policies/how-your-data-is-used-to-improve-model-performance/)
 
 ## 16b. Production encryption gate — SATISFIED (2026-08-19)
 

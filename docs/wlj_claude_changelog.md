@@ -6,6 +6,36 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-20 — fix(cos): M5 — production validation of Getting to Know You (5 defects found and fixed)
+
+Real-model validation of the shipped M4 experience — 5 interview runs across 4 personas, plus a full stop/resume cycle. Run against a scratch user with the real provider, deliberately NOT against Danny's account: role-playing his family and values would have written fabrications into his canonical Personal Knowledge and made every "fact quality" finding meaningless.
+
+**Five defects found in production behaviour, each fixed at the layer that actually owned it:**
+
+1. **Duplicate storage (WLJ — storage integrity).** Run A stored the same four family facts **twice**, verbatim: one turn taught them, the next turn re-taught them. About Me would have doubled every count on day one. Fixed by making `add_fact` **idempotent by statement** — an identical active statement in the same topic returns the existing row instead of creating a second. Deliberately conservative: it normalises case, whitespace and trailing punctuation only, and NEVER decides that two different wordings mean the same thing (that is interpretation, which WLJ does not do). Scoped per user, per topic, and to ACTIVE facts only, so a deleted fact can be taught again. Storage integrity is WLJ's job, so the class is now impossible rather than instructed away.
+
+2. **A declined subject was accepted in prose but never recorded (the worst one).** "I'd rather not talk about faith" → the CoS replied "understood, we won't discuss faith" and called **no tool**. Nothing persisted, so the boundary would have evaporated by the next visit — a promise the product could not keep. Reproduced across **two personas** before touching anything. A first instruction fix did NOT work; what worked was **prominence** — the boundary rule is now the FIRST thing in the interview lead, stated as a hard rule ("agreeing in prose is not honouring a boundary; recording it is"), and the tool description states it accepts an `area_outcome` with no `facts`. Verified 3/3 afterwards.
+
+3. **Facts lost while the model was being curious.** Run C: "I run a small landscaping business, twelve years" → the CoS asked an interested follow-up and stored **nothing** — then later *sounded* like it knew, because the fact was still in the chat history. A user would reasonably believe it had been remembered; it was gone by the next visit. The lead now states that recording and replying are **not alternatives**, naming this exact trap. Verified fixed.
+
+4. **Derived birth years (introduced by an earlier fix, caught before shipping).** Instructing "prefer durable wording" made the model convert "Tom's 14" into "Tom was born in 2012" — arithmetic on a birthday it does not know, off by one for most of the year. Replaced with the architecturally correct fix: **WLJ stamps `as_of` itself** (it knows when it was told — that is WLJ's own truth, not an inference), and the model now records what was SAID. Temporal precision stays owned by WLJ.
+
+5. **A numbered menu of subjects** — the intake-form failure mode the design explicitly forbids. The lead now names it and asks for one or two things it is genuinely curious about instead.
+
+**Cost is separately identifiable and lower than ordinary chat (§8).** `record_llm_event` had no interview source, so interview turns were billed as `interactive_chat` and the milestone's cost question was unanswerable. Added `SOURCE_GETTING_TO_KNOW_YOU`, established in a `generate()` wrapper so it covers **every** billable request in a turn (Phase 1 + tool continuations + Phase 2 synthesis) and is proven not to leak into the next turn. Measured across 49 attributed calls / 29 turns: **~1.7 provider requests per interview turn**, ~29,850 input tokens per call, **56% prompt-cache hit**, ≈**$0.13 per interview turn** at production's own accounting method — *below* the measured $0.15–0.19 for an ordinary CoS turn, because the interview calls few truth tools. No optimisation warranted.
+
+**Honesty invariant extended (§9).** The governing "NEVER REPORT AN ACTION YOU DID NOT EXECUTE AND VERIFY" clause now covers memory explicitly: *"I'll remember that" is a claim that a durable write succeeded* — sayable only for statements returned in `remembered`; anything in `not_remembered` must be reported plainly.
+
+**Not fixed, reported instead:** `satisfied`/`parked` outcomes are recorded inconsistently (~50%), unlike `declined` which is now reliable. Deliberate — a missed `satisfied` means the CoS may revisit a subject, which is mildly annoying; a missed `declined` breaks an explicit promise. Only the second is a boundary, and only the second is enforced. Also: `drill_sergeant` ships `is_active=False` in the fixture, so selecting it correctly falls back to Supportive Partner with honest `source: default` provenance — not a defect, but the persona named in the M5 brief is not currently available.
+
+**Files:** `apps/core/personal_knowledge/service.py` (idempotent `add_fact` + `_existing_identical_fact`/`_normalize_for_identity`); `apps/ai/model_interface/service.py` (accounting wrapper `generate`→`_generate_turn`; rewritten `_interview_lead`); `apps/ai/model_interface/constitution.py` (memory honesty clause; `area_outcome`-alone in the tool); `apps/ai/llm_accounting.py` (`SOURCE_GETTING_TO_KNOW_YOU`); `apps/ai/cos_services/interview.py` (`as_of` temporal anchor); `apps/core/tests/test_interview_contract.py`; `docs/WLJ_PERSONALIZATION_PERSONAL_KNOWLEDGE_CONTRACTS.md` (§16c verified operator path).
+
+**Privacy (§7).** Verified against current OpenAI documentation and recorded in contracts §16c: the sharing toggles live at `Settings → Organization → Data controls → Sharing` (two toggles, both default **Disabled**), while ZDR and per-project overrides live on the separate **Data Retention** tab — and **project settings override the organisation setting**, so reading the org value alone is insufficient. ZDR is not self-serve. No API exposes any of it. No provider configuration was inspected or changed.
+
+**Verification:** 78 interview contract tests (14 new this milestone) + 453 scoped tests green (PK contract, PK truth-path, About Me, write-surface safety, personalization, request-path safety, full `apps.users`, intent registration). Consumer-boundary drift certified with a **primed cache** — the failure mode M2 proved can hide. Real-model revalidation after each fix; stop/resume proven end to end: with **zero chat history**, "what haven't we covered?" listed work, interests, routines, goals and values — and never faith. `makemigrations --check` clean; `check` clean (2 pre-existing djstripe). No migration required.
+
+---
+
 ## 2026-08-19 — feat(cos): M4 — Getting to Know You (the persona-voiced interview)
 
 The Chief of Staff can now deliberately get to know the user. Built as a **conversation on the certified runtime**, not a questionnaire and not a second conversational engine.

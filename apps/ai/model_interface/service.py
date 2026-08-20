@@ -725,6 +725,14 @@ class ModelInterfaceService:
             declined = iv.get("declined_areas") or []
             out = (
                 "\n\n=== YOU ARE GETTING TO KNOW THIS PERSON ===\n"
+                "HARD RULE FIRST, because it is the one that breaks trust when missed: the "
+                "moment they rule a subject OUT ('I'd rather not talk about X', 'let's not "
+                "go there', 'that's off limits') or close one off ('that's enough about X'), "
+                "your FIRST act that turn is to call record_interview_knowledge with "
+                "`area_outcome` — no `facts` needed. Only then reply. If you answer 'no "
+                "problem, we'll skip that' without that call, nothing is saved and you will "
+                "raise it again next time, having promised you would not. Agreeing in prose "
+                "is not honouring a boundary; recording it is.\n"
                 "They opened this to teach you about their life, so this is a CONVERSATION, "
                 "not an intake form. Ask about what they actually said — follow the "
                 "interesting thread, not the next empty category. One thing at a time, in "
@@ -740,14 +748,38 @@ class ModelInterfaceService:
                 "that' (declined — never raise it again), 'tell me more' or 'go deeper' "
                 "(follow it further), 'just the basics' (stay shallow), 'stop' or 'stop for "
                 "now' (end warmly and say it will be here when they return).\n"
-                "RECORDING: when they teach you something durable, call "
+                "LEAD THE CONVERSATION. They came here to be asked about their life, so "
+                "ASK - do not wait to be given a topic, and never answer with a menu of "
+                "areas they could pick from - a numbered list of subjects is an intake form, "
+                "which is the one thing this must never become. Even when they ask what "
+                "you want to know, answer as a person would: name one or two things you are genuinely curious about and ask about the first. End your turn with one genuine question that "
+                "follows from what they just said. Do NOT open with an acknowledgement - "
+                "'That's great!', 'Thanks for sharing!', 'Got it!' before every reply is a "
+                "verbal tic, not warmth. React to the SUBSTANCE, briefly, then go on.\n"
+                "RECORDING WHAT THEY TEACH YOU: recording and replying are NOT alternatives. If "
+                "they just told you something durable, you record it AND reply in the same "
+                "turn - every time, including when what they said made you curious and you "
+                "would rather ask a follow-up. Asking instead of recording is how a fact is "
+                "lost: it will still be in this conversation, so you will sound like you "
+                "know it, but nothing was saved and it is gone by their next visit. Call "
                 "record_interview_knowledge in the SAME turn as your reply — one call "
                 "carrying both the facts and any area outcome. Store what they SAID, in "
-                "their framing, split into simple statements. NEVER store an inference "
+                "their framing, split into simple statements. Record what they SAID - do not "
+                "convert it: if they say 'Tom is 14', store that, NOT a birth year you "
+                "worked out, because you do not know his birthday and would be guessing. "
+                "WLJ stamps every fact with the date you were told, so a point-in-time "
+                "detail stays honest as it ages. NEVER store an inference "
                 "about them: 'Heather is my wife' and 'married since 1997' are facts; "
                 "'he has a secure attachment style' is you editorialising, and is forbidden. "
                 "If they say not to remember something, do not record it. Acknowledge "
                 "naturally in one clause - never recite a list back for confirmation.\n"
+                "RECORDING WHAT THEY RULE OUT (equally important, and easy to forget): a "
+                "boundary only exists once it is RECORDED. If they decline, park or close "
+                "off a subject, you MUST call record_interview_knowledge with "
+                "`area_outcome` THAT TURN — with no `facts` at all if there is nothing to "
+                "store. Saying 'understood, we won't discuss that' without recording it is "
+                "a promise you cannot keep: nothing is saved, and the subject will come "
+                "back the next time you speak. Record it, then reply.\n"
             )
             if declined:
                 out += ("OFF LIMITS - they have declined these and you must not raise them: "
@@ -1360,6 +1392,39 @@ class ModelInterfaceService:
 
     # -- entry point ----------------------------------------------------------
     def generate(self, conversation, message, *, page_context=None, surface="chat",
+                 request_id="", observer=None, conversation_history=None,
+                 writes_enabled=None, images=None, attachments=None) -> dict:
+        """Public entry point. Establishes LLM accounting provenance for the whole turn,
+        then runs it.
+
+        The scope MUST be established before the first provider call, because a turn can
+        bill several requests (Phase 1 + tool continuations + Phase 2 synthesis) and all of
+        them belong to the same source. Getting to Know You is attributed to its own source
+        so interview cost is separable from ordinary chat in `/owner/finance/` — without it
+        an interview turn is indistinguishable from `interactive_chat` and the milestone's
+        cost question cannot be answered.
+        """
+        from apps.ai.llm_accounting import (
+            SOURCE_GETTING_TO_KNOW_YOU, SOURCE_INTERACTIVE_CHAT, llm_traffic_context,
+        )
+
+        source = SOURCE_INTERACTIVE_CHAT
+        try:
+            from apps.ai.cos_services import interview as _iv
+            if _iv.active_session(self.user, conversation) is not None:
+                source = SOURCE_GETTING_TO_KNOW_YOU
+        except Exception:  # pragma: no cover - accounting must never break a turn
+            logger.warning("interview accounting probe failed", exc_info=True)
+
+        with llm_traffic_context(source=source):
+            return self._generate_turn(
+                conversation, message, page_context=page_context, surface=surface,
+                request_id=request_id, observer=observer,
+                conversation_history=conversation_history,
+                writes_enabled=writes_enabled, images=images, attachments=attachments,
+            )
+
+    def _generate_turn(self, conversation, message, *, page_context=None, surface="chat",
                  request_id="", observer=None, conversation_history=None,
                  writes_enabled=None, images=None, attachments=None) -> dict:
         # AUDIT IDENTITY: the turn id must be UNIQUE PER TURN. It previously defaulted to

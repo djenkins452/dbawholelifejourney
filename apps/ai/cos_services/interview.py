@@ -142,6 +142,12 @@ def record_facts(session, facts):
                 review_state=ReviewState.USER_AUTHORED,
                 sensitivity=sensitivity,
                 source_conversation=session.conversation,
+                # TEMPORAL ANCHOR (M5). WLJ knows exactly when it was told something —
+                # that is WLJ's own truth, not an inference about the user. Anchoring the
+                # fact means a point-in-time detail ("Tom is 14") stays honest as it ages
+                # instead of silently becoming false, and the model never has to DERIVE a
+                # birth year, which would be arithmetic on an unstated birthday.
+                as_of=timezone.localdate(),
             )
             recorded.append(fact)
         except Exception as exc:

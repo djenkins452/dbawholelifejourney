@@ -40,6 +40,9 @@ SOURCE_CONVERSATION_FOLLOW_UP = 'conversation_follow_up'
 SOURCE_CERTIFICATION = 'certification'
 SOURCE_PERCEPTION = 'perception'
 SOURCE_REFLECTION = 'reflection'
+# M5: interview turns are billed like chat but must be separable, so the cost of
+# deliberate teaching can be answered independently of ordinary conversation.
+SOURCE_GETTING_TO_KNOW_YOU = 'getting_to_know_you'
 
 # endpoint → owner_finance feature code (secondary axis; source/traffic_class are primary)
 _ENDPOINT_TO_FEATURE = {

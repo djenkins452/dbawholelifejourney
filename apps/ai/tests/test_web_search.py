@@ -119,7 +119,7 @@ class SearchWebRoutingTests(TestCase):
 class GeneralKnowledgeTests(TestCase):
     """Tests for the general knowledge handler."""
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_calls_openai_with_correct_model(self, mock_openai_cls):
         from apps.ai.web_search_service import get_general_knowledge
 
@@ -140,7 +140,7 @@ class GeneralKnowledgeTests(TestCase):
         self.assertEqual(call_kwargs["model"], settings.OPENAI_MODEL)
         self.assertEqual(call_kwargs["temperature"], 0.3)
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_returns_none_on_failure(self, mock_openai_cls):
         from apps.ai.web_search_service import get_general_knowledge
 

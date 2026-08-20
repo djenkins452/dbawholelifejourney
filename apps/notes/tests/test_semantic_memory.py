@@ -168,7 +168,7 @@ class GenerateEmbeddingTest(TestCase):
         mock_settings.OPENAI_API_KEY = None
         self.assertIsNone(generate_embedding("test text"))
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch("apps.notes.embeddings.settings")
     def test_successful_generation(self, mock_settings, mock_openai_class):
         """Successful API call returns embedding vector."""
@@ -182,7 +182,7 @@ class GenerateEmbeddingTest(TestCase):
         self.assertEqual(result, fake_vec)
         mock_client.embeddings.create.assert_called_once()
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch("apps.notes.embeddings.settings")
     def test_api_error_returns_none(self, mock_settings, mock_openai_class):
         """API error returns None without crashing."""

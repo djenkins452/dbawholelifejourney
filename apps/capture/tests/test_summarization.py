@@ -17,7 +17,7 @@ class SummarizationServiceInitializationTests(TestCase):
     """Tests for SummarizationService initialization."""
 
     @override_settings(OPENAI_API_KEY='test-api-key')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_service_initializes_with_api_key(self, mock_openai):
         """Test service initializes client when API key is configured."""
         mock_client = MagicMock()
@@ -43,7 +43,7 @@ class SummarizationServiceInitializationTests(TestCase):
         self.assertFalse(service.is_available)
 
     @override_settings(OPENAI_API_KEY='test-api-key', OPENAI_MODEL='gpt-4')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_service_uses_configured_model(self, mock_openai):
         """Test service uses the model from settings."""
         service = SummarizationService()
@@ -66,7 +66,7 @@ class SummarizationServiceSummarizeTests(TestCase):
             transcript="This is a test transcript about faith and spiritual growth."
         )
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_success(self, mock_openai):
         """Test successful transcript summarization."""
         # Mock OpenAI API response
@@ -107,7 +107,7 @@ This is the detailed notes section."""
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_READY)
         self.assertEqual(self.capture_entry.error_message, '')
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_no_transcript(self, mock_openai):
         """Test summarization fails gracefully when no transcript."""
         mock_openai.return_value = MagicMock()
@@ -126,7 +126,7 @@ This is the detailed notes section."""
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('No transcript', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_empty_response(self, mock_openai):
         """Test summarization handles empty response from API."""
         mock_response = MagicMock()
@@ -146,7 +146,7 @@ This is the detailed notes section."""
         self.capture_entry.refresh_from_db()
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_api_rate_limit(self, mock_openai):
         """Test summarization handles rate limit error."""
         mock_client = MagicMock()
@@ -162,7 +162,7 @@ This is the detailed notes section."""
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('busy', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_api_auth_error(self, mock_openai):
         """Test summarization handles authentication error."""
         mock_client = MagicMock()
@@ -178,7 +178,7 @@ This is the detailed notes section."""
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('temporarily unavailable', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_context_length_error(self, mock_openai):
         """Test summarization handles context length error."""
         mock_client = MagicMock()
@@ -194,7 +194,7 @@ This is the detailed notes section."""
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('too long', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_summarize_transcript_generic_error(self, mock_openai):
         """Test summarization handles generic API error."""
         mock_client = MagicMock()
@@ -222,7 +222,7 @@ class SummarizationServiceTruncationTests(TestCase):
             password='testpass123'
         )
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_long_transcript_is_truncated(self, mock_openai):
         """Test that very long transcripts are truncated."""
         # Create a transcript longer than 100k characters
@@ -252,7 +252,7 @@ class SummarizationServiceTruncationTests(TestCase):
         user_message = call_args.kwargs['messages'][1]['content']
         self.assertIn('[Transcript truncated due to length]', user_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_short_transcript_not_truncated(self, mock_openai):
         """Test that short transcripts are not truncated."""
         short_transcript = "This is a short transcript."

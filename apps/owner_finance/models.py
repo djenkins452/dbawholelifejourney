@@ -114,11 +114,19 @@ class LLMUsageEvent(models.Model):
     # billable provider request declares WHY it exists so certification/dev traffic is
     # never invisibly commingled with real customer cost. Observability only — it never
     # changes the model's reasoning.
+    # UNATTRIBUTED is the DEFAULT, deliberately. It used to be `production`, which meant any
+    # untagged call — including development testing — was silently recorded as real customer
+    # usage. For an app with no production users that biased every cost question toward the
+    # wrong answer, and it is how 63 paid development calls hid in plain sight. Missing
+    # classification must never mean "a real user did this"; production is now asserted only
+    # by the certified production path.
+    TRAFFIC_UNATTRIBUTED = 'unattributed'  # classification not asserted — NEVER assume a user
     TRAFFIC_PRODUCTION = 'production'      # real customer-interactive use (class unspecified)
     TRAFFIC_PROACTIVE = 'proactive'       # proactive production intelligence (brief/check-ins)
     TRAFFIC_CERTIFICATION = 'certification'  # cos-run / acceptance / dev validation
     TRAFFIC_BACKGROUND = 'background'      # other server-side (reflection/perception/etc.)
     TRAFFIC_CLASS_CHOICES = [
+        (TRAFFIC_UNATTRIBUTED, 'Unattributed (classification not asserted)'),
         (TRAFFIC_PRODUCTION, 'Production (interactive)'),
         (TRAFFIC_PROACTIVE, 'Proactive'),
         (TRAFFIC_CERTIFICATION, 'Certification / Dev'),
@@ -141,12 +149,16 @@ class LLMUsageEvent(models.Model):
     source = models.CharField(max_length=40, default='', blank=True, db_index=True)
     traffic_class = models.CharField(
         max_length=20, choices=TRAFFIC_CLASS_CHOICES,
-        default=TRAFFIC_PRODUCTION, db_index=True,
+        default=TRAFFIC_UNATTRIBUTED, db_index=True,
     )
     input_tokens = models.PositiveIntegerField(default=0)
     output_tokens = models.PositiveIntegerField(default=0)
     cached_input_tokens = models.PositiveIntegerField(default=0)
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
+    # A recorded 0 must not be able to mean two different things. Before this flag, a model
+    # with no price-book entry recorded cost_usd=0 and summed as FREE — which is how ~$4 of
+    # local development spend reported as $0.00. False = cost is UNKNOWN, not zero.
+    cost_is_known = models.BooleanField(default=True, db_index=True)
     latency_ms = models.PositiveIntegerField(default=0)
     success = models.BooleanField(default=True, db_index=True)
     escalated = models.BooleanField(default=False, db_index=True)

@@ -26,6 +26,9 @@ _source_var: ContextVar = ContextVar('wlj_llm_source', default=None)
 
 # Traffic-class constants mirror LLMUsageEvent (kept here to avoid importing models at
 # module import time).
+# An unclassified call is NOT evidence of a real user. `unattributed` is the default so a
+# missing classification can never masquerade as production traffic (M5 cost forensics).
+TRAFFIC_UNATTRIBUTED = 'unattributed'
 TRAFFIC_PRODUCTION = 'production'
 TRAFFIC_PROACTIVE = 'proactive'
 TRAFFIC_CERTIFICATION = 'certification'
@@ -112,7 +115,7 @@ def record_llm_event(*, model, user=None, prompt_tokens=0, completion_tokens=0,
         from apps.owner_finance.services.telemetry import log_llm_usage
 
         resolved_traffic = (traffic_class or _traffic_class_var.get()
-                            or TRAFFIC_PRODUCTION)
+                            or TRAFFIC_UNATTRIBUTED)
         resolved_source = (source or _source_var.get()
                           or (SOURCE_EXECUTIVE_SYNTHESIS
                               if endpoint == 'model_interface_synthesis'
@@ -120,6 +123,17 @@ def record_llm_event(*, model, user=None, prompt_tokens=0, completion_tokens=0,
                               if endpoint == 'model_interface' else (endpoint or '')))
         feature = _ENDPOINT_TO_FEATURE.get(endpoint, 'MAIN_RESPONSE')
         meta = {'endpoint': endpoint, 'attempt': attempt}
+        # COST GOVERNOR: a paid call made under a development authorization is stamped with
+        # the run that permitted it, and is classified as certification/dev traffic — never
+        # production. This is what makes development spend attributable after the fact.
+        try:
+            from apps.ai.llm_admission import current_admitted_run_id
+            _run = current_admitted_run_id()
+            if _run:
+                meta['llm_run_id'] = _run
+                resolved_traffic = TRAFFIC_CERTIFICATION
+        except Exception:  # pragma: no cover - accounting must never break a call
+            pass
         if surface:
             meta['surface'] = surface
         if total_tokens is not None:

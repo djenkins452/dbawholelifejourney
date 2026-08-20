@@ -51,7 +51,7 @@ class VisionServiceTests(TestCase):
         self.assertIsNotNone(result.error)
         self.assertIn('not configured', result.error)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_analyze_image_success(self, mock_openai_class):
         """Test successful image analysis."""
         # Mock OpenAI response
@@ -91,7 +91,7 @@ class VisionServiceTests(TestCase):
         self.assertEqual(result.items[0]['label'], 'Aspirin 325mg')
         self.assertIsNone(result.error)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_analyze_image_handles_missing_fields(self, mock_openai_class):
         """Test that missing fields in response are handled gracefully."""
         mock_response = MagicMock()
@@ -120,7 +120,7 @@ class VisionServiceTests(TestCase):
         self.assertEqual(result.items, [])
         self.assertEqual(result.safety_notes, [])
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_analyze_image_handles_json_error(self, mock_openai_class):
         """Test that JSON parse errors are handled."""
         mock_response = MagicMock()
@@ -145,7 +145,7 @@ class VisionServiceTests(TestCase):
         self.assertIsNotNone(result.error)
         self.assertIn('parse', result.error.lower())
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_analyze_image_handles_api_error(self, mock_openai_class):
         """Test that API errors are handled gracefully."""
         mock_client = MagicMock()

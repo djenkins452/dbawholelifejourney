@@ -58,8 +58,8 @@ class ComprehensiveVisionService:
 
     def _get_client(self):
         if self.client is None:
-            from openai import OpenAI
-            self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+            from apps.ai.llm_admission import build_guarded_client
+            self.client = build_guarded_client(api_key=settings.OPENAI_API_KEY)
         return self.client
 
     def analyze(self, *, image_base64, mime_type, user, source_type,

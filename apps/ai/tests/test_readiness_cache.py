@@ -214,7 +214,7 @@ class TestPrewarm(ReadinessTestMixin, TestCase):
         self.assertEqual(result, {})
         self.assertEqual(get_readiness_state(user), 'cold')
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.core.ai_orchestrator.cos_context.build_cos_context')
     def test_prewarm_does_not_call_openai(self, mock_build, mock_openai):
         """Pre-warm must never trigger LLM calls."""

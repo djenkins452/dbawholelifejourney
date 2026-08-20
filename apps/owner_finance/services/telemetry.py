@@ -56,10 +56,12 @@ def log_llm_usage(
         from apps.owner_finance.models import LLMPriceBook, LLMUsageEvent
 
         cost_usd = Decimal('0')
+        cost_is_known = True
         meta = dict(metadata or {})
         today = date.today()
         if traffic_class is None:
-            traffic_class = LLMUsageEvent.TRAFFIC_PRODUCTION
+            # NEVER default to production — an unclassified call is not evidence of a user.
+            traffic_class = LLMUsageEvent.TRAFFIC_UNATTRIBUTED
 
         # Look up price book entry
         price = (
@@ -99,8 +101,14 @@ def log_llm_usage(
             cost_usd = input_cost + output_cost
         else:
             meta['missing_pricebook'] = True
-            logger.debug(
-                "No PriceBook entry for model=%s, storing cost=0", model_name
+            cost_is_known = False
+            # WARNING, not debug: an unpriced model means real spend is invisible in every
+            # cost surface. That is exactly how ~$4 of local development spend reported as
+            # $0.00 and was first noticed on a credit-card recharge.
+            logger.warning(
+                "LLM COST UNKNOWN — no PriceBook entry for model=%s. Tokens are recorded "
+                "but cost is NOT known; it is reported as unpriced, never as $0.00.",
+                model_name,
             )
 
         # Use savepoint so a failed insert doesn't poison the outer
@@ -117,6 +125,7 @@ def log_llm_usage(
                 output_tokens=output_tokens,
                 cached_input_tokens=cached_input_tokens or 0,
                 cost_usd=cost_usd,
+                cost_is_known=cost_is_known,
                 latency_ms=latency_ms or 0,
                 success=success,
                 escalated=escalated,

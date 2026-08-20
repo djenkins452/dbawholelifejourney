@@ -325,8 +325,8 @@ def _client():
     if not api_key:
         return None
     try:
-        from openai import OpenAI
-        return OpenAI(api_key=api_key, timeout=30, max_retries=1)
+        from apps.ai.llm_admission import build_guarded_client
+        return build_guarded_client(api_key=api_key, timeout=30, max_retries=1)
     except Exception:  # pragma: no cover - import/init failure
         logger.warning("legacy.discovery: OpenAI client unavailable", exc_info=True)
         return None

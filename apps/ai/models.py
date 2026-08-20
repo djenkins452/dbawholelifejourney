@@ -2394,3 +2394,58 @@ class ConversationFollowUp(models.Model):
 
     def __str__(self):
         return f"{self.user_id}:{self.status}:{self.topic[:40]} @ {self.due_at:%Y-%m-%d %H:%M}"
+
+
+class RealLLMAuthorization(models.Model):
+    """One explicitly-approved allowance of real (paid) provider calls.
+
+    THE budget store for the Real-LLM Cost Governor. It lives in the database, not in a
+    process-local counter, because web and worker are separate processes: a Python integer
+    would let each of them believe it owned the whole budget. A single conditional UPDATE
+    (`calls_remaining > 0`) is atomic, so the Nth+1 call is refused no matter how many
+    processes race for it.
+
+    Only Danny mints these — `manage.py authorize_real_llm` requires an interactive
+    terminal and a typed confirmation, so non-interactive tooling (including Claude Code)
+    cannot create or extend one. Claude may CONSUME an existing authorization for the
+    purpose it was granted, and must STOP when it is exhausted.
+    """
+
+    run_id = models.CharField(
+        max_length=64, unique=True, db_index=True,
+        help_text="Opaque id exported as WLJ_LLM_RUN_ID for the authorized run.",
+    )
+    reason = models.TextField(
+        help_text="What Danny approved, in his words — e.g. 'one persona smoke test'.",
+    )
+    calls_authorized = models.PositiveIntegerField(
+        help_text="Hard ceiling. Never raised — mint a new authorization instead.",
+    )
+    calls_remaining = models.PositiveIntegerField(
+        help_text="Decremented atomically at the admission seam. Zero means STOP.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    expires_at = models.DateTimeField(
+        db_index=True,
+        help_text="Authorization naturally lapses; an unused budget is not permanent.",
+    )
+    note = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta:
+        app_label = "ai"
+        ordering = ["-created_at"]
+        verbose_name = "Real LLM Authorization"
+        verbose_name_plural = "Real LLM Authorizations"
+
+    def __str__(self):
+        return (f"{self.run_id}: {self.calls_remaining}/{self.calls_authorized} left "
+                f"— {self.reason[:50]}")
+
+    @property
+    def calls_used(self):
+        return self.calls_authorized - self.calls_remaining
+
+    @property
+    def is_live(self):
+        from django.utils import timezone
+        return self.calls_remaining > 0 and self.expires_at > timezone.now()

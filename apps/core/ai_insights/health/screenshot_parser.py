@@ -149,8 +149,8 @@ def _get_client():
     """Lazy-init OpenAI client."""
     global _client
     if _client is None:
-        from openai import OpenAI
-        _client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        from apps.ai.llm_admission import build_guarded_client
+        _client = build_guarded_client(api_key=settings.OPENAI_API_KEY)
     return _client
 
 

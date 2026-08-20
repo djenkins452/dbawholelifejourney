@@ -89,8 +89,8 @@ class RecipePhotoImportService:
                 return None
             try:
                 import openai
-
-                self._client = openai.OpenAI(
+                from apps.ai.llm_admission import build_guarded_client
+                self._client = build_guarded_client(
                     api_key=api_key,
                     timeout=60,
                 )

@@ -87,8 +87,8 @@ class IntentService:
         api_key = getattr(settings, 'OPENAI_API_KEY', None)
         if api_key:
             try:
-                from openai import OpenAI
-                self.client = OpenAI(api_key=api_key)
+                from apps.ai.llm_admission import build_guarded_client
+                self.client = build_guarded_client(api_key=api_key)
             except ImportError:
                 logger.warning("OpenAI package not installed")
             except Exception as e:

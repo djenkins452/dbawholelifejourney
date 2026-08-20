@@ -202,8 +202,8 @@ class ReceiptVisionService:
         if self._client is None:
             try:
                 import openai
-
-                self._client = openai.OpenAI(
+                from apps.ai.llm_admission import build_guarded_client
+                self._client = build_guarded_client(
                     api_key=getattr(settings, "OPENAI_API_KEY", ""),
                     timeout=60,
                 )

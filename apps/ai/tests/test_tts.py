@@ -64,7 +64,7 @@ class GenerateSpeechTests(TestCase):
         self.assertIsNone(generate_speech("   "))
         self.assertIsNone(generate_speech(None))
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_calls_openai_tts(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech
 
@@ -84,7 +84,7 @@ class GenerateSpeechTests(TestCase):
         self.assertEqual(call_kwargs["input"], "Hello world")
         self.assertEqual(call_kwargs["response_format"], "mp3")
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_custom_voice(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech
 
@@ -98,7 +98,7 @@ class GenerateSpeechTests(TestCase):
         call_kwargs = mock_client.audio.speech.create.call_args[1]
         self.assertEqual(call_kwargs["voice"], "echo")
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_invalid_voice_falls_back_to_default(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech
 
@@ -112,7 +112,7 @@ class GenerateSpeechTests(TestCase):
         call_kwargs = mock_client.audio.speech.create.call_args[1]
         self.assertEqual(call_kwargs["voice"], "nova")
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_speed_clamped(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech
 
@@ -130,7 +130,7 @@ class GenerateSpeechTests(TestCase):
         call_kwargs = mock_client.audio.speech.create.call_args[1]
         self.assertEqual(call_kwargs["speed"], 0.25)
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_truncates_long_text(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech, MAX_INPUT_LENGTH
 
@@ -145,7 +145,7 @@ class GenerateSpeechTests(TestCase):
         call_kwargs = mock_client.audio.speech.create.call_args[1]
         self.assertEqual(len(call_kwargs["input"]), MAX_INPUT_LENGTH)
 
-    @patch("openai.OpenAI")
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_returns_none_on_api_failure(self, mock_openai_cls):
         from apps.ai.tts_service import generate_speech
 

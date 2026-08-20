@@ -1405,7 +1405,8 @@ class ModelInterfaceService:
         cost question cannot be answered.
         """
         from apps.ai.llm_accounting import (
-            SOURCE_GETTING_TO_KNOW_YOU, SOURCE_INTERACTIVE_CHAT, llm_traffic_context,
+            SOURCE_GETTING_TO_KNOW_YOU, SOURCE_INTERACTIVE_CHAT, TRAFFIC_PRODUCTION,
+            current_traffic_class, llm_traffic_context,
         )
 
         source = SOURCE_INTERACTIVE_CHAT
@@ -1416,7 +1417,11 @@ class ModelInterfaceService:
         except Exception:  # pragma: no cover - accounting must never break a turn
             logger.warning("interview accounting probe failed", exc_info=True)
 
-        with llm_traffic_context(source=source):
+        # Assert PRODUCTION explicitly — the accounting default is now `unattributed`, so
+        # real interactive traffic must name itself. Only when nothing has already claimed
+        # the turn: an outer certification/dev context must keep its classification.
+        traffic = None if current_traffic_class() else TRAFFIC_PRODUCTION
+        with llm_traffic_context(source=source, traffic_class=traffic):
             return self._generate_turn(
                 conversation, message, page_context=page_context, surface=surface,
                 request_id=request_id, observer=observer,

@@ -208,10 +208,10 @@ def get_general_knowledge(query: str) -> Optional[str]:
         Formatted answer string, or None on failure
     """
     try:
-        from openai import OpenAI
+        from apps.ai.llm_admission import build_guarded_client
         from django.conf import settings
 
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        client = build_guarded_client(api_key=settings.OPENAI_API_KEY)
 
         response = client.chat.completions.create(
             model=settings.OPENAI_MODEL,

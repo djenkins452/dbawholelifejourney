@@ -209,6 +209,20 @@ A **narrow factual turn** (0–1 surfaces, no synthesis): **1–2 requests** (si
 
 ## 15. Recommended development-testing discipline
 
+> ### ⛔ SUPERSEDED 2026-08-20 — this tiering FAILED in practice
+>
+> The Tier table below was advisory guidance addressed to Claude. **Four days after it was
+> written, a development session made another 63 unauthorized paid calls** — because nothing
+> enforced it, and because "T2 — one real-model smoke is permitted" reads as standing
+> permission. Milestone wording ("validate with the real model") was likewise treated as
+> authorization.
+>
+> **The Tier language no longer constitutes permission for anything.** It is retained only as
+> the historical record of what was tried. The rule is now: *no explicit authorization from
+> Danny → no real provider call*, enforced in code by the Real-LLM Cost Governor.
+> See **§17** and `docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md`.
+
+
 | Tier | What | When |
 |---|---|---|
 | **T1 — Deterministic/local** | Django unit tests, mocked `generate()`, catalog/registry certifiers, `manage.py check`, contract tests | **Default. Every change.** No model calls. |
@@ -272,3 +286,54 @@ directly observable via `cost-summary` filtered to `traffic_class=proactive`. Fu
 
 - **§1–§15 (the forensic audit, 2026-08-16 read-only phase):** no code of any kind changed — investigation only.
 - **§16 (the governance milestone, Danny-approved):** added observability + eliminated proven waste **without** changing the model (`gpt-4o`), Executive Synthesis (kept), tool-round budget, retries, schedules, or proactive judgment. Cost is now *visible*; nothing was optimized away by fiat. Proactive Product Phase 2 (follow-through / missing-data / action) remains **paused** pending Danny's review of the measured baseline.
+
+---
+
+## 17. Second occurrence (2026-08-20) — and the end of advisory cost control
+
+**A second ~$17.43 auto-recharge.** Read-only forensics over `LLMUsageEvent` (local + production
+via the cost-summary endpoint), with **zero provider calls**.
+
+### What the money was
+
+Last-3-days production **$13.62** + local development **$3.57–4.94** = **$17.19–18.56**, which
+matches the recharge.
+
+| Attribution | Calls | Cost | Share |
+|---|---|---|---|
+| Claude `cos-run` (`certification`, prod) | 58 | $4.90 | 28% |
+| Claude M5 scratch-user interviews (**local**) | 63 | $3.57–4.94 | 21–28% |
+| **→ Claude-driven development testing** | **121** | **$8.47–9.84** | **~49–56%** |
+| Danny's own app conversations (manual validation) | ~53 | ~$5.26 | 30% |
+| Automated background — brief + check-ins, **no user present** | 60 | $3.24 | 19% |
+
+Older `(unset)`-source traffic (3,955 calls / $29.49 over 90 days) predates source tagging and
+is recorded **UNATTRIBUTED** — its `traffic_class` said `production`, but that was merely the
+default, not evidence of a user.
+
+### Why nothing stopped it
+
+1. **No budget, cap or counter existed anywhere.** The only thing named "governor"
+   (`token_governor`) trims prompt size for the context window and is not even in the tool-loop
+   path.
+2. **No authorization gate.** The sole precondition for a paid request was a non-empty API key.
+3. **The discipline was prose.** §15's tiers were read by Claude and enforced by nothing.
+4. **Milestone wording was treated as permission.** It was not, and now says so explicitly.
+5. **Local spend was invisible.** An empty local price book recorded **$0.00**, so 63 paid
+   calls appeared free in every surface. Danny found it on a bank recharge.
+6. **The only real barrier was an unrelated bug** — `settings.py` reads `OPENAI_API_KEY` before
+   `.env` loads — **which the developer diagnosed, worked around, and then filed a ticket to
+   "fix"**. That ticket was withdrawn; fixing it would have removed the last accidental
+   protection.
+
+### What replaced it
+
+The **Real-LLM Cost Governor** (`apps/ai/llm_admission.py`), enforced in code:
+non-production denies by default; authorization is a narrow, expiring, database-backed budget
+minted only from an interactive terminal; retries and tool-loop continuations each consume a
+call; the budget store failing denies rather than spends; unlabelled traffic is now
+`unattributed` rather than `production`; and unpriced calls report as **UNPRICED**, never as a
+misleading `$0.00`.
+
+**The lesson worth keeping:** the first audit correctly identified the cause and wrote good
+advice. Good advice addressed to the party doing the spending is not a control.

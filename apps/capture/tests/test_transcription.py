@@ -18,7 +18,7 @@ class TranscriptionServiceInitializationTests(TestCase):
     """Tests for TranscriptionService initialization."""
 
     @override_settings(OPENAI_API_KEY='test-api-key')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_service_initializes_with_api_key(self, mock_openai):
         """Test service initializes client when API key is configured."""
         mock_client = MagicMock()
@@ -60,7 +60,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
             audio_file_url='https://s3.example.com/test-audio.mp3'
         )
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_success(self, mock_requests_get, mock_openai):
         """Test successful audio transcription."""
@@ -87,7 +87,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_SUMMARIZING)
         self.assertEqual(self.capture_entry.error_message, '')
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     def test_transcribe_audio_no_url(self, mock_openai):
         """Test transcription fails gracefully when no audio URL."""
         mock_openai.return_value = MagicMock()
@@ -106,7 +106,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('No audio file found', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_download_timeout(self, mock_requests_get, mock_openai):
         """Test transcription handles download timeout."""
@@ -124,7 +124,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('took too long', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_download_error(self, mock_requests_get, mock_openai):
         """Test transcription handles download HTTP error."""
@@ -144,7 +144,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('link may have expired', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_empty_transcript(self, mock_requests_get, mock_openai):
         """Test transcription handles empty transcript from Whisper."""
@@ -167,7 +167,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('No speech was detected', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_api_rate_limit(self, mock_requests_get, mock_openai):
         """Test transcription handles Whisper rate limit error."""
@@ -189,7 +189,7 @@ class TranscriptionServiceTranscribeTests(TestCase):
         self.assertEqual(self.capture_entry.status, CaptureEntry.STATUS_FAILED)
         self.assertIn('busy', self.capture_entry.error_message)
 
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_transcribe_audio_api_auth_error(self, mock_requests_get, mock_openai):
         """Test transcription handles Whisper authentication error."""
@@ -273,7 +273,7 @@ class TranscriptionServiceCompressionTests(TestCase):
         )
 
     @patch('subprocess.run')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_compression_triggered_for_large_files(self, mock_requests_get, mock_openai, mock_subprocess_run):
         """Test that compression is triggered for files over 25MB."""
@@ -322,7 +322,7 @@ class TranscriptionServiceCompressionTests(TestCase):
         self.assertTrue(mock_subprocess_run.called)
 
     @patch('subprocess.run')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_compression_not_triggered_for_small_files(self, mock_requests_get, mock_openai, mock_subprocess_run):
         """Test that compression is not triggered for files under 25MB."""
@@ -349,7 +349,7 @@ class TranscriptionServiceCompressionTests(TestCase):
         self.assertNotIn('compress', result.get('error', '').lower())
 
     @patch('subprocess.run')
-    @patch('openai.OpenAI')
+    @patch('apps.ai.llm_admission.build_guarded_client')
     @patch('apps.capture.services.transcription.requests.get')
     def test_compression_fails_gracefully_when_ffmpeg_not_available(
         self, mock_requests_get, mock_openai, mock_subprocess_run

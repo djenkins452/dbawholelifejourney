@@ -83,8 +83,8 @@ def _get_openai_client():
     if not api_key:
         return None
     try:
-        from openai import OpenAI
-        return OpenAI(api_key=api_key, timeout=30)
+        from apps.ai.llm_admission import build_guarded_client
+        return build_guarded_client(api_key=api_key, timeout=30)
     except Exception as e:
         logger.warning("Failed to create OpenAI client for embeddings: %s", e)
         return None

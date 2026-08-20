@@ -65,9 +65,8 @@ def generate_embedding(text):
         return None
 
     try:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=api_key, timeout=30)
+        from apps.ai.llm_admission import build_guarded_client
+        client = build_guarded_client(api_key=api_key, timeout=30)
         response = client.embeddings.create(
             model=EMBEDDING_MODEL,
             input=text[:8000],  # Truncate to stay within token limits

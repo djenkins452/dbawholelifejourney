@@ -211,8 +211,8 @@ def get_openai_client():
             )
             return None
         try:
-            from openai import OpenAI
-            _shared_openai_client = OpenAI(
+            from apps.ai.llm_admission import build_guarded_client
+            _shared_openai_client = build_guarded_client(
                 api_key=api_key,
                 timeout=LLM_TIMEOUT_COS_CHAT,  # Use longest timeout as client default; per-request overrides apply
                 max_retries=0,  # No retries — 429s fail immediately to avoid blocking sync workers

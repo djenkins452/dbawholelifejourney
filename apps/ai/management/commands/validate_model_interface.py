@@ -108,9 +108,9 @@ class Command(BaseCommand):
             raise CommandError(
                 "No OPENAI_API_KEY available in this process. Set it in the "
                 "environment before running the harness (a real model is required).")
-        from openai import OpenAI
+        from apps.ai.llm_admission import build_guarded_client
         svc = AIService()
-        svc.client = OpenAI(api_key=key, timeout=60, max_retries=1)
+        svc.client = build_guarded_client(api_key=key, timeout=60, max_retries=1)
         return svc
 
     def _dry_run_patch(self):

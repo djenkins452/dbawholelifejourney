@@ -6,6 +6,41 @@
 # Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-20 — feat(ops): HARD Real-LLM Cost Governor — non-production denies paid calls by default
+
+**Second unauthorized recharge in four days.** The 2026-08-16 audit already blamed Claude's own testing and wrote the Tier 1–4 discipline. Four days later a development session made **63 more unauthorized paid calls**. Advisory guidance addressed to the party doing the spending is not a control. This replaces it with enforcement.
+
+> **NO EXPLICIT AUTHORIZATION → NO REAL PROVIDER CALL.**
+> **AUTHORIZATION → HARD FINITE BUDGET → FAIL CLOSED WHEN EXHAUSTED.**
+
+**One admission seam, and the bypass is now a CI failure.** The repo had **23 modules constructing `OpenAI(...)` directly** and **34 network call sites** — so "guard `get_openai_client()`" (my first instinct) would have governed almost nothing. The guard wraps the **client**: `build_guarded_client()` returns a proxy that admits or refuses each billable operation immediately before the network call. Migrating the 23 constructions governs all 34 call sites — and every one not yet written — without touching them. An **AST** contract test (not a prose grep, which has produced repeated false positives here) fails CI if any module constructs a client outside the seam.
+
+**Not on the API key.** A key is configuration; emptying it at runtime would be a process-local mutation that web and worker would disagree about.
+
+**The budget is a database row, not an environment integer.** Web and worker are separate processes — an env-var count would let each believe it owned the whole budget. A single conditional `UPDATE … WHERE calls_remaining > 0` is atomic; a test fires eight concurrent consumers at a budget of one and exactly one is admitted. **Retries and tool-loop continuations each consume a call**, because each is a real billable request. If the budget store is unreachable the call is **denied** — we do not spend money we cannot account for.
+
+**Production is untouched.** Real customer traffic is admitted unconditionally and accounted exactly as before. Environment is decided by a positive signal that genuinely exists on Railway (`RAILWAY_GIT_COMMIT_SHA`), so a local shell can never be mistaken for production — and `WLJ_ENV=production` to escape the governor is documented as a violation, not a workaround.
+
+**Claude cannot self-authorize.** `manage.py authorize_real_llm` requires an **interactive terminal** and a typed confirmation — a non-interactive shell (Claude Code's, CI's) has no TTY and is refused. Authorization is narrow by design: a small count, a stated purpose, an expiry. It approves *this test*, not "real AI testing on", and lapses when spent. A contract test asserts no command can raise an existing budget.
+
+**Unattributed ≠ production.** `traffic_class` defaulted to `production`, so untagged development spend was auto-recorded as real customer usage — for an app with no production users, that biased every cost question toward the wrong answer. The default is now `unattributed`; the certified production path asserts `production` explicitly (and only when nothing has already claimed the turn, so certification tagging survives).
+
+**Unknown cost ≠ $0.00.** An empty local price book recorded `cost_usd=0` for 63 paid calls, so they read as **free** in every surface — which is why this was found on a bank statement. New `cost_is_known` flag; unpriced calls are reported as **UNPRICED with their tokens**, never folded into a dollar total, and logged at WARNING. **No price is ever fabricated** — pricing comes from the existing authoritative `seed_pricebook`, which local had simply never run. A data migration backfills honestly from the recorded evidence: **368 rows priced, 456 left explicitly UNKNOWN** (embeddings, still unpriced). The M5 session now reads **$4.9376** instead of $0.00 — matching the independent forensic estimate.
+
+**Attribution.** An authorized development call is stamped `metadata.llm_run_id` and classified as certification traffic, so every paid call traces to the authorization that permitted it. `manage.py llm_dev_usage --days N` shows calls, source, run id, tokens, known cost and unpriced cost separately.
+
+**Proven fail-closed with a real key present:** the exact path that spent $4.94 yesterday now raises `RealLLMCallDenied`. The regression run also surfaced test suites that never mocked the provider and would have spent money if a key were set — they are now refused and degrade through their existing error paths.
+
+**Background spend inventory (§13, read-only, no product change):** the Proactive Guidance Scheduler runs **every 15 minutes**, dispatching proactive check-ins and the once-per-user-local-day Daily Executive Brief through the certified CoS (hence ~12 requests per brief). Gated on `personal_assistant_enabled` + `assistant_proactive_checkins`; **it fires whether or not Danny opens the app**. Recent cost: **$3.27 over 3 days (~24% of production spend, ~$1.09/day)** — brief $2.55/36 calls, check-ins $0.72/25 calls. Left enabled; **whether pre-production proactive AI should run at all is a product decision for Danny.**
+
+**Superseded:** CLAUDE.md's Tier 1–4 language and §15 of the cost audit. "Tier-2 permitted" / "validate with the real model" **no longer constitute authorization**, and the audit now records why the tiering failed.
+
+**Files:** new `apps/ai/llm_admission.py`, `apps/ai/management/commands/authorize_real_llm.py`, `apps/ai/management/commands/llm_dev_usage.py`, `apps/core/tests/test_llm_admission_contract.py`, `docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md`; migrations `ai/0045_real_llm_authorization`, `owner_finance/0004_unattributed_traffic_and_cost_knowability`, `owner_finance/0005_backfill_cost_knowability`; 23 modules migrated to the guarded factory; `apps/ai/llm_accounting.py`, `apps/owner_finance/models.py` + `services/telemetry.py`, `apps/ai/model_interface/service.py`, `CLAUDE.md`, `docs/WLJ_OPENAI_COST_AUDIT.md` (§17 second occurrence).
+
+**Verification: ZERO real provider calls were made during implementation or testing.** 34 governor tests (all mocked) + 302 M1–M4/Action-Safety contract tests + 27 accounting/registration tests green; all 23 migrated modules import; `makemigrations --check` clean; `check` clean (2 pre-existing djstripe).
+
+---
+
 ## 2026-08-20 — fix(cos): M5 — production validation of Getting to Know You (5 defects found and fixed)
 
 Real-model validation of the shipped M4 experience — 5 interview runs across 4 personas, plus a full stop/resume cycle. Run against a scratch user with the real provider, deliberately NOT against Danny's account: role-playing his family and values would have written fabrications into his canonical Personal Knowledge and made every "fact quality" finding meaningless.

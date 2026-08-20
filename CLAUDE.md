@@ -45,7 +45,22 @@
 
 **Conserve limits:** Keep responses concise. Batch changes. Use Task/Explore agent for broad searches. Warn before high-token operations.
 
-**Real-Model Testing Cost Discipline (REQUIRED — OpenAI money):** Real-model runs (`cos-run`, acceptance/natural certification, live `generate()`) cost real OpenAI credit — a broad CoS turn is **3–9 billable provider requests** (initial + up to 7 tool continuations + Executive Synthesis). A certification program silently became a load-test once (the 2026-08 cost surge). **NEVER launch repeated production-model runs as the default verification strategy.** Default to **Tier 1** deterministic/local tests (unit/service/fixture/catalog-certification/mocked-boundary). **Tier 2** = ONE real-model smoke after deploying a model-affecting change. **Tier 3** (repeated real-model runs) is allowed ONLY for genuinely stochastic grounding/reasoning investigation — start with the minimum, inspect evidence between batches, and NEVER auto-launch another batch just because the last failed. **Tier 4** (large natural-cert suites) is reserved for major milestones / program closure / explicit Danny request — not per commit. **Before every real-model batch, answer internally:** (1) what deterministic evidence is already exhausted? (2) why is a real model necessary? (3) why are *multiple* runs necessary? (4) what decision will the runs resolve? If those lack concrete answers, do not run the batch. Cost control must NOT become an excuse for fake testing — use real validation deliberately (model reasoning, tool selection, grounding, synthesis, conversational/proactive quality genuinely need it), just never reflexively. AI usage is observable at `/owner/finance/` and `GET /admin-console/api/claude/cost-summary/?days=7`. Full record: `docs/WLJ_OPENAI_COST_AUDIT.md`; discipline lives in `03_ENGINEERING_OPERATING_GUIDE`.
+**Real-Provider Calls — HARD RULE, ENFORCED IN CODE (REQUIRED):** **Claude Code does NOT have standing permission to spend Danny's OpenAI credits.**
+
+> **NO EXPLICIT AUTHORIZATION → NO REAL PROVIDER CALL.**
+> **AUTHORIZATION → HARD FINITE BUDGET → FAIL CLOSED WHEN EXHAUSTED.**
+
+Non-production environments **deny real provider calls by default**. A configured `OPENAI_API_KEY` is **NOT** authorization. Neither is milestone language such as "real-model smoke allowed", "Tier-2 permitted", "production-equivalent validation", or "validate with the real model" — **that wording is SUPERSEDED and no longer constitutes permission.** A previous authorization never carries forward.
+
+**Before ANY paid provider test, STOP and ask Danny**, stating: (1) what exact uncertainty remains; (2) why deterministic/mocked testing cannot answer it; (3) why Danny's normal use of WLJ cannot provide the evidence; (4) exactly how many real calls are proposed; (5) the maximum that will be allowed. Then WAIT.
+
+**Even when approved:** fewest calls physically necessary, normally ONE. No matrices, no simulated conversations, no persona sweeps through the provider, no repeating a successful test for confidence. If one call answers the question, STOP.
+
+**Claude may CONSUME a budget Danny already approved, for the purpose he approved. When exhausted: STOP.** Never reset it, never mint another authorization (`authorize_real_llm` requires an interactive terminal precisely so automated tooling cannot), never switch environments to escape the governor, never use another key.
+
+**Default validation** is deterministic: unit/contract/lifecycle tests, mocked providers, fixtures, browser checks, prompt/envelope inspection, `ToolCallLog`, DB/state inspection, and **evidence from Danny's actual use**. Real calls are the LAST RESORT.
+
+Seam: `apps/ai/llm_admission.py` (every client goes through `build_guarded_client`; direct `OpenAI(...)` construction fails CI). Review spend: `python manage.py llm_dev_usage --days 7`. Full policy: `docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md`. Origin: an unauthorized 63-call development session found via a credit-card recharge (`docs/WLJ_OPENAI_COST_AUDIT.md`).
 
 ---
 

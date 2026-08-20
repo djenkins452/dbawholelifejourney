@@ -63,14 +63,14 @@ def is_available():
 
 def _client():
     try:
-        from openai import OpenAI
+        from apps.ai.llm_admission import build_guarded_client
     except ImportError:
         return None
     key = getattr(settings, "OPENAI_API_KEY", None)
     if not key:
         return None
     try:
-        return OpenAI(api_key=key)
+        return build_guarded_client(api_key=key)
     except Exception:  # pragma: no cover - defensive
         logger.warning("Import classifier: OpenAI client init failed", exc_info=True)
         return None

@@ -20,7 +20,7 @@ Tests cover:
 from datetime import datetime, date, timedelta
 from unittest.mock import patch, MagicMock, PropertyMock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -54,6 +54,10 @@ class PGSTestMixin:
         return user
 
 
+# Provider-backed proactive AI is PAUSED by default pre-production. These suites
+# certify the PGS loop's behaviour WHEN IT RUNS, so they enable the gate explicitly —
+# the architecture is preserved, only its scheduled execution is paused.
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestRunnerBasics(PGSTestMixin, TestCase):
     """Test the ISE runner function basics."""
 
@@ -117,6 +121,7 @@ class TestRunnerBasics(PGSTestMixin, TestCase):
         self.assertEqual(result['users_processed'], 0)
 
 
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestWindowDispatch(PGSTestMixin, TestCase):
     """Test _dispatch_for_window routes to correct generators."""
 
@@ -194,6 +199,7 @@ class TestWindowDispatch(PGSTestMixin, TestCase):
         mock_wrap.assert_called_once_with(self.user)
 
 
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestWeekendBehavior(PGSTestMixin, TestCase):
     """Test weekend-specific dispatch behavior."""
 
@@ -234,6 +240,7 @@ class TestWeekendBehavior(PGSTestMixin, TestCase):
         mock_goal.assert_called_once()
 
 
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestFeatureFlags(PGSTestMixin, TestCase):
     """Test feature flag gating."""
 
@@ -286,6 +293,7 @@ class TestFeatureFlags(PGSTestMixin, TestCase):
         mock_bday.assert_called_once()  # birthday not gated by faith
 
 
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestNewGenerators(PGSTestMixin, TestCase):
     """Test the three new daily rhythm generators."""
 

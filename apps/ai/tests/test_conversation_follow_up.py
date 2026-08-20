@@ -10,7 +10,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from apps.ai.cos_services.follow_up import (deliver_due_follow_ups_for_user,
@@ -77,6 +77,9 @@ class ScheduleFollowUpTests(TestCase):
         self.assertEqual(statuses, ["pending", "resolved"])
 
 
+# Provider-backed proactive AI is PAUSED by default pre-production. Delivery is a
+# proactive path, so these tests enable the gate to certify what happens WHEN IT RUNS.
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class DeliverFollowUpTests(TestCase):
     def setUp(self):
         self.user = _user("deliver@test.com")

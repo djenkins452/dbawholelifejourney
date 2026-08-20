@@ -3827,11 +3827,14 @@ class CostSummaryAPIView(APIRateLimitMixin, View):
         since = now - timezone.timedelta(days=days)
 
         def _summarize(qs):
+            # Counts and tokens cover EVERY call; the dollar figure covers only calls we
+            # can actually price. Mixing them is what made unpriced spend read as free.
             agg = qs.aggregate(
                 calls=Count('id'), input_tokens=Sum('input_tokens'),
                 output_tokens=Sum('output_tokens'),
-                cached_input_tokens=Sum('cached_input_tokens'),
-                cost=Sum('cost_usd'))
+                cached_input_tokens=Sum('cached_input_tokens'))
+            agg['cost'] = qs.filter(cost_is_known=True).aggregate(
+                c=Sum('cost_usd'))['c']
             by = {}
             for dim in ('traffic_class', 'source', 'model_name'):
                 rows = (qs.values(dim).annotate(
@@ -3845,7 +3848,20 @@ class CostSummaryAPIView(APIRateLimitMixin, View):
                      'est_cost_usd': float(r['cost'] or 0)}
                     for r in rows]
             failures = qs.filter(success=False).count()
+            # UNPRICED is not $0.00. A model with no price-book entry has an UNKNOWN cost;
+            # folding it into the dollar total is how 63 paid calls once read as free.
+            unpriced = qs.filter(cost_is_known=False)
+            unpriced_agg = unpriced.aggregate(
+                calls=Count('id'), input_tokens=Sum('input_tokens'),
+                output_tokens=Sum('output_tokens'))
             return {
+                'cost_note': ('est_cost_usd covers PRICED calls only; unpriced_* are '
+                              'calls whose cost is UNKNOWN, never assumed to be zero.'),
+                'unpriced_calls': unpriced_agg['calls'] or 0,
+                'unpriced_input_tokens': unpriced_agg['input_tokens'] or 0,
+                'unpriced_output_tokens': unpriced_agg['output_tokens'] or 0,
+                'unpriced_models': sorted(set(
+                    unpriced.values_list('model_name', flat=True).distinct())),
                 'calls': agg['calls'] or 0,
                 'input_tokens': agg['input_tokens'] or 0,
                 'output_tokens': agg['output_tokens'] or 0,

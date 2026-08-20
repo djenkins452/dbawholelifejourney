@@ -3102,6 +3102,13 @@ def generate_daily_executive_brief_for_user(user):
     to legacy reasoning. Runs in the PGS worker cycle (never the request path)."""
     from django.core.cache import cache
     from apps.core.utils import get_user_today
+    from apps.ai.llm_admission import proactive_ai_enabled
+    # Provider-backed proactive work is paused pre-production. Return cleanly BEFORE
+    # taking the daily lock, so nothing is marked as delivered and the brief simply
+    # resumes when it is re-enabled.
+    if not proactive_ai_enabled():
+        logger.info("DAILY_BRIEF skipped for user=%s — proactive AI disabled.", user.pk)
+        return None
     # Never bypass the user's proactive preference (even if called directly, not via PGS).
     prefs = getattr(user, 'preferences', None)
     if not (prefs and getattr(prefs, 'personal_assistant_enabled', False)
@@ -3283,6 +3290,19 @@ def run_proactive_guidance_scheduler():
     """
     from apps.core.ai_observability.trace import trace_context
     from apps.core.utils import get_user_now, get_user_today
+
+    # PRE-PRODUCTION PAUSE. Provider-backed proactive work is gated (see
+    # WLJ_PROACTIVE_AI_ENABLED). Exit cleanly and report a SKIPPED status rather than
+    # doing the work and failing at the provider: no calls, no errors implying a service
+    # failure, no retry storm, and the scheduler stays healthy. Deterministic background
+    # processing elsewhere is untouched — only provider-backed generation pauses.
+    from apps.ai.llm_admission import proactive_ai_enabled
+    if not proactive_ai_enabled():
+        logger.info("PGS skipped — provider-backed proactive AI is disabled "
+                    "(WLJ_PROACTIVE_AI_ENABLED off). No provider calls made.")
+        return {"status": "skipped", "reason": "proactive_ai_disabled",
+                "users_processed": 0, "check_ins_attempted": 0, "errors": 0,
+                "provider_calls": 0}
 
     with trace_context(source="scheduler"):
         users = _get_proactive_users()

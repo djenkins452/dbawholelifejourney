@@ -33,6 +33,7 @@ a budget Danny already approved, for the purpose he approved, and must STOP when
 exhausted — never reset it, never mint another, never switch environments or keys.
 """
 
+import contextlib
 import contextvars
 import logging
 import os
@@ -48,6 +49,63 @@ _admitted_run_id: contextvars.ContextVar = contextvars.ContextVar(
 
 def current_admitted_run_id():
     return _admitted_run_id.get()
+
+
+# WORKLOAD ORIGIN — independent of environment, and the reason this axis exists:
+#
+#     ENVIRONMENT decides whether real product traffic may use the provider.
+#     WORKLOAD ORIGIN decides whether AUTONOMOUS provider spend is authorized.
+#
+# Being in production is NOT permission for a background job to spend money. Without
+# this split, any future scheduled feature would start consuming credits merely by
+# shipping to production — which is exactly how proactive AI reached ~$1.09/day
+# firing whether or not anyone opened the app.
+_autonomous: contextvars.ContextVar = contextvars.ContextVar(
+    "wlj_llm_autonomous_workload", default=None)
+
+
+@contextlib.contextmanager
+def autonomous_workload(reason="scheduled"):
+    """Mark everything inside as AUTONOMOUS provider work — no human asked for it.
+
+    Every scheduled/background provider-backed path must run inside this (or carry a
+    proactive/background traffic class, which is treated the same way). Autonomous spend
+    is refused unless `WLJ_PROACTIVE_AI_ENABLED` is explicitly on.
+    """
+    token = _autonomous.set(reason)
+    try:
+        yield
+    finally:
+        _autonomous.reset(token)
+
+
+def current_workload_is_autonomous():
+    """True when this call has no human behind it.
+
+    Two signals, either sufficient: the explicit marker above, or an ambient
+    proactive/background traffic class — which every existing scheduled provider path
+    already sets, so the gate covers them without touching their call sites.
+    """
+    if _autonomous.get():
+        return True
+    try:
+        from apps.ai.llm_accounting import current_traffic_class
+        return current_traffic_class() in ("proactive", "background")
+    except Exception:  # pragma: no cover - defensive
+        return False
+
+
+def proactive_ai_enabled():
+    """Is provider-backed autonomous work authorized in THIS environment?
+
+    Default False. Re-enabling is a deliberate product/environment decision
+    (`WLJ_PROACTIVE_AI_ENABLED=true`), never something automated tooling turns on.
+    """
+    try:
+        from django.conf import settings
+        return bool(getattr(settings, "WLJ_PROACTIVE_AI_ENABLED", False))
+    except Exception:  # pragma: no cover - fail closed
+        return False
 
 # Requests that actually cost money. Anything reached through a guarded client whose
 # attribute path matches one of these is admitted (or refused) before it leaves the process.
@@ -143,6 +201,12 @@ def may_real_llm_call(*, source=None, traffic_class=None, environment=None):
     """
     env = environment or current_environment()
 
+    # ── AUTONOMOUS WORK IS GATED IN EVERY ENVIRONMENT, PRODUCTION INCLUDED. ──
+    # Checked BEFORE the production allow on purpose: running in production must never
+    # imply permission to spend money with no human present.
+    if current_workload_is_autonomous() and not proactive_ai_enabled():
+        return _denied("proactive_ai_disabled", env)
+
     # ── Production: real customers. Unconditionally admitted, accounted as before. ──
     if env == ENV_PRODUCTION:
         return AdmissionDecision(True, "production_runtime", env)
@@ -225,6 +289,12 @@ def _explain(decision, operation):
         "no_valid_authorization": (
             f"{FLAG_RUN_ID} does not match a live authorization (unknown id, or the "
             f"budget store is unreachable — which fails closed by design)."),
+        "proactive_ai_disabled": (
+            "Provider-backed PROACTIVE/BACKGROUND AI is paused for pre-production "
+            "(WLJ_PROACTIVE_AI_ENABLED is off). No human requested this work, so it does "
+            "not spend. User-initiated Chief of Staff conversation is unaffected. "
+            "Re-enabling is Danny's explicit product decision — Claude Code must not set "
+            "this flag."),
         "budget_exhausted": (
             "The authorized call budget is spent or expired. STOP. Do not reset it, mint "
             "another, switch environments, or use a different key — ask Danny."),

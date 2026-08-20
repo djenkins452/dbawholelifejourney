@@ -70,6 +70,42 @@ generate/_generate_turn`, `constitution.py :: truth_tools/action_tools/all_tools
 `tasks.py`, `synthesis.py`, `cos_gateway/{gateway,runtime}.py`, `config/settings.py :: CELERY_TASK_ROUTES`,
 `Procfile`/`railway.toml` (wlj-worker). Docs-only change — no code, no migrations, no tests affected.
 
+## 2026-08-20 — feat(ops): PAUSE provider-backed proactive AI for pre-production
+
+WLJ is not in production use, yet provider-backed proactive work was costing **~$1.09/day (~24% of production spend)** — firing whether or not Danny opened the app. Paused, not retired.
+
+**The governing principle, now persisted in code:**
+
+> **ENVIRONMENT decides whether real product traffic may use the provider.**
+> **WORKLOAD ORIGIN decides whether AUTONOMOUS provider spend is authorized.**
+
+Being in production is **not** permission for a background job to spend money. Without that split, any future scheduled feature would start consuming credits merely by shipping — which is exactly how this happened.
+
+**Two layers, deliberately.** The **authoritative gate** lives at the admission seam (`may_real_llm_call`) and is checked **before** the production allow, so autonomous work is refused in every environment when the flag is off — a future scheduled path that forgets to check still cannot spend. On top of that, **clean early exits** at each orchestration entry point so jobs skip tidily: zero provider calls, no exception implying service failure, no retry storm, no fabricated `LLMUsageEvent` rows, scheduler stays healthy. A workload counts as autonomous when it runs inside the new `autonomous_workload(...)` marker **or** carries a `proactive`/`background` traffic class — which every existing scheduled provider path already sets, so the gate covered them without touching their call sites.
+
+**Four autonomous provider paths covered** — the audit found one the cost report had not named:
+
+| Path | Paused behaviour |
+|---|---|
+| PGS cycle | `{"status": "skipped", "reason": "proactive_ai_disabled"}` before querying users |
+| Daily Executive Brief | returns before taking the daily lock — nothing marked delivered |
+| Proactive check-ins (midday/evening) | not reached; also refused at the seam |
+| **Conversation follow-ups** (`cos_services/follow_up.py` — **not in the original inventory**) | returns before claiming, so none is stranded in `delivering` |
+
+**Not paused:** user-initiated CoS conversation (including the streaming worker task — it runs in a worker, but a human asked for it), and every deterministic background job that costs no provider money. PGS, beat, deterministic scheduling, `assistant_proactive_checkins`, the Brief and check-in architecture and their tests are all intact.
+
+**Re-enablement is a deployment decision:** `WLJ_PROACTIVE_AI_ENABLED=true` on web and worker (default `false`, so a new feature cannot start spending by shipping). **Claude Code must never set it** — enforced by contract test: no code path assigns it, and no management command turns it on.
+
+**Pre-existing Daily Brief tests preserved**, not deleted — they certify the brief's behaviour *when it runs*, so they now enable the gate explicitly via `override_settings`.
+
+**Also:** left the `.env` ordering issue **unchanged** as instructed. The governor is now the architectural protection, but there is no product reason to auto-expose the local key, so the accidental defense-in-depth stays.
+
+**Files:** `config/settings.py` (`WLJ_PROACTIVE_AI_ENABLED`), `apps/ai/llm_admission.py` (`autonomous_workload`, `current_workload_is_autonomous`, `proactive_ai_enabled`, gate before the production allow), `apps/ai/proactive_checkins.py` (PGS + Brief early exits), `apps/ai/cos_services/follow_up.py`, new `apps/core/tests/test_proactive_ai_gate_contract.py`, `apps/ai/tests/test_daily_executive_brief.py`, `docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md`.
+
+**Verification: ZERO real provider calls.** 23 new gate tests (all mocked) covering gate-off → no calls on all four paths, scheduler health, no fake spend, user-initiated conversation unaffected, gate-on restores the real path, and that dev tooling cannot self-enable — plus 34 governor + accounting/brief suites green.
+
+---
+
 ## 2026-08-20 — feat(ops): HARD Real-LLM Cost Governor — non-production denies paid calls by default
 
 **Second unauthorized recharge in four days.** The 2026-08-16 audit already blamed Claude's own testing and wrote the Tier 1–4 discipline. Four days later a development session made **63 more unauthorized paid calls**. Advisory guidance addressed to the party doing the spending is not a control. This replaces it with enforcement.

@@ -168,3 +168,70 @@ calls**. We do not spend money to prove that code prevents spending money.
 Including a structural (AST, not grep) CI gate: **if any module constructs an OpenAI client
 outside the approved seam, CI fails.** That is the bypass that made the original overspend
 possible.
+
+---
+
+## Provider-backed PROACTIVE AI — PAUSED for pre-production (2026-08-20)
+
+> **ENVIRONMENT decides whether real product traffic may use the provider.**
+> **WORKLOAD ORIGIN decides whether AUTONOMOUS provider spend is authorized.**
+
+Being in production is **not** permission for a background job to spend money. Without that
+split, any future scheduled feature would start consuming credits merely by shipping.
+
+**Why it was paused.** WLJ is not in production use, yet provider-backed proactive work was
+costing **~$1.09/day (~24% of production spend)**, firing whether or not anyone opened the
+app: the Daily Executive Brief ($2.55 / 36 calls over 3 days) and proactive check-ins ($0.72
+/ 25 calls).
+
+### What is paused
+
+Only **provider-backed autonomous generation**:
+
+| Path | Behaviour while paused |
+|---|---|
+| PGS cycle (`run_proactive_guidance_scheduler`) | returns `{"status": "skipped", "reason": "proactive_ai_disabled"}` before querying users |
+| Daily Executive Brief | returns `None` before taking the daily lock — nothing is marked delivered |
+| Proactive check-ins (midday / evening) | not reached; also refused at the admission seam |
+| Conversation follow-ups | returns before claiming a follow-up, so none is stranded in `delivering` |
+
+### What is NOT paused
+
+- **User-initiated Chief of Staff conversation** — completely unaffected, including the
+  streaming worker task (it runs in a worker, but a human asked for it).
+- **All deterministic background processing** — SAME/ISE cycles, snapshots, aggregation,
+  cleanup. Anything that costs no provider money keeps running.
+- **PGS architecture, beat/scheduler infrastructure, deterministic scheduling, proactive
+  configuration (`assistant_proactive_checkins`), the Brief and check-in architecture, and
+  their tests.** Nothing was deleted or redesigned. This is a pause.
+
+### How it is enforced
+
+Two layers, deliberately:
+
+1. **Authoritative gate at the admission seam** (`may_real_llm_call`), checked *before* the
+   production allow. Autonomous work is refused in every environment when the flag is off —
+   so a future scheduled feature that forgets to check still cannot spend.
+2. **Clean early exits** at each orchestration entry point, so jobs skip tidily: no provider
+   calls, no exceptions implying service failure, no retry storms, no fabricated
+   `LLMUsageEvent` rows, and the scheduler stays healthy.
+
+A workload is autonomous when it runs inside `autonomous_workload(...)` **or** carries a
+`proactive`/`background` traffic class — which every existing scheduled provider path
+already sets.
+
+### Re-enabling (Danny only)
+
+Set on the Railway environment (both **web** and **worker**), then redeploy:
+
+```
+WLJ_PROACTIVE_AI_ENABLED=true
+```
+
+Default is `false`, so it stays off unless deliberately turned on. **Claude Code must never
+set this flag** — re-enabling provider-backed proactive execution is a product/environment
+decision, exactly like authorizing a paid test. Enforced by contract test: no code path
+assigns it and no management command turns it on.
+
+Re-enable when validating proactive features deliberately, or at launch readiness. Verify
+afterwards with `manage.py llm_dev_usage --days 1` and `/owner/finance/`.

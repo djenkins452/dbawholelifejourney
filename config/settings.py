@@ -1550,6 +1550,21 @@ WLJ_INTENT_BYPASS_ENABLED = env.bool('WLJ_INTENT_BYPASS_ENABLED', default=True)
 # instantly without a code change. See docs/wlj_claude_changelog.md (2026-06-07).
 WLJ_BETH_STABILIZATION_ENABLED = env.bool('WLJ_BETH_STABILIZATION_ENABLED', default=True)
 
+# ── Provider-backed PROACTIVE AI (autonomous background spend) ───────────────────
+# PAUSED for pre-production. WLJ is not in production use, and provider-backed
+# proactive work (Daily Executive Brief, proactive check-ins) was costing ~$1.09/day
+# firing whether or not anyone opened the app.
+#
+# This gates AUTONOMOUS provider spend ONLY. User-initiated Chief of Staff
+# conversation is unaffected and continues to work normally in the deployed
+# environment — environment decides whether real product traffic may use the
+# provider; WORKLOAD ORIGIN decides whether autonomous spend is authorized.
+#
+# Default False so a scheduled feature can never start spending merely by shipping.
+# Re-enable deliberately with WLJ_PROACTIVE_AI_ENABLED=true on the environment
+# (see docs/WLJ_REAL_PROVIDER_TESTING_POLICY.md). Claude Code may not set it.
+WLJ_PROACTIVE_AI_ENABLED = env.bool('WLJ_PROACTIVE_AI_ENABLED', default=False)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # WLJ Operations — Phase II Deterministic Recovery (ships DARK).
 # Governing docs: docs/WLJ_OPERATIONS_VISION.md, docs/WLJ_OPERATIONS_PHASE2_PLAN.md.

@@ -9,7 +9,7 @@
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.ai.models import AssistantConversation, AssistantMessage
 from apps.ai.proactive_checkins import generate_daily_executive_brief_for_user
@@ -34,6 +34,10 @@ def _user(email, *, proactive=True):
     return u
 
 
+# Provider-backed proactive AI is PAUSED by default pre-production. These tests certify
+# the brief's behaviour WHEN IT RUNS, so they enable the gate explicitly — the architecture
+# is preserved, only its scheduled execution is paused.
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class DailyExecutiveBriefTests(TestCase):
     def setUp(self):
         self.user = _user("brief@test.com")

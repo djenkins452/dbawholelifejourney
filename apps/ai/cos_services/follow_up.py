@@ -142,6 +142,13 @@ def deliver_due_follow_ups_for_user(user, now=None, max_per_cycle=MAX_DELIVER_PE
     from apps.ai.models import AssistantConversation, ConversationFollowUp
     from apps.ai.llm_accounting import (llm_traffic_context, TRAFFIC_PROACTIVE,
                                         SOURCE_CONVERSATION_FOLLOW_UP)
+    from apps.ai.llm_admission import proactive_ai_enabled
+
+    # Provider-backed proactive work is paused pre-production. Return BEFORE claiming any
+    # follow-up, so nothing is flipped to `delivering` and left stranded — the follow-up
+    # stays pending and delivers normally once proactive AI is re-enabled.
+    if not proactive_ai_enabled():
+        return 0
 
     prefs = getattr(user, "preferences", None)
     if not (prefs and getattr(prefs, "personal_assistant_enabled", False)

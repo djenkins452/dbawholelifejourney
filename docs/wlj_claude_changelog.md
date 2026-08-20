@@ -3,8 +3,72 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
+# Last Updated: 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-20 — docs: ENGINE_COS_REFERENCE now documents the Model Interface runtime (legacy path marked LEGACY)
+
+**Problem.** `docs/ENGINE_COS_REFERENCE.md` contained **zero** mentions of `model_interface` — yet
+`apps/ai/model_interface/` is the certified CoS runtime that actually serves conversations (selected by
+`apps/ai/cos_gateway/runtime.py` on the `use_model_interface` preference). Its "CoS Context Pipeline"
+section documented ONLY the older `personal_assistant.py` pipeline, so anyone following CLAUDE.md's
+auto-maintain rule was updating a document describing a superseded path — and anyone debugging a live CoS
+issue was reading the wrong runtime's context builder, prompt layers, and cache keys.
+
+**Changes (docs only — no code touched).** `docs/ENGINE_COS_REFERENCE.md`:
+- **New section "CoS Runtimes — Which Pipeline Actually Serves a Conversation"** — the gateway
+  (`CoSGateway.resolve_runtime`) and its three coexisting runtimes in precedence order
+  (`ModelInterfaceRuntime` / `use_model_interface` → `ChatGPTCoSRuntime` / `use_chatgpt_cos` →
+  `LegacyBethRuntime`), plus the SECOND flag `use_model_interface_writes` (`_writes_enabled()`, fail-safe
+  read-only) that governs whether action tools exist at all.
+- **New section "Model Interface Runtime (CURRENT CoS Pipeline)"** covering:
+  - **Request flow** — gateway → typed-confirmation short-circuit → multimodal ingest → duplicate
+    protection → durable turn persistence → Celery.
+  - **Executive Context Envelope** (`ModelInterfaceService.build_standing_context`, `service.py:155`) —
+    a per-field table of producer + freshness for `ai_relationship`, `deterministic_understanding`
+    (cache-first, `wlj:mi:understanding:{user_id}` TTL 150s, cold → `pending` + `warm_understanding`),
+    `current_context`, `conversation_state` (owned field, NOT a retrieval surface — no
+    `get_conversation_state` tool), `personal_truth` (same composer as `get_user_truth`), `missions`,
+    `execution_state`, `current_action` (both derived from ONE `build_execution_state`),
+    `pending_confirmations` (writes-enabled only) and `interview` (**present only during an active
+    Getting to Know You session**).
+  - **11-layer `_system_prompt` assembly** and the "leads duplicate no truth, they raise salience" rule.
+  - **Tool surface** (`apps/ai/model_interface/constitution.py`) — `all_tools(writes_enabled)`; the 16
+    truth tools (each wrapped in the canonical truth envelope + audited); `navigate_to_workspace` always
+    exposed (navigation is not a mutation); the curated named write set sourced from
+    `apps.ai.intents.ALL_INTENT_TOOLS` and ordered by **`ALLOWED_WRITE_INTENTS`** (reproduced in full)
+    plus `resolve_pending_action` / `complete_execution_item` / `record_interview_knowledge` /
+    `next_review_item` / `schedule_follow_up`; the "no generic `request_action`" rule; enums generated
+    from live registries.
+  - **Phase 2 bounded Executive Synthesis** (`synthesis.py`) — eligibility as a runtime signal (≥2
+    substantive truth surfaces), same model, no tools, never sees Phase-1 prose, `_VERDICT_KEYS` /
+    `_SCAFFOLD_KEYS` stripped, Phase-1 kept on failure.
+  - **Audit & cost accounting** — `record_tool_call` → `ToolCallLog` under a per-turn id;
+    `llm_traffic_context` established before the first provider call so all of a turn's billable requests
+    attribute to one source (`interactive_chat` / `getting_to_know_you`).
+- **Worker path documented** — `run_model_interface_generation` (`apps/ai/model_interface/tasks.py`):
+  registered via an import in `apps/ai/tasks.py`, **absent from `CELERY_TASK_ROUTES`** (so it runs on the
+  default queue in the separate **`wlj-worker`** Railway service, unlike `run_chat_generation` /
+  `run_chatgpt_cos_generation` which route to `CHAT_GENERATION_QUEUE`), soft/hard limits 95s/110s,
+  `max_retries=0`, and the always-terminal-snapshot failure contract so the SSE relay never hangs. Called
+  out the deploy consequence: `/_health/` reports WEB only — verify the worker's commit before validating
+  a CoS change.
+- **LEGACY marking** — heading renamed to "CoS Context Pipeline (LEGACY runtime)" with a banner naming
+  the runtime it describes; `Request Flow`, `Context Builder (19 Parallel Builders)`,
+  `System Prompt Assembly (Priority Order)`, `CoS Context Injection Output`, and `Caching Strategy` all
+  suffixed/marked LEGACY; `Key File Paths → Core Pipeline` retitled "Core Pipeline (LEGACY runtime)".
+- **Key File Paths** — new "Model Interface Runtime (CURRENT CoS)" table (gateway, runtime, envelope,
+  service, constitution, tasks, understanding, conversation_state, synthesis, confirmation, cos_services,
+  truth envelope, chat_stream_bus).
+- **Table of Contents** renumbered (11 entries) and an Architecture-Overview pointer added so a reader
+  cannot land on the legacy section first.
+- **"Last updated"** line refreshed to 2026-08-20 with the full summary (previous entry preserved inline).
+
+**Verification.** `grep -c model_interface docs/ENGINE_COS_REFERENCE.md` → **25** (was 0). Every documented
+symbol was read from source before being written: `service.py :: build_standing_context/_system_prompt/
+generate/_generate_turn`, `constitution.py :: truth_tools/action_tools/all_tools/ALLOWED_WRITE_INTENTS`,
+`tasks.py`, `synthesis.py`, `cos_gateway/{gateway,runtime}.py`, `config/settings.py :: CELERY_TASK_ROUTES`,
+`Procfile`/`railway.toml` (wlj-worker). Docs-only change — no code, no migrations, no tests affected.
 
 ## 2026-08-20 — feat(ops): HARD Real-LLM Cost Governor — non-production denies paid calls by default
 

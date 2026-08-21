@@ -104,7 +104,35 @@ first diagnosed and had to be removed at the anchor:
 what proved the first rewrite changed the text without changing the behaviour — and what located the clause the model
 was actually anchoring on. Contract tests assert the prompt; only the real runtime asserts the product.
 
-Tier-2 post-deploy real-model smoke per deploy (`03 §10a`): 1 on `79f0cf8a` (FAILED — diagnostic), 1 on the follow-up.
+**REAL-RUNTIME RESULT — the punt is gone (`e360a8e6`, web + worker verified).** Second Tier-2 smoke, same verbatim
+production message, isolated conversation 605:
+
+> *"…if you miss a dose of a medication like Mounjaro, it's important not to take two doses at the same time to make
+> up for the missed one … Generally, you should take it as soon as you remember if it's not too close to the time for
+> your next dose. If it's close to the time for your next dose, you should skip the missed dose and resume your
+> regular dosing schedule. However, Mounjaro … may have specific instructions based on your individual health needs.
+> It's best to consult with your healthcare provider or pharmacist for advice specific to your situation."*
+
+`answer_len` 247 → 832. This is the intended behavioural class exactly: **answer the established guidance, state the
+boundary, escalate only the residue.** Before/after on the identical input, same certified runtime:
+
+| | before (`2abc9743`) | after (`e360a8e6`) |
+|---|---|---|
+| substance | none — referral only | missed-dose guidance stated |
+| escalation | the whole question | the individualized residue only |
+| `answer_len` | 247 | 832 |
+
+**RESIDUAL — LOGGED, NOT FIXED (Constitution V.2 "contain narrowly and log the residual").** `tools_called: []` in
+both smokes: the model answers from general knowledge and still does **not** call `get_entity` for the user's own
+Mounjaro record, so the answer is not grounded in his actual weekly schedule or last dose ("if it's not too close to
+your next dose" is left for the user to resolve). WLJ holds all of it and exposes it — this is a
+retrieval/tool-selection gap, **not** a truth gap, and the prompt already instructs it explicitly ("must never be
+answered — or refused — without looking"). Prompt pressure alone did not move it. **Deliberately not iterated
+further:** more attempts would be repeated real-model testing on spec, which `03 §10a` forbids. Grounding this class
+in the user's own regimen is a separate, narrower piece of work — open it only on Danny's go, or on real friction.
+
+Tier-2 real-model smokes, one per deploy (`03 §10a`), **2 total**: `79f0cf8a` (FAILED — located the real root cause)
+and `e360a8e6` (PASS on the trust failure, residual above). No certification sweeps, no repeat runs.
 
 ---
 

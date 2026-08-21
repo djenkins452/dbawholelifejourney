@@ -93,6 +93,25 @@ verify with the runtime — never with a contract test asserting the words are p
 **Also closed by a concurrent session:** the pre-existing `test_medicine_domain_truth` failure flagged during this
 work was fixed in `a4995dcd` (an absolute fixture date decaying out of a rolling 90-day window).
 
+**Contract coverage completed (2026-08-21, this session) — both sides of the invariant, one of them FUNCTIONAL.**
+The anchor suite asserted the rule's *position and wording*; two gaps remained. (1) **Side 2, positionally** —
+`test_the_self_limit_lives_inside_the_same_anchor_block`: the mandate and the limiter ("don't retrieve when it
+changes nothing") are ONE rule, so a later edit that keeps the mandate at the anchor while relocating the limiter
+would silently degrade the invariant into "always retrieve". Now asserted in-block and in order. (2) **Side 1,
+functionally** — `DecidingFactsAreConsultableContractTests`: every prior assertion was prompt text, so the
+*instruction* to ground was protected while the *capability* to ground was not. The smoke resolved the fork using
+exactly three facts off the medicine entity surface — schedule (times AND days), grace period, last taken — and
+nothing tested that the surface returns them or that the advertisement discloses them. It does now, asserted as the
+SHAPE of the entity contract (plan/performance dimensions), with no drug, question, or route hardcoded.
+**Mutation-verified, not merely green:** dropping `grace_period_minutes` from the entity plan, hiding "grace period"
+from the advertisement, and relocating the limiter out of the anchor each fail the intended test and only that test.
+76 tests across the impacted suites. Files: `apps/core/truth/tests/test_capability_semantics.py`.
+
+**Budget note:** the single authorized Tier-2 smoke was consumed by the concurrent session that ran it at 11:26:09Z;
+this session spent ZERO provider calls and verified that result independently from the `ToolCallLog` audit ledger
+(`truth-probe?tool=*`), which shows the `get_entity` truth row at 11:26:09 followed by the response row at 11:26:11,
+and bare `response` rows with no preceding truth call for the three earlier smokes.
+
 ---
 ## 2026-08-20 — chore: retire the exec-sentinel certification harness; drop three dead imports; repair an orphaned reference on main
 

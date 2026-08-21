@@ -4,7 +4,7 @@
 #              plain-language semantics, so the conversational model routes by MEANING
 #              (not by matching a domain NAME). Origin: nutrition-vs-meals collision.
 # ==============================================================================
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.core.truth.catalog import truth_catalog
 from apps.core.truth.semantics import DOMAIN_SEMANTICS, domain_semantics
@@ -237,3 +237,87 @@ class EarliestDecisionAnchorContractTests(SimpleTestCase):
         for banned in ("tool_choice", "required_tool", "evidence plan",
                        "wlj will tell you which tool", "wlj decides which tool"):
             self.assertNotIn(banned, self.low)
+
+    # -- the self-limit must live INSIDE the anchor, not drift away ----------
+    def test_the_self_limit_lives_inside_the_same_anchor_block(self):
+        """Side 2 of the invariant, positionally.
+
+        The mandate ("retrieve when it changes the answer") and the limiter ("don't
+        when it doesn't") are ONE rule. If a later edit keeps the mandate at the
+        anchor but relocates or drops the limiter, the invariant silently degrades
+        into "always retrieve" — the exact failure the brief forbids. Assert they are
+        in the same block, in that order.
+        """
+        anchor = self._idx(self.ANCHOR)
+        end = self._idx("You are the user's personal assistant")
+        for limiter in ("BUT HOLD THE OPPOSITE JUST AS FIRMLY",
+                        "do NOT go looking",
+                        "RETRIEVE WHAT CHANGES THE ANSWER; NEVER MORE, NEVER LESS"):
+            i = self._idx(limiter)
+            self.assertTrue(anchor < i < end,
+                            f"the self-limit {limiter!r} must stay inside the anchor "
+                            f"block (anchor={anchor}, limiter={i}, end={end})")
+
+
+class DecidingFactsAreConsultableContractTests(TestCase):
+    """Side 1 of the earliest-decision invariant, proven FUNCTIONALLY rather than as
+    prompt text: the personal truth that materially changes the answer must actually
+    be RETRIEVABLE from the medicine entity surface.
+
+    The instruction to ground is worthless if the surface cannot resolve the fork.
+    The 2026-08-21 Tier-2 smoke resolved the missed-dose question using exactly three
+    facts off this surface — the schedule (which days/times), the grace period, and
+    when it was last taken — so a regression in any of them silently re-opens the
+    class while every prompt-text assertion above still passes.
+
+    Deliberately NOT medication-specific: it asserts the SHAPE of the entity contract
+    (plan/performance dimensions), never a drug, a question, or a route.
+    """
+
+    def setUp(self):
+        from datetime import date, time
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from apps.health.models import Intake, IntakeSchedule
+        from apps.users.models import TermsAcceptance
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(email="deciding@test.com", password="x")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.med = Intake.objects.create(
+            user=self.user, name="TestWeekly", dose="10mg", frequency="weekly",
+            start_date=date(2026, 1, 1), intake_status="active",
+            intake_type="medication", category="prescription",
+            grace_period_minutes=60, instructions="Take with food.")
+        IntakeSchedule.objects.create(intake=self.med, scheduled_time=time(7, 0),
+                                      days_of_week="0", is_active=True)
+
+    def _entity(self):
+        from apps.health.services.medicine_queries import MedicineQueries
+        ents = [e for e in MedicineQueries.describe(self.user) if e.identity == "TestWeekly"]
+        self.assertEqual(len(ents), 1, "the medicine entity surface lost the record")
+        return ents[0].to_dict()
+
+    def test_the_surface_returns_the_facts_that_resolve_a_timing_fork(self):
+        d = self._entity()
+        plan = d.get("plan") or {}
+        # WHEN it is due — times AND days, not a collapsed time list
+        self.assertTrue(plan.get("schedule"), "no schedule times exposed")
+        detail = plan.get("schedule_detail") or []
+        self.assertTrue(detail, "no schedule_detail exposed — 'which days' is unanswerable")
+        self.assertEqual(detail[0].get("days_of_week"), "0")
+        # HOW LATE still counts, and HOW it is taken
+        self.assertEqual(plan.get("grace_period_minutes"), 60)
+        self.assertEqual(plan.get("instructions"), "Take with food.")
+        # WHEN it was last taken — the other half of a missed-dose decision
+        self.assertIn("last_taken", (d.get("performance") or {}))
+
+    def test_the_advertisement_discloses_those_facts(self):
+        """A retrievable fact the model is never told exists is not consultable.
+        The advertisement must name the deciding facts, not just 'your medications'."""
+        text = (domain_semantics("medicine").get("entities", {})
+                .get("medication", "")).lower()
+        for fact in ("schedule", "grace period", "instructions", "last taken"):
+            self.assertIn(fact, text,
+                          f"the medicine entity advertisement hides {fact!r}: {text!r}")

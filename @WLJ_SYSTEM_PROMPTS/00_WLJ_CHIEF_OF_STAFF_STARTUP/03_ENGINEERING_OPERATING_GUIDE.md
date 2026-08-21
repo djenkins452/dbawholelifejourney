@@ -207,6 +207,18 @@ Real-model runs (`cos-run`, acceptance/natural certification, live `generate()`)
 
 **Why the Tier-2 smoke is not optional (env-drift, learned 2026-08-17):** the ONE post-deploy real-model smoke exists to catch bugs deterministic tests **cannot** — the local dev environment differs from prod. `django.utils.timezone.utc` was **removed in Django 5.x**; local Django lagged, so a `timezone.utc` reference passed every unit test locally and only `AttributeError`-ed in prod (a durable follow-up write silently failed while the model narrated success). Rule: **use `datetime.timezone.utc`, never `django.utils.timezone.utc`**; and treat one real-model smoke on the deployed build as the guard against local↔prod drift a unit test will miss. (Diagnosing it also gave a permanent operator improvement: the `cos-run` harness now returns each action's `result_digest`, so a failed action's real reason is visible.)
 
+### 10b. Governing-prompt changes: POSITION IS SEMANTICS (REQUIRED — proven 2026-08-21)
+A change to `constitution.py` is not verified by the prompt containing the new words, and **where** a rule sits decides whether it can work at all.
+
+**The evidence.** One principle — *retrieve the personal fact that decides the answer* — was deployed three times and observed live each time. Stated mid-prompt (inside `ANSWER GROUNDING`, then inside the medical policy) it produced `tools_called: []` on **every** run: the prose improved (punt → decision tree → confidently-assumed answer) while the behaviour did not move at all. Moved verbatim-in-substance into the model's **opening internal question**, it retrieved on the **first** run and resolved the answer from the user's own record.
+
+**The rule.** *A rule the model reads AFTER it has decided it needs no tools cannot change whether it needs tools.* So:
+- **Place a rule before the decision it is meant to govern.** Retrieval/tool-selection rules belong in the opening decision block; grounding, formatting and tone rules belong where they are applied.
+- **Anchor beats nuance.** A carefully-worded exception buried under a blunt earlier prohibition loses to the prohibition (the same session proved this separately: a medication-administration carve-out at Level 3 was overridden by the policy's opening *"never tell the user to start, stop, increase, or decrease…"* until the distinction was written **into that sentence**).
+- **ONE authority, cross-referenced.** When a rule moves, **demote** the old location to a pointer ("the consequence of X above") rather than leaving a second statement — contract-test that the operative sentence appears exactly once.
+- **Test position, not wording.** Assert the rule's index falls inside the intended block and precedes the sections that defer to it. A test that only asserts the words are present passes on a prompt that cannot work.
+- **Verify with the runtime.** Contract tests assert the prompt; only the Tier-2 smoke asserts the product. Expect a smoke to sometimes FAIL and relocate the root cause — that is its highest value, and it justifies the spend.
+
 ## 11. Deployment discipline
 
 - **Application work is not complete until committed and pushed to `main`** unless Danny says otherwise. Deploy automatically — don't ask "ready to deploy?".

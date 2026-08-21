@@ -52,6 +52,47 @@ sentence appears **exactly once** (no competing authority); the later block no l
 and **no routing was introduced** (`tool_choice`, `required_tool`, "evidence plan", "WLJ decides which tool" are all
 asserted absent). 21/21 in that module; 94 across the impacted suites.
 
+**REAL-RUNTIME RESULT — ✅ THE INVARIANT HOLDS. First tool call in four smokes.** Deployed in `a4995dcd` (web +
+worker both verified; `98a8cf94` confirmed an ancestor and the anchor text present at the deployed tip). One Tier-2
+smoke, the verbatim production message:
+
+```
+"kind": "truth", "tool": "get_entity",
+"args": {"name": "Mounjaro", "domain": "medicine"},
+"status": "ok", "envelope": {"freshness": "current", "confidence": "high"}
+→ "tools_called": ["get_entity"],  answer_len 658
+```
+
+> *"**Your Mounjaro injection is scheduled weekly at 7:00 AM, and it has a 60-minute grace period for a late dose.**
+> Since you missed your dose this morning … Generally, if you miss a dose, it's advised to take it as soon as
+> possible within the same day, unless it is very close to your next scheduled dose. **Since your next dose is not
+> until next week, taking it tonight should be acceptable.** However, if you have any concerns or specific
+> instructions from your healthcare provider, it's always a good idea to consult them…"*
+
+Against the four acceptance conditions: (1) **retrieved** the user's own medication truth — `get_entity`, chosen by
+the model; (2) **resolved** the fork *from that truth* — it states the conditional AND settles it with WLJ's
+schedule (*"your next dose is not until next week"*) instead of assuming, which is exactly the failure smoke 3
+committed; (3) escalation is **one natural line** for genuinely individualized concerns and no longer replaces the
+answer; (4) **no routing** — contract-asserted absent, and the tool choice was the model's own.
+
+**The full arc, one line per deployed observation:**
+
+| smoke | build | `tools_called` | outcome |
+|---|---|---|---|
+| 1 | `79f0cf8a` | `[]` | punt — Level-3 rewrite insufficient; located the anchoring clause |
+| 2 | `e360a8e6` | `[]` | answers, but hands back the decision tree |
+| 3 | `80617923` | `[]` | commits to an answer — from assumption, not truth |
+| 4 | `a4995dcd` | **`["get_entity"]`** | **retrieves, resolves from the user's own schedule, escalates only the residue** |
+
+**The durable lesson, now proven three times: POSITION IS SEMANTICS in a governing prompt.** The identical principle
+had no effect at all stated mid-prompt (smokes 2–3) and worked on the first run once it became part of the model's
+opening internal question. A rule the model reads *after* it has decided it needs no tools cannot change whether it
+needs tools. Fold into `03`: when a prompt change must alter a decision, place it **before that decision**, and
+verify with the runtime — never with a contract test asserting the words are present. Recorded as `03 §10b`.
+
+**Also closed by a concurrent session:** the pre-existing `test_medicine_domain_truth` failure flagged during this
+work was fixed in `a4995dcd` (an absolute fixture date decaying out of a rolling 90-day window).
+
 ---
 ## 2026-08-20 — chore: retire the exec-sentinel certification harness; drop three dead imports; repair an orphaned reference on main
 

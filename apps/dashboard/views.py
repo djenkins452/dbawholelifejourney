@@ -41,7 +41,6 @@ Copyright:
 import json
 import logging
 import random
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import timedelta
 from django.db import models
 from django.db.models import Count

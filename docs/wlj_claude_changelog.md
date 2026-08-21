@@ -3,8 +3,74 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
+# Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-20 — chore: retire the exec-sentinel certification harness; drop three dead imports; repair an orphaned reference on main
+
+**Temporary infra removed (temporary-infra lifecycle rule).**
+`apps/core/execution/_sentinel_cert.py` was live production code whose own header stated it *"is removed
+in one commit once Layer 2 is customer-certified"* — a Blocker #14 Layer 2 harness that seeded a
+throwaway sentinel account (`exec-sentinel-l2@wlj-cert.local`) so the Execution Completion router could
+be certified on the live worker without touching real history. Blocker #14 is closed; the harness and its
+API-key-guarded operator endpoint are now gone.
+
+**Checked production before deleting the only tool that could tear it down:**
+`GET /admin-console/api/claude/exec-sentinel/?action=review` → `{"error": "sentinel not seeded"}`.
+No sentinel account exists, so nothing is orphaned by removing the teardown path.
+
+Removed:
+- `apps/core/execution/_sentinel_cert.py`
+- `apps/admin_console/views.py` — the `ExecSentinelCertAPIView` class
+- `apps/admin_console/urls.py` — the `api/claude/exec-sentinel/` route
+
+**⚠️ Concurrent-session incident — this commit REPAIRS main, it does not only tidy it.**
+The `git rm` of `_sentinel_cert.py` sat staged in the shared working tree while a parallel session
+committed. That session's `2abc9743` ("feat(pk): owner-accepted legacy corpus …") **swept in the staged
+deletion**, so `2abc9743` through `8d2e6445` shipped the module deleted while `views.py` and `urls.py`
+still referenced it — and that state was pushed. Severity was contained by luck of style: the only live
+reference is a **function-level** `from apps.core.execution import _sentinel_cert as sc` inside
+`ExecSentinelCertAPIView.get()`, so module import (and therefore the URLConf, and therefore the site)
+never broke; only a call to that unused endpoint would have raised `ImportError` → 500. This commit
+removes the now-orphaned view and route, restoring consistency.
+
+This is the mirror image of the outage recorded in `03 §11` (a `git add` including an already-`git rm`'d
+path aborting the add → orphaned import → 40-minute 502). Same root condition: **a staged deletion left
+sitting in a tree that another session commits from.** Concrete rule: when removing temporary infra in a
+shared tree, stage and commit the deletion together with its callers in ONE immediate operation — never
+`git rm` and then go do verification work.
+
+**Dead imports removed** (auto-fix rule; each referenced nowhere but its own import line):
+- `apps/core/ai_orchestrator/cos_context.py` — `close_old_connections` (the name survived only inside a
+  comment after an earlier refactor).
+- `apps/dashboard/views.py` — `ThreadPoolExecutor, TimeoutError as FuturesTimeout`; the dashboard has no
+  thread pool, so this was pure noise — and actively misleading while investigating the same day's
+  `ThreadPoolExecutor` deadlock.
+
+**Verification.**
+- No dangling references: `grep -rn "_sentinel_cert|ExecSentinelCertAPIView|exec-sentinel|
+  api_claude_exec_sentinel"` over `apps/`, `config/`, templates and JS returns **nothing**.
+- `apps.dashboard.views`, `apps.core.ai_orchestrator.cos_context`, `apps.admin_console.views` and
+  `apps.admin_console.urls` all import cleanly; `reverse('admin_console:api_claude_ready_tasks')` still
+  resolves; `reverse('admin_console:api_claude_exec_sentinel')` now raises `NoReverseMatch` (expected).
+- `manage.py check`: clean (only pre-existing djstripe hints).
+- `apps.dashboard` + `admin_console.tests.test_admin_guide` + `test_truth_validation_views` +
+  `test_cos_context_transaction_safety` + `test_request_path_safety_contract`: 155 tests, 9 failures —
+  all 9 in `apps.dashboard` and **pre-existing**, proven by re-running `apps.dashboard` with `views.py`
+  restored from HEAD: byte-identical 9 failures.
+
+**Noted, not changed (separate pre-existing issue).**
+`apps.admin_console.tests.test_admin_console` is effectively unrunnable: `apps/admin_console/
+metrics_service.py` shells out to repo-wide `find . -name "*.py" -exec grep …` and
+`grep -r … --include="*.py"`, spawning one `grep` per file, repeatedly across tests. Two attempts sat at
+~0% CPU for 20–30 minutes each, blocked in `poll()` on those subprocesses. Slow, not deadlocked — worth
+caching or stubbing the codebase-metrics subprocess under `TESTING`.
+
+**Files:** `apps/core/execution/_sentinel_cert.py` (deleted in `2abc9743` — see incident above),
+`apps/admin_console/views.py`, `apps/admin_console/urls.py`,
+`apps/core/ai_orchestrator/cos_context.py`, `apps/dashboard/views.py`.
+
+---
+
 ## 2026-08-21 — fix(truth): the CoS answered from general knowledge while WLJ held the deciding fact — conditional guidance must be RESOLVED, not handed back
 
 **The residual from the medication-deflection fix.** `e360a8e6` stopped the punt, but the verified turn still had

@@ -75,7 +75,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from django.conf import settings
-from django.db import close_old_connections, connection
+from django.db import connection
 from django.utils import timezone
 
 from apps.core.ai_state.metric_access import (

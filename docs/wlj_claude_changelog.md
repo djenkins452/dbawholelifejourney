@@ -5,6 +5,82 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-21 — fix(truth): the CoS answered from general knowledge while WLJ held the deciding fact — conditional guidance must be RESOLVED, not handed back
+
+**The residual from the medication-deflection fix.** `e360a8e6` stopped the punt, but the verified turn still had
+`tools_called: []`: the CoS answered *"take it as soon as you remember **if it's not too close to the time for your
+next dose**"* — a decision tree — while WLJ already held the schedule and `last_taken` that decide which limb Danny
+is standing on. Correct general knowledge, handed back for the user to reconcile against their own life. That is the
+opposite of the product.
+
+**Proven cause — Layer 1, truth ACCESSIBILITY (not a truth gap, not a model defect).** The facts exist and the
+certified surface returns them; the model was never told the surface returns them, and was told — by WLJ's own
+capability guidance — that its question shape had no route.
+
+1. **The surface under-declares itself.** `medicine.medication` advertised exactly one clause:
+   *"A prescribed medication and its schedule/adherence."* The certified surface
+   (`apps/health/services/medicine_queries.py:180-232`) actually composes **dose, unit, purpose, frequency, `is_prn`,
+   the full `schedule_detail` (times AND days-of-week), `grace_period_minutes`, the recorded `instructions`,
+   start/end dates, pauses, today's per-dose state, `last_taken`, refill state, and 7/30/90-day adherence.**
+   *A model cannot select a tool for facts it has not been told the tool returns.*
+2. **Discovery routes by the SHAPE of the question, and every advertised shape is a lookup.** `get_entity` describes
+   itself for *"what / which / did I / show me / summarize"* questions; the capability `note` routes
+   "how many/average/trend" → `get_history`, "analyze/how am I doing" → `get_analysis`, and so on. Surveyed all
+   **20 domains: 0 advertise a decision-shaped cue.** `medicine`'s were `["my medications", "did I take my meds",
+   "am I on"]`. *"Is it ok to take it tonight?"* matches nothing — so concluding "no tool applies" was the
+   model correctly following WLJ's own index.
+3. **The prompt's general-knowledge carve-out closed the loop** — *"General knowledge … is yours to answer directly
+   and needs no retrieval"* — with nothing saying that general knowledge which BRANCHES on a personal fact is only
+   half an answer.
+
+**Cross-domain, and deliberately fixed as exposure — NOT architecture.** (2) is systemic: the same gap sits under
+*"can I skip today's workout?"* (training load, last session), *"should I eat this?"* (target vs today's intake),
+*"is it too late for coffee?"* (sleep pattern). No new tool, no router, no forced retrieval, no new authority was
+added — the fix strengthens the **existing certified discovery surfaces**, which is the constitutional order
+(IV.3/IV.4) and leaves tool selection with the model (I.2).
+
+**The invariant, stated generally** (`apps/ai/model_interface/constitution.py`, governing):
+
+> **CONDITIONAL GUIDANCE MUST BE RESOLVED, NOT HANDED BACK.** Much correct general knowledge branches on a fact about
+> the person. Before handing over a conditional answer ask ONE question: *does WLJ hold the fact that decides which
+> branch applies?* If it does, retrieve it and answer the branch that is actually true for them. Reading the user the
+> decision tree when WLJ knows which limb they are on is a **non-answer** — *"the whole difference between an
+> assistant who knows them and a search result."*
+
+**It self-limits, by design** — this is calibrated retrieval, not "always retrieve": *"when the answer does NOT turn
+on anything WLJ holds, just answer — do not retrieve for its own sake … **Retrieve what CHANGES the answer; never
+more, never less.**"* A contract test asserts both directions, so the rule cannot silently become forced routing.
+
+**Exposure changes:**
+- `apps/core/truth/semantics.py` — `medicine.medication` (and supplement/otc/wellness) now **disclose the facts they
+  actually return**; cues gain decision-shaped phrasings ("when is my next dose", "is it too late to take", "am I
+  supposed to take this with food"). The ONE semantics authority — no parallel prose.
+- `apps/ai/cos_services/current_context.py` — the capability index now states that **cues and examples are phrasings,
+  not the boundary of applicability**: *"A record is EVIDENCE, not merely the answer to 'show me the record'"*, and
+  *"ask instead which deterministic fact would change your answer, and whether a surface here returns it."*
+- `apps/ai/model_interface/constitution.py` — the invariant above, plus a local binding inside the medical policy
+  (labelling guidance is conditional; resolve the branch), because the model anchors locally — the lesson from the
+  first failed smoke.
+
+**Also fixed (same defect class, pre-existing at HEAD, in a file being touched):** `health.personal_record` was
+advertised by the truth catalog with **no description at all** — undiscoverable by construction, and failing
+`test_capability_semantics`. Now described (exercise, PR type, weight/reps, canonical estimated 1RM, duration, date
+achieved, previous value).
+
+**Files:** `apps/core/truth/semantics.py`, `apps/ai/cos_services/current_context.py`,
+`apps/ai/model_interface/constitution.py`, `apps/core/truth/tests/test_capability_semantics.py`.
+
+**Regression coverage — the INVARIANT, never the drug or the question.** New `OwnRecordGroundingContractTests`:
+a surface must disclose the facts it returns; **the disclosure is cross-checked against the real serialization** so
+advertisement and producer cannot drift; cues are not the applicability boundary; at least the proven domain
+advertises a decision-shaped cue; the conditional-guidance invariant is governing; **it must cut both ways** (no
+retrieval for its own sake); and no drug/phrase/"always retrieve" hardcoding. 14/14 in that module (including the
+pre-existing failure now fixed); 107 across the impacted suites.
+
+**Pre-existing failure FLAGGED, not touched:** `test_medicine_domain_truth.test_historical_and_condition_layer1_truth`
+fails at HEAD (verified by stashing this work) — unrelated to this change; spawned as its own task.
+
+---
 
 ## 2026-08-21 — fix(cos): the Chief of Staff punted an answerable medication question — escalation was keyed on the TOPIC, not on the decision
 

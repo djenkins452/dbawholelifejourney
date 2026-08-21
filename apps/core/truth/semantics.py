@@ -84,6 +84,13 @@ DOMAIN_SEMANTICS = {
             "water": "A hydration/water-intake entry.",
             "spo2": "A blood-oxygen (SpO2 %) reading.",
             "body_temperature": "A body-temperature reading.",
+            # Advertised by the truth catalog (pr_queries) but previously undescribed,
+            # so it was undiscoverable — the same accessibility defect this contract
+            # exists to prevent.
+            "personal_record": ("A strength/performance PERSONAL RECORD (PR) for one "
+                                "exercise — its type, the weight and reps, the canonical "
+                                "estimated 1RM, any duration, the date achieved, and the "
+                                "previous value it beat."),
         },
         "cues": ["how's my weight", "did I work out", "my blood pressure",
                  "how did I sleep", "steps today", "resting heart rate",
@@ -93,12 +100,32 @@ DOMAIN_SEMANTICS = {
         "purpose": ("Medications, supplements, OTC and wellness products the person "
                     "takes, and adherence to them."),
         "entities": {
-            "medication": "A prescribed medication and its schedule/adherence.",
-            "supplement": "A supplement the person takes.",
-            "otc": "An over-the-counter product the person takes.",
-            "wellness": "A wellness product the person takes.",
+            # The record carries far more than a name: disclose what it actually
+            # RETURNS, so the model can tell that this surface answers questions about
+            # how a medicine is taken — not merely "list my medications".
+            "medication": ("A prescribed medication AND the full detail of how the "
+                           "person takes it: dose and unit, purpose, frequency, whether "
+                           "it is as-needed, the complete schedule (times AND which days "
+                           "of the week), the grace period for a late dose, the "
+                           "instructions recorded with the prescription, start/end dates, "
+                           "pauses, today's per-dose taken/missed/pending state, WHEN IT "
+                           "WAS LAST TAKEN, refill/supply state, and 7/30/90-day "
+                           "adherence."),
+            "supplement": ("A supplement the person takes — same recorded detail as a "
+                           "medication (dose, schedule, instructions, last taken, "
+                           "adherence)."),
+            "otc": ("An over-the-counter product the person takes — same recorded detail "
+                    "as a medication."),
+            "wellness": ("A wellness product the person takes — same recorded detail as a "
+                         "medication."),
         },
-        "cues": ["my medications", "did I take my meds", "am I on"],
+        # Cues are EXAMPLE PHRASINGS, not the limit of when this domain applies: a
+        # question about whether/when/how to take something the person is ON is answered
+        # from this record's schedule, instructions and last-taken.
+        "cues": ["my medications", "did I take my meds", "am I on",
+                 "when is my next dose", "when did I last take",
+                 "what does it say to do about a missed dose",
+                 "is it too late to take", "am I supposed to take this with food"],
     },
     "medical": {
         "purpose": "Lab results, lab panels, and uploaded medical documents.",

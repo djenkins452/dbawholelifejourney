@@ -276,7 +276,19 @@ def _capabilities() -> dict:
                  "record's contents, or a full analysis. For 'X vs Y period' use "
                  "get_comparison (truth_comparison); for 'am I in line with my target/goal' "
                  "use get_adherence (truth_adherence) — never treat a blank target as zero. "
-                 "Call a truth tool for anything not in this baseline."),
+                 "Call a truth tool for anything not in this baseline. "
+                 "CUES AND EXAMPLES ARE PHRASINGS, NOT THE BOUNDARY OF APPLICABILITY. The "
+                 "example questions above are all shaped like lookups ('what did I…', 'show "
+                 "me…', 'how many…') because those are the easiest to illustrate — they are "
+                 "NOT the only questions these surfaces answer. A record is EVIDENCE, not "
+                 "merely the answer to 'show me the record': the same medication, workout, "
+                 "meal, goal or transaction record that answers 'list my X' also supplies "
+                 "the facts that decide a judgment question about X ('is it ok to…', 'should "
+                 "I…', 'can I…', 'is it too late to…', 'how does this affect…'). Do not "
+                 "conclude that no tool applies just because the user phrased the question "
+                 "as a decision rather than a request for data — ask instead which "
+                 "deterministic fact would change your answer, and whether a surface here "
+                 "returns it."),
     }
 
 

@@ -3,8 +3,77 @@
 # Description: Historical record of fixes, migrations, and changes
 # Owner: Danny Jenkins (admin@wholelifejourney.com)
 # Created: 2025-12-28
-# Last Updated: 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
+# Last Updated: 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-21 — fix(cos): the Chief of Staff punted an answerable medication question — escalation was keyed on the TOPIC, not on the decision
+
+**Production friction (a real turn, not a spec).** *"I forgot to take my mounjaro this morning. Is it ok to take
+it tonight or do I need to wait until the morning?"* → *"You should talk with your healthcare provider about
+whether you can take your Mounjaro dose tonight or need to wait until the morning…"* A content-free deflection to
+a question that has published, authoritative, non-individualized guidance. Failed the product bar.
+
+**Runtime PROVEN, not inferred** (`docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`). Identified the exact production turn on
+the live deployed build via the operator truth probe: `ToolCallLog` turn `3b1fb34d-10bb-40d9-968f-ce1f675097c2`,
+conversation 14, surface `chat_stream`, 2026-08-21T00:13:22Z — `result_digest = {"answer_len": 247,
+"tools_called": [], "synthesis_used": false}`. **`answer_len` 247 is a character-exact match for the punt text**,
+positively binding the trace to the failing conversation. `surface="chat_stream"` → `apps/ai/model_interface/tasks.py`
+→ `ModelInterfaceService` (the certified runtime); tools WERE offered (`all_tools(...)`, `service.py:1466`) and no
+safety gate suppressed them.
+
+**Layer classification — Truth is INTACT; Reasoning failed first.**
+- **Layer 1 (Truth): healthy.** Prod probe (`medicine/overall` → `status: ready`) shows WLJ holds Mounjaro as an
+  active medication with adherence, schedule and refill state. `apps/health/services/medicine_queries.py:180-232`
+  exposes the full record through the certified `get_entity(domain='medicine')` surface — dose, frequency, `is_prn`,
+  `schedule_detail` (times + days-of-week), `grace_period_minutes`, **`instructions`**, `last_taken`, and 7/30/90d
+  adherence. Nothing was missing and nothing was unexposed.
+- **Layer 2 (Reasoning): FAILED.** `tools_called: []` — the model retrieved **nothing** and deflected on topic alone.
+
+**Root cause (the architectural CONDITION).** The governing MEDICAL INFORMATION POLICY in
+`apps/ai/model_interface/constitution.py` keyed escalation on the **subject a question mentions**, not on what the
+question **requires**: *"RESERVE 'discuss with your healthcare professional' for genuinely INDIVIDUALIZED medical
+decisions: **medications**, supplements, chronic-disease management, fasting…"*. Any question naming a medicine
+matched the first item in that list. Two consequences: (1) the topic match short-circuited retrieval entirely, and
+(2) nothing forbade a **content-free** referral, so the policy's own mandated three parts (guideline+source →
+distinguish → defer once) collapsed to the deferral alone. The observed answer violated even the old rule.
+
+**Fix — eliminate the class, don't detect the sentence** (Constitution V.2). Rewrote Level 3 of the policy. No drug,
+no phrase matching, no medication reasoning inside WLJ, no new truth authority:
+1. **Escalation re-keyed from TOPIC to DECISION** — *"WHAT DECIDES IS THE DECISION, NEVER THE TOPIC … A question is
+   NOT individualized merely because it names a medication, a supplement, a condition, a lab, or a treatment."* The
+   bare subject list is replaced by the judgment actually required (diagnosis; starting/stopping/switching/dose
+   changes; treatment-plan or chronic-disease management changes; significant nutrition/fasting/exercise changes;
+   abnormal labs or sustained abnormal trends; contraindications/interactions turning on facts not held; red-flag
+   symptoms; genuinely uncertain or conflicting evidence; "should I …?" / "should I be worried?").
+2. **ANSWERABLE HEALTH QUESTIONS — ANSWER THEM** (governing, equal in force to the deferral rule): questions already
+   answered by established published instruction that applies to everyone — how a medicine is labelled to be used
+   (timing, administration, with/without food, storage, a dose taken late or missed), what it is for, how a metric is
+   defined, published ranges, ordinary self-care — are answered directly, attributed (Level 2), grounded in the
+   user's own truth (Level 1), with the exception conditions named. **Only the residue escalates.**
+3. **RETRIEVE THEIR OWN RECORD FIRST** — when WLJ tracks it for this user, call the truth tool before answering;
+   *"deferring is never a substitute for retrieving what WLJ already knows."* (Directly targets `tools_called: []`.)
+4. **A REFERRAL IS NEVER A COMPLETE ANSWER** (governing, absolute) — a bare "ask your provider" is a **failure, not a
+   safe response**; a genuine deferral must state what the clinician needs to decide and why it is individual.
+
+**Safety boundary preserved, and strengthened.** "Never diagnose, never prescribe, never tell the user to start,
+stop, increase, or decrease…" is untouched; every individualized-escalation trigger is still mandated (and now more
+explicit); the calm/never-alarmist out-of-range rule is unchanged. The change makes *empty* deflection impossible —
+it does not make WLJ give more medical advice.
+
+**Constitutional posture:** no Article changed; no Constitutional Review required. The fix restores Articles I.2/I.4
+(the model owns reasoning, interpretation and judgment) and IV.4 (expose before inventing) — a governing-prompt
+correction, not a capability, a detector, or a reasoning engine inside WLJ.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/ai/tests/test_medical_information_policy.py`.
+
+**Verification (Tier 1 — zero provider calls):** 18/18 medical-policy contract tests green, including the new
+`UnnecessaryDeflectionContractTests` asserting the **class** — decision-not-topic keying, the topic-only reserve list
+is gone, answerable questions must be answered, bare referrals forbidden, the user's own record retrieved first, the
+escalation boundary intact, **and no drug/phrase hardcoding** (`mounjaro` / `tirzepatide` / `forgot my dose` must not
+appear anywhere in the prompt). Plus `test_constitution_contract` + `test_intent_registration` (20) and
+`test_model_interface_runtime` (32) green. One Tier-2 post-deploy real-model smoke on the deployed build (`03 §10a`).
+
+---
 
 ## 2026-08-20 — feat(pk): owner-accepted legacy corpus + Personal Truth can EVOLVE
 

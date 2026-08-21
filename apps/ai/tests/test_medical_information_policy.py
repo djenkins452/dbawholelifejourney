@@ -85,3 +85,108 @@ class MedicalInformationPolicyContractTests(TestCase):
         svc = ModelInterfaceService(user, ai_service=object())
         prompt = svc._system_prompt({"current_context": {}})
         self.assertIn("MEDICAL INFORMATION POLICY", prompt)
+
+
+class UnnecessaryDeflectionContractTests(TestCase):
+    """The CLASS this contract exists to prevent (production friction, 2026-08-21):
+
+    the Chief of Staff replaced a safely-answerable medication-administration question
+    with a content-free 'talk with your healthcare provider' deflection, retrieving
+    NOTHING first (proven from ToolCallLog: `tools_called: []`, answer_len 247).
+
+    The architectural CONDITION that made the class possible was that Level 3 keyed
+    escalation on the TOPIC a question mentions ('medications, supplements,
+    chronic-disease management, fasting…') rather than on whether the question actually
+    requires individualized clinical judgment — so ANY question naming a medicine
+    qualified for a punt. These tests assert the invariant, never a drug, a phrasing,
+    or an answer.
+    """
+
+    def setUp(self):
+        self.low = CONSTITUTION.lower()
+
+    # -- 1. escalation is keyed on the DECISION, never the subject matter ------
+    def test_deferral_is_keyed_on_decision_not_topic(self):
+        self.assertIn("what decides is the decision, never the topic", self.low)
+        # the negative is stated explicitly, so a bare topic match cannot trigger a punt
+        self.assertIn("not individualized merely because it names", self.low)
+
+    def test_topic_only_reserve_list_is_gone(self):
+        # The exact defect: a bare enumeration of SUBJECTS as the deferral trigger.
+        self.assertNotIn(
+            "for genuinely individualized medical decisions: medications, supplements",
+            self.low,
+        )
+        # What replaced it names the JUDGMENT required, not the subject.
+        self.assertIn("depends on individualized", self.low)
+        self.assertIn("clinical judgment", self.low)
+
+    # -- 2. answerable questions must actually be answered ---------------------
+    def test_answerable_health_questions_must_be_answered(self):
+        self.assertIn("answerable health questions", self.low)
+        # established published instruction that applies to everyone => answer it
+        self.assertIn("published", self.low)
+        self.assertIn("labelled to be used", self.low)
+        # administration/timing/missed-or-late dosing is named as ANSWERABLE, generically
+        for concept in ("timing", "administration", "missed"):
+            self.assertIn(concept, self.low)
+        # and the rule carries equal force to the deferral rule
+        self.assertIn("equal in force", self.low)
+
+    def test_answerable_rule_still_names_its_boundary(self):
+        # answering is not unconditional: the exceptions must be stated, and only the
+        # residue escalated.
+        self.assertIn("would not apply", self.low)
+        self.assertIn("a clinician's judgment would be required", self.low)
+        self.assertIn("escalate only that residue", self.low)
+
+    # -- 3. the floor: a referral alone is never an answer ---------------------
+    def test_bare_referral_is_forbidden(self):
+        self.assertIn("a referral is never a complete answer", self.low)
+        self.assertIn("must never be sent", self.low)
+        # deferral must be specific about WHAT the clinician decides
+        self.assertIn("what the clinician needs to decide", self.low)
+
+    # -- 4. their own truth is retrieved before answering ---------------------
+    def test_user_specific_record_is_retrieved_before_answering(self):
+        self.assertIn("retrieve their own record first", self.low)
+        self.assertIn("before answering", self.low)
+        self.assertIn("never a substitute for retrieving", self.low)
+
+    # -- 5. the safety boundary is NOT weakened -------------------------------
+    def test_escalation_boundary_remains_intact(self):
+        # the hard prohibitions survive verbatim
+        for rule in ("never diagnose", "never prescribe",
+                     "start, stop, increase, or decrease"):
+            self.assertIn(rule, self.low)
+        # and the genuinely-individualized triggers are all still mandated
+        for trigger in ("diagnosis",
+                        "changing the dose",
+                        "treatment plan",
+                        "chronic-disease",
+                        "abnormal lab",
+                        "sustained abnormal",
+                        "contraindications",
+                        "red-flag symptoms",
+                        "uncertain or conflicting",
+                        "should i be worried"):
+            self.assertIn(trigger, self.low)
+
+    def test_no_drug_or_phrase_hardcoding(self):
+        """The fix must be a class fix — never this medication or this sentence."""
+        for banned in ("mounjaro", "tirzepatide", "ozempic", "semaglutide",
+                       "forgot my dose", "forgot to take"):
+            self.assertNotIn(banned, self.low)
+
+    # -- 6. it reaches the real certified runtime prompt ----------------------
+    def test_new_rules_survive_into_the_system_prompt(self):
+        from django.contrib.auth import get_user_model
+
+        from apps.ai.model_interface.service import ModelInterfaceService
+        user = get_user_model().objects.create_user(email="mip2@test.com", password="x")
+        prompt = ModelInterfaceService(user, ai_service=object())._system_prompt(
+            {"current_context": {}})
+        low = prompt.lower()
+        self.assertIn("answerable health questions", low)
+        self.assertIn("a referral is never a complete answer", low)
+        self.assertIn("what decides is the decision, never the topic", low)

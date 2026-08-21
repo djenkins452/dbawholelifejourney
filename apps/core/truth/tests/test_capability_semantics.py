@@ -131,20 +131,13 @@ class OwnRecordGroundingContractTests(SimpleTestCase):
                         f"medicine cues remain purely lookup-shaped: {cues!r}")
 
     # -- 3. the governing invariant is stated, and it self-limits ------------
-    def test_conditional_guidance_invariant_is_governing(self):
-        from apps.ai.model_interface.constitution import CONSTITUTION
-        low = CONSTITUTION.lower()
-        self.assertIn("conditional guidance must be resolved, not handed back", low)
-        self.assertIn("does wlj hold the fact that decides which branch applies", low)
-        self.assertIn("non-answer", low)
-
     def test_invariant_does_not_mandate_retrieval_for_its_own_sake(self):
         """Acceptance case 1 — generic knowledge sufficient => no pointless retrieval.
         The rule must cut BOTH ways or it becomes 'always retrieve'."""
         from apps.ai.model_interface.constitution import CONSTITUTION
         low = CONSTITUTION.lower()
-        self.assertIn("do not retrieve for its own sake", low)
-        self.assertIn("does not turn on anything wlj holds, just answer", low)
+        self.assertIn("do not go looking", low)
+        self.assertIn("retrieving to seem thorough wastes their turn", low)
         self.assertIn("retrieve what changes the answer; never more, never less", low)
 
     def test_no_always_retrieve_and_no_hardcoding(self):
@@ -154,5 +147,93 @@ class OwnRecordGroundingContractTests(SimpleTestCase):
         for banned in ("mounjaro", "tirzepatide", "always retrieve medications",
                        "forgot my dose"):
             self.assertNotIn(banned, low)
-        # model still owns tool selection: the rule is a question to ask, not a router
-        self.assertIn("ask yourself one", low)
+        # model still owns tool selection: the rule is a question it asks itself
+        self.assertIn("this is your judgment to make on every turn", low)
+        self.assertIn("wlj never decides for you which truth you need", low)
+
+
+class EarliestDecisionAnchorContractTests(SimpleTestCase):
+    """Contract — the own-record grounding invariant lives in the model's EARLIEST
+    decision block, and nowhere else as a competing authority.
+
+    Proven 2026-08-21 across three deployed Tier-2 smokes: stating the rule late in
+    the prompt changed the prose and never changed `tools_called: []`. The model
+    anchors on its opening instructions, so the invariant must be part of the first
+    question it asks itself — before it decides whether tools are needed at all.
+    """
+
+    ANCHOR = "AND THEN THE SECOND QUESTION"
+
+    def setUp(self):
+        from apps.ai.model_interface.constitution import CONSTITUTION
+        self.c = CONSTITUTION
+        self.low = CONSTITUTION.lower()
+
+    def _idx(self, needle):
+        i = self.c.find(needle)
+        self.assertNotEqual(i, -1, f"missing from the governing prompt: {needle!r}")
+        return i
+
+    # -- it is INSIDE the opening first-question block ------------------------
+    def test_invariant_sits_inside_the_first_internal_question_block(self):
+        start = self._idx("HOW A CHIEF OF STAFF BEGINS")
+        end = self._idx("You are the user's personal assistant")
+        anchor = self._idx(self.ANCHOR)
+        self.assertTrue(start < anchor < end,
+                        "the grounding invariant must live inside the opening "
+                        f"first-internal-question block (start={start}, "
+                        f"anchor={anchor}, end={end})")
+
+    def test_invariant_precedes_grounding_and_medical_policy(self):
+        """It must be read BEFORE the sections that previously carried it."""
+        anchor = self._idx(self.ANCHOR)
+        for later in ("ANSWER GROUNDING", "MEDICAL INFORMATION POLICY",
+                      "CONDITIONAL GUIDANCE"):
+            self.assertLess(anchor, self._idx(later),
+                            f"{later} must come AFTER the anchoring invariant")
+
+    # -- it tests the ANSWER being formed, not the topic named ---------------
+    def test_the_test_is_on_the_answer_not_the_question_topic(self):
+        self.assertIn("this one asks what you are about to say", self.low)
+        self.assertIn("does any part of this depend on a fact about this person", self.low)
+        # the materially-changes triggers, stated as kinds of answer — not phrases
+        for trigger in ("a branch", "an assumption", "a recommendation", "a timing call",
+                        "a prioritisation", "a comparison", "a conclusion"):
+            self.assertIn(trigger, self.low)
+        self.assertIn("would come out differently if you knew their own record", self.low)
+
+    def test_both_failure_modes_are_named(self):
+        """Handing back the fork AND silently picking a side are one mistake."""
+        self.assertIn("two failures that look different and are the same mistake", self.low)
+        self.assertIn("quietly picking a side yourself", self.low)
+        self.assertIn("correct general information plus an unchecked assumption", self.low)
+
+    # -- the later sections DEFER; they do not duplicate ---------------------
+    def test_later_sections_defer_to_the_anchor(self):
+        for section in ("CONDITIONAL GUIDANCE", "ANSWER GROUNDING",
+                        "MEDICAL INFORMATION POLICY"):
+            i = self._idx(section)
+            # each downstream mention points back at the one authority
+            tail = self.c[i:i + 6000].lower()
+            self.assertIn("second internal question", tail,
+                          f"{section} must cross-reference the anchoring question "
+                          "rather than restate the rule")
+
+    def test_the_rule_is_stated_exactly_once(self):
+        """No competing/duplicated authority: the operative sentence appears once."""
+        self.assertEqual(
+            self.low.count("retrieve what changes the answer; never more, never less"), 1)
+        self.assertEqual(self.low.count("does any part of this depend on a fact"), 1)
+
+    def test_later_block_no_longer_restates_the_decision_test(self):
+        i = self._idx("CONDITIONAL GUIDANCE")
+        block = self.c[i:self.c.find("\n", i + 200)].lower()
+        self.assertNotIn("does any part of this depend", block)
+        self.assertIn("the grounding consequence of", block)
+
+    # -- still a reasoning instruction, never routing ------------------------
+    def test_no_deterministic_routing_was_introduced(self):
+        """Option B only: no forced tool choice, no evidence plan, no WLJ routing."""
+        for banned in ("tool_choice", "required_tool", "evidence plan",
+                       "wlj will tell you which tool", "wlj decides which tool"):
+            self.assertNotIn(banned, self.low)

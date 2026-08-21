@@ -5,6 +5,54 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-21 — fix(cos): move own-record grounding into the model's FIRST internal question (Option B) — test the answer you are about to give, not the topic they named
+
+**Classified as a distinct defect.** Truth exists · the medicine surface now advertises what it holds · capability
+discovery exposes it · the grounding invariant exists — and three deployed runtime observations still showed
+`tools_called: []`. So the residual is **Reasoning / initial tool selection**, not missing truth. Danny authorized
+**Option B only**: relocate the already-established principle into the earliest anchoring instructions. No
+deterministic pre-turn hint, no forced `tool_choice`, no two-pass retrieval, no routing.
+
+**Why the existing opening question did not already catch it.** The first internal question was keyed on what the
+user **NAMED** — *"When they name a person, a relationship, a goal, their money, their eating … WLJ HAS data on
+it"* — and framed as *"can I answer them **specifically rather than generically**?"*. For a labelling question the
+model judges that the **generic answer IS the correct answer** (published instruction, identical for everyone), so
+the test returns "generic is right here" and retrieval never fires. The missing test is not about the question at
+all — it is about **the answer being composed**.
+
+**The fix — a SECOND internal question, inside the same opening block** (`apps/ai/model_interface/constitution.py`):
+
+> *"The question above asks what they NAMED; this one asks what you are ABOUT TO SAY. Look at the answer forming in
+> your head and ask: **does any part of this depend on a fact about THIS person that WLJ may already hold?** You are
+> looking for a branch, an assumption, a recommendation, a timing call, a prioritisation, a comparison, or a
+> conclusion that would come out DIFFERENTLY if you knew their own record."*
+
+It names the **tell** (*'if', 'unless', 'depending on', 'assuming', 'generally', 'probably', 'as long as'* — *"every
+one of those is you standing at a fork and guessing which side they are on"*), and closes the loophole the third
+smoke walked through: *"correct general information plus an unchecked assumption about this person is still a guess,
+and stating the conclusion confidently does not make it grounded."* **TWO FAILURES THAT LOOK DIFFERENT AND ARE THE
+SAME MISTAKE:** handing back the fork, and **quietly picking a side yourself**. It self-limits in the same breath —
+*"if nothing in your answer would change no matter what their record said, do NOT go looking … **RETRIEVE WHAT
+CHANGES THE ANSWER; NEVER MORE, NEVER LESS**"* — and ownership stays with the model: *"This is your judgment to make
+on every turn — WLJ never decides for you which truth you need."*
+
+**ONE authority, not two.** The rule previously added mid-prompt was **demoted, not duplicated**: `CONDITIONAL
+GUIDANCE` is now explicitly *"the grounding consequence of YOUR SECOND INTERNAL QUESTION above (that block is where
+this rule lives)"* and keeps only what the anchor does not say (an unresolved fork is a non-answer; if WLJ lacks the
+deciding fact, say what it depends on and ask). `ANSWER GROUNDING`'s general-knowledge carve-out and the medical
+policy's local application likewise now **point at** the anchor instead of restating it.
+
+**Files:** `apps/ai/model_interface/constitution.py`, `apps/core/truth/tests/test_capability_semantics.py`.
+
+**Regression coverage — new `EarliestDecisionAnchorContractTests`, asserting position and hierarchy, not wording:**
+the invariant sits **inside** the opening first-question block (index between its start and end) and **precedes**
+`ANSWER GROUNDING` / `MEDICAL INFORMATION POLICY` / `CONDITIONAL GUIDANCE`; the test is on the **answer** not the
+topic; both failure modes are named; every downstream section **cross-references** the anchor; the operative
+sentence appears **exactly once** (no competing authority); the later block no longer restates the decision test;
+and **no routing was introduced** (`tool_choice`, `required_tool`, "evidence plan", "WLJ decides which tool" are all
+asserted absent). 21/21 in that module; 94 across the impacted suites.
+
+---
 ## 2026-08-20 — chore: retire the exec-sentinel certification harness; drop three dead imports; repair an orphaned reference on main
 
 **Temporary infra removed (temporary-infra lifecycle rule).**

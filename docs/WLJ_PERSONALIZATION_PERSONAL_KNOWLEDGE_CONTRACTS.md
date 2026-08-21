@@ -846,3 +846,97 @@ Milestone completion is recorded here (the design doc in §35 is frozen and reco
 ### Known boundary — free-text domain duplication
 
 The deterministic domain-ownership guard (Contract 5) rejects **structured** duplication: a fact carrying a domain-owned attribute is refused by the PK service. A free-text sentence that merely *restates* a domain value ("my current weight is 280") is not machine-separable from context without interpretation, so it is handled at the tool instruction ("never record what a domain already owns") rather than by a classifier. Building a text classifier here would put a reasoning engine inside WLJ, which the Constitution forbids. Residual risk is low and fully user-correctable: any such fact is visible in About Me and one click from deletion. **Logged, not silently accepted.**
+
+---
+
+## 19. Personal Truth can EVOLVE — governing principle + M6 requirement (2026-08-20)
+
+> **Memory gives the Chief of Staff continuity, not permission to freeze the user in the past.**
+>
+> **When a current statement meaningfully conflicts with remembered Personal Knowledge, prefer
+> curiosity over contradiction: clarify whether the truth changed, the context differs, or the
+> stored knowledge was simply wrong.**
+
+Personal Knowledge is not an immutable biography. People change. A fact that *was* true is
+never evidence that the user is wrong today.
+
+### The temporal foundation already exists (verified, not rebuilt)
+
+M2's correction lineage is sufficient — no second truth store is needed:
+
+| Layer | How it is already represented |
+|---|---|
+| **Current Personal Truth** | `fact_status=ACTIVE`. The only thing `active_facts()` returns, so it is the only thing any surface or the model can see as current. |
+| **Historical Personal Truth** | `fact_status=SUPERSEDED` + `superseded_by` → the replacement. Queryable forever; structurally excluded from every current read. |
+| **Contextual truth** | Needs no schema at all — two statements that can both be true simply coexist as separate ACTIVE facts. |
+
+`correct_fact()` chains, so a person can change their mind repeatedly and each change leaves
+exactly one current truth with the whole history intact behind it. A correction is recorded
+as `USER_AUTHORED` even when the superseded row was a legacy guess — the user's own words
+outrank an old extraction.
+
+Certified by `apps/core/tests/test_evolving_personal_truth_contract.py`.
+
+### Requirement carried into M6 (still unauthorized)
+
+Natural learning is **not only** *"what new facts can I learn?"* It is equally *"does what
+the user is telling me suggest something I remember has changed?"* M6 must therefore include:
+
+- new durable fact candidates **and** correction/change candidates;
+- tension detection between a current statement and remembered knowledge;
+- **clarification before supersession whenever the ambiguity matters**;
+- preservation of historical lineage — supersede, never destroy;
+- current truth outranking superseded truth in every read.
+
+**Ordinary conversation must never silently overwrite Personal Knowledge merely because two
+statements look inconsistent.**
+
+### Not contradiction policing
+
+Most differences are not conflicts, and challenging them is worse than ignoring them:
+
+| Stored | Later statement | Correct behaviour |
+|---|---|---|
+| "I don't enjoy running." | "I've been enjoying running lately." | **Worth clarifying** — a durable preference may genuinely have changed. |
+| "Danny values career stability." | "I'm thinking about leaving my job." | Explore if useful; **supersede nothing** — both can be true. |
+| "Danny enjoys bourbon." | "I don't want bourbon tonight." | **Say nothing.** A moment is not a change of self. |
+
+The aim is meaningful continuity, never pedantic consistency checking.
+
+### Division of authority (unchanged)
+
+The **model** may notice conversational tension — that is reasoning. **WLJ** remains the
+deterministic authority for persistence, lineage, eligibility and user control, and never
+infers psychological meaning about the user.
+
+---
+
+## 20. Owner acceptance of the legacy corpus (2026-08-20)
+
+**Explicitly authorized by Danny as product owner.** M5 human validation found **217**
+unreviewed legacy facts in his account; certifying them individually is not a product
+experience anyone should be asked to complete. With WLJ pre-production and ~99% of accounts
+belonging to testers, he accepted the risk that his own historical knowledge contains stale,
+noisy or compound records.
+
+Mechanism: `apps/core/migrations/0137_accept_owner_legacy_personal_knowledge.py` — one-time,
+**account-scoped to a single named address**, filtered to `active` + `unreviewed` +
+`legacy_extraction`, and deliberately irreversible (About Me is how a decision like this is
+undone, per fact).
+
+**Acceptance lifts the REVIEW gate and nothing else.** Sensitivity exclusion, the domain
+boundary, supersession state and every other standing-eligibility rule continue to apply.
+Statements are not rewritten, compound records are not split, topics are not inferred, near
+duplicates are not merged, and the legacy source stores remain intact for M7.
+
+**This is not a policy.** The safe legacy-review architecture remains the default for every
+future real user; there is no "trust legacy imports" rule, and a contract test asserts the
+owner address appears nowhere in the Personal Knowledge governance path.
+
+### Corpus as characterized before acceptance
+
+217 unreviewed · **all topic `other`** (the line-delimited blob and profile paragraphs carry
+no topic; the `fact_type→topic` map only applies to structured `PersonalFact` rows) · shapes
+183 atomic / 23 compound / 11 long-prose · **0 exact duplicates** (the M5 write-time
+idempotency already absorbs them) · 22 near-duplicate groups covering 33 records · 38–572
+chars, mean 123 · no sensitive records.

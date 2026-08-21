@@ -6,6 +6,32 @@
 # Last Updated: 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-20 — feat(pk): owner-accepted legacy corpus + Personal Truth can EVOLVE
+
+**M5 finding.** M3's one-fact-at-a-time legacy review was safe at small scale and **failed human validation at mature-user scale**: Danny opened *Things I noted earlier* and found **217** records awaiting individual certification. Technically correct, unacceptable as a product experience.
+
+**Corpus characterized first (read-only, deterministic, zero provider calls).** New `apps/core/personal_knowledge/corpus.py` classifies by **structure, never meaning** — length, sentence count, list-shape, literal token overlap are things a computer can know; "interpretive" is a judgement. Production shape:
+
+**217 unreviewed · ALL topic `other` · 183 atomic / 23 compound / 11 long-prose · 0 exact duplicates · 22 near-duplicate groups (33 records) · 38–572 chars, mean 123 · none sensitive.**
+
+**The single most important finding killed the planned design:** every record is topic `other`, so a topic-first review page would have rendered exactly one group of 217 — the same wall with a heading. Root cause verified in code: the `fact_type→topic` map applies only to structured `PersonalFact` rows; the line-delimited blob and profile paragraphs default to `OTHER`. Assigning topics by keyword was rejected — **filing a fact under "Family" because it contains "wife" is inventing meaning**, which the trust model forbids.
+
+**Product decision (Danny, as owner): accept the corpus rather than certify it.** `apps/core/migrations/0137_accept_owner_legacy_personal_knowledge.py` — one-time, **scoped to a single named address**, filtered to `active` + `unreviewed` + `legacy_extraction`, deliberately irreversible (About Me undoes it per fact). **Acceptance lifts the REVIEW gate and nothing else**: sensitivity exclusion, domain boundary, supersession state and every other eligibility rule still apply; statements are not rewritten, compound records not split, topics not inferred, near-duplicates not merged, legacy sources intact for M7. **Not a policy** — safe legacy review remains the default for every future user, and a contract test asserts the owner address appears nowhere in the PK governance path.
+
+**Caught before shipping:** the migration first called `personal_truth.invalidate(owner.id)`, but that function reads `.id` off its argument — passing an int is a **silent no-op**, which would have left the projection cache stale and the newly accepted knowledge invisible to the model. Proven and fixed.
+
+**Personal Truth can EVOLVE (the more important decision).** Verified — **not rebuilt** — that M2's lineage already provides the temporal foundation: `ACTIVE` = current truth, `SUPERSEDED` + `superseded_by` = history, and `active_facts()` filters on `ACTIVE`, so superseded truth is *structurally* incapable of reaching any current read including standing context. Corrections chain, so a person can change their mind repeatedly and each change leaves exactly one current truth. Contextual truth needs no schema — statements that can both be true simply coexist. Recorded as contracts **§19** (principle + M6 requirement) and **§20** (the acceptance).
+
+> Memory gives the Chief of Staff continuity, not permission to freeze the user in the past.
+
+**Carried into M6 (still unauthorized):** natural learning must include *correction/change* candidates, not just new facts — tension detection, **clarification before supersession**, lineage preservation, current truth outranking superseded. Ordinary conversation must never silently overwrite knowledge because two statements look inconsistent. Explicitly **not** contradiction policing: *"I don't want bourbon tonight"* is a moment, not a change of self.
+
+**Files:** new `apps/core/personal_knowledge/corpus.py`, `apps/core/migrations/0137_…`, `apps/core/tests/test_evolving_personal_truth_contract.py`; `apps/admin_console/views.py` + `urls.py` (read-only `pk-corpus` operator surface — counts and shapes only, never statement text); `docs/WLJ_PERSONALIZATION_PERSONAL_KNOWLEDGE_CONTRACTS.md` §19–20.
+
+**Verification: ZERO provider calls.** 17 new evolving-truth/acceptance tests + 175 PK-suite tests green (lineage, standing eligibility, sensitivity, cross-user isolation, no-owner-special-case, cache invalidation). `makemigrations --check` clean.
+
+---
+
 ## 2026-08-20 — fix(test-infra): `manage.py test apps.ai` deadlocked forever — CoS context builders parallelised inside an open transaction
 
 **Problem.** `python3 manage.py test apps.ai --keepdb` hung indefinitely against local Postgres —

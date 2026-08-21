@@ -5,6 +5,57 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-21 — investigation: medication INSTRUCTION truth — WLJ owns none, and an adherence field is being read as prescribing guidance (NO CODE CHANGED)
+
+**Origin:** the smoke that proved own-record grounding (`a4995dcd`) also exposed a new trust defect. The CoS
+correctly retrieved Danny's Mounjaro record and correctly resolved his next dose — then said *"it has a **60-minute
+grace period for a late dose** … if you miss a dose, it's advised to take it **as soon as possible within the same
+day**."* Two errors: a WLJ **adherence-bookkeeping** number narrated as **administration guidance**, and a
+drug-specific missed-dose rule **improvised from general model knowledge** (not the established guidance for this
+product — per Danny, a ~4-day/96-hour window then skip). Full record:
+**`docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md`**.
+
+**PROVEN — `grace_period_minutes` is adherence bookkeeping with ZERO prescribing meaning.** `models.py:2497`,
+`default=60`, help_text *"Minutes after scheduled time before marking as overdue"*; its only two non-test consumers
+(`IntakeLog.was_taken_on_time`, `mark_taken`) do exactly one thing — classify a log `TAKEN` vs `LATE`. **The
+identical field with the identical default exists on the WORKOUT PLAN model** (`models.py:6018`), proving it is a
+platform-wide lateness tolerance, not a clinical concept. The `60` is the **untouched platform default** — nobody
+prescribed it.
+
+**Why the model read it as guidance — the exposure defect.** Verified by dumping the real serialization
+(transaction rolled back, dev DB untouched): `describe_one` emits it as a **bare, unitless, unlabelled integer
+inside a block named `plan`**, adjacent to `schedule`, `start_date` and `instructions` — with `instructions: null`
+right beside it. Nothing tells the model it is bookkeeping. **Mea culpa:** yesterday's semantics line
+(`semantics.py:109`) calls it *"the grace period for a late dose"* — ambiguous phrasing that made this likelier.
+
+**PROVEN — no authoritative product-instruction truth exists in WLJ.** `Intake.instructions` is free-text
+*user/prescription* notes (*"e.g. 'take with food', 'avoid grapefruit'"*), not manufacturer labelling.
+`apps/scan/services/medicine_lookup.py` (RxNav + openFDA **NDC directory** + OpenAI fallback) is **scan-time
+IDENTIFICATION only** — consumed solely by `apps/scan/views.py` for barcode prefill, **not** in the truth catalog,
+**not** a CoS tool, persists nothing. No DailyMed / package insert / monograph / label source exists anywhere.
+**The model was structurally forced to improvise.**
+
+**First failing layer: Layer 1 (Truth), two defects.** Reasoning did its job — it retrieved, and it resolved the
+branch from real truth; it then hit a hole and filled it.
+- **A — semantic mislabelling** (no architecture needed): adherence bookkeeping exposed as plan/administration truth.
+- **B — missing authority** (architecture decision required): no deterministic product-instruction source.
+
+**STOPPED before implementing, per instruction.** Option 3 (an openFDA `/drug/label.json` →
+`dosage_and_administration` surface) is **not** "expose what exists": `Intake` stores only a free-text `name` (no
+NDC, no rxcui) and the wired client calls a *different* endpoint — so it needs name→product resolution, a new
+endpoint, and a **new KIND of truth: impersonal REFERENCE truth** (about a product, not a user), where every surface
+today is user-scoped. Constitutionally viable (WLJ would own retrieval/caching/provenance/**verbatim** exposure —
+never paraphrasing a label — and must be background-cached, never request-path outbound), but it is an architecture
+decision and therefore Danny's.
+
+**Recommended:** fix **A** immediately (move `grace_period_minutes` out of `plan` into adherence/standing, label it,
+correct the semantics line, contract-test that WLJ never exposes an adherence tolerance as prescribing guidance);
+then **B** as Option 2 (a *bounded* deferral of the specific missed-dose rule — narrow, not the old blanket punt)
+as an immediate safety floor, with Option 3 opened as its own architecture review if the CoS should own this class.
+
+**No code changed. No real-model call spent.**
+
+---
 ## 2026-08-21 — fix(cos): move own-record grounding into the model's FIRST internal question (Option B) — test the answer you are about to give, not the topic they named
 
 **Classified as a distinct defect.** Truth exists · the medicine surface now advertises what it holds · capability

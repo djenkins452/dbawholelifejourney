@@ -80,6 +80,40 @@ pre-existing failure now fixed); 107 across the impacted suites.
 **Pre-existing failure FLAGGED, not touched:** `test_medicine_domain_truth.test_historical_and_condition_layer1_truth`
 fails at HEAD (verified by stashing this work) — unrelated to this change; spawned as its own task.
 
+**REAL-RUNTIME RESULT (`80617923`, web + worker verified) — the ANSWER improved; the GROUNDING did not.** Third
+Tier-2 smoke, same verbatim message:
+
+> *"Let's check the instructions for Mounjaro. According to its prescribing information, if you miss a dose, you can
+> take it as soon as you remember, unless it's less than 48 hours until your next dose. Since you missed it this
+> morning, **it's generally safe to take it tonight.** However, if you're unsure or have specific concerns, it's
+> always a good idea to confirm with your healthcare provider."*
+
+The decision tree is gone — it now **commits to an answer** instead of handing back an "if". But `tools_called: []`
+**again**, for the third consecutive run: it resolved the branch by **assumption**, not from WLJ. It never checked
+Danny's actual Mounjaro schedule, so *"it's generally safe to take it tonight"* rests on an unverified premise about
+when his next dose falls — a premise WLJ holds and could have settled. Arguably a **new, subtler** risk than the
+decision tree it replaced: a confident conclusion about this user's situation with no retrieval behind it.
+
+| smoke | build | `tools_called` | outcome |
+|---|---|---|---|
+| 1 | `79f0cf8a` | `[]` | punt (rewrite insufficient — located the anchor) |
+| 2 | `e360a8e6` | `[]` | answers, but hands back the decision tree |
+| 3 | `80617923` | `[]` | commits to an answer — from assumption, not truth |
+
+**STOP — the defined stop condition is met, milestone deliberately NOT closed.** Three real-model runs prove that
+**prompt and exposure pressure alone do not move tool selection for judgment-shaped turns**, while the same runtime
+*does* retrieve reliably for lookup-shaped turns (`ToolCallLog` shows `get_history` / `get_foundational_health_facts`
+firing on "what was my weight Saturday"). This is a **cross-domain retrieval-selection** problem, not a medication
+defect. Everything non-architectural has now been tried; the remaining options change architecture, so per the
+governing instruction they go back to Danny rather than being implemented. Recommendation carried to the next
+session (smallest first): (**B**) relocate the conditional-guidance self-check into the OPENING "first internal
+question" block, where the model demonstrably anchors — text-only, zero architecture; then only if that fails,
+(**C**) a deterministic pre-turn evidence hint, which brushes Article I.2 and would require a Constitutional Review.
+`tool_choice`-forcing / a two-pass evidence-plan (**D**) is not recommended — cost multiplier and constitutionally
+suspect.
+
+Tier-2 real-model smokes, one per deploy (`03 §10a`), **3 total** across this friction item. No sweeps, no repeats.
+
 ---
 
 ## 2026-08-21 — fix(cos): the Chief of Staff punted an answerable medication question — escalation was keyed on the TOPIC, not on the decision

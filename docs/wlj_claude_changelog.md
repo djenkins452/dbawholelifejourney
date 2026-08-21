@@ -71,7 +71,40 @@ correction, not a capability, a detector, or a reasoning engine inside WLJ.
 is gone, answerable questions must be answered, bare referrals forbidden, the user's own record retrieved first, the
 escalation boundary intact, **and no drug/phrase hardcoding** (`mounjaro` / `tirzepatide` / `forgot my dose` must not
 appear anywhere in the prompt). Plus `test_constitution_contract` + `test_intent_registration` (20) and
-`test_model_interface_runtime` (32) green. One Tier-2 post-deploy real-model smoke on the deployed build (`03 §10a`).
+`test_model_interface_runtime` (32) green. 
+
+**The first post-deploy smoke FAILED — and found the real blocking clause.** Deployed `79f0cf8a` (web + worker
+verified), then ran ONE Tier-2 real-model turn with the verbatim production message. Result: still
+`tools_called: []`, still a deflection — *"I can't provide personalized medical advice … check the medication guide
+that came with your prescription … consult your pharmacist."* Rewriting Level 3 was **not sufficient**, because the
+model was anchoring on the policy's opening hard prohibition, not on Level 3:
+
+> *"You never diagnose, never prescribe, and never tell the user to start, stop, increase, or decrease a
+> medication … that judgment belongs to their licensed clinician."*
+
+That sentence **conflates CHANGING a regimen with FOLLOWING one already prescribed.** "Should I take tonight's
+missed dose?" reads as "tell me to take a medication", so the model refused. The condition is therefore broader than
+first diagnosed and had to be removed at the anchor:
+
+5. **CHANGING a regimen ≠ FOLLOWING one already prescribed** (added directly to the hard prohibition, where the model
+   anchors) — *"READ THAT PROHIBITION EXACTLY: it covers CHANGING a regimen, and nothing more."* How a medicine the
+   user **already takes** is meant to be taken — timing, administration, with/without food, storage, and what its
+   approved labelling directs for a dose taken **late, missed, or doubled** — is published instruction that came WITH
+   the prescription, identical for everyone taking it. *"Withholding it is not caution; it is refusing to read the
+   user something they already own."* Any actual CHANGE still goes to the clinician.
+6. **Pointing at an answer is not answering it.** The floor now names every empty form the real runtime actually
+   produced — *"I can't provide personalized medical advice"*, *"check the medication guide"*, *"consult your
+   pharmacist"*, *"guidance based on your specific situation"* — as **the same forbidden failure**: each *"POINTS AT
+   an answer instead of giving it."* If the labelling is known, say it; if genuinely unknown, say that plainly.
+7. **Retrieval made concrete** — the truth tool is named (`get_entity` returns dose, frequency, full schedule,
+   recorded instructions, last taken), and a health question about something WLJ tracks *"must never be answered — or
+   refused — without looking."*
+
+**Lesson (durable):** a prompt-layer fix is not verified by the prompt containing the new words. The Tier-2 smoke is
+what proved the first rewrite changed the text without changing the behaviour — and what located the clause the model
+was actually anchoring on. Contract tests assert the prompt; only the real runtime asserts the product.
+
+Tier-2 post-deploy real-model smoke per deploy (`03 §10a`): 1 on `79f0cf8a` (FAILED — diagnostic), 1 on the follow-up.
 
 ---
 

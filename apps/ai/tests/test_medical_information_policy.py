@@ -153,6 +153,37 @@ class UnnecessaryDeflectionContractTests(TestCase):
         self.assertIn("before answering", self.low)
         self.assertIn("never a substitute for retrieving", self.low)
 
+    # -- 4b. changing a regimen vs following one already prescribed -----------
+    def test_following_a_prescribed_regimen_is_not_a_change_to_it(self):
+        """The blocking clause proven by the first post-deploy smoke: the hard
+        prohibition ('never tell the user to start, stop, increase, or decrease…')
+        was read as covering how to FOLLOW an already-prescribed regimen, so the
+        model refused administration questions as 'personalized medical advice'."""
+        self.assertIn("it covers changing a regimen, and nothing", self.low)
+        self.assertIn("following the regimen the user was already prescribed is not a change",
+                      self.low)
+        self.assertIn("not prescribing", self.low)
+        self.assertIn("not personalized medical advice", self.low)
+        # the administration facets that are explicitly answerable
+        for facet in ("timing", "with or without food", "how it is stored",
+                      "late, missed, or doubled"):
+            self.assertIn(facet, self.low)
+        self.assertIn("withholding it is not caution", self.low)
+
+    def test_pointing_at_an_answer_is_forbidden_as_the_answer(self):
+        """Every empty-deflection form the real runtime actually produced is named."""
+        for form in ("i can't provide personalized medical advice",
+                     "check the medication guide",
+                     "consult your pharmacist",
+                     "guidance based on your specific situation"):
+            self.assertIn(form, self.low)
+        self.assertIn("points at an answer instead of giving it", self.low)
+        self.assertIn("if you know what the labelling or the guideline says, say it", self.low)
+
+    def test_retrieval_names_the_actual_truth_tool(self):
+        self.assertIn("get_entity", CONSTITUTION)
+        self.assertIn("never be answered — or refused — without looking", self.low)
+
     # -- 5. the safety boundary is NOT weakened -------------------------------
     def test_escalation_boundary_remains_intact(self):
         # the hard prohibitions survive verbatim

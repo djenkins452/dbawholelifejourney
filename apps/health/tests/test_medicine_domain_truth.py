@@ -429,33 +429,44 @@ class MedicineDomainTruthTests(TestCase):
     def test_historical_and_condition_layer1_truth(self):
         # Layer 1 medication HISTORY + condition mapping — answered deterministically from
         # canonical truth (Intake lifecycle + MedicationEvent ledger + purpose), SAE off.
-        from datetime import date
         from apps.health.models import Intake, MedicationEvent
         from apps.ai.chatgpt_cos.foundational_facts import answer_foundational_fact
 
-        def med(name, purpose="", start=date(2026, 1, 1), end=None, category="prescription"):
+        # Fixture dates are ANCHORED TO THE USER'S TODAY, never hard-coded: the
+        # program-change surface answers a rolling "last 90 days" window, so absolute
+        # fixture dates silently fall out of that window as real time passes (they did —
+        # this test decayed once the seeded events aged past 90 days). Relative anchors
+        # keep the window question meaning the same thing forever.
+        long_ago = self.today - timedelta(days=220)     # long-standing meds
+        lisin_start = self.today - timedelta(days=190)
+        mounj_start = self.today - timedelta(days=160)
+        stopped_on = self.today - timedelta(days=45)    # INSIDE the 90-day window
+        dose_changed_on = self.today - timedelta(days=30)   # INSIDE the 90-day window
+        as_of = self.today - timedelta(days=20)         # after OldStatin ended
+
+        def med(name, purpose="", start=None, end=None, category="prescription"):
             return Intake.objects.create(
                 user=self.user, name=name, dose="10mg", frequency="daily",
-                start_date=start, end_date=end, intake_status="active",
+                start_date=start or long_ago, end_date=end, intake_status="active",
                 intake_type="medication", category=category, purpose=purpose)
         metf = med("Metformin", "diabetes / blood sugar")
-        med("Lisinopril", "blood pressure", start=date(2026, 2, 1))
+        med("Lisinopril", "blood pressure", start=lisin_start)
         med("Atorvastatin", "high cholesterol")
-        mounj = med("Mounjaro", "diabetes", start=date(2026, 3, 1))
-        old = med("OldStatin", "cholesterol", start=date(2026, 1, 1), end=date(2026, 5, 1))
+        mounj = med("Mounjaro", "diabetes", start=mounj_start)
+        old = med("OldStatin", "cholesterol", end=stopped_on)
         MedicationEvent.objects.create(user=self.user, intake=mounj, event_type="dose_changed",
-                                       effective_date=date(2026, 5, 15),
+                                       effective_date=dose_changed_on,
                                        previous_value={"dose": "5mg"}, new_value={"dose": "10mg"})
         MedicationEvent.objects.create(user=self.user, intake=old, event_type="discontinued",
-                                       effective_date=date(2026, 5, 1),
-                                       new_value={"end_date": "2026-05-01"})
+                                       effective_date=stopped_on,
+                                       new_value={"end_date": stopped_on.isoformat()})
 
         def ans(q):
             with _sae_disabled():
                 return (answer_foundational_fact(self.user, q) or {}).get("answer", "")
 
         # lifecycle: start date
-        self.assertIn("2026-01-01", ans("When did I start Metformin?"))
+        self.assertIn(long_ago.isoformat(), ans("When did I start Metformin?"))
         # condition mapping (synonym-aware)
         self.assertIn("Metformin", ans("Which prescriptions are for diabetes?"))
         self.assertIn("Lisinopril", ans("Which prescriptions are for blood pressure?"))
@@ -463,7 +474,7 @@ class MedicineDomainTruthTests(TestCase):
         self.assertNotIn("Metformin", ans("Which prescriptions are for cholesterol?"))
         # dose-change history
         a = ans("When did my Mounjaro dose change?")
-        self.assertIn("2026-05-15", a)
+        self.assertIn(dose_changed_on.isoformat(), a)
         self.assertIn("5mg", a)
         self.assertIn("10mg", a)
         # discontinued / stopped
@@ -471,10 +482,10 @@ class MedicineDomainTruthTests(TestCase):
         # program change over a window
         a = ans("Has my medication program changed over the last 90 days?")
         self.assertTrue("Mounjaro" in a or "OldStatin" in a)
-        # point-in-time inventory
-        a = ans("What was I taking on June 1?")
+        # point-in-time inventory (natural month-name date, anchored to today)
+        a = ans(f"What was I taking on {as_of:%B} {as_of.day}?")
         self.assertIn("Metformin", a)
-        self.assertNotIn("OldStatin", a)          # ended before June 1
+        self.assertNotIn("OldStatin", a)          # ended before that date
 
     def test_short_name_resolves_fuller_stored_name(self):
         # Production failure: med stored "Metformin HCL ER", user asks "Metformin" — the

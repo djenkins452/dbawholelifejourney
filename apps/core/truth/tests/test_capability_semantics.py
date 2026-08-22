@@ -94,8 +94,8 @@ class OwnRecordGroundingContractTests(SimpleTestCase):
         """`medicine_queries` returns schedule, instructions, grace period and
         last-taken; the advertisement must say so or the surface is undiscoverable."""
         desc = domain_semantics("medicine")["entities"]["medication"].lower()
-        for fact in ("schedule", "instruction", "last taken", "grace period",
-                     "dose", "adherence"):
+        for fact in ("schedule", "recorded_instructions", "last taken",
+                     "marked_late_after_minutes", "dose", "adherence"):
             self.assertIn(fact, desc,
                           f"medication entity must disclose {fact!r}: {desc!r}")
 
@@ -106,8 +106,8 @@ class OwnRecordGroundingContractTests(SimpleTestCase):
 
         from apps.health.services import medicine_queries
         src = inspect.getsource(medicine_queries).lower()
-        for key in ("instructions", "schedule_detail", "grace_period_minutes",
-                    "last_taken", "adherence"):
+        for key in ("recorded_instructions", "schedule_detail",
+                    "marked_late_after_minutes", "last_taken", "adherence"):
             self.assertIn(key, src,
                           f"advertised fact {key!r} is not produced by the surface")
 
@@ -307,9 +307,11 @@ class DecidingFactsAreConsultableContractTests(TestCase):
         detail = plan.get("schedule_detail") or []
         self.assertTrue(detail, "no schedule_detail exposed — 'which days' is unanswerable")
         self.assertEqual(detail[0].get("days_of_week"), "0")
-        # HOW LATE still counts, and HOW it is taken
-        self.assertEqual(plan.get("grace_period_minutes"), 60)
-        self.assertEqual(plan.get("instructions"), "Take with food.")
+        # HOW it is taken, per THIS person's record. The adherence tolerance is
+        # deliberately NOT in `plan` — see SemanticCategoryContractTests below.
+        self.assertEqual(plan.get("recorded_instructions"), "Take with food.")
+        self.assertIsNone(plan.get("grace_period_minutes"),
+                          "adherence bookkeeping must not live in `plan`")
         # WHEN it was last taken — the other half of a missed-dose decision
         self.assertIn("last_taken", (d.get("performance") or {}))
 
@@ -318,6 +320,114 @@ class DecidingFactsAreConsultableContractTests(TestCase):
         The advertisement must name the deciding facts, not just 'your medications'."""
         text = (domain_semantics("medicine").get("entities", {})
                 .get("medication", "")).lower()
-        for fact in ("schedule", "grace period", "instructions", "last taken"):
+        for fact in ("schedule", "marked_late_after_minutes",
+                     "recorded_instructions", "last taken"):
             self.assertIn(fact, text,
                           f"the medicine entity advertisement hides {fact!r}: {text!r}")
+
+
+class SemanticCategoryContractTests(TestCase):
+    """Contract — WLJ EXECUTION BOOKKEEPING MUST NEVER MASQUERADE AS PRESCRIBING
+    GUIDANCE.
+
+    Production friction 2026-08-21: after correctly retrieving the user's medication
+    record, the CoS said *"it has a 60-minute grace period for a late dose"* in a
+    sentence about how to take the medicine. `grace_period_minutes` is adherence
+    bookkeeping — `models.py:2497`, default 60, "minutes after scheduled time before
+    marking as overdue"; its only consumers classify a log TAKEN vs LATE; the identical
+    field with the identical default exists on the WORKOUT PLAN model. It was exposed
+    as a bare unitless integer inside a block named `plan`, next to `schedule` and
+    `instructions`, which is why it read as administration guidance.
+
+    These tests assert the CATEGORY BOUNDARY, not any wording of any answer.
+    """
+
+    def setUp(self):
+        from datetime import date, time
+
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        from apps.health.models import Intake, IntakeSchedule
+        from apps.users.models import TermsAcceptance
+        self.user = get_user_model().objects.create_user(
+            email="semantic-category@test.com", password="x")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        self.med = Intake.objects.create(
+            user=self.user, name="CategoryProbe", dose="10mg", frequency="weekly",
+            start_date=date(2026, 1, 1), intake_status="active",
+            intake_type="medication", category="prescription",
+            grace_period_minutes=45, instructions="Take with food.")
+        IntakeSchedule.objects.create(intake=self.med, scheduled_time=time(7, 0),
+                                      days_of_week="0", is_active=True)
+
+    def _entity(self):
+        from apps.health.services.medicine_queries import MedicineQueries
+        ents = [e for e in MedicineQueries.describe(self.user)
+                if e.identity == "CategoryProbe"]
+        self.assertEqual(len(ents), 1)
+        return ents[0].to_dict()
+
+    # -- the lateness tolerance is adherence truth, never plan truth ----------
+    def test_adherence_tolerance_is_not_in_plan(self):
+        plan = self._entity().get("plan") or {}
+        for banned in ("grace_period_minutes", "grace_period", "grace"):
+            self.assertNotIn(banned, plan,
+                             "an adherence tolerance must never appear in `plan`, "
+                             "where it reads as administration guidance")
+
+    def test_adherence_tolerance_lives_with_adherence_and_is_labelled(self):
+        standing = self._entity().get("standing") or {}
+        track = standing.get("adherence_tracking")
+        self.assertIsInstance(track, dict, "adherence tolerance must be a labelled block")
+        self.assertEqual(track.get("marked_late_after_minutes"), 45)
+        means = (track.get("means") or "").lower()
+        self.assertTrue(means, "the value must travel with its meaning, never bare")
+        self.assertIn("adherence", means)
+        self.assertIn("not dosing", means)
+
+    def test_the_value_is_never_exposed_as_a_bare_number(self):
+        """The specific defect: a unitless integer the model must interpret alone."""
+        import json
+        d = self._entity()
+        for block in ("plan", "definition"):
+            self.assertNotIn(45, (d.get(block) or {}).values(),
+                             f"bare adherence integer leaked into `{block}`")
+        # wherever it does appear, the word 'late' is in the key itself
+        blob = json.dumps(d)
+        self.assertIn("marked_late_after_minutes", blob)
+
+    # -- personal regimen notes are not product labelling --------------------
+    def test_recorded_instructions_are_named_as_recorded_not_authoritative(self):
+        plan = self._entity().get("plan") or {}
+        self.assertEqual(plan.get("recorded_instructions"), "Take with food.")
+        self.assertNotIn("instructions", plan,
+                         "a bare `instructions` key reads as the product's labelling")
+
+    def test_advertisement_states_wlj_holds_no_product_labelling(self):
+        """The model must be told the gap exists rather than inferring the label
+        from a personal note (the improvisation observed in the same response)."""
+        desc = domain_semantics("medicine")["entities"]["medication"].lower()
+        self.assertIn("no manufacturer or product", desc)
+        self.assertIn("never a substitute for the label", desc)
+        # and the bookkeeping boundary is stated, not the old ambiguous phrasing
+        self.assertIn("wlj bookkeeping", desc)
+        self.assertIn("no prescribing", desc)
+        self.assertNotIn("the grace period for a late dose", desc)
+
+    # -- audit: WLJ classifications are named as WLJ's, not clinical ---------
+    def test_wlj_tracking_priority_is_not_presented_as_clinical_severity(self):
+        """Same defect class, same surface: `priority` defaults to 'critical', so most
+        records carry an untouched default that reads as a severity assessment."""
+        definition = self._entity().get("definition") or {}
+        self.assertNotIn("priority", definition)
+        self.assertIn("wlj_tracking_priority", definition)
+
+    # -- the underlying field and adherence behaviour are UNCHANGED ----------
+    def test_this_is_a_presentation_fix_not_an_adherence_redesign(self):
+        from apps.health.models import Intake
+        self.med.refresh_from_db()
+        self.assertEqual(self.med.grace_period_minutes, 45)
+        self.assertEqual(Intake._meta.get_field("grace_period_minutes").default, 60)

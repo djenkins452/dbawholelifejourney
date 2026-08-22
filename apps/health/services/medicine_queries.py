@@ -199,17 +199,39 @@ class MedicineQueries:
                                           if hasattr(m, "get_frequency_display")
                                           else _g("frequency")),
                             "is_prn": bool(getattr(m, "is_prn", False)),
-                            "priority": _g("priority") or None,
+                            # WLJ TRACKING PRIORITY, not a clinical grading. Model default
+                            # is "critical", so most records carry an untouched default no
+                            # one set — exposed as a bare "priority" it reads as a severity
+                            # assessment of the drug. Named for what it is.
+                            "wlj_tracking_priority": _g("priority") or None,
                             "intake_subtype": _g("intake_subtype") or None},
                 status=m.intake_status,
+                # PLAN = what is SUPPOSED to happen for THIS person. Every key here is
+                # PERSONAL regimen truth. Keys are deliberately self-describing
+                # (`recorded_*` = recorded in WLJ by the user/their prescription) because
+                # the model reads them without the field's help_text: WLJ holds NO
+                # manufacturer labelling, and a user note must never be mistaken for it.
+                # `grace_period_minutes` is NOT here on purpose — it is adherence
+                # bookkeeping, not plan truth (see `standing.adherence_tracking`).
                 plan={"schedule": times,
                       "schedule_detail": schedule_detail,
-                      "grace_period_minutes": _g("grace_period_minutes"),
                       "start_date": (m.start_date.isoformat() if _g("start_date") else None),
                       "end_date": (m.end_date.isoformat() if _g("end_date") else None),
-                      "instructions": (_g("instructions") or "").strip() or None,
-                      "monitoring": (_g("monitoring_requirements") or "").strip() or None},
+                      "recorded_instructions": (_g("instructions") or "").strip() or None,
+                      "recorded_monitoring": ((_g("monitoring_requirements") or "").strip()
+                                              or None)},
                 standing={"today": standing,
+                          # WLJ EXECUTION BOOKKEEPING — how long after the scheduled time
+                          # WLJ waits before flagging this dose late. A tracking tolerance
+                          # (platform default 60), identical in kind to the workout-plan
+                          # field of the same name. It carries NO prescribing meaning and
+                          # must never read as an administration instruction, so it lives
+                          # with adherence, never in `plan`, and never as a bare integer.
+                          "adherence_tracking": {
+                              "marked_late_after_minutes": _g("grace_period_minutes"),
+                              "means": ("WLJ adherence tracking only — when WLJ flags this "
+                                        "dose late. NOT dosing or administration guidance."),
+                          },
                           "paused_at": (m.paused_at.isoformat() if _g("paused_at") else None),
                           "paused_reason": (_g("paused_reason") or "").strip() or None,
                           "refill": {"current_supply": _g("current_supply"),

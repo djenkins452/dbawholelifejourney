@@ -103,14 +103,24 @@ DOMAIN_SEMANTICS = {
             # The record carries far more than a name: disclose what it actually
             # RETURNS, so the model can tell that this surface answers questions about
             # how a medicine is taken — not merely "list my medications".
-            "medication": ("A prescribed medication AND the full detail of how the "
-                           "person takes it: dose and unit, purpose, frequency, whether "
+            "medication": ("A prescribed medication AND the full detail of how THIS "
+                           "PERSON takes it: dose and unit, purpose, frequency, whether "
                            "it is as-needed, the complete schedule (times AND which days "
-                           "of the week), the grace period for a late dose, the "
-                           "instructions recorded with the prescription, start/end dates, "
-                           "pauses, today's per-dose taken/missed/pending state, WHEN IT "
-                           "WAS LAST TAKEN, refill/supply state, and 7/30/90-day "
-                           "adherence."),
+                           "of the week), start/end dates, pauses, the instructions "
+                           "RECORDED IN WLJ by them or their prescription "
+                           "(`recorded_instructions`), today's per-dose "
+                           "taken/missed/pending state, WHEN IT WAS LAST TAKEN, "
+                           "refill/supply state, and 7/30/90-day adherence. "
+                           "TWO BOUNDARIES, both absolute. (1) This is the person's own "
+                           "REGIMEN truth — WLJ holds NO manufacturer or product "
+                           "labelling, so nothing here states what the PRODUCT's approved "
+                           "instructions say (about a missed or late dose, or anything "
+                           "else); `recorded_instructions` is a personal note, never a "
+                           "substitute for the label. (2) `standing.adherence_tracking."
+                           "marked_late_after_minutes` is WLJ BOOKKEEPING — when WLJ flags "
+                           "a dose late for adherence — and carries NO prescribing "
+                           "meaning: it never indicates how late a dose may safely be "
+                           "taken."),
             "supplement": ("A supplement the person takes — same recorded detail as a "
                            "medication (dose, schedule, instructions, last taken, "
                            "adherence)."),

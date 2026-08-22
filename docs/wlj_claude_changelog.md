@@ -5,6 +5,63 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-22 — fix(truth): WLJ adherence bookkeeping can no longer masquerade as prescribing guidance (Part A)
+
+**The proven defect.** After correctly retrieving Danny's medication record, the CoS said *"it has a **60-minute
+grace period for a late dose**"* inside a sentence about how to take the medicine. `grace_period_minutes` is
+**adherence bookkeeping** — `models.py:2497`, `default=60`, *"Minutes after scheduled time before marking as
+overdue"*; its only two non-test consumers (`IntakeLog.was_taken_on_time`, `mark_taken`) do exactly one thing:
+classify a log `TAKEN` vs `LATE`. The identical field with the identical default exists on the **workout plan**
+model, and `ai_state/time_intelligence.py:136` independently documents the same reading. It carries **zero**
+prescribing meaning. Investigation: `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md`.
+
+**Why it read as clinical guidance.** It was serialized as a **bare, unitless, unlabelled integer inside a block
+named `plan`**, adjacent to `schedule`, `start_date` and `instructions`. Nothing told the model it was bookkeeping.
+
+**The correction — presentation only; the field and all adherence behaviour are UNCHANGED.**
+- **Moved out of `plan`** (what is supposed to happen) into `standing.adherence_tracking` (what is happening vs
+  plan), where adherence truth belongs, and **never as a bare number**:
+  `{"marked_late_after_minutes": 60, "means": "WLJ adherence tracking only — when WLJ flags this dose late. NOT
+  dosing or administration guidance."}` The key itself now carries the semantics.
+- **`instructions` → `recorded_instructions`** and **`monitoring` → `recorded_monitoring`.** Same class of defect:
+  a bare `instructions` key reads as *the product's* labelling, when the field is free text the user or their
+  prescription recorded in WLJ (help_text: *"e.g. 'take with food', 'avoid grapefruit'"*). `recorded_*` names the
+  provenance in the key, where the model actually reads it.
+- **Audit of the same surface — `priority` → `wlj_tracking_priority`.** Identical defect: the model default is
+  `critical`, so most records carry an **untouched default nobody set**, and a bare `"priority": "critical"` reads
+  as a clinical severity assessment of the drug. `category` was reviewed and left alone (factual classification,
+  not a judgment). Nothing outside this serialization surface was touched.
+- **Capability semantics corrected** (`semantics.py`): the old *"the grace period for a late dose"* — ambiguous
+  phrasing added 2026-08-21 that made this likelier — is replaced by **two explicit boundaries**: (1) this is the
+  person's own REGIMEN truth and **WLJ holds no manufacturer or product labelling**, so `recorded_instructions` is
+  *"a personal note, never a substitute for the label"*; (2) `marked_late_after_minutes` is WLJ bookkeeping with
+  *"no prescribing meaning: it never indicates how late a dose may safely be taken."* Telling the model the gap
+  EXISTS is what stops it inferring the label from a personal note.
+
+**Files:** `apps/health/services/medicine_queries.py`, `apps/core/truth/semantics.py`,
+`apps/core/truth/tests/test_capability_semantics.py`.
+
+**Regression coverage — new `SemanticCategoryContractTests`, asserting the CATEGORY BOUNDARY, never any answer
+wording:** an adherence tolerance may never appear in `plan`; it lives with adherence and travels with its meaning;
+it is never exposed as a bare integer (asserted against the actual serialized values); `recorded_instructions` is
+named as recorded, not authoritative; the advertisement states WLJ holds no product labelling and no longer carries
+the old ambiguous phrase; WLJ classifications are named as WLJ's; **and the underlying field + default are
+unchanged** (this is a presentation fix, not an adherence redesign). 31/31 in that module; 205 across the scoped
+impacted suites.
+
+**Verification: Tier 1 only, ZERO provider calls.** No real-model smoke — this is a deterministic serialization
+correction whose payload is asserted directly by contract tests; the next real-model verification is deferred to
+Part B. Two tests in `test_capability_semantics.py` written by a concurrent session asserted the OLD shape
+(`plan["grace_period_minutes"]`, `plan["instructions"]`); their intent (deciding facts are disclosed and
+consultable) is preserved with category-correct names.
+
+**Pre-existing failure FLAGGED, not touched:** `test_medicine.MedicineContextTest
+.test_medicine_home_adherence_uses_canonical_util` (`medication_adherence_7d` is `None` in the view context) fails
+identically with this work stashed — unrelated to serialization.
+
+**Part B (authoritative medication reference truth) is design-only and NOT implemented — see the investigation doc.**
+
+---
 ## 2026-08-21 — investigation: medication INSTRUCTION truth — WLJ owns none, and an adherence field is being read as prescribing guidance (NO CODE CHANGED)
 
 **Origin:** the smoke that proved own-record grounding (`a4995dcd`) also exposed a new trust defect. The CoS

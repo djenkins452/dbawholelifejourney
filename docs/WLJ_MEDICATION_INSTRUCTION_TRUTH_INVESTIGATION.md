@@ -1,6 +1,6 @@
 # WLJ — Medication Instruction Truth: Investigation
 
-**Status:** INVESTIGATION COMPLETE · **NO CODE CHANGED** · awaiting Danny's architecture decision
+**Status:** Part A **SHIPPED** (`3770cc41`) · Part B **DESIGN ONLY — awaiting Danny's decision**
 **Date:** 2026-08-21 · **Origin:** the successful own-record-grounding smoke (`a4995dcd`)
 **Governing:** `02_WLJ_CONSTITUTION.md` (I.1, I.2, I.4, IV.2, IV.4) · `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`
 
@@ -123,3 +123,213 @@ The verified serialization shows `instructions: null` for a blank record, and th
 so Danny's Mounjaro record almost certainly has empty `instructions`. **Not proven:** the audit ledger stores
 envelope metadata only (by design), so the stored value cannot be read from it. Confirm in the app if it matters —
 though the class holds either way, since that field is regimen notes, not manufacturer labelling.
+
+---
+
+# PART B — Authoritative Medication Reference Truth: architecture recommendation
+
+**Status:** DESIGN ONLY · **NOT IMPLEMENTED** · awaiting Danny's decision
+**Date:** 2026-08-22 · Part A (the semantic-category fix) shipped separately in `3770cc41`.
+
+## B1. The requirement, stated once
+
+> The CoS sometimes needs **authoritative impersonal reference truth** in addition to the user's personal
+> deterministic truth.
+
+Scoped for this milestone to **medication product information only**. The design must not *prevent* later
+generalization, but nothing here builds a universal reference-truth platform.
+
+Three concepts stay explicitly separate, end to end:
+
+| # | Kind | Owner | Scope | Example |
+|---|---|---|---|---|
+| 1 | **Personal medication truth** | `medicine` domain (exists, certified) | user-scoped | *Danny takes Mounjaro, weekly, 7:00 AM Sunday, last taken …* |
+| 2 | **Authoritative reference truth** | **new** `medication_reference` domain | **impersonal** — about a PRODUCT | *"If a dose is missed, administer within N days …"* (verbatim, with provenance) |
+| 3 | **Reasoning** | the conversational model | — | combines 1 + 2 to answer *"can I take it tonight?"* |
+
+**WLJ must never precompute the medical judgment.** It supplies #1 and #2; the model does #3.
+
+## B2. Source comparison — PROVEN against the live APIs (public data only; no user data transmitted)
+
+| Source | Authoritative for | Not authoritative for | Evidence gathered |
+|---|---|---|---|
+| **RxNorm / RxNav** (NLM) | **Drug IDENTITY** — normalized concepts (RXCUI), ingredient/brand/clinical-drug relationships, NDC↔RXCUI | Label text. Any clinical instruction | `rxcui.json?name=Ozempic` → `1991307`. **Also returns `4419` for "fish oil"** — a successful RXCUI does **not** imply a drug label exists |
+| **DailyMed** (NLM/NIH) | **LABEL CONTENT** — the official repository of FDA-approved SPL documents; `setid` + `spl_version` + `published_date` | Identity normalization | `spls.json?drug_name=Ozempic` → **7 SPLs**, incl. a repackager and the manufacturer of record; supports `rxcui=` |
+| **openFDA `/drug/label.json`** | Convenient **JSON index over the same SPL data**; `openfda` block carries rxcui/NDC/brand/generic | Being the source of record; its own terms disclaim clinical decision-making | `brand_name:"Ozempic"` → **3 SPLs**, distinct `set_id`/`version`/`effective_time`; `dosage_and_administration` present and contains the exact fact class needed |
+
+**Recommendation: use both, for different jobs.**
+- **RxNorm/RxNav = the identity authority.**
+- **DailyMed = the authoritative source of record for label text** (NLM's official SPL repository, versioned).
+- **openFDA = a convenience index** for search/section extraction — never cited as the authority, and never the only
+  source relied upon. Cite DailyMed `setid` + `spl_version` as provenance.
+
+## B3. The identity chain — PROVEN NECESSARY, because name search attaches the WRONG label
+
+The user's instruction was to prove this rather than assume it. **Name search is not merely imprecise — it is
+actively dangerous:**
+
+- **DailyMed's top name-match for "Ozempic" is an SPL titled `OZEMPIC (ORAL SEMAGLUTIDE) TABLET RYBELSUS (ORAL
+  SEMAGLUTIDE) TABLET`** — an **oral tablet**, a different product and a different administration route from the
+  Ozempic **injection**. A naive first-hit implementation would attach tablet instructions to an injectable.
+- **One brand returns many SPLs** (openFDA 3, DailyMed 7), spanning **repackagers** (`A-S MEDICATION SOLUTIONS`) and
+  the **manufacturer of record** (`NOVO NORDISK`), with different `spl_version` and `published_date`.
+- **A multi-source generic is unresolvable by name: `openfda.generic_name:"IBUPROFEN"` → 1,185 distinct SPLs.**
+- **A supplement has no drug label at all:** `fish oil` → openFDA `NOT_FOUND`, while RxNav still returns an RXCUI.
+
+### Proposed chain (every step must succeed, or the whole thing fails closed)
+
+```
+Intake.name (free text)
+  → RxNav approximate/exact match ────────────────► RXCUI            [identity gate]
+  → RXCUI + dosage form/route ────────────────────► candidate SPLs   [DailyMed rxcui= / openFDA]
+  → filter: labeler = manufacturer of record,
+            route/dosage form consistent          ► ONE SPL lineage  [product gate]
+  → newest spl_version for that setid ────────────► THE label        [version gate]
+  → extract `dosage_and_administration` VERBATIM  ► reference fact   [content gate]
+```
+
+### Is brand/generic identity sufficient, or is NDC/product-level required?
+**Neither name level is sufficient on its own.** The true unit of "a label" is the **SPL `setid`**. Practically:
+
+- **Brand-name, single-manufacturer products (e.g. Mounjaro): resolvable** — after filtering to the
+  manufacturer-of-record SPL and the correct dosage form. **This covers the demonstrated failure case.**
+- **Multi-source generics (e.g. metformin ER): NOT resolvable from a name.** 1,185 candidates cannot be verified to
+  agree. These must **fail closed** until the user's actual product is known.
+- The bridge for generics later is **NDC**, which the existing **scan/barcode path already reads** — a legitimate
+  reuse, not new machinery.
+
+### Identifiers to persist (on `Intake`, all nullable, never guessed)
+`reference_rxcui` · `reference_spl_setid` · `reference_identity_confidence` (`exact` | `ambiguous` | `none`) ·
+`reference_resolved_at`. Absent = unresolved, and unresolved **never** falls back to a name lookup at answer time.
+
+## B4. Ownership boundary — one authority, no shadow
+
+- **New domain `medication_reference`**, one entity `product_label`, with **exactly one** deterministic producer
+  (Article III.1). Registered in the **existing** truth catalog.
+- **Exposed through the EXISTING `get_entity` tool** — `get_entity(domain='medication_reference', name=…)`. **No new
+  tool**, no parallel retrieval path, the **existing envelope** (`apps/core/truth/envelope.py`, freshness,
+  confidence) — so the certified Retrieval Platform gains a domain, not a rival.
+- **The `medicine` domain must NEVER serve label facts** and the reference domain must never serve personal facts.
+  This is precisely why the reference block is a separate domain rather than a `reference` key bolted onto the
+  medication entity — the latter would make `medicine` a second, informal label authority.
+- **WLJ exposes label text VERBATIM.** No summarizing, paraphrasing, ranking, or "what this means for you." The
+  moment WLJ condenses a label it is generating clinical content.
+
+## B5. Storage, freshness, provenance
+
+Canonical impersonal record — **no user FK** (the architectural novelty):
+
+```
+MedicationProductLabel
+  spl_setid (unique)      rxcui[]            brand_name  generic_name
+  dosage_form  route      labeler
+  dosage_and_administration_text   (VERBATIM)
+  spl_version   effective_time     published_date
+  source ("dailymed")     source_url         retrieved_at
+  content_hash            status (active | superseded | withdrawn)
+```
+
+Every fact leaves WLJ inside the standard envelope carrying **source · source_url · spl_version · effective_time ·
+retrieved_at · freshness**. A label older than its refresh window is returned **with its date stated**, never as
+"current".
+
+**Refresh without touching the request path** (`docs/WLJ_REQUEST_PATH_SAFETY.md`):
+- A **Celery Beat crontab** job (crontab, **not** a long interval — Railway's ephemeral filesystem resets
+  `PersistentScheduler` on restart and starves long-interval tasks).
+- Refresh scope = only products at least one user actually takes. Never the whole catalog.
+- **The truth tool performs no outbound HTTP, ever.** It reads the local row. Cache miss → return `not_available`
+  and `safe_enqueue` a background resolve.
+
+## B6. Retrieval + discovery flow
+
+1. User asks a question whose answer depends on product instructions.
+2. The model's **second internal question** (`c937ee34`) fires: *does part of this depend on a fact WLJ may hold?*
+3. It retrieves **personal** truth: `get_entity(domain='medicine', name=…)`.
+4. That entity's advertisement (Part A) currently states *"WLJ holds no manufacturer or product labelling."*
+   **On implementation this line changes** to point at the reference domain — that is the discovery mechanism, and
+   it reuses the capability-index pattern already proven to work.
+5. It retrieves **reference** truth: `get_entity(domain='medication_reference', …)`.
+6. The **model** combines 1 + 2 and answers, attributing the label.
+
+## B7. Failure behaviour — fail closed, always
+
+| Condition | Returned | CoS behaviour |
+|---|---|---|
+| Identity ambiguous (generic, multiple labelers disagreeing) | `status: identity_ambiguous` + why | Say the specific product is needed; offer to scan/confirm it. **Never** attach a candidate label |
+| No label exists (supplement, foreign product) | `status: no_label_available` | Say WLJ has no labelling for it |
+| Not yet fetched | `status: pending` + background fetch enqueued | Answer from personal truth; say product instructions aren't loaded yet |
+| Stale beyond window | returned **with** `effective_time` + staleness | Attribute and date it |
+
+In every failure the CoS falls back to the **bounded** deferral (personal truth + "the specific product instruction
+is what I don't have") — never the blanket punt eliminated in `e360a8e6`.
+
+## B8. Licensing, retention, update
+
+- SPL/DailyMed/openFDA/RxNorm are **US Government public-domain** data — storing excerpts is permissible.
+- **openFDA's own terms disclaim clinical decision-making** → cite **DailyMed** as the source of record.
+- The real risk is **staleness**, not licensing: labels change. Mitigated by `spl_version` + `effective_time` +
+  scoped refresh + never presenting an undated label as current.
+- Rate limits are modest; an API key and scoped refresh are sufficient.
+
+## B9. Reuse of the existing scan machinery
+
+`apps/scan/services/medicine_lookup.py` should **remain an identification consumer** and is **not** promoted to a
+truth authority. Its RxNav name→RXCUI call is worth extracting into a shared **background-only** client. Two things
+must **not** be inherited: its **request-path outbound HTTP**, and its **OpenAI fallback** — a model guess is the
+exact opposite of authoritative and would reintroduce this defect at the source. Its **NDC barcode reading** is the
+natural future bridge for generic identity (B3).
+
+## B10. Constitutional assessment — NO Review required (one item for Danny to note)
+
+Evaluated explicitly, not assumed:
+
+| Article | Assessment |
+|---|---|
+| **I.1** WLJ owns deterministic truth | ✅ A fetched, versioned, provenance-bearing document is deterministic truth — not a cache of the model's beliefs. **Note below.** |
+| **I.2** model owns reasoning | ✅ Strengthened. WLJ never interprets the label; it removes the improvisation that caused this defect |
+| **I.3** WLJ owns calculations | n/a |
+| **I.4** model owns interpretation/judgment | ✅ **conditional on verbatim exposure.** WLJ must never summarize a label or derive "so you may take it" |
+| **I.6** WLJ validates truth | ✅ version/effective-date/completeness validated; fail-closed |
+| **I.8** provider-agnostic | n/a |
+| **III.1** one authority per domain | ✅ one producer; and `medicine` is explicitly barred from serving label facts (B4) |
+| **III.2** one execution decision authority | n/a |
+
+**No Article is changed, weakened, or inverted → no Constitutional Review is required**, consistent with Danny's
+hypothesis.
+
+**The one thing worth his explicit note:** Article I.1's gloss reads *"the canonical facts of **a person's life**."*
+Reference truth is impersonal — about a product, not a person. That is a **scope extension, not a contradiction**,
+and it makes `medication_reference` the **first impersonal truth domain** in WLJ. Nothing is weakened, so this is an
+**ADR + Danny's explicit go**, not a Review — but he may reasonably want it recorded in the Amendment Log as a
+clarification of I.1's scope.
+
+## B11. Smallest milestone that solves the demonstrated class
+
+**M1 — one domain, one entity, ONE fact, brand-resolvable products only.**
+1. `MedicationProductLabel` model + the `medication_reference` domain truth object (one producer, catalog-registered).
+2. Identity resolver (RxNav → DailyMed by RXCUI → manufacturer-of-record + dosage-form filter → newest version),
+   **fail-closed**, background-only. Persist the four `reference_*` identifiers on `Intake`.
+3. **Only `dosage_and_administration`, verbatim, with provenance.** No other section.
+4. Celery **crontab** refresh scoped to products users take.
+5. Expose via the **existing** `get_entity`; update the `medicine` advertisement to point at it.
+6. Contract tests: fail-closed on ambiguity; never a name-only match; verbatim (no summarization); no request-path
+   HTTP; `medicine` never serves label facts.
+
+**Explicitly NOT in M1:** other label sections, interaction checking, generics via NDC, any UI, any generalization
+to non-medication reference truth. **M1 covers the demonstrated case** (Mounjaro is brand-resolvable) and correctly
+fails closed on Danny's generic metformin.
+
+## B12. Risks and open decisions for Danny
+
+1. **Coverage is partial by design.** M1 answers for brand products and fails closed on multi-source generics. Is a
+   *partially* capable CoS acceptable here, or should generics-via-NDC be in scope from the start?
+2. **First impersonal truth domain** (B10) — confirm ADR-and-go rather than an Amendment Log entry.
+3. **Verbatim-only is a product constraint.** Label text is long and clinical. The **model** may quote/condense it in
+   its answer; **WLJ** may not. Confirm that boundary.
+4. **Third-party dependency + staleness.** NLM/FDA availability and label churn become a (background, non-blocking)
+   dependency.
+5. **Repackager vs manufacturer selection** needs a deterministic, defensible rule — this is where a wrong label
+   would most plausibly slip in.
+6. **Scope discipline.** Nothing here should drift toward a general drug-knowledge base or interaction checking.
+
+**STOPPED per instruction. Nothing in Part B implemented. No real-model call spent on Part B.**

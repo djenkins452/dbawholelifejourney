@@ -5,6 +5,61 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-22 — design(truth): authoritative medication reference truth — architecture recommendation (Part B, NOT IMPLEMENTED)
+
+**Design only. No code. No provider call.** Full recommendation in
+`docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md` (Part B).
+
+**The requirement:** the CoS sometimes needs **authoritative impersonal reference truth** alongside the user's
+personal truth. Scoped to medication product information; designed so it does not *block* later generalization, but
+building no universal reference platform.
+
+**PROVEN against the live public APIs (public data only — no user data transmitted; probes used Ozempic/ibuprofen/
+fish oil, NOT Danny's medications).** Name search is not merely imprecise, it is **actively dangerous**:
+- **DailyMed's top name-match for "Ozempic" is an SPL titled `OZEMPIC (ORAL SEMAGLUTIDE) TABLET RYBELSUS …`** — an
+  **oral tablet**, a different product and route from the Ozempic **injection**. A first-hit implementation would
+  attach tablet instructions to an injectable.
+- One brand → **many SPLs** (openFDA 3, DailyMed 7), spanning **repackagers** and the **manufacturer of record**,
+  with different `spl_version` / `published_date`.
+- **`openfda.generic_name:"IBUPROFEN"` → 1,185 distinct SPLs** — multi-source generics are unresolvable by name.
+- **`fish oil` → openFDA `NOT_FOUND` while RxNav still returns RXCUI 4419** — a successful identity match does **not**
+  imply a label exists. Two separate gates.
+- The needed fact class **is** retrievable verbatim: openFDA `dosage_and_administration` yields e.g. *"If a dose is
+  missed, administer within 5 days of missed dose."*
+
+**Recommended split of authority:** **RxNorm/RxNav = identity** · **DailyMed = authoritative source of record for
+label text** (versioned `setid`/`spl_version`) · **openFDA = convenience index only** (its own terms disclaim
+clinical decision-making, so it is never cited as the authority).
+
+**Identity chain (every gate must pass or the whole thing fails closed):** name → RXCUI → candidate SPLs → filter to
+manufacturer-of-record + consistent dosage form/route → newest version → verbatim section. **Brand-name products
+resolve** (covers the demonstrated Mounjaro case); **multi-source generics fail closed** until the actual product is
+known — the future bridge is **NDC, which the existing scan/barcode path already reads.**
+
+**Ownership:** a **new impersonal domain `medication_reference`** (one entity, one producer, Article III.1),
+exposed through the **EXISTING `get_entity` tool** and the existing envelope — **no new tool, no shadow authority**.
+`medicine` is explicitly barred from serving label facts (which is why this is a separate domain rather than a
+`reference` key on the medication entity). **WLJ exposes label text VERBATIM** — the moment WLJ condenses a label it
+is generating clinical content. Refresh is a Celery **crontab** job scoped to products users actually take; **the
+truth tool never performs outbound HTTP** — cache miss returns `not_available` and enqueues.
+
+**Constitutional assessment — NO Review required** (evaluated explicitly, not assumed): I.1 ✅, I.2 ✅ (strengthened —
+it removes the improvisation), I.4 ✅ *conditional on verbatim exposure*, I.6 ✅, III.1 ✅. **One item for Danny's
+note:** I.1's gloss says *"the canonical facts of a person's life"*, and reference truth is impersonal — a **scope
+extension, not a contradiction**, making this WLJ's **first impersonal truth domain**. Nothing is weakened, so this
+is an **ADR + explicit go**, not a Review — though Danny may want it recorded in the Amendment Log as a
+clarification of I.1's scope.
+
+**Smallest milestone (M1):** one domain, one entity, **one fact** (`dosage_and_administration`, verbatim, with
+provenance), **brand-resolvable products only**, fail-closed, background-refreshed, exposed via existing retrieval.
+Explicitly excluded: other label sections, interaction checking, generics-via-NDC, UI, any generalization.
+
+**Six open decisions for Danny** (partial coverage by design · first impersonal domain · verbatim-only constraint ·
+third-party staleness · repackager-vs-manufacturer selection rule · scope discipline).
+
+**STOPPED before implementing, per instruction.**
+
+---
 ## 2026-08-22 — fix(truth): WLJ adherence bookkeeping can no longer masquerade as prescribing guidance (Part A)
 
 **The proven defect.** After correctly retrieving Danny's medication record, the CoS said *"it has a **60-minute

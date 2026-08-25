@@ -1,7 +1,7 @@
 # WLJ Finance Intelligence — Architecture & Product Assessment
 
 > **Mode:** ARCHITECT (`WLJ_MASTER_PROMPT.md` §5). **Status:** **APPROVED 2026-08-24 with decisions** (§10).
-> Nothing in F0–F4 is implemented. **F-1 is the only phase cleared to plan** — see
+> **F-1 is COMPLETE; F0–F4 are NOT started** (F0 requires a new go decision) — see
 > `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`; implementation still awaits an explicit "go".
 > **Date:** 2026-08-24 (assessment) · **Amended:** 2026-08-24 (Danny's ratified decisions)
 
@@ -171,6 +171,7 @@ Everything else is exposure and reuse.
 | **G1** | **Entity attribution.** No concept of a business/entity anywhere in the repo — no `is_business`, no entity FK on `Transaction` or `FinancialAccount`; "Beacon" appears nowhere in `apps/`. | §2.3, grep of `apps/` |
 | **G2** | **Classification provenance + confidence.** `Transaction.category` (`:429`) and `payee` (`:439`) record *what* but never *who decided it, from what evidence, how sure, and whether the user confirmed*. | §2.3 |
 | **G3** | **A deterministic Finance detector** producing `Insight` rows. `apps/finance/` has no `tasks.py`, no beat entry, and no insight producer. | §2.9 |
+| — | *(F-1 closed a separate exposure gap: `recurring`, `budget`, and `goal` are now `FinanceDomainTruth` entity types.)* | 2026-08-24 |
 | **G4** | **Attribution learning store** — the Finance analogue of `LearnedMapping` (merchant/payee → entity, with confidence and usage), so a confirmation actually changes future classification. | §2.4 |
 | **G5** | **Outcome re-verification query** — "did this charge move to a Beacon account?" needs a deterministic recurring-charge comparison; `RecurringTransaction` (`:1694`) + `fingerprint` (`:516`) are the raw material, unassembled. | §2.7 |
 
@@ -290,9 +291,10 @@ reasoning/classifier engine, to let WLJ emit financial verdicts, or to add finan
 
 ## 8. Approved delivery sequence (ratified 2026-08-24)
 
-- **F-1 — Legacy Finance AI retirement (FIRST, before F0).** Retire or replace the request-path Finance
-  reasoning service safely — prove every caller and every user-visible dependency *before* removing anything.
-  Detailed plan: `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.
+- **F-1 — Legacy Finance AI retirement — ✅ COMPLETE 2026-08-24.** `FinanceAIService` and the four
+  request-path endpoints are gone; `RecurringTransaction`, `Budget`, and `FinancialGoal` are exposed through
+  `FinanceDomainTruth`; the read-only invariant is enforced by contract test. Plan + as-built:
+  `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.
 - **F0 — General financial entity + auditable attribution truth.** See §5.1/§5.2 as amended by §10.
 - **F1 — Deterministic detection**, including business-attributed expenses paid from personal accounts.
 - **F2 — User review, confirmation, correction, and reusable attribution learning.**

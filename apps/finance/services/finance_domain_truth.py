@@ -24,8 +24,17 @@ class FinanceDomainTruth(DomainTruth):
     # (the same rows behind FinanceHistory + the Finance pages); the model reasons over the
     # records. Only the user's OWN, non-sensitive fields are surfaced — never credentials,
     # tokens, full account numbers, or import internals (last4 is the safe partial).
-    entity_types = ("transaction", "account")
+    # Recurring commitments, budgets, and savings/debt goals are the SAME canonical rows
+    # the Finance pages render — exposed (never re-derived) so the model can answer "what
+    # subscriptions am I paying for", "am I over on groceries", "how is my vacation fund
+    # doing" from records instead of a summary. Facts only: amounts, dates, and lifecycle
+    # state. Never a verdict (`Budget.health_status` is deliberately NOT surfaced — the
+    # model interprets), never credentials, account numbers, or free-text notes.
+    entity_types = ("transaction", "account", "recurring", "budget", "goal")
     _MAX_TX = 100
+    # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
+    # `Budget.spent_amount` (one aggregate per budget) predictable.
+    _MAX_ROWS = 24
 
     def current(self, metric):
         from apps.finance.services.current_finance import CurrentFinance
@@ -50,6 +59,12 @@ class FinanceDomainTruth(DomainTruth):
         et = (entity_type or "transaction")
         if et == "account":
             return self._describe_accounts()
+        if et == "recurring":
+            return self._describe_recurring()
+        if et == "budget":
+            return self._describe_budgets(filters)
+        if et == "goal":
+            return self._describe_goals()
         if et != "transaction":
             raise KeyError(f"finance domain cannot describe {et!r} "
                            f"(have {self.entity_types})")
@@ -77,6 +92,40 @@ class FinanceDomainTruth(DomainTruth):
             qs = qs.filter(Q(description__icontains=c) | Q(payee__icontains=c))
         qs = qs.select_related("account", "category").order_by("-date", "-id")
         return [self._transaction_entity(t) for t in qs[:self._MAX_TX]]
+
+    def _describe_recurring(self):
+        """Recurring commitments (subscriptions, bills, transfers) — the canonical rows."""
+        from apps.finance.models import RecurringTransaction
+        rows = (RecurringTransaction.objects.filter(user=self.user)
+                .select_related("account", "category")
+                .order_by("next_due_date", "name"))
+        return [self._recurring_entity(r) for r in rows[:self._MAX_ROWS]]
+
+    def _describe_budgets(self, filters=None):
+        """Budgets. Defaults to the CURRENT month — the question is almost always
+        'am I over this month'; a period filter widens it deliberately."""
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.finance.models import Budget
+        f = filters or {}
+        qs = Budget.objects.filter(user=self.user).select_related("category")
+        today = get_user_today(self.user)
+        if f.get("period") or f.get("start") or f.get("end"):
+            p = resolve_period(f.get("period") or "custom", today,
+                               start=f.get("start"), end=f.get("end"))
+            qs = qs.filter(month__range=(p.start, p.end))
+        else:
+            qs = qs.filter(month__year=today.year, month__month=today.month)
+        qs = qs.order_by("-month", "category__name")
+        return [self._budget_entity(b) for b in qs[:self._MAX_ROWS]]
+
+    def _describe_goals(self):
+        """Savings / debt-payoff / giving goals."""
+        from apps.finance.models import FinancialGoal
+        rows = (FinancialGoal.objects.filter(user=self.user)
+                .select_related("life_goal")
+                .order_by("goal_status", "target_date", "name"))
+        return [self._goal_entity(g) for g in rows[:self._MAX_ROWS]]
 
     def _describe_accounts(self):
         from apps.finance.models import FinancialAccount
@@ -108,6 +157,64 @@ class FinanceDomainTruth(DomainTruth):
                         "payee": (t.payee or "").strip() or None},
             status="cleared" if t.is_cleared else "pending",
             plan={"date": t.date.isoformat()},
+            freshness=F.CURRENT,
+        )
+
+    def _recurring_entity(self, r):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="recurring",
+            identity=(r.name or r.payee or "recurring commitment").strip(),
+            definition={"amount": float(r.amount),
+                        "direction": "income" if r.amount > 0 else "expense",
+                        "frequency": r.frequency,
+                        "category": r.category.name if r.category_id else None,
+                        "account": r.account.name if r.account_id else None,
+                        "payee": (r.payee or "").strip() or None,
+                        "auto_post": r.is_auto_post},
+            status="active" if r.is_active else "paused",
+            plan={"next_due_date": r.next_due_date.isoformat() if r.next_due_date else None,
+                  "start_date": r.start_date.isoformat() if r.start_date else None,
+                  "end_date": r.end_date.isoformat() if r.end_date else None},
+            performance={"occurrences_generated": r.total_generated,
+                         "last_generated_date": (r.last_generated_date.isoformat()
+                                                 if r.last_generated_date else None)},
+            freshness=F.CURRENT,
+        )
+
+    def _budget_entity(self, b):
+        # `spent_amount` / `remaining_amount` are the EXISTING Budget authority — read them,
+        # never re-derive the arithmetic here (Article III.1 / IV.3). `health_status` is a
+        # VERDICT and is deliberately not exposed; the model interprets the numbers.
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="budget",
+            identity=(b.category.name if b.category_id else "budget"),
+            definition={"budgeted_amount": float(b.total_budget),
+                        "category": b.category.name if b.category_id else None},
+            status="active",
+            plan={"month": b.month.isoformat() if b.month else None},
+            standing={"spent_amount": float(b.spent_amount),
+                      "remaining_amount": float(b.remaining_amount)},
+            freshness=F.CURRENT,
+        )
+
+    def _goal_entity(self, g):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="goal",
+            identity=g.name,
+            definition={"goal_type": g.goal_type,
+                        "target_amount": float(g.target_amount),
+                        "linked_life_goal": (g.life_goal.title
+                                             if g.life_goal_id else None)},
+            status=g.goal_status,
+            plan={"target_date": g.target_date.isoformat() if g.target_date else None},
+            standing={"current_amount": float(g.current_amount),
+                      "remaining_amount": float(g.remaining_amount)},
             freshness=F.CURRENT,
         )
 

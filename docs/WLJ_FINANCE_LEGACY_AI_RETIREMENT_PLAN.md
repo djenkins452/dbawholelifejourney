@@ -1,6 +1,6 @@
 # F-1 — Legacy Finance AI Retirement · Implementation Plan
 
-> **Mode:** ARCHITECT → BUILD-ready. **Status:** **PLAN ONLY — not implemented. Awaiting "go".**
+> **Mode:** ARCHITECT → BUILD. **Status:** ✅ **IMPLEMENTED 2026-08-24** (see §8 As-built). F0 NOT started.
 > Governing assessment: `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` (§10.4 ratifies this phase).
 > **Date:** 2026-08-24
 
@@ -197,3 +197,26 @@ settings, no `INLINE_LLM_ALLOWLIST`, no governing document, and nothing outside 
 
 **Not in F-1:** any entity/attribution model (that is F0), any detector (F1), any review UI (F2), any Plaid
 change, any `ALLOWED_WRITE_INTENTS` change (forbidden outright by §10.3).
+
+
+---
+
+## 8. As-built (2026-08-24)
+
+Implemented exactly as sequenced. Deviations from the plan, stated plainly:
+
+- **`docs/ENGINE_COS_REFERENCE.md` was NOT updated.** The plan listed it under the auto-maintain rule, but
+  that document does not describe `DomainTruth` entity types anywhere (verified by search) — it covers
+  engines, schedules, the CoS context pipeline, and the chat pipeline, none of which this change touched.
+  Editing it would have meant inventing a section, not maintaining one.
+- **`apps/finance/tests/test_finance_urls.py` also carries the page smoke (T10)** rather than a separate
+  file — same scope, one fewer file.
+
+**Proof the invariant is real:** T2/T4 (`test_no_provider_client_in_finance`,
+`test_no_domain_local_system_prompt_in_finance`) were written FIRST and **failed**, naming
+`apps/finance/services/ai_insights.py` with `['_call_api', 'import apps.ai.services']`. They pass only
+because the service is gone.
+
+**Results:** 68 tests green (`apps.finance` + `test_request_path_safety_contract` +
+`test_constitution_contract`), plus 10 new entity-truth tests, 5 read-only contract tests, and 4 route/smoke
+tests. `makemigrations --check --dry-run` → **"No changes detected"**. **Zero provider calls.**

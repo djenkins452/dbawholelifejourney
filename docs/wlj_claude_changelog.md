@@ -196,6 +196,61 @@ Tier-2 smoke was spent and no iteration was attempted.
 
 ---
 
+## 2026-08-24 — F-1 COMPLETE: legacy Finance AI retired; recurring/budget/goal exposed as canonical truth; Finance is structurally read-only
+
+**F-1 only. F0 entity attribution NOT started (requires a new go).** No model changes, no migrations
+(`makemigrations --check` → *No changes detected*), **zero provider calls**.
+
+**Root cause retired:** `apps/finance/services/ai_insights.py :: FinanceAIService` was a **domain-local
+reasoning authority** — its own system prompt, its own spending re-derivation (bypassing `FinanceHistory`),
+calling `AIService._call_api` from four request-path endpoints. It reached the provider from a view *through
+a service layer* — the residual `test_request_path_safety_contract` documents it cannot catch — and Finance
+was never in `INLINE_LLM_ALLOWLIST`. Constitution I.2 / IV.4.
+
+**Caller map proved the removal was safe:** the four endpoints had **ZERO live callers** — no template (the
+only `fetch()` calls in `templates/finance/` are the five Plaid endpoints; `dashboard.html` had no insight
+surface), no JS/static, no test, and `get_finance_ai_service` was imported only by its own four views.
+Reachable by direct URL alone, behind a consent gate and a 10/hour limit.
+
+**Replacement landed BEFORE removal (exposure, not invention).** `FinanceDomainTruth.entity_types`
+`("transaction","account")` → `("transaction","account","recurring","budget","goal")`, following the existing
+`_transaction_entity`/`_account_entity` pattern. **Facts only:** `Budget.health_status` is a VERDICT and is
+deliberately NOT surfaced (I.4 — the model interprets); `spent_amount`/`remaining_amount` are READ from the
+existing Budget authority, never re-derived (III.1/IV.3); no free-text notes, no credentials, no account
+numbers, no `plaid_transaction_id`. Budgets default to the current month; all three capped at 24 rows.
+Net product effect: "what subscriptions am I paying for", "am I over on groceries", "how is my vacation fund
+doing" are now answerable **in the CoS conversation from records** instead of from a summarized prompt.
+
+**Read-only invariant now enforced in code** — `apps/finance/tests/test_finance_read_only_contract.py`:
+no Finance intent in `ALLOWED_WRITE_INTENTS`; **no module under `apps/finance/` may import a provider client
+or define a system prompt** (class elimination — a recurrence is now structurally detectable, not just this
+instance removed); Finance never enters `INLINE_LLM_ALLOWLIST`. The encoded rule: *WLJ may write its own
+classification of the world; it may never write to the world.*
+**These tests were written FIRST and FAILED**, naming `ai_insights.py` with
+`['_call_api', 'import apps.ai.services']` — they pass only because the service is gone.
+
+**Deliberately preserved:** `FinanceAuditLog.ACTION_AI_QUERY` + its migration choice (historical audit rows
+must stay readable — removing it would force a migration and destroy evidence) and the `ai_query` rate-limit
+category (F2's controlled review is its next consumer).
+
+**Files:** deleted `apps/finance/services/ai_insights.py` (664 lines); modified `apps/finance/views.py`
+(−167), `apps/finance/urls.py` (−4 routes), `apps/finance/services/finance_domain_truth.py` (+3 entity types);
+added `apps/finance/tests/test_finance_read_only_contract.py`, `test_finance_domain_truth.py`,
+`test_finance_urls.py`; docs `WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md` (as-built §8),
+`WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md`.
+**Not changed:** no model, no migration, no template, no JS, no settings, no `INLINE_LLM_ALLOWLIST`, nothing
+outside `apps/finance/` + `docs/`. `docs/ENGINE_COS_REFERENCE.md` deliberately NOT edited — it documents
+engines/schedules/context+chat pipelines and describes `DomainTruth` entity types nowhere; there was no
+section to maintain.
+
+**Verification:** 68 tests green (`apps.finance` + `test_request_path_safety_contract` +
+`test_constitution_contract`), plus 19 new (10 entity-truth incl. ownership isolation + facts-only, 5
+read-only contract, 4 route/page smoke). `manage.py check` clean (2 pre-existing dj-stripe warnings).
+Finance pages and all Plaid routes still render 200.
+
+**Cost:** exposure strictly REDUCED — four provider-calling endpoints removed, zero added; the three new
+entity types are ORM reads.
+
 ## 2026-08-24 — design(finance): assessment APPROVED with decisions + F-1 Legacy Finance AI retirement plan (PLAN ONLY)
 
 **Docs only. No code, no models, no migrations, no provider call.** F0–F4 remain unimplemented; **F-1 is

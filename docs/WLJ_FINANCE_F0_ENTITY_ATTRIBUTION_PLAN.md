@@ -1,6 +1,7 @@
 # F0 — Financial Entity & Attribution Truth · Implementation Plan
 
-> **Mode:** ARCHITECT. **Status:** **PLAN ONLY — not implemented, no migrations created. Awaiting "go".**
+> **Mode:** ARCHITECT → BUILD. **Status:** ✅ **DELIVERED 2026-08-25** (`e84ce11a`), and F1–F4 on top of it
+> (`69c10338`, `422f6f71`, `44ed3560`, `71ca9f3d`). As-built deviations in §19.
 > Governing assessment: `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` (§10 decisions).
 > Prior phase: F-1 complete at `4ee0880f`. **Date:** 2026-08-24
 
@@ -513,3 +514,33 @@ first use — avoiding two rows × every user who never opens Finance.
 6. **Reimbursement** — additive link model later (recommended) vs a field on `TransactionAttribution` now. §16.6.
 7. **`Transaction.current_attribution` cache** — accept the denormalization with reconciliation + rebuild
    (recommended) vs pure `Exists()` queries. §4.
+
+
+---
+
+## 19. As-built (2026-08-25)
+
+Delivered as planned, with three evidence-backed deviations:
+
+1. **No `FinancialAccount.entity` cache.** The plan carried one; the binding decision removed
+   `Transaction.current_attribution`, and keeping one cache but not the other was incoherent.
+   `AccountEntityAssignment` is a single indexed read and `open_assignment_map()` is one query per user.
+   **F0 therefore shipped zero caches and zero reconciliation/rebuild machinery** — nothing to keep in sync.
+2. **`Transaction.recurring_source` added** (nullable, `SET_NULL`, unbackfilled). `is_recurring` said "this
+   repeats" but never WHICH series (`generate_transaction()`, `models.py:1950`), so the recurring rule scope
+   had no anchor and F3's "move this recurring expense" had nothing to track. Historical rows resolve by payee.
+3. **Two migrations, not four** (`0019` schema + `0020` bootstrap). The staged landing the plan wanted —
+   inert schema first, bootstrap second — is preserved.
+
+**Bootstrap measured on the local dev database:** 2 entities, 2 account assignments, **0 attributions**,
+3,079 transactions untouched.
+
+**Two defects the tests caught before deploy:**
+- the partial unique `uq_txattr_one_active_full` is checked at INSERT, so a correction had to retire the
+  incumbent *before* inserting its replacement (two-step supersession, one atomic block);
+- suspected-internal-transfer suspicion was a Python-level check, so it never filtered the queryset — it is
+  now queryset-expressible and hoistable for batch callers.
+
+**Query evidence (why no cache was needed):** entity totals = 1 grouped query · the F1 mismatch scan = 1
+single-table query with no joins · the unattributed listing via `Exists()` = 1 query when the liability
+lookup is hoisted · population cost is flat at 2 queries regardless of row count.

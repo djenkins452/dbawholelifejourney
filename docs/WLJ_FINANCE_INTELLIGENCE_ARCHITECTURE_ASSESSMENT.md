@@ -1,7 +1,8 @@
 # WLJ Finance Intelligence — Architecture & Product Assessment
 
 > **Mode:** ARCHITECT (`WLJ_MASTER_PROMPT.md` §5). **Status:** **APPROVED 2026-08-24 with decisions** (§10).
-> **F-1 is COMPLETE; F0–F4 are NOT started** (F0 requires a new go decision) — see
+> **F-1 through F4 are ALL DELIVERED and deployed** (2026-08-25, `71ca9f3d`; web + `wlj-worker`
+> both verified) — see
 > `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`; implementation still awaits an explicit "go".
 > **Date:** 2026-08-24 (assessment) · **Amended:** 2026-08-24 (Danny's ratified decisions)
 
@@ -296,13 +297,17 @@ reasoning/classifier engine, to let WLJ emit financial verdicts, or to add finan
   request-path endpoints are gone; `RecurringTransaction`, `Budget`, and `FinancialGoal` are exposed through
   `FinanceDomainTruth`; the read-only invariant is enforced by contract test. Plan + as-built:
   `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.
-- **F0 — General financial entity + auditable attribution truth.** **PLANNED, NOT STARTED** —
-  `docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md` (4 models, 4 additive migrations, 40-test matrix,
-  7 decisions awaiting Danny). See §5.1/§5.2 as amended by §10.
-- **F1 — Deterministic detection**, including business-attributed expenses paid from personal accounts.
-- **F2 — User review, confirmation, correction, and reusable attribution learning.**
-- **F3 — Insight/action lifecycle and follow-through verification.**
-- **F4 — Remaining cleanup, documentation consolidation, deferred-scope review.**
+- **F0 — ✅ DELIVERED (`e84ce11a`).** `FinancialEntity` · `AccountEntityAssignment` ·
+  `TransactionAttribution` · `AttributionRule`, migrations `0019`+`0020`. Plan + as-built:
+  `docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md`.
+- **F1 — ✅ DELIVERED (`69c10338`).** Deterministic entity-payment-mismatch detection into canonical
+  `Insight`, one finding per pattern, on a crontab worker task.
+- **F2 — ✅ DELIVERED (`422f6f71`).** `/finance/attribution/` review, confirm/correct at three bounded
+  scopes, reusable user-owned rules, "why did you think that" always available.
+- **F3 — ✅ DELIVERED (`44ed3560`).** `FinanceOpportunity` ten-state lifecycle + deterministic outcome
+  verification reusing `Transaction.fingerprint` and the existing `ConversationFollowUp`. Migration `0021`.
+- **F4 — ✅ DELIVERED (`71ca9f3d`).** ONE population authority (`financial_activity`); gap **G6 closed**;
+  impact measured (`finance_population_audit`, local delta `+0.00`) before applying.
 
 **Production Plaid activation remains deferred.** The sandbox path stays exactly as built
 (`PLAID_ENV` default `sandbox`, `config/settings.py:1006–1008`; `PlaidService.is_configured()` at

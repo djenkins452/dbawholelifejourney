@@ -87,6 +87,11 @@ lives. It now asserts that.
 `test_medicine.MedicineContextTest.test_medicine_home_adherence_uses_canonical_util`, and the
 `apps.medical.tests.test_medical` LabEducation/Mapper group.
 
+**One-time backfill** (`medical/0008`): Claude has no production CLI, so the sanctioned `RunPython` path warms the
+labels for medications already on file rather than making the first users wait for 05:00 UTC. Strictly bounded (25),
+fully guarded (**cannot fail a deploy** — the crontab retries), idempotent, and it runs on the RELEASE container,
+never a request path.
+
 ---
 
 ## 2026-08-24 — governance: retire ALL legacy master prompts — `WLJ_MASTER_PROMPT.md` is the single boot authority

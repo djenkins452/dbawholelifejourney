@@ -67,8 +67,13 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(UserPreferences)
 class UserPreferencesAdmin(admin.ModelAdmin):
-    list_display = ["user", "theme", "faith_enabled", "ai_enabled", "has_completed_onboarding"]
-    list_filter = ["theme", "faith_enabled", "ai_enabled", "has_completed_onboarding"]
+    # `finances_enabled` is the capability that gates every Finance and provider
+    # (Plaid) workflow — apps/finance/access.py. Surfaced here so a staff member can see
+    # and grant it deliberately, which is the controlled admin path for approving a user.
+    list_display = ["user", "theme", "faith_enabled", "ai_enabled",
+                    "finances_enabled", "has_completed_onboarding"]
+    list_filter = ["theme", "faith_enabled", "ai_enabled", "finances_enabled",
+                   "has_completed_onboarding"]
     search_fields = ["user__email"]
     raw_id_fields = ["user"]
 

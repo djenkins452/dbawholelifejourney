@@ -6,6 +6,17 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — chore(admin): surface the Finance capability in the staff admin
+
+`UserPreferences.finances_enabled` now appears in the Django admin list display and filters
+(`apps/users/admin.py`). It was already editable there, but invisible — and it is the capability that gates
+every Finance and provider (Plaid) workflow (`apps/finance/access.py`). Surfacing it makes the controlled
+staff path for approving a trial user *usable without a shell*, which matters because Railway offers no
+production CLI. The management command (`manage.py finance_access`) remains for local/scripted use.
+
+508 tests green (Finance + users + dependency, request-path, constitution and visual-truth contracts).
+
+
 ## 2026-08-25 — security(deps): reproducible, auditable dependency set + production encryption key provisioned
 
 **Dependencies were not auditable from the repository:** `requirements.txt` pins RANGES (46 of 47 entries use

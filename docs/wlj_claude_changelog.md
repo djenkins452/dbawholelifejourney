@@ -5,6 +5,29 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-24 — docs(prompt): WLJ_MASTER_PROMPT v3 — one session-opening prompt for any Claude holding the codebase
+
+**Docs only. No code. No provider call.**
+
+**Why:** the two existing root master prompts (`WLJ MASTER PROMPT — ARCHITECTURE MODE.md`,
+`WLJ MASTER PROMPT — DEBUGGING MODE.md`) still describe the **retired** model — "LLM-last", deterministic
+engines producing narration, and **"Beth" as a system identity**, which the Constitution (§1, I.8) now
+forbids. Anyone pasting them into a fresh session was bootstrapping Claude with superseded architecture.
+
+**What:** added `WLJ_MASTER_PROMPT.md` (repo root) — a single self-contained prompt that boots any Claude
+holding the codebase into the current model: Personal Truth Platform · WLJ owns truth / the model reasons ·
+load order through the startup package · condensed Constitution (Articles I–V) · the universal work protocol
+(product-first → layer classification → runtime-trace proof → eliminate-the-class → Pre-Write Gate) ·
+five explicit modes (Investigate / Debug / Architect / Build / Review) · red lines (provider spend, full
+suite, second authority, request-path safety, Constitutional Review) · Danny's working style · definition of
+done (changelog, pathspec commit, push main, `wlj-worker` verification) · a fixed first-response format that
+forces posture + mode + files-read + plan **before** any code.
+
+**Files:** `WLJ_MASTER_PROMPT.md` (new), `docs/wlj_claude_changelog.md`.
+
+**Note (not done here):** the two mode-specific root prompts are now superseded and still teach the retired
+framing — retire or rewrite them in a follow-up.
 ## 2026-08-22 — design(truth): authoritative medication reference truth — architecture recommendation (Part B, NOT IMPLEMENTED)
 
 **Design only. No code. No provider call.** Full recommendation in

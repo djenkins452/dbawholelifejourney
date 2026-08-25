@@ -26,6 +26,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import TemplateView
 
 from apps.core.current_context import PageSummaryMixin
+from apps.finance.access import FinanceEnabledRequiredMixin, finance_enabled_required
 from apps.finance.models import FinancialEntity, Transaction
 from apps.finance.services import attribution_review as review
 from apps.finance.services import attribution_population as population
@@ -33,7 +34,8 @@ from apps.finance.services.attribution import current_attribution
 from apps.finance.services.finance_entities import ensure_default_entities
 
 
-class AttributionReviewView(PageSummaryMixin, TemplateView):
+class AttributionReviewView(FinanceEnabledRequiredMixin, PageSummaryMixin,
+                            TemplateView):
     """Who does this money belong to? — the review queue."""
 
     template_name = "finance/attribution_review.html"
@@ -81,6 +83,7 @@ _REASON_LABELS = {
 
 
 @login_required
+@finance_enabled_required
 @require_POST
 def attribution_decide(request):
     """Confirm or correct who a transaction belongs to, at a bounded scope.
@@ -120,6 +123,7 @@ def attribution_decide(request):
 
 
 @login_required
+@finance_enabled_required
 def attribution_explain(request, pk):
     """Why WLJ proposed what it proposed — always available, never hidden."""
     transaction = get_object_or_404(Transaction, pk=pk, user=request.user)
@@ -134,6 +138,7 @@ def attribution_explain(request, pk):
 
 
 @login_required
+@finance_enabled_required
 @require_POST
 def opportunity_decide(request, pk):
     """Record what the user decided about a detected opportunity.
@@ -185,7 +190,8 @@ def opportunity_decide(request, pk):
     })
 
 
-class EntityWorkspaceView(PageSummaryMixin, TemplateView):
+class EntityWorkspaceView(FinanceEnabledRequiredMixin, PageSummaryMixin,
+                          TemplateView):
     """Set up who your money can belong to, and which entity owns each account.
 
     Without this, Finance intelligence cannot start: attribution needs a second entity to
@@ -234,6 +240,7 @@ class EntityWorkspaceView(PageSummaryMixin, TemplateView):
 
 
 @login_required
+@finance_enabled_required
 @require_POST
 def entity_create(request):
     """Create a user-owned entity. The name is data; the type carries the meaning."""
@@ -257,6 +264,7 @@ def entity_create(request):
 
 
 @login_required
+@finance_enabled_required
 @require_POST
 def account_assign_entity(request, pk):
     """Set which entity economically owns an account.

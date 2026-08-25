@@ -1330,6 +1330,10 @@ class BankConnection(UserOwnedModel):
     STATUS_ERROR = 'error'
     STATUS_DISCONNECTED = 'disconnected'
     STATUS_REAUTH_REQUIRED = 'reauth_required'
+    #: Provider revocation was attempted and FAILED. The encrypted token is deliberately
+    #: retained: it is the only credential that can revoke the Item, and discarding it
+    #: would leave provider access live forever with no way to withdraw it.
+    STATUS_REVOCATION_PENDING = 'revocation_pending'
 
     STATUS_CHOICES = [
         (STATUS_ACTIVE, 'Active'),
@@ -1337,6 +1341,7 @@ class BankConnection(UserOwnedModel):
         (STATUS_ERROR, 'Error'),
         (STATUS_DISCONNECTED, 'Disconnected'),
         (STATUS_REAUTH_REQUIRED, 'Requires Re-authentication'),
+        (STATUS_REVOCATION_PENDING, 'Disconnect pending — provider revocation failed'),
     ]
 
     # Plaid identifiers
@@ -1478,12 +1483,62 @@ class BankConnection(UserOwnedModel):
         ])
 
     def mark_disconnected(self):
-        """Mark connection as disconnected and clear token."""
+        """Mark disconnected and clear the token.
+
+        ONLY call this AFTER the provider has confirmed revocation — see
+        `apps.finance.services.provider_disconnect.revoke_and_disconnect`. Clearing the
+        token before revocation destroys the only credential that can withdraw access.
+        """
         self.connection_status = self.STATUS_DISCONNECTED
         self.access_token_encrypted = ''
         self.save(update_fields=[
             'connection_status', 'access_token_encrypted', 'updated_at'
         ])
+
+    def mark_revocation_pending(self, error_message=''):
+        """Provider revocation failed. KEEP the token so a retry can still revoke."""
+        self.connection_status = self.STATUS_REVOCATION_PENDING
+        self.error_code = 'REVOCATION_FAILED'
+        self.error_message = (error_message or '')[:500]
+        self.save(update_fields=[
+            'connection_status', 'error_code', 'error_message', 'updated_at'
+        ])
+
+    @property
+    def has_live_provider_access(self):
+        """True while a usable provider credential is still stored.
+
+        The deletion guards below refuse to remove a row in this state so that provider
+        access can never be silently orphaned.
+        """
+        return bool(self.access_token_encrypted) and self.connection_status not in (
+            self.STATUS_DISCONNECTED,
+        )
+
+    def soft_delete(self):
+        """Refuse to hide a connection whose provider access is still live."""
+        if self.has_live_provider_access:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "This connection still has live provider access. Disconnect it first so "
+                "the provider revokes it; otherwise access would be orphaned."
+            )
+        return super().soft_delete()
+
+    def delete(self, *args, **kwargs):
+        """Refuse to delete a connection whose provider access is still live.
+
+        Deliberately a REFUSAL, not a network call: an external request inside a delete
+        path (or a cascade from user deletion) is exactly the fragile coupling that
+        produces half-deleted state. Revocation belongs in the disconnect service.
+        """
+        if self.has_live_provider_access:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "Cannot delete a bank connection with live provider access. Disconnect "
+                "it first (which revokes at the provider), then delete."
+            )
+        return super().delete(*args, **kwargs)
 
     def update_sync_cursor(self, cursor, transactions_added=0):
         """Update the sync cursor after a successful sync."""

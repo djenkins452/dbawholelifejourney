@@ -301,6 +301,10 @@ class FinanceRateLimiter:
         'ai_query': (10, 3600),        # 10 per hour
         'import': (5, 3600),            # 5 per hour
         'bank_sync': (10, 3600),        # 10 per hour
+        # Provider-linking operations: deliberately tight. A bank connection is a
+        # once-in-a-while act, and a burst is either a mistake or an attack.
+        'bank_connect': (5, 3600),      # 5 link attempts per hour
+        'bank_disconnect': (10, 3600),  # 10 per hour (retries of a failed revocation)
         'transfer': (20, 3600),         # 20 per hour
         'export': (10, 3600),           # 10 per hour
     }

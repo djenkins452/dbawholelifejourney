@@ -63,7 +63,17 @@ from .forms import (
 # Mixins
 # =============================================================================
 
-class FinanceUserMixin(LoginRequiredMixin):
+from apps.finance.access import (  # noqa: E402
+    FinanceEnabledRequiredMixin,
+    finance_enabled_required,
+)
+from apps.finance.security import (  # noqa: E402
+    finance_rate_limit,
+    requires_recent_auth,
+)
+
+
+class FinanceUserMixin(FinanceEnabledRequiredMixin, LoginRequiredMixin):
     """Mixin for finance views that filters by current user."""
 
     def get_queryset(self):
@@ -1093,6 +1103,9 @@ class BankConnectionListView(LoginRequiredMixin, ListView):
 
 
 @login_required
+@finance_enabled_required
+@requires_recent_auth(15)
+@finance_rate_limit('bank_connect')
 def bank_connection_start(request):
     """
     Start bank connection flow - generate Plaid Link token.
@@ -1126,6 +1139,9 @@ def bank_connection_start(request):
 
 
 @login_required
+@finance_enabled_required
+@requires_recent_auth(15)
+@finance_rate_limit('bank_connect')
 @require_POST
 def bank_connection_complete(request):
     """
@@ -1221,6 +1237,9 @@ def bank_connection_complete(request):
 
 
 @login_required
+@finance_enabled_required
+@requires_recent_auth(15)
+@finance_rate_limit('bank_connect')
 def bank_connection_reauth(request, pk):
     """
     Start re-authentication flow for a bank connection.
@@ -1259,6 +1278,9 @@ def bank_connection_reauth(request, pk):
 
 
 @login_required
+@finance_enabled_required
+@requires_recent_auth(15)
+@finance_rate_limit('bank_disconnect')
 @require_POST
 def bank_connection_disconnect(request, pk):
     """
@@ -1272,28 +1294,24 @@ def bank_connection_disconnect(request, pk):
         BankConnection, pk=pk, user=request.user
     )
 
+    from apps.finance.services.provider_disconnect import (
+        RevocationFailed,
+        revoke_and_disconnect,
+    )
+
     try:
-        # Revoke the token with Plaid
-        access_token = connection.get_access_token()
-        if access_token:
-            try:
-                plaid = get_plaid_service()
-                plaid.remove_item(access_token)
-            except Exception as e:
-                logger.warning(f"Failed to revoke Plaid token: {e}")
+        # ONE path: revoke at the provider FIRST, and only then forget the credential.
+        revoke_and_disconnect(connection, ip_address=get_client_ip(request))
+    except RevocationFailed as exc:
+        # Never claim success while provider access may still be live.
+        return JsonResponse({
+            'success': False,
+            'status': connection.connection_status,
+            'error': str(exc),
+            'retry_available': True,
+        }, status=502)
 
-        # Mark as disconnected
-        connection.mark_disconnected()
-
-        # Log the disconnection
-        BankIntegrationLog.objects.create(
-            user=request.user,
-            bank_connection=connection,
-            action=BankIntegrationLog.ACTION_DISCONNECT,
-            success=True,
-            ip_address=get_client_ip(request),
-        )
-
+    try:
         messages.success(request, f'{connection.institution_name} has been disconnected.')
 
         return JsonResponse({
@@ -1310,6 +1328,9 @@ def bank_connection_disconnect(request, pk):
 
 
 @login_required
+@finance_enabled_required
+@requires_recent_auth(15)
+@finance_rate_limit('bank_sync')
 @require_POST
 def bank_connection_sync(request, pk):
     """
@@ -1348,59 +1369,17 @@ def bank_connection_sync(request, pk):
 
 
 def verify_plaid_webhook(request):
+    """Verify a Plaid webhook cryptographically. Fails CLOSED.
+
+    Delegates to `plaid_webhook_verification.verify_webhook`, which pins ES256, fetches
+    Plaid's JWK by `kid`, verifies the signature, checks the timestamp window and body
+    hash, and rejects replays. Returns the legacy `(is_valid, error)` shape so the
+    existing view is unchanged; the error is a reason CODE, never payload content.
     """
-    Verify Plaid webhook signature using JWT verification.
+    from apps.finance.services.plaid_webhook_verification import verify_webhook
 
-    Plaid signs webhooks with a JWT in the 'Plaid-Verification' header.
-    This function verifies the signature to prevent forged webhook attacks.
-
-    Returns:
-        tuple: (is_valid: bool, error_message: str or None)
-    """
-    from django.conf import settings
-
-    # Skip verification if Plaid is not configured (sandbox/development)
-    if not settings.PLAID_SECRET:
-        logger.debug("Plaid webhook verification skipped - PLAID_SECRET not configured")
-        return True, None
-
-    # Get the verification header
-    plaid_verification = request.headers.get('Plaid-Verification')
-    if not plaid_verification:
-        return False, "Missing Plaid-Verification header"
-
-    try:
-        import jwt
-        import time
-
-        # Plaid uses RS256 signing - we need to fetch their public key
-        # For now, use a simpler approach: verify the JWT structure and claims
-        # Full implementation would fetch keys from https://production.plaid.com/.well-known/jwks.json
-
-        # Decode without verification first to check claims
-        unverified = jwt.decode(plaid_verification, options={"verify_signature": False})
-
-        # Verify the request body hash matches
-        import hashlib
-        body_hash = hashlib.sha256(request.body).hexdigest()
-        if unverified.get('request_body_sha256') != body_hash:
-            return False, "Request body hash mismatch"
-
-        # Verify timestamp is recent (within 5 minutes)
-        iat = unverified.get('iat', 0)
-        if abs(time.time() - iat) > 300:
-            return False, "Webhook timestamp expired"
-
-        # For production, implement full JWKS verification here
-        # See: https://plaid.com/docs/api/webhooks/webhook-verification/
-
-        return True, None
-
-    except jwt.exceptions.DecodeError as e:
-        return False, f"JWT decode error: {e}"
-    except Exception as e:
-        logger.error(f"Plaid webhook verification error: {e}")
-        return False, str(e)
+    result = verify_webhook(request)
+    return bool(result), (None if result else result.reason)
 
 
 @csrf_exempt
@@ -1427,7 +1406,10 @@ def plaid_webhook(request):
         webhook_code = data.get('webhook_code')
         item_id = data.get('item_id')
 
-        logger.info(f"Plaid webhook: {webhook_type}/{webhook_code} for {item_id}")
+        # Redacted: the webhook TYPE is operational signal; the provider item id is not
+        # logged in full (it identifies a specific bank connection).
+        logger.info("Plaid webhook: %s/%s for item %s…",
+                    webhook_type, webhook_code, (item_id or "")[:6])
 
         # Find the connection
         connection = BankConnection.objects.filter(item_id=item_id).first()

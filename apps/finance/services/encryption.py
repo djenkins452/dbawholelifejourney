@@ -101,66 +101,74 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
-def get_fernet():
-    """
-    Get a Fernet instance using the configured encryption key.
+#: Legacy marker written by the removed development fallback. Tokens carrying it are
+#: PLAINTEXT. Reading one still works — it may be the only credential that can revoke a
+#: live provider Item, and destroying it would strand that access forever — but writing
+#: one is now impossible.
+LEGACY_PLAINTEXT_PREFIX = 'UNENCRYPTED:'
 
-    Returns:
-        Fernet instance or None if not configured
+
+class EncryptionNotConfigured(RuntimeError):
+    """Raised instead of silently storing a financial credential in plaintext."""
+
+
+def get_fernet():
+    """Return a Fernet instance, or raise. NEVER returns None.
+
+    FAIL CLOSED: a missing or invalid key is a configuration failure, not a licence to
+    store a bank credential in the clear.
 
     Raises:
-        ValueError: If key is invalid
+        EncryptionNotConfigured: key absent or unusable.
     """
     key = getattr(settings, 'BANK_TOKEN_ENCRYPTION_KEY', None)
 
     if not key:
-        logger.warning(
-            "BANK_TOKEN_ENCRYPTION_KEY not configured. "
-            "Bank token encryption is disabled."
+        raise EncryptionNotConfigured(
+            "BANK_TOKEN_ENCRYPTION_KEY is not configured. Bank and provider tokens "
+            "cannot be stored without encryption."
         )
-        return None
 
     try:
         from cryptography.fernet import Fernet
         return Fernet(key.encode() if isinstance(key, str) else key)
+    except EncryptionNotConfigured:
+        raise
     except Exception as e:
-        logger.error(f"Invalid BANK_TOKEN_ENCRYPTION_KEY: {e}")
-        raise ValueError(
+        # The key itself is never logged, only that it failed to load.
+        logger.error("BANK_TOKEN_ENCRYPTION_KEY is invalid: %s", type(e).__name__)
+        raise EncryptionNotConfigured(
             "BANK_TOKEN_ENCRYPTION_KEY is invalid. "
             "Generate a new key with: Fernet.generate_key()"
         )
 
 
-def encrypt_token(plaintext: str) -> str:
+def encryption_available() -> bool:
+    """Is token encryption usable right now? Used by config checks and health probes.
+
+    Returns a boolean and NEVER the key, so it is safe to expose in an operator report.
     """
-    Encrypt a token for secure database storage.
+    try:
+        get_fernet()
+        return True
+    except EncryptionNotConfigured:
+        return False
 
-    Args:
-        plaintext: The access token to encrypt
 
-    Returns:
-        Encrypted token as a string, or plaintext if encryption not configured
+def encrypt_token(plaintext: str) -> str:
+    """Encrypt a token for storage. Raises rather than storing it in the clear.
 
-    Note:
-        If encryption is not configured (no key), returns plaintext with a
-        warning logged. This allows development without encryption but
-        should never be used in production.
+    Raises:
+        EncryptionNotConfigured: no usable key — the caller must abort, not degrade.
     """
     if not plaintext:
         return ''
 
-    fernet = get_fernet()
-
-    if fernet is None:
-        # Development fallback - NOT for production
-        logger.warning("Storing token WITHOUT encryption (dev mode only)")
-        return f"UNENCRYPTED:{plaintext}"
-
+    fernet = get_fernet()          # raises when unusable; never returns None
     try:
-        encrypted = fernet.encrypt(plaintext.encode())
-        return encrypted.decode()
+        return fernet.encrypt(plaintext.encode()).decode()
     except Exception as e:
-        logger.error(f"Token encryption failed: {e}")
+        logger.error("Token encryption failed: %s", type(e).__name__)
         raise
 
 
@@ -180,24 +188,27 @@ def decrypt_token(ciphertext: str) -> str:
     if not ciphertext:
         return ''
 
-    # Handle unencrypted development tokens
-    if ciphertext.startswith('UNENCRYPTED:'):
-        logger.warning("Reading unencrypted token (dev mode only)")
-        return ciphertext[12:]  # Remove prefix
-
-    fernet = get_fernet()
-
-    if fernet is None:
-        raise ValueError(
-            "Cannot decrypt token: BANK_TOKEN_ENCRYPTION_KEY not configured"
+    # A legacy plaintext row is still READABLE — it may be the only credential able to
+    # revoke a live provider Item. Refusing to read it would strand that access, which is
+    # strictly worse than reading it once in order to revoke and re-encrypt.
+    if ciphertext.startswith(LEGACY_PLAINTEXT_PREFIX):
+        logger.error(
+            "Legacy PLAINTEXT provider token encountered (id-less alert). Re-encrypt or "
+            "revoke it; writing plaintext is no longer possible."
         )
+        return ciphertext[len(LEGACY_PLAINTEXT_PREFIX):]
 
+    fernet = get_fernet()          # raises EncryptionNotConfigured when unusable
     try:
-        decrypted = fernet.decrypt(ciphertext.encode())
-        return decrypted.decode()
+        return fernet.decrypt(ciphertext.encode()).decode()
     except Exception as e:
-        logger.error(f"Token decryption failed: {e}")
+        logger.error("Token decryption failed: %s", type(e).__name__)
         raise ValueError("Token decryption failed. Key may have changed.")
+
+
+def is_legacy_plaintext(ciphertext: str) -> bool:
+    """True when a stored value is a legacy plaintext token (audit helper)."""
+    return bool(ciphertext) and ciphertext.startswith(LEGACY_PLAINTEXT_PREFIX)
 
 
 def generate_encryption_key() -> str:

@@ -6,6 +6,60 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — security(finance): Plaid Trial remediation — encryption fails closed, webhooks verified, revocation safe, access gated
+
+**Six audited failures fixed so the Plaid Trial attestations can be answered honestly.**
+Durable record: `docs/WLJ_FINANCE_PROVIDER_SECURITY.md`. No bank connected, no paid Plaid access, no
+credential value printed or committed.
+
+**1 — Token encryption FAILS CLOSED.** The `UNENCRYPTED:` plaintext fallback is **removed**
+(`encryption.py`): `get_fernet()` now raises `EncryptionNotConfigured` instead of returning `None`, so a
+provider token cannot be written unencrypted by any path. A *legacy* plaintext value stays **readable** on
+purpose — it may be the only credential that can revoke a live Item, and refusing to read it would strand
+that access forever. Added: a Django system check that **errors the deploy** when Plaid is configured without
+a usable key (`apps/finance/checks.py`; system checks run before `migrate` on every Railway release), a
+`SEV_CRITICAL` config-governance declaration, and `bank_token_encryption_configured` +
+`credentials.legacy_plaintext_tokens` in the operator audit. **Production evidence: 0 stored tokens,
+0 legacy plaintext** — nothing to migrate, no stop condition.
+
+**2 — Webhook verification is now real.** The old code decoded the JWT with `verify_signature: False` and
+checked only a body hash and `iat` — both forger-controlled — and returned `True` outright when Plaid was
+unconfigured. `plaid_webhook_verification.py` pins **ES256** (defeating `alg: none` and substitution),
+fetches Plaid's JWK by `kid` via a new `PlaidService.get_webhook_verification_key`, caches it for a bounded
+24h, verifies the signature, enforces a 300s `iat` window, compares `request_body_sha256` in constant time,
+and rejects replays. Every failure path REJECTS, including missing config. **PyJWT added to requirements** —
+it was imported at runtime but never declared.
+
+**3 — Disconnection revokes before it forgets.** One service (`provider_disconnect.py`): revoke at the
+provider FIRST, clear the token only on confirmation; on failure keep the encrypted token, mark
+`revocation_pending` (new status, migration `0022`), and return **502** — never "disconnected".
+`ITEM_NOT_FOUND`/`INVALID_ACCESS_TOKEN` count as revoked, so retries are idempotent.
+`BankConnection.delete()`/`.soft_delete()` now **refuse** while access is live, and
+`assert_no_live_provider_access()` guards account closure. Those guards refuse rather than call the network —
+an external request inside a delete cascade is exactly the coupling that strands state.
+
+**4 — Access is a granted capability.** `apps/finance/access.py` makes `finances_enabled` (already
+default-False, enforced nowhere) a real gate on connect, exchange, sync, disconnect, attribution,
+opportunities, and entity setup. **Signing up grants nothing.** Staff-only grant path
+(`manage.py finance_access --grant … --by …`). **No identity is hardcoded** — AST-asserted over executable
+string literals. Webhooks stay machine-authenticated, never user-authenticated.
+
+**5 — Re-auth and rate limits are ACTIVE.** `@finance_enabled_required` + `@requires_recent_auth(15)` +
+`@finance_rate_limit` on all five provider views; new `bank_connect` 5/h and `bank_disconnect` 10/h limits.
+The audit's finding was that these controls existed and were applied to nothing; a source-level test now
+fails if a decorator is removed.
+
+**6 — Auditability.** The operator audit reports the **resolved dependency set** (public metadata) so the
+deployed versions become auditable despite range pins. Webhook logging redacted to a 6-char item prefix.
+
+**Tests: 263 green**, 41 of them new and mapped one-to-one to the attestations — fail-closed encryption,
+round-trip, rotation-readiness, no-key-in-logs, deploy check; webhook valid / invalid-signature / wrong-body
+/ expired / unknown-key / unsigned / missing-config / replay; revocation success / failure-preserves-token /
+already-gone / idempotent-retry / deletion-blocked / closure-blocked; access default-off / signup-denied /
+staff-only-grant / no-hardcoded-identity / decorators-applied / rate-limit-caps-at-5. **No test makes a
+network call or needs a real Plaid credential.**
+
+
 ## 2026-08-25 — feat(finance): Stage 2 — expose Finance intelligence on the dashboard and to the Chief of Staff
 
 **Production audit first (aggregates only).** `finance-audit` on prod: **healthy** — integrity all zero,

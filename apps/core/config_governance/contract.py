@@ -171,6 +171,25 @@ CONTRACT: tuple = (
         ),
     ),
     VariableSpec(
+        name="BANK_TOKEN_ENCRYPTION_KEY", classification=CLASS_SECRET,
+        description=(
+            "Fernet key for provider (Plaid) access tokens at rest — "
+            "apps/finance/services/encryption.py."
+        ),
+        capability=(
+            "Bank/provider connections. Token storage now FAILS CLOSED without it: "
+            "encrypt_token raises EncryptionNotConfigured rather than writing a bank "
+            "credential in plaintext, so a Plaid connection cannot be created or updated."
+        ),
+        required_services=(SERVICE_WEB, SERVICE_WORKER),
+        severity=SEV_CRITICAL, preferred_source=SOURCE_SHARED,
+        remediation=(
+            "Share the SAME BANK_TOKEN_ENCRYPTION_KEY with Web and Worker. A mismatch "
+            "makes stored tokens undecryptable and strands provider revocation — treat "
+            "rotation as a one-way decision that requires re-encrypting existing rows."
+        ),
+    ),
+    VariableSpec(
         name="CLAUDE_API_KEY", classification=CLASS_SECRET,
         description="Operator/automation API key for admin task + ops-diagnostic endpoints.",
         capability="Internal operator automation (not customer-facing)",

@@ -323,6 +323,23 @@ class PlaidService:
             } if txn.location else None,
         }
 
+    def get_webhook_verification_key(self, key_id: str):
+        """Fetch Plaid's public JWK for a webhook `kid`.
+
+        Returned as a plain dict so the verifier stays SDK-agnostic and testable without
+        a network call. Never logs the key id in full or the key material.
+        """
+        from plaid.model.webhook_verification_key_get_request import (
+            WebhookVerificationKeyGetRequest,
+        )
+
+        request = WebhookVerificationKeyGetRequest(key_id=key_id)
+        response = self.client.webhook_verification_key_get(request)
+        key = response.get("key") if hasattr(response, "get") else response.key
+        if key is None:
+            return None
+        return key.to_dict() if hasattr(key, "to_dict") else dict(key)
+
     def remove_item(self, access_token: str) -> bool:
         """
         Remove a Plaid Item (disconnect bank).

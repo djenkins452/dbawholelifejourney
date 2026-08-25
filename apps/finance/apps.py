@@ -16,5 +16,6 @@ class FinanceConfig(AppConfig):
 
     def ready(self):
         # Register Current Context page-summary providers (finance.dashboard).
+        from apps.finance import checks  # noqa: F401
         from apps.finance import page_summaries  # noqa: F401
         from apps.finance import page_summaries_attribution  # noqa: F401

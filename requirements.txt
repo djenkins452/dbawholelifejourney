@@ -63,6 +63,9 @@ tiktoken>=0.7.0  # Accurate GPT-4o tokenization for token budget enforcement
 
 # Bank Integration (Plaid)
 plaid-python>=23.0.0
+# Required to verify Plaid webhook signatures (ES256 JWT). Without it webhook
+# verification fails CLOSED — see apps/finance/services/plaid_webhook_verification.py
+PyJWT>=2.8.0
 cryptography>=42.0.0
 
 # Background Job Scheduler (legacy — SMS, life, capture, ISE jobs)

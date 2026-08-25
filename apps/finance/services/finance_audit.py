@@ -121,6 +121,11 @@ def audit():
         months = ((span["last"].year - span["first"].year) * 12
                   + span["last"].month - span["first"].month + 1)
     connections = BankConnection.objects.all()
+    # Legacy plaintext credentials, COUNTED never displayed. A non-zero count is a stop
+    # condition: the value is potentially the only credential able to revoke a live Item.
+    legacy_plaintext = connections.filter(
+        access_token_encrypted__startswith="UNENCRYPTED:").count()
+    tokens_stored = connections.exclude(access_token_encrypted="").count()
 
     from apps.core.ai_insights.models import Insight
     finance_insights = Insight.objects.filter(module="finance")
@@ -135,6 +140,9 @@ def audit():
             "provider": provider,
             "finance_active_users": len(finance_user_ids),
             "total_users": User.objects.count(),
+            # Explicit capability grants — the trial population, as a COUNT only.
+            "finance_enabled_users": User.objects.filter(
+                preferences__finances_enabled=True).count(),
         },
         "entities": {
             "total": FinancialEntity.objects.count(),
@@ -202,6 +210,11 @@ def audit():
             "totals_changed": bool(converged != old_metrics),
             "rows_affected": categorised_transfer + paired,
         },
+        "credentials": {
+            "connections_with_stored_token": tokens_stored,
+            "legacy_plaintext_tokens": legacy_plaintext,
+            "all_tokens_encrypted": legacy_plaintext == 0,
+        },
         "sync": {
             "connections": connections.count(),
             "institutions": connections.values("institution_name").distinct().count()
@@ -209,6 +222,7 @@ def audit():
             "last_sync": _last_sync(connections),
             "accounts_synced": accounts.filter(is_synced=True).count(),
         },
+        "dependencies": _installed_distributions(),
         "integrity": integrity,
         "readiness": _readiness(eligible, months, len(finance_user_ids), integrity),
     }
@@ -227,12 +241,52 @@ def _has_field(model, name):
 
 
 def _provider_state():
+    """Booleans and versions only — never a key value, not even a prefix."""
+    import sys
+
+    import django
     from django.conf import settings
+
+    from apps.finance.services.encryption import encryption_available
+
+    try:
+        from importlib.metadata import version as _pkg_version
+        plaid_version = _pkg_version("plaid-python")
+    except Exception:
+        plaid_version = None
+
     return {
         "plaid_env": getattr(settings, "PLAID_ENV", "unset"),
         "plaid_configured": bool(getattr(settings, "PLAID_CLIENT_ID", "")
                                  and getattr(settings, "PLAID_SECRET", "")),
+        # The single fact that decides whether a token can be stored at all.
+        "bank_token_encryption_configured": encryption_available(),
+        "python": sys.version.split()[0],
+        "django": django.get_version(),
+        "plaid_python": plaid_version,
     }
+
+
+def _installed_distributions():
+    """The RESOLVED dependency set of this environment: {name: version}.
+
+    Package names and versions are public metadata — no secret, no user data. This is
+    what makes the deployed set auditable, since the repository pins ranges rather than
+    exact versions.
+    """
+    try:
+        from importlib.metadata import distributions
+    except Exception:
+        return {}
+    resolved = {}
+    for dist in distributions():
+        try:
+            name = dist.metadata["Name"]
+        except Exception:
+            continue
+        if name:
+            resolved[name] = dist.version
+    return dict(sorted(resolved.items(), key=lambda kv: kv[0].lower()))
 
 
 def _readiness(eligible, months, users, integrity):

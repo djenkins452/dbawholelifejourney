@@ -3627,7 +3627,8 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
       * Which commit is WEB running, and (via the worker-stamped cache) the WORKER?
 
     GET /admin-console/api/claude/truth-probe/?email=&domain=health&subject=overall&period=
-    Auth: X-Claude-API-Key. Read-only; request-path-safe (one bounded truth read).
+      &entity=<name|*>&entity_type=<type>   -> ALSO run the certified ENTITY surface
+    Auth: X-Claude-API-Key. Read-only; request-path-safe (bounded truth reads).
     """
 
     rate_limit_requests_per_minute = 30
@@ -3741,6 +3742,25 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             except Exception as exc:
                 routine_forensics = {'error': repr(exc)}
 
+        # --- ENTITY truth (read-only) ---
+        # The probe's job is to show exactly what deterministic truth the CoS composes.
+        # `get_analysis` alone cannot answer that for ENTITY domains (medicine records,
+        # medication_reference product labels, workouts, people...), which is where a
+        # by-name retrieval actually lands. `entity=<name>` runs the SAME certified
+        # surface the model calls (`get_domain_entity`), so an operator can confirm what
+        # a retrieval would return without a browser session or a paid model run.
+        entity_probe = None
+        entity_q = (request.GET.get('entity') or '').strip()
+        if entity_q:
+            try:
+                from apps.ai.cos_services.domain_entity import get_domain_entity
+                entity_probe = get_domain_entity(
+                    user, domain,
+                    entity_type=(request.GET.get('entity_type') or None),
+                    name=(None if entity_q == '*' else entity_q))
+            except Exception as exc:
+                entity_probe = {'error': repr(exc)}
+
         # --- recent ToolCallLog rows for this user (forensics) ---
         # `tool=` selects which tool to inspect (default get_analysis, the truth path).
         # `tool=*` returns EVERY recent call, and `kind=action` narrows to write actions —
@@ -3778,6 +3798,7 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             'probe': {'email': user.email, 'domain': domain, 'subject': subject,
                       'period': period},
             'envelope': envelope,
+            'entity_probe': entity_probe,
             'recent_get_analysis_calls': recent_calls,
             'routine_forensics': routine_forensics,
             'web_encryption': web_encryption,

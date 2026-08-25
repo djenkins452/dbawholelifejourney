@@ -95,6 +95,52 @@ never a request path.
 
 ---
 
+## 2026-08-24 — design(finance): assessment APPROVED with decisions + F-1 Legacy Finance AI retirement plan (PLAN ONLY)
+
+**Docs only. No code, no models, no migrations, no provider call.** F0–F4 remain unimplemented; **F-1 is
+planned but NOT implemented** — awaiting Danny's explicit go.
+
+**Decisions ratified into `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` §10:**
+(1) **General user-scoped entity model** — personal / household / business / unknown / future Space-linked;
+**entity type and entity NAME are separate columns — "Beacon" is data, never application logic** (same rule
+that keeps "Beth" out of the architecture, Constitution §1); no Space permissions now, but no schema that
+prevents them. (2) **Attribution is a first-class auditable record, NOT columns on `Transaction`** — the
+original §5.2 recommendation is explicitly SUPERSEDED because columns cannot preserve supersession history,
+splits, or reimbursement links; corrections **supersede rather than mutate**; `Transaction` may carry a
+convenience pointer that is a cache of the authority, never a second authority (III.1); **user confirmation
+outranks all inference, unconditionally**. (3) **Read-only is now an explicit architectural invariant with a
+contract test** — the encoded distinction: *WLJ may write its own classification of the world; it may never
+write to the world.* (4) F-1 retirement moved **before** F0. (5) **Classification boundary:** deterministic
+normalization + rules + detectors; the model interprets ambiguity only in user-initiated conversation or a
+controlled review — **cost scales with conversations, not transaction count**. Plaid production activation
+deferred with an explicit written trigger.
+
+**F-1 plan (new): `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.** Caller map PROVEN, and the finding is
+decisive: **the four legacy Finance AI endpoints have ZERO live callers.** No template (`templates/finance/`
+`fetch()` calls are the five Plaid endpoints only; `dashboard.html` has no insight surface), no JS/static, no
+test, and `get_finance_ai_service` is imported ONLY by the four views (`apps/finance/views.py:1499, 1551,
+1584, 1622`). Reachable by direct URL alone, behind consent (`ai_insights.py:72`) + 10/hour rate limit
+(`views.py:1504`). The single outside mention is a dated REFERENCE_ONLY catalog. **So the risk was never lost
+functionality — it was an unreviewed request-path provider call and a second reasoning authority.**
+
+**Replacement (exposure, not invention):** three of the four legacy capabilities already have canonical
+answers via `FinanceDomainTruth`; the real gap is that `RecurringTransaction`, `Budget`, and `FinancialGoal`
+are not in `entity_types` (`finance_domain_truth.py:27`). F-1 exposes them following the existing
+`_transaction_entity`/`_account_entity` pattern (`:98`, `:114`), facts-only, reusing existing computations —
+**no new calculation**. Deliberately preserved: `FinanceAuditLog.ACTION_AI_QUERY` and the migration choice
+(historical audit rows must stay readable) and the `ai_query` rate limit (F2's review experience is its next
+consumer). Documented-not-built: an on-page Finance insight surface goes through
+`apps.core.ai_insights.services.get_module_insight` (`services.py:27`) — a pure DB read fed by F1's detector.
+
+**F-1 acceptance:** 10 focused deterministic tests (read-only invariant, no provider client anywhere under
+`apps/finance/`, Finance NOT added to `INLINE_LLM_ALLOWLIST`, entity shape + ownership isolation, routes gone,
+page smoke). **Zero real-provider calls required.** Rollback = single `git revert` (no migration, no schema,
+no data). Sequencing writes the replacement BEFORE the removal, and starts with a test expected to FAIL.
+
+**Files:** `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md` (new),
+`docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` (amended §5.1/§5.2/§8/§9/§10),
+`docs/wlj_claude_changelog.md`. No app code touched.
+
 ## 2026-08-24 — design(finance): Finance Intelligence — architecture & product assessment (ASSESSMENT ONLY, NOT IMPLEMENTED)
 
 **Assessment only. No code, no models, no migrations, no provider installed, no governing doc modified.**

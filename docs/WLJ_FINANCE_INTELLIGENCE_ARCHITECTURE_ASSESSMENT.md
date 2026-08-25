@@ -1,8 +1,9 @@
 # WLJ Finance Intelligence — Architecture & Product Assessment
 
-> **Mode:** ARCHITECT (`WLJ_MASTER_PROMPT.md` §5). **Status:** assessment only — **nothing implemented,
-> no provider installed, no governing document modified.** Awaiting Danny's explicit "go".
-> **Date:** 2026-08-24
+> **Mode:** ARCHITECT (`WLJ_MASTER_PROMPT.md` §5). **Status:** **APPROVED 2026-08-24 with decisions** (§10).
+> Nothing in F0–F4 is implemented. **F-1 is the only phase cleared to plan** — see
+> `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`; implementation still awaits an explicit "go".
+> **Date:** 2026-08-24 (assessment) · **Amended:** 2026-08-24 (Danny's ratified decisions)
 
 ---
 
@@ -176,6 +177,9 @@ Everything else is exposure and reuse.
 ## 5. Recommended architecture
 
 ### 5.1 One new truth object: the financial entity
+> **CONFIRMED and generalized by §10.1** — a general, user-scoped entity model with `type` and `name` as
+> separate fields, including `personal`, `household/shared`, business entities, and `unknown`.
+
 Model a **`FinancialEntity`** (user-owned) — *not* a hardcoded "Beacon", *not* a boolean on the account.
 Two attributions per transaction, and the whole product lives in the difference between them:
 
@@ -191,12 +195,20 @@ canonical container and `user_id` as today's stand-in for the Personal Space. A 
 Space. **Design `FinancialEntity` so it can later become a Space reference** (stable id, ownership through the
 user, no capability logic on it). Do not build entity-scoped permissions now — that is the framework's job.
 
-### 5.2 Attribution provenance (G2) — extend, don't fork
-Add attribution fields alongside the existing `source_type` provenance rather than a parallel table, and give
-the *rule* its own record (the `LearnedMapping` shape): `payee/merchant pattern → entity`, `confidence`,
-`usage_count`, `is_active`, `created_from` (user confirmation vs seeded rule). Reuse `Payee`
-(`apps/finance/models.py:1644`, already has `default_category`) as the anchor — a new merchant taxonomy
-would violate IV.3.
+### 5.2 Attribution provenance (G2) — a first-class, auditable record
+> **AMENDED by §10.2.** The original recommendation ("attribution as columns on `Transaction`") is
+> **superseded**: columns cannot preserve supersession history, splits, or reimbursement links.
+
+Attribution is its own **first-class record** carrying transaction · attributed entity · paid-from entity ·
+source · rule used · confidence · evidence · user-confirmed state · effective state · supersession history ·
+timestamps + actor · notes · share/portion (for future splits) · future reimbursement link. `Transaction`
+may carry a **convenience pointer to its current attribution** — a cache of the authority, never a second
+authority (III.1). Corrections **supersede**, never mutate. **User confirmation outranks every inference.**
+
+The *rule* keeps its own record in the `LearnedMapping` shape (`apps/core/ai_memory/models.py:112`):
+`payee/merchant pattern → entity`, `confidence`, `usage_count`, `is_active`, `created_from` (user
+confirmation vs seeded rule), anchored on the existing `Payee` model (`apps/finance/models.py:1644`, which
+already has `default_category`) — a new merchant taxonomy would violate IV.3.
 
 ### 5.3 Detection (G3) — a deterministic rule, in an existing cycle
 A `finance` insight producer that emits `Insight(module="finance", insight_type="entity_expense_mismatch")`
@@ -276,31 +288,105 @@ reasoning/classifier engine, to let WLJ emit financial verdicts, or to add finan
 
 ---
 
-## 8. Proposed phasing (for approval — not started)
+## 8. Approved delivery sequence (ratified 2026-08-24)
 
-- **F0 — Entity truth.** `FinancialEntity` + attribution fields + rule record. Migrations, admin, tests.
-  No detection, no CoS surface. *Exit: Danny can mark a payee as belonging to an entity and it persists with
-  provenance.*
-- **F1 — Detection.** The deterministic mismatch rule emitting `Insight` in an existing cycle, with evidence.
-  *Exit: the Beacon-paid-from-personal set appears with correct evidence and no false positives on real data.*
-- **F2 — Conversation.** Expose attribution through the existing truth tools; the CoS explains the evidence
-  and Danny confirms or corrects in conversation; confirmations write rules. *Exit: the loop works in one
-  real conversation.*
-- **F3 — Follow-through.** `schedule_follow_up` on accepted recommendations + the deterministic outcome
-  re-query. *Exit: the CoS asks later, and answers correctly whether the charge moved.*
-- **F4 — Cleanup (independent).** Retire the four `FinanceAIService` endpoints (§5.7).
+- **F-1 — Legacy Finance AI retirement (FIRST, before F0).** Retire or replace the request-path Finance
+  reasoning service safely — prove every caller and every user-visible dependency *before* removing anything.
+  Detailed plan: `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.
+- **F0 — General financial entity + auditable attribution truth.** See §5.1/§5.2 as amended by §10.
+- **F1 — Deterministic detection**, including business-attributed expenses paid from personal accounts.
+- **F2 — User review, confirmation, correction, and reusable attribution learning.**
+- **F3 — Insight/action lifecycle and follow-through verification.**
+- **F4 — Remaining cleanup, documentation consolidation, deferred-scope review.**
 
-**Deferred with triggers (not "someday"):** production Plaid connection → trigger: Danny wants live sync
-rather than imports. Multi-entity Spaces → trigger: a second person needs access to Beacon data. Finance
-write actions → trigger: an explicit decision to leave read-only, taken on its own merits.
+**Production Plaid activation remains deferred.** The sandbox path stays exactly as built
+(`PLAID_ENV` default `sandbox`, `config/settings.py:1006–1008`; `PlaidService.is_configured()` at
+`apps/finance/services/plaid_service.py:59` already fails closed). **Explicit trigger for a production-provider
+evaluation:** Danny wants continuous live account sync rather than file import *and* F0–F2 have proven the
+attribution loop on real imported data. That evaluation is its own approval gate — it involves the user
+entering institution credentials in Plaid Link (never Claude, never WLJ), production token storage, and
+webhook exposure.
 
-## 9. Open decisions for Danny
+## 9. Decisions (resolved 2026-08-24)
 
-1. **Entity naming/scope** — is "Beacon" one of several entities (LLC, side business, household), or the only
-   one? Determines whether `FinancialEntity` is a list or a pair.
-2. **Attribution source of record** — should attribution live on the transaction (fast queries, per-row
-   override) or be derived from a rule at read time (no stale rows, no backfill)? *Recommendation: store on the
-   row with the rule id + confidence, so a rule change is auditable rather than retroactive.*
-3. **Read-only confirmation** — confirm the MVP stays read-only, i.e. **no finance intent is added to
-   `ALLOWED_WRITE_INTENTS`**.
-4. **§5.7 retirement** — retire the legacy Finance AI endpoints in F4, or earlier?
+The four open questions are now answered — see §10 for the binding text.
+
+---
+
+## 10. Ratified decisions (Danny, 2026-08-24)
+
+### 10.1 Financial entities — general and user-scoped
+A general, **user-scoped entity model**. **Beacon is the first business entity, not a system concept and not
+the only possible one.** The schema must support: personal · household/shared · Beacon · another business ·
+unknown · future Space-linked entities.
+
+- **Entity *type* and entity *name* are separate columns.** "Beacon" is **data, never application logic** —
+  no code may branch on the string. (Same rule that keeps "Beth" out of the architecture: Constitution §1.)
+- `unknown` is a first-class type, not a null — an unattributed transaction is a known state, not missing data.
+- **Do not build Space permissions or shared-entity authorization in this milestone** — but do not create a
+  schema that prevents them. Concretely: a stable entity id, ownership expressed through the user (today's
+  Personal-Space stand-in), and **no capability/permission logic on the entity record**, so it can later
+  become or reference a Space (`docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md`).
+
+### 10.2 Attribution — persisted, first-class, and auditable
+Attribution is **persisted, not derived at read time** — but it is **not** a handful of mutable columns on
+`Transaction`. That would lose history and foreclose allocations. Attribution is a **first-class record**
+capable of preserving:
+
+transaction · attributed entity · paid-from entity (derived from the account) · attribution source · rule or
+mapping used · confidence · concise evidence · user-confirmed state · effective/current state ·
+supersession/correction history · timestamps and actor · optional notes · **future mixed-use allocations or
+splits** · **future reimbursement relationships**.
+
+- `Transaction` **may expose a convenience pointer** to its current attribution (fast queries, simple
+  templates), but the attribution record is the authority. The convenience pointer is a cache of the
+  authority, never a second authority (Article III.1).
+- **Supersession, not mutation:** a correction writes a new effective record and supersedes the prior one.
+  Truth evolves and remains auditable.
+- **User confirmation outranks all inferred attribution** — unconditionally. No rule, heuristic, confidence
+  score, or later inference may silently override a user-confirmed attribution.
+- Splits/allocations and reimbursement links are **designed for, not built now** — the shape must not have to
+  change to admit them (an attribution carries a share/portion concept from day one even when it is always
+  100%).
+
+### 10.3 Read-only boundary — an explicit architectural invariant
+**Finance is read-only. No Finance intent may be added to `ALLOWED_WRITE_INTENTS`
+(`apps/ai/model_interface/constitution.py:1653`).**
+
+**Permitted:** observe · explain · ask for confirmation · save internal WLJ classifications and user
+corrections through existing controlled application paths · create insights and follow-up records · track
+whether an externally-completed action occurred.
+
+**Forbidden:** move money · pay bills · change external payment methods · cancel subscriptions · dispute
+charges · initiate reimbursements · modify external financial accounts.
+
+**This is recorded as an architectural invariant with a contract test** (delivered in F-1 — see the retirement
+plan). The distinction the test encodes: **WLJ may write its own classification of the world; it may never
+write to the world.**
+
+### 10.4 Legacy `FinanceAIService` — retire in a bounded F-1, before F0
+Do not leave the request-path Finance reasoning service active until F4. F-1 must **first prove** every
+caller, every user-visible feature depending on it, whether templates/routes/tests/JavaScript invoke those
+endpoints, what experience would disappear, and whether the useful behavior is already available through
+Finance truth tools and the canonical CoS path — **then** retire, replace, or redirect.
+**Do not merely delete endpoints and break Finance pages.**
+
+F-1 acceptance: no unauthorized request-path provider call remains · no domain-local Finance system prompt
+remains active · no Finance reasoning authority exists outside the canonical model interface · current Finance
+pages continue to function · focused regression tests cover the replacement behavior · **OpenAI cost exposure
+is reduced, not relocated.**
+
+### 10.5 Classification boundary — deterministic first, model on demand
+**No background model classification across transactions.** For the MVP:
+
+1. deterministic normalization handles source cleanup;
+2. explicit rules and confirmed mappings handle known attribution;
+3. deterministic detectors identify mismatches and review candidates;
+4. **the model may interpret ambiguity** during a user-initiated conversation or a controlled review
+   experience;
+5. user confirmation creates durable financial truth;
+6. reusable confirmed rules reduce future review burden.
+
+**Model participation in Finance is not prohibited** — the model is WLJ's reasoning layer. The constraint is
+*what it reasons from*: **structured truth and targeted evidence, never repeated passes over raw transaction
+history.** Cost scales with conversations, not with transaction count.

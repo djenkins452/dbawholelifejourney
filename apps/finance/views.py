@@ -1112,7 +1112,12 @@ def bank_connection_start(request):
 
     Returns JSON with link_token for Plaid Link UI.
     """
-    from apps.finance.services.plaid_service import get_plaid_service, PlaidNotConfiguredError
+    from apps.finance.services.plaid_service import (
+        PlaidEnvironmentError,
+        PlaidNotConfiguredError,
+        get_plaid_service,
+    )
+    from apps.finance.services.provider_diagnostics import safe_provider_diagnostics
 
     try:
         plaid = get_plaid_service()
@@ -1124,18 +1129,33 @@ def bank_connection_start(request):
         })
 
     except PlaidNotConfiguredError as e:
-        logger.warning(f"Plaid not configured: {e}")
+        logger.warning("Plaid not configured: %s", type(e).__name__)
         return JsonResponse({
             'success': False,
-            'error': 'Bank connection is not configured. Please contact support.'
+            'error': 'Bank connection is not set up yet. Please contact support.'
+        }, status=503)
+
+    except PlaidEnvironmentError as e:
+        # Configuration is wrong in a way support can actually fix — say so plainly
+        # instead of inviting the user to retry something that cannot succeed.
+        logger.error("Plaid environment misconfigured: %s", e)
+        return JsonResponse({
+            'success': False,
+            'error': ('Bank connection is misconfigured on our side. Retrying will not '
+                      'help — please contact support.'),
+            'retryable': False,
         }, status=503)
 
     except Exception as e:
-        logger.error(f"Error creating link token: {e}")
+        diagnostics = safe_provider_diagnostics(e)
+        logger.error("Error creating link token: %s", diagnostics, exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'Failed to start bank connection. Please try again.'
-        }, status=500)
+            'error': 'We could not reach your bank provider just now. Please try again.',
+            'retryable': True,
+            # Safe fields only — type/code/request id. Never a token, body, or credential.
+            'provider': diagnostics,
+        }, status=502)
 
 
 @login_required

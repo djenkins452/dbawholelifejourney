@@ -402,17 +402,42 @@ def finance_rate_limit(operation: str):
 # Sensitive Operation Verification
 # =============================================================================
 
-def requires_recent_auth(max_age_minutes: int = 15):
+#: Session key written by `users.ConfirmPasswordView` when a password is re-confirmed.
+FINANCE_ACTIVITY_SESSION_KEY = 'finance_last_activity'
+#: Where the confirmation view should send the user back to afterwards.
+FINANCE_RETURN_URL_SESSION_KEY = 'finance_return_url'
+
+
+def _recent_auth_age_seconds(request):
+    """Seconds since this session last PROVED who it is, or None if it never has.
+
+    Prefers the activity-based confirmation (`finance_last_activity`, written by
+    `users:confirm_password`) because that is the control this project actually built for
+    sensitive financial operations. Falls back to `last_login`, which only a fresh sign-in
+    can refresh — so on its own it would strand the user with no way to satisfy it.
     """
-    Decorator requiring recent authentication for sensitive operations.
+    confirmed_at = request.session.get(FINANCE_ACTIVITY_SESSION_KEY)
+    if confirmed_at:
+        try:
+            from django.utils.dateparse import parse_datetime
+            parsed = parse_datetime(confirmed_at)
+            if parsed:
+                return (timezone.now() - parsed).total_seconds()
+        except (TypeError, ValueError):
+            pass
+    last_login = getattr(request.user, 'last_login', None)
+    if last_login:
+        return (timezone.now() - last_login).total_seconds()
+    return None
 
-    Used for operations like:
-    - Deleting accounts
-    - Large transfers
-    - Changing bank connections
 
-    Args:
-        max_age_minutes: Maximum age of authentication in minutes
+def requires_recent_auth(max_age_minutes: int = 15):
+    """Require a recently PROVEN session for sensitive financial operations.
+
+    On failure this does not merely refuse — it tells the client exactly where to go
+    (`reauth_url`) and stores the page to return to, so the user re-confirms their
+    password through the existing secure path and lands back where they started.
+    A security control the user cannot satisfy is a broken feature, not a safe one.
     """
     def decorator(view_func):
         @functools.wraps(view_func)
@@ -420,19 +445,35 @@ def requires_recent_auth(max_age_minutes: int = 15):
             if not request.user.is_authenticated:
                 return JsonResponse({'error': 'Authentication required'}, status=401)
 
-            # Check last login time
-            last_login = request.user.last_login
-            if last_login:
-                age = timezone.now() - last_login
-                if age.total_seconds() > max_age_minutes * 60:
-                    logger.info(
-                        f"Re-authentication required: user={request.user.id} "
-                        f"auth_age={age.total_seconds()}s"
-                    )
-                    return JsonResponse({
-                        'error': 'Please re-authenticate to perform this action',
-                        'require_reauth': True,
-                    }, status=403)
+            age = _recent_auth_age_seconds(request)
+            if age is not None and age > max_age_minutes * 60:
+                from django.urls import reverse
+                # Remember where to come back to — the referring Finance page, or the
+                # connections list. Never a caller-supplied URL (open-redirect safety).
+                return_url = request.path
+                referer = request.META.get('HTTP_REFERER', '')
+                if referer.startswith(request.build_absolute_uri('/finance/')):
+                    return_url = referer[len(request.build_absolute_uri('/')) - 1:]
+                elif not return_url.startswith('/finance/'):
+                    return_url = reverse('finance:connection_list')
+                if not return_url.startswith('/finance/'):
+                    return_url = reverse('finance:connection_list')
+                request.session[FINANCE_RETURN_URL_SESSION_KEY] = return_url
+
+                logger.info(
+                    "Re-authentication required: user=%s auth_age=%ss",
+                    request.user.id, int(age),
+                )
+                return JsonResponse({
+                    'success': False,
+                    'error': (
+                        'For your security, connecting a bank needs a recent password '
+                        'confirmation. Confirm your password and we will bring you '
+                        'straight back here.'
+                    ),
+                    'require_reauth': True,
+                    'reauth_url': reverse('users:confirm_password'),
+                }, status=403)
 
             return view_func(request, *args, **kwargs)
         return wrapper

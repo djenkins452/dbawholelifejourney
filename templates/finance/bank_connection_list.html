@@ -128,55 +128,125 @@
 <!-- Plaid Link Script -->
 <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
 
+<style nonce="{{ csp_nonce }}">
+    .bank-connect-status { margin-top: .6rem; font-size: .9rem; min-height: 1.2em; }
+    .bank-connect-status[data-kind="error"] { color: var(--danger, #b91c1c); }
+    .bank-connect-status[data-kind="blocked"] { color: var(--danger, #b91c1c); }
+    .bank-connect-status[data-kind="reauth"] { color: var(--text-muted, #6b7280); }
+    .bank-connect-status[data-kind="info"] { color: var(--text-muted, #6b7280); }
+</style>
+
 <script nonce="{{ csp_nonce }}">
 let plaidHandler = null;
+
+const CONNECT_LABEL = '+ Connect a Bank';
+
+function bankStatusEl() {
+    let el = document.getElementById('bank-connect-status');
+    if (!el) {
+        const btn = document.getElementById('connect-bank-btn');
+        el = document.createElement('p');
+        el.id = 'bank-connect-status';
+        el.className = 'bank-connect-status';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        if (btn && btn.parentNode) {
+            btn.parentNode.insertBefore(el, btn.nextSibling);
+        }
+    }
+    return el;
+}
+
+function showBankMessage(text, kind) {
+    const el = bankStatusEl();
+    el.textContent = text || '';
+    el.dataset.kind = kind || 'info';
+}
+
+// Any exit from the flow — success, refusal, or crash — must hand the button back.
+function resetConnectButton() {
+    const btn = document.getElementById('connect-bank-btn');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = CONNECT_LABEL;
+    }
+}
 
 async function connectBank() {
     const btn = document.getElementById('connect-bank-btn');
     btn.disabled = true;
     btn.textContent = 'Connecting...';
+    showBankMessage('', 'info');
 
+    let data = null;
     try {
-        // Get link token from server
-        const response = await fetch('{% url "finance:connection_start" %}');
-        const data = await response.json();
+        const response = await fetch('{% url "finance:connection_start" %}', {
+            headers: { 'Accept': 'application/json' }
+        });
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
 
-        if (!data.success) {
-            alert(data.error || 'Failed to start bank connection');
+        if (!data || !data.success) {
+            // The session needs a fresh password confirmation. This is a security
+            // control working as designed, so send the user through the real flow
+            // rather than showing a dead end.
+            if (data && data.require_reauth && data.reauth_url) {
+                showBankMessage(data.error, 'reauth');
+                resetConnectButton();
+                window.location.assign(data.reauth_url);
+                return;
+            }
+            const message = (data && data.error)
+                || 'We could not start the bank connection. Please try again.';
+            showBankMessage(message, (data && data.retryable === false) ? 'blocked' : 'error');
             return;
         }
 
-        // Initialize Plaid Link
         plaidHandler = Plaid.create({
             token: data.link_token,
             onSuccess: async (public_token, metadata) => {
-                // Send to server
-                const result = await fetch('{% url "finance:connection_complete" %}', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({
-                        public_token: public_token,
-                        metadata: metadata
-                    })
-                });
-
-                const resultData = await result.json();
-
-                if (resultData.success) {
-                    // Reload page to show new connection
-                    window.location.reload();
-                } else {
-                    alert(resultData.error || 'Failed to complete connection');
+                showBankMessage('Finishing up…', 'info');
+                try {
+                    const result = await fetch('{% url "finance:connection_complete" %}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            public_token: public_token,
+                            metadata: metadata
+                        })
+                    });
+                    const resultData = await result.json();
+                    if (resultData.success) {
+                        window.location.reload();
+                        return;
+                    }
+                    if (resultData.require_reauth && resultData.reauth_url) {
+                        showBankMessage(resultData.error, 'reauth');
+                        window.location.assign(resultData.reauth_url);
+                        return;
+                    }
+                    showBankMessage(
+                        resultData.error || 'We could not finish connecting that account.',
+                        'error');
+                } catch (completionError) {
+                    showBankMessage(
+                        'We could not finish connecting that account. Please try again.',
+                        'error');
+                } finally {
+                    resetConnectButton();
                 }
             },
             onExit: (err, metadata) => {
-                btn.disabled = false;
-                btn.textContent = '+ Connect a Bank';
+                resetConnectButton();
                 if (err) {
-                    console.error('Plaid Link error:', err);
+                    showBankMessage('Bank connection was not completed.', 'info');
                 }
             },
         });
@@ -184,12 +254,26 @@ async function connectBank() {
         plaidHandler.open();
 
     } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to connect bank. Please try again.');
+        showBankMessage(
+            'We could not start the bank connection. Please try again.', 'error');
     } finally {
-        btn.disabled = false;
-        btn.textContent = '+ Connect a Bank';
+        // Plaid Link owns the screen once open; the button is restored by onExit or
+        // onSuccess. Every other path lands here.
+        if (!plaidHandler || !data || !data.success) {
+            resetConnectButton();
+        }
     }
+}
+
+// Every provider action shares the same security boundary, so they share the same
+// recovery: if the session needs a fresh password confirmation, go and get one.
+function handledReauth(data) {
+    if (data && data.require_reauth && data.reauth_url) {
+        showBankMessage(data.error, 'reauth');
+        window.location.assign(data.reauth_url);
+        return true;
+    }
+    return false;
 }
 
 async function reconnectBank(connectionId) {
@@ -198,7 +282,8 @@ async function reconnectBank(connectionId) {
         const data = await response.json();
 
         if (!data.success) {
-            alert(data.error || 'Failed to start reconnection');
+            if (handledReauth(data)) { return; }
+            showBankMessage(data.error || 'We could not start the reconnection.', 'error');
             return;
         }
 
@@ -219,8 +304,7 @@ async function reconnectBank(connectionId) {
         handler.open();
 
     } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to reconnect. Please try again.');
+        showBankMessage('We could not reconnect that account. Please try again.', 'error');
     }
 }
 
@@ -244,13 +328,13 @@ async function syncConnection(connectionId) {
                 window.location.reload();
             }, 1500);
         } else {
-            alert(data.error || 'Sync failed');
+            if (handledReauth(data)) { return; }
+            showBankMessage(data.error || 'Sync did not complete.', 'error');
             btn.textContent = 'Sync Now';
             btn.disabled = false;
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Sync failed. Please try again.');
+        showBankMessage('Sync did not complete. Please try again.', 'error');
         btn.textContent = 'Sync Now';
         btn.disabled = false;
     }
@@ -273,11 +357,16 @@ async function disconnectBank(connectionId, institutionName) {
         if (data.success) {
             window.location.reload();
         } else {
-            alert(data.error || 'Failed to disconnect');
+            if (handledReauth(data)) { return; }
+            // A failed revocation is NOT a disconnection — say so, and offer the retry.
+            showBankMessage(
+                data.error || 'We could not confirm your bank revoked this connection.',
+                'error');
         }
     } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to disconnect. Please try again.');
+        showBankMessage(
+            'We could not confirm your bank revoked this connection. Please try again.',
+            'error');
     }
 }
 

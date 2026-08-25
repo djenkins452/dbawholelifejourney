@@ -21,7 +21,7 @@ See docs/wlj_bank_integration_architecture.md for architecture details.
 Environment Variables:
     PLAID_CLIENT_ID - Plaid API client ID
     PLAID_SECRET - Plaid API secret key
-    PLAID_ENV - Environment: sandbox, development, or production
+    PLAID_ENV - Environment: sandbox or production ('development' was retired by Plaid)
     PLAID_WEBHOOK_URL - Webhook endpoint URL (optional)
 """
 
@@ -30,6 +30,52 @@ import logging
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+#: Environment name -> SDK attribute. Plaid removed `Development` (2024); only these
+#: two remain. Resolution is by attribute NAME so a future SDK change surfaces as a clear
+#: configuration error instead of an AttributeError raised while building a dict.
+PLAID_ENVIRONMENT_ATTRS = {
+    'sandbox': 'Sandbox',
+    'production': 'Production',
+}
+#: Retired environments, kept so a stale config gets a truthful message.
+RETIRED_PLAID_ENVIRONMENTS = {'development'}
+
+
+class PlaidEnvironmentError(Exception):
+    """The configured PLAID_ENV cannot be resolved against the installed SDK."""
+
+
+def _resolve_plaid_host(environment):
+    """Map `PLAID_ENV` to an SDK host, failing with an explanation rather than a crash.
+
+    The NAME is validated before the SDK is imported, so a stale configuration reports
+    itself even in an environment where plaid-python is not installed.
+    """
+    name = (environment or '').strip().lower()
+    if name in RETIRED_PLAID_ENVIRONMENTS:
+        raise PlaidEnvironmentError(
+            f"PLAID_ENV='{name}' refers to an environment Plaid has retired. "
+            "Use 'sandbox' or 'production'."
+        )
+    attr = PLAID_ENVIRONMENT_ATTRS.get(name)
+    if attr is None:
+        raise PlaidEnvironmentError(
+            f"PLAID_ENV='{environment}' is not a supported environment. "
+            f"Expected one of: {', '.join(sorted(PLAID_ENVIRONMENT_ATTRS))}."
+        )
+
+    import plaid
+
+    host = getattr(plaid.Environment, attr, None)
+    if host is None:
+        available = [a for a in dir(plaid.Environment) if not a.startswith('_')]
+        raise PlaidEnvironmentError(
+            f"The installed Plaid SDK does not provide the '{attr}' environment "
+            f"(available: {', '.join(available)}). Upgrade or pin plaid-python."
+        )
+    return host
 
 
 class PlaidNotConfiguredError(Exception):
@@ -82,12 +128,13 @@ class PlaidService:
                 from plaid.api import plaid_api
 
                 # Map environment string to Plaid environment
-                env_map = {
-                    'sandbox': plaid.Environment.Sandbox,
-                    'development': plaid.Environment.Development,
-                    'production': plaid.Environment.Production,
-                }
-                plaid_env = env_map.get(self.environment, plaid.Environment.Sandbox)
+                # Resolve the host by NAME, never by attribute access on a literal dict.
+                # Plaid retired the `Development` environment and removed it from the
+                # SDK (43.x exposes only Sandbox and Production). The previous dict
+                # evaluated `plaid.Environment.Development` while being BUILT, so it
+                # raised AttributeError on every call regardless of which environment
+                # was configured — Link could not start in sandbox OR production.
+                plaid_env = _resolve_plaid_host(self.environment)
 
                 configuration = plaid.Configuration(
                     host=plaid_env,

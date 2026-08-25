@@ -6,6 +6,60 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — fix(finance): Plaid Link could never start — a retired SDK environment was evaluated on every call
+
+**Proven root cause, from the production log at the exact reported minute:**
+
+```
+ERROR 2026-08-25 21:01:40,387 views Error creating link token:
+      type object 'Environment' has no attribute 'Development'
+```
+
+`plaid_service.py` built its environment map as a literal dict, so **`plaid.Environment.Development` was
+evaluated while the dict was being CONSTRUCTED** — before any lookup. Plaid retired the Development
+environment and removed it from the SDK (production runs plaid-python **43.0.0**, which exposes only
+`Sandbox` and `Production`, verified in the container). The `AttributeError` therefore fired on **every**
+call regardless of `PLAID_ENV`: Link could not start in sandbox OR production.
+
+**The leading hypothesis was WRONG, and the evidence said so before the logs did.** The user saw *"Failed to
+start bank connection. Please try again."* — that string is the VIEW's own 500 handler. The 15-minute
+re-auth decorator returns a different message entirely, so the request had already passed every decorator
+and reached the view body. The re-auth control was not involved.
+
+**Fix:** `_resolve_plaid_host()` resolves by attribute NAME via `getattr`, validates the name **before**
+importing the SDK (so a stale config reports itself even where plaid-python is absent), names `development`
+as retired, and raises `PlaidEnvironmentError` with what to do instead. A future SDK removal now surfaces as
+configuration advice, never an `AttributeError`.
+
+**Latent defect fixed on the same path.** `requires_recent_auth` measured `user.last_login`, which only a
+fresh sign-in refreshes — so 15 minutes after login it would have blocked the connection **with no way to
+satisfy it**. It now prefers `session['finance_last_activity']`, the activity-based control this project
+already built (`users.ConfirmPasswordView`, written for exactly "bank connections"), and on failure returns
+`reauth_url` plus a stored `finance_return_url` so the user confirms their password and lands back where
+they started. The control is preserved; the dead end is gone. Return URLs are constrained to `/finance/`
+(no open redirect).
+
+**Honest failure classes, replacing one catch-all 500:** `503 retryable=false` for misconfiguration
+("retrying will not help — contact support"), **502 retryable=true** for a provider outage, `403` with a
+real path for re-auth. New `provider_diagnostics.py` extracts a strict allowlist — **error_type, error_code,
+request_id, status** — and DROPS anything else rather than truncating it; a test feeds it a provider error
+whose body contains an access token and a balance and asserts neither survives.
+
+**Button recovery ("stuck on Connecting…"):** `resetConnectButton()` is called on every exit path, all six
+blocking `alert()` calls are gone (an alert freezes the page and reads exactly like a stuck button), and
+messages now render in an `aria-live` status region. An unparseable response still produces a message.
+Re-auth, sync, reconnect, and disconnect share one recovery helper.
+
+**Tests: 291 green** (22 new). Success · expired recent-auth returning a usable path · confirm-password
+restoring access · access denial · rate-limit burst · safe provider failure · misconfiguration ·
+the original AttributeError replayed · diagnostics redaction · button recovery. Two skip locally
+(plaid-python is not installed on the dev machine; production has it).
+
+**Files:** `apps/finance/services/plaid_service.py`, `apps/finance/security.py`, `apps/finance/views.py`,
+`templates/finance/bank_connection_list.html`, `apps/finance/services/provider_diagnostics.py` (new),
+`apps/finance/tests/test_plaid_link_start.py` (new). No migrations.
+
+
 ## 2026-08-25 — chore(admin): surface the Finance capability in the staff admin
 
 `UserPreferences.finances_enabled` now appears in the Django admin list display and filters

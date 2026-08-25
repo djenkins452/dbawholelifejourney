@@ -5,6 +5,73 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-25 — feat(finance): F0 — Financial Entity & Attribution Truth (autonomous MVP delivery, phase 1 of 5)
+
+**F0 only. No detector, no review UI, no CoS flow, no insights, no provider call.** Governing plan:
+`docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md`. Finance remains externally read-only.
+
+**Four new user-owned models** (`apps/finance/models.py`), all `UserOwnedModel`:
+- **`FinancialEntity`** — general and user-scoped: `personal` · `household` · `business` · `other` ·
+  `unknown`. **Type is logic; NAME IS DATA** — a contract test walks the AST of every non-test Finance
+  module and fails if a business name appears in any executable string literal (docstrings excluded —
+  prose may explain the rule, code may never encode it). Case/whitespace duplicates are impossible via a
+  stored `name_key` (`" ".join(name.split()).casefold()`) under a partial unique constraint, so `Beacon`,
+  `beacon`, `BEACON`, and `  Beacon  ` cannot coexist. `space_ref` is an inert forward hook for Space
+  linkage — no authorization logic reads it.
+- **`AccountEntityAssignment`** — the TEMPORAL authority for `paid_by`. **First** assignment for an existing
+  account reaches back to its earliest known activity so imported history resolves; **later** changes are
+  forward-dated; retroactive needs an explicit `effective_from`. Partial unique = one open window per account.
+- **`TransactionAttribution`** — first-class and auditable. `paid_by_entity` is **SNAPSHOTTED at creation and
+  never rewritten** — proven by a test that reassigns the account and asserts the snapshot holds.
+  Trust is three separate facts (from the `PersonalKnowledgeFact` precedent): `source` (how) · `actor` (who) ·
+  `user_confirmed` (a human said so). Partial unique `uq_txattr_one_active_full` guarantees one current
+  whole-transaction attribution while leaving future percentage/amount splits a migration path.
+- **`AttributionRule`** — user-owned, precedence recurring > payee > account, **never auto-created**.
+  **Category can never be a scope** (`TransactionCategory.user` is nullable with `is_system` — system
+  categories are shared across users and would leak); asserted by test.
+
+**Four services own every write** — `finance_entities`, `attribution_population`, `attribution`,
+`attribution_rules`. Django cannot express same-user ownership across tables as a DB constraint (no composite
+FKs), so `_require_same_user` guards **every** write boundary and five adversarial cross-user tests prove it.
+Read-path filtering is never the only defense.
+
+**THE population authority** (`attribution_population.py`) resolves the four competing definitions and the two
+incompatible transfer definitions recorded in the assessment (gap G6). Excluded: soft-deleted (already by
+`SoftDeleteManager`), opening balances, and the UNION of both transfer signals. **`needs_review`, never
+silently attributed:** pending, plus suspected unpaired internal transfers — an outgoing transaction naming
+one of the user's own liability accounts. That is the F1 false-positive class made structural: `attribute()`
+**raises** on a non-attributable transaction, so nothing uncertain can be classified to empty a queue.
+Income and refunds ARE attributable (a business deposit into a personal account is a mismatch too).
+
+**Two deviations from the plan, both simplifications with evidence:**
+1. **No `FinancialAccount.entity` cache** (the plan had one). With `Transaction.current_attribution` already
+   dropped by decision, keeping one cache and not the other was incoherent — `AccountEntityAssignment` is a
+   single indexed read and `open_assignment_map()` is one query for a whole user. **Result: F0 adds no cache
+   and no reconciliation/rebuild machinery at all.**
+2. **`Transaction.recurring_source` FK added** (nullable, `SET_NULL`). `is_recurring` says "this repeats" but
+   never WHICH series — `generate_transaction()` (`models.py:1950`) recorded no link. The recurring-scope rule
+   and F3's "move this recurring expense" both need it. Nullable and unbackfilled; historical rows resolve by
+   payee.
+
+**Migrations:** `0019` (schema, inert) + `0020` (bootstrap, reversible). Bootstrap creates Personal + Unknown
+and historical account assignments for **finance-active users only** (proven from an existing
+`FinancialAccount`, `Transaction`, or `BankConnection`); everyone else gets them lazily via
+`ensure_default_entities`. **It creates ZERO attributions** — manufacturing them would fabricate truth (I.1).
+Local verification on the dev database: 2 entities, 2 assignments, **0 attributions**, 3,079 transactions
+untouched.
+
+**Truth exposure for F1:** `FinanceDomainTruth` gains the `entity` type, and transaction entities now carry
+`attributed_to` / `paid_by` / `attribution_confirmed` — facts only, no verdicts — via a `Prefetch(to_attr=…)`
+so exposure costs ONE extra query, not N (a `.filter()` on a prefetched relation would have silently
+reintroduced the N+1).
+
+**Tests: 120 green** (`apps.finance` + request-path-safety + constitution contracts), 51 of them new.
+Query-count evidence proving no cache is needed: entity totals = **1** grouped query; the F1 mismatch scan =
+**1** single-table query with no joins; the unattributed listing via `Exists()` = **1** query when the
+liability lookup is hoisted; population cost is **flat at 2 queries** whether there are 12 rows or 42.
+`makemigrations --check` clean. **Zero provider calls.**
+
 ## 2026-08-25 — docs(closure): Mounjaro / Medication Grounding arc CLOSED — documentation only
 
 **Documentation-only closure pass. No code, no provider call, no new capability.**

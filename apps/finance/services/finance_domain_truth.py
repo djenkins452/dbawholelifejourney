@@ -30,7 +30,7 @@ class FinanceDomainTruth(DomainTruth):
     # doing" from records instead of a summary. Facts only: amounts, dates, and lifecycle
     # state. Never a verdict (`Budget.health_status` is deliberately NOT surfaced — the
     # model interprets), never credentials, account numbers, or free-text notes.
-    entity_types = ("transaction", "account", "recurring", "budget", "goal")
+    entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -65,6 +65,8 @@ class FinanceDomainTruth(DomainTruth):
             return self._describe_budgets(filters)
         if et == "goal":
             return self._describe_goals()
+        if et == "entity":
+            return self._describe_entities()
         if et != "transaction":
             raise KeyError(f"finance domain cannot describe {et!r} "
                            f"(have {self.entity_types})")
@@ -91,7 +93,25 @@ class FinanceDomainTruth(DomainTruth):
             c = str(f["contains"]).strip()
             qs = qs.filter(Q(description__icontains=c) | Q(payee__icontains=c))
         qs = qs.select_related("account", "category").order_by("-date", "-id")
+        qs = self._with_attribution(qs)
         return [self._transaction_entity(t) for t in qs[:self._MAX_TX]]
+
+    @staticmethod
+    def _with_attribution(qs):
+        """Prefetch the active attribution so attribution facts cost ONE extra query.
+
+        `to_attr` is used deliberately: calling `.filter()` on a prefetched relation
+        bypasses the prefetch cache and reintroduces the N+1.
+        """
+        from django.db.models import Prefetch
+
+        from apps.finance.models import TransactionAttribution
+        active = (TransactionAttribution.objects
+                  .filter(attribution_status=TransactionAttribution.STATUS_ACTIVE,
+                          share_basis=TransactionAttribution.SHARE_FULL)
+                  .select_related("attributed_entity", "paid_by_entity"))
+        return qs.prefetch_related(
+            Prefetch("attributions", queryset=active, to_attr="_active_attribution"))
 
     def _describe_recurring(self):
         """Recurring commitments (subscriptions, bills, transfers) — the canonical rows."""
@@ -127,6 +147,13 @@ class FinanceDomainTruth(DomainTruth):
                 .order_by("goal_status", "target_date", "name"))
         return [self._goal_entity(g) for g in rows[:self._MAX_ROWS]]
 
+    def _describe_entities(self):
+        """Financial entities — who this user's money can belong to (F0 truth)."""
+        from apps.finance.models import FinancialEntity
+        rows = (FinancialEntity.objects.filter(user=self.user, is_active=True)
+                .order_by("sort_order", "name"))
+        return [self._entity_entity(e) for e in rows[:self._MAX_ROWS]]
+
     def _describe_accounts(self):
         from apps.finance.models import FinancialAccount
         accts = (FinancialAccount.objects.filter(user=self.user, is_hidden=False)
@@ -147,16 +174,38 @@ class FinanceDomainTruth(DomainTruth):
     def _transaction_entity(self, t):
         from apps.core.truth import freshness as F
         from apps.core.truth.entity import CompleteEntity
+        # Attribution facts (F0). `attributed_to` = who SHOULD bear it; `paid_by` = who
+        # DID, snapshotted when the attribution was made. FACTS ONLY — WLJ never says
+        # "this is on the wrong card"; the model interprets.
+        rows = getattr(t, "_active_attribution", None)
+        attribution = rows[0] if rows else None
+        definition = {"amount": float(t.amount),
+                      "direction": "income" if t.amount > 0 else "expense",
+                      "category": t.category.name if t.category_id else None,
+                      "account": t.account.name if t.account_id else None,
+                      "payee": (t.payee or "").strip() or None}
+        if attribution is not None:
+            definition["attributed_to"] = attribution.attributed_entity.name
+            definition["paid_by"] = attribution.paid_by_entity.name
+            definition["attribution_confirmed"] = attribution.user_confirmed
         return CompleteEntity(
             kind="transaction",
             identity=(t.description or t.payee or "transaction").strip(),
-            definition={"amount": float(t.amount),
-                        "direction": "income" if t.amount > 0 else "expense",
-                        "category": t.category.name if t.category_id else None,
-                        "account": t.account.name if t.account_id else None,
-                        "payee": (t.payee or "").strip() or None},
+            definition=definition,
             status="cleared" if t.is_cleared else "pending",
             plan={"date": t.date.isoformat()},
+            freshness=F.CURRENT,
+        )
+
+    def _entity_entity(self, e):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="entity",
+            identity=e.name,
+            definition={"entity_type": e.entity_type,
+                        "is_default_personal": e.is_default_personal},
+            status="active",
             freshness=F.CURRENT,
         )
 

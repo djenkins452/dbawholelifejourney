@@ -10,6 +10,10 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import (
+    AccountEntityAssignment,
+    AttributionRule,
+    FinancialEntity,
+    TransactionAttribution,
     FinancialAccount,
     TransactionCategory,
     Transaction,
@@ -261,3 +265,53 @@ class PayeeAdmin(admin.ModelAdmin):
     list_filter = ['default_category']
     search_fields = ['name', 'user__email']
     ordering = ['-use_count', 'name']
+
+
+# =============================================================================
+# F0 — Entity & Attribution truth (read-only audit surfaces)
+# =============================================================================
+# Attribution is written ONLY by apps/finance/services/attribution.py, which enforces the
+# same-user and confirmation-precedence invariants no database constraint can express.
+# These admins are therefore READ-ONLY: an operator can audit the supersession chain but
+# cannot hand-edit truth around the service.
+
+@admin.register(FinancialEntity)
+class FinancialEntityAdmin(admin.ModelAdmin):
+    list_display = ('name', 'entity_type', 'user', 'is_default_personal', 'is_active')
+    list_filter = ('entity_type', 'is_active', 'is_default_personal')
+    search_fields = ('name', 'user__email')
+    readonly_fields = ('name_key', 'created_at', 'updated_at')
+
+
+@admin.register(AccountEntityAssignment)
+class AccountEntityAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('account', 'entity', 'effective_from', 'effective_to', 'actor')
+    list_filter = ('actor',)
+    search_fields = ('account__name', 'entity__name', 'user__email')
+    autocomplete_fields = ('account', 'entity')
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TransactionAttribution)
+class TransactionAttributionAdmin(admin.ModelAdmin):
+    list_display = ('transaction', 'attributed_entity', 'paid_by_entity', 'source',
+                    'user_confirmed', 'attribution_status')
+    list_filter = ('source', 'actor', 'attribution_status', 'user_confirmed')
+    search_fields = ('user__email', 'attributed_entity__name')
+    readonly_fields = tuple(f.name for f in TransactionAttribution._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AttributionRule)
+class AttributionRuleAdmin(admin.ModelAdmin):
+    list_display = ('scope', 'entity', 'user', 'rule_status', 'use_count', 'last_used_at')
+    list_filter = ('scope', 'rule_status', 'origin')
+    search_fields = ('user__email', 'entity__name')
+    readonly_fields = ('use_count', 'last_used_at', 'created_at', 'updated_at')

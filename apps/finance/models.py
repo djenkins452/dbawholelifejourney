@@ -531,6 +531,19 @@ class Transaction(UserOwnedModel):
         help_text="Linked receipt document (from email attachment)",
     )
 
+    # F0: link a generated transaction back to the commitment that produced it.
+    # `is_recurring` only says "this repeats"; it does not say WHICH series, which the
+    # recurring-scope attribution rule and the F3 "move this recurring expense" flow both
+    # need. Nullable and never backfilled — historical rows resolve by payee instead.
+    recurring_source = models.ForeignKey(
+        'RecurringTransaction',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='generated_transactions',
+        help_text="The recurring commitment that generated this transaction, if any.",
+    )
+
     # Plaid integration
     plaid_transaction_id = models.CharField(
         max_length=100,
@@ -552,6 +565,8 @@ class Transaction(UserOwnedModel):
             models.Index(fields=['account', 'date']),
             models.Index(fields=['category', 'date']),
             models.Index(fields=['plaid_transaction_id']),
+            models.Index(fields=['user', 'recurring_source'],
+                         name='idx_txn_user_recurring_src'),
         ]
 
     def __str__(self):
@@ -1957,6 +1972,7 @@ class RecurringTransaction(UserOwnedModel):
             payee=self.payee,
             notes=self.notes,
             is_recurring=True,
+            recurring_source=self,
         )
 
         # Update tracking
@@ -1994,3 +2010,453 @@ class RecurringTransaction(UserOwnedModel):
             current = pattern.get_next_occurrence(current)
 
         return occurrences
+
+
+# =============================================================================
+# F0 — Financial Entity & Attribution Truth
+# =============================================================================
+# Governing plan: docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md
+#
+# WLJ owns the deterministic truth of WHO money belongs to. It never moves money.
+#   * FinancialEntity          — the economic actor (Personal, a household, a business…).
+#                                Type is logic; NAME IS DATA. No code branches on a name.
+#   * AccountEntityAssignment  — the TEMPORAL authority for `paid_by`: which entity owned an
+#                                account over which date range.
+#   * TransactionAttribution   — first-class, auditable, superseding: who SHOULD bear a cost,
+#                                alongside a historical snapshot of who DID.
+#   * AttributionRule          — user-owned, scoped, precedence-ordered. Never auto-created.
+#
+# Corrections SUPERSEDE; nothing is mutated or erased. User confirmation outranks every
+# inference and may only be replaced by another explicit user confirmation.
+
+
+def normalize_entity_name(name: str) -> str:
+    """Normalized uniqueness key for an entity name.
+
+    Case- and whitespace-insensitive so `Beacon`, `beacon`, `BEACON`, and ` Beacon `
+    cannot coexist as ACTIVE entities for one user. The user-facing `name` keeps the
+    exact casing/spacing the user typed; this key exists only for uniqueness and lookup.
+    Computed in Python (not a functional index) so the constraint behaves identically on
+    SQLite (dev) and PostgreSQL (prod).
+    """
+    return " ".join((name or "").split()).casefold()
+
+
+class FinancialEntity(UserOwnedModel):
+    """An economic actor money can belong to — the source of both attribution and `paid_by`.
+
+    General and user-owned by design: a user may have Personal, a household, one or more
+    businesses, an `other`, and exactly one `unknown`. **No business name is ever a system
+    concept** — "Beacon" is a row in this table, never a branch in code.
+
+    `unknown` is EXPLICIT truth ("we looked and cannot tell"), which is a different fact
+    from having no attribution record at all ("nobody has decided yet"). Both are kept.
+    """
+
+    TYPE_PERSONAL = 'personal'
+    TYPE_HOUSEHOLD = 'household'
+    TYPE_BUSINESS = 'business'
+    TYPE_OTHER = 'other'
+    TYPE_UNKNOWN = 'unknown'
+
+    ENTITY_TYPE_CHOICES = [
+        (TYPE_PERSONAL, 'Personal'),
+        (TYPE_HOUSEHOLD, 'Household / Shared'),
+        (TYPE_BUSINESS, 'Business'),
+        (TYPE_OTHER, 'Other'),
+        (TYPE_UNKNOWN, 'Unknown'),
+    ]
+
+    entity_type = models.CharField(
+        max_length=16,
+        choices=ENTITY_TYPE_CHOICES,
+        default=TYPE_BUSINESS,
+        db_index=True,
+        help_text="Classification. This is the only part of an entity code may branch on.",
+    )
+    name = models.CharField(
+        max_length=120,
+        help_text="Display name exactly as the user typed it. Data, never logic.",
+    )
+    name_key = models.CharField(
+        max_length=120,
+        db_index=True,
+        editable=False,
+        help_text="Normalized (case/whitespace-insensitive) uniqueness key derived from name.",
+    )
+    is_default_personal = models.BooleanField(
+        default=False,
+        help_text="The user's default personal entity. Exactly one per user.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Retired entities stay resolvable for historical attribution.",
+    )
+    space_ref = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        help_text=(
+            "Forward hook for Space linkage (docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md). "
+            "UNUSED — no authorization logic reads this field."
+        ),
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['sort_order', 'name']
+        verbose_name = "Financial Entity"
+        verbose_name_plural = "Financial Entities"
+        indexes = [
+            models.Index(fields=['user', 'entity_type', 'is_active'],
+                         name='idx_finentity_user_type'),
+        ]
+        constraints = [
+            # Duplicate ACTIVE names are impossible regardless of case or spacing.
+            models.UniqueConstraint(
+                fields=['user', 'name_key'],
+                condition=models.Q(is_active=True, status='active'),
+                name='uq_finentity_active_name_key',
+            ),
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(is_default_personal=True, status='active'),
+                name='uq_finentity_default_personal',
+            ),
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(entity_type='unknown', status='active'),
+                name='uq_finentity_unknown',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_entity_type_display()})"
+
+    def save(self, *args, **kwargs):
+        self.name = " ".join((self.name or "").split())
+        self.name_key = normalize_entity_name(self.name)
+        super().save(*args, **kwargs)
+
+
+class AccountEntityAssignment(UserOwnedModel):
+    """WHICH entity economically owned an account, over WHICH dates.
+
+    The temporal authority behind `paid_by`. `FinancialAccount.entity` is a convenience
+    pointer to the open assignment; this table is the truth, so changing an account's
+    entity can never silently rewrite what was true when a past transaction cleared.
+
+    First assignment for an existing account may reach back over imported history
+    (`effective_from` = earliest known activity). Later changes are forward-dated unless a
+    retroactive `effective_from` is supplied deliberately.
+    """
+
+    ACTOR_USER = 'user'
+    ACTOR_MIGRATION = 'migration'
+    ACTOR_SYSTEM = 'system'
+    ACTOR_CHOICES = [
+        (ACTOR_USER, 'User'),
+        (ACTOR_MIGRATION, 'Migration'),
+        (ACTOR_SYSTEM, 'System'),
+    ]
+
+    account = models.ForeignKey(
+        'FinancialAccount', on_delete=models.PROTECT,
+        related_name='entity_assignments',
+    )
+    entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT,
+        related_name='account_assignments',
+    )
+    effective_from = models.DateField(
+        db_index=True,
+        help_text="First date this entity owned the account (inclusive).",
+    )
+    effective_to = models.DateField(
+        null=True, blank=True,
+        help_text="Last date this entity owned the account (inclusive). NULL = current.",
+    )
+    actor = models.CharField(max_length=16, choices=ACTOR_CHOICES, default=ACTOR_USER)
+    reason = models.CharField(max_length=200, blank=True, default='')
+
+    class Meta:
+        ordering = ['account_id', '-effective_from']
+        verbose_name = "Account Entity Assignment"
+        verbose_name_plural = "Account Entity Assignments"
+        indexes = [
+            models.Index(fields=['account', 'effective_from'],
+                         name='idx_acctentity_acct_from'),
+            models.Index(fields=['user', 'entity'], name='idx_acctentity_user_entity'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['account'],
+                condition=models.Q(effective_to__isnull=True, status='active'),
+                name='uq_acctentity_one_open',
+            ),
+        ]
+
+    def __str__(self):
+        end = self.effective_to.isoformat() if self.effective_to else 'current'
+        return f"{self.account_id}: {self.entity_id} [{self.effective_from} → {end}]"
+
+
+class TransactionAttribution(UserOwnedModel):
+    """WHO should bear a transaction — first-class, provenance-rich, and auditable.
+
+    Immutable after creation except for the supersession fields. A correction creates a NEW
+    active row and marks the old one SUPERSEDED; the old row's entity, source, actor,
+    confidence, evidence, and timestamps are preserved untouched. Nothing is ever erased.
+
+    `paid_by_entity` is SNAPSHOTTED at creation from the account's assignment covering the
+    transaction date. It is historical evidence: a later account-ownership change does not
+    rewrite it, which is what keeps a past finding auditable.
+
+    Trust is three separate facts, following `PersonalKnowledgeFact`:
+        `source`  — HOW the entity was decided (permanent)
+        `actor`   — WHO acted (permanent)
+        `user_confirmed` — whether a human explicitly said so (only the confirmation
+                    service may set it; no rule path can).
+    """
+
+    SOURCE_USER_DIRECT = 'user_direct'
+    SOURCE_USER_RULE = 'user_rule'
+    SOURCE_ACCOUNT_DEFAULT = 'account_default'
+    SOURCE_IMPORT_DECLARED = 'import_declared'
+    SOURCE_MIGRATION_BOOTSTRAP = 'migration_bootstrap'
+    SOURCE_MODEL_SUGGESTED = 'model_suggested'
+    SOURCE_CHOICES = [
+        (SOURCE_USER_DIRECT, 'User chose directly'),
+        (SOURCE_USER_RULE, 'Applied from a user rule'),
+        (SOURCE_ACCOUNT_DEFAULT, "Paying account's entity"),
+        (SOURCE_IMPORT_DECLARED, 'Declared by the import source'),
+        (SOURCE_MIGRATION_BOOTSTRAP, 'Written by a migration'),
+        (SOURCE_MODEL_SUGGESTED, 'Suggested in conversation'),
+    ]
+    #: Sources that may NEVER carry user_confirmed=True.
+    INFERRED_SOURCES = frozenset({
+        SOURCE_USER_RULE, SOURCE_ACCOUNT_DEFAULT, SOURCE_IMPORT_DECLARED,
+        SOURCE_MIGRATION_BOOTSTRAP, SOURCE_MODEL_SUGGESTED,
+    })
+
+    ACTOR_USER = 'user'
+    ACTOR_RULE = 'rule'
+    ACTOR_IMPORT = 'import'
+    ACTOR_MIGRATION = 'migration'
+    ACTOR_SYSTEM = 'system'
+    ACTOR_CHOICES = [
+        (ACTOR_USER, 'User'),
+        (ACTOR_RULE, 'Rule'),
+        (ACTOR_IMPORT, 'Import'),
+        (ACTOR_MIGRATION, 'Migration'),
+        (ACTOR_SYSTEM, 'System (deterministic refresh)'),
+    ]
+
+    STATUS_ACTIVE = 'active'
+    STATUS_SUPERSEDED = 'superseded'
+    ATTRIBUTION_STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_SUPERSEDED, 'Superseded by a correction'),
+    ]
+
+    SHARE_FULL = 'full'
+    SHARE_PERCENT = 'percent'
+    SHARE_AMOUNT = 'amount'
+    SHARE_BASIS_CHOICES = [
+        (SHARE_FULL, 'Whole transaction'),
+        (SHARE_PERCENT, 'Percentage share'),
+        (SHARE_AMOUNT, 'Fixed amount share'),
+    ]
+
+    #: Fields that may never change after the row is created.
+    IMMUTABLE_FIELDS = (
+        'transaction_id', 'attributed_entity_id', 'paid_by_entity_id', 'source', 'actor',
+        'confidence', 'evidence', 'rule_id', 'share_basis', 'share_value',
+    )
+
+    transaction = models.ForeignKey(
+        'Transaction', on_delete=models.CASCADE, related_name='attributions',
+    )
+    attributed_entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT, related_name='attributions',
+        help_text="Who SHOULD bear this cost.",
+    )
+    paid_by_entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT, related_name='paid_attributions',
+        help_text="Who DID bear it — snapshot of the account's entity on the transaction date.",
+    )
+    source = models.CharField(max_length=24, choices=SOURCE_CHOICES, db_index=True)
+    actor = models.CharField(max_length=16, choices=ACTOR_CHOICES)
+    confidence = models.FloatField(
+        default=1.0, help_text="0.0–1.0. User-confirmed rows are 1.0.",
+    )
+    evidence = models.JSONField(
+        default=dict, blank=True,
+        help_text="Concise references + scalars only. Never account numbers or tokens.",
+    )
+    user_confirmed = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Only the confirmation service may set this. No rule path can.",
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    rule = models.ForeignKey(
+        'AttributionRule', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='attributions',
+    )
+    attribution_status = models.CharField(
+        max_length=16, choices=ATTRIBUTION_STATUS_CHOICES,
+        default=STATUS_ACTIVE, db_index=True,
+    )
+    superseded_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='supersedes',
+    )
+    share_basis = models.CharField(
+        max_length=8, choices=SHARE_BASIS_CHOICES, default=SHARE_FULL,
+        help_text="Always 'full' in the MVP. Splits attach here without a schema change.",
+    )
+    share_value = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Percentage or amount when share_basis is not 'full'.",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Transaction Attribution"
+        verbose_name_plural = "Transaction Attributions"
+        indexes = [
+            models.Index(fields=['user', 'attribution_status'],
+                         name='idx_txattr_user_status'),
+            models.Index(fields=['user', 'attributed_entity', 'attribution_status'],
+                         name='idx_txattr_user_entity'),
+            # The F1 mismatch scan: one single-table indexed read, no joins.
+            models.Index(fields=['user', 'paid_by_entity', 'attributed_entity',
+                                 'attribution_status'],
+                         name='idx_txattr_mismatch'),
+        ]
+        constraints = [
+            # Exactly one CURRENT whole-transaction attribution. Percentage/amount shares
+            # are deliberately outside the condition, so future splits attach without
+            # dropping this constraint.
+            models.UniqueConstraint(
+                fields=['transaction'],
+                condition=models.Q(attribution_status='active', share_basis='full',
+                                   status='active'),
+                name='uq_txattr_one_active_full',
+            ),
+        ]
+
+    def __str__(self):
+        return (f"tx={self.transaction_id} → entity={self.attributed_entity_id} "
+                f"({self.source}, {self.attribution_status})")
+
+    @property
+    def is_mismatch(self):
+        """Fact, not verdict: the attributed entity differs from who actually paid."""
+        return self.attributed_entity_id != self.paid_by_entity_id
+
+
+class AttributionRule(UserOwnedModel):
+    """A user-owned, scoped rule that assigns an entity to future transactions.
+
+    Rules are NEVER created automatically from inference — only from an explicit user
+    decision. Precedence is most-specific-first: recurring series → payee → account.
+
+    Category is deliberately NOT a scope and never will be: `TransactionCategory.user` is
+    nullable with `is_system` (system categories are shared across every user), so a
+    category-anchored rule would leak one user's attribution into another's.
+    """
+
+    SCOPE_RECURRING = 'recurring_series'
+    SCOPE_PAYEE = 'payee'
+    SCOPE_ACCOUNT = 'account'
+    SCOPE_PATTERN = 'description_pattern'
+    SCOPE_CHOICES = [
+        (SCOPE_RECURRING, 'Recurring series'),
+        (SCOPE_PAYEE, 'Payee'),
+        (SCOPE_ACCOUNT, 'Account'),
+        (SCOPE_PATTERN, 'Description pattern'),
+    ]
+    #: Most specific first. The ordering IS the precedence.
+    SCOPE_PRECEDENCE = (SCOPE_RECURRING, SCOPE_PAYEE, SCOPE_ACCOUNT, SCOPE_PATTERN)
+
+    ORIGIN_USER_CONFIRMATION = 'user_confirmation'
+    ORIGIN_USER_AUTHORED = 'user_authored'
+    ORIGIN_IMPORTED = 'imported'
+    ORIGIN_CHOICES = [
+        (ORIGIN_USER_CONFIRMATION, 'Created from a user confirmation'),
+        (ORIGIN_USER_AUTHORED, 'Authored by the user'),
+        (ORIGIN_IMPORTED, 'Imported'),
+    ]
+
+    STATUS_ACTIVE = 'active'
+    STATUS_SUPERSEDED = 'superseded'
+    STATUS_EXPIRED = 'expired'
+    RULE_STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_SUPERSEDED, 'Superseded'),
+        (STATUS_EXPIRED, 'Expired'),
+    ]
+
+    scope = models.CharField(max_length=24, choices=SCOPE_CHOICES, db_index=True)
+    payee = models.ForeignKey(
+        'Payee', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='attribution_rules',
+    )
+    recurring = models.ForeignKey(
+        'RecurringTransaction', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='attribution_rules',
+    )
+    account = models.ForeignKey(
+        'FinancialAccount', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='attribution_rules',
+    )
+    pattern = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Reserved for the description_pattern scope. Unused in the MVP.",
+    )
+    entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT, related_name='attribution_rules',
+    )
+    origin = models.CharField(
+        max_length=24, choices=ORIGIN_CHOICES, default=ORIGIN_USER_CONFIRMATION,
+    )
+    user_confirmed = models.BooleanField(default=True)
+    confidence = models.FloatField(default=1.0)
+    rule_status = models.CharField(
+        max_length=16, choices=RULE_STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True,
+    )
+    superseded_by = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='supersedes',
+    )
+    effective_from = models.DateField(null=True, blank=True)
+    effective_to = models.DateField(null=True, blank=True)
+    use_count = models.PositiveIntegerField(default=0)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Attribution Rule"
+        verbose_name_plural = "Attribution Rules"
+        indexes = [
+            models.Index(fields=['user', 'rule_status', 'scope'],
+                         name='idx_attrrule_user_status'),
+            models.Index(fields=['user', 'payee'], name='idx_attrrule_user_payee'),
+            models.Index(fields=['user', 'recurring'], name='idx_attrrule_user_recur'),
+            models.Index(fields=['user', 'account'], name='idx_attrrule_user_account'),
+        ]
+
+    def __str__(self):
+        return f"{self.scope} → entity={self.entity_id} ({self.rule_status})"
+
+    @property
+    def anchor_id(self):
+        """The id of whatever this rule is scoped to."""
+        return {
+            self.SCOPE_RECURRING: self.recurring_id,
+            self.SCOPE_PAYEE: self.payee_id,
+            self.SCOPE_ACCOUNT: self.account_id,
+        }.get(self.scope)

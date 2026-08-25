@@ -6,6 +6,44 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — security(deps): reproducible, auditable dependency set + production encryption key provisioned
+
+**Dependencies were not auditable from the repository:** `requirements.txt` pins RANGES (46 of 47 entries use
+`>=`) with **no lockfile**, so the deployed versions were whatever pip resolved at build time. A security
+attestation cannot rest on that.
+
+**`constraints.txt` (new)** records the EXACT set production resolved — **113 packages** — read back through
+the read-only operator audit (public package metadata only). It also records the production runtime, which
+turned out to differ sharply from local: **Python 3.12.7 / Django 5.2.17 / plaid-python 43.0.0** in
+production versus Python 3.9.6 / Django 4.2.27 locally. That gap is exactly why `pip-audit -r` cannot audit
+production from a developer machine — it resolves and installs to audit.
+
+**`scripts/audit_dependencies.py` (new)** queries OSV directly, auditing the pins as recorded from anywhere.
+**Result across all 113 production packages: ONE finding — `pip==24.2`.** Django, cryptography, PyJWT,
+plaid-python, requests, urllib3 and everything else are clean. `pip` is recorded in `ACCEPTED_FINDINGS` with
+a written justification: it is the build-time installer, not a runtime import, and its advisories require
+installing a hostile package — WLJ installs from PyPI against these pins. **No actionable vulnerability
+remains.** `nixpacks.toml` was deliberately NOT modified: rewriting the install phase to upgrade a
+build-time-only tool risks the entire deploy pipeline for no runtime gain.
+
+**`apps/core/tests/test_dependency_constraints.py` (new, 6 tests, offline)** blocks silent drift — every
+declared requirement must be pinned, every pin must be exact, the security-critical packages must be
+present, and an entry in `ACCEPTED_FINDINGS` must carry a real justification rather than merely appear.
+
+**Production encryption key provisioned.** `BANK_TOKEN_ENCRYPTION_KEY` was absent from **all three** Railway
+services. A Fernet key was generated and set on `wlj-web-app` and `wlj-worker` (the two the config contract
+requires) with `--skip-deploys`; **the value was never printed, logged, or committed**, and the two services
+were verified to hold the SAME key by comparing SHA-256 digests — a mismatch would make stored tokens
+undecryptable and strand provider revocation.
+
+**Production credential state before the change: 0 stored tokens, 0 legacy plaintext** — so nothing needed
+migrating and the stop condition never triggered.
+
+**Tests: 272 green.** **Files:** `constraints.txt`, `scripts/audit_dependencies.py`,
+`apps/core/tests/test_dependency_constraints.py` (new); `requirements.txt` (PyJWT declared —
+it was imported at runtime but never listed).
+
+
 ## 2026-08-25 — security(finance): Plaid Trial remediation — encryption fails closed, webhooks verified, revocation safe, access gated
 
 **Six audited failures fixed so the Plaid Trial attestations can be answered honestly.**

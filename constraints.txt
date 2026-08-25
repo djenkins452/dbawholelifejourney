@@ -1,0 +1,139 @@
+# ==============================================================================
+# File: constraints.txt
+# Project: Whole Life Journey - Django 5.x Personal Wellness/Journaling App
+# Description: The EXACT dependency set production resolved. Auditable, reproducible.
+# Owner: Danny Jenkins (admin@wholelifejourney.com)
+# ==============================================================================
+# WHY THIS EXISTS
+#   requirements.txt pins RANGES (46 of 47 entries use `>=`), so the deployed versions
+#   were whatever pip resolved at build time — not reproducible, and not auditable from
+#   the repository. A security attestation cannot rest on that.
+#
+# HOW IT WAS CAPTURED
+#   Read back from the running production environment via the read-only operator audit
+#   (`GET /admin-console/api/claude/finance-audit/` -> `dependencies`), which reports
+#   public package metadata only. Production runtime: Python 3.12.7, Django 5.2.17.
+#
+# HOW TO USE
+#   pip install -r requirements.txt -c constraints.txt
+#
+# HOW TO REFRESH
+#   Re-read the operator audit after a deploy and regenerate. Do not hand-edit.
+#
+# AUDITING
+#   python -m pip_audit -r constraints.txt --no-deps
+#   `apps/core/tests/test_dependency_constraints.py` fails CI on silent drift.
+# ==============================================================================
+amqp==5.3.1
+annotated-types==0.8.0
+anyio==4.14.2
+APScheduler==3.11.3
+asgiref==3.12.1
+billiard==4.2.4
+black==26.5.1
+boto3==1.43.79
+botocore==1.43.79
+celery==5.6.3
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.5.1
+click==8.4.2
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+cloudinary==1.46.0
+coverage==7.15.4
+crispy-tailwind==1.0.3
+cryptography==50.0.0
+dj-stripe==2.10.3
+Django==5.2.17
+django-allauth==65.19.1
+django-apscheduler==0.7.0
+django-axes==8.3.1
+django-cloudinary-storage==0.3.0
+django-crispy-forms==2.7
+django-debug-toolbar==7.1.1
+django-environ==0.14.0
+django-extensions==4.1
+django-htmx==1.29.0
+django-watchfiles==1.4.0
+et_xmlfile==2.0.0
+flake8==7.3.0
+freezegun==1.5.5
+google-api-core==2.35.0
+google-api-python-client==2.199.0
+google-auth==2.57.0
+google-auth-httplib2==0.4.2
+google-auth-oauthlib==1.4.1
+googleapis-common-protos==1.75.1
+gunicorn==26.2.0
+h11==0.16.0
+httpcore2==2.12.0
+httplib2==0.32.0
+httpx2==2.12.0
+idna==3.19
+isort==8.0.1
+jiter==0.16.0
+jmespath==1.1.0
+kombu==5.6.2
+lxml==6.1.2
+Markdown==3.10.3
+mccabe==0.7.0
+mypy_extensions==1.1.0
+nh3==0.3.7
+nulltype==2.3.1
+oauthlib==3.3.1
+openai==3.3.1
+openpyxl==3.1.5
+packaging==26.3
+pathspec==1.1.1
+pdfminer.six==20260107
+pdfplumber==0.11.10
+pillow==12.3.0
+pip==24.2
+plaid-python==43.0.0
+platformdirs==4.11.4
+prompt_toolkit==3.0.53
+proto-plus==1.28.3
+protobuf==7.36.0
+psycopg2-binary==2.9.12
+pyasn1==0.6.4
+pyasn1_modules==0.4.2
+pycodestyle==2.14.0
+pycparser==3.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+pyflakes==3.4.0
+PyJWT==2.13.0
+pyparsing==3.3.2
+pypdfium2==5.13.0
+python-dateutil==2.9.0.post0
+python-docx==1.2.0
+python-pptx==1.0.2
+pytokens==0.4.1
+pytz==2026.3.post1
+PyYAML==6.0.3
+redis==8.1.0
+regex==2026.7.19
+requests==2.34.2
+requests-oauthlib==2.0.0
+resend==2.40.1
+s3transfer==0.19.2
+sentry-sdk==2.68.1
+six==1.17.0
+sniffio==1.3.1
+sqlparse==0.6.0
+stripe==15.5.1
+tiktoken==0.14.0
+truststore==0.10.4
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+tzdata==2026.3
+tzlocal==5.4.4
+uritemplate==4.2.0
+urllib3==2.7.0
+vine==5.1.0
+watchfiles==1.2.0
+wcwidth==0.8.2
+whitenoise==6.12.0
+xlsxwriter==3.2.9

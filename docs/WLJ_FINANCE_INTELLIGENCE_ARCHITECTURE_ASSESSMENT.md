@@ -173,6 +173,7 @@ Everything else is exposure and reuse.
 | **G3** | **A deterministic Finance detector** producing `Insight` rows. `apps/finance/` has no `tasks.py`, no beat entry, and no insight producer. | §2.9 |
 | — | *(F-1 closed a separate exposure gap: `recurring`, `budget`, and `goal` are now `FinanceDomainTruth` entity types.)* | 2026-08-24 |
 | **G4** | **Attribution learning store** — the Finance analogue of `LearnedMapping` (merchant/payee → entity, with confidence and usage), so a confirmation actually changes future classification. | §2.4 |
+| **G6** | **No single definition of "a transaction that counts."** FOUR competing populations exist, with TWO incompatible definitions of "transfer" (`transfer_pair` FK vs `category__category_type`), and `transfer_pair` is set ONLY by the manual transfer form — never by Plaid sync or file import. | F0 plan §1.2–§1.3 |
 | **G5** | **Outcome re-verification query** — "did this charge move to a Beacon account?" needs a deterministic recurring-charge comparison; `RecurringTransaction` (`:1694`) + `fingerprint` (`:516`) are the raw material, unassembled. | §2.7 |
 
 ## 5. Recommended architecture
@@ -295,7 +296,9 @@ reasoning/classifier engine, to let WLJ emit financial verdicts, or to add finan
   request-path endpoints are gone; `RecurringTransaction`, `Budget`, and `FinancialGoal` are exposed through
   `FinanceDomainTruth`; the read-only invariant is enforced by contract test. Plan + as-built:
   `docs/WLJ_FINANCE_LEGACY_AI_RETIREMENT_PLAN.md`.
-- **F0 — General financial entity + auditable attribution truth.** See §5.1/§5.2 as amended by §10.
+- **F0 — General financial entity + auditable attribution truth.** **PLANNED, NOT STARTED** —
+  `docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md` (4 models, 4 additive migrations, 40-test matrix,
+  7 decisions awaiting Danny). See §5.1/§5.2 as amended by §10.
 - **F1 — Deterministic detection**, including business-attributed expenses paid from personal accounts.
 - **F2 — User review, confirmation, correction, and reusable attribution learning.**
 - **F3 — Insight/action lifecycle and follow-through verification.**

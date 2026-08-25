@@ -302,6 +302,48 @@ Tier-2 smoke was spent and no iteration was attempted.
 
 ---
 
+## 2026-08-24 — design(finance): F0 Entity & Attribution Truth — implementation plan (PLAN ONLY, NOT IMPLEMENTED)
+
+**Docs only. No code, no models, NO MIGRATIONS, no provider call.** F0 awaits a new go decision.
+Plan: `docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md` (18 sections, `file:line`-grounded).
+
+**Discovery finding that reshapes F1 (new gap G6 in the assessment): WLJ has FOUR competing definitions of
+"a transaction that counts", with TWO mutually incompatible definitions of "transfer".**
+`Budget.spent_amount` (`models.py:661`) excludes neither transfers nor opening balances ·
+`FinancialMetricSnapshot` (`:1065`) excludes by `transfer_pair` · `FinanceHistory._monthly_rows`
+(`services/finance_history.py:57`) excludes by `category__category_type="transfer"` ·
+`FinanceDomainTruth.describe` (`services/finance_domain_truth.py:81`) excludes neither.
+**And `transfer_pair` is set in exactly ONE place in the codebase — the manual transfer form
+(`forms.py:526–529`). Plaid sync (`sync_service.py:284`, `:299`) and the file importer never set it.**
+So an imported/synced credit-card payment from personal checking to a business card is indistinguishable
+from an expense — the single largest false-positive source for F1's detector. F0 names it as an explicit
+`needs_review` population class (exclude and flag, never silently attribute).
+
+**Reuse found (IV.3):** `PersonalKnowledgeFact` (`apps/core/personal_knowledge/models.py:93`) is the WLJ
+supersession precedent F0 mirrors exactly — `fact_status` ACTIVE/SUPERSEDED (deliberately NOT `status`, the
+soft-delete field), `superseded_by` self-FK, and the three-way trust split **Provenance (how acquired,
+permanent) · ReviewState (trust) · confidence (numeric)** — which is precisely how F0 makes AI-suggested
+attribution structurally unable to masquerade as user confirmation.
+
+**Planned:** 4 user-owned models (`FinancialEntity` with type/name SEPARATE — "Beacon" is data, never logic;
+`AccountEntityAssignment` as the TEMPORAL authority for `paid_by`; `TransactionAttribution` first-class with
+supersession, split hook, and a SNAPSHOT `paid_by_entity` that makes F1's mismatch a single-table indexed
+scan with no joins; `AttributionRule` user-owned, precedence recurring > payee > account, **never
+auto-created**, and **category can never be a scope** because `TransactionCategory.user` is nullable with
+`is_system` — `models.py:315–322` — so system categories are shared across all users and would leak).
+Two caches (`FinancialAccount.entity`, `Transaction.current_attribution`) each proven cache-not-authority by
+single-writer + reconciliation test + `rebuild_finance_caches`. Attribution `source` vocabulary is
+deliberately disjoint from ingestion `source_type`. 4 additive migrations (`0019–0022`); the bootstrap
+migration creates **ZERO attributions** — manufacturing them would fabricate truth (I.1).
+
+**Awaiting Danny: 7 decisions** — account-entity temporal default (forward-dated recommended) · retroactive
+supersession scope · default personal entity name · bootstrap scope · unpaired-internal strictness ·
+reimbursement as a later link model vs a field now · the `current_attribution` cache.
+
+**Files:** `docs/WLJ_FINANCE_F0_ENTITY_ATTRIBUTION_PLAN.md` (new),
+`docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` (F0 status + gap G6), `docs/wlj_claude_changelog.md`.
+No app code touched.
+
 ## 2026-08-24 — F-1 COMPLETE: legacy Finance AI retired; recurring/budget/goal exposed as canonical truth; Finance is structurally read-only
 
 **F-1 only. F0 entity attribution NOT started (requires a new go).** No model changes, no migrations

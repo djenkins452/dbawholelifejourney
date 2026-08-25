@@ -65,8 +65,51 @@ the evidence it actually gathered, and the model still forms the judgment. No de
 citation, no extra model pass, no compensating change in `medicine` or `medication_reference`.
 
 **Foreign uncommitted work FLAGGED, not touched:** `apps/finance/services/finance_domain_truth.py` (another
-session) advertises `finance.recurring/budget/goal` with no `domain_semantics` entries, failing
-`test_every_advertised_entity_type_has_a_description`. Unrelated to this change and left for its owner.
+session) advertised `finance.recurring/budget/goal` with no `domain_semantics` entries, failing
+`test_every_advertised_entity_type_has_a_description`. Unrelated to this change and left for its owner — since
+landed as `4ee0880f`.
+
+### REAL-RUNTIME RESULT — ✅ the decisive evidence now MATERIALLY drives the answer
+
+Deployed in `4ee0880f` (web + worker verified; `c7ed64ab` confirmed an ancestor, `_facts_from_entity` present at the
+deployed tip). ONE Tier-2 smoke, verbatim production message:
+
+```
+truth  get_entity {"name":"Mounjaro","domain":"medicine"}              ok
+truth  get_entity {"name":"Mounjaro","domain":"medication_reference"}  ok
+response  tools_called: ["get_entity","get_entity"]  synthesis_used: true
+```
+
+> *"**You can take your Mounjaro dose tonight.** The medication guidelines indicate that if you miss a dose, you
+> should administer it **as soon as possible within four days (96 hours)** of the missed dose. Since you missed your
+> scheduled dose this morning, **taking it tonight is well within this window**. It is important to **maintain your
+> weekly schedule**, so after taking it tonight, **resume your regular dosing day next week**. This flexibility
+> ensures your diabetes management stays on track…"*
+
+Against the acceptance standard — *"the final answer must materially reflect that evidence rather than replacing it
+with generic reasoning"*:
+
+| decisive fact | source | reflected? |
+|---|---|---|
+| missed-dose window (4 days / 96 hours) | `medication_reference` — authoritative labelling | ✅ stated and **applied** |
+| weekly cadence + regular dosing day | `medicine` — personal regimen | ✅ *"resume your regular dosing day next week"* |
+| the two combined into the answer | the model | ✅ *"you missed it this morning… well within this window"* |
+
+**Both truth kinds survived compaction and materially changed the answer**, with **no citation template, no forced
+wording, no deterministic verdict** — WLJ handed over the evidence it gathered and the model formed the judgment
+(I.1/I.4 intact). Compare the previous run on identical input, which reached the same conclusion via *"maintaining a
+consistent schedule is important"* and cited neither fact.
+
+**The full arc of this friction item, one line per deployed observation:**
+
+| # | build | tools | outcome |
+|---|---|---|---|
+| 1 | `79f0cf8a` | `[]` | blanket provider punt |
+| 2 | `e360a8e6` | `[]` | answers, hands back the decision tree |
+| 3 | `80617923` | `[]` | commits to an answer — from assumption |
+| 4 | `a4995dcd` | `get_entity` | retrieves personal truth, resolves from his own schedule |
+| 5 | `cd218da9` | `get_entity` ×2 | retrieves BOTH truth kinds — but cites neither |
+| 6 | **`4ee0880f`** | **`get_entity` ×2** | **both retrieved, both materially used** |
 
 ---
 

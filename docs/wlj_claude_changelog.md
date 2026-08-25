@@ -6,6 +6,55 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(finance): Stage 2 — expose Finance intelligence on the dashboard and to the Chief of Staff
+
+**Production audit first (aggregates only).** `finance-audit` on prod: **healthy** — integrity all zero,
+F0 bootstrap correct (2 accounts, 2 open assignments, **0 accounts without an economic owner**), F4
+convergence delta **0.00** (no production total moved). 3,079 transactions across **24 months** of real
+history. **But:** entities are `personal:1, unknown:1` — **no business entity exists**, 0 attributions,
+0 rules, 0 insights, 0 opportunities, and the newest transaction is **2025-12-31**. So detection could
+produce nothing, and the blocker is **entity setup, not ingestion**.
+
+**Two exposure defects PROVEN in the runtime path, not assumed:**
+1. **A Finance finding could never reach the executive briefing.** `_collect_needs_attention`
+   (`cos_briefing/executive_summary.py:653`) collects only `severity in (warning, critical)`, and
+   `_collect_going_well` only `positive` — F1 emitted a flat `info`, so a material finding was structurally
+   invisible. **Fixed:** severity is now a deterministic MATERIALITY band — `warning` only when a finding is
+   **user-confirmed AND** ≥ `MATERIAL_ANNUAL_ESTIMATE`. That is the platform's routing channel, computed
+   from an amount WLJ calculated (I.3); the numbers still travel as evidence and the model still decides
+   what to say and whether it deserves attention (I.4). An unconfirmed finding never interrupts, however
+   large. A test calls `_collect_needs_attention` directly and asserts the finding arrives.
+2. **`cos_context` reads insights from the last 72 hours only** (`cos_context.py:1651`), and the detector's
+   `update_or_create` froze `created_at` — so a finding aged out and a *materially changed* one never
+   returned. **Fixed:** an unchanged finding keeps its `created_at` and `status` (so the CoS does NOT repeat
+   itself), while a finding whose occurrence count changed is re-stamped `new`. Both directions tested.
+
+**Dashboard section** (`Attribution & opportunities`) — ONE deterministic source
+(`finance_intelligence_summary.py`) feeding the page AND the `finance.dashboard` Current Context summary:
+what deserves attention (material open opportunities, `<details>` progressive disclosure → summary → why →
+evidence → review destination) · what needs review · what is accepted but unverified · and **when the data
+was last refreshed**, labelled out-of-date past 45 days and stating "no connected accounts" when sync is
+manual-only. Rejected, verified, and not-yet-due deferred items are suppressed.
+
+**Honest empty states, because the audit demanded them:** `no_accounts` · `no_entity` ("You have N accounts
+and Personal set up — add a business or shared entity and WLJ can start telling you which expenses were paid
+by the wrong one") · `no_attribution` · `ready`. No blank dashboard pretending to be progress.
+
+**New: `/finance/entities/`** — create entities (name is data, type is meaning; case/whitespace duplicates
+rejected) and assign each account's economic owner, with the temporal policy stated on screen. **This is the
+gap the production audit exposed**: F0–F3 shipped the engine, but production had no way to create the second
+entity the whole loop depends on.
+
+**Tests: 225 green** (27 new), incl. request-path-safety, constitution, and visual-truth contracts.
+Query evidence: the intelligence summary is **constant-cost** — identical query count at 4 charges and at 20
+(asserted), ≤20 queries, no provider call from any Finance page. Finance remains externally read-only.
+
+**Files:** `apps/finance/services/finance_intelligence_summary.py`,
+`templates/finance/entity_workspace.html`, `apps/finance/tests/test_finance_exposure.py` (new);
+`apps/finance/services/opportunity_detection.py`, `views.py`, `views_attribution.py`, `urls.py`,
+`page_summaries.py`, `page_summaries_attribution.py`, `templates/finance/dashboard.html`. No migrations.
+
+
 ## 2026-08-25 — feat(ops): read-only Finance truth audit endpoint (production readiness, Stage 1)
 
 **Operator tooling, aggregate-only.** `GET /admin-console/api/claude/finance-audit/`

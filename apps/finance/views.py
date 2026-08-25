@@ -290,6 +290,13 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
             total=Sum('amount')
         )['total'] or Decimal('0.00'))
 
+        # Finance intelligence (F1–F3) — ONE deterministic source, also feeding the
+        # Current Context summary. Bounded, indexed reads only; no provider call.
+        from apps.finance.services.finance_intelligence_summary import (
+            build_finance_intelligence,
+        )
+        context['intel'] = build_finance_intelligence(user)
+
         context['monthly_income'] = monthly_income
         context['monthly_expenses'] = monthly_expenses
         context['monthly_cash_flow'] = monthly_income - monthly_expenses

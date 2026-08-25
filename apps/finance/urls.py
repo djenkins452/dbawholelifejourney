@@ -88,6 +88,12 @@ urlpatterns = [
     path('opportunities/<int:pk>/decide/', views_attribution.opportunity_decide,
          name='opportunity_decide'),
 
+    path('entities/', views_attribution.EntityWorkspaceView.as_view(),
+         name='entity_workspace'),
+    path('entities/create/', views_attribution.entity_create, name='entity_create'),
+    path('accounts/<int:pk>/entity/', views_attribution.account_assign_entity,
+         name='account_assign_entity'),
+
     # Bank Connections (Plaid Integration)
     path('connections/', views.BankConnectionListView.as_view(), name='connection_list'),
     path('connections/start/', views.bank_connection_start, name='connection_start'),

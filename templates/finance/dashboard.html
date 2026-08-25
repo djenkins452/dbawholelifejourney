@@ -1,7 +1,25 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Finance - Whole Life Journey{% endblock %}
+{% block title %}Finance - Whole Life Journey
+<style nonce="{{ csp_nonce }}">
+    .fin-intel { border: 1px solid var(--border, #e5e7eb); border-radius: 12px;
+                 padding: 1rem 1.15rem; margin-bottom: 1.5rem; }
+    .fin-intel-title { font-size: 1.05rem; margin: 0 0 .5rem; }
+    .fin-intel-sub { font-size: .9rem; margin: 1rem 0 .35rem; color: var(--text-muted, #6b7280);
+                     text-transform: uppercase; letter-spacing: .04em; }
+    .fin-intel-item { border-bottom: 1px solid var(--border, #e5e7eb); padding: .5rem 0; }
+    .fin-intel-item summary { cursor: pointer; display: flex; flex-direction: column; gap: .15rem; }
+    .fin-intel-label { font-weight: 600; }
+    .fin-intel-facts, .fin-intel-why, .fin-intel-evidence, .fin-intel-empty,
+    .fin-intel-freshness { font-size: .875rem; color: var(--text-muted, #6b7280); }
+    .fin-intel-why { margin: .5rem 0 0; }
+    .fin-intel-freshness { margin-top: 1rem; padding-top: .75rem;
+                           border-top: 1px solid var(--border, #e5e7eb); }
+    .fin-intel .btn { min-height: 44px; display: inline-flex; align-items: center; margin-top: .5rem; }
+    @media (max-width: 480px) { .fin-intel .btn { width: 100%; justify-content: center; } }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container" data-testid="finance-dashboard">
@@ -9,6 +27,81 @@
         <h1 class="page-title">Finance {% include "components/favorite_toggle.html" with page_title="Finance" %}</h1>
         <p class="page-subtitle">Track your finances with calm intentionality</p>
     </div>
+
+    <!-- Finance Intelligence (F1–F3): what deserves attention, what is uncertain,
+         what is unresolved, and how fresh the underlying data is. Facts only —
+         the section states what WLJ found; it never tells the user what to do. -->
+    <section class="fin-intel" aria-labelledby="fin-intel-heading" data-testid="finance-intelligence">
+        <h2 id="fin-intel-heading" class="fin-intel-title">Attribution &amp; opportunities</h2>
+
+        {% if intel.setup_state == 'no_accounts' %}
+        <p class="fin-intel-empty">No accounts on file yet, so there is nothing to attribute.</p>
+        {% elif intel.setup_state == 'no_entity' %}
+        <p class="fin-intel-empty">
+            You have {{ intel.account_count }} account{{ intel.account_count|pluralize }} and Personal set up.
+            Add a business or shared entity and WLJ can start telling you which expenses were paid by the wrong one.
+        </p>
+        <a class="btn btn-primary" href="{% url 'finance:entity_workspace' %}">Set up an entity</a>
+        {% elif intel.setup_state == 'no_attribution' %}
+        <p class="fin-intel-empty">
+            {{ intel.entity_count }} entities set up. Nothing has been attributed yet — confirm a few expenses and
+            WLJ will start finding patterns.
+        </p>
+        <a class="btn btn-primary" href="{% url 'finance:attribution_review' %}">Start reviewing</a>
+        {% else %}
+
+            {% if intel.attention %}
+            <h3 class="fin-intel-sub">Deserves attention</h3>
+            {% for item in intel.attention %}
+            <details class="fin-intel-item" data-testid="finance-attention-item">
+                <summary>
+                    <span class="fin-intel-label">{{ item.label }}</span>
+                    <span class="fin-intel-facts">{{ item.occurrences }} charge{{ item.occurrences|pluralize }} for {{ item.bearer }}, paid by {{ item.payer }} · est. ${{ item.annual_estimate|floatformat:2 }}/yr</span>
+                </summary>
+                <p class="fin-intel-why">{{ item.message }}</p>
+                <p class="fin-intel-why">{{ item.why }}</p>
+                <p class="fin-intel-evidence">
+                    {{ item.evidence.occurrences }} transaction{{ item.evidence.occurrences|pluralize }} ·
+                    {{ item.evidence.first_seen }} to {{ item.evidence.last_seen }} ·
+                    {{ item.evidence.confirmed_occurrences }} confirmed by you
+                </p>
+                <a class="btn" href="{% url 'finance:attribution_review' %}">Review the transactions</a>
+            </details>
+            {% endfor %}
+            {% else %}
+            <p class="fin-intel-empty">Nothing is out of place right now.</p>
+            {% endif %}
+
+            {% if intel.needs_review %}
+            <h3 class="fin-intel-sub">Needs review</h3>
+            <p class="fin-intel-facts">
+                {{ intel.review_counts.unattributed }} awaiting a decision ·
+                {{ intel.review_counts.inferred }} auto-assigned ·
+                {{ intel.review_counts.uncertain }} uncertain
+            </p>
+            <a class="btn" href="{% url 'finance:attribution_review' %}">Open review</a>
+            {% endif %}
+
+            {% if intel.unresolved %}
+            <h3 class="fin-intel-sub">Accepted, not yet verified</h3>
+            {% for opportunity in intel.unresolved %}
+            <p class="fin-intel-facts">
+                {{ opportunity.label }} — moving to {{ opportunity.attributed_entity.name }}, accepted {{ opportunity.accepted_at|date:"M j, Y" }}
+            </p>
+            {% endfor %}
+            {% endif %}
+        {% endif %}
+
+        <p class="fin-intel-freshness" data-testid="finance-freshness">
+            {% if intel.freshness.last_transaction_date %}
+                Most recent transaction: {{ intel.freshness.last_transaction_date|date:"M j, Y" }}
+                ({{ intel.freshness.age_days }} day{{ intel.freshness.age_days|pluralize }} ago){% if intel.freshness.is_stale %} — this data may be out of date{% endif %}.
+            {% else %}
+                No transactions on file yet.
+            {% endif %}
+            {% if intel.freshness.manual_only %} No connected accounts; transactions arrive by manual entry or import.{% endif %}
+        </p>
+    </section>
 
     <!-- Quick Add Form -->
     <div class="quick-add-section mb-6">

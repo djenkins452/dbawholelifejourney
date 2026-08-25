@@ -58,5 +58,9 @@ def finance_dashboard_summary(user, params):
     if facts.get("upcoming_recurring_count"):
         lines.append(f"Recurring due in next 14 days: {facts['upcoming_recurring_count']}")
 
+    # Attribution intelligence — the SAME source the dashboard section renders.
+    from apps.finance.services.finance_intelligence_summary import summary_lines
+    lines.extend(summary_lines(user))
+
     return {"title": "Finance", "kind": "finance overview",
             "content": "Finance overview\n" + "\n".join(lines)}

@@ -46,6 +46,14 @@ INSIGHT_TYPE = "entity_expense_mismatch"
 CONFIDENCE_CONFIRMED = 1.0
 CONFIDENCE_INFERRED = 0.6
 
+#: MATERIALITY, not judgement. `severity` is the platform's routing channel — the
+#: executive briefing only collects `warning`/`critical` (cos_briefing/executive_summary.py
+#: :653), so a finding left at `info` is structurally unreachable no matter how much money
+#: it represents. The band is a deterministic threshold on an amount WLJ calculated (I.3);
+#: it is never a statement about the user. The numbers still travel as evidence and the
+#: model still decides what to say, and whether to say it at all (I.4).
+MATERIAL_ANNUAL_ESTIMATE = 250.0
+
 
 def _pattern_key(row):
     """Group by what the user would ACT on: a payee or a recurring series, per entity pair."""
@@ -135,6 +143,17 @@ def build_findings(user):
     return findings
 
 
+def _severity(finding):
+    """`warning` only when a CONFIRMED pattern crosses the materiality threshold.
+
+    An inferred finding never routes to the briefing — WLJ does not interrupt someone
+    over an attribution nobody has confirmed.
+    """
+    if finding["confirmed"] and finding["annual_estimate"] >= MATERIAL_ANNUAL_ESTIMATE:
+        return "warning"
+    return "info"
+
+
 def _compose(finding):
     """Facts, in plain language. No recommendation — the model decides what to say."""
     bearer = finding["bearer"].name
@@ -189,20 +208,28 @@ def record_findings(user, findings=None):
             "confirmed": finding["confirmed"],
             "computed_at": timezone.now().isoformat(),
         }
+        existing = Insight.objects.filter(
+            user=user, dedupe_key=finding["dedupe_key"]).first()
+        # Resurface ONLY on a material change. An unchanged finding keeps its original
+        # `created_at` and `status`, so it ages out of the 72-hour CoS context window and
+        # the Chief of Staff does not repeat itself day after day about the same thing.
+        changed = (existing is not None
+                   and existing.evidence.get("occurrences") != finding["occurrences"])
+        defaults = {
+            "module": INSIGHT_MODULE,
+            "insight_type": INSIGHT_TYPE,
+            "severity": _severity(finding),
+            "title": title,
+            "message": message,
+            "confidence_score": finding["confidence"],
+            "explain_why": explain,
+            "evidence": evidence,
+        }
+        if changed:
+            defaults["status"] = "new"
+            defaults["created_at"] = timezone.now()
         obj, was_created = Insight.objects.update_or_create(
-            user=user, dedupe_key=finding["dedupe_key"],
-            defaults={
-                "module": INSIGHT_MODULE,
-                "insight_type": INSIGHT_TYPE,
-                # Deliberately flat: materiality travels as `annual_estimate` evidence.
-                # A "warning" band would be WLJ rendering judgement (Constitution I.4).
-                "severity": "info",
-                "title": title,
-                "message": message,
-                "confidence_score": finding["confidence"],
-                "explain_why": explain,
-                "evidence": evidence,
-            },
+            user=user, dedupe_key=finding["dedupe_key"], defaults=defaults,
         )
         seen_keys.add(finding["dedupe_key"])
         created += int(was_created)

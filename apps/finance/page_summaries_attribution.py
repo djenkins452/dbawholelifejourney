@@ -23,3 +23,16 @@ def finance_attribution_summary(user, params):
     ]
     return {"title": "Attribution Review", "kind": "finance attribution",
             "content": "Who your money belongs to\n" + "\n".join(lines)}
+
+
+@register_page_summary("finance.entities")
+def finance_entities_summary(user, params):
+    """The entity setup state — facts only."""
+    from apps.finance.models import FinancialEntity
+    rows = FinancialEntity.objects.filter(user=user, is_active=True).order_by("name")
+    if not rows:
+        return {"title": "Financial Entities", "kind": "finance entities",
+                "content": "No financial entities set up yet."}
+    listed = "\n".join(f"- {e.name} ({e.get_entity_type_display()})" for e in rows)
+    return {"title": "Financial Entities", "kind": "finance entities",
+            "content": f"Entities money can belong to ({rows.count()}):\n{listed}"}

@@ -183,3 +183,103 @@ def opportunity_decide(request, pk):
         "state_label": opportunity.get_state_display(),
         "follow_up_scheduled": opportunity.follow_up_id is not None,
     })
+
+
+class EntityWorkspaceView(PageSummaryMixin, TemplateView):
+    """Set up who your money can belong to, and which entity owns each account.
+
+    Without this, Finance intelligence cannot start: attribution needs a second entity to
+    attribute *to*. The production audit found exactly this state — real history, Personal
+    only, zero attribution.
+    """
+
+    template_name = "finance/entity_workspace.html"
+    page_summary_key = "finance.entities"
+    page_summary_title = "Financial Entities"
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.finance.models import AccountEntityAssignment, FinancialAccount
+        from apps.finance.services.finance_entities import ensure_default_entities
+
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        ensure_default_entities(user)
+
+        open_rows = {
+            row.account_id: row for row in
+            AccountEntityAssignment.objects.filter(user=user, effective_to__isnull=True)
+            .select_related("entity")
+        }
+        accounts = list(FinancialAccount.objects.filter(user=user)
+                        .order_by("sort_order", "name"))
+        context.update({
+            "entities": FinancialEntity.objects.filter(user=user, is_active=True)
+                                               .order_by("sort_order", "name"),
+            "entity_types": FinancialEntity.ENTITY_TYPE_CHOICES,
+            "accounts": [
+                {"account": account,
+                 "assignment": open_rows.get(account.id),
+                 "entity_id": open_rows[account.id].entity_id
+                 if account.id in open_rows else None}
+                for account in accounts
+            ],
+        })
+        return context
+
+
+@login_required
+@require_POST
+def entity_create(request):
+    """Create a user-owned entity. The name is data; the type carries the meaning."""
+    from apps.finance.services.finance_entities import create_entity
+
+    try:
+        payload = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request."}, status=400)
+    try:
+        entity = create_entity(
+            request.user,
+            entity_type=str(payload.get("entity_type", "")).strip(),
+            name=str(payload.get("name", ""))[:120],
+        )
+    except ValidationError as exc:
+        return JsonResponse({"success": False, "error": "; ".join(exc.messages)},
+                            status=400)
+    return JsonResponse({"success": True, "id": entity.pk, "name": entity.name,
+                         "entity_type": entity.get_entity_type_display()})
+
+
+@login_required
+@require_POST
+def account_assign_entity(request, pk):
+    """Set which entity economically owns an account.
+
+    The first assignment reaches back over imported history; a later one is forward-dated.
+    Neither rewrites an attribution that has already been made.
+    """
+    from apps.finance.models import FinancialAccount
+    from apps.finance.services.finance_entities import assign_account_entity
+
+    account = get_object_or_404(FinancialAccount, pk=pk, user=request.user)
+    try:
+        payload = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request."}, status=400)
+    entity = get_object_or_404(
+        FinancialEntity, pk=payload.get("entity_id"), user=request.user, is_active=True)
+    try:
+        assignment = assign_account_entity(request.user, account, entity)
+    except ValidationError as exc:
+        return JsonResponse({"success": False, "error": "; ".join(exc.messages)},
+                            status=400)
+    return JsonResponse({
+        "success": True, "account_id": account.pk, "entity": entity.name,
+        "effective_from": assignment.effective_from.isoformat(),
+    })

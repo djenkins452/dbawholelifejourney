@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Entities - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-entity-workspace">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Entities</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Who can your money belong to?</h1>
+            <p class="page-subtitle">Set up your entities, then say which one owns each account.</p>
+        </div>
+    </div>
+
+    <section class="ent-section" aria-labelledby="ent-list-heading">
+        <h2 id="ent-list-heading" class="ent-heading">Your entities</h2>
+        <ul class="ent-list" id="ent-list">
+            {% for entity in entities %}
+            <li class="ent-item" data-entity-id="{{ entity.pk }}">
+                <span class="ent-name">{{ entity.name }}</span>
+                <span class="ent-type">{{ entity.get_entity_type_display }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <form class="ent-form" id="ent-form">
+            <label class="sr-only" for="ent-name">Entity name</label>
+            <input type="text" id="ent-name" placeholder="e.g. your business name" maxlength="120" required>
+            <label class="sr-only" for="ent-type">Entity type</label>
+            <select id="ent-type">
+                {% for value, label in entity_types %}
+                <option value="{{ value }}"{% if value == 'business' %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Add entity</button>
+        </form>
+        <p class="ent-error" id="ent-error" role="alert"></p>
+    </section>
+
+    <section class="ent-section" aria-labelledby="ent-acct-heading">
+        <h2 id="ent-acct-heading" class="ent-heading">Which entity owns each account?</h2>
+        <p class="ent-note">The first time you set this, it applies back over your imported history. Changing it later takes effect from today and never rewrites past decisions.</p>
+        {% for row in accounts %}
+        <div class="ent-acct" data-account-id="{{ row.account.pk }}">
+            <div class="ent-acct-main">
+                <span class="ent-name">{{ row.account.name }}</span>
+                <span class="ent-type">
+                    {% if row.assignment %}Owned by {{ row.assignment.entity.name }} since {{ row.assignment.effective_from|date:"M j, Y" }}{% else %}No owner set{% endif %}
+                </span>
+            </div>
+            <div class="ent-acct-actions">
+                <label class="sr-only" for="acct-{{ row.account.pk }}">Entity for {{ row.account.name }}</label>
+                <select class="ent-acct-entity" id="acct-{{ row.account.pk }}">
+                    {% for entity in entities %}
+                    <option value="{{ entity.pk }}"{% if entity.pk == row.entity_id %} selected{% endif %}>{{ entity.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn btn-primary ent-assign" data-account-id="{{ row.account.pk }}">Save</button>
+            </div>
+        </div>
+        {% empty %}
+        <p class="ent-note">You have no accounts yet. Add one from the Finance dashboard first.</p>
+        {% endfor %}
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+    .ent-section { margin-bottom: 2.25rem; }
+    .ent-heading { font-size: 1.05rem; margin-bottom: .5rem; }
+    .ent-note { font-size: .85rem; color: var(--text-muted, #6b7280); margin-bottom: .75rem; }
+    .ent-list { list-style: none; padding: 0; margin: 0 0 1rem; }
+    .ent-item, .ent-acct { display: flex; flex-wrap: wrap; gap: .75rem; justify-content: space-between;
+        align-items: center; padding: .7rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+    .ent-acct-main { display: flex; flex-direction: column; gap: .1rem; flex: 1 1 14rem; min-width: 0; }
+    .ent-name { font-weight: 600; }
+    .ent-type { font-size: .85rem; color: var(--text-muted, #6b7280); }
+    .ent-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .ent-form input, .ent-form select, .ent-acct-actions select { min-height: 44px; font-size: 16px; }
+    .ent-form input { flex: 1 1 14rem; max-width: 100%; }
+    .ent-form .btn, .ent-acct-actions .btn { min-height: 44px; }
+    .ent-acct-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .ent-error { color: var(--danger, #b91c1c); font-size: .875rem; min-height: 1.2em; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (max-width: 480px) {
+        .ent-item, .ent-acct { flex-direction: column; align-items: stretch; }
+        .ent-form input, .ent-form select, .ent-form .btn,
+        .ent-acct-actions select, .ent-acct-actions .btn { flex: 1 1 100%; }
+    }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var createUrl = "{% url 'finance:entity_create' %}";
+
+    function csrfToken() {
+        var match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : "";
+    }
+    function post(url, body) {
+        return fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+            body: JSON.stringify(body)
+        }).then(function (r) { return r.json(); });
+    }
+
+    var form = document.getElementById("ent-form");
+    if (form) {
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            var name = document.getElementById("ent-name");
+            var type = document.getElementById("ent-type");
+            var error = document.getElementById("ent-error");
+            error.textContent = "";
+            post(createUrl, { name: name.value, entity_type: type.value })
+                .then(function (data) {
+                    if (!data.success) { error.textContent = data.error; return; }
+                    var item = document.createElement("li");
+                    item.className = "ent-item";
+                    item.innerHTML = '<span class="ent-name"></span><span class="ent-type"></span>';
+                    item.querySelector(".ent-name").textContent = data.name;
+                    item.querySelector(".ent-type").textContent = data.entity_type;
+                    document.getElementById("ent-list").appendChild(item);
+                    document.querySelectorAll(".ent-acct-entity").forEach(function (select) {
+                        var option = document.createElement("option");
+                        option.value = data.id;
+                        option.textContent = data.name;
+                        select.appendChild(option);
+                    });
+                    name.value = "";
+                })
+                .catch(function () { error.textContent = "Could not save. Try again."; });
+        });
+    }
+
+    document.addEventListener("click", function (event) {
+        var button = event.target.closest(".ent-assign");
+        if (!button) { return; }
+        var row = button.closest(".ent-acct");
+        var id = button.getAttribute("data-account-id");
+        var select = row.querySelector(".ent-acct-entity");
+        button.disabled = true;
+        post("/finance/accounts/" + id + "/entity/", { entity_id: parseInt(select.value, 10) })
+            .then(function (data) {
+                button.textContent = data.success ? "Saved" : (data.error || "Try again");
+                if (data.success) {
+                    row.querySelector(".ent-acct-main .ent-type").textContent =
+                        "Owned by " + data.entity + " since " + data.effective_from;
+                } else { button.disabled = false; }
+            })
+            .catch(function () { button.disabled = false; button.textContent = "Try again"; });
+    });
+})();
+</script>
+{% endblock %}

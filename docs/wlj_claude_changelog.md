@@ -6,6 +6,50 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(finance): F1 — deterministic entity-payment-mismatch detection (autonomous MVP delivery, phase 2 of 5)
+
+**Deterministic comparison only. No model call anywhere in the detection path** (contract-tested).
+Finance remains externally read-only.
+
+**What it detects:** an ACTIVE attribution whose attributed entity (business/other) differs from the entity
+that actually paid (personal/household). **Structural, never name-based** — a test renames the business
+mid-flight and asserts the finding is unchanged.
+
+**One Insight per PATTERN, not per transaction** (`opportunity_detection.py`). Four charges from one vendor
+is ONE finding — "4 charges attributed to X were paid from Y, $216 total, est. $648/yr" — grouped by
+recurring series when `Transaction.recurring_source` is set, else by payee. That is what a person acts on.
+
+**Facts only (Constitution I.4):** `severity` is deliberately FLAT (`info`). A "warning" band would be WLJ
+rendering judgement; materiality travels as `annual_estimate` evidence and the Chief of Staff prioritises.
+A test asserts the composed text contains no "you should" / "we recommend" / "move this" / "wrong".
+
+**Canonical `Insight`, not a Finance recommendation authority** — reusing the platform lifecycle (status,
+notification, engagement, executive briefing all already consume it). Idempotent via a stable
+`dedupe_key`; a re-run UPDATES. A pattern that no longer holds is retired to `dismissed`, while
+user-dismissed insights are left alone.
+
+**Confirmed vs uncertain is never blurred:** a finding backed by a user-confirmed attribution carries
+confidence 1.0 and `confirmed=True`; an inferred one carries 0.6. Both are recorded; the distinction rides
+in the evidence.
+
+**Defect found and fixed BY the test suite:** detection originally trusted the write-time population check,
+so soft-deleting a transaction left its finding standing. Transactions CHANGE after attribution — they get
+soft-deleted, re-categorised as transfers, or paired with a counterpart later. `find_mismatches()` now
+**re-asserts the whole population contract at read time** (active, non-opening, non-pending, neither transfer
+signal) at zero extra cost — same query, same indexes.
+
+**Background execution:** `apps/finance/tasks.py :: detect_finance_opportunities`, on a **crontab** beat entry
+(`finance-opportunity-detection-daily-410am-utc`) — never an interval, because Railway's ephemeral filesystem
+resets `PersistentScheduler` on restart and starves long-interval tasks. A per-user failure is logged with
+`exc_info` and the sweep continues; it never silently passes.
+
+**Tests: 130 green** (19 new). Query evidence: the mismatch scan is **1 query** at any transaction count.
+
+**Files:** `apps/finance/services/opportunity_detection.py` (new), `apps/finance/tasks.py` (new),
+`apps/finance/tests/test_f1_opportunity_detection.py` (new), `config/settings.py` (one beat entry).
+No migrations — F1 adds no schema.
+
+
 ## 2026-08-25 — feat(finance): F0 — Financial Entity & Attribution Truth (autonomous MVP delivery, phase 1 of 5)
 
 **F0 only. No detector, no review UI, no CoS flow, no insights, no provider call.** Governing plan:

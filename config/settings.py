@@ -1327,6 +1327,13 @@ CELERY_BEAT_SCHEDULE = {
         "task": "medical.refresh_medication_reference_labels",
         "schedule": crontab(hour=5, minute=0),  # 5:00 AM UTC, after the meals pass
     },
+    # F1 — deterministic Finance attribution-opportunity detection. Crontab (never an
+    # interval): Railway's ephemeral filesystem resets PersistentScheduler on restart and
+    # would starve a long interval task. Deterministic comparison only — no model call.
+    "finance-opportunity-detection-daily-410am-utc": {
+        "task": "apps.finance.tasks.detect_finance_opportunities",
+        "schedule": crontab(hour=4, minute=10),  # after the meals pass, before health 5am
+    },
     "meals-expire-leftovers-4am-utc": {
         "task": "apps.meals.tasks.expire_leftovers_task",
         "schedule": crontab(hour=4, minute=0),  # 4:00 AM UTC, after the health summary

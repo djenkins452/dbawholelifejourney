@@ -93,6 +93,43 @@ labels for medications already on file rather than making the first users wait f
 fully guarded (**cannot fail a deploy** — the crontab retries), idempotent, and it runs on the RELEASE container,
 never a request path.
 
+### PRODUCTION VERIFICATION (`09c01c50`, web + worker; my work confirmed an ancestor)
+
+**Deterministic truth, verified BEFORE spending the smoke** (via the truth probe's new read-only `entity=` mode):
+
+| medication | kind | entity status | label attached |
+|---|---|---|---|
+| **Mounjaro** | brand | `resolved` | ✅ SPL `d2d7da5d…` **v38**, eff. 20260422, labeler **ELI LILLY AND COMPANY** |
+| **Lantus SoloStar** | brand | `resolved` | ✅ |
+| **Metformin HCL ER** | multi-source generic | `unavailable` | ❌ `unsupported` — **fail-closed, as designed** |
+| **Atorvastatin** | multi-source generic | `unavailable` | ❌ `unsupported` — **fail-closed, as designed** |
+
+The labeler-of-record selection rule worked on real data: **Eli Lilly, not a repackager.** And the resolved label
+carries verbatim exactly what the model previously improvised away:
+> *"If a dose is missed, instruct patients to administer MOUNJARO as soon as possible within 4 days (96 hours) after
+> the missed dose."* … *"If more than 4 days have passed, skip the missed dose and administer the next dose on the
+> regularly scheduled day."*
+
+**Tier-2 smoke (ONE run) — the M1 objective is MET:**
+```
+truth  get_entity {"name": "Mounjaro", "domain": "medicine"}               ok
+truth  get_entity {"name": "Mounjaro", "domain": "medication_reference"}   ok
+response  tools_called: ["get_entity", "get_entity"]  synthesis_used: true
+```
+**Both truth kinds were retrieved, in the intended order — personal regimen first, then authoritative product
+truth — through the EXISTING `get_entity` surface, with no new tool and no routing.** That is the milestone's
+success criterion, and it is evidence rather than wording.
+
+**RESIDUAL — reported honestly, NOT fixed here.** The answer's conclusion ("take it tonight") is correct and it no
+longer repeats the earlier false *"within the same day"* claim — but it **does not visibly use** either retrieved
+fact. It reasons vaguely (*"maintaining a consistent schedule is important … minimizes any potential impact"*)
+instead of citing the label's **4-day / 96-hour window** and his **actual next dose**. So: retrieval is proven;
+**"the answer relied on both" is NOT proven.** Note `synthesis_used: true` — the two-phase Executive Synthesis ran,
+and Phase-2 condensation is the leading hypothesis (cf. the verdict-leakage class: hand Phase-2 FACTS, not
+conclusions). **This is a new investigation — a reasoning/presentation question about how retrieved reference truth
+survives into the final answer — not an M1 defect, and not opened here.** Per the cost discipline, exactly one
+Tier-2 smoke was spent and no iteration was attempted.
+
 ---
 
 ## 2026-08-24 — design(finance): assessment APPROVED with decisions + F-1 Legacy Finance AI retirement plan (PLAN ONLY)

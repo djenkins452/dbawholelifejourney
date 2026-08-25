@@ -5,6 +5,7 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
 ## 2026-08-25 — feat(truth): Medication Reference Truth M1 — WLJ's first authoritative IMPERSONAL truth domain
 
 **The gap this closes.** After the own-record grounding fix, the CoS correctly retrieved Danny's Mounjaro schedule
@@ -94,6 +95,53 @@ never a request path.
 
 ---
 
+## 2026-08-24 — design(finance): Finance Intelligence — architecture & product assessment (ASSESSMENT ONLY, NOT IMPLEMENTED)
+
+**Assessment only. No code, no models, no migrations, no provider installed, no governing doc modified.**
+Full document: `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md`. Awaiting Danny's explicit go.
+
+**Headline:** **do not build a "Finance Intelligence Engine."** Finance is ALREADY a registered WLJ truth
+domain — `FinanceDomainTruth` (`apps/finance/services/finance_domain_truth.py:14`; current + 3 history metrics
++ record-level `transaction`/`account` entities, so all 14 generic truth tools already answer Finance
+questions), a Current Context page-summary provider (`apps/finance/page_summaries.py:26`), a
+`DomainCapability` registration (`apps/finance/capabilities.py:4`), a Plaid adapter, MFA/rate-limit/audit
+security (`apps/finance/security.py`), and a `purpose.LifeGoal` join (`apps/finance/models.py:820`). An
+"engine" would be a second reasoning authority inside WLJ (Constitution I.2 / IV.2 / IV.4).
+
+**The proposed observe→…→verify loop maps onto existing prod-proven machinery:** detection = `Insight`
+(evidence + `explain_why` + `confidence_score` + `dedupe_key`, `apps/core/ai_insights/models.py:11`), which
+already reaches the CoS (`apps/core/ai_orchestrator/cos_context.py:1651`, `cos_briefing/executive_summary.py:339`);
+learning = corrections + `LearnedMapping` (`apps/core/ai_memory/models.py:112`) under the default-deny
+reflection gate (`apps/ai/reflection/engine.py:83`); **outcome verification = `ConversationFollowUp`**
+(`apps/ai/models.py:2322`) — already built and prod-validated.
+
+**Five genuine gaps = the whole MVP:** (G1) NO entity/business concept exists anywhere — "Beacon" appears
+nowhere in `apps/`, and there is no `is_business` or entity FK; (G2) `Transaction.category`/`payee`
+(`:429`/`:439`) carry NO classifier provenance or confidence — a WLJ guess and a user confirmation are
+indistinguishable; (G3) Finance has no `tasks.py` and no beat entry, so no deterministic detector;
+(G4) no attribution-rule store; (G5) no outcome re-verification query.
+
+**Read-only guarantee is already STRUCTURAL:** no finance intent appears in `ALLOWED_WRITE_INTENTS`
+(`apps/ai/model_interface/constitution.py:1653`) — the MVP's "must not move money" holds as long as none is added.
+
+**Two constitutional flags raised (NOT fixed — out of assessment scope):**
+1. `apps/finance/services/ai_insights.py:49` `FinanceAIService` is a **domain-local reasoning engine** with its
+   own system prompt (`:562`), re-deriving spending (`:99`) instead of consuming `FinanceHistory`, called from
+   four request-path endpoints (`apps/finance/views.py:1499, 1551, 1584, 1622`). It reaches the provider from a
+   view *through a service layer* — the documented residual the safety contract cannot catch
+   (`apps/core/tests/test_request_path_safety_contract.py:26–29`) and it is NOT in `INLINE_LLM_ALLOWLIST`
+   (`:80` = `apps/health/views.py` only). Recommended for retirement, not extension.
+2. **"Beacon" must never be hardcoded** — one user's entity name, exactly as "Beth" is one user's assistant
+   name (Constitution §1). `FinancialEntity` should be shaped to become a **Space** later
+   (`docs/WLJ_SECURITY_AUTHORIZATION_FRAMEWORK.md`), never entity-scoped permissions now.
+
+**Proposed phasing (for approval, not started):** F0 entity truth → F1 deterministic detection → F2
+conversation/confirmation → F3 follow-through verification → F4 retire the legacy Finance AI endpoints.
+Deferred WITH triggers: production Plaid (`PLAID_ENV` defaults to `sandbox`, `config/settings.py:1006–1008`),
+multi-entity Spaces, finance write actions.
+
+**Files:** `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` (new), `docs/wlj_claude_changelog.md`.
+No app code touched. Renpho docs, `.gitignore`, and a parallel session's medication-reference work left untouched.
 ## 2026-08-24 — governance: retire ALL legacy master prompts — `WLJ_MASTER_PROMPT.md` is the single boot authority
 
 **Docs/governance only. No code. No provider call.** Bounded cleanup completed *before* any Finance Engine work.

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Attribution Review - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-attribution-review">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
+        <span>/</span>
+        <span>Attribution</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Who does this belong to?</h1>
+            <p class="page-subtitle">Confirm or correct which entity each expense belongs to.</p>
+        </div>
+    </div>
+
+    <div class="attr-counts" role="status">
+        <span class="attr-chip" data-count="unattributed">{{ counts.unattributed }} awaiting you</span>
+        <span class="attr-chip" data-count="inferred">{{ counts.inferred }} auto-assigned</span>
+        <span class="attr-chip" data-count="uncertain">{{ counts.uncertain }} uncertain</span>
+        <span class="attr-chip attr-chip-done" data-count="confirmed">{{ counts.confirmed }} confirmed by you</span>
+    </div>
+
+    {% if unattributed %}
+    <section class="attr-section" aria-labelledby="attr-new-heading">
+        <h2 id="attr-new-heading" class="attr-heading">Awaiting a decision</h2>
+        {% for txn in unattributed %}
+        <article class="attr-row" data-transaction-id="{{ txn.pk }}">
+            <div class="attr-main">
+                <span class="attr-desc">{{ txn.payee|default:txn.description }}</span>
+                <span class="attr-meta">{{ txn.date|date:"M j, Y" }} · {{ txn.account.name }} · ${{ txn.absolute_amount|floatformat:2 }}</span>
+            </div>
+            <div class="attr-actions">
+                <label class="sr-only" for="entity-{{ txn.pk }}">Entity for {{ txn.description }}</label>
+                <select class="attr-entity" id="entity-{{ txn.pk }}" data-transaction-id="{{ txn.pk }}">
+                    {% for entity in entities %}
+                    <option value="{{ entity.pk }}">{{ entity.name }}</option>
+                    {% endfor %}
+                </select>
+                <select class="attr-scope" data-transaction-id="{{ txn.pk }}" aria-label="Apply to">
+                    <option value="transaction">Just this one</option>
+                    {% if txn.payee %}<option value="payee">All from {{ txn.payee }}</option>{% endif %}
+                    {% if txn.recurring_source_id %}<option value="recurring">This whole series</option>{% endif %}
+                </select>
+                <button type="button" class="btn btn-primary attr-save" data-transaction-id="{{ txn.pk }}">Save</button>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if inferred %}
+    <section class="attr-section" aria-labelledby="attr-auto-heading">
+        <h2 id="attr-auto-heading" class="attr-heading">Assigned automatically — confirm or correct</h2>
+        {% for item in inferred %}
+        <article class="attr-row" data-transaction-id="{{ item.transaction.pk }}">
+            <div class="attr-main">
+                <span class="attr-desc">{{ item.transaction.payee|default:item.transaction.description }}</span>
+                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · ${{ item.transaction.absolute_amount|floatformat:2 }}</span>
+                <span class="attr-why">{{ item.attribution.attributed_entity.name }} — {{ item.why }}</span>
+            </div>
+            <div class="attr-actions">
+                <label class="sr-only" for="entity-inf-{{ item.transaction.pk }}">Entity</label>
+                <select class="attr-entity" id="entity-inf-{{ item.transaction.pk }}" data-transaction-id="{{ item.transaction.pk }}">
+                    {% for entity in entities %}
+                    <option value="{{ entity.pk }}"{% if entity.pk == item.attribution.attributed_entity_id %} selected{% endif %}>{{ entity.name }}</option>
+                    {% endfor %}
+                </select>
+                <select class="attr-scope" data-transaction-id="{{ item.transaction.pk }}" aria-label="Apply to">
+                    <option value="transaction">Just this one</option>
+                    {% if item.transaction.payee %}<option value="payee">All from {{ item.transaction.payee }}</option>{% endif %}
+                    {% if item.transaction.recurring_source_id %}<option value="recurring">This whole series</option>{% endif %}
+                </select>
+                <button type="button" class="btn btn-primary attr-save" data-transaction-id="{{ item.transaction.pk }}">Confirm</button>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if uncertain %}
+    <section class="attr-section" aria-labelledby="attr-uncertain-heading">
+        <h2 id="attr-uncertain-heading" class="attr-heading">Uncertain — not counted either way</h2>
+        {% for item in uncertain %}
+        <article class="attr-row attr-row-muted">
+            <div class="attr-main">
+                <span class="attr-desc">{{ item.transaction.payee|default:item.transaction.description }}</span>
+                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · ${{ item.transaction.absolute_amount|floatformat:2 }}</span>
+                <span class="attr-why">{{ item.reason_label }}</span>
+            </div>
+        </article>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if not unattributed and not inferred and not uncertain %}
+    <p class="attr-empty" data-testid="finance-attribution-empty">Nothing is waiting on you right now.</p>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+    .attr-counts { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; }
+    .attr-chip { background: var(--surface-2, #f3f4f6); border-radius: 999px; padding: .35rem .85rem; font-size: .875rem; }
+    .attr-chip-done { background: var(--success-bg, #ecfdf5); }
+    .attr-section { margin-bottom: 2rem; }
+    .attr-heading { font-size: 1.05rem; margin-bottom: .75rem; }
+    .attr-row { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between;
+                align-items: center; padding: .85rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+    .attr-row-muted { opacity: .85; }
+    .attr-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1 1 16rem; }
+    .attr-desc { font-weight: 600; }
+    .attr-meta, .attr-why { font-size: .85rem; color: var(--text-muted, #6b7280); }
+    .attr-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .attr-actions select { min-height: 44px; font-size: 16px; max-width: 100%; }
+    .attr-actions .btn { min-height: 44px; }
+    .attr-row-saved { opacity: .6; }
+    .attr-empty { color: var(--text-muted, #6b7280); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (max-width: 480px) {
+        .attr-row { flex-direction: column; align-items: stretch; }
+        .attr-actions { width: 100%; }
+        .attr-actions select, .attr-actions .btn { flex: 1 1 100%; }
+    }
+</style>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var endpoint = "{% url 'finance:attribution_decide' %}";
+
+    function csrfToken() {
+        var match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? match[1] : "";
+    }
+
+    document.addEventListener("click", function (event) {
+        var button = event.target.closest(".attr-save");
+        if (!button) { return; }
+        var row = button.closest(".attr-row");
+        var id = button.getAttribute("data-transaction-id");
+        var entity = row.querySelector(".attr-entity");
+        var scope = row.querySelector(".attr-scope");
+        button.disabled = true;
+
+        fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken() },
+            body: JSON.stringify({
+                transaction_id: parseInt(id, 10),
+                entity_id: parseInt(entity.value, 10),
+                scope: scope ? scope.value : "transaction"
+            })
+        }).then(function (response) { return response.json(); })
+          .then(function (data) {
+              if (!data.success) {
+                  button.disabled = false;
+                  button.textContent = data.error || "Try again";
+                  return;
+              }
+              row.classList.add("attr-row-saved");
+              var note = data.also_settled
+                  ? "Saved · " + data.also_settled + " more updated"
+                  : "Saved";
+              button.textContent = note;
+              var chips = document.querySelectorAll(".attr-chip");
+              chips.forEach(function (chip) {
+                  var key = chip.getAttribute("data-count");
+                  if (data.counts && key in data.counts) {
+                      chip.textContent = data.counts[key] + chip.textContent.replace(/^\d+/, "");
+                  }
+              });
+          })
+          .catch(function () {
+              button.disabled = false;
+              button.textContent = "Try again";
+          });
+    });
+})();
+</script>
+{% endblock %}

@@ -6,6 +6,49 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(finance): F2 — attribution review, correction, and learning (autonomous MVP delivery, phase 3 of 5)
+
+**No model call anywhere in F2.** The Chief of Staff already reasons over Finance truth through the
+canonical tool surface; adding a Finance-local reasoning path would have created the second authority F-1
+just removed. Finance stays externally read-only — this workspace changes WLJ's classification of the user's
+money, never the money.
+
+**What the user can now do** (`/finance/attribution/`): see what is awaiting a decision, what was assigned
+automatically (with the reason in plain language), and what is uncertain and therefore counted **neither
+way**; then confirm or correct at three bounded scopes — **just this one · all from this payee · this whole
+recurring series**. A scoped decision creates a reusable user-owned rule AND settles the transactions already
+in that scope (capped at 200 — a rule should reduce future review, not silently rewrite years of history).
+
+**Exceptions inside a batch work, and are tested:** confirm the exception first, then apply the batch — the
+exception stands, because `_settle_scope` skips every user-confirmed row and `attribute()` refuses to
+supersede a confirmation. The user's word survives every automation.
+
+**Uncertain rows are never settled to shrink the queue** — `_settle_scope` re-checks the population contract
+per candidate, so a suspected internal transfer stays out of a batch apply (tested).
+
+**"Why did you think that?" is always available** — `explain()` renders the actual provenance: *"You
+confirmed this"* · *"A rule you created for this payee assigns it to X"* · *"The account that paid it belonged
+to Y on Mar 4, 2026"*. Exposed both inline and at `attribution/<pk>/explain/`.
+
+**Current Context:** `finance.attribution` page summary reads the SAME `review_counts()` the page renders —
+one deterministic source feeding both the screen and the CoS (a test asserts the provider contains no
+independent `Transaction.objects` query). Facts only, no verdicts.
+
+**Front end:** CSP-compliant throughout — zero inline handlers, one nonce'd `addEventListener` block using
+event delegation and `data-*` attributes. Responsive: 44px touch targets, 16px inputs (iOS zoom), stacks at
+480px, no fixed widths, no viewport math (the app shell owns scrolling).
+
+**Authorization:** the endpoints scope every lookup by `user=request.user`, so another user's transaction or
+entity returns **404**, and the service layer rejects the cross-user reference underneath — read-path
+filtering is never the only defense (both paths tested).
+
+**Tests: 152 green** (19 new), including the visual-truth and request-path-safety contracts.
+**Files:** `apps/finance/services/attribution_review.py`, `apps/finance/views_attribution.py`,
+`apps/finance/page_summaries_attribution.py`, `templates/finance/attribution_review.html`,
+`apps/finance/tests/test_f2_attribution_review.py` (all new); `apps/finance/urls.py`, `apps/finance/apps.py`.
+No migrations.
+
+
 ## 2026-08-25 — feat(finance): F1 — deterministic entity-payment-mismatch detection (autonomous MVP delivery, phase 2 of 5)
 
 **Deterministic comparison only. No model call anywhere in the detection path** (contract-tested).

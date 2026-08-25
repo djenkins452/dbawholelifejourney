@@ -9,6 +9,7 @@
 from django.urls import path
 
 from . import views
+from apps.finance import views_attribution
 
 app_name = 'finance'
 
@@ -75,6 +76,14 @@ urlpatterns = [
     # API Endpoints
     path('api/payees/', views.api_payee_suggestions, name='api_payees'),
     path('api/accounts/<int:pk>/balance/', views.api_account_balance, name='api_account_balance'),
+
+    # F2 — Attribution review workspace
+    path('attribution/', views_attribution.AttributionReviewView.as_view(),
+         name='attribution_review'),
+    path('attribution/decide/', views_attribution.attribution_decide,
+         name='attribution_decide'),
+    path('attribution/<int:pk>/explain/', views_attribution.attribution_explain,
+         name='attribution_explain'),
 
     # Bank Connections (Plaid Integration)
     path('connections/', views.BankConnectionListView.as_view(), name='connection_list'),

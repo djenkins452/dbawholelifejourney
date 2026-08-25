@@ -112,11 +112,13 @@ DOMAIN_SEMANTICS = {
                            "taken/missed/pending state, WHEN IT WAS LAST TAKEN, "
                            "refill/supply state, and 7/30/90-day adherence. "
                            "TWO BOUNDARIES, both absolute. (1) This is the person's own "
-                           "REGIMEN truth — WLJ holds NO manufacturer or product "
-                           "labelling, so nothing here states what the PRODUCT's approved "
-                           "instructions say (about a missed or late dose, or anything "
-                           "else); `recorded_instructions` is a personal note, never a "
-                           "substitute for the label. (2) `standing.adherence_tracking."
+                           "REGIMEN truth — nothing here is the PRODUCT's approved "
+                           "labelling, and `recorded_instructions` is a personal note, "
+                           "never a substitute for it. When the answer depends on what "
+                           "the medication's own label directs (how it is taken, a late "
+                           "or missed dose), that is the separate "
+                           "`medication_reference` domain — retrieve BOTH and reason "
+                           "over them together. (2) `standing.adherence_tracking."
                            "marked_late_after_minutes` is WLJ BOOKKEEPING — when WLJ flags "
                            "a dose late for adherence — and carries NO prescribing "
                            "meaning: it never indicates how late a dose may safely be "
@@ -136,6 +138,32 @@ DOMAIN_SEMANTICS = {
                  "when is my next dose", "when did I last take",
                  "what does it say to do about a missed dose",
                  "is it too late to take", "am I supposed to take this with food"],
+    },
+    "medication_reference": {
+        "purpose": ("AUTHORITATIVE, IMPERSONAL medication PRODUCT labelling — what a "
+                    "medication's approved label itself says, true of that product for "
+                    "everyone who takes it. This is NOT anyone's personal record."),
+        "entities": {
+            "product_label": ("One medication product's approved labelling, carried "
+                              "VERBATIM with full provenance (source, DailyMed SPL id "
+                              "and version, effective date, when WLJ retrieved it). "
+                              "Currently carries the labelling's DOSAGE AND "
+                              "ADMINISTRATION section — how the product is to be "
+                              "taken, including what its label directs when a dose is "
+                              "taken late or missed. WLJ never interprets or summarizes "
+                              "it; you apply it and attribute it."),
+        },
+        "boundary": ("Product truth, not person truth. What THIS user takes, their "
+                     "dose, schedule, last dose and adherence are the 'medicine' "
+                     "domain — retrieve BOTH when a question needs the label applied "
+                     "to their own regimen. Coverage is deliberately partial: WLJ "
+                     "resolves branded products and REFUSES rather than guess for "
+                     "multi-source generics, returning an explicit unavailable state. "
+                     "If it is unavailable, say so — never supply the product's "
+                     "instructions from general knowledge as though authoritative."),
+        "cues": ["what does the label say", "what are the instructions for",
+                 "what does it say to do about a missed dose",
+                 "how is it supposed to be taken", "what does the manufacturer say"],
     },
     "medical": {
         "purpose": "Lab results, lab panels, and uploaded medical documents.",

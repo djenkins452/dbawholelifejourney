@@ -1,6 +1,6 @@
 # WLJ — Medication Instruction Truth: Investigation
 
-**Status:** Part A **SHIPPED** (`3770cc41`) · Part B **DESIGN ONLY — awaiting Danny's decision**
+**Status:** Part A **SHIPPED** (`3770cc41`) · Part B **APPROVED** · **M1 IMPLEMENTED** (see §B13, as-built)
 **Date:** 2026-08-21 · **Origin:** the successful own-record-grounding smoke (`a4995dcd`)
 **Governing:** `02_WLJ_CONSTITUTION.md` (I.1, I.2, I.4, IV.2, IV.4) · `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`
 
@@ -333,3 +333,84 @@ fails closed on Danny's generic metformin.
 6. **Scope discipline.** Nothing here should drift toward a general drug-knowledge base or interaction checking.
 
 **STOPPED per instruction. Nothing in Part B implemented. No real-model call spent on Part B.**
+
+
+---
+
+# B13. M1 AS-BUILT (implemented)
+
+Approved scope: **brand-resolvable products only; fail closed otherwise.** Generic/NDC identity is M2 and was
+deliberately not built. Recorded here as the durable architectural decision — **not** a Constitutional amendment.
+
+**Governing interpretation (approved):** *WLJ may own deterministic reference truth that materially supports
+reasoning over a person's life even when the referenced fact itself is impersonal. The model still owns
+interpretation and judgment.* Implementation held to this without weakening any Article — no Review required.
+
+## Authority model as built
+
+| Concern | Where it lives |
+|---|---|
+| Personal regimen truth | `medicine` domain — `health.Intake` (unchanged) |
+| **Authoritative product truth** | **`medication_reference` domain — `medical.MedicationProductLabel`** (no user FK) |
+| Identity bridge | four `reference_*` fields on `health.Intake` (a pointer, never label content) |
+| Reasoning | the conversational model, over both |
+
+`medical.MedicationProductLabel` is impersonal by construction — a contract test asserts no `user`/`owner`/`intake`
+field exists. The two domains are separate **precisely so `medicine` can never become a second, informal label
+authority** (III.1); contract tests assert leakage in **both** directions.
+
+## Identity chain as built (`apps/medical/services/medication_reference.py`)
+
+```
+name → RxNav rxcui  ─ >1 concept → AMBIGUOUS ─ TTY ∉ {BN} → UNSUPPORTED (generic)
+     → DailyMed spls.json?rxcui=…   ─ none → NO_LABEL
+     → highest spl_version           ─ 2 labelers tied → AMBIGUOUS
+     → openFDA text for THAT set_id  ─ none/empty → NO_LABEL
+     → persist verbatim + provenance
+```
+
+**Never a name query for the document, and never a title match** — a contract test spies the URLs and asserts every
+SPL call carries `rxcui=` and none carries `drug_name=`. This is the gate that prevents the proven wrong-product
+failure (DailyMed's top *name* match for "Ozempic" is an **oral tablet** SPL). Identity success and label existence
+are separately gated (proven: "fish oil" → RXCUI 4419, no label).
+
+## Provenance as built
+`source=dailymed` (identity/version authority) · `source_url` · `spl_setid` · `spl_version` · `effective_time` ·
+`published_date` · `labeler` · **`content_source`** (where the parsed text came from — deliberately a separate field
+so the identity authority and the text retrieval are never conflated) · `retrieved_at` · `content_hash`.
+
+## Verbatim, never interpreted
+`dosage_and_administration` is stored and exposed byte-identical to the source (contract-tested), flagged
+`verbatim: true`, and accompanied by *"WLJ does not interpret, summarize or condense it — apply it to the person's
+situation yourself, and attribute it."* A contract test greps the producer for authored clinical phrasing.
+
+## Failure behaviour
+A refusal returns an **entity**, not nothing — status `unavailable` with the reason (`unsupported` / `ambiguous` /
+`no_label`) and the instruction *"do NOT supply the product's instructions from general knowledge and present them
+as authoritative."* Returning an explicit refusal rather than silence is what stops the model quietly substituting
+its own knowledge.
+
+## Request-path safety
+The truth surface performs **one indexed DB read** and no outbound HTTP — asserted by a test that patches
+`urllib.request.urlopen` to raise while calling `get_entity`. Resolution/refresh runs in
+`medical.refresh_medication_reference_labels`, scheduled by **crontab** (05:00 UTC — an interval would be starved by
+Railway's ephemeral filesystem resetting `PersistentScheduler`), scoped to medications users actually take, capped
+per run, and re-resolving no more often than every 30 days.
+
+## Exposure and discovery
+**No new tool.** The domain registers in the existing truth catalog, so the existing `get_entity` tool's `domain`
+enum picks it up automatically (contract-tested, including that no `get_medication_reference`-style tool exists).
+`domain_semantics` advertises the domain, its verbatim/impersonal nature, its partial coverage and honest refusal;
+and the `medicine` advertisement now names `medication_reference` and says **"retrieve BOTH and reason over them
+together."** No phrase routing, no drug-specific routing, no `tool_choice`, no evidence planning — the
+earliest-decision grounding anchor (`c937ee34`) is untouched and does the work.
+
+## Constitutional assessment (re-confirmed against the built code)
+I.1 ✅ deterministic, provenance-bearing, not a cache of model belief · I.2 ✅ WLJ never reasons over the label ·
+I.4 ✅ verbatim only, contract-enforced · I.6 ✅ fail-closed validation with recorded reasons · III.1 ✅ one producer,
+bidirectional leakage tests. **No Article changed or weakened; no Constitutional Review; no Amendment Log entry**
+(per Danny's governance instruction).
+
+## Explicitly NOT built (M2+)
+Generic/NDC-level identity · other label sections · interaction checking · any UI · any generalization beyond
+medication reference truth.

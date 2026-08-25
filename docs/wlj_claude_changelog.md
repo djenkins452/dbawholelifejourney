@@ -5,6 +5,89 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-25 — feat(truth): Medication Reference Truth M1 — WLJ's first authoritative IMPERSONAL truth domain
+
+**The gap this closes.** After the own-record grounding fix, the CoS correctly retrieved Danny's Mounjaro schedule
+and then **improvised the product's missed-dose instruction** — WLJ had no authoritative source for it. M1 gives it
+one. Design + as-built: `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md` (Part B, §B13).
+
+**Governing interpretation (approved, no Constitutional Review, no Amendment Log entry):** *WLJ may own
+deterministic reference truth that materially supports reasoning over a person's life even when the referenced fact
+itself is impersonal. The model still owns interpretation and judgment.*
+
+**Authority model — three things kept permanently separate.** `medicine` owns PERSONAL regimen truth ·
+**`medication_reference` owns AUTHORITATIVE PRODUCT truth** (`medical.MedicationProductLabel` — **no user FK**, by
+design) · the **model** reasons over both. They are separate DOMAINS, not one enriched medication record, precisely
+so `medicine` can never quietly become a second informal label authority (III.1). **Contract tests assert leakage in
+BOTH directions.** The bridge is four `reference_*` fields on `Intake` — a pointer, never label content.
+
+**Identity is the safety gate, and it is PROVEN, not assumed:**
+```
+name → RxNav rxcui   ─ >1 concept → AMBIGUOUS   ─ TTY ∉ {BN} → UNSUPPORTED (generic)
+     → DailyMed spls.json?rxcui=…                ─ none → NO_LABEL
+     → highest spl_version                       ─ 2 labelers tied → AMBIGUOUS
+     → openFDA text for THAT set_id              ─ none/empty → NO_LABEL
+     → persist verbatim + provenance
+```
+**Never a name query for the document, and never a title match** — a contract test spies the URLs and asserts every
+SPL call carries `rxcui=` and none carries `drug_name=`. That gate exists because DailyMed's top *name* match for
+"Ozempic" is an SPL titled `OZEMPIC (ORAL SEMAGLUTIDE) TABLET RYBELSUS…` — **an oral tablet, a different product and
+route from the injection.** Identity success and label existence are **separately gated** ("fish oil" → RXCUI 4419,
+no label at all).
+
+**M1 scope is deliberately partial and honest.** Brand-resolvable products only (RxNorm `TTY == BN`). Multi-source
+generics are recorded `unsupported` and receive **no label** — `openfda.generic_name:"IBUPROFEN"` returns **1,185**
+distinct SPLs, which cannot be narrowed from a name. **Refusing beats attaching another manufacturer's label.**
+Generic/NDC identity is M2 and was not built.
+
+**Verbatim, never interpreted.** `dosage_and_administration` is stored and exposed **byte-identical** to the source
+(contract-tested), flagged `verbatim: true`, with *"WLJ does not interpret, summarize or condense it — apply it to
+the person's situation yourself, and attribute it."* A contract test greps the producer for authored clinical
+phrasing. Provenance: `source=dailymed` · `source_url` · `spl_setid` · `spl_version` · `effective_time` ·
+`published_date` · `labeler` · **`content_source`** (a separate field so the identity authority and the text
+retrieval are never conflated) · `retrieved_at` · `content_hash`.
+
+**A refusal returns an ENTITY, not nothing** — status `unavailable` plus the reason and *"do NOT supply the
+product's instructions from general knowledge and present them as authoritative."* Explicit refusal is what stops
+the model quietly substituting its own knowledge; silence would not.
+
+**Request-path safe.** The truth surface does one indexed DB read and **no outbound HTTP** — asserted by a test that
+patches `urllib.request.urlopen` to raise while calling `get_entity`. Resolution/refresh is
+`medical.refresh_medication_reference_labels`, **crontab** at 05:00 UTC (an interval would be starved by Railway's
+ephemeral filesystem resetting `PersistentScheduler`), scoped to medications users actually take, capped per run,
+re-resolving at most every 30 days.
+
+**NO new retrieval tool.** The domain registers in the existing truth catalog, so the existing `get_entity` tool's
+`domain` enum picks it up automatically — contract-tested, including that no `get_medication_reference`-style tool
+exists. Discovery is the capability index: the new domain advertises its impersonal/verbatim nature, its partial
+coverage and honest refusal; and `medicine` now names `medication_reference` and says **"retrieve BOTH and reason
+over them together."** No phrase routing, no drug-specific routing, no `tool_choice`, no evidence planning — the
+earliest-decision grounding anchor (`c937ee34`) is untouched and does the work.
+
+**Files:** `apps/medical/models.py` (+migration `0007`), `apps/medical/services/medication_reference.py`,
+`apps/medical/services/medication_reference_domain_truth.py`, `apps/medical/tasks.py`,
+`apps/medical/tests/test_medication_reference_m1.py`, `apps/health/models.py` (+migration `0107`),
+`apps/core/truth/domain.py`, `apps/core/truth/semantics.py`, `apps/core/truth/tests/test_capability_semantics.py`,
+`config/settings.py`, `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md`, `99_REFERENCE_INDEX.md`.
+
+**Verification — Tier 1, ZERO provider calls, all outbound HTTP mocked.** 24 new M1 contract tests covering the
+identity chain (brand resolves · generic unsupported · multi-concept ambiguous · identity ≠ label existence),
+label selection (highest version wins · tied labelers fail closed · **never a name query**), verbatim + provenance +
+impersonality, both acceptance cases (brand yields authoritative truth · **unresolved generic never receives a
+guessed label**), bidirectional ownership boundary, one producer, request-path safety, crontab durability, capability
+discovery, and **no new tool / no WLJ-authored clinical content**. **131 green** across the impacted contract suites
+(capability semantics · truth-by-name audit · request-path safety · constitution · medical-information policy ·
+medicine domain truth · beat-schedule durability). `makemigrations --check` clean.
+
+**Note:** one Part A contract test was updated, not weakened — it asserted *"WLJ holds no product labelling"*, which
+M1 changes. The invariant was never the absence; it is that `medicine` does not SERVE label truth and names where it
+lives. It now asserts that.
+
+**Pre-existing failures FLAGGED, not touched** (both reproduce identically with this work stashed):
+`test_medicine.MedicineContextTest.test_medicine_home_adherence_uses_canonical_util`, and the
+`apps.medical.tests.test_medical` LabEducation/Mapper group.
+
+---
 
 ## 2026-08-24 — governance: retire ALL legacy master prompts — `WLJ_MASTER_PROMPT.md` is the single boot authority
 

@@ -1319,6 +1319,14 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Foundation 2 — expire leftovers past their STORED expiration_date (idempotent;
     # never invents a date). Crontab (not interval) per the beat-durability contract.
+    # Medication Reference truth (M1) — resolve/refresh authoritative product labels
+    # for medications users actually take. Crontab (not an interval) per the
+    # beat-durability contract: Railway's ephemeral filesystem resets
+    # PersistentScheduler on restart, which starves long-interval tasks.
+    "medication-reference-refresh-5am-utc": {
+        "task": "medical.refresh_medication_reference_labels",
+        "schedule": crontab(hour=5, minute=0),  # 5:00 AM UTC, after the meals pass
+    },
     "meals-expire-leftovers-4am-utc": {
         "task": "apps.meals.tasks.expire_leftovers_task",
         "schedule": crontab(hour=4, minute=0),  # 4:00 AM UTC, after the health summary

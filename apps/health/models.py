@@ -2513,6 +2513,22 @@ class Intake(UserOwnedModel):
         default=PRIORITY_CRITICAL,
         help_text="Critical (health consequence if missed) vs optimization (goal support)",
     )
+    # --- Medication Reference link (M1) -------------------------------------
+    # The deterministic, auditable bridge from THIS PERSON'S regimen record to the
+    # IMPERSONAL authoritative product label (`medical.MedicationProductLabel`).
+    # Resolved in the BACKGROUND only, never on a request path, and never guessed:
+    # blank means unresolved, and unresolved never falls back to a name lookup at
+    # answer time. Personal truth stays here; label truth stays over there.
+    reference_rxcui = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="RxNorm concept this medication resolved to (identity authority)")
+    reference_spl_setid = models.CharField(
+        max_length=64, blank=True, default="", db_index=True,
+        help_text="DailyMed SPL setid of the authoritative label, once resolved")
+    reference_identity_confidence = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="exact | ambiguous | unsupported | no_label | '' (not yet attempted)")
+    reference_resolved_at = models.DateTimeField(null=True, blank=True)
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES,

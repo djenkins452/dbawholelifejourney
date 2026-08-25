@@ -44,6 +44,10 @@ _KNOWN_PROVIDER_MODULES = (
     "apps.life.services.event_domain_truth",          # Significant Events Canonical Truth
     "apps.meals.services.meals_domain_truth",         # Meal Intelligence Canonical Truth
     "apps.medical.services.medical_domain_truth",     # Medical / Lab Canonical Truth
+    # IMPERSONAL authoritative product labelling — a fact about a PRODUCT, not a
+    # person. Kept a separate domain from `medicine` so personal regimen truth and
+    # product truth can never serve each other (III.1).
+    "apps.medical.services.medication_reference_domain_truth",
     "apps.purpose.services.habit_domain_truth",       # Habits Canonical Truth
     "apps.notes.notes_domain_truth",                  # Notes Canonical Truth
     "apps.capture.services.capture_domain_truth",     # Capture Canonical Truth

@@ -406,16 +406,25 @@ class SemanticCategoryContractTests(TestCase):
         self.assertNotIn("instructions", plan,
                          "a bare `instructions` key reads as the product's labelling")
 
-    def test_advertisement_states_wlj_holds_no_product_labelling(self):
-        """The model must be told the gap exists rather than inferring the label
-        from a personal note (the improvisation observed in the same response)."""
-        desc = domain_semantics("medicine")["entities"]["medication"].lower()
-        self.assertIn("no manufacturer or product", desc)
-        self.assertIn("never a substitute for the label", desc)
+    def test_advertisement_separates_regimen_truth_from_product_labelling(self):
+        """The model must never infer the product's label from a personal note (the
+        improvisation observed in the same response).
+
+        Updated by Medication Reference M1: WLJ now DOES hold authoritative labelling,
+        in the separate `medication_reference` domain. The invariant was never "WLJ
+        holds none" — it is that `medicine` does not SERVE it and says where it lives.
+        """
+        desc = domain_semantics("medicine")["entities"]["medication"]
+        low = desc.lower()
+        self.assertIn("nothing here is the product's approved", low)
+        self.assertIn("never a substitute for it", low)
+        # and it names where product truth actually lives, so both get retrieved
+        self.assertIn("medication_reference", desc)
+        self.assertIn("retrieve BOTH", desc)
         # and the bookkeeping boundary is stated, not the old ambiguous phrasing
-        self.assertIn("wlj bookkeeping", desc)
-        self.assertIn("no prescribing", desc)
-        self.assertNotIn("the grace period for a late dose", desc)
+        self.assertIn("wlj bookkeeping", low)
+        self.assertIn("no prescribing", low)
+        self.assertNotIn("the grace period for a late dose", low)
 
     # -- audit: WLJ classifications are named as WLJ's, not clinical ---------
     def test_wlj_tracking_priority_is_not_presented_as_clinical_severity(self):

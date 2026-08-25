@@ -765,3 +765,101 @@ class MedicalAuditLog(TimeStampedModel):
 
     def __str__(self):
         return f"{self.user} - {self.action} - {self.created_at}"
+
+
+# =============================================================================
+# Medication Reference Truth (M1) — AUTHORITATIVE, IMPERSONAL PRODUCT LABELLING
+# =============================================================================
+
+class MedicationProductLabel(TimeStampedModel):
+    """Authoritative, IMPERSONAL medication product labelling — WLJ's canonical
+    reference truth for what a PRODUCT's approved labelling says.
+
+    THE BOUNDARY THAT DEFINES THIS MODEL (M1, design doc
+    `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md` Part B):
+
+      * There is NO user foreign key, by design. This is a fact about a PRODUCT,
+        not about a person. Personal regimen truth (what someone takes, their
+        dose, schedule, adherence, last taken) is owned by the `medicine` domain
+        and lives on `health.Intake`. Neither domain may serve the other's facts.
+      * Content is stored and exposed VERBATIM. WLJ never paraphrases, summarizes,
+        reinterprets, or clinically condenses a label — the moment it did, WLJ
+        would be generating clinical content instead of owning deterministic
+        truth (Constitution I.4: the model owns interpretation).
+      * Identity is the safety gate. A row exists only when the product was
+        deterministically resolved; ambiguity is recorded as such and NEVER
+        resolved by guessing (see `medication_reference.py`).
+
+    PROVENANCE: DailyMed (NLM) is the authoritative source of record for the SPL
+    document — `spl_setid` + `spl_version` + `published_date` identify exactly
+    which label this is. The parsed section text is retrieved for that SAME
+    `set_id`; `content_source` records where the text itself came from, so the
+    two are never conflated.
+    """
+
+    RESOLUTION_RESOLVED = "resolved"
+    RESOLUTION_AMBIGUOUS = "ambiguous"
+    RESOLUTION_UNSUPPORTED = "unsupported"      # e.g. generic/multi-source (M1 scope)
+    RESOLUTION_NO_LABEL = "no_label"            # identity fine, no drug label exists
+    RESOLUTION_CHOICES = [
+        (RESOLUTION_RESOLVED, "Resolved"),
+        (RESOLUTION_AMBIGUOUS, "Ambiguous — failed closed"),
+        (RESOLUTION_UNSUPPORTED, "Unsupported in this milestone"),
+        (RESOLUTION_NO_LABEL, "No product label exists"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # --- identity (the safety gate) ------------------------------------------
+    spl_setid = models.CharField(
+        max_length=64, unique=True, db_index=True,
+        help_text="DailyMed SPL setid — the stable identifier of a label document")
+    rxcui = models.CharField(
+        max_length=32, db_index=True, blank=True, default="",
+        help_text="RxNorm concept the product resolved to (identity authority)")
+    rxcui_tty = models.CharField(
+        max_length=16, blank=True, default="",
+        help_text="RxNorm term type of `rxcui` — M1 supports BN (brand name) only")
+    brand_name = models.CharField(max_length=200, blank=True, default="", db_index=True)
+    generic_name = models.CharField(max_length=300, blank=True, default="")
+    labeler = models.CharField(
+        max_length=300, blank=True, default="",
+        help_text="The SPL's labeler of record (manufacturer or repackager)")
+    title = models.CharField(max_length=500, blank=True, default="")
+
+    # --- the ONE authoritative fact class carried in M1 ----------------------
+    dosage_and_administration = models.TextField(
+        blank=True, default="",
+        help_text="VERBATIM approved labelling text. Never summarized by WLJ.")
+
+    # --- provenance / version / freshness ------------------------------------
+    source = models.CharField(
+        max_length=32, default="dailymed",
+        help_text="Authoritative source of record for the label's identity/version")
+    source_url = models.URLField(blank=True, default="")
+    content_source = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="Where the parsed section TEXT was retrieved from, for this same setid")
+    spl_version = models.CharField(max_length=16, blank=True, default="")
+    effective_time = models.CharField(
+        max_length=32, blank=True, default="",
+        help_text="The label's own effective date, as the source reports it")
+    published_date = models.CharField(max_length=64, blank=True, default="")
+    retrieved_at = models.DateTimeField(null=True, blank=True)
+    content_hash = models.CharField(max_length=64, blank=True, default="")
+
+    resolution_state = models.CharField(
+        max_length=20, choices=RESOLUTION_CHOICES, default=RESOLUTION_RESOLVED,
+        db_index=True)
+    resolution_note = models.CharField(
+        max_length=500, blank=True, default="",
+        help_text="Why resolution ended in this state — auditable, never a guess")
+
+    class Meta:
+        verbose_name = "Medication Product Label"
+        verbose_name_plural = "Medication Product Labels"
+        indexes = [models.Index(fields=["brand_name"]),
+                   models.Index(fields=["rxcui"])]
+
+    def __str__(self):
+        return f"{self.brand_name or self.generic_name or self.spl_setid} (SPL {self.spl_version})"

@@ -5,6 +5,70 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-25 — fix(synthesis): decisive evidence was destroyed on the Phase-1 → Phase-2 handoff — the model never ignored it
+
+**The friction.** A turn retrieved BOTH the person's own regimen record and the authoritative product label
+(`tools_called: ["get_entity", "get_entity"]`, `synthesis_used: true`) and still answered with generic prose about
+"maintaining a consistent schedule", using neither decisive fact.
+
+**PROVEN DETERMINISTICALLY — zero provider calls.** The real production envelopes were captured from the live build
+(truth probe `entity=` mode) and replayed through the REAL renderer. Phase 2 had received **exactly this**:
+
+```
+[medicine] name: Mounjaro
+[medication_reference] name: Mounjaro
+```
+
+**The model did not ignore the evidence. The evidence never reached it** — and because Phase 2 never sees Phase 1's
+prose, a grounded Phase-1 answer was replaced by a synthesis built on two words.
+
+**FIRST FAILING LAYER: evidence-COMPACTION.** Not capture (the full envelope was retained), not eligibility, not
+Phase-2 reasoning, not presentation. `_facts_from_result` had **no branch for either `get_entity` shape** — `entity`
+(by name) or `entities` (by type) — so both fell through to the "top-level scalars" fallback, which yields only
+`name`. **This is the THIRD instance of the documented evidence-lineage class**, after the envelope-unwrap bug and
+the ranked-entity bug (both recorded in that file, both of which caused fabrication). A new shape, not a new class.
+Related, same defect: the `records[]` branch rendered only **numeric** `performance` values, silently dropping every
+non-numeric fact (schedules, instructions, identifiers).
+
+**Synthesis eligibility was NOT the failing condition — and was NOT changed.** With the evidence rendered correctly
+Phase 2 has exactly what it needs, so the ≥2-independent-substantive-surfaces rule stands untouched; a contract test
+pins it. The open question of whether narrow multi-source turns *should* synthesize is real but is **not** what
+broke this turn, so it was not used as cover to change an architectural boundary.
+
+**The fix (general, domain-agnostic).** A composed-entity flattener walks the canonical `CompleteEntity` dimensions
+and keeps **every** deterministic fact — *"facts are facts whether or not they are numbers"* — with identity, kind
+and provenance retained so Phase 2 can still tell a person's own record from impersonal authoritative truth.
+
+**The catch that mattered most: VERBATIM CONTENT IS NEVER TRUNCATED.** The first draft used a 1,600-character cap.
+Measured against the real payload, the decisive sentence began at offset **EXACTLY 1600** of a 3,852-character
+section — the cap would have destroyed the one fact the answer depended on *while appearing to fix the bug*, and a
+Tier-2 smoke would have been spent discovering it. A cap is a guess about where the meaning is; for authoritative
+text that guess is unsafe. So a block the producing surface marks `verbatim` is **never** edited by compaction, and
+any other truncation is **explicit** (`…[truncated]`), never silent.
+
+**Verified on the real production evidence, before any provider call:** rendered evidence went from **60 characters
+to 6,446**, with `"within 4 days (96 hours)"` and the personal schedule (weekly, 7:00 AM, day-of-week, dose,
+adherence state) both present.
+
+**Files:** `apps/ai/model_interface/synthesis.py`, `apps/ai/tests/test_executive_synthesis.py`.
+
+**Regression coverage — `EvidenceSurvivesCompactionContractTests`, asserting the CLASS, never a drug or wording:**
+a by-name entity must not collapse to its name · the by-type list survives · **non-numeric facts survive** ·
+**verbatim blocks are never truncated** (synthetic text with the decisive sentence beyond the cap) · other
+truncation is explicit · rendered evidence preserves which surface each fact came from · **eligibility is
+unchanged** · and synthesis stays domain-agnostic. That last test initially failed on my own comment naming the
+reproducer — it was asserting prose rather than logic, so it now strips comments/docstrings via `tokenize`/`ast` and
+asserts the CODE. 23 green in that module; **140** across the impacted suites.
+
+**Constitutional assessment:** no Article touched. This restores I.1/I.4 rather than bending them — WLJ hands over
+the evidence it actually gathered, and the model still forms the judgment. No deterministic verdict, no forced
+citation, no extra model pass, no compensating change in `medicine` or `medication_reference`.
+
+**Foreign uncommitted work FLAGGED, not touched:** `apps/finance/services/finance_domain_truth.py` (another
+session) advertises `finance.recurring/budget/goal` with no `domain_semantics` entries, failing
+`test_every_advertised_entity_type_has_a_description`. Unrelated to this change and left for its owner.
+
+---
 
 ## 2026-08-25 — feat(truth): Medication Reference Truth M1 — WLJ's first authoritative IMPERSONAL truth domain
 

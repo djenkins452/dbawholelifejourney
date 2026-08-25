@@ -95,6 +95,90 @@ def _sub_item_labels(meta):
     return []
 
 
+# --- COMPOSED ENTITY FLATTENING -------------------------------------------------
+# The canonical `CompleteEntity` dimensions. A by-name or by-type `get_entity` read
+# returns composed entities, and BEFORE 2026-08-25 this renderer had no branch for
+# either shape (`entity` / `entities`) — it fell through to the "top-level scalars"
+# fallback and handed Phase 2 nothing but the record's NAME. Proven on the live
+# runtime: a turn that correctly retrieved a personal medication schedule AND its
+# authoritative product labelling rendered as exactly
+#     [medicine] name: Mounjaro
+#     [medication_reference] name: Mounjaro
+# so Phase 2 replaced a grounded Phase-1 answer with generic prose — not because the
+# model ignored the evidence, but because the evidence never reached it. Same class as
+# the two lineage bugs recorded above (envelope-unwrap, ranked-entity), third shape.
+_ENTITY_DIMENSIONS = ("definition", "plan", "standing", "performance", "extensions")
+_ENTITY_VALUE_CAP = 4000      # one decisive text survives intact
+_LIST_VALUE_CAP = 140         # a LIST of entities stays scannable
+_MAX_ENTITY_FACTS = 60
+_MAX_LIST_ENTITIES = 12
+_TRUNCATION_MARK = "…[truncated]"
+
+
+def _clip(value, cap, verbatim=False):
+    """Bound one leaf value — but NEVER a block the producing surface marked VERBATIM.
+
+    A cap is a guess about where the meaning is. That guess is provably unsafe for
+    authoritative text: in the production reproducer the decisive sentence began at
+    offset EXACTLY 1600 of a 3,852-character approved-labelling section, so a 1,600
+    cap would have destroyed the one fact the answer depended on while appearing to
+    fix the bug. A surface that marks content `verbatim` is asserting that the text
+    IS the fact, so compaction must not edit it. Truncation is otherwise explicit —
+    never silent — so the model can tell that something was cut.
+    """
+    s = str(value)
+    if verbatim or len(s) <= cap:
+        return s
+    return s[:cap] + _TRUNCATION_MARK
+
+
+def _leaf_facts(node, prefix, out, cap, limit, verbatim=False):
+    """Flatten a composed entity dimension to `path: value` lines, KEEPING TEXT.
+
+    The previous entity handling (`records`) kept only NUMERIC `performance` values,
+    so every non-numeric deterministic fact — a schedule, a recorded instruction, an
+    authoritative labelling text, a provenance identifier — was silently destroyed on
+    the way to Phase 2. Facts are facts whether or not they are numbers.
+    """
+    if len(out) >= limit:
+        return
+    if isinstance(node, dict):
+        # A dimension may declare its own contents verbatim; that flows to its leaves.
+        verbatim = verbatim or bool(node.get("verbatim"))
+        for k, v in node.items():
+            if k == "verbatim":
+                continue
+            _leaf_facts(v, f"{prefix}.{k}" if prefix else str(k), out, cap, limit,
+                        verbatim)
+    elif isinstance(node, list):
+        for i, v in enumerate(node[:6]):
+            _leaf_facts(v, f"{prefix}[{i}]", out, cap, limit, verbatim)
+    elif node not in (None, "", [], {}):
+        out.append(f"{prefix}: {_clip(node, cap, verbatim)}")
+
+
+def _facts_from_entity(ent, *, cap=_ENTITY_VALUE_CAP, limit=_MAX_ENTITY_FACTS):
+    """One composed entity -> its deterministic facts, across every dimension.
+
+    Identity and provenance are kept alongside the values so Phase 2 can tell WHOSE
+    fact each one is — e.g. a person's own regimen record versus an impersonal
+    authoritative product label. Losing that distinction is how a synthesis blurs two
+    kinds of truth together.
+    """
+    out = []
+    if not isinstance(ent, dict):
+        return out
+    ident = ent.get("identity") or ent.get("name")
+    if ident:
+        out.append(f"identity: {ident}")
+    for key in ("kind", "status", "freshness", "confidence"):
+        if ent.get(key):
+            out.append(f"{key}: {ent[key]}")
+    for dim in _ENTITY_DIMENSIONS:
+        _leaf_facts(ent.get(dim), dim, out, cap, limit)
+    return out[:limit]
+
+
 def _facts_from_result(result):
     """Flatten ONE truth result to compact 'label: value unit (Δ change)' lines — every
     deterministic fact, none of the scaffolding/nesting. This keeps the Phase-2 prompt small
@@ -173,6 +257,19 @@ def _facts_from_result(result):
                          if isinstance(v, (int, float)) and v is not None)
         if ident:
             facts.append(f"{ident}" + (f": {vals}" if vals else ""))
+        # ...and the entity's NON-numeric deterministic facts, which the numeric-only
+        # line above silently dropped (same defect class as the `entity` shapes).
+        _leaf_facts({d: e.get(d) for d in _ENTITY_DIMENSIONS if e.get(d)},
+                    ident or "record", facts, _LIST_VALUE_CAP, len(facts) + 14)
+    # COMPOSED ENTITIES — the `get_entity` shapes. `entity` is a by-name retrieval,
+    # `entities` a by-type listing. Neither had a branch here, so both collapsed to the
+    # scalar fallback and reached Phase 2 as just the record's name.
+    ent = result.get("entity")
+    if isinstance(ent, dict):
+        facts.extend(_facts_from_entity(ent))
+    for e in (result.get("entities") or [])[:_MAX_LIST_ENTITIES]:
+        if isinstance(e, dict):
+            facts.extend(_facts_from_entity(e, cap=_LIST_VALUE_CAP, limit=14))
     # Fallback for non-analysis truth shapes: keep top-level scalar facts.
     if not facts:
         for k, v in result.items():

@@ -8,7 +8,7 @@ on failure the grounded Phase-1 answer is kept.
 from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.ai.model_interface import synthesis as S
 from apps.ai.model_interface.service import ModelInterfaceService
@@ -239,3 +239,172 @@ class GenerateTwoPhaseWiringTests(TestCase):
         out = self._run(eligible=False, synth_answer="PHASE2 JUDGMENT")
         self.assertEqual(out["answer"], "PHASE1 DASHBOARD")
         self.assertFalse(out["synthesis_used"])
+
+
+class EvidenceSurvivesCompactionContractTests(SimpleTestCase):
+    """Contract — DECISION-DETERMINATIVE EVIDENCE MUST SURVIVE THE PHASE-1 → PHASE-2
+    HANDOFF.
+
+    Production friction 2026-08-25. A turn retrieved BOTH the person's own regimen
+    record and an authoritative product label (`tools_called: ["get_entity",
+    "get_entity"]`, `synthesis_used: true`) and still answered generically. Proven by
+    replaying the REAL production envelopes through the REAL renderer — no provider
+    call — Phase 2 had received exactly:
+
+        [medicine] name: Mounjaro
+        [medication_reference] name: Mounjaro
+
+    `_facts_from_result` had no branch for either `get_entity` shape (`entity` by
+    name, `entities` by type), so both collapsed to the top-level-scalar fallback.
+    The model did not ignore the evidence; the evidence never reached it. This is the
+    THIRD instance of the documented evidence-lineage class (after envelope-unwrap and
+    ranked-entity), so these tests assert the CLASS: a composed entity's deterministic
+    facts — numeric or not — survive compaction, and authoritative text is not edited.
+
+    Nothing here asserts a drug, a domain, or any answer wording.
+    """
+
+    def _entity_envelope(self, entity, key="entity"):
+        """The canonical shape a get_entity read reaches synthesis in."""
+        return {"source": "entity:x.y", "freshness": "current", "status": "ok",
+                "value": {"status": "ready", "domain": "d", "schema_version": "1.0",
+                          "granularity": "record_detail", "name": entity.get("identity"),
+                          key: entity if key == "entity" else [entity]}}
+
+    def _entity(self, **over):
+        base = {
+            "kind": "thing", "identity": "Subject A", "status": "active",
+            "definition": {"category": "c", "quantity": "12.5 units"},
+            "plan": {"schedule": ["7:00 AM"],
+                     "schedule_detail": [{"time": "7:00 AM", "days_of_week": "3"}],
+                     "recorded_note": "a non-numeric deterministic fact"},
+            "standing": {"today": {"expected": 0, "taken": 0}},
+            "performance": {"rate_7d": 61, "last_event": "2026-08-18"},
+        }
+        base.update(over)
+        return base
+
+    # -- the exact defect ----------------------------------------------------
+    def test_by_name_entity_does_not_collapse_to_its_name(self):
+        from apps.ai.model_interface.synthesis import render_evidence
+        ev = [{"tool": "get_entity", "args": {"domain": "d", "name": "Subject A"},
+               "result": self._entity_envelope(self._entity())}]
+        rendered = render_evidence(ev)
+        self.assertNotEqual(rendered.strip(), "[d] name: Subject A",
+                            "the entity collapsed to its name — the proven defect")
+        for fact in ("7:00 AM", "12.5 units", "rate_7d"):
+            self.assertIn(fact, rendered, f"deterministic fact {fact!r} was destroyed")
+
+    def test_by_type_entity_list_survives_too(self):
+        from apps.ai.model_interface.synthesis import render_evidence
+        ev = [{"tool": "get_entity", "args": {"domain": "d", "entity_type": "thing"},
+               "result": self._entity_envelope(self._entity(), key="entities")}]
+        rendered = render_evidence(ev)
+        self.assertIn("Subject A", rendered)
+        self.assertIn("7:00 AM", rendered)
+
+    def test_non_numeric_facts_survive(self):
+        """The prior entity handling kept only NUMERIC performance values, so
+        schedules, instructions and identifiers were silently dropped."""
+        from apps.ai.model_interface.synthesis import _facts_from_entity
+        facts = " ".join(_facts_from_entity(self._entity()))
+        self.assertIn("a non-numeric deterministic fact", facts)
+
+    # -- authoritative text is never edited by compaction --------------------
+    def test_verbatim_blocks_are_never_truncated(self):
+        """A cap is a guess about where the meaning is, and that guess is provably
+        unsafe: in the reproducer the decisive sentence began at offset EXACTLY 1600
+        of a 3,852-character authoritative section. A surface that marks content
+        `verbatim` is asserting the text IS the fact."""
+        from apps.ai.model_interface.synthesis import (
+            _ENTITY_VALUE_CAP, _TRUNCATION_MARK, _facts_from_entity,
+        )
+        decisive = "THE DECISIVE CONDITION APPLIES HERE."
+        long_text = ("x" * (_ENTITY_VALUE_CAP + 500)) + decisive
+        ent = self._entity(plan={"authoritative_text": long_text, "verbatim": True})
+        facts = " ".join(_facts_from_entity(ent))
+        self.assertIn(decisive, facts,
+                      "a verbatim block was truncated and lost the decisive fact")
+        self.assertNotIn(_TRUNCATION_MARK, facts)
+
+    def test_non_verbatim_truncation_is_explicit_never_silent(self):
+        from apps.ai.model_interface.synthesis import (
+            _ENTITY_VALUE_CAP, _TRUNCATION_MARK, _facts_from_entity,
+        )
+        ent = self._entity(plan={"blob": "y" * (_ENTITY_VALUE_CAP + 500)})
+        facts = " ".join(_facts_from_entity(ent))
+        self.assertIn(_TRUNCATION_MARK, facts,
+                      "silent truncation hides from the model that something was cut")
+
+    # -- the two kinds of truth stay distinguishable -------------------------
+    def test_rendered_evidence_preserves_which_surface_a_fact_came_from(self):
+        """Phase 2 must be able to tell a person's own record from impersonal
+        authoritative reference truth — blurring them is its own trust failure."""
+        from apps.ai.model_interface.synthesis import render_evidence
+        personal = self._entity(identity="Subject A")
+        reference = self._entity(identity="Subject A", kind="product_label",
+                                 plan={"authoritative_text": "T", "verbatim": True})
+        rendered = render_evidence([
+            {"tool": "get_entity", "args": {"domain": "personal_domain",
+                                            "name": "Subject A"},
+             "result": self._entity_envelope(personal)},
+            {"tool": "get_entity", "args": {"domain": "reference_domain",
+                                            "name": "Subject A"},
+             "result": self._entity_envelope(reference)},
+        ])
+        self.assertIn("[personal_domain]", rendered)
+        self.assertIn("[reference_domain]", rendered)
+        self.assertIn("kind: product_label", rendered)
+
+    # -- what was deliberately NOT changed -----------------------------------
+    def test_eligibility_rule_is_unchanged(self):
+        """Runtime evidence proved eligibility was NOT the failing condition — with the
+        evidence rendered correctly, Phase 2 had what it needed. The ≥2-independent-
+        surfaces rule therefore stays exactly as it was."""
+        from apps.ai.model_interface.synthesis import synthesis_eligible
+        two = [{"tool": "get_entity", "args": {"domain": "a", "name": "x"}},
+               {"tool": "get_entity", "args": {"domain": "b", "name": "x"}}]
+        self.assertTrue(synthesis_eligible(two))
+        one = [{"tool": "get_entity", "args": {"domain": "a", "name": "x"}}]
+        self.assertFalse(synthesis_eligible(one))
+
+    def test_no_domain_or_subject_specific_logic_in_synthesis(self):
+        """The fix must be a general compaction fix, never a domain carve-out.
+
+        Asserts the CODE, not the prose: comments and docstrings legitimately record
+        the production reproducer that motivated the change (the codebase documents
+        real incidents with real specifics). What must never appear is a branch,
+        constant or key that special-cases one domain, product or question.
+        """
+        import io
+        import inspect
+        import tokenize
+
+        from apps.ai.model_interface import synthesis
+        src = inspect.getsource(synthesis)
+
+        # strip COMMENT tokens; keep code and string literals (a domain-specific
+        # literal in code is exactly what this test exists to catch)
+        code = "".join(
+            "" if tok.type == tokenize.COMMENT else tok.string
+            for tok in tokenize.generate_tokens(io.StringIO(src).readline)
+        )
+        # drop module/function docstrings too — prose, not logic
+        import ast
+        tree = ast.parse(src)
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                                 ast.ClassDef)):
+                d = ast.get_docstring(node, clean=False)
+                if d:
+                    docstrings.add(d)
+        for d in docstrings:
+            code = code.replace(d, "")
+        code = code.lower()
+
+        for banned in ("mounjaro", "tirzepatide", "dailymed", "missed dose",
+                       "medication_reference", "dosage_and_administration",
+                       "medicine", "spl_setid"):
+            self.assertNotIn(banned, code,
+                             f"synthesis must stay domain-agnostic: {banned!r}")

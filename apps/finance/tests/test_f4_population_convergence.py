@@ -121,6 +121,10 @@ class NoSecondDefinitionTests(TestCase):
         "apps/finance/services/opportunity_detection.py",
         # The audit command's whole purpose is to compare the OLD and NEW definitions.
         "apps/finance/management/commands/finance_population_audit.py",
+        # Likewise the operator audit: it REPORTS the population classes (opening
+        # balances, both transfer signals, pending) as counts. It measures the contract
+        # rather than redefining it.
+        "apps/finance/services/finance_audit.py",
     }
 
     def test_no_surface_redefines_what_counts_as_activity(self):

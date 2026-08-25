@@ -29,8 +29,14 @@ totals. With few rows those totals ARE a single transaction's amount. It now rep
 `totals_changed`, and `rows_affected`. A test asserts no description, payee, amount, account number,
 institution, last4, or email appears anywhere in the payload.
 
+**The F4 contract test then failed the audit module**, correctly — it filters on the population predicates.
+It is now allowlisted alongside the audit command, with the reason recorded: both MEASURE the contract
+rather than redefine it. (Pushed at `4c693c83` with that test red; fixed immediately in the next commit —
+recorded rather than hidden.)
+
 **Files:** `apps/finance/services/finance_audit.py`, `apps/finance/tests/test_finance_audit.py` (new);
-`apps/admin_console/views.py`, `apps/admin_console/urls.py`. No migrations, no provider call.
+`apps/admin_console/views.py`, `apps/admin_console/urls.py`,
+`apps/finance/tests/test_f4_population_convergence.py`. No migrations, no provider call.
 
 
 ## 2026-08-25 — refactor(finance): F4 — ONE transaction-population authority; four competing definitions retired (autonomous MVP delivery, phase 5 of 5)

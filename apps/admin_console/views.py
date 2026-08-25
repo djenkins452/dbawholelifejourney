@@ -3614,6 +3614,42 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
 # Claude Code API - Ready Tasks Endpoint
 # ==============================================================================
 
+class FinanceAuditAPIView(APIRateLimitMixin, View):
+    """Read-only aggregate health audit of Finance truth in this environment.
+
+    GET /admin-console/api/claude/finance-audit/    Auth: X-Claude-API-Key.
+
+    Answers, without a shell: what does Finance actually hold, is any of it structurally
+    broken (cross-user references, accounts with no economic owner), and is there enough
+    real history for a finding to be trustworthy?
+
+    **AGGREGATES ONLY.** No description, payee, amount, account number, institution, or
+    token is ever returned — the operator needs counts, not a customer's spending. It
+    never writes, never calls a model, and never contacts a provider.
+    """
+
+    rate_limit_requests_per_minute = 10
+    rate_limit_requests_per_hour = 60
+    rate_limit_key_prefix = 'admin_api_finance_audit'
+
+    def get(self, request):
+        from django.conf import settings
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        from apps.finance.services.finance_audit import audit
+        return JsonResponse(audit(), json_dumps_params={'indent': 2})
+
+
 class TruthProbeAPIView(APIRateLimitMixin, View):
     """Operator TRUTH PROBE (read-only, API-key-guarded) — the sanctioned way to verify, from
     the LIVE deployed build, exactly what deterministic truth the CoS composes for a user,

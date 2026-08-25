@@ -6,6 +6,33 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(ops): read-only Finance truth audit endpoint (production readiness, Stage 1)
+
+**Operator tooling, aggregate-only.** `GET /admin-console/api/claude/finance-audit/`
+(`X-Claude-API-Key`) answers, without a shell: what Finance actually holds, whether any of it is
+structurally broken, and whether there is enough real history for a finding to be trustworthy.
+No migration was created to collect statistics.
+
+Reports finance-active users · entities by type · account-entity assignments (and accounts WITHOUT one) ·
+eligible vs ineligible transactions · opening balances · both known-transfer classes · suspected unpaired
+transfers · pending · unattributed · active attributions by source and confirmation state · rules by scope ·
+Finance insights by status · opportunities by lifecycle state · the F4 convergence delta · connected
+institutions and sync freshness · provider configuration · and a `readiness` verdict
+(`healthy` / `thin` / `no_data` / `unhealthy`).
+
+**Integrity check:** counts cross-user references across all four F0 models plus opportunities. The services
+forbid them, but an audit that cannot SEE a violation is not an audit — a test creates one at the ORM layer
+and asserts the audit reports it and flips readiness to `unhealthy`.
+
+**A leak the test caught before deploy:** the audit originally returned the absolute old/new convergence
+totals. With few rows those totals ARE a single transaction's amount. It now reports only the **delta**,
+`totals_changed`, and `rows_affected`. A test asserts no description, payee, amount, account number,
+institution, last4, or email appears anywhere in the payload.
+
+**Files:** `apps/finance/services/finance_audit.py`, `apps/finance/tests/test_finance_audit.py` (new);
+`apps/admin_console/views.py`, `apps/admin_console/urls.py`. No migrations, no provider call.
+
+
 ## 2026-08-25 — refactor(finance): F4 — ONE transaction-population authority; four competing definitions retired (autonomous MVP delivery, phase 5 of 5)
 
 **The defect (assessment gap G6):** Finance answered *"what counts as a transaction"* four different ways,

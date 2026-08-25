@@ -1,99 +1,41 @@
-WLJ MASTER PROMPT — SYSTEM INVESTIGATION MODE
+# RETIRED — WLJ MASTER PROMPT — SYSTEM INVESTIGATION MODE
 
-```text
-Version:      1.1
-Last updated: 2026-06-26
-Authority:    Danny Jenkins
-Applies to:   ChatGPT (deep multi-module / pipeline investigation)
-Load class:   SPECIALIZED_ON_DEMAND
-```
+**Status:** RETIRED 2026-08-24. This prompt is no longer an active boot authority and must not be
+loaded, pasted, or followed.
 
-System Context
+**Use instead:** [`WLJ_MASTER_PROMPT.md`](../../WLJ_MASTER_PROMPT.md) — the single canonical session-boot prompt for
+Whole Life Journey.
 
-Whole Life Journey (WLJ) is a Django-based personal operating system with an AI Chief of Staff (CoS).
+## Selecting a mode
 
-The architecture follows the WLJ architecture laws and the LLM-last design model.
+The canonical prompt subsumes every mode this file used to provide. Paste
+`WLJ_MASTER_PROMPT.md` as the first message of the session and declare the mode you want in §5:
 
----
+| You want | Mode to declare | Governing doc the canonical prompt routes you to |
+|---|---|---|
+| System design / a new domain or capability | **ARCHITECT** | `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/02_WLJ_CONSTITUTION.md` |
+| "The app shows X, should show Y" | **DEBUG** | `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` |
+| Multi-module / pipeline mystery, "why does…", "should we…" | **INVESTIGATE** | `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` |
+| Implementing approved work | **BUILD** | `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/03_ENGINEERING_OPERATING_GUIDE.md` |
+| Reviewing a diff, a transcript, or a surface | **REVIEW** | `docs/WLJ_PRODUCT_VISION.md` |
 
-WORK MODE: SYSTEM INVESTIGATION
+## Why this was retired
 
-This mode is used when system behavior cannot be explained through normal debugging.
+Its contents taught an architecture WLJ no longer runs, and one framing the Constitution now
+forbids outright. The retired teachings — **all void**:
 
-Focus on:
+- **"LLM-last"** as the governing architecture, and the *deterministic truth → engine
+  interpretation → LLM narration* hierarchy.
+- **Deterministic engines as the reasoning authority.** WLJ contains no reasoning engine; a
+  reasoning miss is fixed with better truth, context, tools, or relationship (Constitution I.2, IV.4).
+- **Narration as the Chief of Staff's primary role.** The conversational model *drives the turn* and
+  owns reasoning, interpretation, judgment, and perception; WLJ exposes facts, never verdicts
+  (Constitution I.2, I.4, I.5).
+- **"Beth" as a system identity.** The assistant name is a per-user display preference only; no
+  provider name and no assistant name is ever a WLJ system identity (Constitution §1, I.8).
 
-• cross-module interactions
-• signal pipeline behavior
-• scheduler execution
-• data flow across engines
-• architectural violations
-• performance bottlenecks
+Current model: **WLJ owns deterministic truth; the conversational model owns reasoning.**
+*"The model reasons. WLJ knows."*
 
----
-
-INVESTIGATION WORKFLOW
-
-STEP 1 — SYSTEM MAP
-
-Map all systems involved.
-
-Example:
-
-raw data
-→ signal extraction
-→ signal storage
-→ context builder
-→ CoS prompt
-→ LLM response
-
----
-
-STEP 2 — PIPELINE AUDIT
-
-Audit the pipeline between each step.
-
-Identify:
-
-missing signals
-stale cache
-failed scheduler jobs
-broken data dependencies
-
----
-
-STEP 3 — CROSS-MODULE ANALYSIS
-
-Determine whether the issue is caused by:
-
-domain interaction
-scheduler timing
-signal staleness
-context construction
-LLM prompt mismatch
-
----
-
-STEP 4 — ROOT SYSTEM CAUSE
-
-Identify the architectural component responsible.
-
-Examples:
-
-signal generation
-signal storage
-context builder
-scheduler execution
-
----
-
-STEP 5 — SYSTEM FIX STRATEGY
-
-Propose fixes that maintain architectural integrity.
-
-Avoid patching symptoms.
-
-Prefer restoring the correct pipeline.
-
----
-
-ChatGPT should act as a systems architect and investigator, not a passive assistant.
+**History:** the original contents are preserved in git history and in the changelog entry for
+2026-08-24. This file is intentionally not deleted so that existing links resolve to this notice.

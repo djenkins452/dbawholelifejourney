@@ -1,12 +1,23 @@
 # WLJ Prompt Library — Load Manifest
 
 ```text
-Version:      2.0
-Last updated: 2026-07-11 (startup package became the primary onboarding experience)
+Version:      2.1
+Last updated: 2026-08-24 (mode prompts RETIRED — `WLJ_MASTER_PROMPT.md` is the single boot authority)
 Authority:    Danny Jenkins
 Applies to:   Every new WLJ session with any conversational model
 Load class:   Read this first (it tells you what else to load)
 ```
+
+> ## 🧭 THE BOOT AUTHORITY IS `WLJ_MASTER_PROMPT.md` (repo root)
+>
+> **Retired 2026-08-24:** every `WLJ MASTER PROMPT — … MODE.md` file in `01_CHATGPT_MODES/` and
+> `02_CLAUDE_MODES/` (and the two that lived at the repo root) taught the **retired** architecture —
+> "LLM-last", deterministic engines as the reasoning authority, narration as the CoS's role, and
+> "Beth" as a system identity. **Do not load them.** Each is now a deprecation notice pointing here.
+>
+> **Boot every session — ChatGPT or Claude — by pasting `WLJ_MASTER_PROMPT.md` (repo root) as the
+> first message, then declaring a mode (Investigate / Debug / Architect / Build / Review) from its §5.**
+> It is the only active boot authority. This manifest tells you what *reference material* to add.
 
 > ## ⭐ START HERE: drag in ONE folder
 >
@@ -25,7 +36,8 @@ Load class:   Read this first (it tells you what else to load)
 > never loaded into a new chat) — it updates the package + supporting docs and rewrites the bootloader.
 >
 > Everything else here is **legacy load-guidance** for the specialized reference folders
-> (`01_`–`08_`), kept for on-demand use. The three old `00_CORE_STARTUP/` files were migrated +
+> (`03_`–`08_`), kept for on-demand use. (`01_CHATGPT_MODES/` and `02_CLAUDE_MODES/` are **retired** —
+> see the boot-authority note above.) The three old `00_CORE_STARTUP/` files were migrated +
 > rewritten into the package and archived under `_ARCHIVE_SUPERSEDED_STARTUP/` — do not load them.
 >
 > ### The permanent startup / transition workflow
@@ -91,7 +103,7 @@ prompt that matches your work.
 | File | Folder | Notes |
 |------|--------|-------|
 | The six startup-package files | `00_WLJ_CHIEF_OF_STAFF_STARTUP/` | The permanent onboarding package. Drag the folder in. |
-| `WLJ ARCHITECTURE LAWS.md` | `03_CANON_REFERENCE/` | Also always-load for engineering; the `docs/WLJ_ARCHITECTURE_LAWS.md` copy is authoritative. |
+| `WLJ_ARCHITECTURE_LAWS.md` | **`docs/` (main repo)** | Also always-load for engineering. **Load the `docs/` copy — it is authoritative** (v1.4+, carries Law 0 and Amendment A). ⚠️ The `03_CANON_REFERENCE/WLJ ARCHITECTURE LAWS.md` copy is **stale (v1.2, 2026-06-07, pre-Amendment-A)** — do **not** load it. |
 
 > The old `00_CORE_STARTUP/` always-load files (Continuation, Danny's Preferences,
 > Execution Playbook) were migrated + rewritten into the startup package and archived.
@@ -110,10 +122,11 @@ are not all always-load — see the note on Architecture Laws below).
 - `WLJ SIGNAL ONTOLOGY.md` — the canonical signal model, producers, and renderer contract.
 - `WLJ COS TOOL & STANDING CONTEXT CONTRACT.md` — the as-built ChatGPT CoS tool surface and standing-context schema.
 
-> **`WLJ ARCHITECTURE LAWS.md` is unique: it is both ALWAYS LOAD *and* CANON.** It
+> **`WLJ_ARCHITECTURE_LAWS.md` is unique: it is both ALWAYS LOAD *and* CANON.** It
 > is the only document that is simultaneously the operating rules every session
 > runs under and authoritative production truth — so it appears in both the
-> Always-Load table above and the canon set here.
+> Always-Load table above and the canon set here. **Always use `docs/WLJ_ARCHITECTURE_LAWS.md`;**
+> the `03_CANON_REFERENCE/` copy is a stale pre-Amendment-A snapshot kept for history.
 
 ---
 
@@ -123,11 +136,9 @@ Pick the row matching your task; load those **in addition to** the Always-Load s
 
 | Work type | Also load |
 |-----------|-----------|
-| **Architecture / design (ChatGPT)** | `01_CHATGPT_MODES/…CHATGPT ARCHITECTURE MODE.md` + `03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md` + `WLJ SIGNAL ONTOLOGY.md` |
-| **Architecture / design (Claude)** | `02_CLAUDE_MODES/…CLAUDE ARCHITECTURE MODE.md` + the two canon refs above |
-| **Bug / runtime debugging (ChatGPT)** | `01_CHATGPT_MODES/…CHATGPT DEBUGGING MODE.md` |
-| **Bug / runtime debugging (Claude)** | `02_CLAUDE_MODES/…CLAUDE DEBUGGING MODE.md` |
-| **Multi-module / pipeline mystery** | `01_CHATGPT_MODES/…SYSTEM INVESTIGATION MODE.md` |
+| **Architecture / design** (any model) | `WLJ_MASTER_PROMPT.md` → mode **ARCHITECT** + `03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md` + `WLJ SIGNAL ONTOLOGY.md` |
+| **Bug / runtime debugging** (any model) | `WLJ_MASTER_PROMPT.md` → mode **DEBUG** + `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` (in main repo) |
+| **Multi-module / pipeline mystery** | `WLJ_MASTER_PROMPT.md` → mode **INVESTIGATE** + `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` (in main repo) |
 | **Signal / renderer work** | `03_CANON_REFERENCE/WLJ SIGNAL ONTOLOGY.md` + `04_DISCOVERY_REFERENCE/03_Engine_Catalog.md` |
 | **ChatGPT-CoS tool / integration work** | `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTRACT.md` + `08_IMPLEMENTATION_TRACKER/` (+ `06`/`07` for design rationale) |
 | **Domain deep-dive** | the relevant `04_DISCOVERY_REFERENCE/02a–02c` domain catalog |
@@ -163,8 +174,8 @@ production contract is `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTR
 |--------|-----|------------|
 | `00_WLJ_CHIEF_OF_STAFF_STARTUP/` | *new (2026-07-11)* | **CORE_STARTUP — the package** |
 | `_ARCHIVE_SUPERSEDED_STARTUP/` | `00_CORE_STARTUP/` files | ARCHIVE (don't load) |
-| `01_CHATGPT_MODES/` | `01_CHATGPT` | SPECIALIZED_ON_DEMAND |
-| `02_CLAUDE_MODES/` | `02_CLAUDE` | SPECIALIZED_ON_DEMAND |
+| `01_CHATGPT_MODES/` | `01_CHATGPT` | **RETIRED 2026-08-24 (don't load)** — deprecation notices → `WLJ_MASTER_PROMPT.md` |
+| `02_CLAUDE_MODES/` | `02_CLAUDE` | **RETIRED 2026-08-24 (don't load)** — deprecation notices → `WLJ_MASTER_PROMPT.md` |
 | `03_CANON_REFERENCE/` | `03_REFERENCE` | CANON |
 | `04_DISCOVERY_REFERENCE/` | `04_DISCOVERY` | REFERENCE_ONLY |
 | `05_READINESS_REFERENCE/` | `05_READINESS_AUDIT` | REFERENCE_ONLY |
@@ -176,20 +187,19 @@ production contract is `03_CANON_REFERENCE/WLJ COS TOOL & STANDING CONTEXT CONTR
 
 ## Loading examples
 
-**New Claude debugging session (a CoS mismatch bug):**
+**New debugging session (a CoS mismatch bug):**
 ```
-Load:
-  00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
-  02_CLAUDE_MODES/WLJ MASTER PROMPT — CLAUDE DEBUGGING MODE.md
+Paste:  WLJ_MASTER_PROMPT.md        (repo root — declare mode DEBUG)
+Load:   00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
+        docs/WLJ_RUNTIME_TRACE_DEBUGGING.md
 ```
 
-**New ChatGPT architecture session (proposing a new domain):**
+**New architecture session (proposing a new domain):**
 ```
-Load:
-  00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
-  01_CHATGPT_MODES/WLJ MASTER PROMPT — CHATGPT ARCHITECTURE MODE.md
-  03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md
-  03_CANON_REFERENCE/WLJ SIGNAL ONTOLOGY.md
+Paste:  WLJ_MASTER_PROMPT.md        (repo root — declare mode ARCHITECT)
+Load:   00_WLJ_CHIEF_OF_STAFF_STARTUP/   (the whole package)
+        03_CANON_REFERENCE/WLJ DOMAIN REGISTRY.md
+        03_CANON_REFERENCE/WLJ SIGNAL ONTOLOGY.md
 ```
 
 **Working on the ChatGPT CoS tool surface:**

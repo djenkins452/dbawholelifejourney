@@ -1,122 +1,41 @@
-WLJ MASTER PROMPT — DEBUGGING MODE
+# RETIRED — WLJ MASTER PROMPT — DEBUGGING MODE
 
-System Context
+**Status:** RETIRED 2026-08-24. This prompt is no longer an active boot authority and must not be
+loaded, pasted, or followed.
 
-The system being developed is **Whole Life Journey (WLJ)** — a Django-based personal operating system with an AI Chief of Staff named **Beth**.
+**Use instead:** [`WLJ_MASTER_PROMPT.md`](WLJ_MASTER_PROMPT.md) — the single canonical session-boot prompt for
+Whole Life Journey.
 
-Beth orchestrates tasks, health, faith, journaling, goals, and daily planning using deterministic engines combined with LLM reasoning.
+## Selecting a mode
 
-The architecture follows an **LLM-last approach**:
+The canonical prompt subsumes every mode this file used to provide. Paste
+`WLJ_MASTER_PROMPT.md` as the first message of the session and declare the mode you want in §5:
 
-1. Deterministic system truth
-2. Verified structured state
-3. LLM reasoning
-4. Natural language narration
+| You want | Mode to declare | Governing doc the canonical prompt routes you to |
+|---|---|---|
+| System design / a new domain or capability | **ARCHITECT** | `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/02_WLJ_CONSTITUTION.md` |
+| "The app shows X, should show Y" | **DEBUG** | `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` |
+| Multi-module / pipeline mystery, "why does…", "should we…" | **INVESTIGATE** | `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` |
+| Implementing approved work | **BUILD** | `@WLJ_SYSTEM_PROMPTS/00_WLJ_CHIEF_OF_STAFF_STARTUP/03_ENGINEERING_OPERATING_GUIDE.md` |
+| Reviewing a diff, a transcript, or a surface | **REVIEW** | `docs/WLJ_PRODUCT_VISION.md` |
 
-The LLM must **never fabricate state**.
+## Why this was retired
 
-Beth must only report data derived from deterministic system records.
+Its contents taught an architecture WLJ no longer runs, and one framing the Constitution now
+forbids outright. The retired teachings — **all void**:
 
----
+- **"LLM-last"** as the governing architecture, and the *deterministic truth → engine
+  interpretation → LLM narration* hierarchy.
+- **Deterministic engines as the reasoning authority.** WLJ contains no reasoning engine; a
+  reasoning miss is fixed with better truth, context, tools, or relationship (Constitution I.2, IV.4).
+- **Narration as the Chief of Staff's primary role.** The conversational model *drives the turn* and
+  owns reasoning, interpretation, judgment, and perception; WLJ exposes facts, never verdicts
+  (Constitution I.2, I.4, I.5).
+- **"Beth" as a system identity.** The assistant name is a per-user display preference only; no
+  provider name and no assistant name is ever a WLJ system identity (Constitution §1, I.8).
 
-WORK MODE: DEBUGGING
+Current model: **WLJ owns deterministic truth; the conversational model owns reasoning.**
+*"The model reasons. WLJ knows."*
 
-The goal of this session is **diagnosis and stabilization**, not architectural redesign.
-
-Do NOT propose fixes until the root cause is proven.
-
-Follow this workflow strictly.
-
-STEP 1 — TRACE
-
-Trace the exact execution path that produced the behavior.
-
-Example path:
-
-send_message()
-→ _generate_response()
-→ router / handler
-→ context builder
-→ state query
-→ LLM prompt
-
-Identify the exact functions and files involved.
-
----
-
-STEP 2 — CANONICAL SOURCE
-
-Identify the **source of truth** for the data in question.
-
-Examples:
-
-Tasks → Organize page query
-Health → SAE health module
-Medicine → SAE medicine module
-Goals → SAE goals module
-Events → LifeEvents query
-
-Beth must match the canonical system.
-
----
-
-STEP 3 — AUDIT
-
-Search the codebase for **every location retrieving this data**.
-
-Classify each location:
-
-• Canonical
-• Functional mismatch
-• Harmful filter
-• Redundant logic
-
-List file and line references.
-
----
-
-STEP 4 — ROOT CAUSE
-
-Prove the root cause with **file:line evidence**.
-
-Do not speculate.
-
-If the root cause cannot be proven yet, continue auditing.
-
----
-
-STEP 5 — MINIMAL FIX
-
-Only after the root cause is proven may a fix be proposed.
-
-Rules:
-
-• Prefer modifying existing logic
-• Avoid introducing new engines or services
-• Avoid architectural redesign
-• Change the smallest amount of code necessary
-
----
-
-STEP 6 — VERIFY
-
-Explain how the fix will be validated.
-
-Example:
-
-User prompt:
-"How many tasks do I have today?"
-
-Expected:
-Beth Now count == Organize page Now bucket
-
----
-
-PROMPT CHALLENGE RULE
-
-Before implementing any change:
-
-1. Review the current codebase state.
-2. If any instruction in this prompt conflicts with the current architecture, stop and explain why.
-3. Prefer modifying existing systems over introducing new ones.
-4. Do not implement speculative fixes.
+**History:** the original contents are preserved in git history and in the changelog entry for
+2026-08-24. This file is intentionally not deleted so that existing links resolve to this notice.

@@ -1,9 +1,15 @@
 # WLJ MASTER PROMPT — v3 (Personal Truth Platform era)
 
-> **How to use:** paste this whole file as the first message of any session with a Claude that has the
-> WLJ codebase (Claude Code, or a Claude Project with the repo attached). It supersedes
-> `WLJ MASTER PROMPT — ARCHITECTURE MODE.md` and `WLJ MASTER PROMPT — DEBUGGING MODE.md`, which
-> describe the retired "LLM-last / Beth-as-identity" model.
+> **How to use:** paste this whole file as the first message of any session with a model that has the
+> WLJ codebase (Claude Code, a Claude Project with the repo attached, or a ChatGPT session with the
+> startup package). Then declare a mode from §5.
+>
+> **This is the single active boot authority.** As of 2026-08-24 every older `WLJ MASTER PROMPT — …
+> MODE.md` — the two at the repo root and the five in `@WLJ_SYSTEM_PROMPTS/01_CHATGPT_MODES/` and
+> `02_CLAUDE_MODES/` — is **retired**; each is now a deprecation notice pointing here. They taught the
+> retired "LLM-last / engines-as-reasoning-authority / narration / Beth-as-identity" model. If you are
+> holding one of them, stop and use this file instead.
+>
 > **Last updated:** 2026-08-24
 
 ---
@@ -126,13 +132,13 @@ you skipped something, say so. Never report "done" on something you did not veri
 
 ## 5. Modes — state which one you are in, and stay in it
 
-| Mode | Use when | You produce |
-|---|---|---|
-| **INVESTIGATE** | "why does…", "should we…", "is X true" | A written investigation doc: evidence, `file:line`, findings, options with trade-offs, a recommendation. **No code.** |
-| **DEBUG** | "shows X, should show Y" | Runtime trace → all producers → proven root cause → minimal fix → verification. Do **not** propose a fix before the cause is proven. |
-| **ARCHITECT** | new domain/capability/design | Current state → problem → **existing systems review** → proposal → Constitution check → risk → phased plan. Prefer extending an existing authority over creating a new one. |
-| **BUILD** | Danny said "go" | Pre-Write Gate → minimal diff → scoped tests → changelog → deploy → summary. |
-| **REVIEW** | a diff, a transcript, a surface | Product verdict first (would a customer trust it?), then architectural findings ranked by trust impact. |
+| Mode | Use when | You produce | Also load |
+|---|---|---|---|
+| **INVESTIGATE** | "why does…", "should we…", "is X true" | A written investigation doc: evidence, `file:line`, findings, options with trade-offs, a recommendation. **No code.** | `docs/WLJ_CONDUCTOR_DEVELOPMENT_MODEL.md` |
+| **DEBUG** | "shows X, should show Y" | Runtime trace → all producers → proven root cause → minimal fix → verification. Do **not** propose a fix before the cause is proven. | `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`, `docs/wlj_claude_troubleshoot.md` |
+| **ARCHITECT** | new domain/capability/design | Current state → problem → **existing systems review** → proposal → Constitution check → risk → phased plan. Prefer extending an existing authority over creating a new one. | `02_WLJ_CONSTITUTION.md`, `docs/WLJ_ARCHITECTURE_LAWS.md`, `docs/LAYER1_DOMAIN_FRAMEWORK.md` |
+| **BUILD** | Danny said "go" | Pre-Write Gate → minimal diff → scoped tests → changelog → deploy → summary. | `03_ENGINEERING_OPERATING_GUIDE.md` |
+| **REVIEW** | a diff, a transcript, a surface | Product verdict first (would a customer trust it?), then architectural findings ranked by trust impact. | `docs/WLJ_PRODUCT_VISION.md` |
 
 Default to INVESTIGATE. **Explore, read, grep, and run tests freely without asking. Do not write code
 until Danny says "go"** — unless it's an obvious CX defect or a trivially-scoped auto-fix in a file you

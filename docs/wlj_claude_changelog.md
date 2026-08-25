@@ -6,6 +6,64 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-24 — governance: retire ALL legacy master prompts — `WLJ_MASTER_PROMPT.md` is the single boot authority
+
+**Docs/governance only. No code. No provider call.** Bounded cleanup completed *before* any Finance Engine work.
+
+**Root cause of the gap:** seven `WLJ MASTER PROMPT — … MODE.md` files were still loadable session-boot
+authorities, and every one of them taught the **retired** architecture: "LLM-last", deterministic engines as
+the reasoning authority, *truth → engine interpretation → LLM narration*, and **"Beth" as a system identity**
+(Constitution §1 / I.8 forbids the last outright). `00_README_LOAD_MANIFEST.md` actively routed sessions to
+five of them by work type. Anyone booting from them started with superseded architecture.
+
+**Retired (contents replaced with a deprecation notice → canonical prompt + mode-selection table + an explicit
+list of the four void teachings; originals preserved in git history, files intentionally not deleted so links
+resolve):**
+- `WLJ MASTER PROMPT — ARCHITECTURE MODE.md` (root)
+- `WLJ MASTER PROMPT — DEBUGGING MODE.md` (root)
+- `@WLJ_SYSTEM_PROMPTS/01_CHATGPT_MODES/…CHATGPT ARCHITECTURE MODE.md`
+- `@WLJ_SYSTEM_PROMPTS/01_CHATGPT_MODES/…CHATGPT DEBUGGING MODE.md`
+- `@WLJ_SYSTEM_PROMPTS/01_CHATGPT_MODES/…SYSTEM INVESTIGATION MODE.md`
+- `@WLJ_SYSTEM_PROMPTS/02_CLAUDE_MODES/…CLAUDE ARCHITECTURE MODE.md`
+- `@WLJ_SYSTEM_PROMPTS/02_CLAUDE_MODES/…CLAUDE DEBUGGING MODE.md`
+
+*(Scope note: the objective named the two root files; the other five are the same artifact class with the same
+defect and were actively routed to by the manifest — leaving them would have made "the canonical prompt is the
+only active boot authority" untrue. Their mode-specific procedure is superseded by `WLJ_MASTER_PROMPT.md` §4–§5
+plus `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md` and `03_ENGINEERING_OPERATING_GUIDE`.)*
+
+**References updated:**
+- `@WLJ_SYSTEM_PROMPTS/00_README_LOAD_MANIFEST.md` → v2.1: new boot-authority banner; LOAD-BY-WORK-TYPE rows
+  now route to `WLJ_MASTER_PROMPT.md` + a mode (5 mode-prompt rows → 3 model-agnostic rows); both loading
+  examples rewritten; `01_`/`02_` folder load class → **RETIRED (don't load)**.
+- **Architecture Laws routing corrected (reference fix only — the protected doc itself was NOT edited):** the
+  ALWAYS-LOAD row pointed at `03_CANON_REFERENCE/WLJ ARCHITECTURE LAWS.md`, a **stale v1.2 (2026-06-07)
+  snapshot that predates Law 0 and Amendment A**. It now points at the authoritative `docs/WLJ_ARCHITECTURE_LAWS.md`
+  and marks the package copy do-not-load.
+- `WLJ_MASTER_PROMPT.md` — declares itself the single active boot authority, names the seven retired files, and
+  the §5 mode table gained an "Also load" governing-doc column so retiring the mode prompts loses no routing.
+- `CLAUDE.md` — two Constitution §1 naming violations removed: the section heading *"every page is Beth-aware"*
+  → *"Chief-of-Staff-aware"*, and *"to make Beth smarter"* → *"the Chief of Staff"*. (The line 36 occurrence
+  stays — it is the rule forbidding the practice.)
+
+**Validation (focused, deterministic):** `python3 manage.py check` (2 pre-existing dj-stripe warnings, unchanged);
+`apps.core.tests.test_constitution_contract` **9/9 OK** (the CI gate that reads the startup package); scripted
+link-resolution check — all 7 notices resolve to `WLJ_MASTER_PROMPT.md`; scripted four-pattern residual sweep
+across all active `.md` (archive + dated point-in-time reference folders + changelog excluded).
+
+**Verified:** no active prompt teaches LLM-last, engines-as-reasoning-authority, narration-as-role, or
+Beth-as-identity. Residuals are documented in the report and are all (a) protected docs needing Danny's
+approval — `docs/WLJ_ARCHITECTURE_LAWS.md` F2 (already reframed by Amendment A) and the stale canon copy;
+(b) point-in-time historical records preserved deliberately (`SYSTEM_AUDIT_2026_03_14`, `BETH_*` diagnostics,
+`architecture_governance/system_audits/*`, the self-superseded `WLJ PROMPT LIBRARY INDEX`); or (c) live
+subsystem docs where "LLM-last" describes shipped code (`ENGINE_COS_REFERENCE`, `MEDICATION_*`,
+`WLJ_DOCUMENTATION_SUITE`) plus "Beth" naming residue in `WLJ_CURRENT_CONTEXT_CONTRACT`,
+`WLJ_EXECUTIVE_REFLECTION_ARCHITECTURE`, `WLJ_LEGACY_DOMAIN_ARCHITECTURE` — a doc-layer sweep proposed as a
+separate bounded task, not smuggled into this one.
+
+**Files:** the 7 retired prompts, `@WLJ_SYSTEM_PROMPTS/00_README_LOAD_MANIFEST.md`, `WLJ_MASTER_PROMPT.md`,
+`CLAUDE.md`, `docs/wlj_claude_changelog.md`. Renpho docs and `.gitignore` left untouched.
+
 ## 2026-08-24 — docs(prompt): WLJ_MASTER_PROMPT v3 — one session-opening prompt for any Claude holding the codebase
 
 **Docs only. No code. No provider call.**

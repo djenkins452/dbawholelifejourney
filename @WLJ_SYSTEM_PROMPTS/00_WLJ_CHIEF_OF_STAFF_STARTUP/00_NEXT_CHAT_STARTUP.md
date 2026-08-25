@@ -69,6 +69,24 @@
 > **🏁 THE CoS ARC IS COMPLETE AND CLOSED.** Certification program (139/140), whole-life Executive Truth + two-phase Synthesis, Proactive Product Phase 2 (Daily Executive Brief · Durable Follow-Through · Missing-Data · Action Completeness), Reveal Target + single-authority navigation + Object-Level Reveal, and OpenAI cost governance are ALL shipped + prod-validated. The recommended milestones from the earlier product investigation were all implemented. **Do NOT reopen CoS architecture, continue generic certification, or expand capability/coverage on spec.** Ledgers/records: `docs/WLJ_COS_CERTIFICATION_LEDGER.md`, `docs/WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`, `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md`, `docs/WLJ_OPENAI_COST_AUDIT.md`.
 >
 > **➡️ NEXT WORK COMES FROM REAL USE, NOT A ROADMAP.** New CoS development is now driven **primarily by production friction Danny actually experiences** — something the CoS failed to notice, remember, follow up on, execute, navigate to, or reason about correctly — or a genuine new requirement. See the **CoS DEVELOPMENT ARC CLOSED** banner at the top for the operating posture and the list of items that remain **intentionally deferred** (pick up only on real need). No milestone is queued.
+> ### ✅ CLOSED 2026-08-25 — Mounjaro / Medication Grounding production-friction arc
+> One real question (*"I forgot my Mounjaro this morning — can I take it tonight?"*) exposed **six** stacked
+> defects, each visible only once the previous was removed: a topic-keyed medical deflection · a grounding rule
+> sitting too late in the prompt to affect tool selection · under-declared truth surfaces · adherence bookkeeping
+> serialized as if it were dosing guidance · **no authoritative product labelling in WLJ at all** · and decisive
+> evidence destroyed on the Phase-1→Phase-2 synthesis handoff. All fixed and **production verified end-to-end**:
+> the CoS now retrieves personal regimen truth AND authoritative labelling, both survive synthesis, and the answer
+> materially uses both. **Shipped:** `medication_reference` — WLJ's first **impersonal** truth domain (DailyMed
+> labelling, RxNorm identity, brand-only, **fails closed**, reuses the existing `get_entity`; no new tool, no
+> routing). **Durable lessons:** `03 §10b` (prompt POSITION is semantics) · `§10c` (evidence capture ≠ evidence
+> delivery) · `§10d` (operational metadata must never read as domain guidance) · `01 §4` (personal vs reference
+> truth). **No Constitutional Review occurred; the Amendment Log is untouched.** Full record + the *why each fix
+> exposed the next* narrative: `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md §C`.
+> **DO NOT REOPEN OR EXTEND THIS ARC** — a new product problem starts a new production-friction investigation.
+> **Deferred, not lost:** medication-reference **M2** (generic/NDC identity) until production evidence requires it;
+> Phase-2 evidence size is an **observability consideration only** — no speculative truncation (an unmeasured cap
+> already destroyed the decisive fact once in this arc).
+
 **⚠️ Pre-existing (NOT this milestone):** 7 `apps.dashboard_v3` test failures from the concurrent Journal-Workspace/Dashboard redesign (`eb7392ed`) — a spawned task tracks them; confirm they're fixed independently.
 
 ## 🎯 Parallel tracks (other sessions may own — reconcile which you're driving; the primary focus above wins)

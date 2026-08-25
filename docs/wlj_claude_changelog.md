@@ -5,6 +5,69 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-25 — docs(closure): Mounjaro / Medication Grounding arc CLOSED — documentation only
+
+**Documentation-only closure pass. No code, no provider call, no new capability.**
+
+One real question — *"I forgot to take my mounjaro this morning. Is it ok to take it tonight?"* — exposed **six
+stacked defects**, and the durable value is that **each was only visible once the previous was removed**. Recorded
+as one arc rather than six unrelated fixes, in `docs/WLJ_MEDICATION_INSTRUCTION_TRUTH_INVESTIGATION.md §C`:
+
+| # | First failing layer | What was actually wrong |
+|---|---|---|
+| 1 | Reasoning (prompt) | escalation keyed on **topic**; then the hard prohibition conflated **CHANGING** a regimen with **FOLLOWING** one |
+| 2 | Reasoning (tool selection) | the grounding rule sat **mid-prompt** — three deployed smokes returned `tools_called: []` |
+| 3 | Truth (accessibility) | surfaces under-declared themselves; discovery routed by question **shape** (0/20 domains had a decision-shaped cue) |
+| 4 | Truth (semantic category) | adherence bookkeeping serialized as a bare integer inside `plan`, narrated as dosing guidance |
+| 5 | Truth (missing authority) | WLJ owned **no** authoritative product labelling, so the model improvised |
+| 6 | Evidence compaction | both truths retrieved and **destroyed** on the Phase-1→Phase-2 handoff |
+
+**Final architecture recorded:** personal truth → `medicine` · authoritative impersonal reference truth →
+`medication_reference` · model-directed retrieval through the **existing** `get_entity` · Executive Synthesis
+preserves decisive evidence + provenance + verbatim content · **the model owns the judgment**.
+
+**Durable lessons folded into the startup package (not left in a changelog entry):**
+- **`03 §10b`** — *prompt POSITION is semantics*: a rule read after the model decides it needs no tools cannot change
+  whether it needs tools.
+- **`03 §10c` (new)** — *evidence capture is not evidence delivery*: every supported retrieval envelope shape must
+  survive synthesis rendering; verbatim blocks are never truncated and truncation is never silent; **measure where
+  the decisive content sits before choosing any cap** (the first attempt's 1,600-char cap landed on offset exactly
+  1600). Includes the free deterministic diagnosis recipe: prod payload → `_wrap_truth` → `render_evidence`.
+- **`03 §10d` (new)** — *operational metadata must never read as domain guidance*: serialize by category, never
+  expose a bare context-dependent number, name provenance in the key, audit the whole surface (untouched defaults
+  are the most misleading values a payload carries).
+- **`01 §4` (new pillar)** — *personal truth vs REFERENCE truth*: WLJ may own deterministic **impersonal**
+  authoritative truth that supports reasoning over a person's life; the model still owns interpretation. Fails
+  closed on ambiguous identity. Obeys I.1/I.4/III.1.
+
+**Stale statements corrected:** the design doc's §B6 step 4 still said the medicine advertisement *"currently
+states WLJ holds no manufacturer or product labelling"* and *"on implementation this line changes"* — it has been
+implemented, so it now states the fact with a superseded-note. Doc status headers and the Reference Index entry
+updated to **ARC CLOSED, production verified**. Changelog history is left intact as the historical record
+(engineering history is never rewritten).
+
+**GOVERNANCE:** **no Constitutional Review occurred in this arc and nothing was added to the Amendment Log.** No
+Article was changed; no duplicate truth authority, retrieval tool, or routing mechanism was introduced (contract
+tests assert both). Verified: `test_constitution_contract`, `test_medication_reference_m1`,
+`test_executive_synthesis`, `test_medical_information_policy`, `test_intent_registration`,
+`test_request_path_safety_contract`, `test_beat_schedule_durability` — **123 tests, all green except one unrelated
+failure below.**
+
+**Deferred — explicitly, not silently:** medication-reference **M2** (generic/NDC identity; the bridge is the NDC
+the existing scan path already reads) · **Phase-2 evidence size** is recorded as an *observability consideration
+only* (~60 → ~6.4k chars this turn; list shapes capped at 12 entities) — **no speculative truncation or token
+optimization without measured production friction**, since this arc already proved once that an unmeasured cap
+silently destroys the decisive fact.
+
+**⚠️ FAILING ON MAIN, NOT MINE, NOT FIXED HERE (out of scope by instruction):**
+`test_capability_semantics.CapabilitySemanticsContractTests.test_every_advertised_entity_type_has_a_description`
+fails — `4ee0880f` (concurrent Finance work) advertises `finance.recurring/budget/goal` with no `domain_semantics`
+entries. It is a **CI gate**, so it blocks others until its owner adds the three descriptions. Also still open and
+unrelated: the `test_medicine` adherence-context failure and the `apps.medical` LabEducation/Mapper failures.
+
+**THE ARC IS CLOSED. A new product problem starts a NEW production-friction investigation — do not extend it.**
+
+---
 ## 2026-08-25 — fix(synthesis): decisive evidence was destroyed on the Phase-1 → Phase-2 handoff — the model never ignored it
 
 **The friction.** A turn retrieved BOTH the person's own regimen record and the authoritative product label

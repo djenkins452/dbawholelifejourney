@@ -219,6 +219,26 @@ A change to `constitution.py` is not verified by the prompt containing the new w
 - **Test position, not wording.** Assert the rule's index falls inside the intended block and precedes the sections that defer to it. A test that only asserts the words are present passes on a prompt that cannot work.
 - **Verify with the runtime.** Contract tests assert the prompt; only the Tier-2 smoke asserts the product. Expect a smoke to sometimes FAIL and relocate the root cause — that is its highest value, and it justifies the spend.
 
+### 10c. EVIDENCE CAPTURE IS NOT EVIDENCE DELIVERY (REQUIRED — proven 2026-08-25)
+Retrieval succeeding does not mean the model received what was retrieved. Between a tool result and the Executive Synthesis prompt sits `synthesis.py :: _facts_from_result`, and **any payload shape it has no branch for is silently destroyed** — it falls through to a "top-level scalars" fallback. Phase 2 never sees Phase 1's prose, so the grounded answer is replaced by a synthesis built on nothing, and the transcript reads exactly like *the model ignored its own retrievals*.
+
+**Three instances so far, same class:** envelope-unwrap (`value` nesting) → fabricated numbers · ranked-entity `results[]` → invented exercises · `get_entity`'s `entity`/`entities` shapes → Phase 2 received only the record's NAME while a full schedule and a 3,852-character authoritative document sat in the captured evidence.
+
+- **Diagnose it in minutes, for free — before blaming the model.** Capture the real production payload (`truth-probe?…&entity=<name>`), wrap it with `service._wrap_truth`, call `synthesis.render_evidence`, and read what Phase 2 actually got. Deterministic, zero provider calls.
+- **Every supported retrieval envelope shape must survive rendering.** Adding a new truth surface or payload shape is incomplete until its facts are proven to reach synthesis.
+- **Facts are facts whether or not they are numbers.** The prior entity handling kept only numeric values, silently dropping schedules, instructions and identifiers.
+- **NEVER truncate a block the producing surface marked `verbatim`; never truncate silently.** A cap is a guess about where the meaning is. The first fix used a 1,600-character cap and the decisive sentence began at offset **exactly 1600** — it would have reproduced the bug while looking correct. **Measure where the decisive content sits before choosing any cap.**
+- **Preserve provenance through compaction**, so two kinds of truth (a person's own record vs impersonal authoritative reference) stay distinguishable rather than blurring together.
+- Don't use an implementation bug as cover to move an architectural boundary: synthesis **eligibility** was not the cause here and was deliberately left unchanged.
+
+### 10d. SEMANTIC CATEGORY: operational metadata must never read as domain guidance (REQUIRED — proven 2026-08-21)
+A field carries its meaning to the model through **where it sits and what it is called**, not through its `help_text`. `grace_period_minutes` is adherence bookkeeping ("minutes after the scheduled time before WLJ marks a dose overdue" — the same field and default exist on the workout-plan model), but it was serialized as a **bare unitless integer inside a block named `plan`**, beside `schedule` and `instructions` — so the CoS narrated it to a user as *"a 60-minute grace period for a late dose"*, i.e. as medication-administration guidance.
+
+- **Serialize by category.** Operational/adherence/tracking metadata belongs with adherence state, never in a block that reads as domain guidance or plan truth.
+- **Never expose a bare number whose meaning depends on context** — the key itself should carry the semantics (`marked_late_after_minutes`), with a short `means` where ambiguity is plausible.
+- **Name provenance in the key.** `instructions` reads as *the authoritative* instructions; `recorded_instructions` reads as what the user recorded. Same for `wlj_tracking_priority` — a field defaulting to `critical` reads as a clinical severity assessment nobody actually made.
+- **Audit the whole surface, not the one reported field** — untouched defaults are the most misleading values a payload carries.
+
 ## 11. Deployment discipline
 
 - **Application work is not complete until committed and pushed to `main`** unless Danny says otherwise. Deploy automatically — don't ask "ready to deploy?".

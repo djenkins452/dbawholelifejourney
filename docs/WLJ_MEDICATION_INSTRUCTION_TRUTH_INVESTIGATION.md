@@ -1,6 +1,6 @@
 # WLJ — Medication Instruction Truth: Investigation
 
-**Status:** Part A **SHIPPED** (`3770cc41`) · Part B **APPROVED** · **M1 IMPLEMENTED** (see §B13, as-built)
+**Status:** ✅ **ARC CLOSED 2026-08-25** — Part A shipped (`3770cc41`) · Part B approved · M1 implemented (§B13) · synthesis evidence-compaction fixed (`c7ed64ab`) · **production verified end-to-end** (§C). New product problems start a NEW investigation; do not extend this arc.
 **Date:** 2026-08-21 · **Origin:** the successful own-record-grounding smoke (`a4995dcd`)
 **Governing:** `02_WLJ_CONSTITUTION.md` (I.1, I.2, I.4, IV.2, IV.4) · `docs/WLJ_RUNTIME_TRACE_DEBUGGING.md`
 
@@ -245,9 +245,10 @@ retrieved_at · freshness**. A label older than its refresh window is returned *
 1. User asks a question whose answer depends on product instructions.
 2. The model's **second internal question** (`c937ee34`) fires: *does part of this depend on a fact WLJ may hold?*
 3. It retrieves **personal** truth: `get_entity(domain='medicine', name=…)`.
-4. That entity's advertisement (Part A) currently states *"WLJ holds no manufacturer or product labelling."*
-   **On implementation this line changes** to point at the reference domain — that is the discovery mechanism, and
-   it reuses the capability-index pattern already proven to work.
+4. That entity's advertisement names the reference domain and says **"retrieve BOTH and reason over them
+   together"** — that is the discovery mechanism, and it reuses the capability-index pattern already proven to work.
+   *(Superseded note: before M1 shipped, this line read "WLJ holds no manufacturer or product labelling." It no
+   longer does — WLJ owns that truth in `medication_reference`.)*
 5. It retrieves **reference** truth: `get_entity(domain='medication_reference', …)`.
 6. The **model** combines 1 + 2 and answers, attributing the label.
 
@@ -414,3 +415,97 @@ bidirectional leakage tests. **No Article changed or weakened; no Constitutional
 ## Explicitly NOT built (M2+)
 Generic/NDC-level identity · other label sections · interaction checking · any UI · any generalization beyond
 medication reference truth.
+
+
+---
+
+# C. ARC CLOSURE — Mounjaro / Medication Grounding (2026-08-20 → 2026-08-25)
+
+**CLOSED. Production verified.** This section is the durable record. It exists because the six fixes below were
+**not** independent bugs — each one was only visible once the one before it was removed, and reading them as a list
+of unrelated patches loses the whole lesson.
+
+## C1. The original trust failure
+
+> **User:** *"I forgot to take my mounjaro this morning. Is it ok to take it tonight or do I need to wait until the
+> morning?"*
+> **CoS:** *"You should talk with your healthcare provider about whether you can take your Mounjaro dose tonight or
+> need to wait until the morning…"*
+
+A content-free deflection to a question with published, non-individualized guidance — and the CoS had retrieved
+nothing at all (`tools_called: []`).
+
+## C2. The progression — each fix EXPOSED the next layer
+
+Every step below was proven on the live runtime before it was changed, and every step's "fix" revealed that the
+answer was still wrong for a *different* reason. That progression is the finding.
+
+| # | Layer that failed | What was actually wrong | How it was proven |
+|---|---|---|---|
+| 1 | **Reasoning** — governing prompt | Escalation keyed on the **topic** ("medications" headed the reserve list), so any question naming a medicine qualified for a punt. Then, deeper: the opening hard prohibition conflated **CHANGING** a regimen with **FOLLOWING** one already prescribed | `ToolCallLog` `answer_len` 247 matched the punt **character-exactly**; the first post-deploy smoke FAILED and located the real anchoring clause |
+| 2 | **Reasoning** — tool selection | The grounding invariant existed but sat **mid-prompt**; three deployed smokes returned `tools_called: []`. Moving it into the model's **opening internal question** worked on the first run | 3 deployed observations vs 1 |
+| 3 | **Truth** — accessibility | Surfaces **under-declared** themselves (`medicine.medication` advertised one clause vs the schedule/instructions/`last_taken` it returns) and discovery routed by question **shape** — 0 of 20 domains advertised a decision-shaped cue | capability-index survey |
+| 4 | **Truth** — semantic category | `grace_period_minutes` (adherence bookkeeping) was serialized as a bare integer inside `plan`, and the CoS narrated it as administration guidance | field definition + its only two consumers |
+| 5 | **Truth** — missing authority | WLJ owned **no** authoritative product labelling, so the model improvised the missed-dose rule after retrieving correctly | live API probes; the identity chain proven necessary |
+| 6 | **Evidence compaction** | Both truths were retrieved and **destroyed on the Phase-1→Phase-2 handoff**; Phase 2 received only `name: Mounjaro`, twice | real prod envelopes replayed through the real renderer — **zero provider calls** |
+
+**The through-line:** *a trust failure at the surface was, underneath, one missing authority plus three separate
+places where truth existed but did not reach the model.* Fixing only the visible symptom at any stage would have
+left a confident, ungrounded answer in place — and stages 2, 3 and 6 each produced an answer that **looked** better
+while still being unsupported.
+
+## C3. The final architecture
+
+```
+PERSONAL TRUTH            medicine              this person's regimen, schedule, adherence, last taken
+AUTHORITATIVE REFERENCE   medication_reference  the product's approved labelling — impersonal, verbatim,
+                                                provenance-bearing, fails closed on ambiguity
+RETRIEVAL                 model-directed through the EXISTING get_entity surface — no new tool, no routing,
+                                                no forced tool_choice, no deterministic evidence plan
+COMPACTION                Executive Synthesis preserves decisive evidence, provenance, and verbatim content
+JUDGMENT                  the model — WLJ never precomputes the clinical conclusion
+```
+
+Neither domain may serve the other's facts (III.1), enforced by bidirectional contract tests.
+
+## C4. Production verification (the original question, end to end)
+
+```
+truth  get_entity {"name":"Mounjaro","domain":"medicine"}              ok
+truth  get_entity {"name":"Mounjaro","domain":"medication_reference"}  ok
+response  tools_called: ["get_entity","get_entity"]  synthesis_used: true
+```
+> *"You can take your Mounjaro dose tonight… administer it **within four days (96 hours)** of the missed dose. Since
+> you missed your scheduled dose this morning, **taking it tonight is well within this window**… **resume your
+> regular dosing day next week**."*
+
+Both truth kinds retrieved, both survived synthesis, both materially used — with no citation template and no
+deterministic verdict.
+
+## C5. Durable lessons (recorded in `03`)
+
+- **`§10b` — prompt POSITION is semantics.** A rule the model reads *after* it has decided it needs no tools cannot
+  change whether it needs tools. The identical principle did nothing across three deployed runs mid-prompt and
+  worked on the first run at the anchor.
+- **`§10c` — evidence capture is not evidence delivery.** Every supported retrieval envelope shape must survive
+  synthesis rendering; a shape with no branch is silently destroyed and the transcript reads as if the model ignored
+  its own retrievals. Verbatim blocks are never truncated; truncation is never silent. **Measure where the decisive
+  content sits before choosing any cap** — the first fix's 1,600-char cap landed on offset exactly 1600.
+- **`§10d` — operational metadata must never read as domain guidance.** Serialize by category, never expose a bare
+  context-dependent number, name provenance in the key, and audit the whole surface — untouched defaults are the
+  most misleading values a payload carries.
+- **Reference truth is constitutionally compatible** (`01 §4`): WLJ may own deterministic *impersonal* truth that
+  supports reasoning over a person's life; the model still owns interpretation. **No Article was changed and no
+  Constitutional Review occurred in this arc** — nothing is recorded in the Amendment Log.
+
+## C6. Explicitly deferred — NOT lost, NOT part of this closure
+
+- **M2 — generic/NDC medication-reference resolution.** Deferred until production evidence requires it. M1 refuses
+  multi-source generics by design (a name cannot pick among 1,185 SPLs); the bridge when it is needed is the
+  **NDC the existing scan/barcode path already reads**.
+- **Phase-2 evidence size** — rendered evidence grew from ~60 to ~6.4k characters for this turn (list shapes are
+  capped at 12 entities). Recorded here as an **observability consideration only**. Do **not** introduce speculative
+  truncation or token optimization without measured production friction — the arc has already shown once that an
+  unmeasured cap silently destroys the decisive fact.
+- **Unrelated, flagged, owned elsewhere:** the `test_medicine` adherence-context failure; the `apps.medical`
+  LabEducation/Mapper failures; concurrent Finance-domain work.

@@ -6,6 +6,49 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — refactor(finance): F4 — ONE transaction-population authority; four competing definitions retired (autonomous MVP delivery, phase 5 of 5)
+
+**The defect (assessment gap G6):** Finance answered *"what counts as a transaction"* four different ways,
+with **two incompatible definitions of "transfer"** — `Budget.spent_amount` excluded neither transfers nor
+opening balances · `FinancialMetricSnapshot` and the dashboard excluded by `transfer_pair` ·
+`FinanceHistory` excluded by `category__category_type` · `FinanceDomainTruth` excluded neither. So the budget
+page, the dashboard, the reports, and the Chief of Staff could each state a different total for the same
+month.
+
+**The fix:** `financial_activity(user, start=, end=)` in `attribution_population.py` is now the ONE
+definition — active, not an opening balance, and not a transfer under **either** signal. Budget,
+FinanceHistory, `FinancialMetricSnapshot`, the Finance dashboard, and `FinanceDomainTruth` all consume it.
+It deliberately does NOT apply the attribution-only exclusions (pending, suspected internal transfers):
+"we're not sure enough to CLASSIFY this" is a different question from "did money move" — reporting keeps
+showing real activity while attribution stays cautious.
+
+**Impact measured before applying, as required.** New read-only command
+`python manage.py finance_population_audit [--email …]` reports, per user, the opening balances and each
+divergence class, plus the exact monetary delta the convergence causes.
+- **Local dev database (3,079 transactions): `total_metric_delta=+0.00`** — zero opening balances and zero
+  transfers of either kind, so nothing moved.
+- **Structural bound on the prod delta:** the *paired-but-not-categorised* class is near-impossible by
+  construction, because the transfer form (`forms.py:496–529`) stamps BOTH signals; only hand-editing
+  produces it. The real class is *categorised-but-unpaired* (a user or import marks something Transfer with
+  no counterpart) — previously counted by the dashboard and metrics, ignored by history. Convergence makes
+  those surfaces agree with history, i.e. it **stops reporting a transfer as income or spend**.
+  **Run the audit command against production before trusting any historical total that changed.**
+
+**Enforced, not hoped for:** a new AST contract test fails if any Finance module outside the authority
+filters on the population predicates. It flags only the EXCLUSION of activity — looking an opening-balance
+row *up* for account-balance arithmetic (`models.py:257`) stays legal, because a balance includes transfers
+and opening rows while *activity* does not. Two documented exceptions: the detector (which re-asserts the
+contract at read time, the F1 defect fix) and the audit command (whose purpose is comparing old to new).
+
+**Tests: 190 green** (9 new), including the request-path-safety, constitution, and visual-truth contracts.
+A correction to the F3 entry: that run was **169** tests, not 172.
+
+**Files:** `apps/finance/services/attribution_population.py`, `apps/finance/services/finance_history.py`,
+`apps/finance/services/finance_domain_truth.py`, `apps/finance/models.py`, `apps/finance/views.py`,
+`apps/finance/management/commands/finance_population_audit.py` (new),
+`apps/finance/tests/test_f4_population_convergence.py` (new). No migrations.
+
+
 ## 2026-08-25 — feat(finance): F3 — opportunity lifecycle & deterministic outcome verification (autonomous MVP delivery, phase 4 of 5)
 
 **WLJ observes an outcome; it never causes one.** A contract test greps the lifecycle service for

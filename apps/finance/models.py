@@ -672,14 +672,15 @@ class Budget(UserOwnedModel):
         next_month = self.month.replace(day=28) + timezone.timedelta(days=4)
         end_of_month = next_month.replace(day=1) - timezone.timedelta(days=1)
 
-        # Sum all expense transactions in this category
-        spent = Transaction.objects.filter(
-            user=self.user,
+        # F4 convergence: ONE population authority decides what counts as activity, so a
+        # transfer or an opening balance can never be reported as spend (Article III.1).
+        from apps.finance.services.attribution_population import financial_activity
+
+        spent = financial_activity(
+            self.user, start=self.month, end=end_of_month,
+        ).filter(
             category=self.category,
-            date__gte=self.month,
-            date__lte=end_of_month,
-            status='active',
-            amount__lt=0  # Expenses are negative
+            amount__lt=0,  # Expenses are negative
         ).aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0.00')
@@ -1077,27 +1078,15 @@ class FinancialMetricSnapshot(UserOwnedModel):
         # Calculate monthly income/expenses
         month_start = snapshot_date.replace(day=1)
 
-        monthly_income = Transaction.objects.filter(
-            user=user,
-            date__gte=month_start,
-            date__lte=snapshot_date,
-            status='active',
-            amount__gt=0,
-            is_opening_balance=False
-        ).exclude(
-            transfer_pair__isnull=False
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        # F4 convergence: the shared population authority (was: transfer_pair only, which
+        # disagreed with FinanceHistory's category-based definition).
+        from apps.finance.services.attribution_population import financial_activity
 
-        monthly_expenses = abs(Transaction.objects.filter(
-            user=user,
-            date__gte=month_start,
-            date__lte=snapshot_date,
-            status='active',
-            amount__lt=0,
-            is_opening_balance=False
-        ).exclude(
-            transfer_pair__isnull=False
-        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00'))
+        activity = financial_activity(user, start=month_start, end=snapshot_date)
+        monthly_income = activity.filter(amount__gt=0).aggregate(
+            total=Sum('amount'))['total'] or Decimal('0.00')
+        monthly_expenses = abs(activity.filter(amount__lt=0).aggregate(
+            total=Sum('amount'))['total'] or Decimal('0.00'))
 
         monthly_cash_flow = monthly_income - monthly_expenses
 

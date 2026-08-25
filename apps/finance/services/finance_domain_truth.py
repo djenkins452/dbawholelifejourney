@@ -76,11 +76,11 @@ class FinanceDomainTruth(DomainTruth):
 
         from apps.core.truth.periods import resolve_period
         from apps.core.utils import get_user_today
-        from apps.finance.models import Transaction
+        from apps.finance.services.attribution_population import financial_activity
         f = filters or {}
-        # Canonical transaction rows (exclude opening-balance rows, exactly as FinanceHistory
-        # does — one authority, one definition of "a transaction").
-        qs = Transaction.objects.filter(user=self.user, is_opening_balance=False)
+        # ONE population authority (F4): the same definition Budget, FinanceHistory, the
+        # metric snapshots, and the dashboard use. No surface re-derives "what counts".
+        qs = financial_activity(self.user)
         if f.get("on_date"):
             d = f["on_date"]
             d = _date.fromisoformat(d[:10]) if isinstance(d, str) else d

@@ -55,11 +55,11 @@ def _monthly_rows(user, p):
     """ONE grouped query: per calendar month in the window, the income (positive) and expense
     (negative) sums, transfers + opening balances excluded. Only months WITH transactions
     appear (empty≠zero)."""
-    from apps.finance.models import Transaction
-    qs = (Transaction.objects
-          .filter(user=user, is_opening_balance=False,
-                  date__gte=p.start, date__lte=p.end)
-          .exclude(category__category_type="transfer"))
+    # ONE population authority — Budget, metrics, the dashboard, and DomainTruth read the
+    # same definition, so they can no longer disagree about transfers or opening balances
+    # (F4 convergence; Article III.1).
+    from apps.finance.services.attribution_population import financial_activity
+    qs = financial_activity(user, start=p.start, end=p.end)
     rows = (qs.annotate(mo=TruncMonth("date"))
               .values("mo")
               .annotate(

@@ -60,6 +60,27 @@ LIABILITY_ACCOUNT_TYPES = (
     FinancialAccount.TYPE_OTHER_LIABILITY,
 )
 
+def financial_activity(user, *, start=None, end=None):
+    """THE shared definition of real economic activity — for reporting AND attribution.
+
+    Active, not an opening balance, and not a transfer under EITHER signal. This is the
+    definition Budget, FinanceHistory, the metric snapshots, the dashboard, and
+    `FinanceDomainTruth` all consume, so they can no longer disagree about what counts
+    (Article III.1).
+
+    It deliberately does NOT apply the attribution-only exclusions (pending rows and
+    suspected internal transfers): those express "we are not sure enough to CLASSIFY
+    this", which is a different question from "did money actually move". Reporting keeps
+    showing the user their real activity; attribution is the cautious one.
+    """
+    qs = _base(user).filter(is_opening_balance=False).exclude(_known_transfer_q())
+    if start:
+        qs = qs.filter(date__gte=start)
+    if end:
+        qs = qs.filter(date__lte=end)
+    return qs
+
+
 def _base(user):
     """Soft-deleted/archived rows are excluded by the default manager itself
     (`SoftDeleteManager`, apps/core/models.py:71) — we do not repeat `status='active'`."""
@@ -124,7 +145,7 @@ def attributable_transactions(user, *, start=None, end=None, liability_names=Non
     Batch callers (F1) hoist that lookup once via `liability_account_names(user)` and pass
     it in, so scanning ten transactions and ten thousand costs the same number of queries.
     """
-    qs = _base(user).filter(is_opening_balance=False).exclude(_known_transfer_q())
+    qs = financial_activity(user)
     qs = qs.exclude(plaid_pending=True)
     # Structurally uncertain rows are EXCLUDED here and surfaced by `review_candidates`.
     # Nothing uncertain is quietly turned into an expense to empty a queue.
@@ -142,7 +163,7 @@ def review_candidates(user, *, start=None, end=None, liability_names=None):
     Kept OUT of the attributable population and surfaced explicitly, so nothing uncertain
     is quietly turned into an expense in order to empty a queue.
     """
-    base = _base(user).filter(is_opening_balance=False).exclude(_known_transfer_q())
+    base = financial_activity(user)
     if start:
         base = base.filter(date__gte=start)
     if end:

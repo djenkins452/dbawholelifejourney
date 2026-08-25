@@ -276,26 +276,17 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
             user=user, status='active'
         ).select_related('account', 'category')[:10]
 
-        # Monthly summary
-        monthly_income = Transaction.objects.filter(
-            user=user,
-            status='active',
-            date__gte=month_start,
-            date__lte=today,
-            amount__gt=0,
-            is_opening_balance=False
-        ).exclude(transfer_pair__isnull=False).aggregate(
+        # Monthly summary — F4 convergence: the ONE shared population authority, so the
+        # dashboard, budgets, history, the metric snapshots, and the Chief of Staff can no
+        # longer disagree about transfers or opening balances (Article III.1).
+        from apps.finance.services.attribution_population import financial_activity
+
+        activity = financial_activity(user, start=month_start, end=today)
+        monthly_income = activity.filter(amount__gt=0).aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0.00')
 
-        monthly_expenses = abs(Transaction.objects.filter(
-            user=user,
-            status='active',
-            date__gte=month_start,
-            date__lte=today,
-            amount__lt=0,
-            is_opening_balance=False
-        ).exclude(transfer_pair__isnull=False).aggregate(
+        monthly_expenses = abs(activity.filter(amount__lt=0).aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0.00'))
 

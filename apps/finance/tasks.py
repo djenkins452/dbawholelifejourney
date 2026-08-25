@@ -28,8 +28,9 @@ def detect_finance_opportunities(user_id=None):
     """Recompute entity-payment-mismatch findings for one user, or every active user."""
     from django.contrib.auth import get_user_model
 
-    from apps.finance.models import TransactionAttribution
-    from apps.finance.services.opportunity_detection import record_findings
+    from apps.finance.models import FinanceOpportunity, TransactionAttribution
+    from apps.finance.services import opportunity_lifecycle as lifecycle
+    from apps.finance.services.opportunity_detection import build_findings, record_findings
 
     User = get_user_model()
     if user_id is not None:
@@ -41,10 +42,22 @@ def detect_finance_opportunities(user_id=None):
                     .values_list("user_id", flat=True).distinct())
         users = User.objects.filter(id__in=list(user_ids))
 
-    totals = {"users": 0, "created": 0, "updated": 0, "resolved": 0}
+    totals = {"users": 0, "created": 0, "updated": 0, "resolved": 0,
+              "retired": 0, "verified": 0}
     for user in users.iterator():
         try:
-            result = record_findings(user)
+            findings = build_findings(user)
+            result = record_findings(user, findings)
+            # F3: keep the lifecycle in step with detection, then look for evidence that
+            # an accepted change actually happened. WLJ observes; it never acts outside.
+            live_keys = lifecycle.sync_from_findings(user, findings)
+            totals["retired"] += lifecycle.retire_resolved(user, live_keys)
+            watching = FinanceOpportunity.objects.filter(
+                user=user, state__in=FinanceOpportunity.WATCHING_STATES,
+            ).select_related("attributed_entity", "paid_by_entity")
+            for opportunity in watching:
+                if lifecycle.verify_from_truth(user, opportunity) is not None:
+                    totals["verified"] += 1
         except Exception:
             # One user's bad data must never stop the sweep — but it must be VISIBLE.
             logger.error("Finance opportunity detection failed for user %s",

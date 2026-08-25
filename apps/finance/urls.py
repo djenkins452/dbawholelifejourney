@@ -85,6 +85,9 @@ urlpatterns = [
     path('attribution/<int:pk>/explain/', views_attribution.attribution_explain,
          name='attribution_explain'),
 
+    path('opportunities/<int:pk>/decide/', views_attribution.opportunity_decide,
+         name='opportunity_decide'),
+
     # Bank Connections (Plaid Integration)
     path('connections/', views.BankConnectionListView.as_view(), name='connection_list'),
     path('connections/start/', views.bank_connection_start, name='connection_start'),

@@ -2460,3 +2460,128 @@ class AttributionRule(UserOwnedModel):
             self.SCOPE_PAYEE: self.payee_id,
             self.SCOPE_ACCOUNT: self.account_id,
         }.get(self.scope)
+
+
+# =============================================================================
+# F3 — Opportunity lifecycle & outcome verification
+# =============================================================================
+
+class FinanceOpportunity(UserOwnedModel):
+    """The state of a change the USER makes in the outside world, and whether it happened.
+
+    NOT a second action authority. WLJ executes nothing here: it cannot move money, change
+    a payment method, cancel a subscription, or touch an external account. This record
+    tracks (a) what WLJ deterministically detected, (b) what the user decided about it, and
+    (c) whether later transaction truth shows the change actually occurred.
+
+    Detection stays in `Insight` (the canonical finding). This adds only the lifecycle and
+    the verification evidence, keyed to the insight's stable `dedupe_key` so a re-detection
+    reattaches to the same opportunity instead of forking it.
+
+    Verification is deterministic, never inferred: transactions matching the pattern that
+    appear AFTER acceptance are compared against the baseline captured at acceptance
+    (reusing `Transaction.fingerprint`, so a pre-existing row can never be mistaken for
+    evidence of a change).
+    """
+
+    KIND_ENTITY_PAYMENT_MISMATCH = 'entity_payment_mismatch'
+    KIND_CHOICES = [
+        (KIND_ENTITY_PAYMENT_MISMATCH, 'Expense paid by the wrong entity'),
+    ]
+
+    STATE_DETECTED = 'detected'
+    STATE_PRESENTED = 'presented'
+    STATE_ACCEPTED = 'accepted'
+    STATE_REJECTED = 'rejected'
+    STATE_DEFERRED = 'deferred'
+    STATE_IN_PROGRESS = 'in_progress'
+    STATE_COMPLETED = 'completed'
+    STATE_VERIFIED_AUTO = 'verified_auto'
+    STATE_VERIFIED_MANUAL = 'verified_manual'
+    STATE_NOT_RELEVANT = 'not_relevant'
+    STATE_CHOICES = [
+        (STATE_DETECTED, 'Detected'),
+        (STATE_PRESENTED, 'Presented'),
+        (STATE_ACCEPTED, 'Accepted'),
+        (STATE_REJECTED, 'Rejected'),
+        (STATE_DEFERRED, 'Deferred'),
+        (STATE_IN_PROGRESS, 'In progress'),
+        (STATE_COMPLETED, 'Completed'),
+        (STATE_VERIFIED_AUTO, 'Verified automatically'),
+        (STATE_VERIFIED_MANUAL, 'Verified manually'),
+        (STATE_NOT_RELEVANT, 'No longer relevant'),
+    ]
+    #: States where WLJ should keep watching later transactions for evidence.
+    WATCHING_STATES = (STATE_ACCEPTED, STATE_IN_PROGRESS, STATE_COMPLETED)
+    #: States the user has closed — never reopened by detection.
+    CLOSED_STATES = (STATE_REJECTED, STATE_VERIFIED_AUTO, STATE_VERIFIED_MANUAL,
+                     STATE_NOT_RELEVANT)
+
+    kind = models.CharField(max_length=32, choices=KIND_CHOICES,
+                            default=KIND_ENTITY_PAYMENT_MISMATCH)
+    dedupe_key = models.CharField(
+        max_length=64, db_index=True,
+        help_text="Stable key shared with the canonical Insight for this pattern.",
+    )
+    insight = models.ForeignKey(
+        'core.Insight', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='finance_opportunities',
+    )
+    attributed_entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT,
+        related_name='opportunities_as_bearer',
+    )
+    paid_by_entity = models.ForeignKey(
+        'FinancialEntity', on_delete=models.PROTECT,
+        related_name='opportunities_as_payer',
+    )
+    recurring = models.ForeignKey(
+        'RecurringTransaction', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='opportunities',
+    )
+    payee_key = models.CharField(max_length=200, blank=True, default='')
+    label = models.CharField(max_length=200, blank=True, default='')
+
+    state = models.CharField(max_length=20, choices=STATE_CHOICES,
+                             default=STATE_DETECTED, db_index=True)
+    state_changed_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    deferred_until = models.DateField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    occurrences = models.PositiveIntegerField(default=0)
+    annual_estimate = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    baseline = models.JSONField(
+        default=dict, blank=True,
+        help_text="Truth captured at acceptance, so later evidence is provably NEW.",
+    )
+    verification_evidence = models.JSONField(default=dict, blank=True)
+    follow_up = models.ForeignKey(
+        'ai.ConversationFollowUp', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='finance_opportunities',
+        help_text="The existing follow-through record — WLJ adds no second scheduler.",
+    )
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-annual_estimate', '-created_at']
+        verbose_name = "Finance Opportunity"
+        verbose_name_plural = "Finance Opportunities"
+        indexes = [
+            models.Index(fields=['user', 'state'], name='idx_finopp_user_state'),
+            models.Index(fields=['user', 'kind', 'state'], name='idx_finopp_user_kind'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'dedupe_key'],
+                condition=models.Q(status='active'),
+                name='uq_finopp_user_dedupe',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.label or self.kind} [{self.state}]"
+
+    @property
+    def is_open(self):
+        return self.state not in self.CLOSED_STATES

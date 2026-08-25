@@ -131,3 +131,55 @@ def attribution_explain(request, pk):
         "paid_by": attribution.paid_by_entity.name if attribution else None,
         "confirmed": bool(attribution and attribution.user_confirmed),
     })
+
+
+@login_required
+@require_POST
+def opportunity_decide(request, pk):
+    """Record what the user decided about a detected opportunity.
+
+    WLJ changes NOTHING outside itself here — no payment method, no subscription, no
+    external account. It records the decision and, on acceptance, starts watching ordinary
+    transaction truth for evidence that the user made the change.
+    """
+    from apps.finance.models import FinanceOpportunity
+    from apps.finance.services import opportunity_lifecycle as lifecycle
+
+    opportunity = get_object_or_404(FinanceOpportunity, pk=pk, user=request.user)
+    try:
+        payload = json.loads(request.body or "{}")
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({"success": False, "error": "Invalid request."}, status=400)
+
+    decision = payload.get("decision")
+    try:
+        if decision == "accept":
+            lifecycle.accept(request.user, opportunity)
+        elif decision == "reject":
+            lifecycle.reject(request.user, opportunity,
+                             reason=str(payload.get("reason", ""))[:200])
+        elif decision == "defer":
+            from datetime import date as _date
+            until = payload.get("until")
+            lifecycle.defer(request.user, opportunity,
+                            until=_date.fromisoformat(until) if until else None)
+        elif decision == "in_progress":
+            lifecycle.mark_in_progress(request.user, opportunity)
+        elif decision == "done":
+            lifecycle.verify_manually(request.user, opportunity,
+                                      note=str(payload.get("note", ""))[:200])
+        else:
+            return JsonResponse({"success": False, "error": "Unknown decision."},
+                                status=400)
+    except (ValidationError, ValueError) as exc:
+        message = "; ".join(getattr(exc, "messages", [str(exc)]))
+        return JsonResponse({"success": False, "error": message}, status=400)
+
+    opportunity.refresh_from_db()
+    return JsonResponse({
+        "success": True,
+        "opportunity_id": opportunity.pk,
+        "state": opportunity.state,
+        "state_label": opportunity.get_state_display(),
+        "follow_up_scheduled": opportunity.follow_up_id is not None,
+    })

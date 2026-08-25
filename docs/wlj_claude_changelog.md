@@ -6,6 +6,43 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(finance): F3 — opportunity lifecycle & deterministic outcome verification (autonomous MVP delivery, phase 4 of 5)
+
+**WLJ observes an outcome; it never causes one.** A contract test greps the lifecycle service for
+`requests.` / `plaid` / `http` / `payment_method` / `cancel_subscription` / `transfer_funds` and fails on any
+hit, and re-asserts that no Finance intent has entered `ALLOWED_WRITE_INTENTS`.
+
+**`FinanceOpportunity` (migration `0021`)** carries the ten lifecycle states — detected · presented ·
+accepted · rejected · deferred · in_progress · completed · verified_auto · verified_manual · not_relevant —
+keyed to the F1 Insight's stable `dedupe_key` so re-detection reattaches instead of forking.
+**Not a second action authority:** detection stays in the canonical `Insight`, and "ask me later" reuses the
+EXISTING `ConversationFollowUp` (`subject_ref=finance.financeopportunity:<pk>`) — a test asserts the module
+contains no `crontab` / `PeriodicTask` / `apply_async` / `shared_task`, i.e. **WLJ added no second scheduler**.
+
+**Verification is deterministic and cannot be fooled by history.** On acceptance WLJ snapshots the pattern's
+existing `Transaction.fingerprint` values (reusing the dedup field rather than inventing a matching key).
+Evidence then requires a transaction that (a) is NOT in that baseline and (b) was paid from an account whose
+entity IS the one that should bear the cost. Tested three ways: a genuinely new charge on the business card
+verifies; a baseline-fingerprint charge proves nothing; a new charge still on the personal card does not
+verify.
+
+**The user's decision is theirs.** A rejected opportunity is never reopened by re-detection, and an accepted
+one is never retired by the sweep — `retire_resolved` touches only `detected`/`presented` rows. Manual
+verification is recorded honestly as `method: user_stated`, never dressed up as transaction evidence.
+
+**One background pass** (the existing crontab task) now detects → syncs the lifecycle → retires resolved
+patterns → looks for verification evidence, all idempotent.
+
+**Defect found by the tests:** the F3 suite originally used a frozen literal date; verification compares
+against real acceptance time, so the suite is now anchored to `date.today()` — a frozen date silently made
+"later" charges earlier than acceptance.
+
+**Tests: 172 green** (20 new). **Files:** `apps/finance/services/opportunity_lifecycle.py`,
+`apps/finance/tests/test_f3_opportunity_lifecycle.py`, `apps/finance/migrations/0021_f3_finance_opportunity.py`
+(new); `apps/finance/models.py`, `apps/finance/tasks.py`, `apps/finance/views_attribution.py`,
+`apps/finance/urls.py`.
+
+
 ## 2026-08-25 — feat(finance): F2 — attribution review, correction, and learning (autonomous MVP delivery, phase 3 of 5)
 
 **No model call anywhere in F2.** The Chief of Staff already reasons over Finance truth through the

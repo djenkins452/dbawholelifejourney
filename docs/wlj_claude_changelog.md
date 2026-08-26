@@ -58844,3 +58844,9 @@ place, so an unauthenticated caller can neither create rows nor grow the table.
 `apps/finance/services/sync_service.py`, `apps/finance/views.py`,
 `apps/finance/migrations/0028_bankconnection_last_webhook_rejected_at_and_more.py`,
 `apps/finance/tests/test_plaid_webhook_delivery.py`.
+
+### 2026-08-26 — docs: correct a dangling comment reference
+
+`apps/finance/services/plaid_webhook_verification.py` — the comment explaining the
+`is_configured` property fix pointed at "`_FETCH_ERROR` below"; the constant is named
+`REASON_KEY_FETCH_ERROR` and is declared above. Comment-only; no behaviour change.

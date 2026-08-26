@@ -108,7 +108,7 @@ def fetch_verification_key(key_id: str):
         # `is_configured` is a PROPERTY. Calling it raised TypeError on every real
         # webhook, which the broad `except` below turned into an ordinary
         # "unknown key" rejection — so a code defect was indistinguishable from a
-        # genuinely unrecognised `kid`. See _FETCH_ERROR below.
+        # genuinely unrecognised `kid`. See REASON_KEY_FETCH_ERROR above.
         if not service.is_configured:
             return None
         jwk = service.get_webhook_verification_key(key_id)

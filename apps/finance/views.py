@@ -1524,16 +1524,36 @@ def plaid_webhook(request):
         # Handle different webhook types
         if webhook_type == 'TRANSACTIONS':
             # Record coverage milestones so partial history is never shown as complete.
-            if webhook_code == 'INITIAL_UPDATE':
+            #
+            # WLJ ingests through /transactions/sync, and for a sync integration Plaid
+            # sends SYNC_UPDATES_AVAILABLE carrying the two milestones as BOOLEAN
+            # FIELDS. It does NOT send the legacy INITIAL_UPDATE / HISTORICAL_UPDATE
+            # codes — those belong to the /transactions/get flow. Keying the flags on
+            # the legacy codes alone meant they could never be set for our integration,
+            # so history was permanently reported as "still running".
+            initial_done = historical_done = False
+            if webhook_code == 'SYNC_UPDATES_AVAILABLE':
+                initial_done = bool(data.get('initial_update_complete'))
+                historical_done = bool(data.get('historical_update_complete'))
+            elif webhook_code == 'INITIAL_UPDATE':          # legacy /transactions/get
+                initial_done = True
+            elif webhook_code == 'HISTORICAL_UPDATE':       # legacy /transactions/get
+                initial_done = historical_done = True
+
+            # Only ever advance. A later webhook reporting historical_update_complete
+            # as false must not un-complete a connection that already finished.
+            changed = []
+            if initial_done and not connection.initial_update_complete:
                 connection.initial_update_complete = True
-                connection.save(update_fields=['initial_update_complete', 'updated_at'])
-            elif webhook_code == 'HISTORICAL_UPDATE':
+                changed.append('initial_update_complete')
+            if historical_done and not connection.historical_update_complete:
                 connection.initial_update_complete = True
                 connection.historical_update_complete = True
                 connection.historical_update_at = timezone.now()
-                connection.save(update_fields=[
-                    'initial_update_complete', 'historical_update_complete',
-                    'historical_update_at', 'updated_at'])
+                changed += ['initial_update_complete', 'historical_update_complete',
+                            'historical_update_at']
+            if changed:
+                connection.save(update_fields=sorted(set(changed)) + ['updated_at'])
 
             if webhook_code in ['SYNC_UPDATES_AVAILABLE', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
                 # Trigger sync

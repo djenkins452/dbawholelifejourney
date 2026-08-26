@@ -60,6 +60,13 @@ REASON_EXPIRED = "stale_or_future_timestamp"
 REASON_BODY_MISMATCH = "body_hash_mismatch"
 REASON_REPLAY = "replayed_webhook"
 REASON_LIBRARY_MISSING = "verification_library_unavailable"
+#: The key service raised. Distinct from UNKNOWN_KEY so a WLJ-side defect is never
+#: silently reported as "Plaid gave us a kid we do not recognise".
+REASON_KEY_FETCH_ERROR = "key_fetch_error"
+
+
+class KeyFetchError(Exception):
+    """Raised when the key service could not be reached or called correctly."""
 
 
 class WebhookVerificationResult:
@@ -98,13 +105,21 @@ def fetch_verification_key(key_id: str):
     try:
         from apps.finance.services.plaid_service import get_plaid_service
         service = get_plaid_service()
-        if not service.is_configured():
+        # `is_configured` is a PROPERTY. Calling it raised TypeError on every real
+        # webhook, which the broad `except` below turned into an ordinary
+        # "unknown key" rejection — so a code defect was indistinguishable from a
+        # genuinely unrecognised `kid`. See _FETCH_ERROR below.
+        if not service.is_configured:
             return None
         jwk = service.get_webhook_verification_key(key_id)
     except Exception as exc:                       # network, auth, SDK — all fail closed
-        logger.warning("Plaid webhook key fetch failed (%s): %s",
-                       key_id[:8] if key_id else "?", type(exc).__name__)
-        return None
+        # Log the MESSAGE, not just the class name. The class name alone
+        # ("TypeError") cost a production diagnosis. Plaid error bodies carry an
+        # error_code and request_id, never credentials, so this is safe to log.
+        logger.warning("Plaid webhook key fetch failed (%s): %s: %s",
+                       key_id[:8] if key_id else "?", type(exc).__name__,
+                       str(exc)[:200])
+        raise KeyFetchError(str(exc)[:200]) from exc
 
     if not jwk:
         return None
@@ -148,7 +163,10 @@ def verify_webhook(request, *, key_fetcher=None, now=None):
     if not key_id:
         return _reject(REASON_MISSING_KID)
 
-    jwk = fetch(key_id)
+    try:
+        jwk = fetch(key_id)
+    except KeyFetchError:
+        return _reject(REASON_KEY_FETCH_ERROR)
     if not jwk:
         return _reject(REASON_UNKNOWN_KEY)
 

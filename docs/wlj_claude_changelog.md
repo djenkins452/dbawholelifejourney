@@ -58718,3 +58718,61 @@ Investigation for the multi-domain synthesis residual (docs/WLJ_COS_MULTIDOMAIN_
 **Fix (test only; assertion NOT weakened):** anchored every fixture date to `self.today` (`long_ago`/`lisin_start`/`mounj_start` = 220/190/160 days back; `stopped_on` = 45 days back and `dose_changed_on` = 30 days back, both deliberately INSIDE the 90-day window; `as_of` = 20 days back for the point-in-time inventory, after OldStatin ended). Date assertions now compare against the computed `isoformat()` rather than literals, and the point-in-time question is formatted from `as_of` (`"What was I taking on {:%B} {day}?"`), preserving coverage of the natural month-name parse branch in `_parse_history_date`. The test now proves the same behaviour and cannot decay again.
 
 **Verification:** target test passes; full `apps.health.tests.test_medicine_domain_truth` 20/20 OK; downstream `MedicineQueries` consumers (`apps.ai.tests.test_health_critical_priority`, `test_executive_reasoning`, `test_executive_risk`, `test_overview_and_priority`) 22/22 OK. Files: `apps/health/tests/test_medicine_domain_truth.py`. Committed by explicit pathspec — foreign uncommitted work (`.gitignore`, RENPHO / Danny_Story docs) untouched.
+
+## 2026-08-26 — Plaid webhooks: every real delivery was silently discarded (two defects)
+
+**Symptom.** 34 minutes after Item creation, the First Horizon connection held 28
+transactions across 27 days against 730 days requested, with
+`initial_update_complete` and `historical_update_complete` both false and zero webhook
+records — despite Plaid documenting historical completion in roughly a minute.
+
+**What the evidence actually showed.** `/item/get` reported `error: None`,
+`billed_products: ['transactions']`, a webhook URL exactly matching WLJ's routed
+endpoint, `transactions.last_successful_update` at 13:03:53, and
+`last_webhook.code_sent = SYNC_UPDATES_AVAILABLE` sent at 13:03:54. Plaid had done its
+job. Production logs then showed the deliveries arriving and being **rejected by WLJ**:
+
+    Plaid webhook key fetch failed (bfbd5111): TypeError
+    Plaid webhook rejected: unknown_or_unavailable_key
+
+**Defect 1 — `is_configured` is a `@property`, called as a method.**
+`fetch_verification_key()` ran `service.is_configured()`, raising
+`TypeError: 'bool' object is not callable` on every genuine webhook. The broad
+`except Exception` collapsed that into `unknown_or_unavailable_key` — a reason code
+that reads as "Plaid sent an unfamiliar key", so the logs pointed away from the cause.
+It survived because every existing verification test injects `key_fetcher`, leaving the
+real function body with no coverage at all. One wrong call site repo-wide; the other
+fifteen `is_configured` references were already correct.
+
+**Defect 2 — completion flags keyed on webhooks a sync integration never receives.**
+WLJ ingests through `/transactions/sync`, for which Plaid sends
+`SYNC_UPDATES_AVAILABLE` carrying `initial_update_complete` /
+`historical_update_complete` as boolean **fields**. The handler set the flags only on
+the legacy `INITIAL_UPDATE` / `HISTORICAL_UPDATE` codes, which belong to
+`/transactions/get`. Even with Defect 1 fixed, history could never be marked complete.
+
+**Changes**
+- `apps/finance/services/plaid_webhook_verification.py` — drop the parentheses; log the
+  exception *message*, not just its class name; add `KeyFetchError` +
+  `REASON_KEY_FETCH_ERROR` so a WLJ-side failure is never reported as an unknown key.
+- `apps/finance/views.py` — read the milestone booleans from `SYNC_UPDATES_AVAILABLE`,
+  keep the legacy codes working, and only ever advance (a later webhook reporting
+  `historical_update_complete: false` cannot un-complete a finished connection).
+- `apps/finance/tests/test_plaid_webhook_delivery.py` (new) — exercises the **real**
+  `fetch_verification_key` body, asserts the two reason codes stay distinguishable,
+  covers the sync/legacy/monotonic flag paths, and confirms an unsigned webhook is
+  still rejected with 401 and changes nothing.
+
+**Class elimination.** `PropertyCalledAsMethodContractTests` walks the AST of every
+module under `apps/` and fails if `is_configured` is invoked as a call anywhere. The
+condition that made this class possible — a property/method mismatch on a path with no
+direct test coverage, hidden behind a reason code shared with a legitimate outcome —
+is now closed on both sides: the call shape is enforced repo-wide, and an internal
+error can no longer wear an external error's name.
+
+**Not changed.** Signature verification is untouched and still fails closed.
+`history_state_label`'s cursor fallback is intentional inference, not contradictory
+state — a durable cursor does prove a first batch landed — so it stays.
+
+**Why:** Plaid completed the historical import and told us; WLJ rejected the message
+with its own bug and then reported the resulting gap as "still running".

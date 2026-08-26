@@ -4,6 +4,9 @@
 > financial-data provider integration. Each section names the control, where it lives, and
 > the test that proves it is active rather than merely present.
 > **Last updated:** 2026-08-25
+>
+> **Trial status:** Plaid Trial agreements **submitted and accepted**; Free Trial active; Production
+> credentials issued; dashboard shows **0/10 Production Items**. `PLAID_ENV=production` is intentional.
 
 ---
 

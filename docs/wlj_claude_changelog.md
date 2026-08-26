@@ -6,6 +6,48 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — docs+test(finance): transaction categories are OPTIONAL metadata; Plaid Trial status corrected
+
+**Investigated the "zero system categories" finding. Conclusion: not required reference data — nothing was
+loaded**, and the reason is code-backed rather than assumed.
+
+**The Plaid import path never assigns a category.** `sync_service._sync_transaction` builds a `Transaction`
+from user/account/date/amount/description/payee/plaid ids only — **the word "category" does not appear
+anywhere in `sync_service.py`**. Plaid's own `category`/`category_id` are fetched by
+`plaid_service._transaction_to_dict` and then discarded. Seeding a taxonomy would therefore change nothing
+about what an imported transaction receives.
+
+**Canonical WLJ classification is ENTITY ATTRIBUTION, not spending category** — `TransactionAttribution`
+carries provenance, confidence, evidence and supersession, and is what F1 detection, F2 review, F3
+verification and the CoS truth surface all read. Category is optional display metadata.
+
+**`load_default_categories` was deliberately NOT run — it is unsafe as written.** It creates every row with
+`user=<a user>` AND `is_system=True`, and `get_for_user` matches `Q(user=user) | Q(is_system=True)`, so each
+row becomes visible to **every** user: a cross-user classification leak, duplicated once per account
+(10 users × ~40 categories ≈ 400 rows). A genuinely global category is `user=None, is_system=True`, which is
+what the transfer form already creates on demand. Fixing the loader is a separate, non-blocking task.
+
+**Honest limitation recorded and tested:** synced rows carry no category, so the population contract's
+`category__category_type='transfer'` exclusion cannot fire on them, and `sync_service` never sets
+`transfer_pair` either — both known-transfer signals are inert for imported data. That is exactly why the
+**suspected-internal-transfer** review class exists; a payment naming one of the user's own liability
+accounts is held as `needs_review`, never silently attributed.
+
+**New: `apps/finance/tests/test_category_independence.py` (11 tests) runs the whole pipeline with an EMPTY
+category table** — population, attribution, detection, truth surface, review, dashboard, reporting totals —
+plus a guard that fails if `sync_service` ever starts touching categories (at which point the question
+should be revisited), and a guard documenting the loader's leak shape.
+
+**Plaid Trial status corrected (operator fact, superseding earlier docs):** the Trial agreements are
+**submitted and accepted**, the Free Trial is **active**, Production credentials are issued, and the Plaid
+dashboard shows **0/10 Production Items**. **`PLAID_ENV=production` is intentional and must not be reverted
+to sandbox.** `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md` §8 previously described production
+activation as deferred and the environment as sandbox — corrected, with the superseded text marked as such.
+`docs/WLJ_FINANCE_PROVIDER_SECURITY.md` now carries the Trial status in its header.
+
+**315 tests green.** No migrations, no production data created, no Plaid call, no Link token.
+
+
 ## 2026-08-25 — feat(finance): narrowly-scoped Finance reset command (dry-run by default)
 
 Built to wipe Finance cleanly before the first real Plaid connection. **No existing reset service covered

@@ -309,13 +309,57 @@ reasoning/classifier engine, to let WLJ emit financial verdicts, or to add finan
 - **F4 — ✅ DELIVERED (`71ca9f3d`).** ONE population authority (`financial_activity`); gap **G6 closed**;
   impact measured (`finance_population_audit`, local delta `+0.00`) before applying.
 
-**Production Plaid activation remains deferred.** The sandbox path stays exactly as built
-(`PLAID_ENV` default `sandbox`, `config/settings.py:1006–1008`; `PlaidService.is_configured()` at
-`apps/finance/services/plaid_service.py:59` already fails closed). **Explicit trigger for a production-provider
-evaluation:** Danny wants continuous live account sync rather than file import *and* F0–F2 have proven the
-attribution loop on real imported data. That evaluation is its own approval gate — it involves the user
-entering institution credentials in Plaid Link (never Claude, never WLJ), production token storage, and
-webhook exposure.
+**Production Plaid is ACTIVE (updated 2026-08-25).** The Plaid Trial agreements have been **submitted and
+accepted**; the Free Trial is live, Production credentials are issued, and the Plaid dashboard shows
+**0 / 10 Production Items** used. `PLAID_ENV=production` is **intentional** — it is not a misconfiguration
+and must not be reverted to sandbox.
+
+Production readiness verified: `bank_token_encryption_configured=True`, provider credentials present,
+webhook signatures fully verified (`plaid_webhook_verification.py`), revocation-before-forget enforced
+(`provider_disconnect.py`), and Finance access granted to exactly one explicitly-approved user.
+*Earlier revisions of this document described production activation as deferred and the environment as
+sandbox; that is superseded.*
+
+The one thing WLJ still never does: the user enters institution credentials in Plaid Link themselves —
+never Claude, never WLJ.
+
+## 8a. Transaction categories are optional metadata, not required reference data
+
+**Determined 2026-08-25, code-backed.** Production holds **zero** `TransactionCategory` rows and this is
+correct, not a gap.
+
+**The Plaid import path never assigns a category.** `sync_service._sync_transaction` creates a `Transaction`
+with `user`, `account`, `date`, `amount`, `description`, `payee`, `plaid_transaction_id`, `plaid_pending`,
+and `is_cleared` — and nothing else. The word *category* does not appear anywhere in
+`apps/finance/services/sync_service.py`. Plaid's own `category`/`category_id` ARE fetched by
+`plaid_service._transaction_to_dict` and then discarded by the sync. Seeding reference categories would
+therefore change nothing about what an imported transaction receives.
+
+**Canonical WLJ classification is ENTITY ATTRIBUTION, not spending category.** `TransactionAttribution`
+(F0) answers "who should bear this cost", carries provenance, confidence, evidence and supersession, and is
+what F1 detection, F2 review, F3 verification, and the CoS truth surface all read. Category is display
+metadata a person may add by hand; attribution is the truth the product is built on.
+
+**Every surface tolerates a null category** — `finance_domain_truth._transaction_entity` emits
+`category: None`, `financial_activity()` filters on `is_opening_balance`/transfer signals rather than
+category, and budgets simply have none to report against. Locked in by
+`apps/finance/tests/test_category_independence.py` (11 tests running with an empty category table).
+
+**The honest limitation.** Because synced rows have no category, the population contract's
+`category__category_type='transfer'` exclusion cannot fire on them — and `sync_service` never sets
+`transfer_pair` either. Both known-transfer signals are inert for imported data. That is precisely why the
+**suspected-internal-transfer** review class exists: a payment naming one of the user's own liability
+accounts is held back as `needs_review`, never silently attributed as an expense. Tested.
+
+**`load_default_categories` was NOT run, deliberately.** It creates each category with `user=<a user>` AND
+`is_system=True`. Since `TransactionCategory.get_for_user` matches `Q(user=user) | Q(is_system=True)`, every
+such row becomes visible to **every** user — a cross-user classification leak, duplicated once per account
+(10 users x ~40 categories). A genuinely global category is `user=None, is_system=True`, which is what the
+transfer form creates on demand (`forms.py:496`). Fixing the loader is a separate, non-blocking task.
+
+**Future opportunity (not required now):** Plaid's `personal_finance_category` is richer than any static
+list WLJ could seed. If spending categorisation is ever wanted, map it at ingest rather than seeding a
+generic taxonomy — improve the truth, do not add a table.
 
 ## 9. Decisions (resolved 2026-08-24)
 

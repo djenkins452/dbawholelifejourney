@@ -67,8 +67,15 @@ class DaysRequestedTests(TestCase):
 
     @skipUnless(PLAID_SDK, "plaid-python not installed in this environment")
     @override_settings(PLAID_CLIENT_ID="cid", PLAID_SECRET="sec", PLAID_ENV="sandbox")
-    def test_update_mode_tokens_also_widen_the_window(self):
-        """Update mode is how an EXISTING Item gets more history without removal."""
+    def test_update_mode_does_NOT_request_history(self):
+        """Update mode repairs an Item; it cannot widen transaction history.
+
+        Plaid's contract: once Transactions is initialized on an Item, `days_requested`
+        HAS NO EFFECT (plaid.com/docs/transactions/troubleshooting/). Plaid will still
+        ACCEPT a token carrying it — which is the trap. Sending it would encode a promise
+        the provider does not make, and would make a partial history look fixable when
+        it is not.
+        """
         captured = {}
 
         class _Client:
@@ -83,8 +90,58 @@ class DaysRequestedTests(TestCase):
         service.create_link_token_for_update(user, "access-sandbox-FAKE")
 
         self.assertTrue(captured["access_token"], "update mode needs the access token")
-        self.assertEqual(captured["transactions"].days_requested,
-                         TRANSACTION_HISTORY_DAYS_REQUESTED)
+        self.assertIsNone(
+            captured["transactions"],
+            "update mode must NOT carry days_requested — it cannot widen history")
+
+    def test_no_code_path_sends_days_requested_in_update_mode(self):
+        """AST-based: the comment above the code explains the rule and must name it;
+        only EXECUTABLE references count."""
+        import ast
+        import inspect
+        import textwrap
+
+        from apps.finance.services import plaid_service
+        tree = ast.parse(textwrap.dedent(inspect.getsource(
+            plaid_service.PlaidService.create_link_token_for_update)))
+        offenders = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg in ("days_requested",
+                                                              "transactions"):
+                offenders.append(f"keyword {node.arg}")
+            if isinstance(node, ast.Attribute) and node.attr == "transactions":
+                offenders.append("attribute transactions")
+            if isinstance(node, ast.Name) and node.id == "LinkTokenTransactions":
+                offenders.append("LinkTokenTransactions")
+        self.assertEqual(offenders, [],
+                         f"update mode must not request history: {offenders}")
+
+    def test_an_accepted_token_is_never_treated_as_backfill_evidence(self):
+        """The reasoning error this suite exists to prevent.
+
+        A 200 from /link/token/create means the REQUEST was valid. It says nothing about
+        whether history will expand. Nothing in the codebase may infer coverage from a
+        token being accepted.
+        """
+        from pathlib import Path
+
+        finance_dir = Path(__file__).resolve().parents[1]
+        offenders = []
+        for path in list(finance_dir.rglob("*.py")) + [
+                Path("templates/finance/bank_connection_list.html")]:
+            parts = path.parts
+            if any(skip in parts for skip in ("migrations", "__pycache__")):
+                continue
+            if path.name == Path(__file__).name:
+                continue
+            text = path.read_text(encoding="utf-8").lower()
+            for phrase in ("update mode is also the supported way to widen",
+                           "extend history", "widen an existing item",
+                           "widening it requires re-running link"):
+                if phrase in text:
+                    offenders.append(f"{path.name}: {phrase}")
+        self.assertEqual(offenders, [],
+                         f"a false history-extension claim survives: {offenders}")
 
     def test_the_requested_window_is_recorded_on_the_connection(self):
         source = open("apps/finance/views.py").read()
@@ -154,6 +211,26 @@ class CoverageHonestyTests(TestCase):
         self.assertIn("history_state_label", source)
         self.assertIn("days requested", source)
         self.assertIn("provisional until the import finishes", source)
+
+    def test_the_ui_never_offers_history_extension(self):
+        """There is no honest 'extend history' button — the operation does not exist."""
+        source = open("templates/finance/bank_connection_list.html").read().lower()
+        for forbidden in ("extend history", "extend-history", "get more history",
+                          "expand history"):
+            self.assertNotIn(forbidden, source)
+
+    def test_a_ninety_day_item_is_never_relabelled_as_seven_thirty(self):
+        """The recorded window is what was ASKED FOR at creation, not today's constant."""
+        self.assertEqual(self.connection.history_days_requested, 730)
+        legacy = BankConnection.objects.create(
+            user=self.user, item_id="item-legacy", institution_name="Older Bank",
+            connection_status=BankConnection.STATUS_ACTIVE,
+            history_days_requested=90, initial_update_complete=True,
+            historical_update_complete=True)
+        self.assertEqual(legacy.history_days_requested, 90)
+        self.assertEqual(legacy.history_state_label, "Historical import complete")
+        self.assertTrue(legacy.history_import_complete,
+                        "complete for the window it requested — which is the truth")
 
     def test_webhook_milestones_advance_coverage(self):
         """INITIAL_UPDATE and HISTORICAL_UPDATE mean different things; both are recorded."""

@@ -1528,8 +1528,9 @@ class BankConnection(UserOwnedModel):
     # ASKED FOR and what the provider says has ARRIVED, so the two can be told apart.
     history_days_requested = models.PositiveIntegerField(
         null=True, blank=True,
-        help_text="Days of history requested when this Item was created. Fixed at "
-                  "creation; widening it requires re-running Link in update mode.",
+        help_text="Days of history requested when this Item was created. Decided ONCE, "
+                  "at creation: after Transactions initializes, days_requested has no "
+                  "effect, so a longer window requires a new Item.",
     )
     initial_update_complete = models.BooleanField(
         default=False,

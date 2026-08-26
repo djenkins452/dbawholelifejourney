@@ -78,9 +78,15 @@ def _resolve_plaid_host(environment):
     return host
 
 
-#: Days of transaction history requested when an Item is created. 730 is the provider
-#: maximum; the default is 90, which is far too little to reason about a year over year.
-#: This is fixed at Item creation — it cannot be widened by a later sync.
+#: Days of transaction history requested when an Item is CREATED. 730 is the provider
+#: maximum; the default is 90, far too little to reason about a year over year.
+#:
+#: PLAID'S INVARIANT (https://plaid.com/docs/api/products/transactions/): once the
+#: Transactions product has been initialized on an Item, `days_requested` HAS NO EFFECT.
+#: The window is decided once, at Item creation, and cannot be increased afterwards — not
+#: by syncing, not by Link update mode. Getting a longer window for an existing Item means
+#: removing that Item and creating a new one, which is destructive and externally revokes
+#: access. See docs/WLJ_FINANCE_HISTORY_RECREATE_RUNBOOK.md.
 TRANSACTION_HISTORY_DAYS_REQUESTED = 730
 
 
@@ -190,8 +196,11 @@ class PlaidService:
 
         # Ask for as much history as the provider will give. Omitting this silently
         # accepts the provider's DEFAULT (90 days), which is why the first connection
-        # returned only ~3 months. The window is fixed when the Item is created, so a
-        # default accepted here cannot be widened later without re-running Link.
+        # returned only ~3 months.
+        #
+        # This is the ONLY moment the window can be set. Once Transactions is initialized
+        # on the Item, `days_requested` has no effect anywhere — so an omission here is
+        # permanent for the life of that Item.
         try:
             from plaid.model.link_token_transactions import LinkTokenTransactions
             link_request.transactions = LinkTokenTransactions(
@@ -236,6 +245,15 @@ class PlaidService:
         from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
         from plaid.model.country_code import CountryCode
 
+        # DELIBERATELY no `days_requested` here.
+        #
+        # Update mode REPAIRS an Item — expired credentials, a new MFA challenge, added
+        # accounts. It does NOT widen transaction history: once Transactions is
+        # initialized, `days_requested` has no effect
+        # (https://plaid.com/docs/transactions/troubleshooting/). Plaid will happily
+        # ACCEPT a token carrying it, which is exactly the trap — an accepted token
+        # proves the request was well-formed, never that a backfill will happen. Sending
+        # it here would encode a promise the provider does not make.
         link_request = LinkTokenCreateRequest(
             user=LinkTokenCreateRequestUser(
                 client_user_id=str(user.id),
@@ -245,16 +263,6 @@ class PlaidService:
             language='en',
             access_token=access_token,  # This enables update mode
         )
-
-        # Update mode is also the supported way to WIDEN an existing Item's history
-        # window without removing it — the Item, its accounts, and its access token all
-        # survive.
-        try:
-            from plaid.model.link_token_transactions import LinkTokenTransactions
-            link_request.transactions = LinkTokenTransactions(
-                days_requested=TRANSACTION_HISTORY_DAYS_REQUESTED)
-        except ImportError:                      # pragma: no cover - older SDKs
-            pass
 
         response = self.client.link_token_create(link_request)
 

@@ -6,6 +6,47 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — fix(finance): CORRECTION — Link update mode cannot widen an Item's transaction history
+
+**Danny caught a false claim I made, and he is right.** Plaid documents that once the Transactions product
+has been initialized on an Item, **`days_requested` has no effect**; the history window is decided once, at
+Item creation, and update mode cannot increase it
+(https://plaid.com/docs/api/products/transactions/ · https://plaid.com/docs/transactions/troubleshooting/).
+
+**The reasoning error, named so it is not repeated:** I created an update-mode Link token carrying
+`days_requested=730`, Plaid returned a token, and I reported that "the flow is available". **A 200 from
+`/link/token/create` proves the request was well-formed. It says nothing about coverage.** Accepting a
+request is not promising a backfill — and Plaid accepts this one precisely because the field is ignored.
+
+**Corrected:**
+- `create_link_token_for_update` no longer sends `days_requested` (or any `transactions` block). The comment
+  now states why, with the doc link.
+- `TRANSACTION_HISTORY_DAYS_REQUESTED = 730` **stays** for newly created Items — that is the only moment the
+  window can be set, so an omission there is permanent for the life of the Item.
+- `BankConnection.history_days_requested` help text corrected (migration `0027`, help-text only).
+- The **"extend history" action was never built and will not be** — a button that quietly does nothing is
+  worse than none.
+- The previous changelog entry is **annotated in place with a CORRECTION note** rather than rewritten;
+  history stays honest about having been wrong.
+
+**The existing Item keeps its truthful record: 90 days requested · 2026-05-29 → 2026-08-24 · complete for
+that window.** It is NOT relabelled as a 730-day Item — a test asserts a 90-day Item stays 90 and still
+reads "Historical import complete", because it is complete *for what it asked for*.
+
+**New contract tests (4, encoding Plaid's actual invariant):** new-Item creation sends
+`days_requested=730` · **update mode sends NO `transactions` block** (AST-checked, so the explanatory comment
+cannot satisfy it) · the UI never offers history extension · no false extension claim survives anywhere in
+`apps/finance/` or the templates · a 90-day Item is never relabelled 730.
+
+**Runbook prepared, NOT executed:** `docs/WLJ_FINANCE_HISTORY_RECREATE_RUNBOOK.md` — the only real path to a
+longer window is removing the Item and creating a new one. Revoke at the provider FIRST (the reset command
+refuses to run while a token remains), delete locally second, reconnect through ordinary Link at 730 days,
+and let the institution return whatever it actually supports. Notes the Trial-quota consequence: removing an
+Item does not return its slot, so a recreate consumes a second of the ten.
+
+**395 tests green.** No Item was disconnected, revoked, deleted, relinked, or diagnostically called.
+
+
 ## 2026-08-26 — fix(finance): only 87 days of history arrived — `days_requested` was never sent
 
 **Proven from the deployed code and the live Item.** `days_requested` appears **nowhere** in the Link-token
@@ -34,8 +75,14 @@ conclusion drawn from a quarter of the data is not a conclusion.
 it · the dashboard calls provisional totals provisional and stops once complete · the page separates
 coverage from health · both webhook milestones are handled. Two skip locally (no SDK on the dev machine).
 
-**Existing Item:** untouched — 1 connection, 4 accounts, token still encrypted. Widening its history needs
-Danny to re-run Link in **update mode**, which keeps the Item, accounts, and access token. Not performed.
+**Existing Item:** untouched — 1 connection, 4 accounts, token still encrypted.
+
+> **CORRECTION (2026-08-26, same day):** the sentence originally here — that widening the history window
+> needs Link **update mode**, which keeps the Item — was **WRONG**. Plaid documents that once the
+> Transactions product has been initialized on an Item, **`days_requested` has no effect**; update mode
+> cannot increase the window. The error came from treating an *accepted* update-mode Link token as evidence
+> that a backfill would occur: a 200 proves the request was well-formed, nothing more. See the correcting
+> entry above and `docs/WLJ_FINANCE_HISTORY_RECREATE_RUNBOOK.md`.
 
 
 ## 2026-08-26 — fix(finance): the FIRST sync of every connection was impossible — `cursor=None` failed SDK validation

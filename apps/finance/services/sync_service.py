@@ -35,6 +35,13 @@ class TransactionSyncService:
         result = service.sync()
     """
 
+    #: Bounded so one runaway pagination cannot hold a worker forever. Whatever is left
+    #: arrives on the next run — the cursor makes that safe.
+    MAX_SYNC_PAGES = 50
+    #: Plaid asks us to restart pagination when the account mutates mid-flight. Bounded
+    #: so a constantly-changing account cannot loop indefinitely.
+    MAX_SYNC_RESTARTS = 3
+
     # Map Plaid account types to WLJ account types
     ACCOUNT_TYPE_MAP = {
         ('depository', 'checking'): 'checking',
@@ -93,63 +100,117 @@ class TransactionSyncService:
             accounts_data = plaid.get_accounts(access_token)
             result['accounts_synced'] = self._sync_accounts(accounts_data)
 
-            # Then sync transactions with cursor
-            cursor = self.bank_connection.last_sync_cursor
-            has_more = True
+            # Transactions, paginated. The cursor we START from is the last one we
+            # durably persisted; a mid-pagination failure therefore replays from a known
+            # good position rather than skipping a page.
+            start_cursor = self.bank_connection.last_sync_cursor or ''
+            cursor = start_cursor
+            page = 0
+            pages_processed = 0
+            restarts = 0
 
-            while has_more:
-                sync_result = plaid.sync_transactions(access_token, cursor)
+            while True:
+                page += 1
+                if page > self.MAX_SYNC_PAGES:
+                    logger.warning("Sync page cap reached for connection %s; the rest "
+                                   "will arrive on the next run",
+                                   self.bank_connection.pk)
+                    break
+                try:
+                    sync_result = plaid.sync_transactions(access_token, cursor)
+                except Exception as exc:
+                    if self._is_mutation_during_pagination(exc) and \
+                            restarts < self.MAX_SYNC_RESTARTS:
+                        # The account changed underneath us mid-pagination. Plaid's
+                        # contract is to START OVER from the last durable cursor —
+                        # continuing would silently skip whatever moved.
+                        restarts += 1
+                        cursor = start_cursor
+                        page = 0
+                        result['added'] = result['modified'] = result['removed'] = 0
+                        logger.info("Sync restarted after a mutation during pagination "
+                                    "(connection %s, restart %s)",
+                                    self.bank_connection.pk, restarts)
+                        continue
+                    raise
 
-                # Process added transactions
                 for txn_data in sync_result['added']:
                     if self._create_or_update_transaction(txn_data):
                         result['added'] += 1
-
-                # Process modified transactions
                 for txn_data in sync_result['modified']:
                     if self._create_or_update_transaction(txn_data, is_update=True):
                         result['modified'] += 1
-
-                # Process removed transactions
                 for txn_id in sync_result['removed']:
                     if self._remove_transaction(txn_id):
                         result['removed'] += 1
 
-                cursor = sync_result['next_cursor']
-                has_more = sync_result['has_more']
+                pages_processed += 1
+                cursor = sync_result.get('next_cursor') or ''
+                if not sync_result.get('has_more'):
+                    break
 
-            # Update sync cursor
-            self.bank_connection.update_sync_cursor(
-                cursor,
-                transactions_added=result['added']
-            )
+            # An empty first response with no cursor is Plaid saying "still preparing" —
+            # a normal, expected state for a brand-new Item, not a failure. Persisting an
+            # empty cursor would also be meaningless, so we simply wait for the webhook.
+            preparing = (not cursor and not start_cursor
+                         and result['added'] == 0 and result['modified'] == 0)
+            result['preparing'] = preparing
 
-            # Mark connection as active
-            self.bank_connection.mark_active()
+            # Persist the cursor ONLY at the true pagination boundary — after every page
+            # has been applied. Saving mid-flight would advance past data we never stored.
+            if cursor:
+                self.bank_connection.update_sync_cursor(
+                    cursor, transactions_added=result['added'])
 
-            # Log success
-            self._log_sync_event(True, result)
+            if preparing:
+                self.bank_connection.mark_preparing()
+            else:
+                self.bank_connection.mark_active()
+
+            self._log_sync_event(True, {k: v for k, v in result.items()
+                                        if k != 'error'})
 
             logger.info(
-                f"Sync complete for {self.bank_connection}: "
-                f"added={result['added']}, modified={result['modified']}, "
-                f"removed={result['removed']}"
+                "Sync complete for connection %s: added=%s modified=%s removed=%s "
+                "pages=%s restarts=%s preparing=%s",
+                self.bank_connection.pk, result['added'], result['modified'],
+                result['removed'], pages_processed, restarts, preparing,
             )
 
         except Exception as e:
-            logger.error(f"Sync failed for {self.bank_connection}: {e}")
-            self._log_sync_event(False, {'error': str(e)})
+            from apps.finance.services.provider_diagnostics import (
+                safe_provider_diagnostics,
+            )
 
-            # Check if it's an auth error
-            error_str = str(e).lower()
-            if 'item_login_required' in error_str or 'invalid_access_token' in error_str:
+            diagnostics = safe_provider_diagnostics(e)
+            # Full detail — including SDK validation text — stays in the protected log.
+            logger.error("Sync failed for connection %s: %s",
+                         self.bank_connection.pk, diagnostics, exc_info=True)
+            self._log_sync_event(False, {k: v for k, v in diagnostics.items()
+                                         if k != 'exception'})
+
+            error_code = (diagnostics.get('error_code') or '').upper()
+            if error_code in ('ITEM_LOGIN_REQUIRED', 'INVALID_ACCESS_TOKEN'):
+                # The only genuinely actionable state: the user must re-authenticate.
                 self.bank_connection.mark_reauth_required()
+                result['error'] = 'reauth_required'
             else:
-                self.bank_connection.mark_error('SYNC_ERROR', str(e))
-
-            result['error'] = str(e)
+                # Everything else is OUR problem, not the user's. The connection stays
+                # usable and simply reports that it is still working — a raw SDK
+                # validation string is not something a person can act on.
+                self.bank_connection.mark_preparing()
+                result['error'] = 'sync_incomplete'
+            result['error_code'] = error_code or 'UNKNOWN'
 
         return result
+
+    @staticmethod
+    def _is_mutation_during_pagination(exc) -> bool:
+        """Plaid signalling that the account changed while we were paging through it."""
+        from apps.finance.services.provider_diagnostics import safe_provider_diagnostics
+
+        diagnostics = safe_provider_diagnostics(exc)
+        return diagnostics.get("error_code") == "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION"
 
     def _sync_accounts(self, accounts_data: list) -> int:
         """

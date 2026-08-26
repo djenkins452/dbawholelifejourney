@@ -6,6 +6,59 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — fix(finance): the FIRST sync of every connection was impossible — `cursor=None` failed SDK validation
+
+**Proven root cause, production log 02:36:47 UTC:**
+
+```
+Sync failed for First Horizon Bank … Invalid type for variable 'cursor'.
+Required value type is str and passed type was NoneType at ['cursor']
+```
+
+`sync_transactions` built the request as `cursor=cursor if cursor else None`. **plaid-python validates the
+TYPE of every optional field that is PRESENT**, so an explicit `None` fails client-side — the request never
+reached Plaid. A first sync has no cursor by definition, so **the first sync of every connection was
+guaranteed to fail.** Accounts imported fine (4 synced); transactions could not start.
+
+**Fix:** the field is now OMITTED, not nulled — `kwargs = {'access_token': …}` and `cursor` added only when
+one exists. No placeholder cursor is ever substituted: Plaid treats it as an opaque position and a fake one
+loses history.
+
+**Cursor contract, corrected end to end:**
+- persisted **only at the true pagination boundary** — after every page has been applied. Saving mid-flight
+  would advance past data never stored, so a crash re-fetches from the last good position instead of skipping;
+- an **empty next_cursor is not persisted** — there is nothing to resume from;
+- `TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION` **restarts from the durable cursor** (bounded to 3), because
+  continuing would silently skip whatever moved;
+- pagination is bounded at 50 pages; the remainder arrives next run, which the cursor makes safe.
+
+**"Preparing" is a state, not a failure.** A brand-new Item genuinely has no transactions until Plaid
+prepares them and sends `SYNC_UPDATES_AVAILABLE`. An empty first response now sets `pending` — *"Connected —
+preparing transactions"* — and the page says so plainly: *"Transaction history is still being prepared by
+your bank… nothing is wrong, and your accounts are already linked."*
+
+**Lifecycle corrected:** `pending` while preparing → `active` after a sync that actually moved data →
+`reauth_required` **only** for `ITEM_LOGIN_REQUIRED` / `INVALID_ACCESS_TOKEN`, the one genuinely actionable
+problem. Any other failure (including our own bugs) leaves the connection usable and reports "still working"
+rather than blaming the user. Sync stays available while preparing so a retry is one click.
+
+**The raw SDK string is gone from the UI.** Full detail — validation text, stack — stays in the protected
+log; the audit row keeps `error_type`/`error_code`/`request_id` only.
+
+**Idempotency proven:** replaying the same page creates no duplicate accounts or transactions, accounts match
+on `plaid_account_id`, and a failed sync does not advance the cursor.
+
+**Tests: 379 green** (20 new): first call omits the cursor · no `None`, no placeholder · later call includes
+the persisted one · empty initial response is `preparing` · empty cursor not persisted · pagination follows
+pages and persists only the final cursor · mutation-during-pagination restarts from the durable cursor ·
+bounded pagination · retry idempotency · no duplicate accounts/transactions · the literal production error
+replayed and asserted absent from the UI · auth error asks for reconnection · audit keeps codes not payloads ·
+token stays encrypted throughout.
+
+**Migration `0025`** relabels the `pending` status; no data change. **No Item was disconnected, revoked,
+relinked, or re-exchanged.**
+
+
 ## 2026-08-26 — feat(finance): production-grade Plaid OAuth redirect-and-resume
 
 **The missing half of the connection flow.** An OAuth institution takes the browser off WLJ to the bank and

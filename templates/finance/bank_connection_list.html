@@ -56,7 +56,15 @@
                             </span>
                             {% endif %}
                         </div>
-                        {% if connection.error_message %}
+                        {% if connection.connection_status == 'pending' %}
+                        <p class="status-note">
+                            Transaction history is still being prepared by your bank.
+                            This can take a little while after connecting — nothing is
+                            wrong, and your accounts are already linked.
+                        </p>
+                        {% elif connection.error_message %}
+                        {# Only genuinely actionable messages reach the page; SDK and #}
+                        {# provider detail stays in the protected logs.               #}
                         <p class="error-text">{{ connection.error_message }}</p>
                         {% endif %}
                     </div>
@@ -67,7 +75,7 @@
                             data-connection-id="{{ connection.pk }}">
                         Reconnect
                     </button>
-                    {% elif connection.connection_status == 'active' %}
+                    {% elif connection.connection_status == 'active' or connection.connection_status == 'pending' %}
                     <button class="btn btn-secondary btn-sm btn-sync-connection"
                             data-connection-id="{{ connection.pk }}"
                             id="sync-btn-{{ connection.pk }}">
@@ -451,6 +459,12 @@ document.addEventListener('click', function(e) {
     align-items: center;
     gap: var(--space-3);
     font-size: 0.875rem;
+}
+
+.status-note {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-top: 0.25rem;
 }
 
 .status-badge {

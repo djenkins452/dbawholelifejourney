@@ -331,10 +331,18 @@ class PlaidService:
         """
         from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
-        request = TransactionsSyncRequest(
-            access_token=access_token,
-            cursor=cursor if cursor else None,
-        )
+        # OMIT `cursor` entirely on the first call — do not pass None.
+        #
+        # plaid-python validates the TYPE of every optional field that is present, so an
+        # explicit `cursor=None` fails client-side before the request is ever sent
+        # ("Required value type is str and passed type was NoneType"). Since the first
+        # sync of any connection has no cursor, that made the FIRST sync of every
+        # connection impossible. Never substitute a placeholder cursor either: Plaid
+        # treats the cursor as an opaque position, and a fake one loses history.
+        kwargs = {'access_token': access_token}
+        if cursor:
+            kwargs['cursor'] = cursor
+        request = TransactionsSyncRequest(**kwargs)
         response = self.client.transactions_sync(request)
 
         # Convert transactions to dicts

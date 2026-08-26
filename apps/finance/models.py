@@ -1463,7 +1463,7 @@ class BankConnection(UserOwnedModel):
 
     STATUS_CHOICES = [
         (STATUS_ACTIVE, 'Active'),
-        (STATUS_PENDING, 'Pending Initial Sync'),
+        (STATUS_PENDING, 'Connected — preparing transactions'),
         (STATUS_ERROR, 'Error'),
         (STATUS_DISCONNECTED, 'Disconnected'),
         (STATUS_REAUTH_REQUIRED, 'Requires Re-authentication'),
@@ -1586,6 +1586,20 @@ class BankConnection(UserOwnedModel):
         self.connection_status = self.STATUS_ERROR
         self.error_code = error_code
         self.error_message = error_message
+        self.save(update_fields=[
+            'connection_status', 'error_code', 'error_message', 'updated_at'
+        ])
+
+    def mark_preparing(self):
+        """Connected and working, but transaction history is not ready yet.
+
+        A brand-new Item genuinely has no transactions for a while — Plaid prepares them
+        and then sends SYNC_UPDATES_AVAILABLE. That is not an error, and showing the user
+        one (let alone a raw SDK message) misrepresents a healthy connection.
+        """
+        self.connection_status = self.STATUS_PENDING
+        self.error_code = ''
+        self.error_message = ''
         self.save(update_fields=[
             'connection_status', 'error_code', 'error_message', 'updated_at'
         ])

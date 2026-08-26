@@ -1543,6 +1543,23 @@ class BankConnection(UserOwnedModel):
     )
     historical_update_at = models.DateTimeField(null=True, blank=True)
 
+    # A webhook REJECTED before verification never reached the point where a
+    # BankIntegrationLog row is written, so "zero webhook records" was
+    # indistinguishable from "the provider never called us" — and on 2026-08-26 that
+    # ambiguity produced a confidently wrong status report. These two fields make a
+    # rejected delivery visible in operational truth. They are only ever written for
+    # a payload whose item_id already matches this connection, and they overwrite
+    # rather than accumulate, so an unauthenticated caller cannot grow the table.
+    last_webhook_rejected_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the provider last called us with a delivery we refused.",
+    )
+    last_webhook_rejection_reason = models.CharField(
+        max_length=64, blank=True, default="",
+        help_text="Verification reason code for that refusal. A WLJ-side fault and a "
+                  "genuinely unrecognised key are DIFFERENT codes on purpose.",
+    )
+
     last_sync_cursor = models.CharField(
         max_length=500,
         blank=True,
@@ -1668,6 +1685,38 @@ class BankConnection(UserOwnedModel):
     def history_import_complete(self):
         """Is the full requested history in, or is this still a partial view?"""
         return bool(self.historical_update_complete)
+
+    #: Plaid's own coverage statement, returned on every /transactions/sync call.
+    UPDATE_STATUS_INITIAL_COMPLETE = "INITIAL_UPDATE_COMPLETE"
+    UPDATE_STATUS_HISTORICAL_COMPLETE = "HISTORICAL_UPDATE_COMPLETE"
+
+    def record_update_status(self, update_status):
+        """Record coverage milestones from the provider's statement in a sync response.
+
+        This is the SAME truth the webhook carries, obtained from a response WLJ
+        already makes — so an undelivered or rejected webhook can no longer leave a
+        connection permanently unable to learn that its history is complete.
+
+        Advances only. A later response cannot un-complete a finished connection.
+        """
+        if not update_status:
+            return
+
+        changed = []
+        if (update_status in (self.UPDATE_STATUS_INITIAL_COMPLETE,
+                              self.UPDATE_STATUS_HISTORICAL_COMPLETE)
+                and not self.initial_update_complete):
+            self.initial_update_complete = True
+            changed.append('initial_update_complete')
+
+        if (update_status == self.UPDATE_STATUS_HISTORICAL_COMPLETE
+                and not self.historical_update_complete):
+            self.historical_update_complete = True
+            self.historical_update_at = timezone.now()
+            changed += ['historical_update_complete', 'historical_update_at']
+
+        if changed:
+            self.save(update_fields=sorted(set(changed)) + ['updated_at'])
 
     @property
     def history_state_label(self):

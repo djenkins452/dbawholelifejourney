@@ -58798,3 +58798,49 @@ purchase would have waited for a manual sync.
 
 **Why:** found by reading the provider's contract rather than trusting the existing
 code — the same method that found defect 2.
+
+### 2026-08-26 (same investigation) — outcome, and removing the single point of failure
+
+**Outcome.** One ordinary incremental sync on the durable cursor returned
+`added: 677, modified: 28`. Plaid had finished the backfill long before and was holding
+it; WLJ had simply never asked, because the webhook that says "come and get it" was
+being rejected by defect 1. Final coverage **2024-08-26 → 2026-08-24 (728 days against
+730 requested)**, 705 transactions, 705 distinct provider ids, 0 duplicates, 0 blanks,
+0 pending rows, cursor advanced. The 28 rows from the first batch were *modified* in
+place, not re-added.
+
+**The residual, and the class behind it.** After that sync WLJ held the complete
+history while still reporting "historical import still running", because
+`initial_update_complete` / `historical_update_complete` could ONLY ever be set by a
+webhook — and the webhook carrying them had already been sent and rejected. Plaid does
+not resend it. So a single lost delivery left the connection permanently unable to
+learn a fact about itself.
+
+That is the condition worth removing, not the stale flag worth patching. Plaid states
+the same truth as `transactions_update_status` (`NOT_READY` /
+`INITIAL_UPDATE_COMPLETE` / `HISTORICAL_UPDATE_COMPLETE`) **on every
+`/transactions/sync` response** — a call WLJ already makes.
+
+- `apps/finance/services/plaid_service.py` — return `update_status` from
+  `sync_transactions()` (absent on older API versions → treated as unknown).
+- `apps/finance/services/sync_service.py` — carry it through the pagination loop and
+  hand it to the connection once, at the true boundary.
+- `apps/finance/models.py` — `BankConnection.record_update_status()`, advance-only, so
+  a later response can never un-complete a finished connection.
+
+Coverage truth now arrives through the path WLJ controls, with the webhook as an
+accelerant rather than the sole source. Webhooks remain fully verified; nothing about
+signature checking changed.
+
+**Also — rejected deliveries are no longer invisible.** `BankIntegrationLog` rows were
+only written *after* verification passed, so "0 webhook records" was indistinguishable
+from "the provider never called us" — and that ambiguity produced a confidently wrong
+status report earlier the same day. `BankConnection.last_webhook_rejected_at` /
+`last_webhook_rejection_reason` (migration `0028`) now record a refusal, written only
+when the payload's `item_id` already matches a known connection and overwritten in
+place, so an unauthenticated caller can neither create rows nor grow the table.
+
+**Files:** `apps/finance/models.py`, `apps/finance/services/plaid_service.py`,
+`apps/finance/services/sync_service.py`, `apps/finance/views.py`,
+`apps/finance/migrations/0028_bankconnection_last_webhook_rejected_at_and_more.py`,
+`apps/finance/tests/test_plaid_webhook_delivery.py`.

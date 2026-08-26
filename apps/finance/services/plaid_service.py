@@ -392,12 +392,20 @@ class PlaidService:
 
         removed = [r.transaction_id for r in response.removed]
 
+        # Plaid states coverage progress IN THIS RESPONSE — NOT_READY /
+        # INITIAL_UPDATE_COMPLETE / HISTORICAL_UPDATE_COMPLETE. Reading it here is what
+        # frees "is the backfill finished?" from webhook delivery: a webhook we never
+        # receive can no longer leave WLJ permanently unable to learn the answer.
+        # Absent on older API versions, so treat a missing value as "unknown".
+        update_status = getattr(response, 'transactions_update_status', None)
+
         return {
             'added': added,
             'modified': modified,
             'removed': removed,
             'next_cursor': response.next_cursor,
             'has_more': response.has_more,
+            'update_status': str(update_status) if update_status else '',
         }
 
     def _transaction_to_dict(self, txn) -> dict:

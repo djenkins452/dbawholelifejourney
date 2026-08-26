@@ -1474,6 +1474,33 @@ def verify_plaid_webhook(request):
     return bool(result), (None if result else result.reason)
 
 
+def _record_webhook_rejection(request, reason):
+    """Make a REFUSED delivery visible without trusting its contents.
+
+    Nothing here acts on the payload — it is used only to find a connection we
+    already know about. If the item_id is absent or unrecognised, we record nothing,
+    so an unauthenticated caller cannot write rows or grow the table. Two fields are
+    overwritten in place; no history accumulates.
+
+    Why this exists: rejected webhooks previously left no durable trace at all, so an
+    operator reading "0 webhook records" could reasonably — and wrongly — conclude the
+    provider had never called.
+    """
+    try:
+        item_id = json.loads(request.body or b"{}").get('item_id')
+        if not item_id:
+            return
+        updated = BankConnection.objects.filter(item_id=item_id).update(
+            last_webhook_rejected_at=timezone.now(),
+            last_webhook_rejection_reason=(reason or "")[:64],
+        )
+        if updated:
+            logger.warning("Plaid webhook REJECTED for a known connection (%s). "
+                           "The provider is calling us and we are refusing it.", reason)
+    except Exception:                       # observability must never break the response
+        logger.warning("Could not record Plaid webhook rejection", exc_info=True)
+
+
 #: Webhook codes that mean "new transaction state is waiting at the provider".
 #: `/transactions/sync` reconciles from its durable cursor, so the correct response to
 #: every one of these is the same ordinary incremental sync.
@@ -1502,6 +1529,7 @@ def plaid_webhook(request):
     is_valid, error = verify_plaid_webhook(request)
     if not is_valid:
         logger.warning(f"Plaid webhook verification failed: {error}")
+        _record_webhook_rejection(request, error)
         return JsonResponse({'status': 'unauthorized', 'error': error}, status=401)
 
     try:

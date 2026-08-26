@@ -107,6 +107,7 @@ class TransactionSyncService:
             cursor = start_cursor
             page = 0
             pages_processed = 0
+            update_status = ''
             restarts = 0
 
             while True:
@@ -145,6 +146,7 @@ class TransactionSyncService:
                         result['removed'] += 1
 
                 pages_processed += 1
+                update_status = sync_result.get('update_status') or update_status
                 cursor = sync_result.get('next_cursor') or ''
                 if not sync_result.get('has_more'):
                     break
@@ -161,6 +163,13 @@ class TransactionSyncService:
             if cursor:
                 self.bank_connection.update_sync_cursor(
                     cursor, transactions_added=result['added'])
+
+            # Record coverage from the PROVIDER'S OWN statement in the sync response.
+            # Previously this could only ever be learned from a webhook, so a single
+            # undelivered (or, as on 2026-08-26, wrongly rejected) webhook left the
+            # connection permanently reporting "historical import still running" while
+            # holding the complete history. Every sync now re-states the truth.
+            self.bank_connection.record_update_status(update_status)
 
             if preparing:
                 self.bank_connection.mark_preparing()

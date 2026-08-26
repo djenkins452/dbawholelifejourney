@@ -210,7 +210,7 @@ class SyncWebhookCompletionTests(TestCase):
                 mock_sync.assert_called_once()
 
     def test_unverified_webhook_is_rejected_and_changes_nothing(self):
-        """Signature verification is NOT weakened by this fix."""
+        """Signature verification is NOT weakened by any of these fixes."""
         response = self.client.post(
             self.url,
             data=json.dumps({"webhook_type": "TRANSACTIONS",
@@ -221,3 +221,101 @@ class SyncWebhookCompletionTests(TestCase):
         self.assertEqual(response.status_code, 401)
         self.connection.refresh_from_db()
         self.assertFalse(self.connection.historical_update_complete)
+
+    def test_a_rejected_delivery_is_visible_afterwards(self):
+        """"0 webhook records" must never again be mistaken for "never called"."""
+        self.client.post(
+            self.url,
+            data=json.dumps({"webhook_type": "TRANSACTIONS",
+                             "webhook_code": "SYNC_UPDATES_AVAILABLE",
+                             "item_id": "item-webhook-test"}),
+            content_type="application/json")
+        self.connection.refresh_from_db()
+        self.assertIsNotNone(self.connection.last_webhook_rejected_at)
+        self.assertTrue(self.connection.last_webhook_rejection_reason)
+
+    def test_rejection_recording_writes_nothing_for_an_unknown_item(self):
+        """An unauthenticated caller cannot create rows or grow the table."""
+        before = BankConnection.objects.count()
+        response = self.client.post(
+            self.url,
+            data=json.dumps({"webhook_type": "TRANSACTIONS",
+                             "webhook_code": "SYNC_UPDATES_AVAILABLE",
+                             "item_id": "not-a-real-item"}),
+            content_type="application/json")
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(BankConnection.objects.count(), before)
+        self.connection.refresh_from_db()
+        self.assertIsNone(self.connection.last_webhook_rejected_at)
+
+    def test_rejection_recording_survives_an_unparseable_body(self):
+        response = self.client.post(self.url, data=b"not json",
+                                    content_type="application/json")
+        self.assertEqual(response.status_code, 401)
+
+
+class SyncResponseCoverageTruthTests(TestCase):
+    """Completion must be learnable WITHOUT a webhook.
+
+    The whole 2026-08-26 incident turned on a single point of failure: coverage
+    milestones could only ever arrive by webhook, so one rejected delivery left the
+    connection holding a complete 728-day history while telling the user the import was
+    still running. Plaid states the same truth in `transactions_update_status` on every
+    `/transactions/sync` response, which WLJ already calls — so the class is removed
+    rather than the symptom detected.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="coverage-test@example.com", password="x")
+        self.connection = BankConnection.objects.create(
+            user=self.user, institution_name="Test Bank",
+            item_id="item-coverage-test", status=BankConnection.STATUS_ACTIVE)
+
+    def test_historical_complete_is_recorded_from_the_sync_response(self):
+        self.connection.record_update_status("HISTORICAL_UPDATE_COMPLETE")
+        self.connection.refresh_from_db()
+        self.assertTrue(self.connection.initial_update_complete)
+        self.assertTrue(self.connection.historical_update_complete)
+        self.assertIsNotNone(self.connection.historical_update_at)
+        self.assertEqual(self.connection.history_state_label,
+                         "Historical import complete")
+
+    def test_initial_complete_does_not_claim_historical(self):
+        self.connection.record_update_status("INITIAL_UPDATE_COMPLETE")
+        self.connection.refresh_from_db()
+        self.assertTrue(self.connection.initial_update_complete)
+        self.assertFalse(self.connection.historical_update_complete)
+
+    def test_not_ready_and_unknown_record_nothing(self):
+        for status in ["NOT_READY", "TRANSACTIONS_UPDATE_STATUS_UNKNOWN", "", None]:
+            with self.subTest(status=status):
+                self.connection.record_update_status(status)
+                self.connection.refresh_from_db()
+                self.assertFalse(self.connection.initial_update_complete)
+                self.assertFalse(self.connection.historical_update_complete)
+
+    def test_a_later_response_never_un_completes_history(self):
+        self.connection.record_update_status("HISTORICAL_UPDATE_COMPLETE")
+        stamped = BankConnection.objects.get(pk=self.connection.pk).historical_update_at
+        self.connection.record_update_status("INITIAL_UPDATE_COMPLETE")
+        self.connection.refresh_from_db()
+        self.assertTrue(self.connection.historical_update_complete)
+        self.assertEqual(self.connection.historical_update_at, stamped)
+
+    def test_sync_service_records_the_status_it_was_given(self):
+        """The status must survive the pagination loop into the connection."""
+        from apps.finance.services.sync_service import TransactionSyncService
+
+        service = TransactionSyncService(self.connection)
+        with patch.object(self.connection, "get_access_token", return_value="tok"), \
+             patch("apps.finance.services.plaid_service.PlaidService.sync_transactions",
+                   return_value={"added": [], "modified": [], "removed": [],
+                                 "next_cursor": "cursor-1", "has_more": False,
+                                 "update_status": "HISTORICAL_UPDATE_COMPLETE"}), \
+             patch("apps.finance.services.plaid_service.PlaidService.get_accounts",
+                   return_value=[]):
+            service.sync()
+
+        self.connection.refresh_from_db()
+        self.assertTrue(self.connection.historical_update_complete)

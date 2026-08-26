@@ -6,6 +6,58 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — feat(finance): production-grade Plaid OAuth redirect-and-resume
+
+**The missing half of the connection flow.** An OAuth institution takes the browser off WLJ to the bank and
+returns it to `/finance/plaid/oauth/` — a route that did not exist (it 404'd) even though a settings default
+advertised it to Plaid. Now implemented end to end.
+
+**Resume, not restart.** The return page re-initialises Plaid Link with the **same** Link token and
+`receivedRedirectUri: window.location.href`, which is what Plaid requires to pick the interrupted flow back up.
+
+**Where the token lives matters more than that it survives.** It is held in the **server-side session**,
+bound to the authenticated user, single-use, expiring in 30 minutes — never `localStorage` (it would outlive
+the attempt on a shared machine), never the database (a Link token is a short-lived credential, not a
+record), never a log or a URL (both get copied and indexed). In the page it is `escapejs`-encoded and used
+for exactly one purpose.
+
+**On return, nothing is trusted.** `plaid_oauth.resolve()` refuses — never repairs — a missing, expired,
+already-consumed, or wrong-user attempt, and a wrong-user attempt is **destroyed** so it cannot be retried
+against a third account. The exchange marks the state consumed BEFORE calling Plaid, so a replayed return
+cannot ride it through twice, and clears it on success. Abandoning at the bank drops it via an explicit
+endpoint. Each refusal gets an honest message rather than a blank failure.
+
+**No open redirect:** the return path always comes from `reverse('finance:connection_list')`; a `?next=`
+parameter is ignored entirely (tested with an attacker-controlled host).
+
+**The re-auth loop that would have stranded every OAuth user.** `requires_recent_auth(15)` guards the token
+exchange, but a bank login routinely takes longer than 15 minutes — the user would have returned from their
+bank to a challenge they could not satisfy without abandoning the connection. A **live bound OAuth attempt
+now satisfies recency**: it was created moments after a password confirmation, is tied to this user and
+session, is single-use, and expires in 30 minutes. Security preserved, loop removed — and a test proves the
+control still bites when no attempt is live.
+
+**Deploy-time configuration guards (`finance.E003/E004/E005`):** whenever `PLAID_REDIRECT_URI` is set it must
+be **HTTPS**, a **host in ALLOWED_HOSTS**, and an **actually-routed path**. All three fire correctly and the
+canonical URI passes. This is the check that would have caught the 2026-08-26 outage at deploy time instead
+of in production.
+
+**`PLAID_REDIRECT_URI` is intentionally still UNSET.** Plaid rejects an unregistered redirect URI outright,
+which breaks every connection — so the variable stays empty until the URI is registered in the Plaid
+dashboard.
+
+**Tests: 362 green** (24 new): initial launch binds an attempt (and does not when OAuth is unconfigured) ·
+return resumes with the same token · accessible status region and a way back · missing / expired / replayed /
+wrong-user state refused · anonymous and Finance-disabled refused · no open redirect · the long-bank-login
+loop · successful exchange consumes and clears · replay cannot reuse · abandonment connects nothing · token
+escaped and never in browser storage · all four config guards · and the canonical path really resolves to the
+route.
+
+**Files:** `apps/finance/services/plaid_oauth.py`, `templates/finance/plaid_oauth_return.html`,
+`apps/finance/tests/test_plaid_oauth.py` (new); `apps/finance/views.py`, `urls.py`, `checks.py`,
+`security.py`. No migrations.
+
+
 ## 2026-08-26 — fix(finance): Plaid rejected every connection — an unregistered redirect_uri that was never routed
 
 **Proven root cause, production log at 01:30:57 UTC** (the reported minute), safe fields only:

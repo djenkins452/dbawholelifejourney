@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Finishing your bank connection - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="plaid-oauth-return">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{{ connections_url }}">Connections</a>
+        <span>/</span>
+        <span>Finishing up</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Finishing your bank connection</h1>
+    </div>
+
+    <p class="oauth-status" id="oauth-status" role="status" aria-live="polite">
+        {% if state_error %}{{ state_error }}{% else %}Bringing you back from your bank…{% endif %}
+    </p>
+
+    <p>
+        <a class="btn" href="{{ connections_url }}" data-testid="oauth-back-link">
+            Back to Finance Connections
+        </a>
+    </p>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+    .oauth-status { font-size: 1rem; min-height: 1.5em; margin-bottom: 1rem; }
+    .oauth-status[data-kind="error"] { color: var(--danger, #b91c1c); }
+    .oauth-status[data-kind="info"] { color: var(--text-muted, #6b7280); }
+    .container .btn { min-height: 44px; display: inline-flex; align-items: center; }
+    @media (max-width: 480px) { .container .btn { width: 100%; justify-content: center; } }
+</style>
+
+{% if link_token %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+    // The Link token is used here and nowhere else: never written to localStorage,
+    // never put in a URL, never logged.
+    var linkToken = "{{ link_token|escapejs }}";
+    var connectionsUrl = "{{ connections_url|escapejs }}";
+    var completeUrl = "{{ complete_url|escapejs }}";
+    var statusEl = document.getElementById("oauth-status");
+
+    function say(text, kind) {
+        statusEl.textContent = text;
+        statusEl.dataset.kind = kind || "info";
+    }
+    function csrfToken() {
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : "";
+    }
+    function goBack(delay) {
+        window.setTimeout(function () {
+            window.location.assign(connectionsUrl);
+        }, delay || 2500);
+    }
+
+    if (typeof Plaid === "undefined") {
+        say("We could not load the bank connection tool. Please start again.", "error");
+        goBack(3500);
+        return;
+    }
+
+    var handler = Plaid.create({
+        token: linkToken,
+        // Plaid resumes the interrupted flow from the FULL returned URL.
+        receivedRedirectUri: window.location.href,
+        onSuccess: function (public_token, metadata) {
+            say("Connecting your accounts…", "info");
+            fetch(completeUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "X-CSRFToken": csrfToken()
+                },
+                body: JSON.stringify({ public_token: public_token, metadata: metadata })
+            }).then(function (r) { return r.json(); })
+              .then(function (data) {
+                  if (data.success) {
+                      say("Connected. Taking you back to your connections…", "info");
+                      goBack(1200);
+                      return;
+                  }
+                  say(data.error || "We could not finish connecting that account.",
+                      "error");
+                  goBack(4000);
+              })
+              .catch(function () {
+                  say("We could not finish connecting that account. Please try again.",
+                      "error");
+                  goBack(4000);
+              });
+        },
+        onExit: function (err) {
+            // Abandoned or failed at the bank: drop the attempt, connect nothing.
+            fetch("{% url 'finance:plaid_oauth_abandon' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": csrfToken(), "Accept": "application/json" }
+            }).catch(function () { /* the attempt expires on its own regardless */ });
+            say(err ? "Your bank did not complete the connection. Nothing was connected."
+                    : "Bank connection cancelled. Nothing was connected.", "info");
+            goBack(3000);
+        }
+    });
+
+    handler.open();
+})();
+</script>
+{% else %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+    var el = document.getElementById("oauth-status");
+    if (el) { el.dataset.kind = "error"; }
+})();
+</script>
+{% endif %}
+{% endblock %}

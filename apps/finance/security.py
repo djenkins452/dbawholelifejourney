@@ -416,6 +416,18 @@ def _recent_auth_age_seconds(request):
     sensitive financial operations. Falls back to `last_login`, which only a fresh sign-in
     can refresh — so on its own it would strand the user with no way to satisfy it.
     """
+    # A live, bound OAuth attempt IS proof of a recent deliberate act: it was created
+    # moments after a password confirmation, is tied to this user and session, is
+    # single-use, and expires in 30 minutes. Without this, a bank login that takes
+    # longer than 15 minutes would strand the user in a challenge they cannot satisfy
+    # without abandoning the connection — a loop, not a control.
+    try:
+        from apps.finance.services import plaid_oauth
+        if plaid_oauth.is_live(request):
+            return 0.0                       # the bound attempt is the proof
+    except Exception:  # pragma: no cover - never let this gate crash a request
+        logger.warning("OAuth recency check failed", exc_info=True)
+
     confirmed_at = request.session.get(FINANCE_ACTIVITY_SESSION_KEY)
     if confirmed_at:
         try:

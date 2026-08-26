@@ -21,7 +21,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView, View
@@ -1126,6 +1126,16 @@ def bank_connection_start(request):
         plaid = get_plaid_service()
         result = plaid.create_link_token(request.user, request)
 
+        # When OAuth is configured the browser will leave WLJ entirely and come back to
+        # /finance/plaid/oauth/, where Plaid requires the SAME Link token. Bind the
+        # attempt to this user and session so the return can be trusted.
+        from django.conf import settings as django_settings
+
+        from apps.finance.services import plaid_oauth
+
+        if (getattr(django_settings, 'PLAID_REDIRECT_URI', '') or '').strip():
+            plaid_oauth.begin(request, link_token=result['link_token'])
+
         return JsonResponse({
             'success': True,
             'link_token': result['link_token'],
@@ -1191,6 +1201,11 @@ def bank_connection_complete(request):
                 'error': 'Missing public_token'
             }, status=400)
 
+        # An OAuth attempt ends here. Mark it used BEFORE the exchange so a replayed
+        # return cannot ride the same state through a second time.
+        from apps.finance.services import plaid_oauth
+        plaid_oauth.consume(request)
+
         plaid = get_plaid_service()
 
         # Exchange token
@@ -1228,6 +1243,9 @@ def bank_connection_complete(request):
             connection.save()
             logger.info(f"Created new bank connection: {connection}")
 
+        # The attempt is finished; nothing should survive it.
+        plaid_oauth.clear(request)
+
         # Log the connection
         BankIntegrationLog.objects.create(
             user=request.user,
@@ -1260,6 +1278,49 @@ def bank_connection_complete(request):
             'success': False,
             'error': str(e)
         }, status=500)
+
+
+@login_required
+@finance_enabled_required
+def plaid_oauth_return(request):
+    """Where an OAuth bank sends the user back. Resumes Link with the SAME token.
+
+    Deliberately NOT behind `requires_recent_auth`: the user has been at their bank for
+    however long that took, and the recency proof for this flow is the bound OAuth state
+    — created moments after a password confirmation, tied to this user and session,
+    single-use, and expiring in 30 minutes. Re-challenging here would strand people who
+    took too long at their bank, which is a loop, not a control.
+
+    The Link token is handed to the page for exactly one purpose — re-initialising Link —
+    and is never logged, stored in the browser, or placed in a URL.
+    """
+    from apps.finance.services import plaid_oauth
+
+    context = {
+        'connections_url': reverse('finance:connection_list'),
+        'complete_url': reverse('finance:connection_complete'),
+        'link_token': '',
+        'state_error': '',
+    }
+    try:
+        context['link_token'] = plaid_oauth.resolve(request)
+    except plaid_oauth.OAuthStateError as exc:
+        reason = str(exc)
+        context['state_error'] = plaid_oauth.message_for(reason)
+        logger.warning("Plaid OAuth return refused: %s", reason)
+
+    return render(request, 'finance/plaid_oauth_return.html', context)
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def plaid_oauth_abandon(request):
+    """The user backed out of the bank flow. Drop the attempt; connect nothing."""
+    from apps.finance.services import plaid_oauth
+
+    plaid_oauth.clear(request)
+    return JsonResponse({'success': True})
 
 
 @login_required

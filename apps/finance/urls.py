@@ -102,6 +102,11 @@ urlpatterns = [
     path('connections/<int:pk>/disconnect/', views.bank_connection_disconnect, name='connection_disconnect'),
     path('connections/<int:pk>/sync/', views.bank_connection_sync, name='connection_sync'),
 
+    # Plaid OAuth redirect-and-resume (canonical URI registered with Plaid)
+    path('plaid/oauth/', views.plaid_oauth_return, name='plaid_oauth_return'),
+    path('plaid/oauth/abandon/', views.plaid_oauth_abandon,
+         name='plaid_oauth_abandon'),
+
     # Plaid Webhooks
     path('webhooks/plaid/', views.plaid_webhook, name='plaid_webhook'),
 ]

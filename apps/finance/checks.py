@@ -18,6 +18,9 @@ from django.core.checks import Error, Warning, register
 FINANCE_ENCRYPTION_MISSING = "finance.E001"
 FINANCE_ENCRYPTION_INVALID = "finance.E002"
 FINANCE_ENCRYPTION_DEV = "finance.W001"
+FINANCE_REDIRECT_NOT_HTTPS = "finance.E003"
+FINANCE_REDIRECT_FOREIGN_HOST = "finance.E004"
+FINANCE_REDIRECT_UNROUTED = "finance.E005"
 
 
 @register()
@@ -55,3 +58,59 @@ def bank_token_encryption_check(app_configs, **kwargs):
             id=FINANCE_ENCRYPTION_INVALID,
         )]
     return []
+
+
+@register()
+def plaid_redirect_uri_check(app_configs, **kwargs):
+    """A configured redirect URI must be HTTPS, ours, and actually routed.
+
+    Plaid rejects `link/token/create` outright when `redirect_uri` is not registered with
+    them — so a wrong value here breaks EVERY connection, not just OAuth ones. And a URI
+    that is registered but not routed sends the user from their bank to a 404 with their
+    connection half-finished. Both failures are cheap to catch at deploy time and
+    expensive to discover in production, which is exactly what happened on 2026-08-26.
+    """
+    from urllib.parse import urlparse
+
+    redirect_uri = (getattr(settings, "PLAID_REDIRECT_URI", "") or "").strip()
+    if not redirect_uri:
+        return []                      # unset is valid: OAuth institutions are not offered
+
+    errors = []
+    parsed = urlparse(redirect_uri)
+
+    if parsed.scheme != "https":
+        errors.append(Error(
+            f"PLAID_REDIRECT_URI must use https (got {parsed.scheme or 'no scheme'!r}).",
+            hint="Banks will not redirect to a non-HTTPS URI.",
+            id=FINANCE_REDIRECT_NOT_HTTPS,
+        ))
+
+    allowed = {h.lstrip(".") for h in getattr(settings, "ALLOWED_HOSTS", []) if h != "*"}
+    host = (parsed.hostname or "").lower()
+    if allowed and host and not any(
+            host == a.lower() or host.endswith("." + a.lower()) for a in allowed):
+        errors.append(Error(
+            f"PLAID_REDIRECT_URI host {host!r} is not one of this site's ALLOWED_HOSTS.",
+            hint="The redirect must return the user to WLJ itself, never to another "
+                 "origin.",
+            id=FINANCE_REDIRECT_FOREIGN_HOST,
+        ))
+
+    path = parsed.path or "/"
+    try:
+        from django.urls import Resolver404, resolve
+        try:
+            resolve(path)
+        except Resolver404:
+            errors.append(Error(
+                f"PLAID_REDIRECT_URI path {path!r} is not routed in WLJ — a bank would "
+                "return the user to a 404.",
+                hint="Expected the OAuth return route "
+                     "(finance:plaid_oauth_return, /finance/plaid/oauth/).",
+                id=FINANCE_REDIRECT_UNROUTED,
+            ))
+    except Exception:                  # pragma: no cover - URLconf not ready
+        pass
+
+    return errors

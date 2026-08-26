@@ -187,6 +187,28 @@ class SyncWebhookCompletionTests(TestCase):
         self.assertTrue(self.connection.initial_update_complete)
         self.assertTrue(self.connection.historical_update_complete)
 
+    def test_every_sync_signalling_code_triggers_a_sync(self):
+        """No scheduled sync task exists — webhooks are the ONLY ingestion path."""
+        from apps.finance.views import SYNC_TRIGGERING_WEBHOOK_CODES
+
+        for code in ['SYNC_UPDATES_AVAILABLE', 'DEFAULT_UPDATE',
+                     'TRANSACTIONS_REMOVED', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
+            self.assertIn(code, SYNC_TRIGGERING_WEBHOOK_CODES, code)
+
+        for code in ['DEFAULT_UPDATE', 'TRANSACTIONS_REMOVED']:
+            with self.subTest(code=code):
+                with patch("apps.finance.views.verify_plaid_webhook",
+                           return_value=(True, None)), \
+                     patch("apps.finance.services.sync_service."
+                           "TransactionSyncService.sync") as mock_sync:
+                    self.client.post(
+                        self.url,
+                        data=json.dumps({"webhook_type": "TRANSACTIONS",
+                                         "webhook_code": code,
+                                         "item_id": "item-webhook-test"}),
+                        content_type="application/json")
+                mock_sync.assert_called_once()
+
     def test_unverified_webhook_is_rejected_and_changes_nothing(self):
         """Signature verification is NOT weakened by this fix."""
         response = self.client.post(

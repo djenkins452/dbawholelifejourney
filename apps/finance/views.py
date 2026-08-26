@@ -1474,6 +1474,18 @@ def verify_plaid_webhook(request):
     return bool(result), (None if result else result.reason)
 
 
+#: Webhook codes that mean "new transaction state is waiting at the provider".
+#: `/transactions/sync` reconciles from its durable cursor, so the correct response to
+#: every one of these is the same ordinary incremental sync.
+SYNC_TRIGGERING_WEBHOOK_CODES = frozenset({
+    'SYNC_UPDATES_AVAILABLE',   # the sync integration's primary signal
+    'DEFAULT_UPDATE',           # ongoing new transactions
+    'TRANSACTIONS_REMOVED',     # removals are delivered through sync's `removed`
+    'INITIAL_UPDATE',           # legacy /transactions/get
+    'HISTORICAL_UPDATE',        # legacy /transactions/get
+})
+
+
 @csrf_exempt
 @require_POST
 def plaid_webhook(request):
@@ -1555,7 +1567,14 @@ def plaid_webhook(request):
             if changed:
                 connection.save(update_fields=sorted(set(changed)) + ['updated_at'])
 
-            if webhook_code in ['SYNC_UPDATES_AVAILABLE', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
+            # Every code that means "there is something to pull". A
+            # /transactions/sync integration receives SYNC_UPDATES_AVAILABLE,
+            # DEFAULT_UPDATE and TRANSACTIONS_REMOVED; the INITIAL_/HISTORICAL_
+            # pair is the legacy /transactions/get flow, kept for safety.
+            # DEFAULT_UPDATE was missing, and there is NO scheduled sync task —
+            # webhooks are the only ongoing ingestion path, so omitting it meant
+            # no new transaction would ever arrive on its own after the backfill.
+            if webhook_code in SYNC_TRIGGERING_WEBHOOK_CODES:
                 # Trigger sync
                 from apps.finance.services.sync_service import TransactionSyncService
                 sync_service = TransactionSyncService(connection)

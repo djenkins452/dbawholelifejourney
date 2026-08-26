@@ -58776,3 +58776,25 @@ state — a durable cursor does prove a first batch landed — so it stays.
 
 **Why:** Plaid completed the historical import and told us; WLJ rejected the message
 with its own bug and then reported the resulting gap as "still running".
+
+### 2026-08-26 (same investigation) — third defect: `DEFAULT_UPDATE` was never handled
+
+Checking Plaid's documented webhook contract for step 5 of the investigation surfaced a
+third gap. A `/transactions/sync` integration receives `SYNC_UPDATES_AVAILABLE`,
+**`DEFAULT_UPDATE`** and **`TRANSACTIONS_REMOVED`**; `INITIAL_UPDATE` /
+`HISTORICAL_UPDATE` belong to the legacy `/transactions/get` flow. WLJ's trigger list
+held only the primary plus the two legacy codes.
+
+This matters more than it looks: `apps/finance/tasks.py` has **no scheduled transaction
+sync**, so webhooks are the *only* automatic ingestion path. Once the historical
+backfill finished, no new transaction would ever have arrived on its own — every future
+purchase would have waited for a manual sync.
+
+- `apps/finance/views.py` — extract `SYNC_TRIGGERING_WEBHOOK_CODES` (one named set, all
+  five codes) and drive the trigger from it. Sync reconciles from its durable cursor, so
+  the correct response to every one of these is the same ordinary incremental sync.
+- Test asserts the set's membership *and* that `DEFAULT_UPDATE` / `TRANSACTIONS_REMOVED`
+  actually reach `TransactionSyncService.sync`.
+
+**Why:** found by reading the provider's contract rather than trusting the existing
+code — the same method that found defect 2.

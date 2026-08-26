@@ -1641,6 +1641,9 @@ class FinanceAuditLog(models.Model):
     ACTION_IMPORT = 'import'
     ACTION_EXPORT = 'export'
     ACTION_AI_QUERY = 'ai_query'
+    #: A deliberate, authorised wipe of Finance data. Recorded so the reset itself
+    #: leaves evidence even though the data it removed is gone.
+    ACTION_RESET = 'reset'
 
     ACTION_CHOICES = [
         (ACTION_CREATE, 'Created'),
@@ -1651,6 +1654,7 @@ class FinanceAuditLog(models.Model):
         (ACTION_IMPORT, 'Imported'),
         (ACTION_EXPORT, 'Exported'),
         (ACTION_AI_QUERY, 'AI Query'),
+        (ACTION_RESET, 'Module Reset'),
     ]
 
     # Entity types
@@ -1662,6 +1666,7 @@ class FinanceAuditLog(models.Model):
         ('import', 'Import'),
         ('bank_connection', 'Bank Connection'),
         ('ai_insight', 'AI Insight'),
+        ('module', 'Finance Module'),
     ]
 
     user = models.ForeignKey(

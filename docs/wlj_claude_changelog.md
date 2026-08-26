@@ -6,6 +6,46 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-25 — feat(finance): narrowly-scoped Finance reset command (dry-run by default)
+
+Built to wipe Finance cleanly before the first real Plaid connection. **No existing reset service covered
+this** — `apps/finance/management/commands/` had only access/audit/category/recurring commands, and
+`load_initial_data` is a fixture loader, not a purge.
+
+**Dependency graph inspected first:** no other app holds a foreign key INTO any Finance model, so the blast
+radius is contained. Finance's outbound FKs (`life.Document`, `purpose.LifeGoal`, `core.Insight`,
+`ai.ConversationFollowUp`) are all `SET_NULL` — the targets are preserved.
+
+**Safety properties that matter more than convenience:**
+- **Refuses to run while any provider credential exists.** Deleting a live `BankConnection` locally would
+  strand Plaid's access to a real bank with the only revocation credential destroyed. Revoke first.
+- **Hard deletes, in dependency order, via `all_objects`.** Soft-deleted rows are included deliberately: a
+  survivor could reappear through the soft-delete manager or collide on a provider id, fingerprint, dedupe
+  key, or attribution constraint during the first sync. A reset that leaves ghosts is worse than none.
+- **One transaction** — it either fully completes or changes nothing. Idempotent.
+- **Dry-run by default**; deletion needs `--confirm RESET-FINANCE` and a `--by` STAFF operator.
+- **Counts only, never values.** A test asserts no payee, account name, entity name, or amount appears in
+  the inventory or the command output.
+
+**Preserved by design:** users and auth · `finances_enabled` grants · system taxonomy
+(`TransactionCategory.is_system`, user-created ones go) · migrations and config · all non-Finance data ·
+and ONE redacted `FinanceAuditLog` row recording that the reset happened (new `reset`/`module` choices,
+migration `0023`).
+
+**SAE state is edited, not deleted:** `_strip_finance_state()` removes only the `finance` key from
+`UserState.state_data`. Deleting the row would destroy health, goals and faith state stored alongside it —
+another domain's data this reset must never touch. Tested explicitly.
+
+**Tests: 304 green** (19 new) — inventory accuracy incl. soft-deleted, redaction, provider refusal, full
+emptiness, soft-deleted rows not surviving, derived records removed, non-Finance untouched, system taxonomy
+kept, users/grants intact, audit evidence redacted, idempotency, SAE selectivity, dry-run safety, token
+requirement, staff requirement, and output redaction.
+
+**Files:** `apps/finance/services/finance_reset.py`,
+`apps/finance/management/commands/finance_reset.py`, `apps/finance/tests/test_finance_reset.py`,
+`apps/finance/migrations/0023_finance_reset_audit_choices.py` (new); `apps/finance/models.py` (audit choices).
+
+
 ## 2026-08-25 — fix(finance): Plaid Link could never start — a retired SDK environment was evaluated on every call
 
 **Proven root cause, from the production log at the exact reported minute:**

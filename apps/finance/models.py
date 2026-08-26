@@ -531,6 +531,127 @@ class Transaction(UserOwnedModel):
         help_text="Linked receipt document (from email attachment)",
     )
 
+    # =========================================================================
+    # Provider provenance (Plaid) — WHAT THE PROVIDER SAID, kept verbatim
+    # =========================================================================
+    # Three dimensions stay SEPARATE and each keeps its own authority:
+    #   provider_*        what Plaid said            (never overwritten by WLJ)
+    #   category          WLJ's canonical spending category
+    #   attribution       which economic entity bears the cost (F0)
+    # "Software / Beacon / paid from Personal" is three independent facts, not one.
+    # Credentials, full account numbers, and raw payloads are deliberately NOT stored.
+
+    provider_category = models.JSONField(
+        default=list, blank=True,
+        help_text="Provider's legacy category hierarchy, verbatim. Never overwritten.",
+    )
+    provider_category_primary = models.CharField(
+        max_length=64, blank=True, default='', db_index=True,
+        help_text="Provider's personal-finance-category PRIMARY value, verbatim.",
+    )
+    provider_category_detailed = models.CharField(
+        max_length=128, blank=True, default='',
+        help_text="Provider's personal-finance-category DETAILED value, verbatim.",
+    )
+    provider_category_confidence = models.CharField(
+        max_length=16, blank=True, default='',
+        help_text="Provider's confidence in its own classification (gates mapping).",
+    )
+    provider_payment_channel = models.CharField(
+        max_length=24, blank=True, default='',
+        help_text="online / in store / other — a transfer signal.",
+    )
+    provider_transaction_code = models.CharField(
+        max_length=32, blank=True, default='',
+        help_text="Provider transaction code (e.g. 'transfer', 'purchase').",
+    )
+    provider_merchant_name = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Normalized merchant as the provider resolved it.",
+    )
+    provider_counterparties = models.JSONField(
+        default=list, blank=True,
+        help_text="Counterparty NAMES and TYPES only — never account identifiers.",
+    )
+    provider_pending_transaction_id = models.CharField(
+        max_length=100, blank=True, default='', db_index=True,
+        help_text="The pending row this posted transaction replaces. The key to "
+                  "pending→posted matching; without it a pending and its posted twin "
+                  "become two transactions.",
+    )
+    provider_authorized_date = models.DateField(
+        null=True, blank=True,
+        help_text="When the provider says it was authorized (may precede posting).",
+    )
+
+    # =========================================================================
+    # WLJ canonical spending category — authority and provenance
+    # =========================================================================
+    CATEGORY_SOURCE_NONE = 'none'
+    CATEGORY_SOURCE_PROVIDER = 'provider_mapped'
+    CATEGORY_SOURCE_RULE = 'rule'
+    CATEGORY_SOURCE_USER = 'user'
+    CATEGORY_SOURCE_CHOICES = [
+        (CATEGORY_SOURCE_NONE, 'Not categorized'),
+        (CATEGORY_SOURCE_PROVIDER, 'Mapped from the provider'),
+        (CATEGORY_SOURCE_RULE, 'Applied from a user rule'),
+        (CATEGORY_SOURCE_USER, 'Chosen by the user'),
+    ]
+    category_source = models.CharField(
+        max_length=20, choices=CATEGORY_SOURCE_CHOICES, default=CATEGORY_SOURCE_NONE,
+        db_index=True,
+        help_text="How the WLJ category was decided. A user choice outranks every "
+                  "provider or inferred value and is never silently replaced.",
+    )
+    category_confirmed_at = models.DateTimeField(null=True, blank=True)
+
+    # =========================================================================
+    # Transfer classification — a THIRD dimension, independent of category/entity
+    # =========================================================================
+    TRANSFER_STATE_UNKNOWN = 'unknown'
+    TRANSFER_STATE_NOT_TRANSFER = 'not_transfer'
+    TRANSFER_STATE_CANDIDATE = 'candidate'
+    TRANSFER_STATE_CONFIRMED = 'confirmed'
+    TRANSFER_STATE_CHOICES = [
+        (TRANSFER_STATE_UNKNOWN, 'Not yet assessed'),
+        (TRANSFER_STATE_NOT_TRANSFER, 'Ordinary activity'),
+        (TRANSFER_STATE_CANDIDATE, 'Possible transfer — held for review'),
+        (TRANSFER_STATE_CONFIRMED, 'Confirmed transfer / payment'),
+    ]
+    TRANSFER_KIND_INTERNAL = 'internal_transfer'
+    TRANSFER_KIND_CARD_PAYMENT = 'credit_card_payment'
+    TRANSFER_KIND_REFUND = 'refund'
+    TRANSFER_KIND_REVERSAL = 'reversal'
+    TRANSFER_KIND_CHOICES = [
+        ('', 'None'),
+        (TRANSFER_KIND_INTERNAL, 'Internal transfer'),
+        (TRANSFER_KIND_CARD_PAYMENT, 'Credit-card payment'),
+        (TRANSFER_KIND_REFUND, 'Refund'),
+        (TRANSFER_KIND_REVERSAL, 'Reversal'),
+    ]
+    TRANSFER_BY_PROVIDER = 'provider'
+    TRANSFER_BY_PAIRING = 'pairing'
+    TRANSFER_BY_USER = 'user'
+    TRANSFER_BY_CHOICES = [
+        ('', 'Unset'),
+        (TRANSFER_BY_PROVIDER, 'Provider classification'),
+        (TRANSFER_BY_PAIRING, 'Matched to its counterpart'),
+        (TRANSFER_BY_USER, 'Confirmed by the user'),
+    ]
+    transfer_state = models.CharField(
+        max_length=16, choices=TRANSFER_STATE_CHOICES,
+        default=TRANSFER_STATE_UNKNOWN, db_index=True,
+        help_text="CONFIRMED leaves spending totals; CANDIDATE is held out AND reviewed "
+                  "— never silently counted either way.",
+    )
+    transfer_kind = models.CharField(
+        max_length=24, choices=TRANSFER_KIND_CHOICES, blank=True, default='',
+    )
+    transfer_classified_by = models.CharField(
+        max_length=16, choices=TRANSFER_BY_CHOICES, blank=True, default='',
+        help_text="A user decision here outranks provider and pairing alike.",
+    )
+
     # F0: link a generated transaction back to the commitment that produced it.
     # `is_recurring` only says "this repeats"; it does not say WHICH series, which the
     # recurring-scope attribution rule and the F3 "move this recurring expense" flow both
@@ -567,6 +688,11 @@ class Transaction(UserOwnedModel):
             models.Index(fields=['plaid_transaction_id']),
             models.Index(fields=['user', 'recurring_source'],
                          name='idx_txn_user_recurring_src'),
+            # The population authority's hottest filter.
+            models.Index(fields=['user', 'transfer_state', 'date'],
+                         name='idx_txn_user_transfer'),
+            models.Index(fields=['provider_pending_transaction_id'],
+                         name='idx_txn_pending_link'),
         ]
 
     def __str__(self):

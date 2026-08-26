@@ -6,6 +6,67 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — feat(finance): provider ingestion — provenance preserved, global taxonomy, deterministic transfer handling
+
+**The previous conclusion that entity attribution replaces transaction categorization is WITHDRAWN.**
+Category, economic entity, and transfer state are three independent dimensions — "Software / Beacon / paid
+from Personal / not a transfer" is four facts about one row, and none substitutes for another. Corrected
+in `docs/WLJ_FINANCE_INTELLIGENCE_ARCHITECTURE_ASSESSMENT.md §8a` before any real data was imported.
+
+**1 — Provider provenance is preserved instead of discarded.** `plaid_service._transaction_to_dict` fetched
+Plaid's `category`/`category_id` and threw them away; `sync_service` never wrote a category at all. It now
+carries the legacy category, personal-finance-category primary/detailed/**confidence**, payment channel,
+transaction code, merchant, counterparties (names + types only), `authorized_date`, and
+**`pending_transaction_id`** — stored in `provider_*` fields WLJ never overwrites (migration `0024`).
+Credentials, account/routing numbers, and raw payloads are deliberately NOT stored.
+
+**2 — The taxonomy is global and idempotent.** `seed_finance_categories` seeds **21** categories as
+`user=None, is_system=True`. The retired `load_default_categories` created every row with `user=<a user>`
+AND `is_system=True`; because `get_for_user` matches `Q(user=user) | Q(is_system=True)`, those rows leaked
+one person's classifications into everyone's list, duplicated once per account.
+
+**3 — Mapping is deterministic and confidence-gated.** `map_provider_category()` maps provider
+PRIMARY/DETAILED onto a WLJ category only at `VERY_HIGH`/`HIGH`. Unmapped or uncertain leaves it unset — an
+unset category is honest; a guessed one corrupts every total built on it. **No model call per transaction.**
+`category_source` (`none`/`provider_mapped`/`rule`/`user`) records the authority, and a user's choice is
+never overwritten by a later sync while the provider's newest opinion is still recorded.
+
+**4 — Transfers decided on evidence, strongest first:** user decision → matched pair → provider
+classification → shape alone. Checking↔savings and personal↔Beacon pair on amount/date/account and **both
+legs** leave the totals; card payments are recognised from `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` or a
+liability counterpart; refunds stay IN the totals (real money offsetting spend); reversals soft-delete.
+
+**5 — The pending→posted bug that would have double-counted every purchase.** Plaid sends the posted row
+under a NEW id carrying `pending_transaction_id`; sync matched only on `transaction_id`, so the pending row
+would have survived alongside its posted twin — two transactions for one purchase, with the user's
+attribution stranded on the ghost. The posted row now **replaces the pending one in place**, preserving
+attribution, category choice, and transfer decision. Tested.
+
+**6 — Ambiguity is held, not guessed.** A partial signal yields `transfer_state=candidate`: excluded from
+totals AND surfaced for review. Counting a transfer as spending inflates every figure built on it and
+manufactures false "business expense paid personally" findings; hiding real money is equally wrong. Neither
+happens silently.
+
+**7 — `financial_activity()` remains the single population authority**, now excluding confirmed transfers
+and ambiguous candidates alongside opening balances. The contract test still fails on any second definition
+(`transfer_detection` is allowlisted with a written reason: it PRODUCES the signal, it does not redefine the
+population).
+
+**Tests: 336 green.** `test_category_independence.py` — which institutionalised category absence — is
+**deleted** and replaced by `test_ingestion_pipeline.py` (23 tests on synthetic provider fixtures, no Plaid
+call): provenance survives · the three dimensions stay independent · categories cannot leak between users ·
+seeding is idempotent · transfer pairs and card payments are not double-counted · ambiguous transfers enter
+review · refunds/reversals/pending→posted are correct · user corrections outrank provider and inference ·
+totals are exact across a mixed batch (one expense + one refund = −$75 with a card payment and an ambiguous
+transfer correctly held out).
+
+**Files:** `apps/finance/services/category_taxonomy.py`, `transfer_detection.py`,
+`apps/finance/management/commands/seed_finance_categories.py`,
+`apps/finance/tests/test_ingestion_pipeline.py`, `apps/finance/migrations/0024_*` (new);
+`apps/finance/models.py`, `services/plaid_service.py`, `services/sync_service.py`,
+`services/attribution_population.py`, `views_attribution.py`, docs.
+
+
 ## 2026-08-25 — docs+test(finance): transaction categories are OPTIONAL metadata; Plaid Trial status corrected
 
 **Investigated the "zero system categories" finding. Conclusion: not required reference data — nothing was

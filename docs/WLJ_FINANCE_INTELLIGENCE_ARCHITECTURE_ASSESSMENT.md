@@ -323,43 +323,63 @@ sandbox; that is superseded.*
 The one thing WLJ still never does: the user enters institution credentials in Plaid Link themselves —
 never Claude, never WLJ.
 
-## 8a. Transaction categories are optional metadata, not required reference data
+## 8a. Category, economic entity, and transfer state are THREE independent dimensions
 
-**Determined 2026-08-25, code-backed.** Production holds **zero** `TransactionCategory` rows and this is
-correct, not a gap.
+**Corrected 2026-08-26.** An earlier revision of this section claimed entity attribution
+*replaced* transaction categorization and that a category taxonomy was unnecessary. **That
+conclusion is rejected and withdrawn.** The approved architecture keeps the dimensions
+separate:
 
-**The Plaid import path never assigns a category.** `sync_service._sync_transaction` creates a `Transaction`
-with `user`, `account`, `date`, `amount`, `description`, `payee`, `plaid_transaction_id`, `plaid_pending`,
-and `is_cleared` — and nothing else. The word *category* does not appear anywhere in
-`apps/finance/services/sync_service.py`. Plaid's own `category`/`category_id` ARE fetched by
-`plaid_service._transaction_to_dict` and then discarded by the sync. Seeding reference categories would
-therefore change nothing about what an imported transaction receives.
+| Dimension | Question it answers | Authority |
+|---|---|---|
+| **WLJ category** | *what was bought* — Software | `Transaction.category` + `category_source` |
+| **Economic entity** | *who bears the cost* — Beacon | `TransactionAttribution.attributed_entity` |
+| **Paid from** | *whose money moved* — Personal | `TransactionAttribution.paid_by_entity` |
+| **Transfer state** | *is this spending at all* | `Transaction.transfer_state` |
 
-**Canonical WLJ classification is ENTITY ATTRIBUTION, not spending category.** `TransactionAttribution`
-(F0) answers "who should bear this cost", carries provenance, confidence, evidence and supersession, and is
-what F1 detection, F2 review, F3 verification, and the CoS truth surface all read. Category is display
-metadata a person may add by hand; attribution is the truth the product is built on.
+None substitutes for another. "Software / Beacon / paid from Personal / not a transfer"
+is four facts about one row.
 
-**Every surface tolerates a null category** — `finance_domain_truth._transaction_entity` emits
-`category: None`, `financial_activity()` filters on `is_opening_balance`/transfer signals rather than
-category, and budgets simply have none to report against. Locked in by
-`apps/finance/tests/test_category_independence.py` (11 tests running with an empty category table).
+### Provider provenance is preserved, not discarded
+`plaid_service._transaction_to_dict` now carries the provider's legacy category, its
+personal-finance-category primary/detailed/confidence, payment channel, transaction code,
+merchant, counterparties (names and types only), `authorized_date`, and — critically —
+`pending_transaction_id`. `sync_service` stores each on the `Transaction` in a
+`provider_*` field that WLJ never overwrites. Credentials, account/routing numbers, and
+raw payloads are deliberately not stored.
 
-**The honest limitation.** Because synced rows have no category, the population contract's
-`category__category_type='transfer'` exclusion cannot fire on them — and `sync_service` never sets
-`transfer_pair` either. Both known-transfer signals are inert for imported data. That is precisely why the
-**suspected-internal-transfer** review class exists: a payment naming one of the user's own liability
-accounts is held back as `needs_review`, never silently attributed as an expense. Tested.
+### The taxonomy is global, and the old loader was not
+`category_taxonomy.SYSTEM_CATEGORIES` seeds **21** categories as `user=None,
+is_system=True` via `manage.py seed_finance_categories` (idempotent). The retired
+`load_default_categories` created every row with `user=<a user>` AND `is_system=True`;
+since `get_for_user` matches `Q(user=user) | Q(is_system=True)`, those rows leaked one
+person's classifications into everyone's list, duplicated once per account.
 
-**`load_default_categories` was NOT run, deliberately.** It creates each category with `user=<a user>` AND
-`is_system=True`. Since `TransactionCategory.get_for_user` matches `Q(user=user) | Q(is_system=True)`, every
-such row becomes visible to **every** user — a cross-user classification leak, duplicated once per account
-(10 users x ~40 categories). A genuinely global category is `user=None, is_system=True`, which is what the
-transfer form creates on demand (`forms.py:496`). Fixing the loader is a separate, non-blocking task.
+### Mapping is deterministic and confidence-gated
+`map_provider_category()` maps the provider's PRIMARY/DETAILED values onto a WLJ category
+**only** at `VERY_HIGH`/`HIGH` confidence. Unmapped or uncertain leaves the category
+unset — an unset category is honest; a guessed one corrupts every total built on it.
+**No model call, ever.** A user's choice sets `category_source='user'` and is never
+overwritten by a later sync, while the provider's newest opinion is still recorded.
 
-**Future opportunity (not required now):** Plaid's `personal_finance_category` is richer than any static
-list WLJ could seed. If spending categorisation is ever wanted, map it at ingest rather than seeding a
-generic taxonomy — improve the truth, do not add a table.
+### Transfers, decided on evidence
+`transfer_detection` classifies in strength order: **user decision → matched pair →
+provider classification → shape alone**. Checking↔savings and personal↔Beacon movements
+pair on amount/date/account and both legs leave the totals; credit-card payments are
+recognised from `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` or a liability counterpart; refunds
+stay IN the totals because they are real money offsetting spend; reversals soft-delete;
+pending→posted replaces the row **in place** via `pending_transaction_id`, so a purchase
+is never counted twice and the user's attribution is never stranded.
+
+**Ambiguity is held, not guessed.** A partial signal produces `transfer_state=candidate`:
+excluded from totals AND surfaced in review. Counting a transfer as spending inflates
+every figure built on it and manufactures false findings; hiding real money is just as
+wrong. Neither happens silently.
+
+### One population authority, still
+`financial_activity()` remains the single definition, now excluding confirmed transfers
+and ambiguous candidates alongside opening balances. A contract test fails if any other
+Finance module filters on `transfer_state` or re-derives the population.
 
 ## 9. Decisions (resolved 2026-08-24)
 

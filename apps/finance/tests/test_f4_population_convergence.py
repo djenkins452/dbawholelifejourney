@@ -121,6 +121,10 @@ class NoSecondDefinitionTests(TestCase):
         "apps/finance/services/opportunity_detection.py",
         # The audit command's whole purpose is to compare the OLD and NEW definitions.
         "apps/finance/management/commands/finance_population_audit.py",
+        # Transfer detection PRODUCES the signal the authority consumes: it finds
+        # unpaired legs in order to pair them. It defines transfer TRUTH, not the
+        # spending population, which still has exactly one definition.
+        "apps/finance/services/transfer_detection.py",
         # Likewise the operator audit: it REPORTS the population classes (opening
         # balances, both transfer signals, pending) as counts. It measures the contract
         # rather than redefining it.

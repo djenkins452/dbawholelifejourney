@@ -352,7 +352,30 @@ class PlaidService:
         }
 
     def _transaction_to_dict(self, txn) -> dict:
-        """Convert a Plaid transaction object to a dict."""
+        """Convert a Plaid transaction to a dict, PRESERVING its classification.
+
+        The provider's own categorisation, transaction code, payment channel,
+        counterparties, and — critically — `pending_transaction_id` are carried through.
+        They are what make normalization, pending→posted matching, transfer detection,
+        refunds and auditability possible. Previously they were fetched and dropped.
+
+        Deliberately NOT carried: account/routing numbers, tokens, raw payloads, or
+        anything else a WLJ user never needs and a log should never hold.
+        """
+        pfc = getattr(txn, 'personal_finance_category', None)
+
+        def _enum(value):
+            return value.value if hasattr(value, 'value') else value
+
+        counterparties = []
+        for party in (getattr(txn, 'counterparties', None) or [])[:5]:
+            name = getattr(party, 'name', None)
+            if name:
+                counterparties.append({
+                    'name': str(name)[:120],
+                    'type': str(_enum(getattr(party, 'type', '')) or '')[:40],
+                })
+
         return {
             'transaction_id': txn.transaction_id,
             'account_id': txn.account_id,
@@ -361,9 +384,17 @@ class PlaidService:
             'name': txn.name,
             'merchant_name': txn.merchant_name,
             'pending': txn.pending,
-            'category': txn.category,
+            # -- provenance kept verbatim --------------------------------------
+            'category': list(txn.category or []) if txn.category else [],
             'category_id': txn.category_id,
-            'payment_channel': txn.payment_channel.value if txn.payment_channel else None,
+            'pfc_primary': str(getattr(pfc, 'primary', '') or ''),
+            'pfc_detailed': str(getattr(pfc, 'detailed', '') or ''),
+            'pfc_confidence': str(_enum(getattr(pfc, 'confidence_level', '')) or ''),
+            'payment_channel': _enum(txn.payment_channel) if txn.payment_channel else None,
+            'transaction_code': str(_enum(getattr(txn, 'transaction_code', '')) or ''),
+            'pending_transaction_id': getattr(txn, 'pending_transaction_id', None) or '',
+            'authorized_date': getattr(txn, 'authorized_date', None),
+            'counterparties': counterparties,
             'location': {
                 'city': txn.location.city if txn.location else None,
                 'region': txn.location.region if txn.location else None,

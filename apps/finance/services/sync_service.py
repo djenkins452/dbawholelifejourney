@@ -61,6 +61,9 @@ class TransactionSyncService:
         """
         self.bank_connection = bank_connection
         self.user = bank_connection.user
+        # Per-sync caches so a batch costs one lookup, not one per transaction.
+        self._category_map = None
+        self._liability_names = None
 
     def sync(self) -> dict:
         """
@@ -262,44 +265,122 @@ class TransactionSyncService:
             logger.warning(f"No account found for Plaid account {plaid_account_id}")
             return False
 
-        # Check if transaction exists
+        pending_id = (txn_data.get('pending_transaction_id') or '').strip()
+
+        # Pending -> posted. Plaid sends the POSTED transaction as a NEW id carrying
+        # `pending_transaction_id`. Matching only on transaction_id would leave the
+        # pending row behind, so the same purchase would be counted twice — and any
+        # attribution the user had already made would be stranded on the ghost.
         existing = Transaction.objects.filter(
-            user=self.user,
-            plaid_transaction_id=plaid_txn_id
+            user=self.user, plaid_transaction_id=plaid_txn_id
         ).first()
+        promoted_from_pending = False
+        if existing is None and pending_id:
+            existing = Transaction.objects.filter(
+                user=self.user, plaid_transaction_id=pending_id
+            ).first()
+            promoted_from_pending = existing is not None
 
         # Plaid amounts: positive = money out, negative = money in
         # WLJ amounts: positive = money in, negative = money out
         plaid_amount = txn_data['amount']
-        wlj_amount = Decimal(str(-plaid_amount))  # Invert for WLJ convention
+        wlj_amount = Decimal(str(-plaid_amount))
 
-        # Build description
         description = txn_data.get('merchant_name') or txn_data.get('name', 'Unknown')
+        is_pending = bool(txn_data.get('pending', False))
+
+        provenance = {
+            'provider_category': txn_data.get('category') or [],
+            'provider_category_primary': (txn_data.get('pfc_primary') or '')[:64],
+            'provider_category_detailed': (txn_data.get('pfc_detailed') or '')[:128],
+            'provider_category_confidence': (txn_data.get('pfc_confidence') or '')[:16],
+            'provider_payment_channel': (txn_data.get('payment_channel') or '')[:24],
+            'provider_transaction_code': (txn_data.get('transaction_code') or '')[:32],
+            'provider_merchant_name': (txn_data.get('merchant_name') or '')[:200],
+            'provider_counterparties': txn_data.get('counterparties') or [],
+            'provider_pending_transaction_id': pending_id[:100],
+            'provider_authorized_date': txn_data.get('authorized_date'),
+        }
 
         if existing:
-            # Update existing transaction
             existing.amount = wlj_amount
             existing.description = description
             existing.date = txn_data['date']
-            existing.plaid_pending = txn_data.get('pending', False)
-            existing.save(update_fields=[
-                'amount', 'description', 'date', 'plaid_pending', 'updated_at'
-            ])
+            existing.plaid_pending = is_pending
+            existing.is_cleared = not is_pending
+            if promoted_from_pending:
+                # The posted row REPLACES the pending one in place, so the user's
+                # attribution, category choice, and transfer decision all survive.
+                existing.plaid_transaction_id = plaid_txn_id
+            for field, value in provenance.items():
+                setattr(existing, field, value)
+            # A user's own category choice is never overwritten by the provider.
+            self._apply_provider_category(existing)
+            existing.save()
+            self._classify(existing)
             return True
-        else:
-            # Create new transaction
-            Transaction.objects.create(
-                user=self.user,
-                account=account,
-                date=txn_data['date'],
-                amount=wlj_amount,
-                description=description,
-                payee=txn_data.get('merchant_name', ''),
-                plaid_transaction_id=plaid_txn_id,
-                plaid_pending=txn_data.get('pending', False),
-                is_cleared=not txn_data.get('pending', False),
-            )
-            return True
+
+        transaction = Transaction.objects.create(
+            user=self.user,
+            account=account,
+            date=txn_data['date'],
+            amount=wlj_amount,
+            description=description,
+            payee=txn_data.get('merchant_name', ''),
+            plaid_transaction_id=plaid_txn_id,
+            plaid_pending=is_pending,
+            is_cleared=not is_pending,
+            **provenance,
+        )
+        self._apply_provider_category(transaction)
+        transaction.save(update_fields=['category', 'category_source', 'updated_at'])
+        self._classify(transaction)
+        return True
+
+    def _apply_provider_category(self, transaction):
+        """Map the provider's classification onto a WLJ category. Deterministic.
+
+        Never overwrites a category the USER chose, and never guesses: an unmapped or
+        low-confidence classification leaves the category unset, which is honest.
+        The provider's own value is retained either way.
+        """
+        from apps.finance.models import Transaction
+        from apps.finance.services.category_taxonomy import (
+            map_provider_category,
+            system_category_map,
+        )
+
+        if transaction.category_source == Transaction.CATEGORY_SOURCE_USER:
+            return transaction
+
+        name = map_provider_category(
+            transaction.provider_category_primary,
+            transaction.provider_category_detailed,
+            transaction.provider_category_confidence,
+        )
+        if not name:
+            return transaction
+
+        if self._category_map is None:
+            self._category_map = system_category_map()
+        category = self._category_map.get(name)
+        if category is None:
+            return transaction
+
+        transaction.category = category
+        transaction.category_source = Transaction.CATEGORY_SOURCE_PROVIDER
+        return transaction
+
+    def _classify(self, transaction):
+        """Assess transfer state from provider facts. One liability lookup per sync."""
+        from apps.finance.services.transfer_detection import (
+            classify,
+            liability_account_names,
+        )
+
+        if self._liability_names is None:
+            self._liability_names = liability_account_names(self.user)
+        classify(transaction, liability_names=self._liability_names)
 
     def _remove_transaction(self, plaid_txn_id: str) -> bool:
         """

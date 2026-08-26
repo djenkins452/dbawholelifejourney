@@ -79,6 +79,13 @@ _REASON_LABELS = {
         "Still pending at the bank — the amount or date can change.",
     population.REVIEW_SUSPECTED_INTERNAL_TRANSFER:
         "Looks like a payment toward one of your own accounts, not a new expense.",
+    population.REVIEW_AMBIGUOUS_TRANSFER:
+        "Might be a transfer between your own accounts — held out of your totals until "
+        "you say.",
+    population.EXCLUDED_CONFIRMED_TRANSFER:
+        "A transfer between your own accounts, so it is not spending.",
+    population.EXCLUDED_CARD_PAYMENT:
+        "A payment toward your own card, so it is not new spending.",
 }
 
 

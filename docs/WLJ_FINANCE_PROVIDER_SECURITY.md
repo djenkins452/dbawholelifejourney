@@ -107,8 +107,10 @@ internals. The truth layer's exposure list is explicit
 **whitelist** capped at 12 keys (`apps/finance/services/attribution.py`).
 
 **Intentionally shared as financial context** when the user asks the Chief of Staff a
-Finance question: transaction date, amount, direction, category, payee/description,
+Finance question: transaction date, amount, direction, WLJ category, payee/description,
 account **name**, institution name, and account **last4**, plus entity attribution facts.
+Provider-supplied classification (`provider_*`) is retained for auditability and mapping;
+it is not part of the model-facing surface.
 
 These are **deliberately shared minimum facts, not "redacted" data** — the product cannot
 answer "which Beacon expenses came off my personal card" without them. Exposure follows

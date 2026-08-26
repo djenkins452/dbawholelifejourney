@@ -294,6 +294,45 @@ class SafeFailureStateTests(SyncBase):
         self.assertIn("connection.connection_status == 'pending'", source)
 
 
+class NullProviderFieldTests(SyncBase):
+    """Plaid routinely returns null for fields it could not resolve.
+
+    `.get(key, default)` returns None when the key EXISTS and is null — the default only
+    applies to a MISSING key. `payee` is non-null in the schema, so an unresolved
+    merchant produced an IntegrityError and aborted the whole sync mid-page. This is the
+    second failure the first live connection hit, after the cursor.
+    """
+
+    def test_a_null_merchant_name_does_not_break_the_sync(self):
+        page = {"added": [txn_payload("ptx-null", merchant_name=None,
+                                      name="VENMO PAYMENT")],
+                "modified": [], "removed": [], "next_cursor": "c1", "has_more": False}
+        result = self._run(_FakePlaid(pages=[page]))
+        self.assertEqual(result["added"], 1)
+        txn = Transaction.objects.get(plaid_transaction_id="ptx-null")
+        self.assertEqual(txn.payee, "")
+        self.assertEqual(txn.description, "VENMO PAYMENT")
+
+    def test_null_account_fields_do_not_break_account_import(self):
+        account = account_payload()
+        account.update({"mask": None, "currency": None, "official_name": None,
+                        "subtype": None})
+        result = self._run(_FakePlaid(accounts=[account]))
+        self.assertEqual(result["accounts_synced"], 1)
+        created = FinancialAccount.objects.get(plaid_account_id="pacct-1")
+        self.assertEqual(created.currency, "USD")
+        self.assertEqual(created.account_number_last4, "")
+
+    def test_one_bad_row_cannot_abort_the_whole_page(self):
+        """Even if a row fails, the rest of the page must still land."""
+        page = {"added": [txn_payload("ptx-a"), txn_payload("ptx-b", merchant_name=None),
+                          txn_payload("ptx-c")],
+                "modified": [], "removed": [], "next_cursor": "c1", "has_more": False}
+        result = self._run(_FakePlaid(pages=[page]))
+        self.assertEqual(result["added"], 3)
+        self.assertEqual(Transaction.objects.filter(user=self.user).count(), 3)
+
+
 class ConnectionLifecycleTests(SyncBase):
 
     def test_preparing_clears_any_previous_error(self):

@@ -253,8 +253,8 @@ class TransactionSyncService:
         from apps.finance.models import FinancialAccount
 
         # Map Plaid type/subtype to WLJ account type
-        plaid_type = acct_data.get('type', '')
-        plaid_subtype = acct_data.get('subtype', '')
+        plaid_type = acct_data.get('type') or ''
+        plaid_subtype = acct_data.get('subtype') or ''
         wlj_type = self.ACCOUNT_TYPE_MAP.get(
             (plaid_type, plaid_subtype),
             'other_asset' if plaid_type not in ['credit', 'loan'] else 'other_liability'
@@ -265,7 +265,7 @@ class TransactionSyncService:
 
         # Create account name
         name = acct_data.get('official_name') or acct_data.get('name') or 'Unnamed Account'
-        mask = acct_data.get('mask', '')
+        mask = acct_data.get('mask') or ''
         if mask:
             name = f"{name} (...{mask})"
 
@@ -276,7 +276,7 @@ class TransactionSyncService:
             institution=self.bank_connection.institution_name,
             current_balance=Decimal(str(balance)),
             balance_updated_at=timezone.now(),
-            currency=acct_data.get('currency', 'USD') or 'USD',
+            currency=acct_data.get('currency') or 'USD',
             account_number_last4=mask,
             bank_connection=self.bank_connection,
             plaid_account_id=acct_data['id'],
@@ -387,7 +387,10 @@ class TransactionSyncService:
             date=txn_data['date'],
             amount=wlj_amount,
             description=description,
-            payee=txn_data.get('merchant_name', ''),
+            # `.get(key, '')` returns None when the key EXISTS and is null, which Plaid
+            # does routinely for transactions with no resolved merchant. `payee` is
+            # non-null, so the default must be applied to the VALUE, not the key.
+            payee=(txn_data.get('merchant_name') or ''),
             plaid_transaction_id=plaid_txn_id,
             plaid_pending=is_pending,
             is_cleared=not is_pending,

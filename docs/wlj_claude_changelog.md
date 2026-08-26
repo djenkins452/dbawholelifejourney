@@ -55,6 +55,14 @@ bounded pagination · retry idempotency · no duplicate accounts/transactions ·
 replayed and asserted absent from the UI · auth error asks for reconnection · audit keeps codes not payloads ·
 token stays encrypted throughout.
 
+**A SECOND defect surfaced once the cursor was fixed** — and only a real bank's data would have revealed it.
+`payee=txn_data.get('merchant_name', '')` returns **None** when the key EXISTS and is null (the default
+applies to a MISSING key), which Plaid does routinely for transactions with no resolved merchant. `payee` is
+non-null, so the first such row (a Venmo transfer) raised `IntegrityError` and aborted the entire page.
+Every `.get(key, default)` on a provider field in the sync path is now `or`-defaulted on the VALUE:
+`payee`, `mask`, `currency`, account `type`/`subtype`. Three regression tests cover a null merchant, null
+account fields, and a mixed page where one awkward row must not take the others down.
+
 **Migration `0025`** relabels the `pending` status; no data change. **No Item was disconnected, revoked,
 relinked, or re-exchanged.**
 

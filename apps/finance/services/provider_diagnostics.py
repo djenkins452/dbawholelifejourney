@@ -68,3 +68,43 @@ def safe_provider_diagnostics(exc) -> dict:
     if isinstance(status, int):
         diagnostics["status"] = status
     return diagnostics
+
+
+#: Provider failures WLJ can explain precisely. Anything unlisted stays generic — a
+#: confident-sounding wrong explanation is worse than an honest "we don't know yet".
+CLASSIFIED_FAILURES = {
+    ("INVALID_REQUEST", "INVALID_FIELD"): (
+        "Bank connection is not fully set up on our side yet. Retrying will not help — "
+        "please contact support.", False),
+    ("INVALID_INPUT", "INVALID_API_KEYS"): (
+        "Bank connection credentials were rejected. Retrying will not help — please "
+        "contact support.", False),
+    ("INVALID_INPUT", "INVALID_PRODUCT"): (
+        "This bank connection product is not enabled for us yet. Retrying will not "
+        "help — please contact support.", False),
+    ("INVALID_REQUEST", "MISSING_FIELDS"): (
+        "Bank connection is misconfigured on our side. Retrying will not help — please "
+        "contact support.", False),
+    ("RATE_LIMIT_EXCEEDED", ""): (
+        "Your bank provider is rate-limiting us. Please try again in a few minutes.",
+        True),
+    ("API_ERROR", ""): (
+        "Your bank provider is having trouble right now. Please try again shortly.",
+        True),
+    ("INSTITUTION_ERROR", ""): (
+        "Your bank is temporarily unavailable. Please try again later.", True),
+}
+
+
+def classify_provider_failure(diagnostics):
+    """Map safe provider fields to `(message, retryable)`.
+
+    Reserves the generic message for genuinely unclassified failures: telling someone to
+    "try again" when the cause is a configuration error wastes their afternoon.
+    """
+    error_type = (diagnostics.get("error_type") or "").upper()
+    error_code = (diagnostics.get("error_code") or "").upper()
+    for key in ((error_type, error_code), (error_type, "")):
+        if key in CLASSIFIED_FAILURES:
+            return CLASSIFIED_FAILURES[key]
+    return ("We could not reach your bank provider just now. Please try again.", True)

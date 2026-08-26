@@ -1117,7 +1117,10 @@ def bank_connection_start(request):
         PlaidNotConfiguredError,
         get_plaid_service,
     )
-    from apps.finance.services.provider_diagnostics import safe_provider_diagnostics
+    from apps.finance.services.provider_diagnostics import (
+        classify_provider_failure,
+        safe_provider_diagnostics,
+    )
 
     try:
         plaid = get_plaid_service()
@@ -1148,14 +1151,17 @@ def bank_connection_start(request):
 
     except Exception as e:
         diagnostics = safe_provider_diagnostics(e)
+        message, retryable = classify_provider_failure(diagnostics)
         logger.error("Error creating link token: %s", diagnostics, exc_info=True)
         return JsonResponse({
             'success': False,
-            'error': 'We could not reach your bank provider just now. Please try again.',
-            'retryable': True,
-            # Safe fields only — type/code/request id. Never a token, body, or credential.
-            'provider': diagnostics,
-        }, status=502)
+            'error': message,
+            'retryable': retryable,
+            # Safe fields only — type/code/request id. The internal exception class
+            # name stays in the LOG; the client gets provider facts, nothing about our
+            # call stack.
+            'provider': {k: v for k, v in diagnostics.items() if k != 'exception'},
+        }, status=502 if retryable else 503)
 
 
 @login_required

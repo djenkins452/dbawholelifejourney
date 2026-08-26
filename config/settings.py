@@ -1026,14 +1026,18 @@ else:
         default='https://wholelifejourney.com/finance/webhooks/plaid/'
     )
 
-# OAuth redirect URI (for OAuth-enabled banks)
-if DEBUG:
-    PLAID_REDIRECT_URI = ''  # Not needed for sandbox
-else:
-    PLAID_REDIRECT_URI = env(
-        'PLAID_REDIRECT_URI',
-        default='https://wholelifejourney.com/finance/plaid/oauth/'
-    )
+# OAuth redirect URI (for OAuth-enabled banks).
+#
+# DEFAULTS TO EMPTY ON PURPOSE. Plaid REJECTS link/token/create outright when a
+# redirect_uri is sent that is not registered in the developer dashboard
+# (INVALID_REQUEST / INVALID_FIELD), so a plausible-looking default breaks EVERY
+# connection, not just OAuth ones. It previously defaulted to
+# 'https://wholelifejourney.com/finance/plaid/oauth/', a URL that was never routed in
+# WLJ and returns 404 — so it could not have worked even if it had been registered.
+#
+# To enable OAuth institutions: implement the return route, register the exact URI in
+# Plaid (Team Settings → API → Allowed redirect URIs), and only then set this variable.
+PLAID_REDIRECT_URI = '' if DEBUG else env('PLAID_REDIRECT_URI', default='')
 
 
 # ==============================================================================

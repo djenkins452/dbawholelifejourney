@@ -186,8 +186,13 @@ class PlaidService:
         if self.webhook_url:
             link_request.webhook = self.webhook_url
 
-        # Add redirect URI for OAuth banks (optional)
-        redirect_uri = getattr(settings, 'PLAID_REDIRECT_URI', None)
+        # OAuth redirect URI — sent ONLY when explicitly configured.
+        #
+        # Plaid rejects the whole request when this is present but not registered in the
+        # developer dashboard, so sending a speculative value breaks every connection
+        # attempt including non-OAuth ones. Absent is safe: non-OAuth institutions work
+        # normally and OAuth ones simply are not offered.
+        redirect_uri = (getattr(settings, 'PLAID_REDIRECT_URI', '') or '').strip()
         if redirect_uri:
             link_request.redirect_uri = redirect_uri
 

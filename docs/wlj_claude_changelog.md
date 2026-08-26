@@ -6,6 +6,48 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — fix(finance): Plaid rejected every connection — an unregistered redirect_uri that was never routed
+
+**Proven root cause, production log at 01:30:57 UTC** (the reported minute), safe fields only:
+
+```
+error_type  INVALID_REQUEST      error_code  INVALID_FIELD
+request_id  f56ff9f8066a1da      status      400
+```
+Plaid's message: *"OAuth redirect URI must be configured in the developer dashboard."*
+
+**The request cleared every WLJ gate** — Finance access, re-authentication (Danny had just confirmed his
+password), CSRF, and rate limiting — and reached Plaid. This was not a WLJ authorization failure.
+
+**Two defects, both in one settings default.** `PLAID_REDIRECT_URI` defaulted to
+`https://wholelifejourney.com/finance/plaid/oauth/`:
+1. it was **never registered** with Plaid, and Plaid rejects the ENTIRE `link/token/create` request when an
+   unregistered `redirect_uri` is present — so **every** connection failed, not only OAuth ones;
+2. **that URL was never routed in WLJ** — `curl` returns **404**. Even had it been registered, an OAuth bank
+   returning the user there would have hit a dead page. It was a plausible-looking default nobody implemented.
+
+**Fix:** the default is now **empty**, and `create_link_token` sends `redirect_uri` only when explicitly
+configured. Absent is safe — non-OAuth institutions connect normally; OAuth institutions are simply not
+offered until the route exists and the URI is registered. Sending a speculative value is never safe.
+
+**Error classification (the page told a lie).** A configuration fault was reported as *"Please try
+again"* — advice that could never work. `classify_provider_failure()` now maps safe provider fields to an
+honest message and status: `INVALID_FIELD` / `INVALID_API_KEYS` / `INVALID_PRODUCT` / `MISSING_FIELDS` →
+**503, retryable=false, "retrying will not help — contact support"**; `API_ERROR` / `RATE_LIMIT_EXCEEDED` /
+`INSTITUTION_ERROR` → **502, retryable=true**. The generic message is now reserved for genuinely
+unclassified failures. The internal exception class name was also dropped from the client payload (it stays
+in the log).
+
+**Tests: 335 green** (8 new) — the exact production failure reproduced end to end and asserted 503 /
+not-retryable with `request_id` preserved; the settings default asserted empty; the send-only-if-configured
+guard asserted; credential rejection, outage, and unknown-failure classification; and no internal class name
+in the response.
+
+**Files:** `config/settings.py`, `apps/finance/services/plaid_service.py`,
+`apps/finance/services/provider_diagnostics.py`, `apps/finance/views.py`,
+`apps/finance/tests/test_plaid_link_start.py`. No migrations.
+
+
 ## 2026-08-26 — feat(finance): provider ingestion — provenance preserved, global taxonomy, deterministic transfer handling
 
 **The previous conclusion that entity attribution replaces transaction categorization is WITHDRAWN.**

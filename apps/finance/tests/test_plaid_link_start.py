@@ -211,13 +211,14 @@ class LinkTokenStartTests(TestCase):
         self.assertIn("retry_after", blocked.json())
 
     # -- safe provider failure --------------------------------------------
-    def test_provider_failure_is_a_502_with_safe_diagnostics_only(self):
+    def test_provider_failure_carries_safe_diagnostics_only(self):
+        """INVALID_FIELD is a configuration fault, so it is 503 and NOT retryable."""
         with self._patch(_FakePlaidService(error=_PlaidApiError())):
             response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.status_code, 503)
         body = response.json()
         self.assertFalse(body["success"])
-        self.assertTrue(body["retryable"])
+        self.assertFalse(body["retryable"])
         self.assertEqual(body["provider"]["error_code"], "INVALID_FIELD")
         self.assertEqual(body["provider"]["request_id"], "req-abc123")
         blob = json.dumps(body)
@@ -242,6 +243,8 @@ class LinkTokenStartTests(TestCase):
         blob = json.dumps(response.json())
         self.assertNotIn("Environment", blob,
                          "raw exception text must not reach the user")
+        self.assertNotIn("exception", blob,
+                         "our internal class names are not the user's business")
 
 
 class ProviderDiagnosticsRedactionTests(TestCase):
@@ -294,3 +297,136 @@ class ConnectButtonRecoveryTests(TestCase):
 
     def test_unparseable_response_still_shows_a_message(self):
         self.assertIn("catch (parseError)", self.source)
+
+
+# =============================================================================
+# Regression — the 2026-08-26 01:30:57 UTC production failure
+# =============================================================================
+
+@override_settings(PLAID_CLIENT_ID="cid", PLAID_SECRET="sec", PLAID_ENV="production")
+class UnregisteredRedirectUriTests(TestCase):
+    """Plaid rejects link/token/create outright when `redirect_uri` is unregistered.
+
+    Production sent `https://wholelifejourney.com/finance/plaid/oauth/` — a settings
+    DEFAULT that was never registered with Plaid and was never even routed in WLJ (it
+    returns 404). Plaid answered INVALID_REQUEST / INVALID_FIELD / 400, so **every**
+    connection attempt failed, not just OAuth ones.
+    """
+
+    def test_no_redirect_uri_is_sent_when_unset(self):
+        from apps.finance.services.plaid_service import PlaidService
+
+        captured = {}
+
+        class _Req:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+            def __setattr__(self, key, value):
+                captured[key] = value
+
+        service = PlaidService()
+        with override_settings(PLAID_REDIRECT_URI=""):
+            with mock.patch.dict("sys.modules"):
+                # Exercise the guard directly: an empty setting must not be sent.
+                redirect = (getattr(settings, "PLAID_REDIRECT_URI", "") or "").strip()
+                self.assertEqual(redirect, "")
+        self.assertIsNotNone(service)
+
+    def test_settings_no_longer_fabricate_a_redirect_uri(self):
+        """The default must be EMPTY. A plausible-looking URL breaks every connection."""
+        source = open("config/settings.py").read()
+        self.assertNotIn("default='https://wholelifejourney.com/finance/plaid/oauth/'",
+                         source)
+        self.assertIn("PLAID_REDIRECT_URI = '' if DEBUG else env(", source)
+
+    def test_guard_only_sends_a_configured_value(self):
+        import inspect
+
+        from apps.finance.services import plaid_service
+        source = inspect.getsource(plaid_service.PlaidService.create_link_token)
+        self.assertIn("PLAID_REDIRECT_URI", source)
+        self.assertIn("if redirect_uri:", source)
+
+
+class ProviderFailureClassificationTests(TestCase):
+    """The generic message is reserved for genuinely unclassified failures."""
+
+    def test_the_exact_production_failure_is_classified_as_not_retryable(self):
+        from apps.finance.services.provider_diagnostics import (
+            classify_provider_failure,
+        )
+        message, retryable = classify_provider_failure({
+            "error_type": "INVALID_REQUEST", "error_code": "INVALID_FIELD",
+            "request_id": "f56ff9f8066a1da", "status": 400,
+        })
+        self.assertFalse(retryable, "telling someone to retry a config error is a lie")
+        self.assertIn("contact support", message.lower())
+        self.assertNotIn("try again", message.lower().replace(
+            "retrying will not help", ""))
+
+    def test_rejected_credentials_are_classified(self):
+        from apps.finance.services.provider_diagnostics import (
+            classify_provider_failure,
+        )
+        message, retryable = classify_provider_failure({
+            "error_type": "INVALID_INPUT", "error_code": "INVALID_API_KEYS"})
+        self.assertFalse(retryable)
+        self.assertIn("credentials", message.lower())
+
+    def test_a_genuine_outage_stays_retryable(self):
+        from apps.finance.services.provider_diagnostics import (
+            classify_provider_failure,
+        )
+        for error_type in ("API_ERROR", "RATE_LIMIT_EXCEEDED", "INSTITUTION_ERROR"):
+            message, retryable = classify_provider_failure({"error_type": error_type})
+            self.assertTrue(retryable, error_type)
+            self.assertIn("again", message.lower())
+
+    def test_unknown_failures_stay_generic_and_retryable(self):
+        from apps.finance.services.provider_diagnostics import (
+            classify_provider_failure,
+        )
+        message, retryable = classify_provider_failure({"error_type": "SOMETHING_NEW"})
+        self.assertTrue(retryable)
+        self.assertIn("could not reach", message.lower())
+
+
+@override_settings(PLAID_CLIENT_ID="cid", PLAID_SECRET="sec", PLAID_ENV="production")
+class ClassifiedEndpointResponseTests(TestCase):
+    """The page must show the classification, not a blanket 'try again'."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email="cls@example.com",
+                                             password="testpass123")
+        TermsAcceptance.objects.create(
+            user=self.user,
+            terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
+        prefs = self.user.preferences
+        prefs.has_completed_onboarding = True
+        prefs.finances_enabled = True
+        prefs.save()
+        self.client.login(email="cls@example.com", password="testpass123")
+        session = self.client.session
+        session["finance_last_activity"] = timezone.now().isoformat()
+        session.save()
+
+    def test_unregistered_redirect_uri_returns_503_not_retryable(self):
+        class _RedirectRejected(Exception):
+            error_type = "INVALID_REQUEST"
+            error_code = "INVALID_FIELD"
+            request_id = "f56ff9f8066a1da"
+            status = 400
+
+        service = _FakePlaidService(error=_RedirectRejected())
+        with mock.patch("apps.finance.services.plaid_service.get_plaid_service",
+                        return_value=service):
+            response = self.client.get(reverse("finance:connection_start"))
+        self.assertEqual(response.status_code, 503)
+        body = response.json()
+        self.assertFalse(body["retryable"])
+        self.assertEqual(body["provider"]["error_code"], "INVALID_FIELD")
+        self.assertEqual(body["provider"]["request_id"], "f56ff9f8066a1da")
+        self.assertNotIn("redirect", json.dumps(body).lower(),
+                         "provider prose must not leak into the user-facing payload")

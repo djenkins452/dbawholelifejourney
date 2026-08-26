@@ -1523,6 +1523,25 @@ class BankConnection(UserOwnedModel):
         blank=True,
         help_text="Last successful transaction sync"
     )
+    # -- history coverage -------------------------------------------------
+    # WLJ must never present a partial import as a complete one. These record what was
+    # ASKED FOR and what the provider says has ARRIVED, so the two can be told apart.
+    history_days_requested = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Days of history requested when this Item was created. Fixed at "
+                  "creation; widening it requires re-running Link in update mode.",
+    )
+    initial_update_complete = models.BooleanField(
+        default=False,
+        help_text="The provider has delivered the recent-window transactions.",
+    )
+    historical_update_complete = models.BooleanField(
+        default=False,
+        help_text="The provider has finished backfilling the FULL requested window. "
+                  "Until this is true, totals and baselines are provisional.",
+    )
+    historical_update_at = models.DateTimeField(null=True, blank=True)
+
     last_sync_cursor = models.CharField(
         max_length=500,
         blank=True,
@@ -1643,6 +1662,20 @@ class BankConnection(UserOwnedModel):
         self.save(update_fields=[
             'connection_status', 'error_code', 'error_message', 'updated_at'
         ])
+
+    @property
+    def history_import_complete(self):
+        """Is the full requested history in, or is this still a partial view?"""
+        return bool(self.historical_update_complete)
+
+    @property
+    def history_state_label(self):
+        """What to tell the user, without overstating what has arrived."""
+        if self.historical_update_complete:
+            return "Historical import complete"
+        if self.initial_update_complete or self.last_sync_cursor:
+            return "Initial data loaded — historical import still running"
+        return "Connected — preparing transactions"
 
     @property
     def has_live_provider_access(self):

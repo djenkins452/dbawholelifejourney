@@ -78,6 +78,12 @@ def _resolve_plaid_host(environment):
     return host
 
 
+#: Days of transaction history requested when an Item is created. 730 is the provider
+#: maximum; the default is 90, which is far too little to reason about a year over year.
+#: This is fixed at Item creation — it cannot be widened by a later sync.
+TRANSACTION_HISTORY_DAYS_REQUESTED = 730
+
+
 class PlaidNotConfiguredError(Exception):
     """Raised when Plaid credentials are not configured."""
     pass
@@ -182,6 +188,18 @@ class PlaidService:
             language='en',
         )
 
+        # Ask for as much history as the provider will give. Omitting this silently
+        # accepts the provider's DEFAULT (90 days), which is why the first connection
+        # returned only ~3 months. The window is fixed when the Item is created, so a
+        # default accepted here cannot be widened later without re-running Link.
+        try:
+            from plaid.model.link_token_transactions import LinkTokenTransactions
+            link_request.transactions = LinkTokenTransactions(
+                days_requested=TRANSACTION_HISTORY_DAYS_REQUESTED)
+        except ImportError:                      # pragma: no cover - older SDKs
+            logger.warning("SDK does not support days_requested; the provider default "
+                           "history window will apply.")
+
         # Add webhook URL if configured
         if self.webhook_url:
             link_request.webhook = self.webhook_url
@@ -227,6 +245,16 @@ class PlaidService:
             language='en',
             access_token=access_token,  # This enables update mode
         )
+
+        # Update mode is also the supported way to WIDEN an existing Item's history
+        # window without removing it — the Item, its accounts, and its access token all
+        # survive.
+        try:
+            from plaid.model.link_token_transactions import LinkTokenTransactions
+            link_request.transactions = LinkTokenTransactions(
+                days_requested=TRANSACTION_HISTORY_DAYS_REQUESTED)
+        except ImportError:                      # pragma: no cover - older SDKs
+            pass
 
         response = self.client.link_token_create(link_request)
 

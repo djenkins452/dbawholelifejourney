@@ -6,6 +6,38 @@
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
 
+## 2026-08-26 — fix(finance): only 87 days of history arrived — `days_requested` was never sent
+
+**Proven from the deployed code and the live Item.** `days_requested` appears **nowhere** in the Link-token
+path, so Plaid's **default 90-day** window applied. The first connection therefore holds
+**73 transactions, 2026-05-29 → 2026-08-24 (87 days), 0 from 2025** — not a pending backfill, and not an
+incomplete sync. The Item reports a successful update, a durable 112-character cursor, and no error.
+
+**This is a window that is FIXED when the Item is created** — no amount of syncing widens it, which is what
+makes it a defect rather than a delay.
+
+**Forward fix:** `TRANSACTION_HISTORY_DAYS_REQUESTED = 730` (the provider maximum) is now sent on **new** AND
+**update-mode** Link tokens. Both were verified accepted by the live production API (tokens created and
+discarded; nothing opened, exchanged, or refreshed). The requested window is recorded on the connection.
+
+**Partial history is no longer presented as complete.** `BankConnection` gains `history_days_requested`,
+`initial_update_complete`, `historical_update_complete`, `historical_update_at` (migration `0026`), and the
+webhook handler now distinguishes `INITIAL_UPDATE` from `HISTORICAL_UPDATE` rather than treating both as "go
+sync". Three honest states: *Connected — preparing transactions* → *Initial data loaded — historical import
+still running* → *Historical import complete*. The connections page states coverage **separately from
+connection health**, because a perfectly healthy connection can still hold a third of the history, and the
+dashboard + CoS summary now say **"totals and trends are provisional"** while the import is unfinished. A
+conclusion drawn from a quarter of the data is not a conclusion.
+
+**Tests: 391 green** (9 new): the maximum window is requested · new-Item and update-mode tokens both carry it
+· the window is recorded · partial history is never labelled complete · only the historical milestone flips
+it · the dashboard calls provisional totals provisional and stops once complete · the page separates
+coverage from health · both webhook milestones are handled. Two skip locally (no SDK on the dev machine).
+
+**Existing Item:** untouched — 1 connection, 4 accounts, token still encrypted. Widening its history needs
+Danny to re-run Link in **update mode**, which keeps the Item, accounts, and access token. Not performed.
+
+
 ## 2026-08-26 — fix(finance): the FIRST sync of every connection was impossible — `cursor=None` failed SDK validation
 
 **Proven root cause, production log 02:36:47 UTC:**

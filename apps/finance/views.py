@@ -1240,8 +1240,13 @@ def bank_connection_complete(request):
                 consent_ip_address=get_client_ip(request),
             )
             connection.set_access_token(access_token)
+            # Record the window we asked for, so coverage can be judged honestly later.
+            from apps.finance.services.plaid_service import (
+                TRANSACTION_HISTORY_DAYS_REQUESTED,
+            )
+            connection.history_days_requested = TRANSACTION_HISTORY_DAYS_REQUESTED
             connection.save()
-            logger.info(f"Created new bank connection: {connection}")
+            logger.info("Created new bank connection %s", connection.pk)
 
         # The attempt is finished; nothing should survive it.
         plaid_oauth.clear(request)
@@ -1518,6 +1523,18 @@ def plaid_webhook(request):
 
         # Handle different webhook types
         if webhook_type == 'TRANSACTIONS':
+            # Record coverage milestones so partial history is never shown as complete.
+            if webhook_code == 'INITIAL_UPDATE':
+                connection.initial_update_complete = True
+                connection.save(update_fields=['initial_update_complete', 'updated_at'])
+            elif webhook_code == 'HISTORICAL_UPDATE':
+                connection.initial_update_complete = True
+                connection.historical_update_complete = True
+                connection.historical_update_at = timezone.now()
+                connection.save(update_fields=[
+                    'initial_update_complete', 'historical_update_complete',
+                    'historical_update_at', 'updated_at'])
+
             if webhook_code in ['SYNC_UPDATES_AVAILABLE', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
                 # Trigger sync
                 from apps.finance.services.sync_service import TransactionSyncService

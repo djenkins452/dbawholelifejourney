@@ -115,6 +115,11 @@ def build_finance_intelligence(user):
                       .order_by("accepted_at")[:MAX_UNRESOLVED])
 
     # 4 — how fresh is the underlying data.
+    from apps.finance.models import BankConnection
+    incomplete_history = BankConnection.objects.filter(
+        user=user, historical_update_complete=False).exclude(
+        connection_status=BankConnection.STATUS_DISCONNECTED).exists()
+
     last_txn = (Transaction.objects.filter(user=user)
                 .order_by("-date").values_list("date", flat=True).first())
     age_days = (today - last_txn).days if last_txn else None
@@ -139,6 +144,11 @@ def build_finance_intelligence(user):
             "is_stale": bool(age_days is not None and age_days > STALE_AFTER_DAYS),
             "synced_accounts": connections,
             "manual_only": connections == 0,
+            # A conclusion drawn from half the history is not a conclusion.
+            "history_incomplete": incomplete_history,
+            "earliest_transaction_date": (
+                Transaction.objects.filter(user=user)
+                .order_by("date").values_list("date", flat=True).first()),
         },
     }
 
@@ -171,6 +181,13 @@ def summary_lines(user, intelligence=None):
             f"Most recent transaction: {fresh['last_transaction_date'].isoformat()}"
             f" ({fresh['age_days']} days ago)"
             + (" — data may be out of date" if fresh["is_stale"] else ""))
+    if fresh.get("history_incomplete"):
+        earliest = fresh.get("earliest_transaction_date")
+        lines.append(
+            "Historical import is still in progress"
+            + (f"; transactions currently start {earliest.isoformat()}"
+               if earliest else "")
+            + " — totals and trends are provisional.")
     if fresh["manual_only"]:
         lines.append("No connected accounts — transactions arrive by manual entry or import.")
     return lines

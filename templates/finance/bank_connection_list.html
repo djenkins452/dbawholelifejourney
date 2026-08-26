@@ -56,6 +56,18 @@
                             </span>
                             {% endif %}
                         </div>
+                        {# Coverage is stated separately from connection health: a #}
+                        {# healthy connection can still hold only PART of the history. #}
+                        <p class="status-note" data-testid="history-coverage">
+                            {{ connection.history_state_label }}{% if connection.history_days_requested %} ·
+                            {{ connection.history_days_requested }} days requested{% endif %}
+                        </p>
+                        {% if not connection.history_import_complete %}
+                        <p class="status-note">
+                            Older transactions may still be arriving, so totals and
+                            trends are provisional until the import finishes.
+                        </p>
+                        {% endif %}
                         {% if connection.connection_status == 'pending' %}
                         <p class="status-note">
                             Transaction history is still being prepared by your bank.

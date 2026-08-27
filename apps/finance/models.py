@@ -694,6 +694,31 @@ class Transaction(UserOwnedModel):
             models.Index(fields=['provider_pending_transaction_id'],
                          name='idx_txn_pending_link'),
         ]
+        constraints = [
+            # ONE active row per provider transaction, per ACCOUNT.
+            #
+            # Scope is deliberately the account, not the user. Plaid documents
+            # `transaction_id` only as "the unique ID of the transaction" and does NOT
+            # state that it is unique across unrelated Items, so a user-scoped
+            # constraint could one day reject a genuine transaction from a second
+            # institution that happened to reuse an id — silently losing real money
+            # data. An account belongs to exactly one Item, where uniqueness IS
+            # guaranteed, so this is the tightest scope that is provably correct.
+            #
+            # Partial on purpose: `status='active'` keeps the constraint compatible
+            # with WLJ's soft-delete model (a superseded row remains readable), and the
+            # blank exclusion keeps manually-entered and imported transactions, which
+            # legitimately carry no provider id, out of the constraint entirely.
+            #
+            # This exists because application-level "check then insert" is a race: on
+            # 2026-08-27 two concurrent webhook-triggered syncs each read "not present"
+            # for the same transaction and both inserted, creating 1,677 duplicates.
+            models.UniqueConstraint(
+                fields=['account', 'plaid_transaction_id'],
+                condition=models.Q(status='active') & ~models.Q(plaid_transaction_id=''),
+                name='uq_txn_provider_id_per_active_account',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.date}: {self.description} ({self.amount:+.2f})"

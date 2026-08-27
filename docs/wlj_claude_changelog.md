@@ -59062,3 +59062,25 @@ reads `deleted_at`; `deleted_at` is purge metadata. `archive()` sets
 while being invisible. A `deleted_at IS NULL` constraint would therefore be STRICTER
 than the manager and would block Plaid re-delivering a transaction the user archived.
 `status='active'` is the manager's own predicate — that is what stage B uses.
+
+### 2026-08-27 — Stage B: retire the 1,677 duplicates, then make them impossible
+
+Deployed only after stage A was verified live on BOTH services and the population was
+confirmed frozen (newest insert still 00:11:39, still exactly 1,677 groups). Nothing
+could race the cleanup because nothing was still creating duplicates.
+
+- `apps/finance/models.py` — `uq_txn_provider_id_per_active_account`, partial on
+  `status='active'` (the manager's own predicate — see the invariant note above) and
+  excluding blank provider ids.
+- `apps/finance/migrations/0029_…` — retire duplicates, then add the constraint, in ONE
+  atomic migration. Ordering matters (the index cannot build over live duplicates) and
+  atomicity means a concurrent insert can only make the index build fail and roll the
+  whole thing back — it can never half-apply.
+- `apps/finance/tests/test_duplicate_transaction_prevention.py` — 21 tests including
+  the active-row predicate invariant, archived/deleted re-ingestion, restore behaviour,
+  and two real-thread concurrency reproductions (one with the lock deliberately
+  bypassed, proving the database holds the line alone).
+
+Pre-flight reconfirmation on production immediately before deploying: 1,677 groups, all
+size 2, **zero differing business fields**, zero dependents (attributions, transfer
+pairs, counterparts, recurring sources, receipts, imports all 0).

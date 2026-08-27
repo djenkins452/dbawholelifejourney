@@ -1504,12 +1504,19 @@ def _record_webhook_rejection(request, reason):
 #: Webhook codes that mean "new transaction state is waiting at the provider".
 #: `/transactions/sync` reconciles from its durable cursor, so the correct response to
 #: every one of these is the same ordinary incremental sync.
+#:
+#: The legacy INITIAL_UPDATE / HISTORICAL_UPDATE pair is deliberately NOT here. Plaid
+#: sends them to this sync integration ALONGSIDE SYNC_UPDATES_AVAILABLE, about 20ms
+#: apart — observed repeatedly on 2026-08-27 (00:07:30.954/.972, 00:08:11.027/.055,
+#: 00:10:21.063/.120). Triggering on both meant every provider notification launched
+#: TWO concurrent inline syncs, which raced into 1,677 duplicate rows and tripped
+#: Plaid's TRANSACTIONS_SYNC_LIMIT four times. They still update completion flags
+#: below; they just no longer double the work. Fetching stays driven by the
+#: sync-integration codes alone.
 SYNC_TRIGGERING_WEBHOOK_CODES = frozenset({
     'SYNC_UPDATES_AVAILABLE',   # the sync integration's primary signal
     'DEFAULT_UPDATE',           # ongoing new transactions
     'TRANSACTIONS_REMOVED',     # removals are delivered through sync's `removed`
-    'INITIAL_UPDATE',           # legacy /transactions/get
-    'HISTORICAL_UPDATE',        # legacy /transactions/get
 })
 
 

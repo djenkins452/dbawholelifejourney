@@ -58940,3 +58940,125 @@ email. Reachable at `/admin-console/api/claude/finance-audit/`.
 down the whole audit including six previously-passing tests; and the observability
 test's own fixture was 48h stale, already past the 4× "persistently stale" threshold it
 asserted was zero. Both fixed; full suite re-run green afterwards.
+
+## 2026-08-27 — Finance: 1,677 duplicate transactions (root cause, PROPOSED remediation)
+
+**NOT DEPLOYED. No production row has been changed.** Prepared for review only, at
+Danny's instruction.
+
+### What happened
+
+Connecting a second institution at 00:07 produced 1,677 duplicate transaction rows.
+
+**Root cause — a defect I introduced.** Commit `7dac78a4` added the legacy
+`INITIAL_UPDATE` / `HISTORICAL_UPDATE` codes to `SYNC_TRIGGERING_WEBHOOK_CODES`. Plaid
+sends those to this `/transactions/sync` integration **alongside**
+`SYNC_UPDATES_AVAILABLE`, ~20–60 ms apart — proven from `BankIntegrationLog`:
+
+    00:07:30.954 HISTORICAL_UPDATE   00:07:30.972 SYNC_UPDATES_AVAILABLE
+    00:08:11.027 SYNC_UPDATES_AVAIL  00:08:11.055 HISTORICAL_UPDATE
+    00:10:21.063 SYNC_UPDATES_AVAIL  00:10:21.120 HISTORICAL_UPDATE
+
+Each pair launched TWO concurrent inline syncs. At **00:11:39.251 two syncs completed
+in the same millisecond, each reporting `added: 2911`**. Four `TRANSACTIONS_SYNC_LIMIT`
+429s at 00:08:41–43 are the same doubling hitting Plaid's rate limit.
+
+The duplicates were possible because ingestion decided existence with a
+`.filter().first()` read and then a separate `.create()` — never one atomic step — and
+**no database constraint forbade the outcome** (`plaid_transaction_id` had three
+non-unique indexes, no `unique`, no `unique_together`, no `UniqueConstraint`).
+
+This also disproves the doc summary relied on in `7dac78a4`: Plaid DOES send the legacy
+codes to a sync integration. Keeping legacy support was right; making them *trigger a
+fetch* was the error.
+
+### Dry run — complete enumeration, not a sample
+
+    1,677 groups · ALL exactly size 2 · 0 groups of 3+
+    Differing fields across every group: created_at (1,676), updated_at (1,676)
+      — every other compared field identical: user, account, provider id, pending
+        state, date, amount, description, payee, category, category_source,
+        transfer_state/kind/pair, is_cleared, is_opening_balance, is_recurring,
+        recurring_source, import_record, receipt_document, status, deleted_at,
+        provider_* provenance, reference, notes, source_type/id, fingerprint
+      — one group is identical even in timestamps (same microsecond)
+    0 cross-account · 0 cross-user · 0 cross-connection groups
+    Dependents on the 1,677 extras: attributions 0 · transfer_pair refs 0 ·
+      counterpart refs 0 · recurring_source 0 · receipt 0 · import_record 0 ·
+      already-soft-deleted 0.  Attributions/opportunities/recurring TOTAL: 0.
+    Before: 5,455 all / 5,455 active.  After (predicted): 5,455 all / 3,778 active.
+    Predicted distinct (account, provider id) pairs after: 3,778 — constraint holds.
+    Groups left with zero survivors: 0.
+
+### Uniqueness scope — derived, not assumed
+
+Plaid documents `transaction_id` only as *"The unique ID of the transaction"* and does
+**not** state it is unique across unrelated Items. A user-scoped constraint could
+therefore one day reject a genuine transaction from a second institution that reused an
+id — silently losing real money data. An account belongs to exactly one Item, where
+uniqueness IS guaranteed, so the constraint is scoped to **`(account,
+plaid_transaction_id)`** — the tightest scope that is provably correct. Evidence from
+production is consistent (0 ids in more than one `(user, Item)`) but comes from only
+two Items, so it is not treated as proof. The ingestion lookup was moved to the same
+scope so the read and the constraint agree.
+
+Partial on `status='active'` (WLJ's soft-delete model) and excluding blank ids
+(hand-entered and imported rows legitimately carry none).
+
+### Proposed changes (awaiting authorization)
+
+- `apps/finance/models.py` — `uq_txn_provider_id_per_active_account`.
+- `apps/finance/services/sync_service.py` — account-scoped lookup; `create()` →
+  `get_or_create()`. **No generic `except IntegrityError`**: the DB decides the winner
+  and the loser re-reads the row it lost to, returning `False` so a re-processed
+  transaction is not counted as `added`.
+- `apps/finance/views.py` — legacy codes removed from the fetch trigger; they still
+  record completion milestones.
+- `apps/finance/migrations/0029_…` — retire duplicates, then add the constraint.
+  **Survivor rule:** per `(account, plaid_transaction_id)` group of ACTIVE rows, keep
+  earliest `created_at`, ties by lowest pk — total, so never two survivors or none.
+  Extras are **soft-deleted, not destroyed**. Rollback drops the constraint and
+  deliberately does NOT mass-reactivate (that would resurrect rows a user deleted on
+  purpose); retired rows stay in the table, reactivatable by pk.
+
+### Soft-delete exclusion verified
+
+`financial_activity` → `_base` uses `Transaction.objects` (`SoftDeleteManager`); no
+Finance module reads `Transaction.all_objects` except `finance_entities.
+earliest_account_activity`, which takes `MIN(date)` — and every retired row shares its
+survivor's date, so account inception cannot move. Asserted in tests.
+
+### Tests (14, passing)
+
+Trigger narrowing; legacy codes still record completion; second active row refused;
+soft-deleted row does not block a new active one; blank ids unconstrained; same id
+allowed on a different account; re-processing creates one row; stale-read race creates
+one row and is not counted as added; **two real threads syncing one connection
+concurrently produce no duplicates**; same again with the lock bypassed, proving the DB
+holds the line alone; default manager and population authority exclude retired rows;
+account inception unaffected.
+
+### 2026-08-27 — Stage A: stop creating duplicates (code only, no migration)
+
+Deployed BEFORE the cleanup migration on purpose, so no sync can race the dedupe: after
+this commit the double-trigger is gone and the write path is idempotent, so the
+population is stable while stage B runs.
+
+- `apps/finance/views.py` — legacy `INITIAL_UPDATE` / `HISTORICAL_UPDATE` removed from
+  the fetch trigger (they still record completion). Plaid delivers them alongside
+  `SYNC_UPDATES_AVAILABLE` ~20ms apart; triggering on both launched two concurrent
+  inline syncs.
+- `apps/finance/services/sync_service.py` — existence lookup scoped to the ACCOUNT
+  (matching the constraint that lands in stage B), and `create()` → `get_or_create()`.
+  Not a generic `except IntegrityError`: get_or_create re-reads using the same lookup
+  kwargs and **re-raises when no such row exists**, so FK/NOT NULL/other violations
+  still propagate. A re-processed transaction returns `False` so it is not counted as
+  `added`.
+
+**Active-row predicate invariant (proved before deploying).** WLJ has three states —
+active / archived / deleted. `SoftDeleteManager` filters `status="active"` and never
+reads `deleted_at`; `deleted_at` is purge metadata. `archive()` sets
+`status="archived"` with `deleted_at=None`, so an archived row has `deleted_at IS NULL`
+while being invisible. A `deleted_at IS NULL` constraint would therefore be STRICTER
+than the manager and would block Plaid re-delivering a transaction the user archived.
+`status='active'` is the manager's own predicate — that is what stage B uses.

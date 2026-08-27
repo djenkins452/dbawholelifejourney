@@ -429,13 +429,16 @@ class TransactionSyncService:
         # `pending_transaction_id`. Matching only on transaction_id would leave the
         # pending row behind, so the same purchase would be counted twice — and any
         # attribution the user had already made would be stranded on the ghost.
+        # Scoped to the ACCOUNT, matching `uq_txn_provider_id_per_active_account`.
+        # A user-scoped lookup would treat a colliding id from a different institution
+        # as the same transaction; Plaid does not promise ids are unique across Items.
         existing = Transaction.objects.filter(
-            user=self.user, plaid_transaction_id=plaid_txn_id
+            account=account, plaid_transaction_id=plaid_txn_id
         ).first()
         promoted_from_pending = False
         if existing is None and pending_id:
             existing = Transaction.objects.filter(
-                user=self.user, plaid_transaction_id=pending_id
+                account=account, plaid_transaction_id=pending_id
             ).first()
             promoted_from_pending = existing is not None
 
@@ -478,21 +481,36 @@ class TransactionSyncService:
             self._classify(existing)
             return True
 
-        transaction = Transaction.objects.create(
-            user=self.user,
+        # get_or_create, NOT create: the read above and this write are not one atomic
+        # step, so two concurrent syncs can both reach here for the same transaction.
+        #
+        # This is a safe idempotent upsert, NOT a generic `except IntegrityError: pass`.
+        # get_or_create catches the violation, re-reads using THESE lookup kwargs, and
+        # **re-raises if no such row exists** — so a FK violation, a NOT NULL breach, or
+        # any other constraint failure still propagates. Only the one expected outcome
+        # ("the row I was about to create is already there") is absorbed.
+        transaction, created = Transaction.objects.get_or_create(
             account=account,
-            date=txn_data['date'],
-            amount=wlj_amount,
-            description=description,
-            # `.get(key, '')` returns None when the key EXISTS and is null, which Plaid
-            # does routinely for transactions with no resolved merchant. `payee` is
-            # non-null, so the default must be applied to the VALUE, not the key.
-            payee=(txn_data.get('merchant_name') or ''),
             plaid_transaction_id=plaid_txn_id,
-            plaid_pending=is_pending,
-            is_cleared=not is_pending,
-            **provenance,
+            defaults=dict(
+                user=self.user,
+                date=txn_data['date'],
+                amount=wlj_amount,
+                description=description,
+                # `.get(key, '')` returns None when the key EXISTS and is null, which
+                # Plaid does routinely for transactions with no resolved merchant.
+                # `payee` is non-null, so the default must be applied to the VALUE.
+                payee=(txn_data.get('merchant_name') or ''),
+                plaid_pending=is_pending,
+                is_cleared=not is_pending,
+                **provenance,
+            ),
         )
+        if not created:
+            # Another sync won the race and has already stored this transaction.
+            # Re-processing it would be harmless but wasteful, and would double-count
+            # it in the caller's `added` tally.
+            return False
         self._apply_provider_category(transaction)
         transaction.save(update_fields=['category', 'category_source', 'updated_at'])
         self._classify(transaction)

@@ -179,21 +179,45 @@ class SyncWebhookCompletionTests(TestCase):
         self.connection.refresh_from_db()
         self.assertTrue(self.connection.historical_update_complete)
 
-    def test_legacy_historical_update_still_supported(self):
-        self._post({"webhook_type": "TRANSACTIONS",
-                    "webhook_code": "HISTORICAL_UPDATE",
-                    "item_id": "item-webhook-test"})
+    def test_legacy_historical_update_records_completion_without_fetching(self):
+        """The legacy pair still carries the milestone — it just no longer fetches.
+
+        Plaid delivers it alongside SYNC_UPDATES_AVAILABLE ~20ms apart, so letting it
+        trigger a sync too launched two concurrent syncs and produced 1,677 duplicate
+        rows on 2026-08-27.
+        """
+        with patch("apps.finance.views.verify_plaid_webhook",
+                   return_value=(True, None)), \
+             patch("apps.finance.services.sync_service."
+                   "TransactionSyncService.sync") as mock_sync:
+            self.client.post(
+                self.url,
+                data=json.dumps({"webhook_type": "TRANSACTIONS",
+                                 "webhook_code": "HISTORICAL_UPDATE",
+                                 "item_id": "item-webhook-test"}),
+                content_type="application/json")
+
+        mock_sync.assert_not_called()
         self.connection.refresh_from_db()
         self.assertTrue(self.connection.initial_update_complete)
         self.assertTrue(self.connection.historical_update_complete)
 
     def test_every_sync_signalling_code_triggers_a_sync(self):
-        """No scheduled sync task exists — webhooks are the ONLY ingestion path."""
+        """No scheduled sync existed when this was written — webhooks were the ONLY
+        ingestion path, so a missing code meant transactions silently stopped.
+
+        The legacy pair is deliberately EXCLUDED. Plaid delivers INITIAL_UPDATE /
+        HISTORICAL_UPDATE to this sync integration alongside SYNC_UPDATES_AVAILABLE
+        ~20ms apart; triggering on both launched two concurrent inline syncs and
+        produced 1,677 duplicate rows on 2026-08-27. They still record completion
+        milestones — see test_legacy_codes_record_completion_without_fetching.
+        """
         from apps.finance.views import SYNC_TRIGGERING_WEBHOOK_CODES
 
-        for code in ['SYNC_UPDATES_AVAILABLE', 'DEFAULT_UPDATE',
-                     'TRANSACTIONS_REMOVED', 'INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
+        for code in ['SYNC_UPDATES_AVAILABLE', 'DEFAULT_UPDATE', 'TRANSACTIONS_REMOVED']:
             self.assertIn(code, SYNC_TRIGGERING_WEBHOOK_CODES, code)
+        for legacy in ['INITIAL_UPDATE', 'HISTORICAL_UPDATE']:
+            self.assertNotIn(legacy, SYNC_TRIGGERING_WEBHOOK_CODES, legacy)
 
         for code in ['DEFAULT_UPDATE', 'TRANSACTIONS_REMOVED']:
             with self.subTest(code=code):

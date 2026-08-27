@@ -68,3 +68,57 @@ def detect_finance_opportunities(user_id=None):
             totals[key] += result[key]
     logger.info("Finance opportunity detection: %s", totals)
     return totals
+
+
+@shared_task(name="apps.finance.tasks.reconcile_stale_bank_connections")
+def reconcile_stale_bank_connections():
+    """Recover transaction ingestion for connections whose webhook never arrived.
+
+    Webhooks remain the primary trigger; this is the net beneath them. Plaid retries a
+    failed delivery for a bounded window and then gives up, so without a second trigger
+    a connection that misses its webhook stops ingesting permanently and nothing
+    notices. On 2026-08-26 WLJ rejected every delivery for an hour through its own
+    defect — exactly the failure this recovers from.
+
+    Only genuinely stale, active, token-bearing connections belonging to enabled users
+    are touched, so while webhooks work this costs zero provider calls. Uses
+    `/transactions/sync` with the durable cursor through the shared sync service —
+    NEVER the separately billed `/transactions/refresh`.
+    """
+    from apps.finance.services.sync_reconciliation import (
+        MAX_CONNECTIONS_PER_RUN, STALE_AFTER_HOURS,
+        eligible_connections, reconcile_connection,
+    )
+
+    connections = eligible_connections()
+    if not connections:
+        logger.info("Finance reconciliation: no connections older than %sh.",
+                    STALE_AFTER_HOURS)
+        return {"eligible": 0, "synced": 0, "skipped": 0, "failed": 0}
+
+    summary = {"eligible": len(connections), "synced": 0, "skipped": 0,
+               "failed": 0, "added": 0}
+    for connection in connections:
+        outcome = reconcile_connection(connection)
+        if not outcome["ok"]:
+            summary["failed"] += 1
+        elif outcome.get("skipped"):
+            summary["skipped"] += 1
+        else:
+            summary["synced"] += 1
+            summary["added"] += outcome.get("added", 0)
+
+    # Counts only — never an institution, provider id, balance or transaction.
+    logger.info(
+        "Finance reconciliation: eligible=%s synced=%s skipped=%s failed=%s added=%s "
+        "(threshold %sh, cap %s)",
+        summary["eligible"], summary["synced"], summary["skipped"],
+        summary["failed"], summary["added"], STALE_AFTER_HOURS,
+        MAX_CONNECTIONS_PER_RUN)
+
+    if summary["failed"]:
+        logger.warning(
+            "Finance reconciliation could not sync %s connection(s); ingestion for "
+            "those remains stale and will be retried next run.", summary["failed"])
+
+    return summary

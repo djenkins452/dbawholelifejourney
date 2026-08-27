@@ -58850,3 +58850,93 @@ place, so an unauthenticated caller can neither create rows nor grow the table.
 `apps/finance/services/plaid_webhook_verification.py` — the comment explaining the
 `is_configured` property fix pointed at "`_FETCH_ERROR` below"; the constant is named
 `REASON_KEY_FETCH_ERROR` and is declared above. Comment-only; no behaviour change.
+
+## 2026-08-26 — Finance: scheduled reconciliation, the recovery net behind webhooks
+
+**Why this was still open.** The earlier fixes repaired webhook *processing* and made
+completion readable from `transactions_update_status` on a sync response. But that only
+changes what WLJ learns **once a sync runs** — it supplies no trigger. `tasks.py` had no
+scheduled reconciliation, so webhooks remained the only automatic path. Plaid retries a
+failed delivery for a bounded window and then stops; a connection that misses its
+webhook past that window stops ingesting permanently, with nothing to notice. Closing
+the work at that point would have left the original failure mode reachable.
+
+**Step 1 — the authorized incremental sync (no `/transactions/refresh`).**
+Provider returned `transactions_update_status = HISTORICAL_UPDATE_COMPLETE`.
+
+    added 0 · modified 0 · removed 0        (nothing left to fetch)
+    initial_update_complete  False → True
+    historical_update_complete False → True   at 2026-08-26 23:50:04Z
+    label  "Initial data loaded — historical import still running"
+        →  "Historical import complete"
+    provisional CoS lines: 1 → 0 ; freshness history_incomplete: True → False
+    dataset UNCHANGED — 705 txns, 705 distinct provider ids, 0 duplicates,
+    0 new, 0 lost, 0 pending, 2024-08-26 → 2026-08-24
+
+**Step 2 — bounded scheduled reconciliation.**
+- `apps/finance/services/sync_reconciliation.py` (new) — selection, dry-run reporting
+  and per-connection reconciliation. Threshold `STALE_AFTER_HOURS = 6` is *chosen*:
+  Plaid's retries play out over hours, so reconciling sooner mostly races deliveries
+  still in flight. Worst case is 6h of staleness and 4 provider calls/day; while
+  webhooks work it is **zero** calls. `MAX_CONNECTIONS_PER_RUN = 25` caps a bad
+  afternoon; the remainder is picked up next run.
+- Exclusions are each a case where syncing would be *wrong*, not merely wasteful:
+  non-active status (disconnected / error / reauth / pending **and
+  `revocation_pending`**, which retains its token solely to revoke the Item),
+  soft-deleted rows, empty token, `user.is_active=False`, and anything already fresh.
+- `apps/finance/tasks.py` — `reconcile_stale_bank_connections`, logging counts only.
+- `config/settings.py` — `crontab(minute=35)`, hourly. Crontab, never an interval:
+  Railway's ephemeral filesystem resets `PersistentScheduler` on restart.
+
+**Concurrency — solved once, in the shared service.** `TransactionSyncService.sync()`
+now takes a per-connection lock before doing anything, so webhook, scheduled, manual,
+link and bulk callers are serialised **by construction** rather than by each caller
+remembering. Reuses the existing DB-backed `SchedulerLock` rather than adding a second
+mechanism — it works when Redis is down, which is exactly when a webhook backlog and a
+scheduled catch-up are most likely to collide. Scope is per connection, so different
+institutions still sync in parallel; a lock older than `LOCK_STALE_SECONDS = 900` is
+reclaimable so a killed worker cannot wedge a connection forever. Callers now pass
+`trigger=` for the audit trail only; it never changes what is fetched.
+
+**Also fixed in passing:** `sync_all_connections()` filtered on `connection_status`
+correctly but every caller of `sync()` was untagged; and the helper is now consistent
+with the lock. `/transactions/refresh` is asserted absent from the whole finance app by
+an AST contract test.
+
+**Tests** — `apps/finance/tests/test_sync_reconciliation.py` (new): missed-webhook
+recovery, fresh connections making no provider call, stale/never-synced selection and
+ordering, every exclusion above, threshold edge, bounded selection, re-entrant
+webhook-during-scheduled refusal, lock release on success and on exception, stale-lock
+reclaim, cross-connection independence, no duplicate rows across concurrent triggers,
+multi-page cursor persistence (only the final cursor stored), completion learned with
+no webhook at all, duplicate/out-of-order webhooks inert, bounded retries, no
+`/transactions/refresh` anywhere, and no institution name, token, provider id or email
+in the dry run or the task logs.
+
+**Why:** repairing webhook processing removed the *defect*; only a second trigger
+removes the *dependency*. Ingestion can now recover from a webhook that is never
+delivered at all.
+
+**Portability bug caught by its own test:** `.order_by("last_sync_at")` puts NULLs
+FIRST on SQLite and LAST on PostgreSQL, so a never-synced connection would have been
+reconciled last in production while tests showed it first — the local-SQLite-hides-
+Postgres class again. Now `F("last_sync_at").asc(nulls_first=True)`, explicit on both
+backends.
+
+**Also learned:** an otherwise-eligible connection cannot *be* soft-deleted —
+`soft_delete()` refuses while provider access is live, so the dangerous combination
+(deleted + token-bearing + selectable) is structurally impossible rather than merely
+filtered. Both facts are now asserted.
+
+**Operator visibility.** `finance_audit.audit()` gained an `ingestion_recovery` block —
+schedule registration, task name, threshold, active/eligible/never-synced counts,
+`rejected_webhooks_seen`, `historical_complete`, and `persistently_stale` (stale by more
+than 4× the threshold, i.e. the net is running and still not fixing it). Counts, ages
+and a task name only; asserted to contain no institution name, token, provider id or
+email. Reachable at `/admin-console/api/claude/finance-audit/`.
+
+**Two self-inflicted breaks caught before deploy, recorded rather than hidden:**
+`_reconciliation_state()` used `timezone` in a module that never imported it, taking
+down the whole audit including six previously-passing tests; and the observability
+test's own fixture was 48h stale, already past the 4× "persistently stale" threshold it
+asserted was zero. Both fixed; full suite re-run green afterwards.

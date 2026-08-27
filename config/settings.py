@@ -1338,6 +1338,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.finance.tasks.detect_finance_opportunities",
         "schedule": crontab(hour=4, minute=10),  # after the meals pass, before health 5am
     },
+    # Recovery net for transaction ingestion. Webhooks are the primary trigger; this
+    # catches a connection whose webhook was lost past Plaid's retry window, which
+    # would otherwise leave it permanently stale with nothing to notice. Only
+    # connections idle beyond the freshness threshold are touched, so while webhooks
+    # work this costs no provider calls. CRONTAB, not an interval: Railway's ephemeral
+    # filesystem resets PersistentScheduler on restart and starves interval tasks.
+    "finance-reconcile-stale-connections-hourly": {
+        "task": "apps.finance.tasks.reconcile_stale_bank_connections",
+        "schedule": crontab(minute=35),  # hourly, off the top of the hour
+    },
     "meals-expire-leftovers-4am-utc": {
         "task": "apps.meals.tasks.expire_leftovers_task",
         "schedule": crontab(hour=4, minute=0),  # 4:00 AM UTC, after the health summary

@@ -1264,7 +1264,7 @@ def bank_connection_complete(request):
         # Start initial sync in background (or inline for now)
         try:
             sync_service = TransactionSyncService(connection)
-            sync_result = sync_service.sync()
+            sync_result = sync_service.sync(trigger="link")
             logger.info(f"Initial sync completed: {sync_result}")
         except Exception as e:
             logger.error(f"Initial sync failed: {e}")
@@ -1442,7 +1442,7 @@ def bank_connection_sync(request, pk):
 
     try:
         sync_service = TransactionSyncService(connection)
-        result = sync_service.sync()
+        result = sync_service.sync(trigger="manual")
 
         return JsonResponse({
             'success': True,
@@ -1606,7 +1606,7 @@ def plaid_webhook(request):
                 # Trigger sync
                 from apps.finance.services.sync_service import TransactionSyncService
                 sync_service = TransactionSyncService(connection)
-                sync_service.sync()
+                sync_service.sync(trigger="webhook")
 
         elif webhook_type == 'ITEM':
             if webhook_code == 'ERROR':

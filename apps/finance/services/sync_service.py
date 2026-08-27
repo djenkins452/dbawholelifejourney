@@ -19,11 +19,79 @@ See docs/wlj_bank_integration_architecture.md for architecture details.
 """
 
 import logging
+import os
 from decimal import Decimal
 
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+class _ConnectionSyncLock:
+    """Serialise every sync of ONE connection, whatever triggered it.
+
+    Reuses the existing DB-backed `SchedulerLock` rather than introducing a second lock
+    mechanism: it works when Redis is down (which is exactly when a backlog of webhooks
+    and a scheduled catch-up are most likely to collide), and it survives worker
+    restarts. A lock older than `stale_seconds` is reclaimable so a killed worker cannot
+    wedge a connection forever.
+
+    Scope is deliberately per CONNECTION, not global: two different institutions must
+    still sync concurrently.
+    """
+
+    def __init__(self, connection_pk, stale_seconds):
+        self.lock_name = f"finance_sync:{connection_pk}"
+        self.stale_seconds = stale_seconds
+        self._held = False
+
+    def acquire(self, trigger):
+        from django.db import IntegrityError, transaction as db_transaction
+
+        from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+
+        now = timezone.now()
+        holder = f"{trigger}-{os.getpid()}"
+        cutoff = now - timezone.timedelta(seconds=self.stale_seconds)
+        try:
+            with db_transaction.atomic():
+                try:
+                    SchedulerLock.objects.create(
+                        lock_name=self.lock_name, locked_at=now, locked_by=holder)
+                    self._held = True
+                    return True
+                except IntegrityError:
+                    pass
+            # A row exists. Take it over ONLY if it is stale — the filter on locked_at
+            # is what makes this atomic: two racing workers cannot both match it.
+            with db_transaction.atomic():
+                claimed = (SchedulerLock.objects
+                           .filter(lock_name=self.lock_name, locked_at__lt=cutoff)
+                           .update(locked_at=now, locked_by=holder))
+            if claimed:
+                logger.warning("Reclaimed a stale finance sync lock (%s)", self.lock_name)
+                self._held = True
+                return True
+            return False
+        except Exception:
+            # A lock we cannot evaluate must not silently permit a concurrent sync.
+            logger.warning("Finance sync lock unavailable for %s", self.lock_name,
+                           exc_info=True)
+            return False
+
+    def release(self):
+        if not self._held:
+            return
+        try:
+            from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+            SchedulerLock.objects.filter(lock_name=self.lock_name).delete()
+        except Exception:
+            # The stale-reclaim path above is the backstop if this ever fails.
+            logger.warning("Could not release finance sync lock %s", self.lock_name,
+                           exc_info=True)
+        finally:
+            self._held = False
+
 
 
 class TransactionSyncService:
@@ -72,14 +140,34 @@ class TransactionSyncService:
         self._category_map = None
         self._liability_names = None
 
-    def sync(self) -> dict:
-        """
-        Perform a full transaction sync.
+    #: How long a sync may hold the per-connection lock before another caller may
+    #: reclaim it. Longer than the slowest observed backfill (677 transactions over
+    #: several pages took seconds), short enough that a killed worker cannot wedge a
+    #: connection for a whole schedule interval.
+    LOCK_STALE_SECONDS = 900
 
-        Returns:
-            dict with 'added', 'modified', 'removed', 'accounts_synced'
+    def sync(self, *, trigger: str = "manual") -> dict:
+        """Perform a transaction sync, serialised per connection.
+
+        `trigger` is for the audit trail only ("webhook" / "scheduled" / "manual"); it
+        never changes what is fetched. All three callers share this one governed path,
+        so the lock below is what makes them safe against each other — a webhook
+        arriving mid-reconciliation cannot double-apply a page or race the cursor write.
         """
         from apps.finance.services.plaid_service import get_plaid_service
+
+        lock = _ConnectionSyncLock(self.bank_connection.pk, self.LOCK_STALE_SECONDS)
+        if not lock.acquire(trigger):
+            logger.info("Sync skipped for connection %s: another sync holds the lock",
+                        self.bank_connection.pk)
+            return {'added': 0, 'modified': 0, 'removed': 0, 'accounts_synced': 0,
+                    'skipped': True, 'reason': 'locked'}
+        try:
+            return self._sync_locked(get_plaid_service)
+        finally:
+            lock.release()
+
+    def _sync_locked(self, get_plaid_service) -> dict:
 
         plaid = get_plaid_service()
         access_token = self.bank_connection.get_access_token()
@@ -515,6 +603,6 @@ def sync_all_connections(user=None):
 
     for connection in queryset:
         service = TransactionSyncService(connection)
-        results[connection.id] = service.sync()
+        results[connection.id] = service.sync(trigger="bulk")
 
     return results

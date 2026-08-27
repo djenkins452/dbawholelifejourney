@@ -21,6 +21,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db.models import Count, F, Max, Min, Q, Sum
+from django.utils import timezone
 
 from apps.finance.models import (
     AccountEntityAssignment,
@@ -136,6 +137,7 @@ def audit():
     provider = _provider_state()
 
     return {
+        "ingestion_recovery": _reconciliation_state(),
         "environment": {
             "provider": provider,
             "finance_active_users": len(finance_user_ids),
@@ -225,6 +227,46 @@ def audit():
         "dependencies": _installed_distributions(),
         "integrity": integrity,
         "readiness": _readiness(eligible, months, len(finance_user_ids), integrity),
+    }
+
+
+def _reconciliation_state():
+    """Is transaction ingestion actually recovering, and is anything stuck?
+
+    Operational truth only — counts, ages and a schedule name. No institution, provider
+    identifier, token, balance or transaction ever appears here, because staleness is
+    answerable without any of them.
+    """
+    from django.conf import settings
+
+    from apps.finance.services import sync_reconciliation as recon
+
+    now = timezone.now()
+    active = BankConnection.objects.filter(
+        connection_status=BankConnection.STATUS_ACTIVE)
+    stale = active.filter(recon._stale_q(recon.stale_cutoff(now)))
+
+    # A connection stale by many multiples of the threshold is not "waiting" — the
+    # safety net is running and still not fixing it. Say so rather than imply health.
+    wedged_cutoff = now - timezone.timedelta(hours=recon.STALE_AFTER_HOURS * 4)
+    wedged = active.filter(last_sync_at__lt=wedged_cutoff).count()
+
+    schedule = settings.CELERY_BEAT_SCHEDULE.get(
+        "finance-reconcile-stale-connections-hourly", {})
+
+    return {
+        "schedule_registered": bool(schedule),
+        "task": schedule.get("task", ""),
+        "stale_after_hours": recon.STALE_AFTER_HOURS,
+        "max_connections_per_run": recon.MAX_CONNECTIONS_PER_RUN,
+        "active_connections": active.count(),
+        "currently_eligible": stale.count(),
+        "never_synced": active.filter(last_sync_at__isnull=True).count(),
+        "persistently_stale": wedged,
+        "rejected_webhooks_seen": active.exclude(
+            last_webhook_rejected_at__isnull=True).count(),
+        "historical_complete": active.filter(
+            historical_update_complete=True).count(),
     }
 
 

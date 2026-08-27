@@ -59084,3 +59084,33 @@ could race the cleanup because nothing was still creating duplicates.
 Pre-flight reconfirmation on production immediately before deploying: 1,677 groups, all
 size 2, **zero differing business fields**, zero dependents (attributions, transfer
 pairs, counterparts, recurring sources, receipts, imports all 0).
+
+### 2026-08-27 — Stage B production verification
+
+    commit (web + worker)      1de7634ea026
+    unapplied migrations       0
+    constraint                 uq_txn_provider_id_per_active_account (UNIQUE)
+      predicate                WHERE status = 'active' AND NOT (plaid_transaction_id = '')
+    active duplicate groups    0
+    retired rows               1,677   without a survivor: 0
+    totals                     5,455 all / 3,778 active   (predicted exactly)
+    coverage                   2024-08-26 → 2026-08-26 · 2024:642 2025:1948 2026:1188
+    connections                2, both cursor len 112, both "Historical import complete",
+                               both days_requested 730
+    accounts 6 · attributions 0 (none existed to lose)
+    population 3,552 rows, contains no retired row · provisional lines 0
+    idempotency: one ordinary cursor sync per connection → added 0 / modified 0 /
+      removed 0 on both; cursors unchanged; no new rows; 0 duplicate groups after
+    failed syncs last 3h: 0 · rate-limit events last 3h: 0
+    leftover finance_sync locks: 0 · sync(*, trigger) present with lock on both services
+    heartbeats ISE ALIVE / SAME ALIVE · scheduler ALIVE · redis connected
+    reconciliation schedule registered, 0 currently eligible, 0 persistently stale
+
+One sync log row per connection now (11:15:35, 11:15:36) where the incident produced
+duplicated pairs — direct evidence the double-trigger is gone.
+
+**Recorded, not done (deliberately out of scope):** the Finance **Connections** page is
+reachable at `/finance/connections/` and has a teaching destination, but
+`templates/components/navigation.html` has no dropdown entry for it (Dashboard,
+Accounts, Transactions, Budgets, Goals, Metrics only). Logged as the next bounded task
+rather than folded into this remediation.

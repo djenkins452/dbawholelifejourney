@@ -177,7 +177,8 @@ def build_view(action, params=None, confirmation_detail=None, *, summary=None):
 # Params that identify WHAT is being written, in the order a human reads them. Generic:
 # these are the argument names WLJ's write handlers already use across domains — no
 # domain, product or question is special-cased here.
-_IDENTIFYING_PARAMS = ("title", "name", "food_name", "value", "amount", "quantity",
+_IDENTIFYING_PARAMS = ("target", "record_type", "record_id",
+                       "title", "name", "food_name", "value", "amount", "quantity",
                        "hours", "content", "text", "query", "task_query", "metric",
                        "meal_type", "unit", "date", "due_date", "on_date",
                        "scheduled_time")

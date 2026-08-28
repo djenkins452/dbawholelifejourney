@@ -1705,6 +1705,33 @@ def _resolve_tool():
         }, "required": ["confirmation_id", "confirm"]}}}
 
 
+def _delete_record_tool():
+    """M4 — remove ONE record by EXACT canonical identity, behind a bound confirmation.
+
+    Deliberately narrow: `record_type` is an enum of the registered correctable types,
+    and `record_id` is required, so there is no generic "delete whatever matches" verb.
+    """
+    return {"type": "function", "function": {
+        "name": "delete_record",
+        "description": (
+            "Remove ONE specific record the user asked you to get rid of, by its EXACT "
+            "identity. Use when the user says a stored record is wrong and should be "
+            "removed. You must supply `record_id` — the id of the exact record, from a "
+            "truth retrieval or Current Context. NEVER call this with a guessed id, and "
+            "never to remove 'the most recent one': if you cannot identify the specific "
+            "record, retrieve it first or ask which one they mean. This REMOVES a "
+            "record; it does not replace it with a corrected value. If the right value "
+            "is unknown, remove the wrong record and ask the user for the right one — "
+            "never substitute a value from their history."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "record_type": {"type": "string", "enum": ["weight"],
+                            "description": "The kind of record to remove."},
+            "record_id": {"type": "integer",
+                          "description": "The EXACT id of the record to remove."},
+        }, "required": ["record_type", "record_id"]}}}
+
+
 def _complete_execution_item_tool():
     """Record that ONE execution item (from the execution review) was completed, on the date
     it ACTUALLY happened. Reuses existing per-domain completion writes (one source of truth).
@@ -1958,7 +1985,8 @@ def action_tools():
     """Named deterministic action tools (curated write set) + the bound-confirmation
     resolver + the execution-completion router + the guided-review driver + the durable
     follow-up scheduler. No generic request_action; no invented interface."""
-    return _named_action_tools() + [_resolve_tool(), _complete_execution_item_tool(),
+    return _named_action_tools() + [_resolve_tool(), _delete_record_tool(),
+                                   _complete_execution_item_tool(),
             _record_interview_knowledge_tool(),
                                     _next_review_item_tool(), _schedule_follow_up_tool()]
 

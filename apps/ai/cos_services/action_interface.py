@@ -329,6 +329,31 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
     # dispatchable by `execute_action`. Route the CONFIRMED action back to the completion
     # service with the EXACT bound params — the target is never re-resolved from a name or
     # from whatever the current action happens to be by now.
+    if action == "delete_record":
+        # The CONFIRMED removal executes the identity that was BOUND at confirmation
+        # time — never a target re-resolved from a name, a description, or whatever the
+        # most recent record happens to be by now.
+        from apps.ai.cos_services import record_correction as _rc
+        done = _rc.remove_record(user, params.get("record_type"),
+                                 params.get("record_id"))
+        ok = done.get("status") in (_rc.OK, _rc.ALREADY_REMOVED)
+        out = {"status": OK if ok else ERROR, "result": done.get("message"),
+               "code": None if ok else done.get("status"),
+               "evidence": {k: done.get(k) for k in
+                            ("record_type", "record_id", "removed", "description")}}
+        _confirm.finalize(user, confirmation_id, status="resolved", choice="confirm",
+                          result={"status": out["status"], "result": out["result"]})
+        record_tool_call(
+            user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
+            args=params, result_status=done.get("status", ""),
+            conversation_id=conversation_id,
+            result_digest={"status": done.get("status"), "confirmed": True,
+                           "confirmation_id": confirmation_id,
+                           "removed": done.get("removed"),
+                           "record_type": done.get("record_type"),
+                           "record_id": done.get("record_id"),
+                           "description": done.get("description")})
+        return out
     if action == "complete_execution_item":
         try:
             from apps.ai.cos_services.execution_completion import (

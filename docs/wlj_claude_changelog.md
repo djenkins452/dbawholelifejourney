@@ -5,6 +5,47 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-28 — feat(action-safety): M4 — exact-identity record correction
+
+**The second product gap.** The CoS created an erroneous weight record and then could not reverse it —
+`complete_execution_item(source_type='weight', source_id=None)` returned *"No completion write is wired for '' yet."*
+Having created truth it could not correct, it offered to "fix" the bad value by **substituting an unrelated
+historical weight** (275.1 lb, a genuine reading from nine days earlier). Both halves were wrong.
+
+**Invariant:** *a corrective action must target an EXACT canonical record identity; if the target or the replacement
+truth is unknown, WLJ must not guess.* The model may still CHOOSE the record through ordinary retrieval — that is
+reasoning. **Execution binds to the identity**, never to a name, a value, a description, or "the most recent one".
+
+### Implemented — reuse, narrowly scoped
+- `apps/ai/cos_services/record_correction.py`: a **registry of correctable record types** (`weight` only — the
+  proven production need). There is no `delete(table, id)` verb; adding a type is an explicit, reviewable act, and a
+  contract test pins the registry contents and asserts foreign types resolve to nothing.
+- **Removal is the domain's own canonical mechanism** — `UserOwnedModel.soft_delete()` (sets `status='deleted'`,
+  stamps `deleted_at`, invalidates CoS/SAE caches). WLJ never hard-deletes a user's record from a conversation.
+- **`describe_target()`** renders the record's CURRENT stored state, so the user authorizes a record they can *see*,
+  described from the row rather than from the model's recollection.
+- New `delete_record(record_type, record_id)` tool follows the proven `complete_execution_item` pattern: the
+  dispatcher **mints an M1 bound confirmation** rather than mutating, and the confirmed action routes back through
+  `resolve_pending_action` with the **exact bound identity**.
+- **Fail closed** on a missing id, an unknown type, a not-found record, or another user's record — no confirmation
+  is minted and nothing is touched.
+- **No replacement truth, structurally**: the module removes a record and cannot write one. A contract test asserts
+  the source contains no `objects.create` and no value assignment.
+
+### Regression — 14 new tests
+Exact identity required (`None`/`""`/`0` all refused with *"I won't guess"*) · ambiguous target removes nothing ·
+unknown type refused · another user's record is not findable · **no unrestricted cross-domain delete** (registry
+pinned) · removal affects only the target · soft-delete not destruction · retry idempotent (`already_removed`) ·
+**no replacement record is ever created** · the service cannot write a value at all · confirmation shows the exact
+record (value, unit, timestamp, id) · bound and exactly-once across three confirms · declining removes nothing ·
+audit reconstructs record → action → result with the confirmation id. **174 green** across the full action-safety,
+runtime, intent and constitution suites.
+
+**Caught during implementation:** the first placement of the tool schema landed *inside* a single-tool factory,
+producing a tuple in the tool list. The exposure contract test from M3 (`all_tools` well-formedness) caught it
+immediately — the tool is now its own factory, registered alongside the others.
+
+---
 ## 2026-08-28 — feat(action-safety): M3 — safe Nutrition write capability
 
 **The original capability gap that started the cascade.** The certified runtime could READ nutrition truth but had

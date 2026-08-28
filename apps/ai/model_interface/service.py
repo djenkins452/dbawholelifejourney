@@ -1293,6 +1293,43 @@ class ModelInterfaceService:
                                    "item": (out.get("item") or {}).get("title", "")},
                 )
                 return out
+            if name == "delete_record":
+                # M4: remove ONE record by EXACT identity. Always behind a bound
+                # confirmation showing the record's CURRENT deterministic state — the
+                # user authorizes a record they can see, described from the stored row.
+                from apps.ai.cos_services import record_correction as _rc
+                target = _rc.describe_target(user, args.get("record_type"),
+                                             args.get("record_id"))
+                if target["status"] in (_rc.UNSUPPORTED, _rc.AMBIGUOUS, _rc.NOT_FOUND):
+                    # FAIL CLOSED — no identity, no confirmation, nothing removed.
+                    _audit.record_tool_call(
+                        user, kind="action", tool_name=name, turn_id=turn_id,
+                        surface=surface, args=args, result_status=target["status"],
+                        conversation_id=conversation_id,
+                        result_digest={"status": target["status"], "mutated": False})
+                    return {"status": "error", "code": target["status"],
+                            "result": target["message"]}
+                if not args.get("confirmed"):
+                    gate = action_interface.request_confirmation_for(
+                        user, "delete_record",
+                        {**args, "target": target.get("description", "")},
+                        turn_id=turn_id, surface=surface,
+                        conversation_id=conversation_id,
+                    )
+                    if gate is not None:
+                        return gate
+                out = _rc.remove_record(user, args.get("record_type"),
+                                        args.get("record_id"))
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "removed": out.get("removed"),
+                                   "record_type": out.get("record_type"),
+                                   "record_id": out.get("record_id"),
+                                   "description": out.get("description")})
+                return out
             if name == "complete_execution_item":
                 # Blocker #14 Layer 2: record an execution item complete on the ACTUAL day,
                 # reusing existing per-domain writes. AUTO (the user's 'yes' is the confirm;

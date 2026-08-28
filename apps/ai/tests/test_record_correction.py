@@ -166,3 +166,31 @@ class ConfirmationTests(_Base):
         self.assertTrue(d.get("removed"))
         self.assertIn("534.0 lb", d.get("description", ""))
         self.assertEqual(d.get("confirmation_id"), cid)
+
+
+class IdentityIsRetrievableTests(_Base):
+    """A correction can only bind to an identity the CoS can actually obtain.
+
+    Without a retrievable id the model can SEE a wrong entry but has no safe way to
+    name it — which is exactly how the production bad weight became unremovable. This
+    closes the loop: retrieve → id → delete_record(id) → bound confirmation → removal.
+    """
+
+    def test_weight_retrieval_exposes_the_record_identity(self):
+        from apps.ai.cos_services.domain_entity import get_domain_entity
+        env = get_domain_entity(self.user, "health", entity_type="weight")
+        ids = [(e.get("definition") or {}).get("record_id")
+               for e in (env.get("entities") or [])]
+        self.assertIn(self.bad.pk, ids,
+                      "the CoS cannot obtain the identity a correction requires")
+
+    def test_the_retrieved_identity_is_the_one_correction_accepts(self):
+        from apps.ai.cos_services.domain_entity import get_domain_entity
+        env = get_domain_entity(self.user, "health", entity_type="weight")
+        target = [e for e in (env.get("entities") or [])
+                  if (e.get("performance") or {}).get("weight") == 534.0][0]
+        rid = target["definition"]["record_id"]
+        out = rc.remove_record(self.user, "weight", rid)
+        self.assertEqual(out["status"], rc.OK)
+        self.bad.refresh_from_db()
+        self.assertEqual(self.bad.status, "deleted")

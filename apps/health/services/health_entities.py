@@ -165,7 +165,14 @@ class WeightEntities:
         for e in _recent(WeightEntry, user, "recorded_at"):
             out.append(CompleteEntity(
                 kind="weight", identity=f"Weight — {e.recorded_at.isoformat()}",
-                definition={"recorded_at": e.recorded_at.isoformat(),
+                # `record_id` is the canonical identity of THIS row. It is exposed
+                # because a correction must bind to an exact record: without a
+                # retrievable id the CoS can see a wrong entry but has no safe way to
+                # name it, which is precisely how a bad weight became unremovable
+                # (production 2026-08-27). Same identity the Current Context Contract
+                # already uses as `app.model:pk`.
+                definition={"record_id": e.pk,
+                            "recorded_at": e.recorded_at.isoformat(),
                             "unit": e.unit, "source": e.source or None},
                 status="logged",
                 performance={"weight": _f(e.value),

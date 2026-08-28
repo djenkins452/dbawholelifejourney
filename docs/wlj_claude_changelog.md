@@ -5,6 +5,61 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-28 — feat(action-safety): M3 — safe Nutrition write capability
+
+**The original capability gap that started the cascade.** The certified runtime could READ nutrition truth but had
+no way to WRITE it, so an explicit, user-confirmed meal request was satisfied by the nearest available numeric
+writes — a Task, then a Weight carrying the calorie value.
+
+### Investigation
+- **Canonical owner of consumed-meal nutrition = `health.FoodEntry`** (exposed as the `nutrition` truth domain).
+  Meal Intelligence (`apps/meals`) owns recipes/pantry/planning — *supply*, not *consumption* — so extending this
+  path creates **no parallel food truth**.
+- **`FoodEntry` already supports every field Danny supplied**, including `total_saturated_fat_g` and
+  `total_sodium_mg`. **Nothing had to be dropped or surfaced as unpersistable.**
+- **Provenance already existed**: `data_source_used` with a `USER_OVERRIDE` choice, plus `snapshot_nutrients`.
+- **Two defects made naive exposure unsafe**, exactly as suspected:
+  1. `handle_log_food` accepted only `calories`, and **overwrote protein/carbs/fat/fiber/sugar from the 3-tier
+     food search (including AI estimation) unconditionally** — only calories was protected. Supplying macros would
+     have silently discarded them.
+  2. It also **renamed the user's meal** to the search match (`matched_name = best_match.name`), and **never wrote
+     saturated fat or sodium at all** despite the columns existing.
+- **Exposure requires BOTH allowlists**: `constitution.ALLOWED_WRITE_INTENTS` (what the model sees) *and*
+  `action_execution.DAY1_ACTION_ALLOWLIST` (what may dispatch). Adding only the first leaves the capability
+  advertised but undispatchable — proven by a probe returning *"That action is not enabled for the assistant."*
+
+### Implemented
+**Governing invariant: explicit user-supplied nutrition is authoritative and survives the write path exactly as
+supplied; estimation may fill genuinely missing values but may never replace an explicit one.**
+- Schema extended with `protein_g · carbohydrates_g · fiber_g · sugar_g · fat_g · saturated_fat_g · sodium_mg`
+  (grams; **milligrams** for sodium), and the description tells the model to pass every nutrient the user states.
+- Supplied values are collected **before** any lookup, and when the user supplies their own nutrition **the food
+  search does not run at all** — *an estimate that is never fetched can never overwrite anything*, and the meal
+  keeps the name the user gave it. Supplied values are re-applied **after** the search as a second guarantee for
+  the partial-supply case.
+- Saturated fat and sodium now persist. Provenance records `data_source_used=USER_OVERRIDE` and snapshots exactly
+  which nutrients came from the user.
+- An unparseable nutrient **fails closed** rather than writing a partial record.
+
+### Behaviour
+Proposal → M1 bound confirmation naming the food action and payload → exactly-once execution → the entry appears
+under the correct meal type on the user's **local** date, with every supplied value intact, **no Task and no
+Weight created**, and the result reported from the actual write.
+
+### Regression — 16 new tests
+Runtime exposure (both allowlists) · schema covers every canonical column · **no schema param without a column to
+land in** · every supplied nutrient survives · **explicit values are never replaced by estimation** (asserts the
+search is never even called) · estimation still fills missing values · partial supply keeps supplied + fills the
+rest · meal type survives · user-local date · provenance distinguishes supplied from derived · malformed value
+fails closed · authorization line matches the bound payload · **no Task and no Weight created** · repeated
+confirmation is exactly-once · a failed write cannot be narrated as success · no incident-specific logic (asserted
+against the CODE). **253 green** across action-safety, nutrition, runtime, intent-registration and constitution
+suites. `makemigrations --check` clean — **no schema change was needed**.
+
+**Note:** tests set `assistant_confirm_actions=True` to reproduce Danny's real configuration — that preference, not
+an intrinsic action policy, is what routed every write in the incident through a confirmation.
+
+---
 ## 2026-08-28 — fix(action-safety): M2 — Deterministic Measurement-Write Validation
 
 **The gap.** `log_weight(value=534, unit=lb)` became canonical truth against a ~268–278 lb series — a ~+263 lb

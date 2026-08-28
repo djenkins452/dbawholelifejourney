@@ -1658,6 +1658,12 @@ ALLOWED_WRITE_INTENTS = (
     "create_event", "add_reminder",
     # M4 — daily logging (connects to follow-through / execution reconciliation)
     "log_workout", "log_habit",
+    # M3 (2026-08-28) — nutrition. Its ABSENCE started the Stuffed Peppers cascade: the
+    # CoS could READ nutrition truth but had no way to WRITE it, so an explicit,
+    # user-confirmed meal request was satisfied by the nearest available numeric writes
+    # (a task, then a weight). Exposed only after the handler was made safe: values the
+    # user states are authoritative and are never replaced by a lookup or an estimate.
+    "log_food",
     # M4 — goals
     "create_goal", "update_goal_progress",
     # M4 — faith (daily)

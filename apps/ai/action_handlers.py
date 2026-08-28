@@ -17,7 +17,12 @@ import hashlib
 import logging
 import re
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+
+
+class _SkipFoodSearch(Exception):
+    """Control-flow sentinel: the user supplied their own nutrition, so no food
+    lookup runs at all. Raised and caught inside `handle_log_food` only."""
 
 import requests
 from django.conf import settings
@@ -1046,6 +1051,22 @@ class ActionHandler:
                 error='internal_error'
             )
 
+    # Nutrient params the user may supply explicitly → the FoodEntry field each one
+    # lands in. EXPLICIT USER TRUTH IS AUTHORITATIVE: a value the user states is written
+    # exactly as given and is NEVER replaced by a food-database match or an AI estimate.
+    # (Before M3 only `calories` was protected; every other macro was overwritten from
+    # the search result, so supplying them would have silently discarded user truth.)
+    _FOOD_NUTRIENT_FIELDS = (
+        ("calories", "total_calories"),
+        ("protein_g", "total_protein_g"),
+        ("carbohydrates_g", "total_carbohydrates_g"),
+        ("fiber_g", "total_fiber_g"),
+        ("sugar_g", "total_sugar_g"),
+        ("fat_g", "total_fat_g"),
+        ("saturated_fat_g", "total_saturated_fat_g"),
+        ("sodium_mg", "total_sodium_mg"),
+    )
+
     def handle_log_food(self, food_name: str, quantity: float = 1,
                         meal_type: str = None, calories: float = None,
                         notes: str = "", **kwargs) -> ActionResult:
@@ -1084,6 +1105,22 @@ class ActionHandler:
                 else:
                     meal_type = 'dinner'
 
+            # ── EXPLICIT USER-SUPPLIED NUTRITION (authoritative) ──────────────────
+            # Collected BEFORE any lookup so the search can only fill what the user did
+            # not state. `supplied` is the provenance record of what came from the user.
+            supplied = {}
+            for param, field in self._FOOD_NUTRIENT_FIELDS:
+                raw = calories if param == "calories" else kwargs.get(param)
+                if raw is None or raw == "":
+                    continue
+                try:
+                    supplied[field] = Decimal(str(raw))
+                except (TypeError, ValueError, InvalidOperation):
+                    return ActionResult(
+                        success=False, error='validation_failed',
+                        message=(f"I couldn't record {param.replace('_', ' ')} — "
+                                 f"'{raw}' isn't a number I can store."))
+
             # Smart food lookup with 3-tier search
             food_match = None
             matched_name = food_name
@@ -1099,7 +1136,14 @@ class ActionHandler:
             }
             source_note = ""
 
+            # A user who states their own nutrition is not asking WLJ to look the food
+            # up. Skipping the search here is what makes the guarantee absolute: an
+            # estimate that is never fetched can never overwrite anything, and their
+            # meal keeps the name THEY gave it.
+            full_explicit = bool(supplied) and "total_calories" in supplied
             try:
+                if full_explicit:
+                    raise _SkipFoodSearch()
                 from apps.health.services.food_search import food_search_service
 
                 # Search for the food (includes misspelling correction via AI)
@@ -1140,8 +1184,14 @@ class ActionHandler:
                     elif best_match.source == 'fatsecret':
                         source_note = " (FatSecret)"
 
+            except _SkipFoodSearch:
+                pass
             except Exception as e:
                 logger.warning(f"Food search failed, using basic entry: {e}")
+
+            # EXPLICIT VALUES WIN — applied AFTER the search so nothing a lookup returned
+            # can displace a value the user actually stated.
+            nutrition_data.update(supplied)
 
             # Get food_item for linking if available
             food_item = None
@@ -1165,10 +1215,20 @@ class ActionHandler:
                 total_fat_g=nutrition_data['total_fat_g'],
                 total_fiber_g=nutrition_data['total_fiber_g'],
                 total_sugar_g=nutrition_data['total_sugar_g'],
+                # The model already supported these; the writer silently dropped them,
+                # so a user who stated sodium or saturated fat lost it at the last step.
+                total_saturated_fat_g=nutrition_data.get('total_saturated_fat_g',
+                                                         Decimal('0')),
+                total_sodium_mg=nutrition_data.get('total_sodium_mg'),
                 logged_date=today,
                 logged_time=now.time(),
                 meal_type=meal_type,
                 entry_source='voice',
+                # PROVENANCE: record that these numbers came from the user, not from a
+                # database row or an estimate, using the existing granular source field.
+                data_source_used=(FoodEntry.DATA_SOURCE_USER_OVERRIDE if supplied
+                                  else FoodEntry.DATA_SOURCE_MANUAL),
+                snapshot_nutrients={k: float(v) for k, v in supplied.items()},
                 notes=notes or ""
             )
 

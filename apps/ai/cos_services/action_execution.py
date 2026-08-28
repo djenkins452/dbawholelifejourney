@@ -65,6 +65,10 @@ DAY1_ACTION_ALLOWLIST = {
     "log_habit",
     "log_workout",
     "log_weight",
+    # M3 (2026-08-28) — consumed nutrition. Exposure required BOTH allowlists: the tool
+    # set the model sees (constitution.ALLOWED_WRITE_INTENTS) and this execution gate.
+    # Adding it to only one leaves the capability advertised but undispatchable.
+    "log_food",
     "log_body_measurements",   # import a full body check-in from a screenshot/photo/typed set
     "import_journal_entries",  # Structured Import: one document → many journal entries
 }

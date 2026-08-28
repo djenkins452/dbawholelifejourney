@@ -192,7 +192,15 @@ HEALTH_INTENT_TOOLS = [
         "type": "function",
         "function": {
             "name": "log_food",
-            "description": "Log food consumption for the user. Use when user mentions eating, having a meal, or specific foods.",
+            "description": (
+                "Log food/meal consumption for the user. Use when the user mentions "
+                "eating, having a meal, or specific foods — including when they supply "
+                "the nutrition themselves. PASS EVERY NUTRIENT THE USER STATES: values "
+                "the user supplies are recorded EXACTLY as given and are never replaced "
+                "by a database or estimated value. Omit a nutrient only when the user "
+                "did not state it (WLJ may then fill it from a food match). Grams for "
+                "macros, MILLIGRAMS for sodium."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -211,8 +219,22 @@ HEALTH_INTENT_TOOLS = [
                     },
                     "calories": {
                         "type": "number",
-                        "description": "Estimated calories if known or mentioned (can be decimal, e.g. 712.5)"
+                        "description": "Calories, when the user states them or they are known"
                     },
+                    "protein_g": {"type": "number",
+                                  "description": "Protein in grams, if the user stated it"},
+                    "carbohydrates_g": {"type": "number",
+                                        "description": "Carbohydrates in grams, if stated"},
+                    "fiber_g": {"type": "number",
+                                "description": "Fiber in grams, if stated"},
+                    "sugar_g": {"type": "number",
+                                "description": "Sugar in grams, if stated"},
+                    "fat_g": {"type": "number",
+                              "description": "Total fat in grams, if stated"},
+                    "saturated_fat_g": {"type": "number",
+                                        "description": "Saturated fat in grams, if stated"},
+                    "sodium_mg": {"type": "number",
+                                  "description": "Sodium in MILLIGRAMS, if stated"},
                     "notes": {
                         "type": "string",
                         "description": "Any additional notes about the food"

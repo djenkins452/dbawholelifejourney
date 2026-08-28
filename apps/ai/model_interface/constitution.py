@@ -1725,7 +1725,7 @@ def _delete_record_tool():
             "never substitute a value from their history."
         ),
         "parameters": {"type": "object", "properties": {
-            "record_type": {"type": "string", "enum": ["weight"],
+            "record_type": {"type": "string", "enum": ["weight", "food"],
                             "description": "The kind of record to remove."},
             "record_id": {"type": "integer",
                           "description": "The EXACT id of the record to remove."},

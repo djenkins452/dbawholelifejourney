@@ -71,8 +71,8 @@ class IdentityTests(_Base):
 
     def test_no_unrestricted_cross_domain_delete_exists(self):
         """10 — only explicitly registered record types are correctable."""
-        self.assertEqual(set(rc.RECORD_TYPES), {"weight"})
-        for foreign in ("task", "journal", "goal", "foodentry", "user", "*"):
+        self.assertEqual(set(rc.RECORD_TYPES), {"weight", "food"})
+        for foreign in ("task", "journal", "goal", "user", "*", "weightentry"):
             self.assertIsNone(rc.spec_for(foreign))
 
 
@@ -194,3 +194,36 @@ class IdentityIsRetrievableTests(_Base):
         self.assertEqual(out["status"], rc.OK)
         self.bad.refresh_from_db()
         self.assertEqual(self.bad.status, "deleted")
+
+
+class FoodRecordCorrectionTests(TestCase):
+    """The same identity-bound mechanism, a second registered type — no new machinery."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            email="food-correction@test.com", password="x")
+
+    def setUp(self):
+        from apps.health.models import FoodEntry
+        cache.clear()
+        FoodEntry.all_objects.all().delete()
+        self.meal = FoodEntry.objects.create(
+            user=self.user, food_name="Sample Meal", meal_type="dinner",
+            quantity=1, serving_size=1, serving_unit="serving",
+            total_calories=100, logged_date=timezone.localdate())
+
+    def test_food_record_is_removable_by_exact_identity(self):
+        from apps.health.models import FoodEntry
+        out = rc.remove_record(self.user, "food", self.meal.pk)
+        self.assertEqual(out["status"], rc.OK)
+        self.assertIn("Sample Meal", out["description"])
+        self.assertFalse(FoodEntry.objects.filter(pk=self.meal.pk).exists())
+        self.assertTrue(FoodEntry.all_objects.filter(pk=self.meal.pk).exists())
+
+    def test_food_removal_is_idempotent_and_invents_nothing(self):
+        from apps.health.models import FoodEntry
+        rc.remove_record(self.user, "food", self.meal.pk)
+        again = rc.remove_record(self.user, "food", self.meal.pk)
+        self.assertEqual(again["status"], rc.ALREADY_REMOVED)
+        self.assertEqual(FoodEntry.objects.filter(user=self.user).count(), 0)

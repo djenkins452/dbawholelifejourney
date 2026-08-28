@@ -58,12 +58,27 @@ def _describe_weight(e):
     return f"{base} — note: {note[:60]}" if note else base
 
 
-# The ONLY correctable record types. Weight is here because it is the proven production
-# need; each addition is deliberate, never a generic capability.
+def _describe_food(e):
+    bits = [f"{e.food_name}"]
+    if e.meal_type:
+        bits.append(str(e.meal_type))
+    if e.total_calories:
+        bits.append(f"{e.total_calories} cal")
+    return f"{' — '.join(bits)} on {e.logged_date.isoformat()}"
+
+
+# The ONLY correctable record types. Each addition is deliberate, never a generic
+# capability: weight is the proven production need, and food is included because the
+# same write path now creates it (M3) and a user who can log a meal must be able to
+# remove one they logged by mistake. Both are `UserOwnedModel`s with the domain's own
+# `soft_delete()`, so nothing new is invented to support them.
 RECORD_TYPES = {
     "weight": RecordSpec(key="weight", label="weight entry",
                          app_label="health", model_name="WeightEntry",
                          describe=_describe_weight),
+    "food": RecordSpec(key="food", label="food entry",
+                       app_label="health", model_name="FoodEntry",
+                       describe=_describe_food),
 }
 
 

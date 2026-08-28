@@ -5,6 +5,89 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-28 — fix(action-safety): M2 — Deterministic Measurement-Write Validation
+
+**The gap.** `log_weight(value=534, unit=lb)` became canonical truth against a ~268–278 lb series — a ~+263 lb
+single-day change — and WLJ's deterministic layer never objected, despite already holding the history.
+
+### Existing validation architecture found (inventory before design)
+- `multimodal.validate_weight` — an **absolute** range gate, `_WEIGHT_RANGE = {"lb": (40, 1000)}`. **534 lb passes
+  it**: it is a plausible weight for *somebody*, just not for this series. A contract test now pins that fact as the
+  reason history was required.
+- `multimodal.find_duplicate_weight` (fact-level dedup) and `multimodal.requires_confirmation` — the latter is
+  **multimodal-only** (`if not source_artifact_id: return False`), so a typed model-proposed write never reached it.
+- A Layer-1 fail-closed **unit** guard in `handle_log_weight` (origin: the 2026-07-12 "51.0 in latest weight" bug).
+- Canonical history accessor `DailyHealthQueries.weight_latest_on_or_before`; canonical normalization
+  `WeightEntry.value_in_lb`.
+
+### First failing deterministic seam — PLACEMENT, not absence
+`execute_action` short-circuits at its **generic confirmation gate (step 2) BEFORE the handler runs**, and all
+measurement validation lived **inside the handler**. So the confirmation was minted from *unvalidated* params: the
+user authorised the value before WLJ had ever compared it to canonical truth. Validation downstream of authorization
+cannot protect an authorization.
+
+### Validation model implemented
+New reusable seam `apps/ai/cos_services/measurement_validation.py`, invoked in `execute_action` **before** the
+confirmation gate. **Three outcomes only:**
+
+| outcome | meaning | behaviour |
+|---|---|---|
+| **NORMAL** | passes deterministic validation | ordinary flow, unchanged |
+| **INVALID** | malformed · unsupported unit · outside a HARD domain constraint | **fail closed — no confirmation is minted at all** |
+| **EXCEPTIONAL** | structurally valid, materially inconsistent with recent canonical history | writable, but only behind an explicit exceptional authorization |
+
+**Anomaly semantics (deliberately narrow).** WLJ may determine a measurement is *inconsistent enough with canonical
+truth to require stronger verification*. It never decides a value is medically impossible. The discrepancy sentence
+states only facts — proposed value, most recent recorded value, the difference — and a contract test asserts it
+contains no clinical language (*impossible / unhealthy / dangerous / see a doctor / you should*).
+
+**Thresholds are configuration, owned per measurement — there is no universal threshold.** A value is exceptional
+only when **both** `rel_delta` (15%) **and** `min_abs_delta` (15 lb) are exceeded within a 60-day lookback.
+Requiring both is deliberate and tested: a relative test alone flags trivial swings on a small base; an absolute test
+alone flags normal variation on a large one. **Units are normalized before comparison** — 123 kg against a 270 lb
+series is NORMAL, while 242 kg (≈534 lb) is EXCEPTIONAL.
+
+**Reuse, not duplication:** hard bounds come from the existing `multimodal` validator, history from the canonical
+series, normalization from the model's own conversion property. **No new truth authority.** `log_body_measurements`
+is the next natural consumer of the same seam and is intentionally *not* registered here, to keep M2 a bounded
+validation layer rather than a health-truth redesign.
+
+### M1 integration — one confirmation mechanism, not two
+An exceptional write returns the **standard** `confirmation_required` envelope carrying the deterministic
+discrepancy, so `request_action` mints an ordinary **M1 `ActionConfirmation`**. The discrepancy is appended to the
+bound `authorization_line` and rendered into the card preview, so *what the user authorizes* states the value, the
+canonical comparison and the difference. M1's exactly-once claim still applies — confirming three times persists one
+row (tested).
+
+### Audit
+A blocked or exceptional write records `validation.{status, reason, detail}` in its `ToolCallLog` digest: proposed
+value/unit, the canonical value compared against and when it was recorded, absolute and relative delta, the
+thresholds applied, the lookback window, and the bound `confirmation_id`. **The anomalous measurement is never
+persisted before authorization succeeds** (asserted).
+
+### Cross-domain semantic contamination — investigated, deliberately NOT built
+The bad write also carried `notes = "Calories 534, Protein 30g…"`. There is no structured provenance upstream that
+would let WLJ deterministically identify foreign-domain content, and building a nutrition-text classifier to catch
+one incident would be exactly the keyword routing this milestone forbids. Semantic interpretation stays with the
+model. The measurement-plausibility gate is what stops the write, and it does so **regardless of the notes** — a
+contract test proves the anomaly is decided from canonical records, not from anything in the payload text.
+
+### Regression results
+**26 new M2 tests**, all twelve required invariants: normal writes unchanged (incl. no-history and gradual change) ·
+malformed/unsupported-unit/out-of-bounds fail closed · anomalous cannot pass as ordinary · anomaly uses canonical
+records not supplied context · normalization precedes comparison (both directions) · exceptional confirmation states
+value + discrepancy · bound through `ActionConfirmation` · confirming persists exactly once · declining persists
+nothing · cache failure cannot bypass · **no incident-specific constant in the mechanism** (asserted against the
+CODE, with comments/docstrings stripped — the docstring legitimately records the incident) · no clinical judgment.
+Plus a structural reproduction of the incident's history + proposed write.
+**103 green** across action-safety suites; **58** across weight/multimodal/runtime. `makemigrations --check` clean.
+No schema change.
+
+**Scope held:** no Nutrition routing, no `log_food` exposure, no correction/delete, no second confirmation
+framework, no health-truth redesign. M3 (Nutrition write support) not started. Danny's two erroneous 534 lb rows
+remain untouched.
+
+---
 ## 2026-08-28 — fix(action-safety): M1 — Confirmation Authorization Integrity
 
 **A confirmation is an AUTHORIZATION ARTIFACT.** It now means exactly one thing: *the exact deterministic action and

@@ -158,6 +158,12 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
         # the handler's created_object; _map_result intentionally maps "result" to the message.)
         if out["status"] == OK and isinstance(env.get("result"), dict):
             out["created_object"] = env["result"]
+        if out["status"] in (CONFIRMATION_REQUIRED, ERROR) and env.get("validation"):
+            # AUDIT: the deterministic validation outcome — proposed value/unit, the
+            # comparison drawn from canonical history, the thresholds applied, and
+            # whether exceptional authorization was required — travels with the result
+            # so a blocked or exceptional write is fully reconstructable.
+            out["validation"] = env["validation"]
         if out["status"] == CONFIRMATION_REQUIRED:
             summary = _confirm.summarize(action, params)
             # Build the presentation-independent view (title/summary/preview/actions) from
@@ -203,7 +209,11 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
         result_status=out["status"],
         conversation_id=conversation_id,
         result_digest={"result": out.get("result", ""),
-                       "confirmation_id": (out.get("confirmation") or {}).get("confirmation_id")},
+                       "confirmation_id": (out.get("confirmation") or {}).get("confirmation_id"),
+                       # M2 audit: a blocked or exceptional measurement write records the
+                       # proposed value/unit, the canonical comparison, the thresholds and
+                       # whether exceptional authorization was required.
+                       **({"validation": out["validation"]} if out.get("validation") else {})},
     )
     return out
 

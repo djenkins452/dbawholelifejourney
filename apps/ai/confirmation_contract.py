@@ -80,6 +80,18 @@ def _preview_from_detail(detail):
             lines.append(f"Date range: {_fmt_date(isos[0])} – {_fmt_date(isos[-1])}"
                          if isos[0] != isos[-1] else f"Date: {_fmt_date(isos[0])}")
         return f"I found {recognized} {noun}.", lines
+    if kind == "exceptional_measurement":
+        d = detail.get("detail") or {}
+        lines = []
+        if d.get("proposed_value") is not None:
+            lines.append(f"Proposed: {d['proposed_value']} {d.get('proposed_unit', '')}".strip())
+        if d.get("compared_with") is not None:
+            lines.append(f"Most recent recorded: {d['compared_with']} "
+                         f"{d.get('canonical_unit', '')}".strip())
+        if d.get("absolute_delta") is not None:
+            lines.append(f"Difference: {d['absolute_delta']} "
+                         f"{d.get('canonical_unit', '')}".strip())
+        return detail.get("exception") or "", lines
     # measurement kind (body measurements) or any list-of-rows import
     rows = list(detail.get("measurements") or [])
     skipped = list(detail.get("skipped") or [])
@@ -144,6 +156,13 @@ def build_view(action, params=None, confirmation_detail=None, *, summary=None):
     authorization = authorization_line(action, params)
     if not authorization:
         return None            # fail closed: nothing deterministic to present
+    # M2: an EXCEPTIONAL measurement carries its deterministic discrepancy INTO the
+    # authorization line, so what the user is asked to authorize states plainly how far
+    # the value sits from canonical truth. It rides M1's bound payload — there is no
+    # separate "are you sure" path.
+    exception = detail.get("exception")
+    if exception:
+        authorization = f"{authorization} — {exception}"
     return {
         "title": title,
         "authorization": authorization,

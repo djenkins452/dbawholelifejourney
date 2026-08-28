@@ -207,6 +207,49 @@ def execute_action(user, action, params):
         )
 
     # 2. confirmation gate (reuses ACTION_POLICY risk/category metadata)
+    # ── M2: DETERMINISTIC MEASUREMENT VALIDATION — runs BEFORE the confirmation gate ──
+    # Placement is the fix. Validation used to live inside the handler, DOWNSTREAM of the
+    # gate below, so an anomalous measurement was authorized by the user before WLJ had
+    # ever compared it to canonical truth (production 2026-08-27). Nothing is persisted
+    # here; an unauthorized value must not exist anywhere in canonical truth.
+    _validation = None
+    try:
+        from apps.ai.cos_services import measurement_validation as _mv
+        _validation = _mv.validate(user, action_norm, params)
+    except Exception:  # never break a write path on a validator defect
+        logger.warning("COS_ACTION validation raised action=%s user=%s",
+                       action_norm, uid, exc_info=True)
+        _validation = None
+
+    if _validation is not None and _validation.is_invalid:
+        # FAIL CLOSED: do not mint a confirmation that could persist this.
+        _emit(uid, action_norm, "error", code="validation_failed",
+              ms=(time.monotonic() - t0) * 1000)
+        return _envelope(action_norm, "error", message=_validation.message,
+                         code="validation_failed",
+                         validation={"status": _validation.status,
+                                     "reason": _validation.reason,
+                                     "detail": _validation.detail or {}})
+
+    if _validation is not None and _validation.is_exceptional and not confirmed:
+        # EXCEPTIONAL: writable, but only behind an explicit authorization that makes the
+        # unusual value unmistakable. Routed through the SAME M1 bound-confirmation
+        # mechanism — no second confirmation path — by returning the standard
+        # confirmation_required envelope with the deterministic discrepancy attached.
+        _emit(uid, action_norm, "confirmation_required",
+              ms=(time.monotonic() - t0) * 1000)
+        return _envelope(
+            action_norm, "confirmation_required",
+            message=_validation.message,
+            code="confirmation_required",
+            confirmation_detail={"kind": "exceptional_measurement",
+                                 "exception": _validation.message,
+                                 "detail": _validation.detail or {}},
+            validation={"status": _validation.status,
+                        "reason": _validation.reason,
+                        "detail": _validation.detail or {}},
+        )
+
     if confirmation_required_for(user, action_norm) and not confirmed:
         _emit(uid, action_norm, "confirmation_required",
               ms=(time.monotonic() - t0) * 1000)

@@ -26,126 +26,198 @@ import logging
 import uuid
 
 from django.core.cache import cache
+from django.db import transaction
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
 _TTL = 300          # seconds an open confirmation stays resolvable
-_MAX_OPEN = 8       # cap concurrent records per user (open + recent tombstones)
+_MAX_OPEN = 8       # cap concurrent OPEN records per user
+
+
+def _model():
+    from apps.ai.models import ActionConfirmation
+    return ActionConfirmation
 
 
 def _key(user_id):
     return f"wlj:mi:confirm:{user_id}"
 
 
-def _load(user_id):
-    try:
-        return cache.get(_key(user_id)) or {}
-    except Exception:  # pragma: no cover - defensive
-        return {}
+def _uid(user):
+    return getattr(user, "id", None)
 
 
-def _save(user_id, store):
+def _bust(user_id):
+    """The cache is an ACCELERATOR ONLY. It is invalidated on every write and is never
+    consulted to decide whether an action may execute."""
     try:
-        if store:
-            cache.set(_key(user_id), store, _TTL)
-        else:
-            cache.delete(_key(user_id))
-    except Exception:  # pragma: no cover - defensive
-        logger.warning("mi.confirmation: save failed user=%s", user_id, exc_info=True)
+        cache.delete(_key(user_id))
+    except Exception:  # pragma: no cover - cache failure must never affect safety
+        pass
+
+
+def _as_dict(rec):
+    """The legacy record shape callers already consume — unchanged public contract."""
+    if rec is None:
+        return None
+    return {"id": rec.id, "action": rec.action, "params": dict(rec.params or {}),
+            "summary": rec.summary, "view": rec.view or None,
+            "authorization_line": rec.authorization_line,
+            "conversation_id": rec.conversation_id,
+            "source_artifact_id": rec.source_artifact_id or None,
+            "status": rec.status, "choice": rec.choice or None,
+            "result": dict(rec.result or {})}
 
 
 def create(user, action, params, summary, *, view=None, conversation_id=None,
            source_artifact_id=None):
-    """Create a bound confirmation; return {confirmation_id, summary, expires_in, view} or None."""
-    uid = getattr(user, "id", None)
-    store = _load(uid)
-    # Bound the number of stored records (drop the oldest if over cap).
-    if len(store) >= _MAX_OPEN:
-        for k in list(store)[: len(store) - _MAX_OPEN + 1]:
-            store.pop(k, None)
+    """Create a bound confirmation; return {confirmation_id, summary, expires_in, view}.
+
+    FAILS CLOSED: without a deterministic `view` (which carries the authorization line
+    derived from the bound action+params) there is nothing honest to show the user, so
+    no confirmation is minted and the caller must refuse the write.
+    """
+    uid = _uid(user)
+    if uid is None:
+        return None
+    from apps.ai.confirmation_contract import authorization_line
+    auth = (view or {}).get("authorization") if isinstance(view, dict) else None
+    auth = auth or authorization_line(action, params)
+    if not auth:
+        logger.warning("mi.confirmation: refusing to mint an unpresentable confirmation "
+                       "action=%s user=%s", action, uid)
+        return None
+
+    M = _model()
     cid = uuid.uuid4().hex
-    store[cid] = {
-        "id": cid, "action": action, "params": dict(params or {}),
-        "summary": summary, "view": view or None,
-        "conversation_id": (int(conversation_id) if conversation_id else None),
-        "source_artifact_id": source_artifact_id or None,
-        "status": "pending", "choice": None,
-    }
-    _save(uid, store)
+    now = timezone.now()
+    try:
+        with transaction.atomic():
+            # Bound the number of OPEN records: cancel the oldest beyond the cap.
+            open_ids = list(M.objects.filter(user_id=uid, status=M.STATUS_PENDING)
+                            .order_by("-created_at").values_list("id", flat=True))
+            if len(open_ids) >= _MAX_OPEN:
+                M.objects.filter(id__in=open_ids[_MAX_OPEN - 1:]).update(
+                    status=M.STATUS_CANCELLED, resolved_at=now, choice="superseded")
+            M.objects.create(
+                id=cid, user_id=uid, action=action, params=dict(params or {}),
+                summary=summary or "", authorization_line=auth, view=view or None,
+                conversation_id=(int(conversation_id) if conversation_id else None),
+                source_artifact_id=source_artifact_id or "",
+                status=M.STATUS_PENDING,
+                expires_at=now + timezone.timedelta(seconds=_TTL))
+    except Exception:
+        logger.warning("mi.confirmation: create failed action=%s user=%s", action, uid,
+                       exc_info=True)
+        return None
+    _bust(uid)
     return {"confirmation_id": cid, "summary": summary, "expires_in": _TTL,
-            "view": view or None}
+            "view": view or None, "authorization": auth}
 
 
 def get(user, cid):
-    """Return the PENDING confirmation record for this user+id, or None."""
+    """Return the PENDING, UNEXPIRED confirmation for this user+id, or None."""
     if not cid:
         return None
-    rec = _load(getattr(user, "id", None)).get(cid)
-    if not rec or rec.get("status") != "pending":
+    M = _model()
+    rec = M.objects.filter(id=cid, user_id=_uid(user),
+                           status=M.STATUS_PENDING).first()
+    if rec is None or rec.is_expired:
         return None
-    return rec
+    return _as_dict(rec)
 
 
 def peek(user, cid):
-    """Return the record for this user+id regardless of status (pending/resolved/cancelled),
-    or None if it never existed / has expired out of the cache. Lets the caller distinguish
-    'already resolved' from 'expired'."""
+    """The record regardless of status — lets the caller distinguish 'already resolved'
+    from 'expired' from 'never existed'."""
     if not cid:
         return None
-    return _load(getattr(user, "id", None)).get(cid)
+    return _as_dict(_model().objects.filter(id=cid, user_id=_uid(user)).first())
+
+
+def claim(user, cid):
+    """ATOMIC COMPARE-AND-SWAP: `pending → executing`. THE exactly-once gate.
+
+    Returns the bound record to the SINGLE caller that wins, and None to everyone else
+    — a second confirm, a concurrent request, a retry after a cache outage. Because the
+    transition is one conditional UPDATE evaluated by the database, no two callers can
+    both observe `pending`; this is what the previous read-then-write cache `consume()`
+    could not guarantee.
+    """
+    if not cid:
+        return None
+    M = _model()
+    now = timezone.now()
+    won = (M.objects
+           .filter(id=cid, user_id=_uid(user), status=M.STATUS_PENDING,
+                   expires_at__gt=now)
+           .update(status=M.STATUS_EXECUTING, claimed_at=now))
+    if won != 1:
+        return None
+    _bust(_uid(user))
+    return _as_dict(M.objects.filter(id=cid).first())
+
+
+def finalize(user, cid, *, status="resolved", choice=None, result=None):
+    """Record the outcome of the single claimed execution so a retry can REPLAY it."""
+    M = _model()
+    try:
+        M.objects.filter(id=cid, user_id=_uid(user)).update(
+            status=status, choice=(choice or ""), result=(result or {}),
+            resolved_at=timezone.now())
+    except Exception:  # pragma: no cover
+        logger.warning("mi.confirmation: finalize failed cid=%s", cid, exc_info=True)
+    _bust(_uid(user))
 
 
 def consume(user, cid, *, status="resolved", choice=None):
-    """Single-use: mark the confirmation resolved/cancelled (a short-lived tombstone within
-    the same TTL) so it can never be resolved twice and a replay reads as already-resolved."""
-    uid = getattr(user, "id", None)
-    store = _load(uid)
-    rec = store.get(cid)
-    if rec is not None:
-        rec["status"] = status
-        if choice:
-            rec["choice"] = choice
-        store[cid] = rec
-        _save(uid, store)
+    """Backwards-compatible terminal marker (cancel paths, legacy callers).
+
+    NOTE: this is NOT the exactly-once gate any more — `claim()` is. Marking a record
+    terminal after the fact could never prevent a duplicate, which is precisely how one
+    authorized write executed twice in production.
+    """
+    finalize(user, cid, status=status, choice=choice)
 
 
 def list_open(user):
-    """Open confirmations as [{confirmation_id, summary}] — surfaced in the standing
-    context so the model can resolve a SPECIFIC one on the user's 'yes'."""
-    store = _load(getattr(user, "id", None))
-    return [{"confirmation_id": cid, "summary": r.get("summary", "")}
-            for cid, r in store.items() if r.get("status") == "pending"]
+    """Open confirmations as [{confirmation_id, summary}] — surfaced in standing context."""
+    M = _model()
+    rows = (M.objects.filter(user_id=_uid(user), status=M.STATUS_PENDING,
+                             expires_at__gt=timezone.now())
+            .order_by("created_at").values("id", "summary", "authorization_line"))
+    return [{"confirmation_id": r["id"],
+             "summary": r["authorization_line"] or r["summary"] or ""} for r in rows]
 
 
 def bind_conversation(user, conversation_id):
-    """Bind this turn's freshly-minted confirmations (conversation_id still None) to the
-    conversation, and return the client payload for the NEWEST one (or None). Called by the
-    runtime after a turn so the card is conversation-scoped without threading the id through
-    the model tool loop."""
-    cid_int = int(conversation_id) if conversation_id else None
-    uid = getattr(user, "id", None)
-    store = _load(uid)
-    newest = None
-    changed = False
-    for rec in store.values():
-        if rec.get("status") == "pending" and rec.get("conversation_id") is None:
-            rec["conversation_id"] = cid_int
-            changed = True
-            newest = rec
-    if changed:
-        _save(uid, store)
-    return client_view(newest) if newest else None
+    """Bind this turn's freshly-minted confirmations to the conversation and return the
+    client payload for the newest one (or None)."""
+    if not conversation_id:
+        return None
+    M = _model()
+    uid = _uid(user)
+    cid_int = int(conversation_id)
+    M.objects.filter(user_id=uid, status=M.STATUS_PENDING,
+                     conversation_id__isnull=True).update(conversation_id=cid_int)
+    _bust(uid)
+    newest = (M.objects.filter(user_id=uid, status=M.STATUS_PENDING,
+                               conversation_id=cid_int,
+                               expires_at__gt=timezone.now())
+              .order_by("-created_at").first())
+    return client_view(_as_dict(newest)) if newest else None
 
 
 def open_for_conversation(user, conversation_id):
-    """Pending records bound to THIS conversation (newest-ish first by store order reversed).
-    Used by the deterministic typed pre-parser to resolve a confirm/cancel in context."""
-    cid_int = int(conversation_id) if conversation_id else None
-    store = _load(getattr(user, "id", None))
-    recs = [r for r in store.values()
-            if r.get("status") == "pending"
-            and (cid_int is None or r.get("conversation_id") == cid_int)]
-    return list(reversed(recs))
+    """Pending records bound to THIS conversation, newest first — used by the
+    deterministic typed pre-parser."""
+    M = _model()
+    qs = M.objects.filter(user_id=_uid(user), status=M.STATUS_PENDING,
+                          expires_at__gt=timezone.now())
+    if conversation_id:
+        qs = qs.filter(conversation_id=int(conversation_id))
+    return [_as_dict(r) for r in qs.order_by("-created_at")]
 
 
 def client_view(rec, *, status=None):
@@ -158,6 +230,9 @@ def client_view(rec, *, status=None):
         "status": status or rec.get("status", "pending"),
         "expires_in": _TTL,
         "title": view.get("title", ""),
+        # The deterministic authorization line travels with the card: what the user sees
+        # is rendered from the bound payload, never from model prose.
+        "authorization": view.get("authorization") or rec.get("authorization_line", ""),
         "summary": view.get("summary", ""),
         "preview": view.get("preview", []),
         "actions": view.get("actions", {}),
@@ -166,6 +241,10 @@ def client_view(rec, *, status=None):
 
 def summarize(action, params):
     """A short, deterministic human summary of what will happen (for the user + audit)."""
+    from apps.ai.confirmation_contract import authorization_line
+    line = authorization_line(action, params)
+    if line:
+        return line
     params = params or {}
     if params:
         bits = ", ".join(f"{k}={v}" for k, v in list(params.items())[:6])

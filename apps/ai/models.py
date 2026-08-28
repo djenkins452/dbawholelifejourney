@@ -2449,3 +2449,92 @@ class RealLLMAuthorization(models.Model):
     def is_live(self):
         from django.utils import timezone
         return self.calls_remaining > 0 and self.expires_at > timezone.now()
+
+
+class ActionConfirmation(models.Model):
+    """AUTHORIZATION ARTIFACT for a deterministic write — the durable, authoritative
+    record of what a user was asked to authorize and whether it has been spent.
+
+    A confirmation means exactly one thing:
+
+        "The exact deterministic action and exact structured arguments shown to the
+         user are the only thing this confirmation can execute, and they may execute
+         successfully at most once."
+
+    WHY THIS IS A DATABASE ROW AND NOT A CACHE ENTRY (production 2026-08-27).
+    Single-use was previously enforced only by a cache write. `SafeRedisCache.set()`
+    returns False and swallows on failure (60s circuit breaker), and the confirmation
+    store swallowed too — so `consume()` was best-effort and **failed OPEN**. One
+    authorized weight write executed TWICE from the same confirmation id
+    (`cb50cb49…`, 22:31:10.718 and 22:31:49.423), producing two records. A safety
+    control that silently degrades is not a safety control. The DB row is now the
+    authority; cache may accelerate reads but never decides whether a write may run.
+
+    EXACTLY-ONCE is enforced by an atomic compare-and-swap, not by read-then-write:
+    `pending → executing` is a single conditional UPDATE, so only one caller can ever
+    win the claim regardless of concurrency, process count, or cache state. The
+    winner's result is stored on the row, so a retry REPLAYS it instead of mutating
+    again.
+
+    FAIL CLOSED: a row stuck in `executing` (crash mid-write) blocks re-execution
+    rather than risking a duplicate. Not being able to prove a confirmation is unspent
+    is treated as "do not execute".
+    """
+
+    STATUS_PENDING = "pending"
+    STATUS_EXECUTING = "executing"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_EXECUTING, "Executing (claimed)"),
+        (STATUS_RESOLVED, "Resolved"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    # The confirmation_id itself (uuid4 hex) — the identity the model, the client card
+    # and the audit ledger all reference.
+    id = models.CharField(primary_key=True, max_length=32)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="action_confirmations")
+
+    # THE BOUND PAYLOAD — what execution will consume, verbatim. Never re-derived from
+    # a name, from conversation state, or from whatever the model says later.
+    action = models.CharField(max_length=64)
+    params = models.JSONField(default=dict, blank=True)
+
+    # THE PRESENTED TRUTH — rendered deterministically FROM (action, params) before the
+    # user ever sees it, so what was authorized and what executes cannot disagree.
+    summary = models.TextField(blank=True, default="")
+    authorization_line = models.CharField(max_length=300, blank=True, default="")
+    view = models.JSONField(null=True, blank=True)
+
+    conversation_id = models.IntegerField(null=True, blank=True, db_index=True)
+    source_artifact_id = models.CharField(max_length=64, blank=True, default="")
+
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES,
+                              default=STATUS_PENDING, db_index=True)
+    choice = models.CharField(max_length=32, blank=True, default="")
+    # The single execution's result, stored so a retry replays rather than re-executes.
+    result = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Action Confirmation"
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["user", "conversation_id", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.id}:{self.action}:{self.status}"
+
+    @property
+    def is_expired(self):
+        from django.utils import timezone
+        return bool(self.expires_at and timezone.now() >= self.expires_at)

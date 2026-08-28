@@ -5,6 +5,85 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-28 — fix(action-safety): M1 — Confirmation Authorization Integrity
+
+**A confirmation is an AUTHORIZATION ARTIFACT.** It now means exactly one thing: *the exact deterministic action and
+arguments shown to the user are the only thing it can execute, and they may execute successfully at most once.* Two
+proven production defects eliminated together, because they are one contract.
+
+### Old failure mechanism (proven from persisted audit, 2026-08-27)
+
+1. **Narration ≠ binding.** The user read *"I've prepared to log Stuffed Peppers for dinner. Please confirm"* while
+   the persisted confirmation was bound to **`create_task`**. The tool result handed to the model was the handler's
+   free-text message, so the model described the pending action in its own words. The user authorized something they
+   were never shown.
+2. **Single-use failed OPEN.** `consume()` was a *cache* write. `SafeRedisCache.set()` returns `False` and swallows
+   on failure (60 s circuit breaker), and the store swallowed too. One `log_weight` confirmation
+   (`cb50cb49a2924894a29349acb52316cb`) executed **twice**, 38 s apart, creating two records. A read-then-write guard
+   over a best-effort cache cannot be a safety control.
+
+### Part A — bound-action confirmation truth
+
+- **`authorization_line(action, params)`** (`confirmation_contract.py`) renders ONE deterministic sentence from the
+  bound payload — the action's own name leads it, so a task always reads as a task. Generic: it formats whichever of
+  WLJ's existing cross-domain write arguments are present; no domain, product or value is special-cased.
+- `build_view` now carries `authorization`, and **returns `None` when nothing deterministic can be presented** —
+  the caller then **fails closed** rather than showing an ambiguous confirmation. The card's `summary` can no longer
+  be empty: the authorization line is its floor.
+- The tool result the model receives now leads with *"AWAITING AUTHORIZATION — this will do exactly: …"* and states
+  it may add context but **never describe a different action, domain or values**. The model still owns how it
+  introduces a pending action; it no longer owns what the action IS.
+
+### Part B — durable exactly-once execution
+
+- **New `ai.ActionConfirmation` row is the authority** (migration `0046`), replacing cache as the source of truth.
+  It persists the bound `action` + `params`, the `authorization_line` and `view` presented, status, choice, and the
+  single execution's `result`. **Reuses the existing confirmation module and API** — `create/get/peek/consume/
+  list_open/bind_conversation/open_for_conversation/client_view/summarize` are unchanged for callers. **No second
+  confirmation framework and no second action authority.**
+- **`claim()` is the exactly-once gate** — an atomic compare-and-swap `pending → executing` expressed as one
+  conditional `UPDATE … WHERE status='pending'`. The database decides the single winner, so no two callers can both
+  observe `pending`, regardless of concurrency, process count or cache state.
+- **Retries REPLAY.** The winner's result is stored on the row, so a repeated confirm returns what actually happened
+  and mutates nothing.
+- **Fail closed everywhere:** a row stuck `executing` (crash mid-write) blocks rather than racing; an unprovable
+  authorization never executes; `consume()` is demoted to a terminal marker with a comment saying it is no longer
+  the gate — marking a record terminal *after* execution could never have prevented the duplicate.
+- **Cache is an accelerator only** — invalidated on write, never consulted to decide whether a write may run.
+
+### Behaviour under cache failure / concurrency
+With `cache.get/set/delete` all raising, three consecutive confirms still execute **once** (contract-tested). Two
+real threads racing `claim()` on the real database yield **exactly one** winner (`TransactionTestCase`, not simulated).
+
+### Regression coverage — 21 tests, generic synthetic actions
+All eleven required invariants: derived-from-bound-action · summary and executable action cannot disagree ·
+arguments shown == executed · stale confirmation cannot authorize a newer action · cannot cross domains · a numeric
+argument cannot migrate between actions · repeated confirm executes once · two concurrent consumers execute once ·
+cache failure permits no duplicate · completed retry replays · declined/expired/in-flight cannot execute · audit
+preserves confirmation-id → action → result lineage. Plus a **structural proof against the persisted incident**: the
+`create_task` confirmation now visibly authorizes a Task, and that confirmation id cannot produce two rows even with
+a dead cache.
+
+**Also fixed (found by the suite):** the confirm endpoint tested `status == 'ok'` before `code == 'already_resolved'`,
+so a replay read as a fresh success — a double click would have persisted a **second assistant turn** for a mutation
+that never happened again.
+
+**Two existing tests updated, not weakened:** they asserted the raw action name inside the user-facing summary (now
+a human-readable bound line) and `no_matching_confirmation` on a repeat confirm — which contradicted
+`resolve_pending_action`'s own documented contract (*"a resolved/cancelled one → already_resolved, never
+re-executes"*). Both now assert the stronger invariant, including that a repeat performs **no** further execution.
+
+**Files:** `apps/ai/models.py` (+migration `0046`), `apps/ai/model_interface/confirmation.py`,
+`apps/ai/confirmation_contract.py`, `apps/ai/cos_services/action_interface.py`, `apps/ai/views.py`,
+`apps/ai/tests/test_confirmation_authorization_integrity.py`, `apps/ai/tests/test_action_interface.py`.
+
+**Verification: Tier 1 only, ZERO provider calls.** 21 new M1 tests; 74 across confirmation/runtime suites; 75
+across action/intent/constitution suites. `makemigrations --check` clean.
+
+**Scope held:** Nutrition write support, measurement outlier validation, and correction/delete are the NEXT
+milestones and were not started. The two erroneous production weight rows remain untouched pending that work.
+
+---
 
 ## 2026-08-26 — fix(finance): CORRECTION — Link update mode cannot widen an Item's transaction history
 

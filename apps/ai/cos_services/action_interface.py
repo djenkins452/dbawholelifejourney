@@ -64,6 +64,22 @@ def _map_result(env: dict) -> dict:
     return out
 
 
+def _authorization_notice(authorization, fallback_message):
+    """The confirmation text handed to the model.
+
+    It leads with the DETERMINISTIC authorization line and states plainly that the line
+    may be explained but not redefined. The model owns how it introduces a pending
+    action; it does not own what the action IS.
+    """
+    if not authorization:
+        return fallback_message or "Please confirm."
+    return (f"AWAITING AUTHORIZATION — this will do exactly: {authorization}. "
+            f"Tell the user precisely this before asking them to confirm; you may add "
+            f"context, but never describe it as a different action, a different domain, "
+            f"or different values. If that is not what they asked for, say so instead of "
+            f"asking them to confirm it.")
+
+
 def request_confirmation_for(user, action, params=None, *, turn_id="", surface="",
                              conversation_id=None):
     """Mint a BOUND confirmation for a write that must not execute yet, and MUTATE NOTHING.
@@ -89,10 +105,17 @@ def request_confirmation_for(user, action, params=None, *, turn_id="", surface="
         try:
             from apps.ai.confirmation_contract import build_view
             view = build_view(action, params, None, summary=summary)
-        except Exception:  # pragma: no cover - never block a confirmation
+        except Exception:  # pragma: no cover
             logger.warning("action_interface: build_view failed action=%s", action,
                            exc_info=True)
             view = None
+        if not view:
+            # FAIL CLOSED: no deterministic presentation of this action exists, so there
+            # is no honest way to ask the user to authorize it. Refusing beats showing an
+            # ambiguous confirmation the user cannot evaluate.
+            logger.warning("action_interface: no deterministic view for action=%s — "
+                           "refusing to request confirmation", action)
+            return None
         handle = _confirm.create(user, action, params, summary, view=view,
                                  conversation_id=conversation_id)
         if not handle:
@@ -100,7 +123,8 @@ def request_confirmation_for(user, action, params=None, *, turn_id="", surface="
         rec = _confirm.get(user, handle["confirmation_id"])
         out = {
             "status": CONFIRMATION_REQUIRED,
-            "result": f"Please confirm: {summary}",
+            "result": _authorization_notice(handle.get("authorization"), summary),
+            "authorization": handle.get("authorization"),
             "confirmation": (_confirm.client_view(rec) if rec else handle),
         }
         record_tool_call(
@@ -154,7 +178,15 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
             if handle:
                 rec = _confirm.get(user, handle["confirmation_id"])
                 client = _confirm.client_view(rec) if rec else None
-                out["result"] = (env.get("message") or f"Please confirm: {summary}")
+                # WHAT THE MODEL IS TOLD IS WHAT WAS BOUND. The handler's own message may
+                # introduce the action, but the authorization line is rendered from the
+                # bound (action, params) and is the only description of what will happen.
+                # Production 2026-08-27: a `create_task` confirmation was narrated to the
+                # user as "ready to log Stuffed Peppers for dinner", so the user
+                # authorized something they were never shown.
+                out["result"] = _authorization_notice(handle.get("authorization"),
+                                                      env.get("message") or summary)
+                out["authorization"] = handle.get("authorization")
                 out["confirmation"] = client or handle   # rich client payload
             else:
                 out = {"status": ERROR, "code": "confirmation_store_failed",
@@ -187,11 +219,38 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
     A missing id → `no_matching_confirmation`; a resolved/cancelled one → `already_resolved`
     (never re-executes). WLJ never executes "whatever is stored."
     """
+    # Peek FIRST so a cancel can be handled without burning the exactly-once claim, and
+    # so a replay is distinguishable from an expiry.
     rec = _confirm.get(user, confirmation_id)
+    key = (choice or ("confirm" if confirm else "cancel"))
+    is_cancel = (key == "cancel") or (confirm is False and not choice)
+
     if not rec:
-        # Distinguish an already-resolved replay from a truly-gone (expired) confirmation.
         tomb = _confirm.peek(user, confirmation_id)
-        if tomb is not None and tomb.get("status") in ("resolved", "cancelled"):
+        status_now = (tomb or {}).get("status")
+        if status_now == "resolved":
+            # REPLAY, NEVER RE-EXECUTE. The single execution's result was stored on the
+            # authorization row, so a repeated "confirm" (a retry, a double-send, a
+            # reconnect) returns what actually happened instead of mutating again — the
+            # defect that produced two identical weight rows from one confirmation.
+            prior = (tomb or {}).get("result") or {}
+            out = {"status": prior.get("status") or OK,
+                   "result": prior.get("result") or "That was already done.",
+                   "code": "already_resolved", "replayed": True,
+                   "confirmation_id": confirmation_id}
+            record_tool_call(user, kind="action", tool_name=(tomb or {}).get("action", ""),
+                             turn_id=turn_id, surface=surface, result_status=out["status"],
+                             conversation_id=conversation_id,
+                             result_digest={"confirmation_id": confirmation_id,
+                                            "code": "already_resolved", "replayed": True,
+                                            "mutated": False})
+            return out
+        if status_now == "executing":
+            # FAIL CLOSED: another consumer holds the claim (or a write crashed
+            # mid-flight). Never race it — a duplicate write is worse than a retry.
+            code, msg = ("already_resolved",
+                         "That confirmation is already being carried out.")
+        elif status_now == "cancelled":
             code, msg = "already_resolved", "That confirmation was already handled."
         else:
             code, msg = ("no_matching_confirmation",
@@ -202,12 +261,9 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
         record_tool_call(user, kind="action", tool_name="", turn_id=turn_id,
                          surface=surface, result_status=out["status"],
                          conversation_id=conversation_id,
-                         result_digest={"confirmation_id": confirmation_id, "code": code})
+                         result_digest={"confirmation_id": confirmation_id, "code": code,
+                                        "mutated": False})
         return out
-
-    # Resolve the chosen key: default primary is 'confirm'; 'cancel' always declines.
-    key = (choice or ("confirm" if confirm else "cancel"))
-    is_cancel = (key == "cancel") or (confirm is False and not choice)
 
     action = rec.get("action", "")
     params = dict(rec.get("params", {}) or {})
@@ -221,7 +277,7 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
             params["choice"] = key
 
     if is_cancel:
-        _confirm.consume(user, confirmation_id, status="cancelled", choice="cancel")
+        _confirm.finalize(user, confirmation_id, status="cancelled", choice="cancel")
         out = {"status": DECLINED, "result": "Okay — I won't do that.",
                "confirmation_id": confirmation_id}
         record_tool_call(user, kind="action", tool_name=action, turn_id=turn_id,
@@ -230,7 +286,34 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                          result_digest={"confirmation_id": confirmation_id, "declined": True})
         return out
 
-    # Execute exactly this confirmation's action, authorized.
+    # ── THE EXACTLY-ONCE GATE ────────────────────────────────────────────────────
+    # Atomically move pending → executing. Only the single winner may mutate anything;
+    # every other caller (a second confirm, a concurrent request, a retry during a cache
+    # outage) loses the compare-and-swap and is turned away WITHOUT executing. This is a
+    # database-evaluated conditional UPDATE, so it holds even when Redis is down — the
+    # previous cache `consume()` failed open and let one authorization write twice.
+    claimed = _confirm.claim(user, confirmation_id)
+    if claimed is None:
+        out = {"status": ERROR, "code": "already_resolved",
+               "result": "That confirmation was already handled.",
+               "confirmation_id": confirmation_id}
+        record_tool_call(user, kind="action", tool_name=action, turn_id=turn_id,
+                         surface=surface, result_status=out["status"],
+                         conversation_id=conversation_id,
+                         result_digest={"confirmation_id": confirmation_id,
+                                        "code": "claim_lost", "mutated": False})
+        return out
+    # Execute EXACTLY the payload the claim returned — the bound action and arguments the
+    # user was shown, never re-derived from a name or from current conversation state.
+    action = claimed.get("action", action)
+    params = dict(claimed.get("params") or {})
+    chosen = _find_option(claimed, key) if (key not in ("confirm", "cancel")) else None
+    if chosen:
+        action = chosen.get("action") or action
+        if isinstance(chosen.get("params"), dict):
+            params.update(chosen["params"])
+        else:
+            params["choice"] = key
     params["confirmed"] = True
     # `complete_execution_item` is a model-interface tool, not a DAY1 intent, so it is not
     # dispatchable by `execute_action`. Route the CONFIRMED action back to the completion
@@ -246,13 +329,14 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                         source_type=params.get("source_type"),
                         source_id=params.get("source_id"),
                         undo=bool(params.get("undo")))
-            _confirm.consume(user, confirmation_id, status="resolved",
-                             choice="confirm")   # single-use, same as below
             ok = done.get("status") in ("recorded", "already_complete", "reversed")
             out = {"status": OK if ok else ERROR,
                    "result": done.get("message") or done.get("status"),
                    "code": None if ok else done.get("status"),
                    "evidence": done.get("detail") or {}}
+            # Store the outcome ON the authorization row so a retry REPLAYS it.
+            _confirm.finalize(user, confirmation_id, status="resolved", choice="confirm",
+                              result={"status": out["status"], "result": out["result"]})
             # AUDITABILITY (write-surface audit, 2026-08-19). This branch returns before
             # the function's trailing record_tool_call, so the CONFIRMED EXECUTION — the
             # turn that actually mutates — left no audit row. Production 2026-08-19 shows
@@ -288,7 +372,12 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
         out = {"status": ERROR, "result": "That action could not be completed.",
                "code": "interface_error"}
     finally:
-        _confirm.consume(user, confirmation_id, status="resolved", choice=key)  # single-use
+        # The claim is already spent; record the OUTCOME so a repeat confirm replays the
+        # real result instead of mutating again. Always runs — a crash still leaves the
+        # confirmation terminal rather than re-executable.
+        _confirm.finalize(user, confirmation_id, status="resolved", choice=key,
+                          result={"status": out.get("status"),
+                                  "result": out.get("result")})
 
     out["confirmation_id"] = confirmation_id
     record_tool_call(

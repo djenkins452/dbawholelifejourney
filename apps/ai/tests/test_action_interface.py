@@ -48,22 +48,36 @@ class BoundConfirmationTests(TestCase):
         self.assertEqual(out["status"], ai.CONFIRMATION_REQUIRED)
         cid = out["confirmation"]["confirmation_id"]
         self.assertTrue(cid)
-        self.assertIn("mutate_task", out["confirmation"]["summary"])
+        # The user-facing confirmation is DERIVED FROM THE BOUND ACTION: the
+        # authorization line names the action itself, so a task can never be presented
+        # as anything else (M1 — Confirmation Authorization Integrity).
+        self.assertIn("Mutate task", out["confirmation"]["authorization"])
+        self.assertTrue(out["confirmation"]["summary"],
+                        "the card must always state what is being authorized")
+        self.assertIn("Mutate task", out["result"])
 
     def test_confirm_by_id_executes_that_action_and_consumes_it(self):
         with mock.patch(_EXEC, side_effect=_fake_execute) as m:
             req = ai.request_action(self.user, "mutate_task", {"id": 5}, turn_id="t1")
             cid = req["confirmation"]["confirmation_id"]
             out = ai.resolve_pending_action(self.user, cid, confirm=True, turn_id="t1")
+            self._m = m
         self.assertEqual(out["status"], ai.OK)
         # executed with confirmed=true + the STORED params
         _, exec_action, exec_params = m.call_args_list[-1].args
         self.assertEqual(exec_action, "mutate_task")
         self.assertTrue(exec_params["confirmed"])
         self.assertEqual(exec_params["id"], 5)
-        # single-use: the same id no longer resolves
+        # EXACTLY-ONCE: the same id never mutates again. It REPLAYS the stored result
+        # (documented contract: "a resolved/cancelled one → already_resolved, never
+        # re-executes") rather than reporting a bogus expiry.
+        m = self._m
+        calls_before = len(m.call_args_list)
         again = ai.resolve_pending_action(self.user, cid, confirm=True)
-        self.assertEqual(again["code"], "no_matching_confirmation")
+        self.assertEqual(again["code"], "already_resolved")
+        self.assertTrue(again.get("replayed"))
+        self.assertEqual(len(m.call_args_list), calls_before,
+                         "a repeated confirm must not execute the action again")
 
     def test_confused_deputy_is_prevented(self):
         # Two requests → two distinct ids. Resolving A executes A, never B.

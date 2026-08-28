@@ -139,12 +139,64 @@ def build_view(action, params=None, confirmation_detail=None, *, summary=None):
                       "aliases": CANCEL_ALIASES}]
 
     title = detail.get("title") or _title_for(action)
+    # The authorization line is ALWAYS derived from the bound action+params — a handler's
+    # `detail` may enrich the preview but may never restate what is being authorized.
+    authorization = authorization_line(action, params)
+    if not authorization:
+        return None            # fail closed: nothing deterministic to present
     return {
         "title": title,
-        "summary": summary or detail.get("summary") or detail_summary or "",
+        "authorization": authorization,
+        # Never empty: a handler may enrich the summary, but the bound authorization
+        # line is the floor, so the card always states what is being authorized.
+        "summary": summary or detail.get("summary") or detail_summary or authorization,
         "preview": preview,
         "actions": {"primary": primary, "secondary": secondary},
     }
+
+
+# Params that identify WHAT is being written, in the order a human reads them. Generic:
+# these are the argument names WLJ's write handlers already use across domains — no
+# domain, product or question is special-cased here.
+_IDENTIFYING_PARAMS = ("title", "name", "food_name", "value", "amount", "quantity",
+                       "hours", "content", "text", "query", "task_query", "metric",
+                       "meal_type", "unit", "date", "due_date", "on_date",
+                       "scheduled_time")
+_AUTHORIZATION_MAX_VALUES = 4
+
+
+def authorization_line(action, params=None):
+    """THE ONE DETERMINISTIC SENTENCE naming exactly what this confirmation authorizes.
+
+    Rendered from the BOUND (action, params) — never from model prose, and never from a
+    handler's free-text message. This exists because a production confirmation was
+    narrated to the user as *"I've prepared to log Stuffed Peppers for dinner"* while the
+    bound action was `create_task`: the user authorized something they were never shown.
+    The action's own name leads the sentence, so a task always reads as a task and a
+    weight write always reads as a weight write.
+
+    Returns "" when the action is unknown/empty — the caller then FAILS CLOSED rather
+    than presenting an ambiguous authorization.
+    """
+    act = (action or "").strip()
+    if not act:
+        return ""
+    params = params if isinstance(params, dict) else {}
+    bits = []
+    for key in _IDENTIFYING_PARAMS:
+        if key not in params:
+            continue
+        val = params[key]
+        if val is None or val == "" or isinstance(val, (dict, list)):
+            continue
+        text = str(val)
+        if len(text) > 60:
+            text = text[:60] + "…"
+        bits.append(f"{key.replace('_', ' ')} {text}")
+        if len(bits) >= _AUTHORIZATION_MAX_VALUES:
+            break
+    detail = ", ".join(bits)
+    return f"{_title_for(act)}" + (f" — {detail}" if detail else "")
 
 
 def _title_for(action):

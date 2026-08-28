@@ -2241,9 +2241,13 @@ class ConfirmActionView(LoginRequiredMixin, AssistantMixin, View):
 
         status = resolved.get('status')
         code = resolved.get('code')
+        # ORDER MATTERS: a REPLAY now returns the original success (`status == 'ok'`)
+        # alongside `code == 'already_resolved'`, so the replay arm must be tested
+        # FIRST. Otherwise a double click reads as a fresh success and persists a second
+        # assistant turn for a mutation that never happened again.
         card_status = ('cancelled' if status == 'declined'
-                       else 'resolved' if status == 'ok'
                        else 'already_resolved' if code == 'already_resolved'
+                       else 'resolved' if status == 'ok'
                        else 'expired' if code == 'no_matching_confirmation'
                        else 'error')
         text = resolved.get('result') or ''

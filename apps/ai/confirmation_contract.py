@@ -183,6 +183,13 @@ _IDENTIFYING_PARAMS = ("target", "record_type", "record_id",
                        "meal_type", "unit", "date", "due_date", "on_date",
                        "scheduled_time")
 _AUTHORIZATION_MAX_VALUES = 4
+# After the identifying params, every remaining NUMERIC argument is appended: those are
+# the values the write will actually store. Without this a nutrition write read as
+# "Log food — food name Stuffed Peppers, meal type dinner" and the user would have
+# authorized eight numbers they were never shown (caught by the end-to-end acceptance
+# run, 2026-08-28). Generic — it keys on the argument being a number, never on a domain.
+_AUTHORIZATION_MAX_NUMERIC = 12
+_NEVER_SHOW = frozenset({"confirmed", "record_id", "source_artifact_id", "confidence"})
 
 
 def authorization_line(action, params=None):
@@ -215,7 +222,19 @@ def authorization_line(action, params=None):
         bits.append(f"{key.replace('_', ' ')} {text}")
         if len(bits) >= _AUTHORIZATION_MAX_VALUES:
             break
-    detail = ", ".join(bits)
+    shown = set(_IDENTIFYING_PARAMS[:len(bits)]) | {k for k in _IDENTIFYING_PARAMS
+                                                    if f"{k.replace('_', ' ')} " in
+                                                    " ".join(bits) + " "}
+    numeric = []
+    for key, val in params.items():
+        if key in _NEVER_SHOW or key in shown:
+            continue
+        if isinstance(val, bool) or not isinstance(val, (int, float)):
+            continue
+        numeric.append(f"{key.replace('_', ' ')} {val}")
+        if len(numeric) >= _AUTHORIZATION_MAX_NUMERIC:
+            break
+    detail = ", ".join(bits + sorted(numeric))
     return f"{_title_for(act)}" + (f" — {detail}" if detail else "")
 
 

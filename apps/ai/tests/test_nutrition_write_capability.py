@@ -188,9 +188,17 @@ class AuthorizationAndIsolationTests(_Base):
         conf = self._propose()["confirmation"]
         rec = ActionConfirmation.objects.get(id=conf["confirmation_id"])
         self.assertEqual(rec.action, "log_food")
-        self.assertIn("Log food", conf["authorization"])
-        self.assertIn("Test Casserole", conf["authorization"])
-        self.assertEqual(rec.authorization_line, conf["authorization"])
+        auth = conf["authorization"]
+        self.assertIn("Log food", auth)
+        self.assertIn("Test Casserole", auth)
+        self.assertIn("dinner", auth)
+        # THE USER MUST SEE THE NUMBERS THEY ARE AUTHORIZING. The end-to-end acceptance
+        # run caught this: the line read "food name … , meal type dinner" and the eight
+        # supplied nutrients were invisible, so the user would have authorized values
+        # they were never shown — the exact class M1 exists to prevent.
+        for value in ("534", "30", "29", "5", "33", "13", "419", "9"):
+            self.assertIn(value, auth, f"supplied value {value} is not visible")
+        self.assertEqual(rec.authorization_line, auth)
         self.assertEqual(rec.params["protein_g"], 30)
 
     def test_nutrition_write_creates_no_task_and_no_weight(self):

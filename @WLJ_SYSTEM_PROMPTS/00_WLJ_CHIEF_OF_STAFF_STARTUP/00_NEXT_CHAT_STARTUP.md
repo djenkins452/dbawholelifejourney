@@ -69,6 +69,19 @@
 > **🏁 THE CoS ARC IS COMPLETE AND CLOSED.** Certification program (139/140), whole-life Executive Truth + two-phase Synthesis, Proactive Product Phase 2 (Daily Executive Brief · Durable Follow-Through · Missing-Data · Action Completeness), Reveal Target + single-authority navigation + Object-Level Reveal, and OpenAI cost governance are ALL shipped + prod-validated. The recommended milestones from the earlier product investigation were all implemented. **Do NOT reopen CoS architecture, continue generic certification, or expand capability/coverage on spec.** Ledgers/records: `docs/WLJ_COS_CERTIFICATION_LEDGER.md`, `docs/WLJ_COS_PROACTIVE_PRODUCT_INVESTIGATION.md`, `docs/WLJ_COS_PLATFORM_EVOLUTION_INVESTIGATION.md`, `docs/WLJ_OPENAI_COST_AUDIT.md`.
 >
 > **➡️ NEXT WORK COMES FROM REAL USE, NOT A ROADMAP.** New CoS development is now driven **primarily by production friction Danny actually experiences** — something the CoS failed to notice, remember, follow up on, execute, navigate to, or reason about correctly — or a genuine new requirement. See the **CoS DEVELOPMENT ARC CLOSED** banner at the top for the operating posture and the list of items that remain **intentionally deferred** (pick up only on real need). No milestone is queued.
+> ### ✅ CLOSED 2026-08-28 — Stuffed Peppers / CoS ACTION SAFETY arc
+> A request to log a dinner produced two Tasks, then **two 534 lb weight records** (the meal's calories written into
+> a 268–278 lb series), a narrated meal log that never happened, no way to reverse it, and an offer to "fix" it with
+> an unrelated historical weight. **Six defects, one cascade** — a missing nutrition write forced the substitution,
+> and four safety layers each failed for a different reason. All fixed, deployed and production-verified:
+> **M1** DB-backed `ActionConfirmation` + atomic compare-and-swap exactly-once · **M2** measurement validation
+> BEFORE authorization (NORMAL/INVALID/EXCEPTIONAL from canonical history) · **M3** safe nutrition write (supplied
+> values authoritative, never replaced by estimation) · **M4** `delete_record` bound to exact retrievable identity,
+> soft-delete, never invents a replacement. The two bad 534 rows were **removed through the audited path**;
+> surrounding history intact. Record: `docs/WLJ_COS_ACTION_SAFETY_ARC.md`; disciplines `03 §10e`.
+> **DO NOT REOPEN** — new problems start a new production-friction investigation.
+> **Deferred:** `log_body_measurements` as a second validation consumer; medication-reference M2 (generic/NDC).
+
 > ### ✅ CLOSED 2026-08-25 — Mounjaro / Medication Grounding production-friction arc
 > One real question (*"I forgot my Mounjaro this morning — can I take it tonight?"*) exposed **six** stacked
 > defects, each visible only once the previous was removed: a topic-keyed medical deflection · a grounding rule

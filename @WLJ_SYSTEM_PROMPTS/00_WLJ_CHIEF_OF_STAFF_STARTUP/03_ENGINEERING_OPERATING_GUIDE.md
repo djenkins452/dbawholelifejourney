@@ -239,6 +239,17 @@ A field carries its meaning to the model through **where it sits and what it is 
 - **Name provenance in the key.** `instructions` reads as *the authoritative* instructions; `recorded_instructions` reads as what the user recorded. Same for `wlj_tracking_priority` — a field defaulting to `critical` reads as a clinical severity assessment nobody actually made.
 - **Audit the whole surface, not the one reported field** — untouched defaults are the most misleading values a payload carries.
 
+### 10e. WRITE-PATH SAFETY (REQUIRED — the Stuffed Peppers arc, 2026-08-28)
+One missing capability produced a wrong write, and four separate safety layers each failed to catch it for a different reason. Full record: `docs/WLJ_COS_ACTION_SAFETY_ARC.md`.
+
+- **A missing capability is a SAFETY problem, not a feature gap.** A model told to be useful, holding an explicit confirmed instruction it cannot satisfy, reaches for the nearest available write. Truth that is **readable but not writable** is an asymmetry with teeth — the CoS logged a meal's calories as a body weight because no meal write existed.
+- **Exposure requires EVERY allowlist to agree.** A capability in the tool set but not the execution allowlist is advertised and undispatchable; the reverse is invisible. Check both.
+- **What the user authorizes is rendered from the BOUND payload — including the values.** Model prose may introduce a confirmation; it may never define what is being authorized. Naming the action is not sufficient: the numbers that will be stored must be visible, or the user is approving something they cannot evaluate.
+- **A read-then-write guard over a best-effort cache is not a safety control.** If the mechanism enforcing "at most once" can silently no-op (a swallowed `cache.set`), it enforces nothing. Exactly-once belongs in an **atomic compare-and-swap on durable storage**; retries replay the stored result; a stuck claim blocks rather than races.
+- **Validation downstream of authorization cannot protect an authorization.** Placement is the property that matters. Validate BEFORE the confirmation is minted — an invalid value must never become authorizable.
+- **An absolute range gate cannot catch a value implausible only for THIS series.** Compare against the person's own canonical history, normalized first, with per-measurement thresholds; and keep the verdict narrow — *needs stronger verification*, never a clinical judgment.
+- **A system that can CREATE truth must be able to CORRECT it by exact identity** — and the identity must be **retrievable**, or the model can see a wrong record and still not name it. Correction removes; it never invents a replacement value from history.
+
 ## 11. Deployment discipline
 
 - **Application work is not complete until committed and pushed to `main`** unless Danny says otherwise. Deploy automatically — don't ask "ready to deploy?".

@@ -5,6 +5,73 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-28 — 🏁 ARC CLOSED: Stuffed Peppers / CoS Action Safety (production verified)
+
+**One request to log a dinner exposed SIX defects across the entire write path.** They were not independent bugs: a
+missing capability produced a wrong write, and **four separate safety layers each failed to catch it for a different
+reason**. Full record: `docs/WLJ_COS_ACTION_SAFETY_ARC.md`.
+
+| # | Layer | What was wrong | Fixed by |
+|---|---|---|---|
+| 1 | Action — capability | **no nutrition write existed**; the CoS could read nutrition truth and not write it, so it reached for the nearest numeric writes | **M3** `e8f21274` |
+| 2 | Action — presentation | the confirmation the user read was **model prose**, bound to `create_task` | **M1** `62ada0e3` |
+| 3 | Action — exactly-once | single-use enforced by a **fail-open cache write**; one confirmation executed twice | **M1** `62ada0e3` |
+| 4 | Action — validation | validation sat **downstream of the confirmation gate**; the only check was an absolute range 534 passes | **M2** `4f3854dc` |
+| 5 | Action — correction | no corrective action existed; `source_id=None` → `unsupported` | **M4** `08d6274b` |
+| 6 | Reasoning — invented truth | offered to replace the bad value with an unrelated historical weight | **M4** (correction cannot write a value) |
+
+### Production cleanup — completed through the audited path
+Identity re-proven from production truth (owner, value 534, unit lb, both `recorded_at` timestamps from the two
+executions of confirmation `cb50cb49…`), then removed by calling **`record_correction.remove_record()`** — the same
+identity-bound soft-deleting service the CoS itself uses — from a `RunPython` migration that **does nothing unless it
+matches exactly the two expected rows**. Verified in production: **`534 rows: 0`**, and the surrounding series
+(270.5 · 268.7 · 272.1 · 274.5 · 274.3 · 274.7, ids 198–204) **untouched**. **No replacement value was written.**
+
+### Final acceptance (ONE Tier-2 run, the budgeted single call)
+```
+action  log_food  status=confirmation_required
+args    {"food_name":"Stuffed Peppers","meal_type":"dinner","calories":534,"protein_g":30,
+         "carbohydrates_g":29,"fiber_g":5,"fat_g":33,"saturated_fat_g":13,"sodium_mg":419,"sugar_g":9}
+tools_called: ["log_food"]
+```
+The model selected the **nutrition** capability and bound **every one of the eight supplied nutrients plus the meal
+type** — **no Task, no Weight**. Verified afterwards in production: no meal persisted (it correctly stopped at
+authorization), **no 534 weight rows**, real meal history intact.
+
+**The run also caught a genuine defect** — and this is the most valuable thing it did. The eight nutrients were bound
+correctly but the authorization line read only *"Log food — food name Stuffed Peppers, meal type dinner"*: the user
+would have authorized **eight numbers they were never shown**, the exact class M1 exists to prevent. My M3 test was
+too weak (it asserted only the food name). Fixed generically in `b183ab99` — every remaining **numeric** argument is
+appended to the authorization line (keyed on the argument being a number, never on a domain), and the test now
+asserts every supplied value is visible. A second acceptance run was **not** spent: this was my defect, not an
+environment failure, and the corrected behaviour is proven deterministically.
+
+### Definition of done — verified
+Logs supplied dinner nutrition through the canonical path · the user sees exactly what they authorize **including the
+values** · authorization executes at most once · validation precedes authorization · no unrelated domain receives the
+values · success reported only from actual execution · erroneous records targetable by exact identity with **no
+invented replacement**.
+
+### Durable lessons (folded into `03 §10e`, not left in a changelog entry)
+A missing capability is a **safety** problem · exposure requires **every** allowlist to agree · what the user
+authorizes is rendered from the **bound payload including values** · a read-then-write guard over a best-effort cache
+is **not** a safety control · validation downstream of authorization **cannot protect it** · an absolute range gate
+cannot catch a value implausible only for **this** series · a system that can create truth must be able to **correct
+it by exact identity**, and that identity must be **retrievable**.
+
+### Regression totals
+M1 21 · M2 26 · M3 16 · M4 16 (incl. food type + identity-retrievability) = **79 new contract tests**, all with
+generic synthetic actions and no incident-specific constants in any mechanism. **174+** green across the combined
+action-safety, runtime, intent-registration, constitution, weight-integrity and rich-confirmation suites;
+`makemigrations --check` clean.
+
+**Deferred, kept separate:** `log_body_measurements` as a second measurement-validation consumer · medication-
+reference M2 (generic/NDC) · the `test_medicine` adherence-context failure · `apps.medical` LabEducation/Mapper
+failures · concurrent Finance work.
+
+**No Constitutional Review occurred; the Amendment Log is untouched. THE ARC IS CLOSED.**
+
+---
 ## 2026-08-28 — feat(action-safety): M4 — exact-identity record correction
 
 **The second product gap.** The CoS created an erroneous weight record and then could not reverse it —

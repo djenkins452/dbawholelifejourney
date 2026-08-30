@@ -59722,3 +59722,27 @@ Fund row still held `started_at = 2026-08-30` while the user's day was the 29th.
   the bug. A legitimately back-dated or today-dated goal is untouched, and re-running
   changes nothing. Not reversible on purpose — the previous value was wrong, not merely
   different.
+
+### 2026-08-29 — 0032 reported success and repaired nothing; 0033 actually does it
+
+Verification caught it: after 0032 applied, the Emergency Fund still read
+`started_at = 2026-08-30`.
+
+**Why.** 0032 called `get_user_today(goal.user)`, which reads
+`preferences.timezone_iana` — a **`@property`**. Django's historical models keep FIELDS
+but drop properties and methods, so every row raised
+`AttributeError: 'UserPreferences' object has no attribute 'timezone_iana'` straight
+into a broad `except Exception: continue`. The migration was recorded as applied and
+corrected zero rows. That is precisely the error-swallowing CLAUDE.md forbids, in code I
+wrote — and the reason it was caught at all is that the production check compared the
+stored date against the user's date instead of trusting "migration applied".
+
+**0033** resolves the zone from the `timezone` FIELD (which historical models do keep),
+reproduces the one line of `timezone_iana` that matters (the legacy-name map) rather
+than reaching for the property, and **counts and prints** corrected / already-correct /
+unresolved instead of passing over failures silently. Same conservative guard, still
+idempotent.
+
+Four tests exercise the resolver directly — field not property, legacy name, unknown
+zone falls back to UTC, and an assertion that its source contains neither
+`timezone_iana` nor `get_user_today`, so the specific mistake cannot come back.

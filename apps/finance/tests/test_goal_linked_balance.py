@@ -347,3 +347,58 @@ class TimezoneRenderingTests(TestCase):
         self.assertIs(field.default, timezone.localdate,
                       "timezone.now is a UTC datetime; coerced to a date it is "
                       "tomorrow for anyone west of Greenwich after 8pm")
+
+
+class StartDateRepairTests(TestCase):
+    """The repair migration's own logic — the part 0032 got wrong.
+
+    0032 called `get_user_today()`, which reads a @property. Historical models keep
+    fields but drop properties, so every row raised AttributeError into a broad
+    `except: continue`, the migration reported success, and nothing was repaired.
+    These exercise the resolver directly so a silent no-op cannot repeat.
+    """
+
+    def setUp(self):
+        self.user = _usable(User.objects.create_user(
+            email="repair@example.com", password="pw"))
+
+    def _resolver(self):
+        """Migration module names start with a digit, so `import` cannot name them."""
+        import importlib
+        return importlib.import_module(
+            "apps.finance.migrations.0033_correct_utc_dated_goal_start_retry")
+
+    def test_resolver_uses_the_timezone_FIELD_not_the_property(self):
+        module = self._resolver()
+        prefs = self.user.preferences
+        prefs.timezone = "America/New_York"
+        prefs.save(update_fields=["timezone"])
+
+        # 01:45 UTC on the 30th is 21:45 on the 29th in New York.
+        moment = timezone.datetime(2026, 8, 30, 1, 45, tzinfo=timezone.utc)
+        self.assertEqual(module._user_today(self.user, moment), date(2026, 8, 29))
+
+    def test_resolver_handles_a_legacy_timezone_name(self):
+        module = self._resolver()
+        prefs = self.user.preferences
+        prefs.timezone = "US/Eastern"
+        prefs.save(update_fields=["timezone"])
+
+        moment = timezone.datetime(2026, 8, 30, 1, 45, tzinfo=timezone.utc)
+        self.assertEqual(module._user_today(self.user, moment), date(2026, 8, 29))
+
+    def test_resolver_falls_back_to_utc_for_an_unknown_zone(self):
+        module = self._resolver()
+        prefs = self.user.preferences
+        prefs.timezone = "Not/AZone"
+        prefs.save(update_fields=["timezone"])
+
+        moment = timezone.datetime(2026, 8, 30, 1, 45, tzinfo=timezone.utc)
+        self.assertEqual(module._user_today(self.user, moment), date(2026, 8, 30))
+
+    def test_the_resolver_never_reads_the_dropped_property(self):
+        """The specific mistake: historical models have no `timezone_iana`."""
+        import inspect
+        module = self._resolver()
+        self.assertNotIn("timezone_iana", inspect.getsource(module._user_today))
+        self.assertNotIn("get_user_today", inspect.getsource(module._user_today))

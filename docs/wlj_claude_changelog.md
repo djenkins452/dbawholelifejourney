@@ -60186,3 +60186,64 @@ Preserved unchanged: Asset CRUD, manual valuations, no paid valuation provider,
 deterministic accounting, no double-subtracted liabilities, minimum-necessary CoS asset
 summary, and no addresses/VINs/hull IDs in CoS evidence. Manual entry is now explicitly
 recorded as a permanent first-class path, not a stopgap.
+
+## 2026-08-30 — Finance 2.0: financial measures replace the single predicate (docs only)
+
+P1 was still built on one boolean — `spending_predicate` — deciding whether money
+"actually left". That shape cannot survive a mortgage payment, which is simultaneously
+real cash leaving, a balance-sheet movement, and partly not consumption at all.
+**Documentation only. No code, migration, backfill, provider call or deployment.**
+
+**One classification, nine measures.** Every transaction gets exactly one *economic
+role*; measures are projections over roles. Adding a measure never means re-deciding what
+a transaction is. Roles: purchase · refund · reimbursement · reversal_chargeback ·
+income · internal_transfer · card_payment · savings_allocation ·
+investment_contribution · debt_service · fee_or_interest_charged · cash_withdrawal ·
+uncertain. Measures: cash inflow · cash outflow · gross purchases · net spending ·
+recurring obligations · debt service · transfers & allocations · income · controllable
+spending.
+
+**Inspection changed the plan — WLJ already had most of this.** `transfer_kind` already
+carries internal_transfer, credit_card_payment, refund and reversal; `transfer_state`
+already has `candidate`, which already means "held for review, never guessed"; and
+`attribution_population.financial_activity` is **already documented as THE shared
+definition** consumed by Budget, FinanceHistory, the snapshots, the dashboard and
+`FinanceDomainTruth`. Building a new `spending_predicate` would have created precisely
+the parallel spending system this architecture forbids. It now becomes the `net_spending`
+projection.
+
+**Two of my earlier P1 claims were wrong.** Superseded pending rows were never a
+distortion — `sync_service` already replaces the pending row in place at ingestion. And I
+proposed `refund_of` and `is_card_payment` as new fields when refund and card-payment
+*detection* already exist; the genuine gap is refund **offsetting**, which exists nowhere
+— refunds currently flow through as positive amounts alongside income.
+
+**Policies now stated rather than assumed:**
+- *Double-count rule* — a credit-card purchase is spending; paying that card is not
+  spending again. Encoded in the matrix and its own test.
+- *Refund period* — default `offset_on_receipt` (matches the statement a person checks
+  against), optional `restate_original`; the report always says which, restatements are
+  never silent, linked refunds keep the original category, and a refund is always
+  offset, never deleted or excluded.
+- *Debt-payment limitation* — split principal/interest/escrow only when known; otherwise
+  keep an **unsplit** amount in cash outflow and debt service, exclude it from net
+  spending, and state the limitation. Never invent a split.
+- *Uncertainty* — unmatched-counterpart transfers, cash withdrawals and low-confidence
+  rows are `uncertain` and enter no spending measure. Cash withdrawal is explicitly not
+  assumed to be consumption *or* harmless movement; either silent default would be wrong
+  for someone.
+- *Reconciliation identities* — five equations that must hold; a set that fails them is
+  reported as not reconciling and is not presented as fact.
+
+**The grep-based CI test is withdrawn** in favour of a classification contract test: one
+fixture transaction per class must reproduce the matrix exactly, and the identities must
+balance. A grep test would pass while the numbers were wrong.
+
+**P1's dry run rewritten** to report per-row current/proposed/confidence/reason/affected
+measures, current-vs-proposed monthly totals for all nine measures, offsets, exclusions,
+unsplit debt service, uncertain rows by reason, impact by month and category, redacted
+samples, and a full reconciliation that must balance or the run is reported failed.
+
+**Approval rule tightened:** the 5% and 10% thresholds remain automatic warning gates but
+are **not approval**. Every production backfill requires Danny's explicit authorisation
+regardless of how small the change is — a 0.1% change still waits.

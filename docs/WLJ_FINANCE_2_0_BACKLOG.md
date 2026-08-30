@@ -39,22 +39,24 @@ Verified complete (architecture §3). Residual items, deliberately deferred:
 
 ## Phase 1 — Spending truth
 
-**Outcome:** "what did I spend" is correct, because transfers, refunds, reimbursements,
-card payments and pending duplicates no longer distort it.
+**Outcome:** each financial measure means what its name says — gross purchases, net
+spending, cash outflow, debt service, transfers and income stop being one number wearing
+different labels (architecture §5.0).
 
 - **Data:** 3,792 existing transactions.
-- **Models:** extend `Transaction` with `refund_of`, `reimbursement_state`,
-  `is_card_payment` (derived, stored); category gains `essentiality`, `variability`,
-  `controllability`.
-- **Calculations:** `finance_calc.spending_predicate` (THE definition of money that left);
-  `cashflow.period_totals`.
+- **Models:** extend `Transaction` with `economic_role`, `role_confidence`,
+  `role_source` and `refund_of`. NOT `is_card_payment` — `transfer_kind` already
+  carries it. Category taxonomy moves to P2 where it belongs.
+- **Calculations:** `finance_calc.roles :: classify` (THE economic-role authority) +
+  `finance_calc.measures` (the nine projections, architecture §5.0). The term
+  `spending_predicate` is retired — see §5.0.8.
 - **UI:** review queue for uncertain classifications; spending page.
 - **CoS:** none yet.
 - **Migration:** backfill classification over 3,792 rows; **dry-run + report first**.
 - **Audit:** every reclassification audited; user corrections outrank derivation.
-- **Acceptance:** the sum of "spending" excludes a known transfer pair, a refund, a
-  card payment and a superseded pending row — each proven by test; a second definition
-  of the predicate fails CI.
+- **Acceptance:** the classification contract test reproduces the §5.0.4 matrix exactly
+  and the §5.0.9 reconciliation identities hold. A grep-style test is explicitly
+  rejected — it would pass while the numbers were wrong.
 - **Risks:** mis-classifying a real expense as a transfer *understates* spending — the
   more dangerous direction. Bias to "uncertain, ask" over silent exclusion.
 - **Non-goals:** no ML categorisation.
@@ -161,7 +163,7 @@ happens.
 
 | Pkg | Outcome | Depends on | Ships |
 |---|---|---|---|
-| **P1** | Spending figures exclude transfers, refunds, card payments and superseded pending rows | — | predicate + backfill report |
+| **P1** | Nine named financial measures, each meaning what it says | — | role classification + measures + dry run |
 | **P2** | Every category carries essentiality / variability / controllability | P1 | taxonomy + review UI |
 | **P3** | "Largest controllable cost" is answerable on screen | P1, P2 | spending surface |
 | **P4** | Recurring obligations detected and confirmed | P1 | detection + review |
@@ -188,71 +190,107 @@ immediately.
 
 ---
 
-## THE FIRST BUILD PACKAGE — P1 only
+## THE FIRST BUILD PACKAGE — P1 (revised)
 
-**Exactly one package. Not a phase, not a bundle.**
+**P1 = economic role classification + the measure contract. One package.**
+
+The earlier P1 promised "one predicate for what I spent". That shape was wrong
+(architecture §5.0): a mortgage payment is cash leaving, a balance-sheet movement, and
+partly not consumption — no boolean survives it. P1 now delivers **one classification
+feeding nine named measures.**
 
 ### User outcome
-Danny's spending figures stop lying. Today a transfer between his own accounts, a credit
-card payment, a refund, or a pending row later replaced by a posted one can all be
-counted as money spent. Every number built on top of that — every opportunity, budget and
-recommendation this architecture describes — inherits the error. **P1 makes "what I
-spent" mean what it says.**
+Danny can ask a *specific* financial question and get a figure that means what its name
+says: gross purchases, net spending, cash outflow, debt service and transfers stop being
+the same number wearing different labels. A card payment stops being counted as spending
+twice. A refund reduces spending instead of arriving as income.
+
+### Reuse — no parallel system
+Extends what exists: `transfer_state` (confidence, incl. `candidate`), `transfer_kind`
+(four roles already detected), `transfer_detection.classify / pair_transfers /
+confirm_transfer`, and `attribution_population.financial_activity` — **already the shared
+definition** for Budget, FinanceHistory, snapshots, dashboard and CoS, which becomes the
+`net_spending` projection. Pending→posted needs nothing: `sync_service` already replaces
+the pending row in place.
 
 ### Models / services
-- `Transaction`: add `refund_of` (self-FK, nullable), `reimbursement_state`,
-  `is_card_payment` (derived, stored, with provenance).
-- **New:** `apps/finance/services/finance_calc/spending.py` ::
-  `spending_predicate(user, start, end)` — the ONLY definition of "money that left".
+- `Transaction.economic_role` (choices per §5.0.2) + `role_confidence` + `role_source`
+  (`derived | provider | user`), user outranking derivation.
+- `refund_of` self-FK — refund **offsetting** is the genuine gap; detection already
+  exists via `transfer_kind='refund'`.
+- `finance_calc/roles.py :: classify` — the one authority.
+- `finance_calc/measures.py` — the nine projections, each returning `CalcResult`.
 
-### Authoritative calculation
-`spending_predicate` returns a `CalcResult` carrying `coverage_start/end`,
-`exclusions[]` (counts per exclusion reason), `calculation_version`, `confidence`,
-`inputs_missing`. Every later spending figure derives from it. A CI contract test fails
-the build if a second definition appears anywhere in `apps/finance`.
+### Authoritative calculations
+The nine measures of §5.0.3, obeying the reconciliation identities of §5.0.9. Debt
+service stays **unsplit with a stated limitation** until `LoanTerms` exists (P7) — it is
+never invented.
 
 ### UI
-One surface only: a **classification review queue** listing transactions WLJ believes are
-transfers / card payments / refunds, each confirmable or rejectable. No spending page yet
-— that is P3.
+One surface: the **classification review queue** — `uncertain` rows, unmatched-counterpart
+transfers and cash withdrawals, each confirmable. No spending page (P3).
 
 ### CoS contract
-**None.** P1 ships no CoS tool. Nothing is exposed until the number is trusted.
+**None.** P1 exposes nothing to CoS. Numbers earn exposure after Danny trusts them.
 
-### Production data prerequisites
-None. 3,792 transactions and 6 accounts already exist. **P1 needs nothing from Danny** —
-which is precisely why it goes first.
+### Production prerequisites
+None. 3,792 transactions, 6 accounts. **Requires nothing from Danny** — why it is first.
 
 ### Migrations / backfill
-Schema migration is additive. The backfill classifies existing rows and is the risky
-part.
+Additive schema. The backfill assigns roles to existing rows.
 
-**Dry-run requirement (blocking):** the backfill runs first in report-only mode and
-produces counts by proposed classification, the resulting change in reported spend per
-month, and a sample of each class for inspection. **Danny reviews that report before any
-row is written.** No production write happens on the strength of a test suite alone.
+### Report-only dry run (BLOCKING — writes nothing)
+
+Produces, per transaction class and in total:
+
+| Section | Contents |
+|---|---|
+| Per-row | current classification · proposed economic role · confidence · **reason** · affected measures |
+| Monthly totals | current vs proposed, for all nine measures, every month covered |
+| Offsets | refund and reimbursement offsets applied, with counts and amounts |
+| Exclusions | transfer and card-payment exclusions, counted separately |
+| Debt service | unsplit amounts, count and total, with the limitation stated |
+| Uncertain | rows requiring review, by reason (unmatched counterpart · cash withdrawal · low confidence) |
+| Impact | by month **and** by category |
+| Samples | representative **redacted** rows per class — no full merchant strings where identifying |
+| **Reconciliation** | gross purchases · refunds/reimbursements · net spending · debt service · transfers/allocations · income · cash inflow · cash outflow — **must balance to §5.0.9 or the run is reported as failed** |
+
+**Approval rule:** the 5% reclassification and 10% monthly-movement thresholds remain as
+**automatic warning gates**, but they are **not** approval. **Every production backfill
+requires Danny's explicit review and authorisation regardless of how small the change
+is.** A change of 0.1% still waits.
 
 ### Tests
-Transfer pair excluded; card payment excluded; refund netted against its original;
-superseded pending row excluded; an ordinary expense **included**; a second predicate
-definition fails CI; the backfill is idempotent; user confirmation outranks derivation;
-`CalcResult` carries exclusions and version.
+Classification contract: a fixture of **one transaction per class in §5.0.4** produces
+exactly that matrix. Reconciliation identities hold on real-shaped data. Card payment
+excluded from net spending while its purchase is included (**the double-count rule**).
+Refund offsets net spending, keeps its audit identity, retains the original category, and
+does **not** appear as income. Unmatched-counterpart transfer stays `uncertain` and
+enters no measure. Cash withdrawal is in outflow, not in net spending. Unsplit debt
+service is in outflow and debt service, not net spending, and carries the limitation.
+Both refund period policies produce the documented, labelled result. User classification
+outranks derivation. Backfill idempotent. Measures report `uncertain_count/amount`.
 
-### Stop conditions
-Stop and report — do not proceed — if any of these occur:
-- the dry-run reclassifies **more than 5%** of transactions as non-spending;
-- reported monthly spend moves by more than **10%** in any month;
-- any confirmed-by-user classification would be overwritten;
-- the predicate cannot explain a specific transaction Danny queries.
+### Stop conditions (halt and report)
+- Reconciliation identities fail on production-shaped data.
+- Dry run reclassifies **>5%** of transactions *(warning gate)*.
+- Any measure's monthly total moves **>10%** *(warning gate)*.
+- Any user-confirmed classification would be overwritten.
+- `uncertain` exceeds **10%** of transactions or **15%** of outflow — the classifier is
+  not ready.
+- The classifier cannot explain a specific transaction Danny queries.
 
 ### Definition of done
-Migration applied; dry-run reviewed and approved by Danny; backfill applied; review queue
-live; all tests green; Finance regression green; changelog updated; **and Danny has
-confirmed that a spending figure he can check by hand matches WLJ's**.
+Migration applied · dry run produced, reviewed and **explicitly authorised by Danny** ·
+backfill applied · review queue live · classification contract and reconciliation tests
+green · Finance regression green · changelog updated · **and Danny confirms that at least
+one figure he checks by hand — a month's net spending and that month's card payments —
+matches WLJ and is not double-counted.**
 
-### Explicit non-goals for P1
-No taxonomy, no opportunity ranking, no recurring detection, no CoS exposure, no
-budgets, no debt work, no spending page.
+### Explicit non-goals
+No controllability taxonomy (P2) · no spending page (P3) · no recurring detection (P4) ·
+no opportunity ranking (P6) · no `LoanTerms` or principal/interest split (P7) · no CoS
+exposure (P11) · no budgets, no goals, no debt work.
 
 ---
 
@@ -260,7 +298,7 @@ budgets, no debt work, no spending page.
 
 | Decision | Needed before | Notes |
 |---|---|---|
-| P1 backfill dry-run sign-off | P1 write | blocking |
+| P1 backfill dry-run sign-off | P1 write | **blocking — required for EVERY backfill regardless of size** |
 | Truck: connect institution **or** manual liability record | P9 | either is supported; no connection during architecture work |
 | Loan terms data entry (APR, minimum, due date, term) | P7/P8 | manual or statement-derived; permanently supported |
 | Emergency-fund target | P5 | one number from Danny |

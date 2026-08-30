@@ -328,8 +328,10 @@ others cannot do it:
 | Net worth, gross assets, liabilities | `asset_registry :: net_worth_breakdown` | **exists** |
 | Tangible value, linked debt, equity | `asset_registry :: current_value / linked_debt / net_equity` | **exists** |
 | Financial-account totals | `asset_registry :: net_worth_breakdown` | **exists** |
-| Spending & income by period | `finance_calc.cashflow :: period_totals` | new |
-| Controllable spending | `finance_calc.taxonomy :: controllable_spend` | new |
+| Economic role classification | `finance_calc.roles :: classify` (extends `transfer_detection`) | new |
+| The nine measures (§5.0.3) | `finance_calc.measures :: <measure>` | new |
+| Net spending | `measures :: net_spending` (projection of `financial_activity`) | extends existing |
+| Controllable spending | `finance_calc.measures :: controllable_spending` (subset of `purchase` ∩ classification ∩ confidence) | new |
 | Recurring obligations | `finance_calc.recurring :: obligations` | new |
 | Monthly free cash flow | `finance_calc.cashflow :: free_cash_flow` | new |
 | Emergency-fund requirement | `finance_calc.reserves :: emergency_target` | new |
@@ -341,13 +343,213 @@ others cannot do it:
 | Opportunity estimates | `finance_calc.opportunity :: estimate` | new |
 | Projected vs realized | `finance_calc.opportunity :: realized` | new |
 
+### 5.0 Financial measures — one classification, nine answers
+
+An earlier draft proposed a single `spending_predicate`: one boolean deciding whether
+money "actually left". **That is the wrong shape.** "What did I spend" is not one
+question, and a boolean cannot answer nine of them. Worse, a mortgage payment is
+simultaneously real cash leaving, a balance-sheet movement, and — in part — not
+consumption at all. No boolean survives that.
+
+**Corrected design: ONE authoritative classification, MANY derived measures.**
+
+Every transaction is assigned exactly one **economic role**. Measures are then
+*projections* over those roles. Adding a measure never means re-deciding what a
+transaction is.
+
+#### 5.0.1 Reuse, not replacement
+
+WLJ already has most of this and it must be extended, not duplicated:
+
+| Existing | Reused as |
+|---|---|
+| `Transaction.transfer_state` (`unknown / not_transfer / candidate / confirmed`) | the **confidence** axis — `candidate` already means "held for review, never guessed" |
+| `Transaction.transfer_kind` (`internal_transfer / credit_card_payment / refund / reversal`) | four of the economic roles, already detected |
+| `transfer_detection.classify / pair_transfers / confirm_transfer` | the classifier — extended, not replaced |
+| `attribution_population.financial_activity` | **already "THE shared definition"** consumed by Budget, FinanceHistory, snapshots, dashboard and `FinanceDomainTruth` |
+| `provider_pending_transaction_id` promotion in `sync_service` | pending→posted, **already solved at ingestion** — the posted row replaces the pending one in place |
+| `category_source='user'` precedence | the user-outranks-derivation rule |
+
+**`financial_activity` becomes the `net_spending` projection** rather than being
+superseded. A new parallel spending system is forbidden.
+
+**Two corrections to my own earlier P1 claim:** superseded pending rows are *already*
+handled at ingestion, so they were never the distortion I described; and `refund_of` was
+proposed as a new field when `transfer_kind='refund'` already exists — what is genuinely
+missing is not refund *detection* but refund **offsetting**, which today does not exist
+anywhere (refunds currently flow through as positive amounts alongside income).
+
+#### 5.0.2 Economic roles
+
+```
+purchase                 goods/services acquired (debit or credit card, cash, ACH)
+refund                   money back from the original merchant
+reimbursement            a third party repaying the user (employer, Beacon, person)
+reversal_chargeback      the institution undoing a transaction
+income                   earned or other true income
+internal_transfer        the user's own money between their own accounts
+card_payment             paying a credit card the user holds
+savings_allocation       into a savings account/goal
+investment_contribution  into an investment account (withdrawal is the inverse)
+debt_service             a loan payment (see §5.0.5)
+fee_or_interest_charged  bank fee, card interest, overdraft — a real cost
+cash_withdrawal          cash out; downstream use unknown (§5.0.6)
+uncertain                cannot be classified confidently — counted in NO measure
+```
+
+Roles are **mutually exclusive**. `uncertain` is a first-class outcome, not a failure.
+
+#### 5.0.3 The nine measures
+
+| Measure | Definition | Roles included |
+|---|---|---|
+| **Cash inflow** | external money received | `income`, `refund`, `reimbursement`, `reversal_chargeback` (inbound) |
+| **Cash outflow** | external money leaving available cash | `purchase`, `debt_service` (full payment), `fee_or_interest_charged`, `cash_withdrawal` |
+| **Gross purchases** | purchases before any offset | `purchase` |
+| **Net spending** | what consumption actually cost | `purchase` − `refund` − `reimbursement` − `reversal_chargeback` |
+| **Recurring obligations** | committed forward cash need | recurring `purchase` + `debt_service` minimums + insurance/tax |
+| **Debt service** | total loan payments | `debt_service` (components separated **when known**) |
+| **Transfers & allocations** | own money moved | `internal_transfer`, `card_payment`, `savings_allocation`, `investment_contribution` |
+| **Income** | true income only | `income` |
+| **Controllable spending** | the actionable subset | `purchase` ∩ controllability classification ∩ confidence ≥ threshold |
+
+**Critical non-identities, stated so nobody re-derives them wrongly:**
+
+- Cash outflow **≠** net spending. A mortgage payment is outflow; its principal is not
+  consumption.
+- Transfers and allocations are in **neither** spending measure. Moving money is not
+  spending it — *"these may affect an individual account's cash movement but must not
+  become household spending merely because money moved."*
+- Income **excludes** refunds and reimbursements. Getting $80 back for a returned coat
+  is not earning $80.
+- Controllable spending is a **subset of** `purchase`, gated on explicit classification
+  **and** confidence — never "everything that isn't a transfer".
+
+#### 5.0.4 Transaction classification matrix
+
+`+` adds · `−` offsets · `·` no effect · `?` uncertain until resolved
+
+| Transaction class | Role | Inflow | Outflow | Gross | Net spend | Debt svc | Transfers | Income |
+|---|---|---|---|---|---|---|---|---|
+| Debit-card purchase | `purchase` | · | + | + | + | · | · | · |
+| Credit-card purchase | `purchase` | · | · ¹ | + | + | · | · | · |
+| **Credit-card payment** | `card_payment` | · | + ¹ | · | **·** | · | + | · |
+| Internal transfer (paired) | `internal_transfer` | · | · | · | · | · | + | · |
+| **Transfer, counterpart unconnected** | `uncertain` | ? | ? | ? | **?** | ? | ? | ? |
+| Savings transfer | `savings_allocation` | · | · | · | · | · | + | · |
+| Investment contribution | `investment_contribution` | · | · | · | · | · | + | · |
+| Investment withdrawal | `investment_contribution` (inverse) | · | · | · | · | · | − | · |
+| Mortgage / loan payment | `debt_service` | · | + | · | **·** ² | + | · | · |
+| — principal component | *(component)* | · | *in total* | · | · | + | · | · |
+| — interest / fees | *(component)* | · | *in total* | · | **+** ³ | + | · | · |
+| — escrow / tax / insurance | *(component)* | · | *in total* | · | **+** ³ | + | · | · |
+| Refund | `refund` | + | · | · | **−** | · | · | · |
+| Reimbursement | `reimbursement` | + | · | · | **−** | · | · | · |
+| Reversal / chargeback | `reversal_chargeback` | + | · | · | **−** | · | · | · |
+| Pending superseded by posted | *(none — replaced at ingestion)* | · | · | · | · | · | · | · |
+| Cash withdrawal | `cash_withdrawal` | · | + | · | **?** ⁴ | · | · | · |
+| Bank fee / card interest | `fee_or_interest_charged` | · | + | · | + | · | · | · |
+| Cash-back reward | `refund`-like ⁵ | + | · | · | − | · | · | · |
+| Business expense paid personally | `purchase` + pending reimbursement | · | + | + | + ⁶ | · | · | · |
+| Income deposit | `income` | + | · | · | · | · | · | + |
+
+¹ A credit-card purchase leaves no cash at purchase time; the cash leaves when the card
+is paid. **This is the rule that must never break: the purchase is spending, paying the
+card is not spending again.**
+² The payment as a whole is not consumption.
+³ Interest, fees and escrow **are** costs — but only when the split is known (§5.0.5).
+⁴ Cash withdrawal is deliberately unresolved (§5.0.6).
+⁵ Cash back reduces the cost of the purchases that earned it; treated as an offset, not
+income, unless the user classifies it otherwise.
+⁶ Remains full personal spending **until** the reimbursement arrives and offsets it;
+Beacon attribution then removes it from *personal* spending without deleting the record.
+
+#### 5.0.5 Debt-payment limitation policy
+
+Plaid does not return a principal/interest split for a payment transaction. Therefore:
+
+- When components are **known** (from `LoanTerms` amortisation, a statement, or user
+  entry with provenance), record them separately: principal → balance-sheet movement;
+  interest, fees, escrow, tax and insurance → cost, and therefore in net spending.
+- When they are **not known**, keep the payment as a single **unsplit `debt_service`
+  amount**, count it in cash outflow and debt service, and **exclude it from net
+  spending with a stated limitation** — because counting the whole payment as
+  consumption overstates spending, and counting none of it understates cost. The
+  measure says which it did and why.
+- **Never invent a split.** No default amortisation against an unknown APR.
+- Every affected measure carries `assumptions: ["debt service unsplit for N payments"]`.
+
+#### 5.0.6 Uncertainty behaviour
+
+Three cases must stay uncertain rather than be guessed:
+
+1. **Transfer with an unmatched or unconnected counterpart.** A $500 debit to an account
+   WLJ cannot see is either a transfer or a real expense. It becomes
+   `transfer_state='candidate'` → role `uncertain` → **counted in no spending measure**,
+   surfaced for review. `financial_activity` already behaves this way; the design
+   preserves it.
+2. **Cash withdrawal.** Not automatically consumption, not automatically harmless
+   movement. Default role `cash_withdrawal`: in cash outflow, **excluded from net
+   spending**, flagged so Danny can classify it. Whichever default were chosen silently
+   would be wrong for someone.
+3. **Anything below the confidence threshold.** Role `uncertain`.
+
+Every measure reports `uncertain_count` and `uncertain_amount`. **A measure computed
+over meaningful uncertainty says so** rather than presenting a clean number. Uncertainty
+is disclosed, never averaged away.
+
+#### 5.0.7 Refund period policy
+
+A refund arriving in a later month than its purchase is genuinely ambiguous, so WLJ does
+not silently pick:
+
+- **Default — `offset_on_receipt`:** the refund reduces net spending in the month it
+  arrived. Matches the bank statement, which is what a person checks against.
+- **Optional — `restate_original`:** reduces the original purchase's month, correcting
+  history. Available where the refund is linked to its original purchase.
+- **The report always states which policy produced the figure**, and any restatement
+  makes the affected prior month's total change visibly, never silently.
+- A linked refund **retains the original purchase's category relationship** where the
+  provider supports it, so a grocery refund reduces groceries — not "uncategorised".
+- A refund **always keeps its own audit identity.** It is offset, never deleted, never
+  excluded.
+
+#### 5.0.8 The `spending_predicate` term is retired
+
+It described a boolean that cannot exist. Replaced by:
+
+- `finance_calc.roles :: classify(transaction) → EconomicRole` — one authority;
+- `finance_calc.measures :: <measure>(user, start, end) → CalcResult` — nine projections.
+
+The invariant is enforced by a **classification contract test**, not by grepping source:
+every measure must be expressible as a projection over roles; a fixture of one
+transaction per class must produce the exact matrix in §5.0.4; and the measures must
+reconcile (§5.0.9). A grep test would pass while the numbers were wrong.
+
+#### 5.0.9 Reconciliation identities (must hold, always)
+
+```
+net_spending      = gross_purchases − refunds − reimbursements − reversals
+cash_outflow      = purchases_settled + debt_service_total + fees + cash_withdrawals
+cash_inflow       = income + refunds + reimbursements + reversals
+net_cash_movement = cash_inflow − cash_outflow
+debt_service_total = principal_known + interest_known + escrow_known + unsplit
+```
+
+Any measure set that fails these is reported as **not reconciling** and is not
+presented as fact.
+
 ### 5.1 Distortion control (non-negotiable)
 
-Spending and cash flow MUST exclude, by construction: internal transfers, credit-card
-payments, refunds matched to an original charge, reimbursements, and pending rows later
-superseded by a posted row. Each is a **typed state on the transaction**, not a filter
-re-invented per caller. One predicate — `finance_calc.spending_predicate` — is the only
-definition of "money that actually left". A contract test rejects any second definition.
+Spending and cash flow must never be distorted by internal transfers, credit-card
+payments, refunds, reimbursements, or superseded pending rows. **The mechanism is the
+role classification in §5.0, not a filter re-invented per caller.** Each distortion has
+a named role and a defined effect on each measure (§5.0.4); a caller that wants a
+different number asks for a different *measure*, never a different filter.
+
+`attribution_population.financial_activity` — already the shared definition consumed by
+Budget, FinanceHistory, the metric snapshots, the dashboard and `FinanceDomainTruth` —
+becomes the `net_spending` projection. **No second spending system may exist.**
 
 ### 5.2 Estimates and assumptions
 

@@ -1096,6 +1096,21 @@ E2E tests (green) and the O1→O2 pilot. Never present Shadow as proof of them.*
 ### Phase IX — Mission Control · **Planned**
 - [ ] Mission Control unification · [ ] Engineering Workspace · [ ] Executive Reporting · [ ] Operational History
 
+### Recovery Action Executability · ✅ **CLOSED / PRODUCTION VALIDATED TO AVAILABLE PRODUCTION STATE (2026-08-30)**
+Incident 2026-08-29: the Wall recommended *"Clear ICQG suppression cache"*, which failed with *"No module named
+'apps.core.ai_quality.models'"*. That module **never existed**, and the handler also filtered on a field that never
+existed — it was **dead from the day it was written** and had never succeeded. Four further advertised actions were
+not dispatchable at all. Fixed (`55de1839`): canonical `quality_models` authority; **expire rather than delete**, so
+recurrence evidence survives the recovery; every advertised action dispatchable and structurally executable; and a
+**CI contract** — *advertised action → dispatcher → executable dependency* — so a removed or renamed dependency
+breaks the build instead of leaving a dead button on the Wall.
+
+**Validation scope (stated precisely):** the repaired suppression action was **NOT re-executed in production** — the
+triggering condition cleared naturally before the operator check and an incident was deliberately not manufactured.
+Production validated: deployed web/worker parity and a healthy, incident-free Wall with nothing falsely cleared or
+forced. The action's correctness rests on deterministic coverage + the CI contract. The next genuine suppression
+storm will be its first real-world execution.
+
 ### Deferred / Cancelled
 Deferred items get a phase number + promotion trigger, never "maybe someday."
 

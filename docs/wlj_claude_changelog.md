@@ -5,6 +5,50 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-30 — 🏁 OPERATIONS RECOVERY ACTION INCIDENT — CLOSED / PRODUCTION VALIDATED TO AVAILABLE PRODUCTION STATE
+
+Authenticated operator check completed by Danny on the production Ops Wall.
+
+**Production state at validation:** Operational Status **HEALTHY** · Operational Health **100** · Customer Impact
+**None** · **no active incidents** · Recommended Action *"No action required"* · 10/10 engines reporting · Engine
+Execution, Action Systems, Schedulers, Recovery Engine all **OK** · Celery worker healthy with no recent failures ·
+API health healthy, 0% error rate.
+
+**Closed on:** proven root cause · repaired canonical suppression action (`ai_quality.quality_models`) ·
+DELETE → EXPIRE evidence-preserving correction · all advertised recovery actions dispatchable and structurally
+executable · CI contract protecting *advertised action → dispatcher → executable dependency* · deployed web/worker
+parity (`55de1839`) · authenticated Ops Wall healthy with no active incident.
+
+### ⚠️ Validation scope — stated precisely
+**The repaired suppression action was NOT re-executed in production.** The triggering condition naturally cleared
+before the authenticated operator check, so no legitimate recommended recovery action was available to click, and an
+incident was deliberately **not** manufactured to exercise it. **Do not describe that specific action execution as
+directly production-tested.** What IS validated in production: the deployed build carries the fix on both web and
+worker, and the Wall reports a healthy, incident-free state with no false clearing and no forced status. The action's
+correctness is established **deterministically** (canonical-authority use, release semantics, history preservation,
+idempotency, non-ICQG refusal) and by the CI executable contract — not by a production click.
+
+**Residual, accepted:** the first genuine future suppression storm will be the first real-world execution of the
+repaired action. That is the correct place to observe it — not a manufactured one.
+
+### Deferred item stands
+`WLJ_OPERATIONS_VISION §15 D-1` — evaluate whether manual Ops Wall recovery and automated recovery should converge
+on ONE recovery authority, without weakening operator-specific behaviour or ship-dark controls. Unchanged, with its
+promotion trigger.
+
+### Observed during validation, NOT part of this incident
+**Signal Pipeline DEGRADED / Signal Snapshots STALE while overall health is 100.** Checked, and it is **already
+represented by existing telemetry** — `_get_intelligence_pipeline_health` derives `signal_snapshots.status = STALE`
+deterministically (rows exist but none in 24h) and carries the supporting facts (`last_24h`, `last_7d`,
+`latest_age`, `users_24h`, `type_distribution`), and `SIGNAL_DROUGHT` already exists as an anomaly type with a
+registered diagnostic scan and evidence builder. **No new item recorded** — it is covered, and absent demonstrated
+customer or runtime impact it is not this incident's concern. Not investigated, not changed.
+
+### Kept separate
+The two verified pre-existing failures — `tests_ops_wall_v2…test_action_has_trace_id` and
+`tests_diagnostics…test_ops_poll_staff_access` — remain out of scope and were not worked.
+
+---
 ## 2026-08-30 — fix(ops): Operations advertised recovery actions the deployed system could not execute
 
 **Production (2026-08-29).** The Ops Wall recommended **"Clear ICQG suppression cache"**; clicking it returned

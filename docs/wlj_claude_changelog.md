@@ -5,6 +5,38 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+
+## 2026-08-29 — fix(nav): Finance dropdown exposes Connections (the page existed with no way in)
+
+**Symptom:** `/finance/connections/` (`finance:connection_list`, `BankConnectionListView`) has existed and been
+reachable by the Chief of Staff (teaching destination `finance-connections`), but the Finance navigation dropdown
+listed only Finance Home / Accounts / Transactions / Budgets / Goals / Metrics. A user could reach bank Connections
+only by typing the URL or by being navigated there. **No template in the repo linked to `finance:connection_list`.**
+
+**Change:** added a `Connections` entry to the Finance dropdown in `templates/components/navigation.html`, in the
+trailing group after Metrics, using the identical sibling markup (`nav-dropdown-item`, 24×24 stroke `nav-dropdown-icon`,
+`{% url %}` reverse — no hard-coded path). Link-chain icon, consistent with the sibling stroke convention.
+
+**Verification:**
+- Rendered `components/navigation.html` for `/finance/connections/` — dropdown items now resolve as
+  `['/finance/', '/finance/accounts/', '/finance/transactions/', '/finance/budgets/', '/finance/goals/',
+  '/finance/metrics/', '/finance/connections/']`.
+- **Active state unchanged:** the toggle keys off `request.resolver_match.app_name == 'finance'`, so it renders
+  ` active` on both `/finance/connections/` and a sibling page (`/finance/accounts/`) — no regression.
+- **375px:** at ≤768px `main.css` sets `.nav-mobile-toggle` and `.nav-menu` to `display: none` (the bottom tab bar
+  replaces the overlay), so the dropdown is desktop/tablet-only and the change adds nothing at mobile widths —
+  confirmed in-browser: `navMenuDisplay: none`, `hamburgerDisplay: none`, `scrollWidth 375 == innerWidth 375`
+  (no horizontal overflow). Desktop (1200px) screenshot confirms correct grouping and icon alignment.
+- No inline handlers introduced (CSP clean); `manage.py check` clean (only pre-existing djstripe warnings).
+
+**Docs:** no companion `help_topics.json` entry — `templates/finance/bank_connection_list.html` declares no
+`help_context_id`, and help topics are keyed by `context_id`. The teaching destination already existed.
+
+**Known residual (not in scope, flagged):** on mobile the path is More → Finance home, and the Finance dashboard
+does not link to Connections either — so phone users still have no in-app route to bank Connections.
+
+**Files:** `templates/components/navigation.html`
+
 ## 2026-08-28 — 🏁 ARC CLOSED: Stuffed Peppers / CoS Action Safety (production verified)
 
 **One request to log a dinner exposed SIX defects across the entire write path.** They were not independent bugs: a

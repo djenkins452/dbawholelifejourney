@@ -315,15 +315,27 @@ DOMAIN_SEMANTICS = {
     },
     "finance": {
         "purpose": ("The person's finances — accounts, transactions, spending/income "
-                    "trends, budgets."),
+                    "trends, budgets, and the bank connections that feed them."),
         "entities": {
             "transaction": ("A single financial transaction — its date, amount (income or "
                             "expense), merchant/description, category, and account. Search by "
                             "merchant with the `contains` filter; scope by period/on_date."),
             "account": ("A financial account — its type, institution, current balance, and "
-                        "last-4 (no full numbers or credentials).")},
+                        "last-4 (no full numbers or credentials)."),
+            "connection": ("A linked bank connection — HOW and WHEN money data actually "
+                           "arrives. Carries WLJ's last successful sync, whether the "
+                           "initial/historical windows finished, whether the user genuinely "
+                           "needs to reauthenticate, and an authoritative description of "
+                           "WLJ's sync mechanics. USE THIS for any question about how "
+                           "accounts update, why a transaction has not appeared, whether "
+                           "syncing is automatic, or whether the user must refresh "
+                           "something — never answer those from general knowledge of the "
+                           "provider.")},
         "cues": ["what did I spend", "my biggest expenses", "what was that charge",
-                 "transactions at", "what did I spend at", "my accounts", "my balances"],
+                 "transactions at", "what did I spend at", "my accounts", "my balances",
+                 "how do my accounts update", "does it sync automatically",
+                 "do I have to refresh", "sync now", "why is this transaction missing",
+                 "is my bank connected", "reconnect my bank", "plaid"],
     },
 }
 

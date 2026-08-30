@@ -2050,6 +2050,29 @@ this session spent ZERO provider calls and verified that result independently fr
 and bare `response` rows with no preceding truth call for the three earlier smokes.
 
 ---
+## 2026-08-20 — fix(cos): Finance sync guidance — expose HOW money data actually arrives
+
+**Production friction.** Asked *"How do my finance accounts update through Plaid? Does it automatically do it or do I have to refresh something?"*, the CoS answered from **generic provider knowledge** and suggested a manual refresh might clear stale data. WLJ does not work that way, and telling a user to refresh implies an action that cannot have the effect described.
+
+**Root cause — a Layer-1 ACCESSIBILITY gap, not a missing capability.** Every fact needed to answer correctly already existed on `BankConnection` (`connection_status`, `needs_attention`, `last_sync_at`, `transactions_synced`, `initial_update_complete`, `historical_update_complete`, `error_code`, `last_webhook_rejected_at`) — and **none of it was exposed as CoS truth.** `FinanceDomainTruth` described transactions, accounts, recurring, budgets, goals and entities; the account entity carried only balance/institution/type. With no WLJ truth about synchronization at all, the model had nothing to ground on and fell back on what it knows about Plaid in general.
+
+**Two halves, because exposing truth the model cannot find would have fixed nothing:**
+
+1. **New `connection` entity** on the finance truth surface. Per-connection facts only — WLJ's last successful sync (distinct from whatever Plaid last collected from the institution), backfill completion, connection status, `user_action_required`, error code, and rejected-webhook time (a WLJ-side fault, worth distinguishing from an institution simply being quiet). Never a token, cursor value or credential. The tool catalog is dynamic, so declaring the type advertises it automatically.
+2. **Routing by meaning** (`truth/semantics.py`). The entity is described as *"HOW and WHEN money data actually arrives… never answer those from general knowledge of the provider"*, with cues for "how do my accounts update", "does it sync automatically", "do I have to refresh", "why is this transaction missing", "reconnect my bank". Without this the catalog would list `connection` and the model would still never ask for it.
+
+**The mechanics travel WITH the state**, on the same surface, so the two cannot drift and no answer has to be assembled from general knowledge: Plaid checks institutions on its own schedule (typically 1–4×/day); **webhooks are the primary low-latency trigger**; scheduled reconciliation is the **missed-webhook safety net, not the main path**; **Sync Now calls cursor-based `/transactions/sync` and retrieves what Plaid already has — it does NOT ask Plaid to contact the bank**; **WLJ does not use `/transactions/refresh`**; data is automatic but **not guaranteed real-time**; reauthentication is needed only in an actionable state (login/consent), **never merely because a recent transaction is not visible**.
+
+**Explicitly asserted negatives** — a quiet-but-healthy connection must NOT be reported as needing action, and no wording may claim a refresh forces a bank update or that routine manual action is required.
+
+**No ingestion behaviour changed.** The proven Plaid webhook, scheduler, duplicate-prevention and connection-lifecycle implementation is untouched; this is exposure of existing state plus truthful guidance.
+
+**Files:** `apps/finance/services/finance_domain_truth.py` (`connection` entity + `SYNC_MECHANICS`), `apps/core/truth/semantics.py` (meaning + cues), new `apps/core/tests/test_finance_sync_truth_contract.py`, `apps/finance/tests/test_finance_domain_truth.py` (declaration).
+
+**Verification: ZERO provider calls.** 24 new contract tests + 483 finance/request-path tests green; `makemigrations --check` clean. **Production answer NOT yet verified** — confirming it requires a real paid CoS turn, which needs Danny's explicit authorization under the cost governor.
+
+---
+
 ## 2026-08-20 — chore: retire the exec-sentinel certification harness; drop three dead imports; repair an orphaned reference on main
 
 **Temporary infra removed (temporary-infra lifecycle rule).**

@@ -30,7 +30,13 @@ class FinanceDomainTruth(DomainTruth):
     # doing" from records instead of a summary. Facts only: amounts, dates, and lifecycle
     # state. Never a verdict (`Budget.health_status` is deliberately NOT surfaced — the
     # model interprets), never credentials, account numbers, or free-text notes.
-    entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity")
+    # `connection` exposes HOW and WHEN money data actually arrives. Without it the model
+    # had no WLJ truth about synchronization at all and answered "how do my accounts update
+    # through Plaid?" from generic provider knowledge — suggesting a manual refresh that
+    # WLJ does not perform. The state existed on BankConnection the whole time; it was
+    # simply never surfaced (a Layer-1 ACCESSIBILITY gap, not a missing capability).
+    entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity",
+                    "connection")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -67,6 +73,8 @@ class FinanceDomainTruth(DomainTruth):
             return self._describe_goals()
         if et == "entity":
             return self._describe_entities()
+        if et == "connection":
+            return self._describe_connections()
         if et != "transaction":
             raise KeyError(f"finance domain cannot describe {et!r} "
                            f"(have {self.entity_types})")
@@ -159,6 +167,79 @@ class FinanceDomainTruth(DomainTruth):
         accts = (FinancialAccount.objects.filter(user=self.user, is_hidden=False)
                  .order_by("sort_order", "name"))
         return [self._account_entity(a) for a in accts]
+
+    # ── HOW WLJ ACTUALLY SYNCS ────────────────────────────────────────────────
+    # Invariant product behaviour, carried on the same surface as the per-connection
+    # state so the two can never drift apart or be answered from generic knowledge.
+    SYNC_MECHANICS = {
+        "institution_checks": (
+            "Plaid checks each institution on its own schedule — typically one to four "
+            "times a day, varying by institution. WLJ does not control that cadence."),
+        "primary_trigger": (
+            "Plaid webhooks are WLJ's primary, low-latency ingestion trigger: when Plaid "
+            "has new data it calls WLJ and WLJ pulls it straight away."),
+        "safety_net": (
+            "WLJ also runs a scheduled reconciliation. That is a missed-webhook safety "
+            "net, not the main path."),
+        "manual_sync_now": (
+            "The Sync Now action calls Plaid's cursor-based /transactions/sync and "
+            "retrieves changes Plaid ALREADY has. It does NOT ask Plaid to contact the "
+            "bank, so it cannot make an institution produce newer data."),
+        "refresh_endpoint": (
+            "WLJ does not use Plaid's separate /transactions/refresh endpoint. Nothing in "
+            "WLJ forces an on-demand bank refresh."),
+        "expectation": (
+            "Finance data is automatic but not guaranteed to be real-time. A transaction "
+            "can be missing simply because the institution has not published it yet."),
+        "when_action_is_needed": (
+            "Reauthentication is required only when the connection is in an actionable "
+            "state such as login required or consent renewal — never merely because a "
+            "recent transaction is not visible yet."),
+    }
+
+    def _describe_connections(self):
+        """Per-connection sync truth: what Plaid/WLJ last did, and whether the user must act.
+
+        Facts only — timestamps, lifecycle booleans and a status the model interprets. No
+        verdict about whether data is "stale", and never a token, cursor value or credential.
+        """
+        from apps.finance.models import BankConnection
+        conns = (BankConnection.objects.filter(user=self.user)
+                 .order_by("institution_name", "id")[:self._MAX_ROWS])
+        return [self._connection_entity(c) for c in conns]
+
+    def _connection_entity(self, c):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="connection",
+            identity=(c.institution_name or "").strip() or f"connection {c.id}",
+            definition={
+                # HOW it updates — identical for every connection, stated with the state
+                # so the model never has to guess the mechanics.
+                "how_it_updates": self.SYNC_MECHANICS,
+            },
+            status=c.connection_status,
+            standing={
+                # WLJ's OWN last successful synchronization — distinct from whatever Plaid
+                # last managed to collect from the institution.
+                "wlj_last_sync_at": c.last_sync_at.isoformat() if c.last_sync_at else None,
+                "transactions_synced_total": c.transactions_synced,
+                "initial_window_complete": c.initial_update_complete,
+                "historical_backfill_complete": c.historical_update_complete,
+                # TRUE only for a genuinely actionable state (login/consent). A missing
+                # recent transaction is NOT this.
+                "user_action_required": c.needs_attention,
+                "error_code": c.error_code or None,
+                "error_message": (c.error_message or "").strip() or None,
+                # A refused delivery is a WLJ-side fault worth distinguishing from an
+                # institution being quiet.
+                "last_webhook_rejected_at": (
+                    c.last_webhook_rejected_at.isoformat()
+                    if c.last_webhook_rejected_at else None),
+            },
+            freshness=F.CURRENT,
+        )
 
     def describe_one(self, name):
         # A NAMED lookup resolves an ACCOUNT ("my Chase Checking"); individual transactions are

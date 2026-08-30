@@ -77,7 +77,8 @@ class FinanceEntityTruthTests(TestCase):
     def test_entity_types_declared(self):
         self.assertEqual(
             FinanceDomainTruth.entity_types,
-            ("transaction", "account", "recurring", "budget", "goal", "entity"),
+            ("transaction", "account", "recurring", "budget", "goal", "entity",
+             "connection"),
         )
 
     def test_unknown_entity_type_is_rejected(self):

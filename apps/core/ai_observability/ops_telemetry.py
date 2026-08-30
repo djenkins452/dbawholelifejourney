@@ -395,6 +395,10 @@ def _execute_action(action, engine, trace_id):
             return _action_rebuild_health_summaries()
         elif action == "investigate_pipeline":
             return _action_investigate_pipeline(engine)
+        elif action == "recompute_maturity_snapshot":
+            return _action_recompute_maturity_snapshot()
+        elif action in _ADVISORY_GUIDANCE:
+            return _action_guidance_only(action)
         else:
             return {"status": "failure", "detail": f"Unknown action: {action}"}
     except Exception as e:
@@ -450,24 +454,96 @@ def _action_rerun_engine(engine, trace_id):
 
 
 def _action_clear_suppression_cache(engine):
-    """Clear ICQG suppression cache."""
+    """Release ICQG repeat-suppression so held guidance can flow again.
+
+    THE OPERATION IS STILL CORRECT; THE IMPLEMENTATION WAS NEVER EXECUTABLE.
+    `QualitySuppressionRecord.suppressed_until` IS the live gate — `should_suppress`
+    lets a candidate through the moment that timestamp passes
+    (`ai_quality/repeat_suppression.py`). So "clear the suppression cache" remains a
+    real, meaningful recovery: expire the windows and the storm's held output is
+    released on the next cycle.
+
+    What was wrong (production 2026-08-29, "No module named 'apps.core.ai_quality.
+    models'"): this handler imported `apps.core.ai_quality.models`, which HAS NEVER
+    EXISTED — the module is `quality_models` — and filtered on `suppressed_at`, a
+    field that has never existed on the model either. It was dead from the day it was
+    written and had never once succeeded in production.
+
+    EXPIRE, DO NOT DELETE. The old code hard-deleted rows. `count` and `last_seen_at`
+    are the record of how often a signature recurred — the very evidence an operator
+    needs while diagnosing a suppression storm — so destroying them to clear a gate
+    would burn the diagnosis to fix the symptom. Setting `suppressed_until` to now
+    releases the gate, preserves the history, and is naturally idempotent: running it
+    twice releases nothing further and reports 0.
+    """
     if engine != "ICQG":
-        return {"status": "failure", "detail": "Only ICQG suppression cache can be cleared"}
+        return {"status": "failure", "detail": "Only ICQG suppression can be cleared"}
 
     try:
-        from apps.core.ai_quality.models import QualitySuppressionRecord
+        from apps.core.ai_quality.quality_models import QualitySuppressionRecord
 
-        # Clear recent suppression records (last 24h) to allow reprocessing
-        cleared = QualitySuppressionRecord.objects.filter(
-            suppressed_at__gte=timezone.now() - timedelta(hours=24)
-        ).delete()[0]
+        now = timezone.now()
+        released = QualitySuppressionRecord.objects.filter(
+            suppressed_until__gt=now
+        ).update(suppressed_until=now)
 
         return {
             "status": "success",
-            "detail": f"Cleared {cleared} suppression records from last 24h",
+            "detail": (f"Released {released} active suppression window(s); "
+                       f"held guidance flows on the next cycle. "
+                       f"Suppression history preserved."),
         }
     except Exception as e:
-        return {"status": "failure", "detail": f"Cache clear failed: {str(e)[:300]}"}
+        return {"status": "failure", "detail": f"Suppression release failed: {str(e)[:300]}"}
+
+
+def _action_recompute_maturity_snapshot():
+    """Recompute the system maturity snapshot, reusing the EXISTING recovery handler.
+
+    No parallel implementation: the canonical capability is
+    `operations.recovery.handlers.MaturitySnapshotRefreshHandler`, which already owns
+    the recompute shape, its policy and its verification predicate.
+    """
+    try:
+        from apps.core.ai_observability.maturity_engine import create_daily_snapshot
+        snap = create_daily_snapshot()
+        return {"status": "success",
+                "detail": f"Maturity snapshot recomputed for {snap.snapshot_date}."}
+    except Exception as e:
+        return {"status": "failure",
+                "detail": f"Maturity snapshot recompute failed: {str(e)[:300]}"}
+
+
+def _action_guidance_only(action):
+    """An ADVISORY recommendation — something for the operator to go look at, not an
+    operation WLJ performs.
+
+    These are advertised alongside executable actions and therefore render as buttons.
+    Rather than let a button dispatch to nothing (`Unknown action`), each returns the
+    guidance explicitly, using the same honest `info` status
+    `_action_restart_scheduler` has used since APScheduler was removed. `info` is
+    neither success nor failure: nothing was executed, and the operator is told so.
+    """
+    return {"status": "info", "detail": _ADVISORY_GUIDANCE[action]}
+
+
+# Recommendations that are guidance, not operations. Keyed by the advertised action
+# string so `_execute_action` can never fall through to "Unknown action" for one.
+_ADVISORY_GUIDANCE = {
+    "investigate_validator": (
+        "Review recent blocked responses in the SelfError logs to find what the "
+        "validator is rejecting. Nothing was changed."
+    ),
+    "check_prompt": (
+        "Check for a system-prompt regression causing the violations — compare the "
+        "current governing prompt against the last known-good deploy. Nothing was "
+        "changed."
+    ),
+    "investigate_beat": (
+        "Inspect Celery Beat: confirm the beat process is alive on Railway and that "
+        "the task's schedule is registered. Nothing was changed."
+    ),
+}
 
 
 def _action_restart_scheduler():

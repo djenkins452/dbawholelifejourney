@@ -5,6 +5,77 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-30 — fix(ops): Operations advertised recovery actions the deployed system could not execute
+
+**Production (2026-08-29).** The Ops Wall recommended **"Clear ICQG suppression cache"**; clicking it returned
+**"Cache clear failed: No module named 'apps.core.ai_quality.models'"**.
+
+### The finding is worse than a stale import
+`apps/core/ai_quality/models.py` **has never existed** (`git log --diff-filter=A` returns nothing — the module is
+`quality_models`), and the handler also filtered on **`suppressed_at`, a field that has never existed** on
+`QualitySuppressionRecord` (`git log -S` confirms). **This handler was dead from the day it was written
+(`6df09b8f`) and had never once succeeded in production.** It was not drift from a rename; it was never executable.
+
+**And it was not alone.** Every `suggested_actions` entry renders as a clickable button, and `actions[0]` becomes the
+headline RECOMMENDED ACTION on the executive card. Auditing all advertised actions against the dispatcher found
+**four more that were not dispatchable at all** — `recompute_maturity_snapshot`, `investigate_validator`,
+`check_prompt`, `investigate_beat` — each of which would have returned *"Unknown action"*. **No test anywhere
+asserted that an advertised recovery action can execute**, so nothing could have caught any of them.
+
+### Is the operation still correct? YES — the implementation was wrong, not the idea
+`QualitySuppressionRecord.suppressed_until` **is** the live gate: `should_suppress` lets a candidate through the
+moment that timestamp passes. Releasing it is a real, meaningful recovery for a suppression storm.
+
+**Changed from DELETE to EXPIRE.** The old code hard-deleted rows. `count`/`last_seen_at` are the record of how often
+a signature recurred — *the very evidence an operator needs while diagnosing a suppression storm* — so destroying
+them to clear a gate would burn the diagnosis to fix the symptom. Setting `suppressed_until = now` releases the gate,
+preserves the history, and is **naturally idempotent** (a second run releases 0).
+
+### RECOVERING vs Failed — Case 1, legitimate, proven
+`stabilize_status` is a **pure function of `(prev, raw, incidents)`** — a contract test now asserts its signature.
+It cannot see action results, so the failed button could not have produced RECOVERING. The Wall was honest: the raw
+health score had independently gone HEALTHY-eligible and was inside its 3-cycle stability window, with the P2
+incident still blocking confirmed recovery. **The asymmetric hysteresis was not touched.**
+
+### Nothing mutated during the failed attempt
+The import raises *before* the query, so `.delete()` never ran. The `AdminIntervention` audit row is created
+`pending` before execution and updated with the real result, so the failure was correctly persisted and the UI's
+`Failed` reflected the deterministic action result.
+
+### First failing layer: Action — Operations recovery capability
+Not the incident detector (the storm is real: `DecisionRecord` ICQG suppressions, 30m count vs a 7d/336 baseline),
+not the recommendation selection, not the status derivation.
+
+### Class-level fix
+1. **The ICQG handler now uses the canonical authority** `ai_quality.quality_models` and the correct operation
+   (expire, not delete).
+2. **Every advertised action is now dispatchable** — `recompute_maturity_snapshot` reuses the existing
+   `maturity_engine.create_daily_snapshot`; the three **advisory** recommendations return the honest
+   `{"status": "info"}` shape `_action_restart_scheduler` has used since APScheduler was removed. Nothing executes
+   merely because a label exists, and no button falls through to *"Unknown action"*.
+3. **A deterministic contract** (`tests_recovery_action_contract.py`) extracts every advertised action **from the
+   detector source** (so rarely-firing detectors are still covered) and proves each one is dispatchable and
+   **structurally executable by actually invoking it** — a missing module, renamed field or vanished attribute now
+   **breaks CI** instead of leaving a dead button on the Wall. No new registry was built: the contract enforces the
+   existing dispatcher.
+
+### Regression — 13 new tests
+Advertised actions are dispatchable · none fails structurally (invoked, not merely imported) · every result is a
+status the Wall understands · the extraction guard (so the contract can't vacuously pass) · suppression release
+works, **preserves history**, is idempotent, refuses a non-ICQG engine, and references the canonical module ·
+`stabilize_status` cannot see action outcomes · a degraded signal never becomes RECOVERING · genuine improvement
+produces RECOVERING with no action at all · an active P2 blocks confirmed recovery.
+**83 green** across recovery-contract, recovery-stabilization, diagnostic-engine and ICQG suites; **425** across the
+full observability app.
+
+**Pre-existing failures FLAGGED, not touched** (identical with this change stashed):
+`tests_ops_wall_v2.OpsActionViewTest.test_action_has_trace_id` (a `rerun_engine` briefing write) and
+`tests_diagnostics.DiagnosticsViewAccessTests.test_ops_poll_staff_access`.
+
+**Not done, deliberately:** the incident was not force-cleared, thresholds were not tuned, hysteresis was not
+weakened, and Redis was not cleared. If the underlying condition is still unhealthy the Wall should keep saying so.
+
+---
 
 ## 2026-08-29 — fix(nav): Finance dropdown exposes Connections (the page existed with no way in)
 

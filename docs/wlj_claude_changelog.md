@@ -60026,3 +60026,47 @@ unvalued contributing nothing, archived leaving totals but keeping history, the
 breakdown reconciling to its parts, dashboard agreeing with the reconciliation; CRUD,
 ownership, access, 405s, audit; rendering, grouping, shared formatter, N+1 guard,
 375px and no inline handlers.
+
+### 2026-08-30 — Correcting the transparency boundary on the asset registry
+
+The first cut masked identifiers **everywhere, including from the person who typed
+them**. Danny called that out: it is a private financial registry, and hiding a
+street address from its owner makes the page useless for the one job it has —
+reviewing what you own.
+
+The boundary was wrong in kind, not degree. It is not *"hide the data"*; it is
+*"never on a surface that is scanned, logged, linked, shared, or unauthenticated"*.
+
+**The owner's own detail page now shows:**
+- Real estate — the **complete address** (street, city, region, postal code).
+- Vehicles — year, make, model, mileage, condition; VIN masked with an explicit
+  owner-only reveal.
+- Boats — make, model, year, length, engine hours, condition; hull ID likewise.
+- Other — everything entered, including notes and purchase details.
+- Every valuation carries source, basis, effective date, recorded date, retrieval
+  date, estimate range, confidence, limitations and notes.
+
+The reveal is a native `<details>` disclosure: no JavaScript, CSP-safe, keyboard
+reachable, and the identifier is not sitting open on screen for anyone glancing over.
+
+**Unchanged and re-asserted:** lists and dashboard cards stay abbreviated
+(`Springfield, TN`, `••••2345`); audit payloads carry no address, VIN, hull id or
+postal code; no identifier appears in any URL; another user gets 404; anonymous and
+Finance-disabled users get redirect/403; and the **Chief of Staff is given none of
+it** — `FinanceDomainTruth` does not describe tangible assets at all, and a test
+sweeps every `_describe*` method and fails the moment one leaks. Future CoS access
+must be a deliberate minimum-necessary contract.
+
+`full_address` is a property; no migration.
+
+**Two of my own earlier assertions were wrong and were replaced**, not worked around:
+`test_the_detail_page_never_renders_the_full_vin_or_street` encoded exactly the
+over-restriction being corrected. It is now
+`test_scanned_surfaces_never_render_the_full_vin_or_street`, which asserts the
+list and dashboard — the surfaces where the rule actually belongs.
+
+**17 new visibility tests** (81 in the asset suite): what the owner must see, and
+every surface where it must not appear.
+
+Accounting, loan linking, valuation history, Plaid behaviour and the provider
+decision are untouched.

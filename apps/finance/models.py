@@ -3095,9 +3095,26 @@ class TangibleAsset(UserOwnedModel):
 
     @property
     def masked_address(self):
-        """City and region only — enough to recognise, not enough to locate."""
+        """City and region only — for LISTS, cards, and anywhere shoulder-surfable.
+
+        The owner sees `full_address` on their own detail page; this is the
+        abbreviated form for surfaces that are scanned rather than read.
+        """
         parts = [p for p in (self.city, self.state_region) if p]
         return ", ".join(parts)
+
+    @property
+    def full_address(self):
+        """The whole address, for the OWNER reviewing their own property.
+
+        Withholding this from the person who typed it would make the registry
+        useless for the one job it has — reviewing what you own. It stays out of
+        lists, logs, audit payloads, URLs, errors and any CoS packet; the owner's
+        own detail page is not one of those places.
+        """
+        line = ", ".join(p for p in (self.street_address, self.city) if p)
+        tail = " ".join(p for p in (self.state_region, self.postal_code) if p)
+        return ", ".join(p for p in (line, tail) if p)
 
     @property
     def relevant_fields(self):

@@ -114,13 +114,19 @@
         <h3 class="subsection-title">History</h3>
         <ul class="valuation-history" data-testid="valuation-history">
             {% for v in valuations %}
-            <li>
+            <li data-testid="valuation-entry">
                 <span class="vh-amount">{{ v.amount|money }}</span>
                 <span class="vh-meta">
-                    {{ v.effective_date|date:"M j, Y" }} · {{ v.get_source_display }}
+                    As of {{ v.effective_date|date:"M j, Y" }}
+                    · {{ v.get_source_display }}{% if v.source_detail %} ({{ v.source_detail }}){% endif %}
                     {% if v.is_estimate %}<span class="badge">Estimate</span>{% endif %}
+                    · recorded {{ v.created_at|date:"M j, Y" }}
+                    {% if v.retrieved_at %}· retrieved {{ v.retrieved_at|date:"M j, Y" }}{% endif %}
                     {% if v.range_low and v.range_high %}· range {{ v.range_low|money }}–{{ v.range_high|money }}{% endif %}
+                    {% if v.confidence %}· confidence {{ v.confidence }}{% endif %}
                 </span>
+                {% if v.limitations %}<span class="vh-limits">{{ v.limitations }}</span>{% endif %}
+                {% if v.notes %}<span class="vh-notes">{{ v.notes }}</span>{% endif %}
             </li>
             {% endfor %}
         </ul>
@@ -157,25 +163,60 @@
         {% endif %}
     </section>
 
-    <!-- Details -->
+    <!-- Details — the OWNER's own record of what they entered.
+         Abbreviated everywhere else; complete here, because withholding it from
+         the person who typed it would make the registry useless for reviewing
+         what you own. Sensitive IDENTIFIERS still open behind a deliberate
+         reveal rather than sitting on screen. -->
     <section class="asset-panel" aria-labelledby="details-heading">
         <h2 id="details-heading" class="section-title">Details</h2>
         <dl class="detail-list">
-            {% if asset.masked_address %}<dt>Location</dt><dd>{{ asset.masked_address }}</dd>{% endif %}
+            {% if asset.full_address %}
+            <dt>Address</dt>
+            <dd data-testid="full-address">{{ asset.full_address }}</dd>
+            {% endif %}
             {% if asset.year_built %}<dt>Year built</dt><dd>{{ asset.year_built }}</dd>{% endif %}
             {% if asset.square_feet %}<dt>Square feet</dt><dd>{{ asset.square_feet }}</dd>{% endif %}
-            {% if asset.make %}<dt>Make / model</dt><dd>{{ asset.model_year|default_if_none:"" }} {{ asset.make }} {{ asset.model }}</dd>{% endif %}
-            {% if asset.masked_vin %}<dt>VIN</dt><dd data-testid="masked-vin">{{ asset.masked_vin }}</dd>{% endif %}
-            {% if asset.masked_hull_id %}<dt>Hull ID</dt><dd>{{ asset.masked_hull_id }}</dd>{% endif %}
-            {% if asset.mileage %}<dt>Mileage</dt><dd>{{ asset.mileage }}</dd>{% endif %}
-            {% if asset.engine_hours %}<dt>Engine hours</dt><dd>{{ asset.engine_hours }}</dd>{% endif %}
+
+            {% if asset.model_year or asset.make or asset.model %}
+            <dt>Year, make and model</dt>
+            <dd data-testid="make-model">{{ asset.model_year|default_if_none:"" }} {{ asset.make }} {{ asset.model }}</dd>
+            {% endif %}
+            {% if asset.mileage is not None %}<dt>Mileage</dt><dd data-testid="mileage">{{ asset.mileage }}</dd>{% endif %}
+            {% if asset.engine_hours is not None %}<dt>Engine hours</dt><dd data-testid="engine-hours">{{ asset.engine_hours }}</dd>{% endif %}
             {% if asset.length_feet %}<dt>Length</dt><dd>{{ asset.length_feet }} ft</dd>{% endif %}
-            {% if asset.condition %}<dt>Condition</dt><dd>{{ asset.get_condition_display }}</dd>{% endif %}
+            {% if asset.condition %}<dt>Condition</dt><dd data-testid="condition">{{ asset.get_condition_display }}</dd>{% endif %}
+
+            {% if asset.vin %}
+            <dt>VIN</dt>
+            <dd>
+                <details class="reveal" data-testid="vin-reveal">
+                    <summary><span data-testid="masked-vin">{{ asset.masked_vin }}</span> — show full VIN</summary>
+                    <span class="reveal-value" data-testid="full-vin">{{ asset.vin }}</span>
+                </details>
+            </dd>
+            {% endif %}
+            {% if asset.hull_identification_number %}
+            <dt>Hull ID</dt>
+            <dd>
+                <details class="reveal" data-testid="hull-reveal">
+                    <summary><span data-testid="masked-hull">{{ asset.masked_hull_id }}</span> — show full hull ID</summary>
+                    <span class="reveal-value" data-testid="full-hull">{{ asset.hull_identification_number }}</span>
+                </details>
+            </dd>
+            {% endif %}
+
             {% if asset.purchase_date %}<dt>Purchased</dt><dd>{{ asset.purchase_date|date:"M j, Y" }}</dd>{% endif %}
             {% if asset.purchase_price %}<dt>Purchase price</dt><dd>{{ asset.purchase_price|money }}</dd>{% endif %}
             {% if asset.entity %}<dt>Belongs to</dt><dd>{{ asset.entity.name }}</dd>{% endif %}
+            {% if asset.description %}<dt>Description</dt><dd>{{ asset.description }}</dd>{% endif %}
             {% if asset.notes %}<dt>Notes</dt><dd>{{ asset.notes }}</dd>{% endif %}
         </dl>
+        <p class="detail-note">
+            These are your own entries. They are never written to logs or audit
+            records, never appear in a URL, and are not shared with your Chief of
+            Staff.
+        </p>
     </section>
 
     <section class="asset-panel asset-danger">
@@ -217,6 +258,12 @@
                         padding: .5rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
 .vh-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
 .vh-meta { font-size: .82rem; color: var(--text-muted, #6b7280); }
+.vh-limits, .vh-notes { flex: 1 1 100%; font-size: .8rem; color: var(--text-muted, #6b7280); }
+.detail-note { font-size: .8rem; color: var(--text-muted, #6b7280); margin-top: .75rem; }
+.reveal summary { cursor: pointer; min-height: 44px; display: flex; align-items: center;
+                  gap: .35rem; font-size: .9rem; }
+.reveal-value { font-family: ui-monospace, monospace; letter-spacing: .04em;
+                word-break: break-all; }
 .loan-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center;
             padding: .55rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
 .loan-balance { margin-left: auto; font-variant-numeric: tabular-nums; }

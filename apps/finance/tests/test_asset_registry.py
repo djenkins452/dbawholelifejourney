@@ -121,15 +121,19 @@ class SensitiveDataTests(AssetBase):
         self.assertEqual(house.masked_address, "Memphis, TN")
         self.assertNotIn("12 Private Lane", house.masked_address)
 
-    def test_the_detail_page_never_renders_the_full_vin_or_street(self):
-        truck = self._asset("Truck", TangibleAsset.TYPE_VEHICLE,
-                            vin="1FTFW1ET5DFC12345")
-        house = self._asset(street_address="12 Private Lane", city="Memphis",
-                            state_region="TN")
-        for asset in (truck, house):
-            body = self.client.get(
-                reverse("finance:asset_detail", args=[asset.pk])).content.decode()
-            with self.subTest(asset=asset.name):
+    def test_scanned_surfaces_never_render_the_full_vin_or_street(self):
+        """Lists and cards stay abbreviated.
+
+        The OWNER's own detail page deliberately does show these — see
+        `OwnerVisibilityTests`. The boundary is not "hide it from everyone", it is
+        "not on surfaces that are scanned, logged, linked or shared".
+        """
+        self._asset("Truck", TangibleAsset.TYPE_VEHICLE, vin="1FTFW1ET5DFC12345")
+        self._asset(street_address="12 Private Lane", city="Memphis",
+                    state_region="TN")
+        for route in ("finance:asset_list", "finance:dashboard"):
+            body = self.client.get(reverse(route)).content.decode()
+            with self.subTest(route=route):
                 self.assertNotIn("1FTFW1ET5DFC12345", body)
                 self.assertNotIn("12 Private Lane", body)
 
@@ -626,3 +630,194 @@ class RenderingTests(AssetBase):
             for handler in ("onclick=", "onchange=", "onsubmit="):
                 with self.subTest(template=name, handler=handler):
                     self.assertNotIn(handler, markup)
+
+
+class OwnerVisibilityTests(AssetBase):
+    """The owner reviews what they entered. Nobody and nowhere else does.
+
+    The first cut of this feature masked identifiers everywhere, including from the
+    person who typed them — which made the registry useless for the one job it has.
+    The boundary is not "hide the data", it is "the owner's own detail page, and
+    nowhere that is a log, a list, a URL, an error, or a CoS packet".
+    """
+
+    STREET = "742 Evergreen Terrace"
+    VIN = "1FTFW1ET5DFC12345"
+    HULL = "ABC12345D404"
+
+    def setUp(self):
+        super().setUp()
+        self.house = self._asset(
+            "Home", TangibleAsset.TYPE_REAL_ESTATE, street_address=self.STREET,
+            city="Springfield", state_region="TN", postal_code="38103",
+            year_built=1994, square_feet=2100, condition="good")
+        self.truck = self._asset(
+            "Truck", TangibleAsset.TYPE_VEHICLE, make="Ford", model="F-150",
+            model_year=2019, vin=self.VIN, mileage=84000, condition="good")
+        self.boat = self._asset(
+            "Boat", TangibleAsset.TYPE_BOAT, make="Boston Whaler", model="170",
+            model_year=2016, hull_identification_number=self.HULL,
+            length_feet=Decimal("17.0"), engine_hours=320, condition="fair")
+
+    def _detail(self, asset):
+        return self.client.get(
+            reverse("finance:asset_detail", args=[asset.pk])).content.decode()
+
+    # --- what the owner MUST be able to see ------------------------------
+
+    def test_the_owner_sees_the_complete_property_address(self):
+        body = self._detail(self.house)
+        self.assertIn(self.STREET, body)
+        self.assertIn("38103", body)
+        self.assertIn("full-address", body)
+
+    def test_the_owner_sees_vehicle_details(self):
+        body = self._detail(self.truck)
+        for expected in ("Ford", "F-150", "2019", "84000", "Good"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, body)
+
+    def test_a_vehicle_vin_is_masked_but_revealable_by_the_owner(self):
+        body = self._detail(self.truck)
+        self.assertIn(self.truck.masked_vin, body)
+        self.assertIn("vin-reveal", body)
+        # Present in the page the owner is already authorised for, but behind a
+        # deliberate disclosure rather than sitting open on screen.
+        self.assertIn(self.VIN, body)
+        self.assertIn("show full VIN", body)
+
+    def test_the_owner_sees_boat_details_with_a_revealable_hull_id(self):
+        body = self._detail(self.boat)
+        for expected in ("Boston Whaler", "170", "2016", "320", "Fair", "17.0"):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, body)
+        self.assertIn(self.boat.masked_hull_id, body)
+        self.assertIn(self.HULL, body)
+
+    def test_other_assets_show_everything_entered(self):
+        other = self._asset("Tractor", TangibleAsset.TYPE_OTHER,
+                            condition="fair", notes="Kept in the barn",
+                            purchase_price=Decimal("12000.00"))
+        body = self._detail(other)
+        self.assertIn("Kept in the barn", body)
+        self.assertIn("$12,000.00", body)
+        self.assertIn("Fair", body)
+
+    def test_irrelevant_type_fields_are_still_omitted(self):
+        body = self._detail(self.house)
+        self.assertNotIn("vin-reveal", body)
+        self.assertNotIn("Mileage", body)
+        self.assertNotIn("Engine hours", body)
+
+    def test_valuation_provenance_is_fully_visible(self):
+        registry.record_valuation(
+            self.user, self.house, amount=Decimal("450000"),
+            effective_date=date(2026, 1, 15), source="provider",
+            source_detail="Example AVM", is_estimate=True,
+            range_low=Decimal("430000"), range_high=Decimal("470000"),
+            confidence="medium", limitations="Not an appraisal.",
+            notes="Ordered after the remodel.")
+        body = self._detail(self.house)
+        for expected in ("Jan 15, 2026", "Example AVM", "Estimate", "recorded",
+                         "$430,000.00", "$470,000.00", "confidence medium",
+                         "Not an appraisal.", "Ordered after the remodel."):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, body)
+
+    # --- where it must NOT appear ----------------------------------------
+
+    def test_the_list_page_stays_abbreviated(self):
+        body = self.client.get(reverse("finance:asset_list")).content.decode()
+        self.assertNotIn(self.STREET, body)
+        self.assertNotIn(self.VIN, body)
+        self.assertNotIn(self.HULL, body)
+        self.assertIn("Springfield, TN", body)
+
+    def test_the_dashboard_stays_abbreviated(self):
+        body = self.client.get(reverse("finance:dashboard")).content.decode()
+        self.assertNotIn(self.STREET, body)
+        self.assertNotIn(self.VIN, body)
+
+    def test_another_user_gets_nothing_at_all(self):
+        self.client.force_login(self.other)
+        for asset in (self.house, self.truck, self.boat):
+            with self.subTest(asset=asset.name):
+                response = self.client.get(
+                    reverse("finance:asset_detail", args=[asset.pk]))
+                self.assertEqual(response.status_code, 404)
+                self.assertNotIn(self.STREET, response.content.decode())
+
+    def test_an_anonymous_visitor_gets_nothing(self):
+        self.client.logout()
+        response = self.client.get(
+            reverse("finance:asset_detail", args=[self.house.pk]))
+        self.assertIn(response.status_code, (302, 403))
+        self.assertNotIn(self.STREET, response.content.decode())
+
+    def test_a_user_without_finance_access_gets_nothing(self):
+        prefs = self.user.preferences
+        prefs.finances_enabled = False
+        prefs.save(update_fields=["finances_enabled"])
+        response = self.client.get(
+            reverse("finance:asset_detail", args=[self.house.pk]))
+        self.assertIn(response.status_code, (302, 403))
+        self.assertNotIn(self.STREET, response.content.decode())
+
+    def test_no_identifier_ever_reaches_an_audit_payload(self):
+        registry.record_valuation(
+            self.user, self.house, amount=Decimal("450000"),
+            effective_date=TODAY, source="manual")
+        registry._audit(self.user, None, "asset_updated", self.truck, {})
+        for entry in FinanceAuditLog.objects.all():
+            blob = str(entry.details)
+            with self.subTest(entry=entry.pk):
+                for secret in (self.STREET, self.VIN, self.HULL, "38103"):
+                    self.assertNotIn(secret, blob)
+
+    def test_no_identifier_appears_in_any_url(self):
+        for asset in (self.house, self.truck, self.boat):
+            for route in ("finance:asset_detail", "finance:asset_update",
+                          "finance:asset_archive"):
+                with self.subTest(asset=asset.name, route=route):
+                    url = reverse(route, args=[asset.pk])
+                    for secret in (self.STREET, self.VIN, self.HULL):
+                        self.assertNotIn(secret, url)
+
+    def test_the_chief_of_staff_is_not_given_these_details(self):
+        """CoS access must be a governed minimum-necessary contract, not a default.
+
+        Finance domain truth deliberately does not describe tangible assets at all
+        yet. If that changes it must be a deliberate, redacted surface — this test
+        fails the moment an asset leaks into the CoS packet by accident.
+        """
+        from apps.finance.services.finance_domain_truth import FinanceDomainTruth
+
+        registry.record_valuation(
+            self.user, self.house, amount=Decimal("450000"),
+            effective_date=TODAY, source="manual")
+
+        truth = FinanceDomainTruth(self.user)
+        blob = ""
+        for name in dir(truth):
+            if not name.startswith("_describe"):
+                continue
+            try:
+                blob += str(getattr(truth, name)())
+            except Exception:
+                continue
+        for secret in (self.STREET, self.VIN, self.HULL, "38103"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, blob)
+
+    def test_the_reveal_needs_no_javascript_and_no_inline_handler(self):
+        """A native <details> disclosure — CSP-safe and keyboard-reachable."""
+        body = self._detail(self.truck)
+        self.assertIn("<details", body)
+        for handler in ("onclick=", "onchange=", "onsubmit="):
+            with self.subTest(handler=handler):
+                self.assertNotIn(handler, body)
+
+    def test_masked_helpers_still_never_contain_the_secret(self):
+        self.assertNotIn(self.VIN, self.truck.masked_vin)
+        self.assertNotIn(self.HULL, self.boat.masked_hull_id)
+        self.assertNotIn(self.STREET, self.house.masked_address)

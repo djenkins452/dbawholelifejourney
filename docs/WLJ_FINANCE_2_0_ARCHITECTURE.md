@@ -91,9 +91,9 @@ Legend — `complete` (works, exercised in production) · `partial` (works, gaps
 | 11 | Entities & attribution | **immature** | full model set (`FinancialEntity`, `AccountEntityAssignment`, `TransactionAttribution`, `AttributionRule`) + review workspace; **0 rows** |
 | 12 | Opportunities & insights | **immature** | `FinanceOpportunity` + `opportunity_detection` + lifecycle; **0 rows**; no ranking model |
 | 13 | **Assets, valuations, loan links** | **complete** | `TangibleAsset` / `AssetValuation` / `AssetLoanLink`; 11/11 CRUD verified (§3); accounting proven in production |
-| 14 | **Liabilities & loan terms** | **missing** | **No APR, interest method, minimum payment, due date, term, or payoff quote anywhere.** Verified absent from `FinancialAccount` |
+| 14 | **Liabilities & loan terms** | **missing-in-WLJ** | No APR, interest method, minimum payment, due date, term or payoff quote exists in WLJ — verified absent from `FinancialAccount`. **Partly obtainable** from Plaid Liabilities (paid, unauthorised) for credit card and mortgage; **not** for auto loans (§2a) |
 | 15 | **Debt payoff planning** | **missing** | No amortisation, snowball, avalanche, roll-forward or interest-saved calculation exists |
-| 16 | Investments / retirement / allocation | **missing** | No holding, security, ticker, share or cost-basis model |
+| 16 | Investments / retirement / allocation | **missing-in-WLJ** | No holding, security, ticker, share or cost-basis model in WLJ. **Obtainable** via Plaid Investments (paid, unauthorised) — holdings, securities, investment transactions, cost basis where the institution reports it (§2a) |
 | 17 | Net worth (point in time) | **complete** | `asset_registry.net_worth_breakdown` — single authority, `reconciles` flag, drill-down page |
 | 18 | Net worth history / trends | **immature** | `FinancialMetricSnapshot` exists; **1 row**; no scheduled capture, no trend surface |
 | 19 | Cash-flow forecasting | **missing** | No forward projection of any kind |
@@ -108,6 +108,101 @@ Legend — `complete` (works, exercised in production) · `partial` (works, gaps
 | 28 | Valuation providers | **blocked** | Adapter boundary shipped, `PROVIDERS == {}` — **by Danny's decision** (§5) |
 
 **Score: 8 complete · 6 partial · 6 immature · 7 missing · 1 blocked.**
+
+---
+
+## 2a. Provider capability — corrected
+
+An earlier draft of this document said loan terms were **"not importable"**. That was
+wrong, and wrong in the place it mattered most. Plaid sells a **Liabilities** product
+that returns exactly those fields for some account types. The corrected picture:
+
+### Maturity terminology (used consistently from here)
+
+| Term | Meaning |
+|---|---|
+| `missing-in-WLJ` | WLJ has no implementation. Says nothing about availability. |
+| `available-existing-product` | Obtainable now, from a product WLJ already pays for. |
+| `available-paid-addon` | Obtainable, but only by subscribing to an additional billed product. |
+| `unavailable-from-provider` | The provider does not offer it at all. |
+| `deferred` | Deliberately postponed; not a gap. |
+
+Conflating these is how "we haven't built it" becomes "it can't be done".
+
+### Plaid Liabilities — what it actually returns
+
+Supported types are **`credit` / `credit card`**, **`credit` / `paypal`**,
+**`loan` / `student`**, and **`loan` / `mortgage`**
+([API reference](https://plaid.com/docs/api/products/liabilities/),
+[product docs](https://plaid.com/docs/liabilities/)).
+
+| Field WLJ needs | Credit card | Mortgage | Student | Auto loan |
+|---|---|---|---|---|
+| APR / interest rate | `aprs[].apr_percentage` | `interest_rate.percentage` (nullable) | `interest_rate_percentage` | — |
+| Minimum / next payment | `minimum_payment_amount` | `next_monthly_payment` | `minimum_payment_amount` | — |
+| Next due date | `next_payment_due_date` | `next_payment_due_date` | `next_payment_due_date` | — |
+| Term / maturity | — | `loan_term`, `maturity_date` | `expected_payoff_date` | — |
+| Origination | — | `origination_date`, `origination_principal_amount` | `origination_date`, `origination_principal_amount` | — |
+| Prepayment penalty | — | `has_prepayment_penalty` | — | — |
+| Last statement / payment | `last_statement_balance`, `last_payment_amount` | `last_payment_amount` | `last_payment_amount` | — |
+
+**Auto loans are not a supported Liabilities subtype.** So for Danny's truck:
+
+- the loan is **absent from WLJ today** — that is a data-entry gap, not a failure;
+- if he connects the institution, its **balance** may arrive through the products WLJ
+  already uses, if Plaid exposes that account at all;
+- its **APR, minimum payment, due date, remaining term and payoff quote will almost
+  certainly be user-maintained or statement-derived**, and that is a **first-class
+  supported path**, not a degraded one.
+
+**Coverage is not guaranteed even where supported.** Plaid states APR data "is not
+provided by all card issuers; if APR data is not available, this array will be empty",
+and several loan fields are nullable or of limited availability. Any design that assumes
+a field arrives because it is documented will produce confident holes.
+
+**One more consequence worth stating:** the mortgage payload includes
+`property_address`. If Liabilities is ever enabled, that field must be dropped at the
+ingestion boundary — it is exactly the identifier §6 forbids in CoS evidence.
+
+### Plaid Investments — what it actually returns
+
+[Investments](https://plaid.com/docs/investments/) returns holdings
+(`quantity`, `cost_basis`, `institution_price`, `institution_value`, `tax_lots`),
+securities (`ticker_symbol`, `name`, `close_price`, `type`, `sector`) and up to 24
+months of investment transactions. Cost basis is holding-level; **lot detail is empty
+when the institution does not report it**, and `vested_*` is often null.
+
+The corrected finding is therefore four separate statements, not one:
+WLJ has no investments domain (`missing-in-WLJ`) · Plaid offers one
+(`available-paid-addon`) · coverage and fields vary · **no subscription or
+implementation is authorised**.
+
+### 2a.1 The Plaid cost boundary — a hard guardrail
+
+Liabilities and Investments are **subscription-billed per Item**
+([billing](https://plaid.com/docs/account/billing/)). Two facts make this sharper than
+ordinary cost:
+
+1. **"Plaid will charge for the subscription even if no API calls are made for the
+   Item"** — and the subscription persists until `/item/remove` or the user
+   depermissions. Cost is not proportional to use.
+2. A product **can be added to an existing Item simply by calling one of that product's
+   endpoints**. There is no separate "are you sure" step.
+
+Together those mean **a single stray API call can begin an open-ended monthly charge on
+every connected Item.** Therefore, as a standing engineering rule:
+
+> **No WLJ code path may call a Liabilities or Investments endpoint, add either product
+> to Link, or initialise a new Item, until Danny has separately approved the spend.**
+> This belongs in the same category as the real-provider LLM governor: not a preference,
+> a guardrail.
+
+Before that approval is even requested, this must be established: exact production
+pricing; institution and account-type coverage for Danny's actual banks; the benefit
+over manual entry; the consequences for existing Items; and whether the recurring cost
+is justified by decisions it would improve.
+
+**Nothing in this architecture authorises it.**
 
 ---
 
@@ -176,23 +271,51 @@ Finance 2.0 is four layers. Nothing may skip a layer.
 
 **What WLJ adopts from the market, and what it does differently.**
 
-Benchmarked against current sources for [Monarch](https://www.thepennyhoarder.com/budgeting/monarch-money-review/),
-[YNAB, Rocket Money and Simplifi](https://blog.myfinancialfreedomtracker.com/en/budgeting-tool-comparison),
-and [debt-payoff apps](https://spendify.money/blog/best-debt-payoff-apps/):
+Benchmarked against **official product documentation** for the defined comparison set.
+An earlier draft cited review blogs and drew a claim ("most apps cannot compare payoff
+strategies") that the evidence did not support. Replaced.
 
-- **Adopt:** Rocket Money's recurring/subscription surfacing; Monarch's account breadth
-  and net-worth roll-up; YNAB's every-dollar-has-a-job discipline for *reserves*;
-  Empower's allocation view *(later)*.
-- **Do NOT adopt:** YNAB's mandatory envelope ceremony (too heavy for a truth platform),
-  Rocket Money's "we cancel it for you" model (WLJ takes no outward action without a
-  separately designed approval path).
-- **The gap WLJ fills:** the benchmark review is explicit that most of these apps
-  *track* debt balances but **cannot compare payoff strategies or compute a debt-free
-  date**; YNAB alone offers a loan planner. **A deterministic, explainable payoff engine
-  wired to a conversational Chief of Staff who knows the rest of Danny's life —
-  obligations, goals, upcoming events — is the differentiator.** Nothing on the market
-  answers "pay the truck off faster *without* touching the emergency fund, given what
-  else is coming".
+| Capability | [YNAB](https://www.ynab.com/features) | [Monarch](https://www.monarch.com/) | [Rocket Money](https://www.rocketmoney.com/) | [Empower](https://www.empower.com/personal-investors/financial-tools) |
+|---|---|---|---|---|
+| Account aggregation | ✅ "link your accounts" | ✅ "All your accounts, in one place" | ✅ link checking/savings/cards/investments | ✅ |
+| Categorization | ✅ "Category Templates" | ✅ transaction management | ✅ "monitors your spending by category" | ✅ "Transactions" |
+| Recurring detection | not stated on page | ✅ "automatically detects your recurring subscriptions" | ✅ "Subscription Management" | not stated |
+| Budgeting | ✅ core envelope model | ✅ "Budget" | ✅ "Create a budget that works for you" | ✅ "Budgeting & Cash Flow" |
+| Controllable-spend insight | not stated | reports only | ✅ cancellation + "Bill Negotiation" | not stated |
+| Net worth | ✅ "net worth reports" | ✅ "Net Worth" | ✅ "assets & debt in one place" | ✅ "Net Worth" |
+| Property / manual assets | not stated | ✅ manual asset tracking | assets shown | not stated |
+| Investments | not stated | ✅ investment tracking | ✅ linkable | ✅ "Portfolio Analysis" |
+| Goals | ✅ "Goal tracking" / targets | ✅ "Plan — set goals" | ✅ "Financial Goals" | ✅ "Savings Planner" |
+| Debt tracking | ✅ "debt management tools" | implied via planning | ✅ within net worth | ✅ "Debt Paydown" |
+| **Payoff planner** | ✅ **"loan planner… how much interest and time you'll save"** | not officially named | **not offered** (absent from official pages) | ✅ "Debt Paydown" |
+| **Snowball vs avalanche comparison** | not documented | not documented | not documented | not documented |
+| Recommendation transparency | n/a | n/a | n/a | n/a |
+| Realized-savings tracking | not stated | not stated | savings claimed via negotiation | not stated |
+
+**How to read the blanks.** "Not documented" means *absent from the official sources
+inspected on 2026-08-30* — it is **not** proof the feature does not exist in-product.
+Marketing pages are incomplete by nature. Quicken Simplifi was not inspected and is
+therefore not represented.
+
+**Adopt:** Rocket Money's recurring/subscription surfacing; Monarch's account breadth,
+net-worth roll-up and manual asset tracking; YNAB's every-dollar discipline for
+*reserves*; Empower's emergency-fund framing.
+
+**Do not adopt:** YNAB's mandatory envelope ceremony (too heavy for a truth platform);
+Rocket Money's cancel-and-negotiate-on-your-behalf model (WLJ takes **no outward action**
+without a separately designed approval path).
+
+**The narrower, defensible differentiation WLJ targets** — stated without claiming
+others cannot do it:
+
+> Not "a payoff engine nobody else has". Payoff planners plainly exist (YNAB's loan
+> planner, Empower's Debt Paydown). What WLJ targets is a payoff engine whose
+> **inputs, assumptions, exclusions and calculation version are inspectable**, whose
+> **every loan field carries its own provenance and as-of date**, which **refuses to
+> compute what it cannot ground**, which is **wired to a conversational layer that also
+> knows the rest of Danny's life** — upcoming obligations, goals, the emergency fund —
+> and which **measures whether the accepted plan actually worked**. The differentiator is
+> auditable grounding and life-context integration, not the arithmetic.
 
 ---
 
@@ -289,12 +412,47 @@ LoanTerms (1:1 optional with FinancialAccount, liability types only)
     promo_apr, promo_expires_on
     fees, has_prepayment_penalty
     user_priority (int), user_constraint (text)
-    source (statement | user_entered | provider), as_of, confidence
 ```
 
-Every field is **user-entered and correctable**, each with an `as_of`. Plaid does not
-supply APR for these accounts; pretending otherwise would be the fabrication this
-architecture forbids.
+### 7.1a Field-level provenance — no single source owns a loan
+
+The earlier draft assumed every term was user-entered. That is as wrong as assuming
+every term is importable. **Provenance is per FIELD, not per record**, because a single
+mortgage can legitimately have an imported interest rate, a statement-derived escrow
+figure and a user-entered payoff quote at the same time.
+
+Every term-bearing field carries:
+
+```
+FieldProvenance(
+    source,        # provider_imported | user_entered
+                   # | statement_derived_confirmed | unavailable
+    as_of,         # when this value was true, not when we stored it
+    confidence,    # high | medium | low
+    provider_key,  # only when provider_imported
+    confirmed_by_user,  # required for statement_derived_confirmed
+)
+```
+
+**Authority rules, in order:**
+
+1. A **user-entered** value outranks a provider value for the same field — the person
+   holding the statement is a better authority than an aggregator, and this mirrors
+   `category_source='user'`, which already works this way.
+2. A **provider_imported** value refreshes freely **unless** a user value exists for
+   that field; then it is offered as a correction, never silently applied.
+3. **statement_derived_confirmed** means WLJ read it from a document *and Danny
+   confirmed it*. Unconfirmed derivation is not a source; it is a suggestion.
+4. **unavailable** is a recorded state with a reason, not an empty field. It is what the
+   calculation layer reads to decide whether it may compute interest at all.
+5. Nothing is ever **defaulted**. A missing APR excludes that debt from interest maths
+   and says so.
+
+For the truck specifically, the expected steady state is: balance
+`user_entered` (or `provider_imported` if the institution connects and the account is
+exposed by an existing product), APR / minimum / term / due date `user_entered` or
+`statement_derived_confirmed`, payoff quote `user_entered` with an expiry. **That is a
+supported configuration, not a degraded one.**
 
 ### 7.2 Strategies compared
 
@@ -390,16 +548,22 @@ number it happens to know. Numbers are one click away; judgement is on the surfa
 
 ## 11. Non-goals for Finance 2.0
 
-- No paid valuation provider (§ Danny's decision, restated below).
+- No paid valuation provider (§12).
+- **No new paid Plaid product** — Liabilities and Investments are not authorised by
+  this architecture (§2a.1). Manual valuation and manual loan-term entry remain
+  first-class, permanently supported paths, not stopgaps.
 - No outward action: no payments, transfers, cancellations or trades.
-- No investment/retirement domain in the first phases — lowest decision value now.
+- Investments domain `deferred` — lowest decision value now, and gated on a paid
+  product nobody has approved.
 - No tax, legal or investment advice.
 - No scraping, ever.
 - No scheduled job that creates recurring external cost.
 
 ---
 
-## 12. Valuation decision (recorded, current)
+## 12. Standing decisions (recorded, current)
+
+### 12.1 Valuation providers
 
 **Danny is not authorising or paying for an external valuation service.** No ATTOM,
 HouseCanary, KBB InfoDriver, J.D. Power, Black Book or ABOS. No credentials, no provider
@@ -413,3 +577,19 @@ limitations. History stays append-only; **missing means unknown, never zero**.
 
 The `valuation_providers` adapter boundary is **retained** for a possible future
 decision. `PROVIDERS` stays empty until Danny separately decides otherwise.
+
+### 12.2 Plaid products
+
+**No new paid Plaid product is authorised by this architecture task.** WLJ continues on
+the products it already uses. Liabilities and Investments are documented as future
+options (§2a) behind the guardrail in §2a.1, each requiring Danny's explicit approval
+after pricing, coverage, benefit-vs-manual, existing-Item consequences and recurring-cost
+justification are established.
+
+### 12.3 Manual entry is permanent
+
+Manual valuation and manual loan-term entry are **first-class supported paths**, designed
+to remain correct and complete whether or not a provider is ever connected. They are not
+placeholders waiting to be replaced, and the architecture must never describe them as a
+lesser mode. Where a provider is later added, it becomes **one more source with its own
+provenance** (§7.1a) — it does not take ownership of the record.

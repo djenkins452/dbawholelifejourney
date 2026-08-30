@@ -60117,3 +60117,72 @@ the adapter boundary is retained and `PROVIDERS` stays empty.
 
 **Stopped for approval** as instructed — the first implementation slice is Phases 1–6,
 and Phase 3 is blocked on data only Danny can supply.
+
+## 2026-08-30 — Finance 2.0 architecture CORRECTED (documentation only)
+
+`9a5b2cda` contained claims that were unsupported or too broad. Corrected against
+official primary sources before the document becomes authoritative. **No code, no
+migration, no provider call, no Link activity, no production mutation, no deployment.**
+
+**1. The loan-data claim was wrong.** I wrote that APR, minimum payment, due date and
+term were "not importable". Plaid sells a **Liabilities** product that returns exactly
+those fields — `aprs[].apr_percentage` and `minimum_payment_amount` for credit cards,
+`interest_rate.percentage`, `next_monthly_payment`, `loan_term`, `maturity_date` and
+`has_prepayment_penalty` for mortgages. Supported subtypes are credit card, PayPal
+credit, student and mortgage. **Auto loans are not supported**, so the truck's terms
+really will be user-maintained — but that is a *supported path*, not a system failure,
+and the general claim was false. Coverage is also not guaranteed where supported: Plaid
+states APR "is not provided by all card issuers".
+
+Also caught while reading the payload: the mortgage object includes `property_address`.
+If Liabilities is ever enabled that field must be dropped at ingestion — it is exactly
+the identifier the CoS evidence rules forbid.
+
+**2. Field-level provenance replaces the single-source assumption.** A loan can have an
+imported rate, a statement-derived escrow figure and a user-entered payoff quote at
+once. Every term-bearing field now carries `source` (provider_imported | user_entered |
+statement_derived_confirmed | unavailable), `as_of`, `confidence`. User values outrank
+provider values; provider refreshes are offered as corrections, never applied silently;
+unconfirmed derivation is a suggestion, not a source; **nothing is ever defaulted**.
+
+**3. Plaid cost boundary recorded as a hard guardrail.** Liabilities and Investments are
+subscription-billed **per Item**, and Plaid charges "even if no API calls are made".
+Worse, a product can be added to an existing Item simply by calling one of its
+endpoints — no confirmation step. So **one stray call could start an open-ended monthly
+charge on every connected Item.** Standing rule, in the same category as the
+real-provider LLM governor: no WLJ code path may call a Liabilities or Investments
+endpoint, add either to Link, or initialise a new Item, until Danny approves the spend.
+
+**4. Investments analysis corrected.** I had recorded a flat "missing". The honest
+finding is four separate statements: missing in WLJ · offered by Plaid Investments
+(holdings, securities, cost basis where reported, 24 months of transactions) ·
+subscription-billed · not authorised. New maturity vocabulary — `missing-in-WLJ`,
+`available-existing-product`, `available-paid-addon`, `unavailable-from-provider`,
+`deferred` — so "we haven't built it" can never again read as "it can't be done".
+
+**5. Competitor benchmark rebuilt from official sources.** The Penny Hoarder, Spendify
+and comparison-blog citations are gone, replaced by YNAB, Monarch, Rocket Money and
+Empower's own pages, in a 14-row matrix. My claim that "most apps cannot compare payoff
+strategies" is withdrawn — YNAB officially documents a loan planner and Empower a "Debt
+Paydown" tool. What the official pages support is narrower: none of the four
+*documents* a side-by-side snowball/avalanche/custom comparison, and absence from a
+marketing page is not proof of absence in-product. Simplifi was not inspected and is
+marked as such. WLJ's stated differentiation is now auditable grounding and life-context
+integration — not the arithmetic.
+
+**6. "Phases 1–6" withdrawn as a first slice.** It was most of the programme: not
+independently verifiable, no stop condition, weeks before anything was provable.
+Replaced by twelve bounded packages (P1–P12), each independently shippable, with the two
+independent tracks — spending truth (P1–P6) and debt planning (P7–P8) — meeting at P10.
+
+**The first build package is P1 alone:** make "what I spent" mean what it says, by
+excluding transfers, card payments, refunds and superseded pending rows through a single
+`spending_predicate`. It requires **nothing from Danny**, which is why it goes first. Its
+backfill is blocked behind a report-only dry run he must review, with numeric stop
+conditions (>5% of rows reclassified, or >10% monthly spend movement) that halt the work
+rather than proceed.
+
+Preserved unchanged: Asset CRUD, manual valuations, no paid valuation provider,
+deterministic accounting, no double-subtracted liabilities, minimum-necessary CoS asset
+summary, and no addresses/VINs/hull IDs in CoS evidence. Manual entry is now explicitly
+recorded as a permanent first-class path, not a stopgap.

@@ -83,12 +83,17 @@ card payments and pending duplicates no longer distort it.
 
 - **Models:** `LoanTerms` (architecture §7.1).
 - **UI:** terms form per liability account; "what's missing" prompts.
-- **Migration:** new table only; no backfill possible — **Plaid does not supply APR**.
+- **Migration:** new table only. No backfill from the current products. APR/minimum/due
+  date ARE obtainable for credit card and mortgage via Plaid Liabilities — a paid,
+  unauthorised add-on (architecture §2a) — and are **not** available for auto loans at
+  all. Manual and statement-derived entry are first-class, permanent paths.
 - **Acceptance:** an account with no APR is explicitly *unknown* and is excluded from
   interest maths with a stated assumption; never defaulted.
-- **Danny must supply:** APR, minimum payment, due date, remaining term for the
-  mortgage, the credit card, and the truck loan (§ Missing information).
-- **Non-goals:** no rate scraping, no APR inference.
+- **Danny supplies (or Plaid Liabilities later provides for card + mortgage only):**
+  APR, minimum payment, due date, remaining term. For the **truck this will be manual
+  or statement-derived regardless** — auto loans are not a Liabilities subtype.
+- **Non-goals:** no rate scraping, no APR inference, no defaulting, and no Liabilities
+  API call (§2a.1 guardrail — a single call starts per-Item monthly billing).
 
 ---
 
@@ -144,43 +149,122 @@ reported without flattery.
 
 ---
 
-## THE FIRST IMPLEMENTATION SLICE
+## Package sizing — correction
 
-**Goal:** make these three answerable — *truthfully*:
+An earlier draft named "Phases 1–6" as the first slice. **That is not a slice; it is
+most of the programme.** It could not be independently verified, had no stop condition,
+and would have run for weeks before anything was provable against Danny's real data.
 
-1. What is my largest easily controllable cost?
-2. How can I save $100 a month and direct it toward debt?
-3. What is the best plan for paying off my truck?
+Phases are now decomposed into **bounded packages**, each independently shippable,
+independently verifiable, and each leaving WLJ in a coherent state if the next never
+happens.
 
-**Slice = Phase 1 + Phase 2 + Phase 3 + minimal Phase 4 + minimal Phase 5 + Phase 6.**
+| Pkg | Outcome | Depends on | Ships |
+|---|---|---|---|
+| **P1** | Spending figures exclude transfers, refunds, card payments and superseded pending rows | — | predicate + backfill report |
+| **P2** | Every category carries essentiality / variability / controllability | P1 | taxonomy + review UI |
+| **P3** | "Largest controllable cost" is answerable on screen | P1, P2 | spending surface |
+| **P4** | Recurring obligations detected and confirmed | P1 | detection + review |
+| **P5** | Free cash flow + emergency-fund target | P4 | cash-flow service |
+| **P6** | "$100/month" candidates named and acceptable | P3, P5 | opportunity engine |
+| **P7** | Governed liability record with per-field provenance | — | `LoanTerms` + manual entry |
+| **P8** | Payoff engine: baseline / snowball / avalanche / custom + roll-forward | P7 | debt calculations |
+| **P9** | Truck payoff comparable | P7, P8 + Danny's data | — |
+| **P10** | Redirect found money into a debt plan | P6, P8 | plan composition |
+| **P11** | CoS answers with evidence packets | P3, P6, P8 | CoS tools + asset summary |
+| **P12** | Accepted plans measured, projected vs realized | P10, P11 | measurement |
 
-That is the honest floor, and it is bigger than it looks. Question 1 needs spending truth
-*and* a controllability taxonomy. Question 2 needs recurring detection *and* opportunity
-ranking *and* free cash flow. Question 3 needs loan terms — **which do not exist and
-cannot be imported.**
+**Mapping to Danny's five questions:**
 
-### Required inputs before ANY of the three can be claimed answerable
+1. Largest controllable cost → **P3**
+2. Find $100/month → **P6**
+3. Redirect it into debt → **P10**
+4. Compare truck payoff → **P9** (needs P7 + P8 + his data)
+5. Did the plan work → **P12**
 
-| Input | Exists? | Source |
+Note P7/P8 do **not** depend on P1–P6. Debt planning and spending truth are independent
+tracks that meet at P10 — so if Danny's loan data arrives first, P7 can start
+immediately.
+
+---
+
+## THE FIRST BUILD PACKAGE — P1 only
+
+**Exactly one package. Not a phase, not a bundle.**
+
+### User outcome
+Danny's spending figures stop lying. Today a transfer between his own accounts, a credit
+card payment, a refund, or a pending row later replaced by a posted one can all be
+counted as money spent. Every number built on top of that — every opportunity, budget and
+recommendation this architecture describes — inherits the error. **P1 makes "what I
+spent" mean what it says.**
+
+### Models / services
+- `Transaction`: add `refund_of` (self-FK, nullable), `reimbursement_state`,
+  `is_card_payment` (derived, stored, with provenance).
+- **New:** `apps/finance/services/finance_calc/spending.py` ::
+  `spending_predicate(user, start, end)` — the ONLY definition of "money that left".
+
+### Authoritative calculation
+`spending_predicate` returns a `CalcResult` carrying `coverage_start/end`,
+`exclusions[]` (counts per exclusion reason), `calculation_version`, `confidence`,
+`inputs_missing`. Every later spending figure derives from it. A CI contract test fails
+the build if a second definition appears anywhere in `apps/finance`.
+
+### UI
+One surface only: a **classification review queue** listing transactions WLJ believes are
+transfers / card payments / refunds, each confirmable or rejectable. No spending page yet
+— that is P3.
+
+### CoS contract
+**None.** P1 ships no CoS tool. Nothing is exposed until the number is trusted.
+
+### Production data prerequisites
+None. 3,792 transactions and 6 accounts already exist. **P1 needs nothing from Danny** —
+which is precisely why it goes first.
+
+### Migrations / backfill
+Schema migration is additive. The backfill classifies existing rows and is the risky
+part.
+
+**Dry-run requirement (blocking):** the backfill runs first in report-only mode and
+produces counts by proposed classification, the resulting change in reported spend per
+month, and a sample of each class for inspection. **Danny reviews that report before any
+row is written.** No production write happens on the strength of a test suite alone.
+
+### Tests
+Transfer pair excluded; card payment excluded; refund netted against its original;
+superseded pending row excluded; an ordinary expense **included**; a second predicate
+definition fails CI; the backfill is idempotent; user confirmation outranks derivation;
+`CalcResult` carries exclusions and version.
+
+### Stop conditions
+Stop and report — do not proceed — if any of these occur:
+- the dry-run reclassifies **more than 5%** of transactions as non-spending;
+- reported monthly spend moves by more than **10%** in any month;
+- any confirmed-by-user classification would be overwritten;
+- the predicate cannot explain a specific transaction Danny queries.
+
+### Definition of done
+Migration applied; dry-run reviewed and approved by Danny; backfill applied; review queue
+live; all tests green; Finance regression green; changelog updated; **and Danny has
+confirmed that a spending figure he can check by hand matches WLJ's**.
+
+### Explicit non-goals for P1
+No taxonomy, no opportunity ranking, no recurring detection, no CoS exposure, no
+budgets, no debt work, no spending page.
+
+---
+
+## Later decisions requiring Danny's approval
+
+| Decision | Needed before | Notes |
 |---|---|---|
-| Transactions | ✅ 3,792 | Plaid |
-| Spending predicate (transfer/refund/card-payment safe) | ❌ | Phase 1 |
-| Category controllability taxonomy | ❌ | Phase 1 |
-| Recurring obligations | ❌ (0 rows) | Phase 2 detection |
-| Free cash flow | ❌ | Phase 2 |
-| Emergency-fund target | ❌ | Phase 2 (needs Danny's target) |
-| **Truck loan account** | ❌ **not present in the 6 accounts** | Danny |
-| **APR / minimum / term / due date** | ❌ | Danny (Phase 3) |
-| Payoff maths | ❌ | Phase 4 |
-| Opportunity ranking | ❌ | Phase 5 |
-| CoS tools | ❌ | Phase 6 |
-
-**Until every row above is ✅, WLJ must not claim to answer these questions.** Stating a
-payoff plan without an APR, or "your biggest controllable cost" without a controllability
-taxonomy, would be exactly the confident-but-ungrounded answer this architecture exists
-to prevent.
-
-### Suggested build order within the slice
-
-`1 → 2 → 3 (Danny's data) → 4 → 5 → 6`, shipping and validating each against Danny's real
-data before the next. Phase 3 can be gathered in parallel — it is data entry, not code.
+| P1 backfill dry-run sign-off | P1 write | blocking |
+| Truck: connect institution **or** manual liability record | P9 | either is supported; no connection during architecture work |
+| Loan terms data entry (APR, minimum, due date, term) | P7/P8 | manual or statement-derived; permanently supported |
+| Emergency-fund target | P5 | one number from Danny |
+| **Plaid Liabilities subscription** | any import of APR/minimum/due date | per-Item monthly, charged even when unused; §2a.1 guardrail |
+| **Plaid Investments subscription** | any investments domain | per-Item monthly; currently `deferred` |
+| Paid valuation provider | — | **declined**, standing |
+| Outward action (payments, cancellations) | P10+ | needs a separate approval mechanism |

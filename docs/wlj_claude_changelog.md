@@ -60070,3 +60070,50 @@ every surface where it must not appear.
 
 Accounting, loan linking, valuation history, Plaid behaviour and the provider
 decision are untouched.
+
+## 2026-08-30 — Finance 2.0 architecture and backlog (DISCOVERY — no code)
+
+Architecture and roadmap only. No application feature was implemented, no migration run,
+no production data touched, no provider called, nothing deployed but documentation.
+
+**New:** `docs/WLJ_FINANCE_2_0_ARCHITECTURE.md` (governing) and
+`docs/WLJ_FINANCE_2_0_BACKLOG.md` (phased ledger), both registered in CLAUDE.md.
+
+**The decisive finding is data, not code.** A read-only production audit found seven
+Finance domains with shipped code, passing tests and **zero rows**: recurring (0),
+budgets (0), entities (0), attributions (0), opportunities (0), tangible assets (0),
+personal categories (0) — against 3,792 transactions and 6 accounts. Those capabilities
+have never met reality, and several of Danny's questions depend on exactly them. The
+capability matrix marks them `immature`, not `complete`, however good the tests are.
+
+**Two hard gaps confirmed by inspection, not assumption:**
+- **No APR, interest method, minimum payment, due date, term or payoff quote exists
+  anywhere** — verified absent from `FinancialAccount`. Debt planning is impossible
+  today, and Plaid does not supply these for loan accounts.
+- **No auto loan account exists at all** — the 6 live accounts are checking, three
+  savings, the mortgage and a credit card. The truck is not in WLJ.
+
+**Asset Registry verified 11/11** against the deployed code (`fbc786ee`, `51607e1a`):
+create, view, edit, archive, view archived, restore, safe delete, append-only
+valuations, history + provenance, link/unlink loan, and the accounting rule. Four
+residual gaps recorded rather than rebuilt — the largest being that CoS has no asset
+access at all (`entity_types` has no `asset`).
+
+**Design commitments:** one named deterministic service per calculation, the model never
+computing; a single `spending_predicate` so transfers, refunds, card payments and
+superseded pending rows cannot distort spending; `CalcResult` carrying assumptions,
+coverage, calculation version and confidence; a `LoanTerms` domain separate from account
+balances; a payoff engine that refuses to call snowball or avalanche universally better;
+an opportunity engine that must name specific candidates totalling ≥$100/mo and then
+measure whether the saving actually happened.
+
+**Benchmarked** against current sources for Monarch, YNAB, Rocket Money, Simplifi and
+Empower. The gap WLJ fills: most of them track debt balances but cannot compare payoff
+strategies or compute a debt-free date. A deterministic, explainable payoff engine wired
+to a Chief of Staff who also knows Danny's obligations and goals is the differentiator.
+
+**Valuation decision recorded as standing architecture:** no paid provider is authorised;
+the adapter boundary is retained and `PROVIDERS` stays empty.
+
+**Stopped for approval** as instructed — the first implementation slice is Phases 1–6,
+and Phase 3 is blocked on data only Danny can supply.

@@ -29,6 +29,7 @@ from django.views.generic import (
 
 from apps.core.current_context import PageSummaryMixin
 from apps.core.utils import get_user_today
+from apps.finance.services.asset_registry import net_worth_breakdown
 from apps.finance.services.account_grouping import (
     group_accounts_by_institution,
 )
@@ -285,9 +286,18 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
 
         context['accounts'] = accounts
         context['account_groups'] = group_accounts_by_institution(accounts)
-        context['total_assets'] = total_assets
-        context['total_liabilities'] = total_liabilities
-        context['net_worth'] = total_assets - total_liabilities
+
+        # ONE accounting authority for the headline numbers, shared with the Assets
+        # page and the reconciliation view, so tangible property is included and the
+        # three surfaces cannot disagree:
+        #     net worth = financial assets + tangible values - ALL liabilities
+        breakdown = net_worth_breakdown(user)
+        context['net_worth_breakdown'] = breakdown
+        context['total_assets'] = breakdown['gross_assets']
+        context['total_liabilities'] = breakdown['liabilities']
+        context['net_worth'] = breakdown['net_worth']
+        context['financial_assets'] = breakdown['financial_assets']
+        context['tangible_assets'] = breakdown['tangible_assets']
 
         # Recent transactions
         context['recent_transactions'] = Transaction.objects.filter(

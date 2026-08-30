@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Net worth - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a><span>/</span><span>Net worth</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Net worth</h1>
+        <p class="page-subtitle">Every number that makes up the total, and where it comes from.</p>
+    </div>
+
+    <table class="reconciliation" data-testid="net-worth-reconciliation">
+        <tbody>
+            <tr>
+                <th scope="row"><a href="{% url 'finance:account_list' %}">Financial accounts</a></th>
+                <td data-testid="rec-financial">{{ breakdown.financial_assets|money }}</td>
+            </tr>
+            {% for bucket in breakdown.tangible_by_type %}
+            <tr>
+                <th scope="row"><a href="{% url 'finance:asset_list' %}">{{ bucket.label }}</a>
+                    <span class="rec-count">{{ bucket.count }} item{{ bucket.count|pluralize }}</span></th>
+                <td data-testid="rec-tangible">{{ bucket.total|money }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="rec-subtotal">
+                <th scope="row">Total gross assets</th>
+                <td data-testid="rec-gross">{{ breakdown.gross_assets|money }}</td>
+            </tr>
+            <tr>
+                <th scope="row"><a href="{% url 'finance:account_list' %}">Liabilities</a></th>
+                <td data-testid="rec-liabilities">-{{ breakdown.liabilities|money_abs }}</td>
+            </tr>
+            <tr class="rec-total">
+                <th scope="row">Net worth</th>
+                <td data-testid="rec-net-worth">{{ breakdown.net_worth|money }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% if breakdown.unvalued_count %}
+    <p class="rec-note" data-testid="rec-unvalued">
+        {{ breakdown.unvalued_count }} asset{{ breakdown.unvalued_count|pluralize }} has no
+        recorded value and {{ breakdown.unvalued_count|pluralize:"is,are" }} not included
+        above. An asset nobody has valued is unknown, not zero.
+    </p>
+    {% endif %}
+
+    <p class="rec-note">
+        A loan secured against an asset is counted once, in Liabilities. The equity shown
+        on an asset's own page explains that asset; it is never subtracted again here.
+    </p>
+
+    {% if not breakdown.reconciles %}
+    <p class="rec-error" data-testid="rec-mismatch">
+        These parts do not add up to the total. Please report this — the figure above
+        should not be trusted until it is explained.
+    </p>
+    {% endif %}
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.reconciliation { width: 100%; border-collapse: collapse; }
+.reconciliation th { text-align: left; font-weight: 400; padding: .6rem 0;
+                     border-bottom: 1px solid var(--border, #e5e7eb); }
+.reconciliation td { text-align: right; padding: .6rem 0; font-variant-numeric: tabular-nums;
+                     border-bottom: 1px solid var(--border, #e5e7eb); }
+.rec-count { color: var(--text-muted, #6b7280); font-size: .8rem; margin-left: .4rem; }
+.rec-subtotal th, .rec-subtotal td { font-weight: 600; }
+.rec-total th, .rec-total td { font-weight: 700; font-size: 1.15rem;
+                               border-bottom: none; border-top: 2px solid var(--border, #e5e7eb); }
+.rec-note { font-size: .85rem; color: var(--text-muted, #6b7280); margin-top: 1rem; }
+.rec-error { color: var(--danger, #b91c1c); font-weight: 600; margin-top: 1rem; }
+@media (max-width: 480px) {
+    .reconciliation th, .reconciliation td { font-size: .95rem; }
+    .rec-count { display: block; margin-left: 0; }
+}
+</style>
+{% endblock %}

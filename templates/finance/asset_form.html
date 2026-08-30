@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{% if asset %}Edit {{ asset.name }}{% else %}Add asset{% endif %} - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a><span>/</span>
+        <a href="{% url 'finance:asset_list' %}">Assets</a><span>/</span>
+        <span>{% if asset %}Edit{% else %}Add{% endif %}</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">{% if asset %}Edit {{ asset.name }}{% else %}Add an asset{% endif %}</h1>
+    </div>
+
+    {% if not asset %}
+    <p class="type-hint">
+        Pick the kind first — the form then asks only for what that kind actually has.
+    </p>
+    <div class="type-picker">
+        {% for value, label in asset_types %}
+        <a href="?type={{ value }}" class="type-chip{% if form.initial.asset_type == value %} type-chip-active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" class="asset-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+        <div class="form-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<small class="field-help">{{ field.help_text }}</small>{% endif %}
+            {% if field.errors %}<small class="field-error">{{ field.errors|striptags }}</small>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="{% if asset %}{% url 'finance:asset_detail' asset.pk %}{% else %}{% url 'finance:asset_list' %}{% endif %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.type-hint { color: var(--text-muted, #6b7280); font-size: .9rem; }
+.type-picker { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; }
+.type-chip { padding: .55rem .9rem; border-radius: 999px; text-decoration: none;
+             background: var(--surface-2, #f3f4f6); min-height: 44px;
+             display: inline-flex; align-items: center; }
+.type-chip-active { background: var(--primary, #2563eb); color: #fff; }
+.asset-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+              gap: 1rem; }
+.form-field { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.form-field label { font-size: .82rem; color: var(--text-muted, #6b7280); }
+.form-field input, .form-field select, .form-field textarea {
+    min-height: 44px; font-size: 16px; max-width: 100%; }
+.field-help { font-size: .78rem; color: var(--text-muted, #6b7280); }
+.field-error { font-size: .78rem; color: var(--danger, #b91c1c); }
+.form-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .6rem; }
+.form-actions .btn { min-height: 44px; }
+@media (max-width: 480px) {
+    .asset-form { grid-template-columns: 1fr; }
+    .form-actions { flex-direction: column; }
+    .form-actions .btn { width: 100%; }
+}
+</style>
+{% endblock %}

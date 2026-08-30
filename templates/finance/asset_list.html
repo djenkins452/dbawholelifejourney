@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Assets - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a><span>/</span><span>Assets</span>
+    </nav>
+
+    <div class="page-header">
+        <h1 class="page-title">Assets</h1>
+        <p class="page-subtitle">Property you own — counted in your net worth.</p>
+        <a href="{% url 'finance:asset_create' %}" class="btn btn-primary">Add asset</a>
+    </div>
+
+    {% if messages %}
+    <ul class="asset-messages">
+      {% for message in messages %}<li class="asset-message asset-message-{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <section class="asset-summary">
+        <a href="{% url 'finance:net_worth_detail' %}" class="asset-summary-link">
+            <span class="asset-summary-label">Property value</span>
+            <span class="asset-summary-value">{{ breakdown.tangible_assets|money }}</span>
+            <span class="asset-summary-note">See how this reaches net worth →</span>
+        </a>
+        {% if breakdown.unvalued_count %}
+        <p class="asset-unvalued" data-testid="unvalued-note">
+            {{ breakdown.unvalued_count }} asset{{ breakdown.unvalued_count|pluralize }}
+            with no value recorded — not counted, because nobody has said what
+            {{ breakdown.unvalued_count|pluralize:"it is,they are" }} worth.
+        </p>
+        {% endif %}
+    </section>
+
+    {% for group in asset_groups %}
+    <section class="asset-group" data-testid="asset-group">
+        <h2 class="section-title">
+            {{ group.label }}
+            <span class="asset-group-total">{{ group.total|money }}</span>
+        </h2>
+        <div class="asset-grid">
+            {% for asset in group.assets %}
+            <a href="{% url 'finance:asset_detail' asset.pk %}" class="asset-card" data-testid="asset-card">
+                <span class="asset-name">{{ asset.name }}</span>
+                <span class="asset-meta">
+                    {% if asset.masked_address %}{{ asset.masked_address }}{% elif asset.make %}{{ asset.model_year|default_if_none:"" }} {{ asset.make }} {{ asset.model }}{% endif %}
+                </span>
+                {% if asset.display_value is None %}
+                <span class="asset-value asset-value-unknown" data-testid="unvalued">Value not recorded</span>
+                {% else %}
+                <span class="asset-value">{{ asset.display_value|money }}</span>
+                {% if asset.display_debt %}
+                <span class="asset-equity">
+                    less {{ asset.display_debt|money }} owed · equity {{ asset.display_equity|money }}
+                </span>
+                {% endif %}
+                {% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% empty %}
+    <p class="text-muted">No assets yet. <a href="{% url 'finance:asset_create' %}">Add your house, a vehicle, or a boat</a>.</p>
+    {% endfor %}
+
+    {% if archived_assets %}
+    <section class="asset-group">
+        <h2 class="section-title">Archived</h2>
+        <p class="text-muted asset-explainer">Kept for history; not counted in your totals.</p>
+        <div class="asset-grid">
+            {% for asset in archived_assets %}
+            <a href="{% url 'finance:asset_detail' asset.pk %}" class="asset-card asset-card-archived" data-testid="archived-asset">
+                <span class="asset-name">{{ asset.name }}</span>
+                <span class="asset-meta">{{ asset.get_asset_type_display }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <p class="asset-provider-note">{{ provider_status.explanation }}</p>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.asset-messages { list-style: none; padding: 0; margin: 0 0 1rem; }
+.asset-message { padding: .6rem .85rem; border-radius: 6px; margin-bottom: .5rem;
+                 background: var(--surface-2, #f3f4f6); }
+.asset-message-error { background: var(--danger-bg, #fef2f2); color: var(--danger, #b91c1c); }
+.asset-summary { margin-bottom: 1.5rem; }
+.asset-summary-link { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem;
+                      padding: 1rem; border-radius: 10px;
+                      background: var(--surface-2, #f3f4f6); text-decoration: none; }
+.asset-summary-label { color: var(--text-muted, #6b7280); }
+.asset-summary-value { font-size: 1.5rem; font-weight: 700; }
+.asset-summary-note { color: var(--text-muted, #6b7280); font-size: .85rem; }
+.asset-unvalued { color: var(--text-muted, #6b7280); font-size: .875rem; margin-top: .5rem; }
+.asset-group { margin-bottom: 2rem; }
+.asset-group .section-title { display: flex; flex-wrap: wrap; gap: .6rem;
+                              align-items: baseline; justify-content: space-between; }
+.asset-group-total { font-variant-numeric: tabular-nums; }
+.asset-explainer { font-size: .875rem; margin-top: -.25rem; }
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+              gap: .85rem; }
+.asset-card { display: flex; flex-direction: column; gap: .2rem; padding: .9rem;
+              border: 1px solid var(--border, #e5e7eb); border-radius: 10px;
+              text-decoration: none; min-height: 44px; }
+.asset-card-archived { opacity: .75; }
+.asset-name { font-weight: 600; }
+.asset-meta, .asset-equity { font-size: .82rem; color: var(--text-muted, #6b7280); }
+.asset-value { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.asset-value-unknown { font-size: .9rem; font-weight: 400;
+                       color: var(--text-muted, #6b7280); font-style: italic; }
+.asset-provider-note { font-size: .82rem; color: var(--text-muted, #6b7280);
+                       margin-top: 2rem; }
+@media (max-width: 480px) {
+    .asset-grid { grid-template-columns: 1fr; }
+    .asset-summary-link { flex-direction: column; gap: .2rem; }
+    .asset-group .section-title { flex-direction: column; align-items: flex-start; gap: .1rem; }
+}
+</style>
+{% endblock %}

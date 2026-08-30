@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}{{ asset.name }} - Assets - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a><span>/</span>
+        <a href="{% url 'finance:asset_list' %}">Assets</a><span>/</span>
+        <span>{{ asset.name }}</span>
+    </nav>
+
+    {% if messages %}
+    <ul class="asset-messages">
+      {% for message in messages %}<li class="asset-message asset-message-{{ message.tags }}">{{ message }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+
+    <div class="page-header">
+        <h1 class="page-title">{{ asset.name }}</h1>
+        <p class="page-subtitle">
+            {{ asset.get_asset_type_display }}
+            {% if asset.status == 'archived' %}· <span class="badge">Archived</span>{% endif %}
+        </p>
+        <a href="{% url 'finance:asset_update' asset.pk %}" class="btn btn-secondary btn-sm">Edit</a>
+    </div>
+
+    <!-- Equity -->
+    <section class="equity-panel" aria-labelledby="equity-heading">
+        <h2 id="equity-heading" class="section-title">Equity</h2>
+        <dl class="equity-list">
+            <dt>Current value</dt>
+            <dd data-testid="asset-current-value">
+                {% if current_value is None %}
+                <span class="value-unknown">Not recorded</span>
+                {% else %}
+                {{ current_value|money }}
+                {% if current_valuation.is_estimate %}<span class="badge">Estimate</span>{% endif %}
+                {% endif %}
+            </dd>
+
+            {% for row in linked_loans %}
+            <dt>Less {{ row.account.name }}{% if not row.account_active %} <span class="badge">disconnected</span>{% endif %}</dt>
+            <dd>-{{ row.balance|money_abs }}</dd>
+            {% endfor %}
+
+            {% if linked_loans %}
+            <dt>Total owed against it</dt>
+            <dd data-testid="asset-linked-debt">-{{ linked_debt|money_abs }}</dd>
+            {% endif %}
+
+            <dt class="equity-total">Net equity</dt>
+            <dd class="equity-total" data-testid="asset-net-equity">
+                {% if net_equity is None %}<span class="value-unknown">Unknown until a value is recorded</span>
+                {% else %}{{ net_equity|money }}{% endif %}
+            </dd>
+        </dl>
+        <p class="equity-note">
+            The loan balances above come live from those accounts. They are already
+            counted once in your total liabilities, so this equity figure explains
+            <em>this</em> asset and is never subtracted again from your net worth.
+        </p>
+    </section>
+
+    <!-- Valuation -->
+    <section class="asset-panel" aria-labelledby="valuation-heading">
+        <h2 id="valuation-heading" class="section-title">Value</h2>
+        {% if current_valuation %}
+        <p class="valuation-source" data-testid="valuation-source">
+            {{ current_valuation.get_source_display }}{% if current_valuation.source_detail %} — {{ current_valuation.source_detail }}{% endif %},
+            as of {{ current_valuation.effective_date|date:"M j, Y" }}
+            {% if valuation_age_days > 365 %}
+            <span class="badge badge-warning" data-testid="stale-valuation">{{ valuation_age_days }} days old</span>
+            {% endif %}
+        </p>
+        {% if current_valuation.limitations %}
+        <p class="valuation-limits">{{ current_valuation.limitations }}</p>
+        {% endif %}
+        {% else %}
+        <p class="text-muted" data-testid="no-valuation">
+            No value recorded yet, so this asset is not counted in your totals.
+        </p>
+        {% endif %}
+
+        <form method="post" action="{% url 'finance:asset_valuation_add' asset.pk %}" class="valuation-form">
+            {% csrf_token %}
+            <div class="vf-field">
+                <label for="val-amount">Value</label>
+                <input type="number" step="0.01" min="0" id="val-amount" name="amount" required inputmode="decimal">
+            </div>
+            <div class="vf-field">
+                <label for="val-date">As of</label>
+                <input type="date" id="val-date" name="effective_date" value="{{ today|date:'Y-m-d' }}">
+            </div>
+            <div class="vf-field">
+                <label for="val-source">Basis</label>
+                <select id="val-source" name="source">
+                    <option value="manual">Entered by you</option>
+                    <option value="appraisal">Professional appraisal</option>
+                    <option value="comparable">Comparable sale</option>
+                </select>
+            </div>
+            <div class="vf-field">
+                <label for="val-detail">Who or what said so</label>
+                <input type="text" id="val-detail" name="source_detail" maxlength="200">
+            </div>
+            <button type="submit" class="btn btn-primary">Record value</button>
+        </form>
+
+        <p class="provider-note" data-testid="provider-note">{{ provider_status.explanation }}</p>
+
+        {% if valuations %}
+        <h3 class="subsection-title">History</h3>
+        <ul class="valuation-history" data-testid="valuation-history">
+            {% for v in valuations %}
+            <li>
+                <span class="vh-amount">{{ v.amount|money }}</span>
+                <span class="vh-meta">
+                    {{ v.effective_date|date:"M j, Y" }} · {{ v.get_source_display }}
+                    {% if v.is_estimate %}<span class="badge">Estimate</span>{% endif %}
+                    {% if v.range_low and v.range_high %}· range {{ v.range_low|money }}–{{ v.range_high|money }}{% endif %}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </section>
+
+    <!-- Loans -->
+    <section class="asset-panel" aria-labelledby="loans-heading">
+        <h2 id="loans-heading" class="section-title">Loans against this</h2>
+        {% for row in linked_loans %}
+        <div class="loan-row" data-testid="linked-loan">
+            <a href="{% url 'finance:account_detail' row.account.pk %}">{{ row.account.name }}</a>
+            <span class="loan-balance">{{ row.balance|money_abs }}</span>
+            <form method="post" action="{% url 'finance:asset_loan_unlink' asset.pk row.link.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm">Unlink</button>
+            </form>
+        </div>
+        {% empty %}
+        <p class="text-muted">No loans linked.</p>
+        {% endfor %}
+
+        {% if linkable_accounts %}
+        <form method="post" action="{% url 'finance:asset_loan_link' asset.pk %}" class="loan-link-form">
+            {% csrf_token %}
+            <label class="sr-only" for="loan-account">Loan to link</label>
+            <select id="loan-account" name="account_id">
+                {% for account in linkable_accounts %}
+                <option value="{{ account.pk }}">{{ account.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary">Link loan</button>
+        </form>
+        {% endif %}
+    </section>
+
+    <!-- Details -->
+    <section class="asset-panel" aria-labelledby="details-heading">
+        <h2 id="details-heading" class="section-title">Details</h2>
+        <dl class="detail-list">
+            {% if asset.masked_address %}<dt>Location</dt><dd>{{ asset.masked_address }}</dd>{% endif %}
+            {% if asset.year_built %}<dt>Year built</dt><dd>{{ asset.year_built }}</dd>{% endif %}
+            {% if asset.square_feet %}<dt>Square feet</dt><dd>{{ asset.square_feet }}</dd>{% endif %}
+            {% if asset.make %}<dt>Make / model</dt><dd>{{ asset.model_year|default_if_none:"" }} {{ asset.make }} {{ asset.model }}</dd>{% endif %}
+            {% if asset.masked_vin %}<dt>VIN</dt><dd data-testid="masked-vin">{{ asset.masked_vin }}</dd>{% endif %}
+            {% if asset.masked_hull_id %}<dt>Hull ID</dt><dd>{{ asset.masked_hull_id }}</dd>{% endif %}
+            {% if asset.mileage %}<dt>Mileage</dt><dd>{{ asset.mileage }}</dd>{% endif %}
+            {% if asset.engine_hours %}<dt>Engine hours</dt><dd>{{ asset.engine_hours }}</dd>{% endif %}
+            {% if asset.length_feet %}<dt>Length</dt><dd>{{ asset.length_feet }} ft</dd>{% endif %}
+            {% if asset.condition %}<dt>Condition</dt><dd>{{ asset.get_condition_display }}</dd>{% endif %}
+            {% if asset.purchase_date %}<dt>Purchased</dt><dd>{{ asset.purchase_date|date:"M j, Y" }}</dd>{% endif %}
+            {% if asset.purchase_price %}<dt>Purchase price</dt><dd>{{ asset.purchase_price|money }}</dd>{% endif %}
+            {% if asset.entity %}<dt>Belongs to</dt><dd>{{ asset.entity.name }}</dd>{% endif %}
+            {% if asset.notes %}<dt>Notes</dt><dd>{{ asset.notes }}</dd>{% endif %}
+        </dl>
+    </section>
+
+    <section class="asset-panel asset-danger">
+        {% if asset.status == 'archived' %}
+        <form method="post" action="{% url 'finance:asset_restore' asset.pk %}">
+            {% csrf_token %}<button type="submit" class="btn btn-primary">Restore</button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'finance:asset_archive' asset.pk %}">
+            {% csrf_token %}<button type="submit" class="btn btn-secondary">Archive</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'finance:asset_delete' asset.pk %}">
+            {% csrf_token %}<button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.asset-messages { list-style: none; padding: 0; margin: 0 0 1rem; }
+.asset-message { padding: .6rem .85rem; border-radius: 6px; margin-bottom: .5rem;
+                 background: var(--surface-2, #f3f4f6); }
+.asset-message-error { background: var(--danger-bg, #fef2f2); color: var(--danger, #b91c1c); }
+.equity-panel, .asset-panel { margin-bottom: 2rem; }
+.equity-list { display: grid; grid-template-columns: 1fr auto; gap: .35rem .85rem; }
+.equity-list dt { color: var(--text-muted, #6b7280); }
+.equity-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.equity-total { font-weight: 700; border-top: 1px solid var(--border, #e5e7eb);
+                padding-top: .4rem; }
+.equity-note, .provider-note, .valuation-limits {
+    font-size: .82rem; color: var(--text-muted, #6b7280); margin-top: .75rem; }
+.value-unknown { color: var(--text-muted, #6b7280); font-style: italic; }
+.valuation-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end;
+                  margin-top: 1rem; }
+.vf-field { display: flex; flex-direction: column; gap: .25rem; flex: 1 1 9rem; min-width: 0; }
+.vf-field label { font-size: .8rem; color: var(--text-muted, #6b7280); }
+.valuation-history { list-style: none; padding: 0; }
+.valuation-history li { display: flex; flex-wrap: wrap; gap: .6rem; align-items: baseline;
+                        padding: .5rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+.vh-amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.vh-meta { font-size: .82rem; color: var(--text-muted, #6b7280); }
+.loan-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center;
+            padding: .55rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+.loan-balance { margin-left: auto; font-variant-numeric: tabular-nums; }
+.loan-link-form { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.asset-danger { display: flex; flex-wrap: wrap; gap: .6rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+           overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.asset-panel input, .asset-panel select { min-height: 44px; font-size: 16px; max-width: 100%; }
+.asset-panel .btn, .asset-danger .btn { min-height: 44px; }
+@media (max-width: 480px) {
+    .valuation-form { flex-direction: column; align-items: stretch; }
+    .vf-field { flex: 1 1 100%; }
+    .valuation-form .btn { width: 100%; }
+    .loan-row { flex-direction: column; align-items: stretch; }
+    .loan-balance { margin-left: 0; }
+    .equity-list { grid-template-columns: 1fr auto; }
+    .asset-danger { flex-direction: column; }
+}
+</style>
+{% endblock %}

@@ -5,6 +5,9 @@
 
 {% block title %}Finance - Whole Life Journey
 <style nonce="{{ csp_nonce }}">
+.overview-drill { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.overview-sub { display: block; font-size: .78rem; color: var(--text-muted, #6b7280); }
+
 .account-institution-group + .account-institution-group { margin-top: 1rem; }
 .account-institution-name { font-size: .8rem; font-weight: 600; text-transform: uppercase;
                             letter-spacing: .04em; color: var(--text-muted, #6b7280);
@@ -141,12 +144,15 @@
         <div class="overview-card">
             <span class="overview-label">Net Worth</span>
             <span class="overview-value {% if net_worth >= 0 %}positive{% else %}negative{% endif %}">
-                {{ net_worth|money }}
+                <a href="{% url 'finance:net_worth_detail' %}" class="overview-drill">{{ net_worth|money }}</a>
             </span>
         </div>
         <div class="overview-card">
             <span class="overview-label">Total Assets</span>
-            <span class="overview-value positive">{{ total_assets|money }}</span>
+            <span class="overview-value positive"><a href="{% url 'finance:net_worth_detail' %}" class="overview-drill">{{ total_assets|money }}</a></span>
+            {% if tangible_assets %}
+            <span class="overview-sub" data-testid="assets-split">{{ financial_assets|money }} in accounts · {{ tangible_assets|money }} in property</span>
+            {% endif %}
         </div>
         <div class="overview-card">
             <span class="overview-label">Total Liabilities</span>
@@ -195,6 +201,7 @@
             {% endif %}
 
             <a href="{% url 'finance:account_list' %}" class="section-link">View all accounts</a>
+            <a href="{% url 'finance:asset_list' %}" class="section-link" data-testid="assets-link">Property &amp; vehicles{% if tangible_assets %} · {{ tangible_assets|money }}{% endif %}</a>
         </div>
 
         <!-- Monthly Summary Section -->

@@ -59934,3 +59934,95 @@ template audits; grouping, sorting, manual fallback, blank-institution, every-ac
 exactly-once, within-group order, no-inference, no-merging; rendered headings on both
 surfaces; formatted currency on both; totals across all accounts; no provider ids; the
 N+1 guard; and 375px breakpoints on both templates.
+
+## 2026-08-30 — Finance: a tangible asset registry, and a net worth that is complete
+
+The dashboard counted the mortgage but not the house, so net worth read
+**-$396,178.58** — arithmetically right and factually meaningless.
+
+### The accounting contract
+
+    net worth = financial assets + tangible values - ALL liabilities
+
+A loan linked to an asset is an **explanatory relationship**. Its balance is already
+in total liabilities, so the aggregate never subtracts it again — the single most
+likely way this feature could have produced a confidently wrong number. Per-asset net
+equity (`value − linked debt`) explains ONE asset and is deliberately never summed.
+
+`net_worth_breakdown()` is the one authority, shared by the dashboard, the Assets page
+and the reconciliation view, and it re-derives the total from its own parts and
+publishes a `reconciles` flag rather than assuming.
+
+### Not a fake bank account
+
+`TangibleAsset` is its own domain. Modelling a house as a `FinancialAccount` of type
+"property" would have put a thing with an address, a title and a valuation history
+into a table built for provider-refreshed balances — and let it inherit Plaid
+machinery it has no business near.
+
+- **`TangibleAsset`** — real estate / vehicle / boat / RV / other. `TYPE_FIELDS`
+  declares which identifying fields each type uses, and the form **removes** the rest
+  rather than hiding them, so a house is never asked for a VIN and cannot be posted
+  one.
+- **`AssetValuation`** — append-only by convention. A new value is a NEW ROW;
+  overwriting would destroy the history that makes a number checkable and quietly
+  rewrite what last month's net worth was.
+- **`AssetLoanLink`** — carries no balance field at all (asserted by a test). The loan
+  account stays the only authority and is read live.
+
+### Valuation providers — the decision that is still yours
+
+**No provider is connected, and that is the correct state.** Every legitimate
+market-value source for these asset types is a paid B2B contract:
+
+| Asset | Options | Cost |
+|---|---|---|
+| Real estate | ATTOM · HouseCanary · CoreLogic | from ~$95/mo; enterprise custom |
+| Vehicles | KBB InfoDriver · J.D. Power · Black Book | partner-only / licensed |
+| Boats | J.D. Power (NADA) marine · ABOS | licensed |
+
+Two things the module refuses to do, because both produce a confident number that is
+not a valuation: **VIN decoding is not a value** (NHTSA vPIC is free and official but
+returns what a vehicle IS, never what it is WORTH), and **no generic depreciation
+curve** — a test greps the module to keep it that way. Scraping Zillow/KBB is not an
+option; it breaks their terms and this is real money data.
+
+So the registry ships complete on the MANUAL path, the adapter boundary exists, and
+`PROVIDERS` is empty. **There is no scheduled refresh**, so no silent recurring cost —
+a test asserts no beat entry mentions valuation. Refresh is user-triggered, and a
+failed lookup returns `ValuationUnavailable`, changes nothing, and leaves the last
+valuation visible with its age.
+
+### Honest absence
+
+An unvalued asset contributes **nothing** and is reported separately as unvalued. It
+is not worth $0.00 — nobody has said what it is worth, and a zero would be a claim.
+
+### Safety
+
+Ownership enforced in every lookup; `finance_enabled_required` throughout; VIN and
+hull id masked to last-4; addresses reduced to city/region; **no identifier, address
+or provider payload in any audit payload** (asserted). Archive over delete — deletion
+is refused while valuations or links exist. Plaid ingestion, webhooks, cursors,
+reconciliation, locking and duplicate constraints untouched.
+
+**A real bug the tests caught:** `_owned()` used the default manager, which filters to
+`status='active'` — so an archived asset 404'd, meaning the Assets page could link to
+one that could never be opened and Restore could never reach what it restores.
+
+### Tests (64)
+
+Every type creatable; per-type field relevance and the form omitting the rest; blank
+name refused by the DB; VIN/address masking and audit-payload cleanliness; manual
+valuation, preserved history, latest-by-effective-date, negative refused at service
+AND database, age reporting, stale flag; provider unconfigured/unavailable/faulting/
+estimate-labelled, no fabrication, no scheduled job, failed refresh preserving the
+last value and never writing zero; loan links — live balance, no copied field,
+duplicate refused twice, multiple loans, cross-user refused, asset-account refused,
+unlink archives, disconnected account keeps context; **the accounting proof** —
+today's picture reproduced exactly, the house completing it, a linked loan not moving
+net worth, several loans not double counting, gross-not-equity entering totals,
+unvalued contributing nothing, archived leaving totals but keeping history, the
+breakdown reconciling to its parts, dashboard agreeing with the reconciliation; CRUD,
+ownership, access, 405s, audit; rendering, grouping, shared formatter, N+1 guard,
+375px and no inline handlers.

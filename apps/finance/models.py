@@ -2960,3 +2960,252 @@ class FinanceOpportunity(UserOwnedModel):
     @property
     def is_open(self):
         return self.state not in self.CLOSED_STATES
+
+
+# =============================================================================
+# Tangible Asset Registry
+# =============================================================================
+#
+# A house is not a bank account. Modelling one as a `FinancialAccount` with type
+# "property" would put a thing that has an address, a title, a condition and a
+# valuation history into a table built for balances that a provider refreshes — and
+# would let it inherit Plaid machinery it has no business near. This is a separate
+# domain that CONTRIBUTES to the Finance totals rather than hiding inside them.
+
+class TangibleAsset(UserOwnedModel):
+    """Something Danny owns that is worth money and is not held at an institution."""
+
+    TYPE_REAL_ESTATE = 'real_estate'
+    TYPE_VEHICLE = 'vehicle'
+    TYPE_BOAT = 'boat'
+    TYPE_RV = 'rv'
+    TYPE_OTHER = 'other'
+
+    ASSET_TYPE_CHOICES = [
+        (TYPE_REAL_ESTATE, 'Real estate'),
+        (TYPE_VEHICLE, 'Vehicle'),
+        (TYPE_BOAT, 'Boat / watercraft'),
+        (TYPE_RV, 'Recreational vehicle'),
+        (TYPE_OTHER, 'Other tangible asset'),
+    ]
+
+    #: Which identifying fields a type actually uses. Drives the form so nobody is
+    #: asked for a VIN on a house, and drives the detail page so nothing renders an
+    #: empty "Mileage —" row for a boat.
+    TYPE_FIELDS = {
+        TYPE_REAL_ESTATE: ['street_address', 'city', 'state_region', 'postal_code',
+                           'year_built', 'square_feet'],
+        TYPE_VEHICLE: ['make', 'model', 'model_year', 'vin', 'mileage'],
+        TYPE_BOAT: ['make', 'model', 'model_year', 'hull_identification_number',
+                    'length_feet', 'engine_hours'],
+        TYPE_RV: ['make', 'model', 'model_year', 'vin', 'mileage', 'length_feet'],
+        TYPE_OTHER: [],
+    }
+
+    CONDITION_CHOICES = [
+        ('excellent', 'Excellent'),
+        ('good', 'Good'),
+        ('fair', 'Fair'),
+        ('poor', 'Poor'),
+    ]
+
+    name = models.CharField(
+        max_length=200, help_text="What you call it (e.g. 'Home', 'F-150')")
+    asset_type = models.CharField(
+        max_length=20, choices=ASSET_TYPE_CHOICES, default=TYPE_OTHER, db_index=True)
+    description = models.TextField(blank=True)
+
+    # Ownership — optional, because a person may track assets before they have ever
+    # set up an entity, and forcing one would be inventing an answer.
+    entity = models.ForeignKey(
+        'finance.FinancialEntity', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='tangible_assets',
+        help_text="Who this belongs to, if you track that")
+
+    # --- Real estate ---------------------------------------------------------
+    # Sensitive. `masked_address` is what the UI and every audit payload use.
+    street_address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    state_region = models.CharField(max_length=120, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    year_built = models.PositiveIntegerField(null=True, blank=True)
+    square_feet = models.PositiveIntegerField(null=True, blank=True)
+
+    # --- Vehicle / boat / RV -------------------------------------------------
+    make = models.CharField(max_length=120, blank=True)
+    model = models.CharField(max_length=120, blank=True)
+    model_year = models.PositiveIntegerField(null=True, blank=True)
+    #: Sensitive: a full VIN identifies a person's vehicle to anyone who sees it.
+    vin = models.CharField(max_length=32, blank=True)
+    hull_identification_number = models.CharField(max_length=32, blank=True)
+    mileage = models.PositiveIntegerField(null=True, blank=True)
+    engine_hours = models.PositiveIntegerField(null=True, blank=True)
+    length_feet = models.DecimalField(
+        max_digits=6, decimal_places=1, null=True, blank=True)
+
+    # --- Common --------------------------------------------------------------
+    condition = models.CharField(
+        max_length=20, choices=CONDITION_CHOICES, blank=True)
+    purchase_date = models.DateField(null=True, blank=True)
+    purchase_price = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    include_in_net_worth = models.BooleanField(
+        default=True,
+        help_text="Counted in total assets and net worth while active")
+
+    class Meta:
+        ordering = ['asset_type', 'name']
+        verbose_name = "Tangible Asset"
+        verbose_name_plural = "Tangible Assets"
+        indexes = [
+            models.Index(fields=['user', 'asset_type', 'status']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(name=''), name='ck_asset_name_not_blank'),
+            models.CheckConstraint(
+                check=models.Q(purchase_price__isnull=True)
+                | models.Q(purchase_price__gte=0),
+                name='ck_asset_purchase_price_non_negative'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse('finance:asset_detail', kwargs={'pk': self.pk})
+
+    # --- Safe renderings of sensitive identifiers ----------------------------
+
+    @property
+    def masked_vin(self):
+        """Last 4 only. A full VIN is a durable identifier for a real vehicle."""
+        if not self.vin:
+            return ""
+        return f"••••{self.vin[-4:]}" if len(self.vin) > 4 else "••••"
+
+    @property
+    def masked_hull_id(self):
+        if not self.hull_identification_number:
+            return ""
+        hin = self.hull_identification_number
+        return f"••••{hin[-4:]}" if len(hin) > 4 else "••••"
+
+    @property
+    def masked_address(self):
+        """City and region only — enough to recognise, not enough to locate."""
+        parts = [p for p in (self.city, self.state_region) if p]
+        return ", ".join(parts)
+
+    @property
+    def relevant_fields(self):
+        return self.TYPE_FIELDS.get(self.asset_type, [])
+
+    def uses_field(self, field_name):
+        return field_name in self.relevant_fields
+
+
+class AssetValuation(UserOwnedModel):
+    """What an asset was worth, according to whom, and when.
+
+    Append-only by convention: a new valuation is a NEW ROW. Overwriting would
+    destroy the history that makes a number checkable, and would quietly rewrite what
+    the net worth was last month.
+    """
+
+    SOURCE_MANUAL = 'manual'
+    SOURCE_APPRAISAL = 'appraisal'
+    SOURCE_SALE_COMPARABLE = 'comparable'
+    SOURCE_PROVIDER = 'provider'
+
+    SOURCE_CHOICES = [
+        (SOURCE_MANUAL, 'Entered by you'),
+        (SOURCE_APPRAISAL, 'Professional appraisal'),
+        (SOURCE_SALE_COMPARABLE, 'Comparable sale'),
+        (SOURCE_PROVIDER, 'External estimate'),
+    ]
+
+    asset = models.ForeignKey(
+        TangibleAsset, on_delete=models.CASCADE, related_name='valuations')
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    effective_date = models.DateField(
+        help_text="The date this value is a statement ABOUT")
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, default=SOURCE_MANUAL)
+    source_detail = models.CharField(
+        max_length=200, blank=True,
+        help_text="Who or what said so (appraiser, provider, listing…)")
+    notes = models.TextField(blank=True)
+
+    # --- Estimate metadata — only meaningful for a provider estimate ---------
+    is_estimate = models.BooleanField(
+        default=False,
+        help_text="An estimate is labelled as one wherever it is shown")
+    range_low = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True)
+    range_high = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True)
+    confidence = models.CharField(
+        max_length=40, blank=True, help_text="As reported by the provider")
+    limitations = models.TextField(
+        blank=True, help_text="What the provider says this number does NOT mean")
+    retrieved_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When it was fetched — distinct from what date it is about")
+    provider_key = models.CharField(max_length=60, blank=True)
+
+    class Meta:
+        # Newest statement first; `-id` breaks ties so "latest" is deterministic
+        # when two valuations share an effective date.
+        ordering = ['-effective_date', '-id']
+        verbose_name = "Asset Valuation"
+        verbose_name_plural = "Asset Valuations"
+        indexes = [
+            models.Index(fields=['asset', '-effective_date']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=models.Q(amount__gte=0), name='ck_valuation_non_negative'),
+            models.CheckConstraint(
+                check=models.Q(range_low__isnull=True)
+                | models.Q(range_high__isnull=True)
+                | models.Q(range_high__gte=models.F('range_low')),
+                name='ck_valuation_range_ordered'),
+        ]
+
+    def __str__(self):
+        return f"{self.asset_id}: {self.amount} on {self.effective_date}"
+
+
+class AssetLoanLink(UserOwnedModel):
+    """"This mortgage is against that house."
+
+    EXPLANATORY ONLY. The loan's balance stays on the loan account, which remains its
+    only authority; nothing is copied here. The link exists so a person can see the
+    equity in one thing — and so aggregate net worth can deliberately NOT subtract
+    that debt a second time, because it is already in total liabilities.
+    """
+
+    asset = models.ForeignKey(
+        TangibleAsset, on_delete=models.CASCADE, related_name='loan_links')
+    account = models.ForeignKey(
+        'finance.FinancialAccount', on_delete=models.CASCADE,
+        related_name='secured_asset_links')
+    note = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ['id']
+        verbose_name = "Asset Loan Link"
+        verbose_name_plural = "Asset Loan Links"
+        constraints = [
+            # The same loan cannot be attached to the same asset twice.
+            models.UniqueConstraint(
+                fields=['asset', 'account'],
+                condition=models.Q(status='active'),
+                name='uq_active_asset_loan_link'),
+        ]
+
+    def __str__(self):
+        return f"{self.asset_id} ← {self.account_id}"

@@ -9,7 +9,7 @@
 from django.urls import path
 
 from . import views
-from apps.finance import views_attribution, views_categories
+from apps.finance import views_assets, views_attribution, views_categories
 
 app_name = 'finance'
 
@@ -66,6 +66,22 @@ urlpatterns = [
     path('metrics/refresh/', views.refresh_metrics, name='metrics_refresh'),
 
     # Categories
+    # Tangible asset registry — houses, vehicles, boats, RVs, other property.
+    path('assets/', views_assets.asset_list, name='asset_list'),
+    path('assets/new/', views_assets.asset_create, name='asset_create'),
+    path('assets/net-worth/', views_assets.net_worth_detail, name='net_worth_detail'),
+    path('assets/<int:pk>/', views_assets.asset_detail, name='asset_detail'),
+    path('assets/<int:pk>/edit/', views_assets.asset_update, name='asset_update'),
+    path('assets/<int:pk>/archive/', views_assets.asset_archive, name='asset_archive'),
+    path('assets/<int:pk>/restore/', views_assets.asset_restore, name='asset_restore'),
+    path('assets/<int:pk>/delete/', views_assets.asset_delete, name='asset_delete'),
+    path('assets/<int:pk>/valuation/', views_assets.valuation_add,
+         name='asset_valuation_add'),
+    path('assets/<int:pk>/valuation/refresh/', views_assets.valuation_refresh,
+         name='asset_valuation_refresh'),
+    path('assets/<int:pk>/loans/link/', views_assets.loan_link, name='asset_loan_link'),
+    path('assets/<int:pk>/loans/<int:link_id>/unlink/', views_assets.loan_unlink,
+         name='asset_loan_unlink'),
     path('categories/', views.CategoryListView.as_view(), name='category_list'),
     # Managing personal categories — ordinary Finance permissions, no admin.
     path('categories/create/', views_categories.category_create,

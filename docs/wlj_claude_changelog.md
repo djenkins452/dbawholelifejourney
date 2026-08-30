@@ -75,6 +75,22 @@ full observability app.
 **Not done, deliberately:** the incident was not force-cleared, thresholds were not tuned, hysteresis was not
 weakened, and Redis was not cleared. If the underlying condition is still unhealthy the Wall should keep saying so.
 
+**Accepted 2026-08-30; AWAITING Danny's authenticated Ops Wall check** (the one step Claude cannot perform — the
+Wall is staff/MFA-gated with no API-key operator surface). Expected: the recommended action is clickable; it no
+longer fails on a missing module/field; it reports a real deterministic result either way; no incident is falsely
+cleared and no health status is forced. **The incident is NOT recorded closed until that check confirms it.**
+
+**Deferred by decision, recorded as `WLJ_OPERATIONS_VISION §15 D-1`:** evaluate whether manual Ops Wall recovery and
+automated recovery should converge on ONE recovery authority, without weakening operator-specific behaviour or
+ship-dark controls. **The split stands** — `operations/recovery/` (automated, registry, flag-gated) vs
+`ops_telemetry._execute_action` (manual buttons) — because they answer different questions, and consolidation is a
+separate architecture decision that is **not** required to close this defect now the manual path has
+executable-contract coverage. Promotion trigger recorded in the ledger.
+
+**Kept separate (not folded into this incident):** the two verified pre-existing failures
+`tests_ops_wall_v2…test_action_has_trace_id` and `tests_diagnostics…test_ops_poll_staff_access` — neither touches
+the repaired recovery path.
+
 ---
 
 ## 2026-08-29 — fix(nav): Finance dropdown exposes Connections (the page existed with no way in)

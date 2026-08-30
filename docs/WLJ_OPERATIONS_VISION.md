@@ -1097,7 +1097,25 @@ E2E tests (green) and the O1→O2 pilot. Never present Shadow as proof of them.*
 - [ ] Mission Control unification · [ ] Engineering Workspace · [ ] Executive Reporting · [ ] Operational History
 
 ### Deferred / Cancelled
-- *(none yet)* — deferred items get a phase number + promotion trigger, never "maybe someday."
+Deferred items get a phase number + promotion trigger, never "maybe someday."
+
+- **D-1 · Converge manual and automated recovery on ONE recovery authority — DEFERRED (2026-08-30).**
+  **Item:** evaluate whether manual Ops Wall recovery and automated recovery should converge on one recovery
+  action registry/authority, **without weakening operator-specific behaviour or ship-dark controls.**
+  **Today (deliberate, accepted split):**
+  `apps/core/operations/recovery/` = automated, registry-based, anomaly-type-keyed, flag-gated/ship-dark, with
+  policies and verification predicates · `ops_telemetry._execute_action` = the manual Ops Wall buttons an operator
+  clicks.
+  **Why deferred, not done:** the two answer different questions (what WLJ may repair *by itself* vs. what an
+  operator may *ask it to do*), and the automated registry's shape — keyed by `anomaly_type`, gated by operator
+  flags and allowlists, verified by a predicate — would be distorted by absorbing operator-initiated actions.
+  Consolidation is a **separate architecture decision**, not a defect fix.
+  **Not required to close the 2026-08-29 recovery incident:** the manual path now carries executable-contract
+  coverage (`tests_recovery_action_contract.py` — every advertised action must be dispatchable AND structurally
+  executable, enforced in CI), which removes the failure class that incident exposed.
+  **Promotion trigger:** a defect or requirement that the contract cannot cover — e.g. an operator action needing
+  policy/cooldown/verification semantics, or the two paths drifting in what they consider a valid recovery target.
+  Until then the split stands.
 
 ---
 

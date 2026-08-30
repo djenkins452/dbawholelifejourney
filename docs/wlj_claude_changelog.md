@@ -59708,3 +59708,17 @@ latched completion; debt payoff stays manual; manual entry refused at template, 
 model; detail/list/dashboard/domain-truth/state-builder agreement; authorization (another
 user gets 404 on read and write, and cannot link to another user's account); link audited,
 refreshes not; and the timezone case pinned at 01:45 UTC.
+
+### 2026-08-29 — Repairing the goal start dates already stored in UTC
+
+The code fix stops new goals being stamped with the server's day, but the Emergency
+Fund row still held `started_at = 2026-08-30` while the user's day was the 29th.
+
+- `0031_goal_started_at_local_date` — the field default, `timezone.now` →
+  `timezone.localdate`.
+- `0032_correct_utc_dated_goal_start` — repairs rows already stored that way.
+  Deliberately conservative: it only touches a goal whose `started_at` is in **that
+  user's future**, which is impossible for a start date and is the exact signature of
+  the bug. A legitimately back-dated or today-dated goal is untouched, and re-running
+  changes nothing. Not reversible on purpose — the previous value was wrong, not merely
+  different.

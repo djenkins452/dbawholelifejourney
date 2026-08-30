@@ -972,8 +972,13 @@ class FinancialGoal(UserOwnedModel):
         help_text="Target completion date"
     )
     started_at = models.DateField(
-        default=timezone.now,
-        help_text="When goal tracking started"
+        # `timezone.now` is a UTC DATETIME. Coerced into a DateField it becomes the
+        # UTC date, so a goal created at 21:45 on the 29th in New York was stored as
+        # the 30th and displayed "Started August 30" to someone for whom it was still
+        # the 29th. `localdate` resolves in the project timezone instead; the view
+        # narrows it further to the user's own timezone on create.
+        default=timezone.localdate,
+        help_text="When goal tracking started (the user's local date)"
     )
     completed_at = models.DateField(
         null=True,
@@ -1035,22 +1040,81 @@ class FinancialGoal(UserOwnedModel):
     def get_absolute_url(self):
         return reverse('finance:goal_detail', kwargs={'pk': self.pk})
 
+    # =========================================================================
+    # Progress — ONE authoritative source, derived not copied
+    # =========================================================================
+    #
+    # A goal linked to an account is funded BY that account. Its progress is the
+    # account's balance, read live at the moment of the question — never a second
+    # copy of the number kept in `current_amount`. A stored copy is stale the instant
+    # the balance moves, and would put two different answers on the dashboard and the
+    # goal page. `current_amount` remains the real answer for goals with no linked
+    # account, where the user is the only source.
+
+    @property
+    def is_account_funded(self):
+        """Does an account supply this goal's balance?
+
+        Debt payoff is deliberately excluded: progress there is
+        `starting debt - current debt`, and no starting balance is recorded, so the
+        honest answer is that it stays manual until that truth exists.
+        """
+        return (self.linked_account_id is not None
+                and self.goal_type != self.GOAL_TYPE_DEBT_PAYOFF)
+
+    @property
+    def current_value(self):
+        """THE current amount for this goal. Every surface reads this."""
+        if self.is_account_funded and self.linked_account is not None:
+            return self.linked_account.current_balance or Decimal('0.00')
+        return self.current_amount
+
+    @property
+    def balance_source_name(self):
+        """The account a viewer should be told this number came from."""
+        if self.is_account_funded and self.linked_account is not None:
+            return self.linked_account.name
+        return None
+
+    @property
+    def balance_as_of(self):
+        """When the supplying account's balance was last refreshed."""
+        if self.is_account_funded and self.linked_account is not None:
+            return self.linked_account.balance_updated_at
+        return None
+
     @property
     def progress_percentage(self):
-        """Percentage of goal completed."""
-        if self.target_amount == 0:
+        """Percentage of goal completed — capped at 100 for the VISUAL only.
+
+        The cap keeps a progress bar from overflowing; it never hides the real
+        balance, which `current_value` reports in full.
+        """
+        if not self.target_amount:
             return 0
-        return min(100, (self.current_amount / self.target_amount) * 100)
+        return min(100, (self.current_value / self.target_amount) * 100)
 
     @property
     def remaining_amount(self):
-        """Amount remaining to reach goal."""
-        return max(Decimal('0.00'), self.target_amount - self.current_amount)
+        """Amount remaining to reach goal — never negative."""
+        return max(Decimal('0.00'), self.target_amount - self.current_value)
 
     @property
     def is_completed(self):
-        """Check if goal is completed."""
-        return self.goal_status == self.STATUS_COMPLETED or self.current_amount >= self.target_amount
+        """Is this goal currently meeting its target?
+
+        For an ACCOUNT-FUNDED goal this is deliberately a live comparison and NOT
+        latched on `goal_status`: an emergency fund is an ongoing minimum balance, so
+        it must go back to underfunded by itself if the balance later drops below
+        target. Nothing about it is permanent.
+
+        A manual goal keeps the old meaning, where an explicit completion is a
+        statement the user made and only the user should retract.
+        """
+        if self.is_account_funded:
+            return self.current_value >= self.target_amount
+        return (self.goal_status == self.STATUS_COMPLETED
+                or self.current_amount >= self.target_amount)
 
     @property
     def days_remaining(self):
@@ -1074,7 +1138,15 @@ class FinancialGoal(UserOwnedModel):
         Update goal progress by adding an amount.
 
         Positive for progress, negative for regression.
+
+        Refused for an account-funded goal: the account is the source, and writing
+        here would create a second number that disagrees with it.
         """
+        if self.is_account_funded:
+            from django.core.exceptions import ValidationError
+            raise ValidationError(
+                "This goal's balance comes from its linked account. "
+                "Unlink the account to record progress by hand.")
         self.current_amount += amount
         if self.current_amount >= self.target_amount:
             self.mark_completed()
@@ -1087,23 +1159,14 @@ class FinancialGoal(UserOwnedModel):
         self.completed_at = timezone.now().date()
         self.save(update_fields=['goal_status', 'completed_at', 'current_amount', 'updated_at'])
 
-    def sync_from_account(self):
-        """
-        Sync current amount from linked account balance.
-
-        For savings goals, uses account balance.
-        For debt payoff goals, uses inverse of debt balance.
-        """
-        if not self.linked_account:
-            return
-
-        if self.goal_type == self.GOAL_TYPE_DEBT_PAYOFF:
-            # For debt payoff, progress = starting debt - current debt
-            # We need to track starting balance separately
-            pass
-        else:
-            self.current_amount = self.linked_account.current_balance
-            self.save(update_fields=['current_amount', 'updated_at'])
+    # `sync_from_account()` deliberately no longer exists.
+    #
+    # It copied the linked account's balance into `current_amount`. Nothing ever
+    # called it, which is why a goal linked to a $5,001.11 savings account displayed
+    # $0.00 — but calling it would have been the wrong fix: it creates a second stored
+    # number that is stale the moment the balance moves, and puts the dashboard and
+    # the goal page one refresh apart. `current_value` derives the answer live from
+    # the one place it is true.
 
 
 # =============================================================================

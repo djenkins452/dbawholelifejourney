@@ -366,6 +366,27 @@ class FinancialGoalForm(forms.ModelForm):
         )
         self.fields['linked_account'].widget.attrs['class'] = 'form-select'
         self.fields['linked_account'].required = False
+        self.fields['current_amount'].required = False
+        self.fields['current_amount'].label = "Current amount (manual goals only)"
+        self.fields['current_amount'].help_text = (
+            "Leave blank when an account is linked — the account's balance is used.")
+
+    def clean(self):
+        """A linked account and a hand-typed balance are two answers to one question."""
+        cleaned = super().clean()
+        account = cleaned.get('linked_account')
+        goal_type = cleaned.get('goal_type')
+        typed = cleaned.get('current_amount')
+
+        account_funded = (account is not None
+                          and goal_type != FinancialGoal.GOAL_TYPE_DEBT_PAYOFF)
+        if account_funded and typed:
+            # Not an error the user must fix — just a value that cannot mean
+            # anything, so it is discarded rather than kept to disagree later.
+            cleaned['current_amount'] = Decimal('0.00')
+        elif typed is None:
+            cleaned['current_amount'] = Decimal('0.00')
+        return cleaned
 
     def save(self, commit=True):
         instance = super().save(commit=False)

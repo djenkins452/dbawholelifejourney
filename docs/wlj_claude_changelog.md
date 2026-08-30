@@ -59577,3 +59577,63 @@ every "rendered control" assertion was really asserting against the onboarding
 redirect; and the fixed-width check flagged `.sr-only { width: 1px }`, which is the
 standard visually-hidden clip and is now excluded deliberately (with a companion test
 asserting it stays the standard clip).
+
+## 2026-08-29 — Finance: a linked goal's progress comes from its account
+
+**Symptom.** Emergency Fund, target $1,000, linked to Savings …4255 holding **$5,001.11**,
+displayed **$0 and 0%** on both the goal page and the dashboard, and still offered a
+manual "Update Progress" box.
+
+**Root cause.** `FinancialGoal.linked_account` existed but nothing ever consulted it.
+`progress_percentage`, `remaining_amount` and `is_completed` all read the manual
+`current_amount` field, which was `0.00`. A `sync_from_account()` method existed —
+**and was never called by anything**. Calling it would have been the wrong fix: it
+COPIED the balance into `current_amount`, creating a second stored number that goes
+stale the moment the balance moves and puts the dashboard and the goal page one refresh
+apart. It has been removed, with the reasoning left in its place.
+
+**Derived, not copied.** `current_value` is now the single authority: the linked
+account's balance when an account funds the goal, the manual field otherwise.
+`progress_percentage`, `remaining_amount` and `is_completed` all read it, so every
+existing consumer became correct at once; the raw `current_amount` reads on the goal
+list, dashboard, CoS state builder and Finance domain truth were each switched over.
+Nothing is written — a test asserts the stored field stays `0.00` after every derived
+property is evaluated.
+
+**Ongoing, not permanent.** For an account-funded goal `is_completed` is a live
+comparison and deliberately NOT latched on `goal_status`: an emergency fund is a minimum
+balance, so it returns to underfunded by itself when the balance drops. A stale
+`goal_status='completed'` cannot override a balance below target. Manual goals keep the
+old meaning, where an explicit completion is the user's statement to retract.
+
+**The cap is visual only.** `progress_percentage` is capped at 100 so a progress ring
+cannot overflow; `current_value` still reports the full $5,001.11, and `remaining_amount`
+is `max(target - current, 0)`.
+
+**Manual entry closed properly.** The form is hidden for a linked goal AND the POST
+endpoint refuses it AND `update_progress()` raises — a hidden field is not a closed
+door. The goal page now names the supplying account and the balance's as-of time.
+Debt-payoff goals stay manual even when linked: progress there is
+`starting debt - current debt` and no starting balance is recorded, so deriving it would
+be a guess.
+
+**Timezone.** `started_at` defaulted to `timezone.now` — a UTC *datetime* coerced into a
+DateField, so a goal created 21:45 on Aug 29 in New York stored **Aug 30** and the page
+read "Started August 30" on a screenshot taken the 29th. The default is now
+`timezone.localdate`, and `GoalCreateView` narrows it to `get_user_today(request.user)`.
+
+**Audit.** Link and unlink decisions are recorded through the existing
+`FinanceAuditLogger`. Balance reads are NOT audited — the value is derived on every
+render, so logging them would bury the one event that matters. A test asserts five page
+loads add zero audit rows.
+
+**Untouched:** Plaid synchronisation, transaction ingestion and account balances. No
+migration — the fix removes a stored copy rather than adding one.
+
+**Tests (35).** Linked value/cap/remaining/funded/source/freshness; no write-back; the
+copying helper is gone; above↔below-target transitions in both directions, exactly-on-
+target, a stale completed status, a zero balance; unlinked goals keep manual entry and
+latched completion; debt payoff stays manual; manual entry refused at template, view and
+model; detail/list/dashboard/domain-truth/state-builder agreement; authorization (another
+user gets 404 on read and write, and cannot link to another user's account); link audited,
+refreshes not; and the timezone case pinned at 01:45 UTC.

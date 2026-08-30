@@ -362,8 +362,14 @@ class FinanceDomainTruth(DomainTruth):
                                              if g.life_goal_id else None)},
             status=g.goal_status,
             plan={"target_date": g.target_date.isoformat() if g.target_date else None},
-            standing={"current_amount": float(g.current_amount),
-                      "remaining_amount": float(g.remaining_amount)},
+            standing={"current_amount": float(g.current_value),
+                      "remaining_amount": float(g.remaining_amount),
+                      "meeting_target": g.is_completed,
+                      # Where the number came from, so the model can say so rather
+                      # than implying the user typed it.
+                      "balance_source": g.balance_source_name,
+                      "balance_as_of": (g.balance_as_of.isoformat()
+                                        if g.balance_as_of else None)},
             freshness=F.CURRENT,
         )
 

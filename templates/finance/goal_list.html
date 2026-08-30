@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block title %}Financial Goals - Finance - Whole Life Journey{% endblock %}
 
@@ -39,7 +40,7 @@
                     </div>
                     <div class="progress-labels">
                         <span>{{ goal.progress_percentage|floatformat:0 }}%</span>
-                        <span>${{ goal.current_amount|floatformat:0 }} / ${{ goal.target_amount|floatformat:0 }}</span>
+                        <span>${{ goal.current_value|floatformat:0|intcomma }} / ${{ goal.target_amount|floatformat:0|intcomma }}</span>
                     </div>
                 </div>
 

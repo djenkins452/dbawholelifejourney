@@ -7,7 +7,7 @@
 # Created: 2026-01-02
 # Last Updated: 2026-01-06
 # ==============================================================================
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -747,8 +747,20 @@ class GoalCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):
         return FinancialGoalForm(self.request.user, **self.get_form_kwargs())
 
     def form_valid(self, form):
+        # The user's own date, not the server's. `started_at` defaults to the project
+        # timezone; a user in New York creating a goal at 21:45 would otherwise be
+        # told it started tomorrow.
+        if not form.cleaned_data.get('started_at'):
+            form.instance.started_at = get_user_today(self.request.user)
         messages.success(self.request, f'Goal "{form.instance.name}" created.')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if self.object.linked_account_id:
+            self.get_audit_logger().log(
+                action='update', entity_type='goal', entity_id=self.object.pk,
+                details={'field': 'linked_account', 'from_account_id': None,
+                         'to_account_id': self.object.linked_account_id,
+                         'to_account': self.object.linked_account.name})
+        return response
 
 
 class GoalUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
@@ -763,8 +775,26 @@ class GoalUpdateView(FinanceAuditMixin, FinanceUserMixin, UpdateView):
         return FinancialGoalForm(self.request.user, **self.get_form_kwargs())
 
     def form_valid(self, form):
+        # Audit the LINK DECISION only. The balance itself is derived live and read
+        # on every page render, so auditing "the balance was looked at" would bury
+        # the one event that matters — a person changing where the money comes from.
+        previous_id = None
+        if self.object and self.object.pk:
+            previous_id = (FinancialGoal.objects.filter(pk=self.object.pk)
+                           .values_list('linked_account_id', flat=True).first())
+
         messages.success(self.request, f'Goal "{form.instance.name}" updated.')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+
+        if previous_id != self.object.linked_account_id:
+            self.get_audit_logger().log(
+                action='update', entity_type='goal', entity_id=self.object.pk,
+                details={'field': 'linked_account',
+                         'from_account_id': previous_id,
+                         'to_account_id': self.object.linked_account_id,
+                         'to_account': (self.object.linked_account.name
+                                        if self.object.linked_account_id else None)})
+        return response
 
 
 class GoalDeleteView(FinanceAuditMixin, FinanceUserMixin, DeleteView):
@@ -796,6 +826,16 @@ def goal_update_progress(request, pk):
     )
 
     if request.method == 'POST':
+        # The template hides this form for an account-funded goal; refusing here too
+        # is what actually protects the invariant, since a hidden field is not a
+        # closed door.
+        if goal.is_account_funded:
+            messages.error(
+                request,
+                f'"{goal.name}" is funded by {goal.linked_account.name}, so its '
+                f'balance comes from that account. Unlink it to track progress by hand.')
+            return redirect('finance:goal_detail', pk=pk)
+
         try:
             new_amount = Decimal(request.POST.get('current_amount', '0'))
             goal.current_amount = new_amount
@@ -805,7 +845,7 @@ def goal_update_progress(request, pk):
             else:
                 goal.save(update_fields=['current_amount', 'updated_at'])
                 messages.success(request, 'Goal progress updated.')
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, InvalidOperation):
             messages.error(request, 'Invalid amount.')
 
     return redirect('finance:goal_detail', pk=pk)

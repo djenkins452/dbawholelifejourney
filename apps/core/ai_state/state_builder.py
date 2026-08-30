@@ -5109,7 +5109,9 @@ def build_finance_state(user):
                 'name': g.name, 'type': g.goal_type,
                 'progress_pct': round(g.progress_percentage, 1),
                 'target': float(g.target_amount or 0),
-                'current': float(g.current_amount or 0),
+                # The authoritative figure — an account-funded goal reports its
+                # account's balance, not the unused manual field.
+                'current': float(g.current_value or 0),
                 'target_date': g.target_date.isoformat() if g.target_date else None,
             }
             for g in goals

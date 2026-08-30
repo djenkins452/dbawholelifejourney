@@ -70,7 +70,9 @@
                         {% if txn.payee %}<br><small class="text-muted">{{ txn.payee }}</small>{% endif %}
                     </td>
                     <td>{{ txn.account.name }}</td>
-                    <td>{{ txn.category.name|default:"-" }}</td>
+                    <td class="cat-cell">
+                        {% include "finance/components/category_picker.html" with txn=txn %}
+                    </td>
                     <td class="text-right {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
                         {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
                     </td>
@@ -236,4 +238,5 @@
 </style>
 
 <script src="{% static 'js/bulk-actions.js' %}"></script>
+{% include "finance/components/category_picker_assets.html" %}
 {% endblock %}

@@ -36,6 +36,7 @@ import django.core.files.storage
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import Lower
 from django.urls import reverse
 from django.utils import timezone
 
@@ -357,6 +358,20 @@ class TransactionCategory(models.Model):
             models.UniqueConstraint(
                 fields=['user', 'name', 'category_type'],
                 name='unique_user_category_name'
+            ),
+            # The above is CASE-SENSITIVE, so "Software" and "software" would both be
+            # accepted and the dropdown would show two categories a person cannot tell
+            # apart. Scoped to personal categories: system rows have `user = NULL`,
+            # which never collides in Postgres anyway, and they are seeded, not typed.
+            models.UniqueConstraint(
+                Lower('name'), 'user', 'category_type',
+                condition=models.Q(user__isnull=False),
+                name='uq_personal_category_name_ci',
+            ),
+            # A category with no name cannot be chosen, explained, or reported on.
+            models.CheckConstraint(
+                check=~models.Q(name=''),
+                name='ck_category_name_not_blank',
             ),
         ]
 

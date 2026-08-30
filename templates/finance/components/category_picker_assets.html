@@ -1,0 +1,36 @@
+{% comment %}
+Styles + script for the category picker. Included ONCE per page, alongside any number
+of `category_picker.html` instances.
+
+Touch targets are 44px and inputs are 16px so iOS does not zoom on focus — the
+responsive rules in CLAUDE.md, applied to a control that mostly gets used on a phone
+while standing in a shop.
+{% endcomment %}
+{% load static %}
+<style nonce="{{ csp_nonce }}">
+  .cat-picker { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center;
+                min-width: 0; }
+  .cat-picker select,
+  .cat-picker input[type="text"] { min-height: 44px; font-size: 16px; max-width: 100%; }
+  .cat-picker .btn { min-height: 44px; }
+  .cat-select { max-width: 100%; }
+  .cat-new { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+  .cat-new[hidden] { display: none; }
+  .cat-new-input { flex: 1 1 10rem; min-width: 0; }
+  .cat-status { font-size: .8rem; color: var(--text-muted, #6b7280); }
+  .cat-status-error { color: var(--danger, #b91c1c); }
+  .cat-busy { opacity: .6; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+             overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  /* At phone width the control owns the full row rather than being squeezed
+     into a table cell it cannot fit. */
+  @media (max-width: 480px) {
+    .cat-picker { width: 100%; }
+    .cat-picker select { width: 100%; }
+    .cat-new { width: 100%; }
+    .cat-new-input { flex: 1 1 100%; }
+    .cat-new .btn { flex: 1 1 auto; }
+  }
+</style>
+<script nonce="{{ csp_nonce }}" src="{% static 'js/finance/category_picker.js' %}" defer></script>

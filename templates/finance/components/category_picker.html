@@ -1,0 +1,40 @@
+{% comment %}
+Reusable in-place category picker.
+
+ONE control, used by the transaction list, the transaction detail page and the
+attribution review queue. Each surface renders this partial rather than growing its own
+copy, so the behaviour, the endpoint and the accessibility work stay in one place.
+
+Usage:  {% include "finance/components/category_picker.html" with txn=transaction %}
+
+Renders a native <select> plus a hidden inline "new category" field. Native on purpose:
+it is keyboard- and screen-reader-accessible for free, it is the control mobile users
+already know, and a bespoke listbox would have to re-earn all of that.
+{% endcomment %}
+<div class="cat-picker" data-cat-picker data-transaction-id="{{ txn.pk }}"
+     data-cat-url="{% url 'finance:transaction_category_set' txn.pk %}">
+  <label class="sr-only" for="cat-select-{{ txn.pk }}">
+    Category for {{ txn.payee|default:txn.description }}
+  </label>
+  <select class="cat-select" id="cat-select-{{ txn.pk }}" data-cat-select>
+    <option value="">Uncategorized</option>
+    {% for c in txn.category_options %}
+      <option value="{{ c.id }}"
+              {% if c.id == txn.category_id %}selected{% endif %}>
+        {{ c.name }}{% if c.archived %} (archived){% endif %}
+      </option>
+    {% endfor %}
+    <option value="__new__">+ Create New Category…</option>
+  </select>
+
+  <span class="cat-new" data-cat-new hidden>
+    <label class="sr-only" for="cat-new-{{ txn.pk }}">New category name</label>
+    <input type="text" class="cat-new-input" id="cat-new-{{ txn.pk }}"
+           data-cat-new-input maxlength="100" placeholder="Category name"
+           autocomplete="off">
+    <button type="button" class="btn btn-sm btn-primary" data-cat-new-save>Add</button>
+    <button type="button" class="btn btn-sm" data-cat-new-cancel>Cancel</button>
+  </span>
+
+  <span class="cat-status" data-cat-status role="status" aria-live="polite"></span>
+</div>

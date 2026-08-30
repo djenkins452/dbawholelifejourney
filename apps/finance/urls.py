@@ -9,7 +9,7 @@
 from django.urls import path
 
 from . import views
-from apps.finance import views_attribution
+from apps.finance import views_attribution, views_categories
 
 app_name = 'finance'
 
@@ -67,6 +67,11 @@ urlpatterns = [
 
     # Categories
     path('categories/', views.CategoryListView.as_view(), name='category_list'),
+    # In-place category selection/creation, reused by every editable surface.
+    path('transactions/<int:pk>/category/options/', views_categories.category_options,
+         name='transaction_category_options'),
+    path('transactions/<int:pk>/category/', views_categories.category_set,
+         name='transaction_category_set'),
 
     # Import
     path('import/', views.import_upload_view, name='import_upload'),

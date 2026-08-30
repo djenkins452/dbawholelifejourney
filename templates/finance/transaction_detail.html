@@ -32,7 +32,15 @@
             <dd><a href="{% url 'finance:account_detail' transaction.account.pk %}">{{ transaction.account.name }}</a></dd>
 
             <dt>Category</dt>
-            <dd>{{ transaction.category.name|default:"Uncategorized" }}</dd>
+            <dd>
+                {% include "finance/components/category_picker.html" with txn=transaction %}
+                {% if transaction.provider_category_primary %}
+                <div class="cat-lineage">
+                    Bank reported: {{ transaction.provider_category_primary }}
+                    {% if transaction.category_source == 'user' %}· your choice is authoritative{% endif %}
+                </div>
+                {% endif %}
+            </dd>
 
             {% if transaction.payee %}
             <dt>Payee</dt>
@@ -157,4 +165,5 @@
     border-top: 1px solid var(--color-border);
 }
 </style>
+{% include "finance/components/category_picker_assets.html" %}
 {% endblock %}

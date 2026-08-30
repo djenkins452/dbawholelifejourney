@@ -495,6 +495,9 @@ class TransactionListView(FinanceUserMixin, ListView):
         context['filter_form'] = TransactionFilterForm(
             self.request.user, self.request.GET
         )
+        # ONE categories query for the whole page, however many rows are shown.
+        from apps.finance.services.category_assignment import attach_category_options
+        attach_category_options(self.request.user, context['transactions'])
         return context
 
 
@@ -504,6 +507,15 @@ class TransactionDetailView(FinanceUserMixin, DetailView):
     model = Transaction
     template_name = 'finance/transaction_detail.html'
     context_object_name = 'transaction'
+
+    def get_queryset(self):
+        return super().get_queryset().select_related('account', 'category')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from apps.finance.services.category_assignment import attach_category_options
+        attach_category_options(self.request.user, [context['transaction']])
+        return context
 
 
 class TransactionCreateView(FinanceAuditMixin, LoginRequiredMixin, CreateView):

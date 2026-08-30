@@ -47,6 +47,9 @@
                 </select>
                 <button type="button" class="btn btn-primary attr-save" data-transaction-id="{{ txn.pk }}">Save</button>
             </div>
+            <div class="attr-category">
+                {% include "finance/components/category_picker.html" with txn=txn %}
+            </div>
         </article>
         {% endfor %}
     </section>
@@ -76,6 +79,9 @@
                 </select>
                 <button type="button" class="btn btn-primary attr-save" data-transaction-id="{{ item.transaction.pk }}">Confirm</button>
             </div>
+            <div class="attr-category">
+                {% include "finance/components/category_picker.html" with txn=item.transaction %}
+            </div>
         </article>
         {% endfor %}
     </section>
@@ -90,6 +96,9 @@
                 <span class="attr-desc">{{ item.transaction.payee|default:item.transaction.description }}</span>
                 <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · ${{ item.transaction.absolute_amount|floatformat:2 }}</span>
                 <span class="attr-why">{{ item.reason_label }}</span>
+            </div>
+            <div class="attr-category">
+                {% include "finance/components/category_picker.html" with txn=item.transaction %}
             </div>
         </article>
         {% endfor %}
@@ -118,6 +127,7 @@
     .attr-actions .btn { min-height: 44px; }
     .attr-row-saved { opacity: .6; }
     .attr-empty { color: var(--text-muted, #6b7280); }
+    .attr-category { flex: 1 1 14rem; min-width: 0; }
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
     @media (max-width: 480px) {
         .attr-row { flex-direction: column; align-items: stretch; }
@@ -179,4 +189,5 @@
     });
 })();
 </script>
+{% include "finance/components/category_picker_assets.html" %}
 {% endblock %}

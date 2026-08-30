@@ -59496,3 +59496,84 @@ reachable at `/finance/connections/` and has a teaching destination, but
 `templates/components/navigation.html` has no dropdown entry for it (Dashboard,
 Accounts, Transactions, Budgets, Goals, Metrics only). Logged as the next bounded task
 rather than folded into this remediation.
+
+## 2026-08-29 — Finance: categorise a transaction from the transaction itself
+
+**Why:** a transaction's category was read-only text on every surface. Correcting the
+bank's guess meant the Django admin — which ordinary users neither have nor should have.
+
+**Reuses the existing authorities rather than adding a parallel system:**
+- Visibility is `TransactionCategory.get_for_user` — the same accessor the Categories
+  page already uses. No second notion of "which categories can I see".
+- Authority is the existing `category_source='user'`, which
+  `sync_service._apply_provider_category` ALREADY refuses to overwrite. A user's choice
+  therefore survives every later Plaid sync with no new machinery.
+- Audit is the existing `FinanceAuditLogger` / `FinanceAuditLog`, not a second trail.
+- Access is `finance_enabled_required` — the same capability gate as every other
+  Finance surface. No staff flag, no admin.
+- Lineage: `provider_category_*` is never written by this path, so what the bank said
+  and what the user decided both remain readable.
+
+**New**
+- `apps/finance/services/category_assignment.py` — the only place that decides what a
+  user may pick, what a typed name resolves to, and what an assignment records.
+- `apps/finance/views_categories.py` — `category_options` (GET) and `category_set`
+  (POST). ONE endpoint covers "pick existing" and "create and use", because they are
+  the same intention; splitting them would cost two round trips and leave a window
+  where a category exists but nothing is categorised.
+- `templates/finance/components/category_picker.html` + `_assets.html`, and
+  `static/js/finance/category_picker.js` — one control, included by all three surfaces.
+
+**Minimum information, genuinely.** Creating a category asks for a NAME and nothing
+else: `category_type` is derived from the transaction itself (`infer_category_type` —
+positive amount → income, confirmed transfer → transfer, otherwise expense), because the
+record already holds that fact and asking would be asking twice. `category_type` is not
+accepted from the client at all.
+
+**Duplicates.** `unique_user_category_name` was case-SENSITIVE, so "Software" and
+"software" would both have been accepted and the dropdown would have shown two entries
+nobody could tell apart. Migration `0030` adds:
+- `uq_personal_category_name_ci` — unique on `(Lower(name), user, category_type)`,
+  conditional on `user IS NOT NULL` (system rows are seeded, not typed).
+- `ck_category_name_not_blank` — a nameless category cannot be chosen or reported on.
+At the point of entry, typing a name that already matches a visible category REUSES it
+(and revives the user's own archived one) instead of erroring or creating a near-twin.
+
+**Archived categories are handled, not ignored.** `get_for_user` filters
+`is_active=True`, so an archived category disappears from new choices — but a
+transaction already using one keeps it, and `assignable_categories(include=…)` re-admits
+it for that row alone so the control shows what the transaction actually IS rather than
+silently offering to change it on the next save.
+
+**Query cost.** `attach_category_options` fetches the visible set ONCE per page
+regardless of row count; only a row sitting on an archived category differs. A test
+fails if adding 25 rows costs another categories query.
+
+**Scope held.** No ingestion, identity, sync, transfer-detection or duplicate-prevention
+code was touched; no merchant rules and no bulk recategorisation. A contract test greps
+the service for writes to `plaid_transaction_id`, `provider_category_*`,
+`transfer_state` and `last_sync_cursor` and fails if any appear.
+
+**Tests (56 new; 518 in the Finance + request-path + visual-truth sweep).**
+Authorization (anonymous, capability-disabled, ordinary non-staff, another user's
+transaction); isolation (a foreign category is not offered, cannot be assigned, is
+refused by the service, and never reaches the page); creation (name only, type inferred
+for income and expense, blank refused at both service and DB, case-insensitive reuse,
+system-name reuse, two users may share a private name, same name across types);
+assignment (creation assigns immediately, source recorded, provider lineage preserved,
+a later sync cannot overwrite, clearing is honest); audit (both sides of the change,
+creation recorded, audit failure never blocks the user); archived (still shown where
+used, not offered elsewhere, revived on re-create, archiving does not change what a
+transaction says); system protection (never mutated, never revived, no rename/delete
+route); reuse contract (all three surfaces include the partial, none re-implements
+`data-cat-picker`, one shared script); CSP (no inline handlers, nonce present,
+addEventListener); rendering; query cost; accessibility (labels, `role="status"`,
+`aria-live`, native `<select>`, Enter/Escape); responsive (44px targets, 16px inputs,
+480px breakpoint, no fixed layout widths).
+
+**Two test bugs of mine, fixed rather than worked around:** the first run failed 28
+tests because the test users lacked `TermsAcceptance` + `has_completed_onboarding`, so
+every "rendered control" assertion was really asserting against the onboarding
+redirect; and the fixed-width check flagged `.sr-only { width: 1px }`, which is the
+standard visually-hidden clip and is now excluded deliberately (with a companion test
+asserting it stays the standard clip).

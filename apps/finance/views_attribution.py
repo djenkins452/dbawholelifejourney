@@ -71,6 +71,16 @@ class AttributionReviewView(FinanceEnabledRequiredMixin, PageSummaryMixin,
                 for txn, reason in review.uncertain(user, liability_names=names)
             ],
         })
+
+        # The review queue is where a person is already looking at each transaction, so
+        # it is the natural place to fix the category too. ONE categories query covers
+        # every row across all three sections.
+        from apps.finance.services.category_assignment import attach_category_options
+        attach_category_options(user, (
+            list(context["unattributed"])
+            + [row["transaction"] for row in context["inferred"]]
+            + [row["transaction"] for row in context["uncertain"]]
+        ))
         return context
 
 

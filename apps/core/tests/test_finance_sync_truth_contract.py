@@ -225,6 +225,16 @@ class IsolationTests(TestCase):
                  for e in get_domain_truth(a, "finance").describe("connection")]
         self.assertEqual(names, ["A Bank"])
 
-    def test_a_user_with_no_connections_gets_an_empty_list_not_an_error(self):
+    def test_a_user_with_no_connections_still_gets_the_mechanics(self):
+        """The person most likely to ask how syncing works is the one who has not linked
+        a bank yet. An empty list would send the model back to generic knowledge."""
         u = User.objects.create_user(email="none@contract.test", password="x")
-        self.assertEqual(get_domain_truth(u, "finance").describe("connection"), [])
+        entities = get_domain_truth(u, "finance").describe("connection")
+        self.assertEqual(len(entities), 1)
+        e = _entity_dict(entities[0])
+        self.assertEqual(e["status"], "none")
+        self.assertEqual(e["standing"]["connections_linked"], 0)
+        self.assertFalse(e["standing"]["user_action_required"])
+        self.assertIn("how_it_updates", e["definition"])
+        self.assertIn("/transactions/sync",
+                      e["definition"]["how_it_updates"]["manual_sync_now"])

@@ -2069,7 +2069,9 @@ and bare `response` rows with no preceding truth call for the three earlier smok
 
 **Files:** `apps/finance/services/finance_domain_truth.py` (`connection` entity + `SYNC_MECHANICS`), `apps/core/truth/semantics.py` (meaning + cues), new `apps/core/tests/test_finance_sync_truth_contract.py`, `apps/finance/tests/test_finance_domain_truth.py` (declaration).
 
-**Verification: ZERO provider calls.** 24 new contract tests + 483 finance/request-path tests green; `makemigrations --check` clean. **Production answer NOT yet verified** — confirming it requires a real paid CoS turn, which needs Danny's explicit authorization under the cost governor.
+**Follow-up:** with **zero** linked connections the entity returned an empty list, dropping the mechanics and sending the model straight back to generic knowledge — and the person who has not linked a bank is the one most likely to ask how syncing works. It now returns a single factual `status: none` entity that still carries the mechanics.
+
+**Verification: ZERO provider calls.** 25 new contract tests + 483 finance/request-path tests green; `makemigrations --check` clean. **Production answer NOT yet verified** — confirming it requires a real paid CoS turn, which needs Danny's explicit authorization under the cost governor.
 
 ---
 

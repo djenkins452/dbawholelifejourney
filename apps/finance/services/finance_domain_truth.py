@@ -206,7 +206,26 @@ class FinanceDomainTruth(DomainTruth):
         from apps.finance.models import BankConnection
         conns = (BankConnection.objects.filter(user=self.user)
                  .order_by("institution_name", "id")[:self._MAX_ROWS])
+        if not conns:
+            # "How does syncing work?" is answerable with no banks linked — and someone
+            # who has not linked one is MORE likely to ask. Returning an empty list here
+            # would drop the mechanics and send the model back to general knowledge of the
+            # provider, which is the exact failure this entity exists to prevent.
+            return [self._no_connections_entity()]
         return [self._connection_entity(c) for c in conns]
+
+    def _no_connections_entity(self):
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        return CompleteEntity(
+            kind="connection",
+            identity="no bank connections linked",
+            definition={"how_it_updates": self.SYNC_MECHANICS},
+            status="none",
+            standing={"connections_linked": 0,
+                      "user_action_required": False},
+            freshness=F.CURRENT,
+        )
 
     def _connection_entity(self, c):
         from apps.core.truth import freshness as F

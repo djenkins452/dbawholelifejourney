@@ -59762,3 +59762,60 @@ idempotent.
 Four tests exercise the resolver directly — field not property, legacy name, unknown
 zone falls back to UTC, and an assertion that its source contains neither
 `timezone_iana` nor `get_user_today`, so the specific mistake cannot come back.
+
+## 2026-08-30 — Finance: the Categories page can actually manage categories
+
+**Correction to the record.** `a4fc21d2` shipped the inline *picker* — choose or create
+a category from a transaction. It never touched `/finance/categories/`, and my report on
+it did not claim otherwise but also never said so plainly. The page was a **read-only
+list**: no forms, no buttons, one link back to the dashboard. A test I wrote in that
+same commit (`test_this_feature_exposes_no_rename_or_delete`) actively asserted that
+`category_update` / `category_delete` / `category_rename` did **not** exist — it locked
+the absence in. That test has been rewritten to assert what it actually meant: the
+transaction-side endpoint cannot be used to mutate a category.
+
+**What was missing and is now built** — five owner-scoped routes, all `POST`, all behind
+`login_required` + `finance_enabled_required`:
+`category_create`, `category_rename`, `category_archive`, `category_restore`,
+`category_delete`.
+
+**One authority, two doors.** The management functions live in the SAME
+`services/category_assignment.py` the picker uses, and creation goes through the same
+`resolve_or_create_category`, so a name typed on the Categories page and a name typed on
+a transaction resolve identically — including reusing an existing match rather than
+making a near-twin. A test asserts both surfaces call that module, and that only one
+`Category` model exists in `apps.finance.models`.
+
+**Delete is refused whenever anything depends on the category** — and that is not
+caution. `Budget.category` is `on_delete=CASCADE`: deleting a category in use would have
+silently deleted the user's budgets. `parent` cascades onto sub-categories too. The page
+hides the Delete button and shows "In use — archive instead" with the actual counts;
+the service refuses independently.
+
+**Archive is the safe primary action.** A transaction already assigned keeps its
+category and keeps displaying it (`assignable_categories(include=…)` re-admits it for
+that row); the category simply stops being offered for anything new. Restore brings it
+back.
+
+**Also fixed while here:** `CategoryListView` was `LoginRequiredMixin` only — any
+authenticated user could open it whether or not Finance was enabled for them. It now
+carries `FinanceEnabledRequiredMixin` like every other Finance surface.
+
+**A real finding from the tests.** `unique_user_category_name` is
+`(user, name, category_type)` and does **not** exclude archived rows, so a second
+"Coffee" cannot be created while an archived "Coffee" exists — stricter than the
+restore-time guard I wrote, which is therefore defence in depth rather than the thing
+protecting the user. What a person actually experiences is better than an error: typing
+the archived name again **revives** the archived category. Both are now tested.
+
+**Tests (43 new; 83 with the picker suite).** Create income/expense as a non-staff user,
+blank refused, case-insensitive reuse, bad type refused; rename incl. pure case change
+and clash refusal; archive hides from new assignment but leaves the transaction valid
+and still displaying it; archived list; restore; delete allowed only when unused, refused
+for transaction AND budget use, button hidden while in use; system categories
+un-renameable/un-archivable/un-deletable (404 + service-level refusal); owner isolation
+across list, rename, archive, restore, delete; capability gate on the page and every
+route; every route rejects GET (405); audit for create/rename/archive/restore/delete
+with both sides of a rename, and audit failure never blocking the user; shared-authority
+checks; 44px targets, 16px inputs, 480px breakpoint, no fixed layout widths, labelled
+fields, CSRF on every form, no inline handlers.

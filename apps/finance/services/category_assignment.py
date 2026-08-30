@@ -262,3 +262,189 @@ def _option(category):
         "personal": category.user_id is not None,
         "archived": not category.is_active,
     }
+
+
+# =============================================================================
+# Managing personal categories — the Categories page
+# =============================================================================
+#
+# The same module as assignment on purpose. The inline picker and the Categories
+# page are two doors into ONE set of rules: what a user may see, what a name
+# resolves to, and what may be changed. Splitting management into its own service
+# is how the two surfaces would start disagreeing about which categories exist.
+
+#: Everything that points at a category, and what deleting one would do to it.
+#: `Budget.category` CASCADES — deleting a category in use would silently delete
+#: the user's budgets, which is why deletion is refused rather than cascaded.
+def category_usage(category):
+    """What currently depends on this category. Counts only, cheap enough to render."""
+    from apps.finance.models import (Budget, Payee, RecurringTransaction,
+                                     Transaction, TransactionCategory)
+
+    return {
+        "transactions": Transaction.objects.filter(category=category).count(),
+        "budgets": Budget.objects.filter(category=category).count(),
+        "recurring": RecurringTransaction.objects.filter(category=category).count(),
+        "payees": Payee.objects.filter(default_category=category).count(),
+        "children": TransactionCategory.objects.filter(parent=category).count(),
+    }
+
+
+def is_in_use(category):
+    return any(category_usage(category).values())
+
+
+def _require_personal(user, category):
+    """A user may only manage a category they own.
+
+    System categories are shared by everyone and are never editable here — not
+    renamed, not archived, not deleted — regardless of who is asking.
+    """
+    if category.is_system or category.user_id is None:
+        raise ValidationError("System categories cannot be changed.")
+    if category.user_id != user.id:
+        raise ValidationError("That category does not belong to you.")
+
+
+def create_personal_category(user, name, category_type, *, request=None):
+    """Create a category from the Categories page.
+
+    Goes through the SAME `resolve_or_create_category` the inline picker uses, so
+    a name typed here and a name typed on a transaction resolve identically —
+    including reusing an existing match instead of making a near-twin.
+    """
+    from apps.finance.models import TransactionCategory
+
+    if category_type not in dict(TransactionCategory.CATEGORY_TYPE_CHOICES):
+        raise ValidationError("Choose whether this is income or an expense.")
+
+    category, created = resolve_or_create_category(user, name, category_type)
+    if created:
+        audit_category_created(user, category, request=request)
+    return category, created
+
+
+def rename_personal_category(user, category, new_name, *, request=None):
+    """Rename a category the user owns, refusing a name they already use."""
+    _require_personal(user, category)
+    name = normalise_name(new_name)
+
+    if name.lower() == category.name.lower():
+        category.name = name                      # a pure case change is allowed
+        category.save(update_fields=["name", "updated_at"])
+        return category
+
+    clash = find_visible_match(user, name, category.category_type)
+    if clash is not None and clash.pk != category.pk:
+        raise ValidationError(
+            f'You already have a category called "{clash.name}".')
+
+    previous = category.name
+    category.name = name
+    category.save(update_fields=["name", "updated_at"])
+    _audit_category(user, request, category, "rename",
+                    {"from": previous, "to": name})
+    return category
+
+
+def archive_personal_category(user, category, *, request=None):
+    """Hide a category from future use WITHOUT touching what already uses it.
+
+    Archiving is the safe, reversible answer and the reason deletion is rarely
+    needed: every transaction already assigned keeps its category and keeps
+    displaying it, while the category stops being offered for anything new.
+    """
+    _require_personal(user, category)
+    if not category.is_active:
+        return category
+
+    category.is_active = False
+    category.save(update_fields=["is_active", "updated_at"])
+    _audit_category(user, request, category, "archive", category_usage(category))
+    return category
+
+
+def restore_personal_category(user, category, *, request=None):
+    """Bring an archived category back into use."""
+    _require_personal(user, category)
+    if category.is_active:
+        return category
+
+    # While it was away the user may have created something with the same name.
+    clash = find_visible_match(user, category.name, category.category_type)
+    if clash is not None and clash.pk != category.pk and clash.is_active:
+        raise ValidationError(
+            f'"{clash.name}" is in use again — rename one of them first.')
+
+    category.is_active = True
+    category.save(update_fields=["is_active", "updated_at"])
+    _audit_category(user, request, category, "restore", {})
+    return category
+
+
+def delete_personal_category(user, category, *, request=None):
+    """Permanently remove a category — ONLY when nothing depends on it.
+
+    Refused whenever anything references it, and that is not mere caution:
+    `Budget.category` is `on_delete=CASCADE`, so deleting a category in use would
+    silently delete the user's budgets, and `parent` cascades onto sub-categories.
+    Archiving is offered instead, which is what someone almost always meant.
+    """
+    _require_personal(user, category)
+
+    usage = category_usage(category)
+    if any(usage.values()):
+        parts = [f"{count} {label}" for label, count in usage.items() if count]
+        raise ValidationError(
+            "This category is still used by " + ", ".join(parts) +
+            ". Archive it instead — that keeps the history and stops it being "
+            "offered for anything new.")
+
+    _audit_category(user, request, category, "delete",
+                    {"name": category.name, "category_type": category.category_type})
+    category.delete()
+    return None
+
+
+def _audit_category(user, request, category, action, details):
+    """One audit shape for every management decision, on the existing logger."""
+    from apps.finance.security import FinanceAuditLogger
+
+    action_map = {
+        "rename": FinanceAuditLogger.ACTION_UPDATE,
+        "archive": FinanceAuditLogger.ACTION_UPDATE,
+        "restore": FinanceAuditLogger.ACTION_UPDATE,
+        "delete": FinanceAuditLogger.ACTION_DELETE,
+    }
+    try:
+        FinanceAuditLogger(user=user, request=request).log(
+            action=action_map.get(action, FinanceAuditLogger.ACTION_UPDATE),
+            entity_type="transaction_category",
+            entity_id=category.pk,
+            details={"operation": action, **(details or {})},
+        )
+    except Exception:
+        logger.warning("Could not audit category %s on %s", action, category.pk,
+                       exc_info=True)
+
+
+def manageable_categories(user):
+    """Everything the Categories page shows, split the way a person thinks about it.
+
+    ONE query per group, and the same visibility rule the picker uses — a category
+    that is offered on a transaction is a category that appears here.
+    """
+    from apps.finance.models import TransactionCategory
+
+    personal = list(TransactionCategory.objects
+                    .filter(user=user)
+                    .order_by("category_type", "sort_order", "name"))
+    system = list(TransactionCategory.objects
+                  .filter(is_system=True, is_active=True)
+                  .order_by("category_type", "sort_order", "name"))
+
+    return {
+        "personal_active": [c for c in personal if c.is_active],
+        "personal_archived": [c for c in personal if not c.is_active],
+        "system": system,
+    }

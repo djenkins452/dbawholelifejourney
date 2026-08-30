@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import json
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 
 from apps.finance.access import finance_enabled_required
@@ -114,3 +115,114 @@ def _visible_to(user):
     """System categories, plus this user's own. Never anyone else's."""
     from django.db.models import Q
     return Q(is_system=True) | Q(user=user)
+
+
+# =============================================================================
+# Categories page — managing personal categories
+# =============================================================================
+#
+# Ordinary Finance permissions throughout: `finance_enabled_required`, the same
+# gate as every other Finance surface. Nothing here needs staff or Django admin.
+# Ownership is enforced in the LOOKUP, so another user's category is simply not
+# found rather than found-then-refused.
+
+def _owned_category(request, pk):
+    """This user's own category, or a 404. Never anyone else's, never a system row."""
+    from apps.finance.models import TransactionCategory
+    return get_object_or_404(
+        TransactionCategory, pk=pk, user=request.user, is_system=False)
+
+
+def _back(request):
+    return redirect("finance:category_list")
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def category_create(request):
+    """Create a personal income or expense category."""
+    name = (request.POST.get("name") or "").strip()
+    category_type = (request.POST.get("category_type") or "").strip()
+
+    try:
+        category, created = categories.create_personal_category(
+            request.user, name, category_type, request=request)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+        return _back(request)
+
+    if created:
+        messages.success(request, f'Category "{category.name}" created.')
+    else:
+        messages.info(
+            request,
+            f'"{category.name}" already exists — no duplicate was created.')
+    return _back(request)
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def category_rename(request, pk):
+    """Rename a personal category."""
+    category = _owned_category(request, pk)
+    try:
+        categories.rename_personal_category(
+            request.user, category, request.POST.get("name"), request=request)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, f'Renamed to "{category.name}".')
+    return _back(request)
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def category_archive(request, pk):
+    """Stop offering a category without disturbing anything already using it."""
+    category = _owned_category(request, pk)
+    try:
+        categories.archive_personal_category(request.user, category,
+                                             request=request)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(
+            request,
+            f'"{category.name}" archived. Transactions already using it keep it.')
+    return _back(request)
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def category_restore(request, pk):
+    """Bring an archived category back."""
+    category = _owned_category(request, pk)
+    try:
+        categories.restore_personal_category(request.user, category,
+                                             request=request)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, f'"{category.name}" restored.')
+    return _back(request)
+
+
+@login_required
+@finance_enabled_required
+@require_POST
+def category_delete(request, pk):
+    """Delete a personal category — only when nothing depends on it."""
+    category = _owned_category(request, pk)
+    name = category.name
+    try:
+        categories.delete_personal_category(request.user, category,
+                                            request=request)
+    except ValidationError as exc:
+        messages.error(request, "; ".join(exc.messages))
+    else:
+        messages.success(request, f'"{name}" deleted.')
+    return _back(request)

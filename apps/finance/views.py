@@ -901,8 +901,13 @@ def refresh_metrics(request):
 # Categories
 # =============================================================================
 
-class CategoryListView(LoginRequiredMixin, ListView):
-    """List and manage transaction categories."""
+class CategoryListView(FinanceEnabledRequiredMixin, LoginRequiredMixin, ListView):
+    """List AND manage transaction categories.
+
+    Gated on the ordinary Finance capability like every other Finance surface —
+    it was previously only `LoginRequiredMixin`, which let anyone authenticated
+    reach it whether or not Finance was enabled for them.
+    """
 
     model = TransactionCategory
     template_name = 'finance/category_list.html'
@@ -912,6 +917,9 @@ class CategoryListView(LoginRequiredMixin, ListView):
         return TransactionCategory.get_for_user(self.request.user)
 
     def get_context_data(self, **kwargs):
+        from apps.finance.services.category_assignment import (
+            category_usage, manageable_categories)
+
         context = super().get_context_data(**kwargs)
         categories = context['categories']
 
@@ -922,6 +930,16 @@ class CategoryListView(LoginRequiredMixin, ListView):
             c for c in categories if c.category_type == 'expense'
         ]
 
+        groups = manageable_categories(self.request.user)
+        # What depends on each personal category, so "delete" can say WHY it is
+        # unavailable instead of failing after the click.
+        for category in groups['personal_active'] + groups['personal_archived']:
+            usage = category_usage(category)
+            category.usage_total = sum(usage.values())
+            category.usage_detail = ", ".join(
+                f"{count} {label}" for label, count in usage.items() if count)
+        context.update(groups)
+        context['category_types'] = TransactionCategory.CATEGORY_TYPE_CHOICES
         return context
 
 

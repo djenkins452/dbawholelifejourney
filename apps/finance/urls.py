@@ -67,6 +67,17 @@ urlpatterns = [
 
     # Categories
     path('categories/', views.CategoryListView.as_view(), name='category_list'),
+    # Managing personal categories — ordinary Finance permissions, no admin.
+    path('categories/create/', views_categories.category_create,
+         name='category_create'),
+    path('categories/<int:pk>/rename/', views_categories.category_rename,
+         name='category_rename'),
+    path('categories/<int:pk>/archive/', views_categories.category_archive,
+         name='category_archive'),
+    path('categories/<int:pk>/restore/', views_categories.category_restore,
+         name='category_restore'),
+    path('categories/<int:pk>/delete/', views_categories.category_delete,
+         name='category_delete'),
     # In-place category selection/creation, reused by every editable surface.
     path('transactions/<int:pk>/category/options/', views_categories.category_options,
          name='transaction_category_options'),

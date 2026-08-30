@@ -15,46 +15,164 @@
         <p class="page-subtitle">Organize your income and expenses</p>
     </div>
 
-    <div class="categories-grid">
-        <!-- Income Categories -->
-        <div class="category-section">
-            <h2 class="section-title">Income</h2>
-            <div class="category-list">
-                {% for category in income_categories %}
-                <div class="category-item">
-                    <span class="category-color" style="background-color: {{ category.color }};"></span>
-                    <span class="category-name">{{ category.name }}</span>
-                    {% if category.is_system %}
-                    <span class="category-badge">System</span>
-                    {% endif %}
-                </div>
-                {% empty %}
-                <p class="text-muted">No income categories.</p>
-                {% endfor %}
-            </div>
-        </div>
+    {% if messages %}
+    <ul class="cat-messages">
+      {% for message in messages %}
+      <li class="cat-message cat-message-{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
 
-        <!-- Expense Categories -->
-        <div class="category-section">
-            <h2 class="section-title">Expenses</h2>
-            <div class="category-list">
-                {% for category in expense_categories %}
-                <div class="category-item">
-                    <span class="category-color" style="background-color: {{ category.color }};"></span>
-                    <span class="category-name">{{ category.full_path }}</span>
-                    {% if category.is_system %}
-                    <span class="category-badge">System</span>
-                    {% endif %}
-                </div>
-                {% empty %}
-                <p class="text-muted">No expense categories.</p>
-                {% endfor %}
+    <!-- Create -->
+    <section class="cat-panel" aria-labelledby="cat-new-heading">
+        <h2 id="cat-new-heading" class="section-title">Add a category</h2>
+        <form method="post" action="{% url 'finance:category_create' %}" class="cat-create-form">
+            {% csrf_token %}
+            <div class="cat-field">
+                <label for="cat-new-name">Name</label>
+                <input type="text" id="cat-new-name" name="name" maxlength="100"
+                       required autocomplete="off" placeholder="e.g. Coffee">
             </div>
+            <div class="cat-field">
+                <label for="cat-new-type">Type</label>
+                <select id="cat-new-type" name="category_type">
+                    {% for value, label in category_types %}
+                    <option value="{{ value }}"{% if value == 'expense' %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Add category</button>
+        </form>
+    </section>
+
+    <!-- Your categories -->
+    <section class="cat-panel" aria-labelledby="cat-yours-heading">
+        <h2 id="cat-yours-heading" class="section-title">Your categories</h2>
+        {% for category in personal_active %}
+        <div class="cat-row" data-testid="personal-category">
+            <span class="category-color" style="background-color: {{ category.color }};"></span>
+            <form method="post" action="{% url 'finance:category_rename' category.pk %}" class="cat-rename">
+                {% csrf_token %}
+                <label class="sr-only" for="cat-name-{{ category.pk }}">Rename {{ category.name }}</label>
+                <input type="text" id="cat-name-{{ category.pk }}" name="name"
+                       value="{{ category.name }}" maxlength="100" autocomplete="off">
+                <button type="submit" class="btn btn-sm">Rename</button>
+            </form>
+            <span class="cat-meta">
+                {{ category.get_category_type_display }}{% if category.usage_total %} · used by {{ category.usage_detail }}{% endif %}
+            </span>
+            <span class="cat-actions">
+                <form method="post" action="{% url 'finance:category_archive' category.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm">Archive</button>
+                </form>
+                {% if category.usage_total %}
+                <span class="cat-note" title="{{ category.usage_detail }}">In use — archive instead</span>
+                {% else %}
+                <form method="post" action="{% url 'finance:category_delete' category.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+                {% endif %}
+            </span>
         </div>
-    </div>
+        {% empty %}
+        <p class="text-muted">You have not added any categories of your own yet.</p>
+        {% endfor %}
+    </section>
+
+    <!-- Archived -->
+    {% if personal_archived %}
+    <section class="cat-panel" aria-labelledby="cat-archived-heading">
+        <h2 id="cat-archived-heading" class="section-title">Archived</h2>
+        <p class="text-muted cat-explainer">
+            Not offered for new transactions. Anything already using one keeps it.
+        </p>
+        {% for category in personal_archived %}
+        <div class="cat-row cat-row-archived" data-testid="archived-category">
+            <span class="category-color" style="background-color: {{ category.color }};"></span>
+            <span class="category-name">{{ category.name }}</span>
+            <span class="cat-meta">
+                {{ category.get_category_type_display }}{% if category.usage_total %} · still on {{ category.usage_detail }}{% endif %}
+            </span>
+            <span class="cat-actions">
+                <form method="post" action="{% url 'finance:category_restore' category.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-primary">Restore</button>
+                </form>
+                {% if not category.usage_total %}
+                <form method="post" action="{% url 'finance:category_delete' category.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                </form>
+                {% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <!-- System -->
+    <section class="cat-panel" aria-labelledby="cat-system-heading">
+        <h2 id="cat-system-heading" class="section-title">Built-in categories</h2>
+        <p class="text-muted cat-explainer">
+            Available to everyone and not editable. Add your own above if you need
+            something different.
+        </p>
+        <div class="cat-system-list">
+            {% for category in system %}
+            <span class="cat-chip" data-testid="system-category">
+                <span class="category-color" style="background-color: {{ category.color }};"></span>
+                {{ category.name }}
+                <span class="category-badge">System</span>
+            </span>
+            {% endfor %}
+        </div>
+    </section>
 </div>
 
 <style nonce="{{ csp_nonce }}">
+.cat-messages { list-style: none; padding: 0; margin: 0 0 1rem; }
+.cat-message { padding: .6rem .85rem; border-radius: 6px; margin-bottom: .5rem;
+               background: var(--surface-2, #f3f4f6); }
+.cat-message-error { background: var(--danger-bg, #fef2f2); color: var(--danger, #b91c1c); }
+.cat-message-success { background: var(--success-bg, #ecfdf5); }
+.cat-panel { margin-bottom: 2rem; }
+.cat-explainer { font-size: .875rem; margin-top: -.25rem; }
+.cat-create-form { display: flex; flex-wrap: wrap; gap: .75rem; align-items: flex-end; }
+.cat-field { display: flex; flex-direction: column; gap: .25rem; flex: 1 1 12rem; min-width: 0; }
+.cat-field label { font-size: .8rem; color: var(--text-muted, #6b7280); }
+.cat-row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center;
+           padding: .7rem 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+.cat-row-archived { opacity: .8; }
+.cat-rename { display: flex; gap: .4rem; align-items: center; flex: 1 1 16rem; min-width: 0; }
+.cat-rename input { flex: 1 1 auto; min-width: 0; }
+.cat-meta { font-size: .8rem; color: var(--text-muted, #6b7280); flex: 1 1 10rem; }
+.cat-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.cat-actions form { display: inline; }
+.cat-note { font-size: .78rem; color: var(--text-muted, #6b7280); }
+.cat-system-list { display: flex; flex-wrap: wrap; gap: .5rem; }
+.cat-chip { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .7rem;
+            border-radius: 999px; background: var(--surface-2, #f3f4f6); font-size: .875rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+           overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Touch targets and iOS zoom prevention, per CLAUDE.md. */
+.cat-panel input[type="text"], .cat-panel select { min-height: 44px; font-size: 16px;
+                                                   max-width: 100%; }
+.cat-panel .btn { min-height: 44px; }
+
+/* At phone width every control owns its own line rather than being squeezed. */
+@media (max-width: 480px) {
+    .cat-create-form { flex-direction: column; align-items: stretch; }
+    .cat-field { flex: 1 1 100%; }
+    .cat-create-form .btn { width: 100%; }
+    .cat-row { flex-direction: column; align-items: stretch; }
+    .cat-rename { flex: 1 1 100%; }
+    .cat-actions { width: 100%; }
+    .cat-actions form, .cat-actions .btn { flex: 1 1 auto; }
+}
+
 .categories-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

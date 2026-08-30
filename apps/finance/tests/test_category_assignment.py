@@ -384,9 +384,17 @@ class SystemCategoryProtectionTests(CategoryTestBase):
         self.assertFalse(self.system.is_active,
                          "a system category must not be silently re-activated")
 
-    def test_this_feature_exposes_no_rename_or_delete(self):
-        from apps.finance import urls as finance_urls
-        names = {p.name for p in finance_urls.urlpatterns if getattr(p, "name", None)}
-        self.assertIn("transaction_category_set", names)
-        for forbidden in ("category_delete", "category_update", "category_rename"):
-            self.assertNotIn(forbidden, names)
+    def test_the_picker_endpoint_itself_only_assigns_and_creates(self):
+        """Management lives on the Categories page, not behind the inline picker.
+
+        (Rename/archive/delete DO exist now — as separate, owner-scoped routes
+        covered by `test_category_management`. What must stay true is that the
+        transaction-side endpoint cannot be used to mutate a category.)
+        """
+        import inspect
+        from apps.finance import views_categories
+
+        source = inspect.getsource(views_categories.category_set)
+        for mutation in ("rename_personal_category", "archive_personal_category",
+                         "delete_personal_category", ".delete()"):
+            self.assertNotIn(mutation, source)
